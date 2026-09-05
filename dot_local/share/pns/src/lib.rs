@@ -36,17 +36,17 @@ pub mod presence_lock;
 pub mod presence_policy;
 pub mod presence_room;
 pub mod probes;
-pub mod pulse;
-pub mod quiet;
 pub mod recap;
 pub mod registry;
 pub mod routing;
 pub mod setup;
-pub mod surface;
 pub mod system;
 
 // WHAT HAS MOVED INTO `pns-domain`, re-exported so every caller keeps its old
 // path. The re-exports go when the composition root does.
 pub use pns_domain::count::parse_count;
+pub use pns_domain::pulse;
+pub use pns_domain::quiet;
 pub use pns_domain::render;
 pub use pns_domain::safety;
+pub use pns_domain::surface;

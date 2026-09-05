@@ -25,6 +25,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+// `Behaviour` moved to `pns-domain`, because the pulse and lamp policy answer
+// in it and a member crate never depends back on this package. What a
+// `[lights]` table is allowed to say is still judged here.
+pub use pns_domain::lamps::config::Behaviour;
+
 /// One plugin's slice of the config: the selection flag, and its settings
 /// with the flag itself removed, because `enabled` belongs to this layer and
 /// everything else belongs to the plugin.
@@ -225,23 +230,6 @@ pub struct Target {
     /// window with an empty list a room that goes dark for the night with no
     /// second mode to spell it.
     pub dim_behaviours: Vec<Behaviour>,
-}
-
-/// What a lamp can say. A CLOSED SET, which is the whole reason `[lights]` is
-/// judged here instead of passed through as a plugin's free-form settings: a
-/// `shows` list holding a word nothing matches is a lamp that stays dark while
-/// the operator is sure they routed it, with no message anywhere.
-///
-/// `Unread` IS ONE WORD AND CARRIES TWO COLOURS. Its success and failure
-/// flavours always ride the same lamp, so a config cannot route one without the
-/// other and there is no spelling for trying.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Behaviour {
-    Done,
-    Failed,
-    Blocked,
-    Unread,
-    Looping,
 }
 
 /// The five words, in the spelling a config uses, and the order the refusal
