@@ -389,6 +389,12 @@ return {
         return
       end
       for _, params in ipairs(decoded) do
+        -- `Task:serialize()` keeps `from_template`, and `new_task` treats that
+        -- as "rebuild me from the template", which threw away everything the
+        -- bundle had saved: an edited command came back as the template's, with
+        -- the environment and any hand-added component gone, while the restore
+        -- still reported success. The saved definition IS the thing to restore.
+        params.from_template = nil
         local task = overseer.new_task(params)
         -- Bang means restore the tasks without running them.
         if not args.bang then
