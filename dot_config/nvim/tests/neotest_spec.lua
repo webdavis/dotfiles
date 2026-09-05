@@ -437,12 +437,18 @@ cases["when the cases are done, the fixture tree is deleted"] = function()
   -- directory, so every run of this spec left its whole fixture tree behind. Sorted case names are
   -- what put this one last, so a case added later under a name that sorts after it fails here
   -- rather than finding the fixtures already gone.
+  -- The ordering complaint is recorded and raised LAST, after the tree is gone. Raising it first
+  -- skipped the delete and leaked the very tree this case exists to remove.
   local last = "when the cases are done, the fixture tree is deleted"
+  local sorts_after
   for name in pairs(cases) do
-    assert(name <= last, "a case sorts after the cleanup and would find no fixtures: " .. name)
+    if name > last then
+      sorts_after = name
+    end
   end
   vim.fn.delete(fixture_root, "rf")
   assert(vim.uv.fs_stat(fixture_root) == nil, "the fixture tree outlived the run: " .. fixture_root)
+  assert(not sorts_after, "a case sorts after the cleanup and would find no fixtures: " .. tostring(sorts_after))
 end
 
 return cases
