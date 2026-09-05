@@ -237,6 +237,99 @@ return {
     end, {})
 
     local overseer_watch_run_desc = "Overseer: watch-run"
+    -- Task bundles.
+    --
+    -- Overseer shipped OverseerSaveBundle and OverseerLoadBundle until they were
+    -- removed; `bundles` is not a config key at the pinned commit and `bundle`
+    -- appears nowhere in the plugin's source. What survived is the pair the
+    -- feature was built on, `Task:serialize()` and `new_task()`, which is exactly
+    -- what the plugin's own resession extension uses. These three commands are
+    -- that same pair with a file behind it, so the capability is back without
+    -- taking on a session manager to get it.
+    local bundle_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "overseer", "bundles")
+
+    local function bundle_path(name)
+      return vim.fs.joinpath(bundle_dir, name .. ".json")
+    end
+
+    local function bundle_names()
+      local names = {}
+      for name, kind in vim.fs.dir(bundle_dir) do
+        if kind == "file" and name:match("%.json$") then
+          table.insert(names, (name:gsub("%.json$", "")))
+        end
+      end
+      table.sort(names)
+      return names
+    end
+
+    -- A bundle with no name is this project's bundle, which is the common case.
+    local function default_bundle_name()
+      return vim.fs.basename(vim.uv.cwd() or "overseer")
+    end
+
+    local function complete_bundle(arglead)
+      return vim.tbl_filter(function(name)
+        return vim.startswith(name, arglead)
+      end, bundle_names())
+    end
+
+    vim.api.nvim_create_user_command("OverseerSaveBundle", function(args)
+      local name = args.args ~= "" and args.args or default_bundle_name()
+      local tasks = overseer.list_tasks({})
+      if vim.tbl_isempty(tasks) then
+        vim.notify("No tasks to save", vim.log.levels.WARN, overseer_title)
+        return
+      end
+      local serialized = vim.tbl_map(function(task)
+        return task:serialize()
+      end, tasks)
+      vim.fn.mkdir(bundle_dir, "p")
+      -- writefile over io.open: it writes the file in one call and reports failure
+      -- as a non-zero return rather than leaving a half-written bundle behind.
+      if vim.fn.writefile({ vim.json.encode(serialized) }, bundle_path(name)) ~= 0 then
+        vim.notify("Could not write bundle " .. name, vim.log.levels.ERROR, overseer_title)
+        return
+      end
+      vim.notify(("Saved %d task(s) to bundle %s"):format(#serialized, name), vim.log.levels.INFO, overseer_title)
+    end, { nargs = "?", complete = complete_bundle, desc = "Overseer: save the task list as a bundle" })
+
+    vim.api.nvim_create_user_command("OverseerLoadBundle", function(args)
+      local name = args.args ~= "" and args.args or default_bundle_name()
+      local path = bundle_path(name)
+      if vim.fn.filereadable(path) ~= 1 then
+        vim.notify("No bundle named " .. name, vim.log.levels.ERROR, overseer_title)
+        return
+      end
+      local ok, decoded = pcall(vim.json.decode, table.concat(vim.fn.readfile(path), "\n"))
+      if not ok or type(decoded) ~= "table" then
+        vim.notify("Bundle " .. name .. " is not readable JSON", vim.log.levels.ERROR, overseer_title)
+        return
+      end
+      for _, params in ipairs(decoded) do
+        local task = overseer.new_task(params)
+        -- Bang means restore the tasks without running them.
+        if not args.bang then
+          task:start()
+        end
+      end
+      vim.notify(("Loaded %d task(s) from bundle %s"):format(#decoded, name), vim.log.levels.INFO, overseer_title)
+    end, {
+      nargs = "?",
+      bang = true,
+      complete = complete_bundle,
+      desc = "Overseer: load a task bundle (with ! do not start them)",
+    })
+
+    vim.api.nvim_create_user_command("OverseerDeleteBundle", function(args)
+      local name = args.args ~= "" and args.args or default_bundle_name()
+      if vim.fn.delete(bundle_path(name)) ~= 0 then
+        vim.notify("No bundle named " .. name, vim.log.levels.ERROR, overseer_title)
+        return
+      end
+      vim.notify("Deleted bundle " .. name, vim.log.levels.INFO, overseer_title)
+    end, { nargs = "?", complete = complete_bundle, desc = "Overseer: delete a task bundle" })
+
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
       overseer.run_task({ name = "run script" }, function(task)
         if task then
@@ -365,6 +458,30 @@ return {
       remap = false,
       silent = true,
       desc = "Overseer: toggle (without focus)",
+    })
+
+    -- The three bundle commands take an optional name and complete over the
+    -- bundles already on disk, so these leave the cmdline open the same way
+    -- `<leader>os` does.
+    map({
+      mode = "n",
+      lhs = "<leader>ob",
+      rhs = ":OverseerSaveBundle ",
+      desc = "Overseer: save the task list as a bundle",
+    })
+
+    map({
+      mode = "n",
+      lhs = "<leader>oB",
+      rhs = ":OverseerLoadBundle ",
+      desc = "Overseer: load a task bundle",
+    })
+
+    map({
+      mode = "n",
+      lhs = "<leader>oX",
+      rhs = ":OverseerDeleteBundle ",
+      desc = "Overseer: delete a task bundle",
     })
 
     -- OverseerShell takes the command as its argument, so this leaves the
