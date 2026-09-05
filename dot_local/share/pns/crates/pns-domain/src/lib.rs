@@ -20,3 +20,4 @@
 //! step removes the re-exports.
 
 pub mod count;
+pub mod lights;
