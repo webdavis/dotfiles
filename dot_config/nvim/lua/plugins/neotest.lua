@@ -85,6 +85,61 @@ local function nearest_declared_runner(path)
   return nil
 end
 
+--- The adapter each declared JavaScript runner belongs to.
+local javascript_adapters = {
+  vitest = "neotest-vitest",
+  jest = "neotest-jest",
+  node = "neotest-nodejs",
+}
+
+--- Run everything under the working directory through ONE named adapter.
+---
+--- neotest takes a directory without asking any adapter's `is_test_file`, then walks its adapter
+--- map with `pairs`, so leaving the choice to it makes a package with two attached adapters run a
+--- different one between presses. An adapter id is `<name>:<root>` and `run.run` takes one
+--- verbatim, so naming it is what settles the run. The nearest package.json names it; with
+--- nothing declared and more than one adapter attached the choice is the operator's, because a
+--- wrong silent pick reads as a runner that lost its tests.
+local function run_all_tests()
+  local neotest = require("neotest")
+  local directory = vim.fn.getcwd()
+
+  -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
+  -- from the same call.
+  local attached = {}
+  for _, adapter in ipairs(require("neotest.config").adapters) do
+    local root = adapter.root(directory)
+    if root then
+      attached[#attached + 1] = { name = adapter.name, id = ("%s:%s"):format(adapter.name, root) }
+    end
+  end
+  if #attached == 0 then
+    return neotest.run.run(directory)
+  end
+
+  local declared = nearest_declared_runner(directory)
+  local wanted = declared and javascript_adapters[declared]
+  for _, entry in ipairs(attached) do
+    if entry.name == wanted then
+      return neotest.run.run({ directory, adapter = entry.id })
+    end
+  end
+  if #attached == 1 then
+    return neotest.run.run({ directory, adapter = attached[1].id })
+  end
+
+  vim.ui.select(attached, {
+    prompt = "Neotest: run all tests with",
+    format_item = function(entry)
+      return entry.name
+    end,
+  }, function(choice)
+    if choice then
+      neotest.run.run({ directory, adapter = choice.id })
+    end
+  end)
+end
+
 return {
   {
     "nvim-neotest/neotest",
@@ -100,7 +155,7 @@ return {
     keys = {
       { "<leader>tt", function() require("neotest").run.run() end, desc = "Neotest: run nearest test" },
       { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end, desc = "Neotest: run file" },
-      { "<leader>ta", function() require("neotest").run.run(vim.uv.cwd()) end, desc = "Neotest: run all tests" },
+      { "<leader>ta", run_all_tests, desc = "Neotest: run all tests" },
       { "<leader>ts", function() require("neotest").summary.toggle() end, desc = "Neotest: toggle summary" },
       { "<leader>to", function() require("neotest").output.open({ enter = true }) end, desc = "Neotest: open output" },
       { "<leader>tS", function() require("neotest").run.stop() end, desc = "Neotest: stop run" },
@@ -142,9 +197,7 @@ return {
       })
       local jest = require("neotest-jest")({
         isTestFile = function(file_path)
-          return jest_claims(file_path)
-            and not imports_node_test(file_path)
-            and not vitest.is_test_file(file_path)
+          return jest_claims(file_path) and not imports_node_test(file_path) and not vitest.is_test_file(file_path)
         end,
       })
       local node = require("neotest-nodejs")({
