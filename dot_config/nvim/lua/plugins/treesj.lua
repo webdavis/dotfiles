@@ -1,6 +1,18 @@
 return {
   "Wansmer/treesj",
   dependencies = { "nvim-treesitter/nvim-treesitter" },
+  -- treesj creates its three commands and, here, its five mappings from inside
+  -- `setup()`, which `config` runs, so both have to be named up front or the
+  -- first use does nothing; `desc` mirrors each `map()` call so the which-key
+  -- popup reads the same before and after treesj loads.
+  cmd = { "TSJJoin", "TSJSplit", "TSJToggle" },
+  keys = {
+    { "<leader>jj", desc = "TreeSJ: join" },
+    { "<leader>jS", desc = "TreeSJ: split" },
+    { "<leader>js", desc = "TreeSJ: split (recursive)" },
+    { "<leader>jT", desc = "TreeSJ: toggle" },
+    { "<leader>jt", desc = "TreeSJ: toggle (recursive)" },
+  },
   config = function()
     local treesj = require("treesj")
 
