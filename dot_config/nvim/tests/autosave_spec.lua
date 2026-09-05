@@ -18,22 +18,25 @@ local function scratch()
 end
 
 return {
-  ["a proposed-edit buffer is not auto-saved"] = function()
-    assert(autosave().should_save("lua/plugins/lsp.lua (proposed)", "") == false)
-  end,
+  -- ── which buffers auto-save may write ──
 
-  ["a proposed new-file buffer is not auto-saved"] = function()
-    assert(autosave().should_save("lua/plugins/new.lua (NEW FILE - proposed)", "") == false)
-  end,
-
-  -- claudecode's diff buffers carry buftype "acwrite", which catches a proposed
-  -- buffer whose name the plugin ever spells differently.
-  ["an acwrite buffer is not auto-saved"] = function()
+  ["a claudecode diff buffer is not auto-saved"] = function()
     assert(autosave().should_save("lua/plugins/lsp.lua", "acwrite") == false)
   end,
 
   ["an ordinary file buffer is auto-saved"] = function()
     assert(autosave().should_save("lua/plugins/lsp.lua", "") == true)
+  end,
+
+  -- The rule is the buftype, never the name: at the pinned claudecode every
+  -- writable proposal buffer is `acwrite`, and a name rule would strand an
+  -- ordinary file that merely spells one of those words.
+  ["an ordinary file under a (proposed) directory is auto-saved"] = function()
+    assert(autosave().should_save("/work/(proposed)/file.lua", "") == true)
+  end,
+
+  ["an ordinary file named like a proposed buffer is auto-saved"] = function()
+    assert(autosave().should_save("notes (NEW FILE - proposed).md", "") == true)
   end,
 
   -- ── the write flag lsp-format reads ──

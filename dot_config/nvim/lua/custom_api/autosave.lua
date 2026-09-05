@@ -3,28 +3,22 @@
 --
 -- claudecode.nvim opens a proposed edit in a scratch buffer and treats a write
 -- as "accepted". Auto-save fires on a timer, so without this rule an agent's
--- proposal is accepted by nobody, seconds after it appears. The exclusions are
--- the ones claudecode's own README documents for okuuva/auto-save.nvim.
+-- proposal is accepted by nobody, seconds after it appears.
 
 local M = {}
 
 --- Whether a buffer is safe for auto-save.nvim to write.
----@param name string the buffer's name, as `nvim_buf_get_name` returns it
+---@param _name string the buffer's name; deliberately not read, see below
 ---@param buftype string the buffer's `&buftype`
 ---@return boolean
-function M.should_save(name, buftype)
-  -- Lua patterns, so the parentheses and the dash are escaped with `%`.
-  if name:match("%(proposed%)") or name:match("%(NEW FILE %- proposed%)") then
-    return false
-  end
-
-  -- claudecode's diff buffers are `acwrite`, which catches a proposed buffer
-  -- whose name a future version of the plugin spells differently.
-  if buftype == "acwrite" then
-    return false
-  end
-
-  return true
+function M.should_save(_name, buftype)
+  -- The buftype decides, never the name. At the pinned claudecode every
+  -- writable proposal buffer is `acwrite`; the one legacy `(New)` buffer is
+  -- `nofile`, which Neovim refuses to write at all, so no name rule is needed
+  -- to protect it. A name rule would only stand between auto-save and an
+  -- ordinary file that happens to live under a `(proposed)` directory. The name
+  -- stays in the signature so a spec can prove it is not consulted.
+  return buftype ~= "acwrite"
 end
 
 --- Raise the flag lsp-format's `BufWritePre` reads, for one automatic write.
