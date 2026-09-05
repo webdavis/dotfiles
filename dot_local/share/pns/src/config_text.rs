@@ -1719,7 +1719,7 @@ mod tests {
             "the written defaults are the ones the reader takes"
         );
         let selected: Vec<&str> = crate::registry::roster()
-            .enabled(&config)
+            .enabled(&config.plugin_switches())
             .expect("hue is written beside it")
             .iter()
             .map(|entry| entry.name)
