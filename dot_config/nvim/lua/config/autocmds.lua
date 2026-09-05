@@ -228,6 +228,59 @@ local nvim_mcp_pane = vim.env.HERDR_PANE_ID
 if nvim_mcp_pane and nvim_mcp_pane ~= "" then
   local nvim_mcp_dir = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
   local nvim_mcp_record = nvim_mcp_dir .. "/" .. vim.fn.getpid()
+  local nvim_mcp_temp = nvim_mcp_record .. ".tmp"
+  local nvim_mcp_private = tonumber("700", 8)
+
+  -- nvim_mcp_unsafe(dir) -- why <dir> is not a private directory this user
+  -- controls all the way up, nil when it is one.
+  --
+  -- lstat, never stat, so a symlink standing where the registry belongs reads
+  -- as what it is rather than as whatever it points at. And every ancestor is
+  -- checked too: a directory another account can write, without the sticky bit
+  -- that stops them removing what is not theirs, is one where they can replace
+  -- the whole subtree between any two of the operations below. An ancestor
+  -- owned by root is fine, which is what /, /Users and /var are.
+  local function nvim_mcp_unsafe(dir)
+    local uid = vim.uv.getuid()
+    local info = vim.uv.fs_lstat(dir)
+    if not info or info.type ~= "directory" then
+      return dir .. " is not a directory"
+    end
+    if info.uid ~= uid then
+      return dir .. " is owned by another account"
+    end
+    if info.mode % 512 ~= nvim_mcp_private then
+      return dir .. " is not mode 0700"
+    end
+    -- Ancestors are walked over the RESOLVED path, which by definition has no
+    -- symlink components left in it. Walking the given path instead would
+    -- reject every ordinary macOS temp directory, since /var and /tmp are both
+    -- symlinks into /private there.
+    local current = vim.uv.fs_realpath(dir)
+    if not current then
+      return dir .. " cannot be resolved"
+    end
+    while true do
+      local parent = vim.fs.dirname(current)
+      if parent == current then
+        return nil
+      end
+      local up = vim.uv.fs_lstat(parent)
+      if not up or up.type ~= "directory" then
+        return parent .. " is not a directory"
+      end
+      if up.uid ~= uid and up.uid ~= 0 then
+        return parent .. " is owned by another account"
+      end
+      local perm = up.mode % 4096
+      local sticky = math.floor(perm / 512) % 2 == 1
+      local shared_write = math.floor(perm / 16) % 2 == 1 or math.floor(perm / 2) % 2 == 1
+      if shared_write and not sticky then
+        return parent .. " is writable by other accounts and is not sticky"
+      end
+      current = parent
+    end
+  end
 
   vim.api.nvim_create_autocmd("VimEnter", {
     group = augroup("nvim_mcp_registry"),
@@ -237,38 +290,37 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
       if vim.v.servername == "" then
         return
       end
-      -- 0700, because the resolver refuses to read or prune a registry any
-      -- other account could have planted a record in.
-      --
-      -- NOT race free, which is why the failure is caught rather than allowed
-      -- to propagate: mkdir tests for each component and then creates it, so
-      -- two instances starting together both find the directory missing and
-      -- the loser raises E739 out of the create and registers nothing. One
-      -- record then survives where there are two live editors, and the
-      -- resolver, whose fallback only runs when the registry yields nothing,
-      -- selects it silently instead of offering the picker. Losing the race is
-      -- fine; what matters is that the winner left the private directory this
-      -- design expects.
-      local made = pcall(vim.fn.mkdir, nvim_mcp_dir, "p", tonumber("700", 8))
-      if not made then
-        local info = vim.uv.fs_stat(nvim_mcp_dir)
-        if
-          not info
-          or info.type ~= "directory"
-          or info.uid ~= vim.uv.getuid()
-          or info.mode % 512 ~= tonumber("700", 8)
-        then
-          return
-        end
-      end
-      local temp = nvim_mcp_record .. ".tmp"
-      local file = io.open(temp, "w")
-      if not file then
+      -- NOT race free, and the failure is deliberately ignored: mkdir tests for
+      -- each component and then creates it, so two instances starting together
+      -- both find the directory missing and the loser raises E739. Whether this
+      -- instance created the directory or found it makes no difference, because
+      -- the validation below is what decides whether to go on.
+      pcall(vim.fn.mkdir, nvim_mcp_dir, "p", nvim_mcp_private)
+
+      -- Validated on EVERY start, not only when the create failed: a registry
+      -- left at 0777 by anything at all would otherwise be written into without
+      -- a word, and it is a directory any account could then plant a record in.
+      local unsafe = nvim_mcp_unsafe(nvim_mcp_dir)
+      if unsafe then
+        vim.notify("nvim-mcp: not registering, " .. unsafe, vim.log.levels.WARN)
         return
       end
-      file:write(table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " "), "\n")
-      file:close()
-      os.rename(temp, nvim_mcp_record)
+
+      -- O_EXCL through "wx", never io.open(..., "w"), which FOLLOWS whatever is
+      -- at the name: a symlink planted at the temp path redirects the write
+      -- into any file this user can write, truncating it and then publishing it
+      -- as a record. "wx" fails on an existing name instead. A leftover .tmp
+      -- from a crash blocks only that one pid, which changes on restart.
+      local fd = vim.uv.fs_open(nvim_mcp_temp, "wx", tonumber("600", 8))
+      if not fd then
+        return
+      end
+      local line = table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " ")
+      vim.uv.fs_write(fd, line .. "\n")
+      vim.uv.fs_close(fd)
+      -- Rename rather than write in place, so the resolver never reads a record
+      -- that is only half written.
+      vim.uv.fs_rename(nvim_mcp_temp, nvim_mcp_record)
     end,
   })
 
