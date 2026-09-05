@@ -8,6 +8,11 @@
 
 local M = {}
 
+-- Neovim's own capability handlers, captured the first time the wrappers are
+-- installed. A later setup that wrapped the wrapper would chain handlers, and the
+-- chain would go on holding the previous lsp-format module and its buffer state.
+local native_handler = {}
+
 --- Hands a formatting-capable client to lsp-format, at most once per buffer.
 ---
 ---@param client vim.lsp.Client the client to consider
@@ -64,6 +69,32 @@ function M.withdraw(client, bufnr, lsp_format)
     end
   end
   return withdrawn
+end
+
+--- Wraps Neovim's capability handlers so a buffer's formatter membership follows
+--- its clients' capabilities instead of a snapshot taken when they attached. The
+--- native handler runs first, because it is what records the change.
+---
+--- Safe to call again: a later call replaces the wrapper rather than wrapping it.
+---
+---@param lsp_format table the `lsp-format` module
+function M.install_handlers(lsp_format)
+  for method, reconcile in pairs({
+    ["client/registerCapability"] = M.admit,
+    ["client/unregisterCapability"] = M.withdraw,
+  }) do
+    native_handler[method] = native_handler[method] or vim.lsp.handlers[method]
+    vim.lsp.handlers[method] = function(err, result, ctx, config)
+      local response = native_handler[method](err, result, ctx, config)
+      local client = vim.lsp.get_client_by_id(ctx.client_id)
+      if client then
+        for bufnr in pairs(client.attached_buffers) do
+          reconcile(client, bufnr, lsp_format)
+        end
+      end
+      return response
+    end
+  end
 end
 
 return M

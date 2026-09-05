@@ -387,38 +387,13 @@ return {
         end,
       })
 
-      -- A server that resolves its project settings before registering
-      -- `textDocument/formatting` has already attached by the time the capability
-      -- arrives, so LspAttach alone never sees it (the configured ESLint server does
-      -- exactly this). Neovim's own handler is what records the registration, so it
-      -- runs first and the admission rule is applied again afterwards.
-      local register_capability = vim.lsp.handlers["client/registerCapability"]
-      vim.lsp.handlers["client/registerCapability"] = function(err, result, ctx, config)
-        local response = register_capability(err, result, ctx, config)
-        local client = vim.lsp.get_client_by_id(ctx.client_id)
-        if client then
-          for bufnr in pairs(client.attached_buffers) do
-            format_admission.admit(client, bufnr, lsp_format)
-          end
-        end
-        return response
-      end
-
-      -- The mirror image, and the reason membership is not decided once and kept: a
-      -- client left in the queue after it stops supporting formatting is selected by
-      -- the plugin, which then returns WITHOUT advancing to the sibling formatters
-      -- behind it, so the whole save sends nothing.
-      local unregister_capability = vim.lsp.handlers["client/unregisterCapability"]
-      vim.lsp.handlers["client/unregisterCapability"] = function(err, result, ctx, config)
-        local response = unregister_capability(err, result, ctx, config)
-        local client = vim.lsp.get_client_by_id(ctx.client_id)
-        if client then
-          for bufnr in pairs(client.attached_buffers) do
-            format_admission.withdraw(client, bufnr, lsp_format)
-          end
-        end
-        return response
-      end
+      -- A server can gain or lose `textDocument/formatting` long after it attached,
+      -- and neither event reaches LspAttach. The configured ESLint server registers
+      -- formatting once it has resolved its project settings, and unregisters it when
+      -- that configuration changes; a client left in the queue after losing it is
+      -- selected by the plugin, which then returns WITHOUT advancing to the sibling
+      -- formatters behind it, so the whole save sends nothing.
+      format_admission.install_handlers(lsp_format)
 
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,

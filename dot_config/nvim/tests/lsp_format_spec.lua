@@ -109,6 +109,43 @@ return {
     assert(queued(plugin, bufnr) == 0, "queued " .. queued(plugin, bufnr))
   end,
 
+  ["installs one wrapper however many times setup runs"] = function()
+    -- A setup that wrapped the previous wrapper would chain handlers, and the chain
+    -- would pin the previous lsp-format module and its buffer state. Each wrapper
+    -- consults `get_client_by_id` exactly once, so the pass count IS the depth.
+    local methods = { "client/registerCapability", "client/unregisterCapability" }
+    local saved_handlers, saved_lookup = {}, vim.lsp.get_client_by_id
+    local passes = 0
+    for _, method in ipairs(methods) do
+      saved_handlers[method] = vim.lsp.handlers[method]
+      vim.lsp.handlers[method] = function() end
+    end
+    vim.lsp.get_client_by_id = function()
+      passes = passes + 1
+      return nil
+    end
+
+    -- A fresh copy, so the capture-once guard starts empty whatever ran before it.
+    package.loaded["custom_api.lsp_format"] = nil
+    local fresh = require("custom_api.lsp_format")
+    fresh.install_handlers(double())
+    fresh.install_handlers(double())
+
+    local depths = {}
+    for _, method in ipairs(methods) do
+      passes = 0
+      vim.lsp.handlers[method](nil, {}, { client_id = 1 })
+      depths[method] = passes
+      vim.lsp.handlers[method] = saved_handlers[method]
+    end
+    vim.lsp.get_client_by_id = saved_lookup
+    package.loaded["custom_api.lsp_format"] = nil
+
+    for _, method in ipairs(methods) do
+      assert(depths[method] == 1, method .. " reached depth " .. depths[method])
+    end
+  end,
+
   ["drops the plugin's own formatter autocmd from the buffer"] = function()
     -- It runs on BufWritePost, so it would format a second time after the
     -- synchronous BufWritePre save hook has already run.
