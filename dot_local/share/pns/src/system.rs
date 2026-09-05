@@ -487,15 +487,38 @@ impl<R: CommandRunner> SystemProbes<R> {
             .clone()
     }
 
-    /// Points this probe set at the presence state file.
+    /// Points this probe set at the presence state file, AND TAKES THE READING
+    /// THERE AND THEN.
     ///
     /// A BUILDER RATHER THAN A THIRD CONSTRUCTOR ARGUMENT, and the default is
     /// no path at all. The composition root sets it; anything that does not
     /// reads no line, which is the same Unknown a machine with the daemon
     /// switched off already gets, so a caller that never wires it is degraded
     /// rather than wrong.
+    ///
+    /// EAGER BECAUSE THE CLOCK IS THE OTHER HALF OF THE READING, and the two
+    /// are compared. Read lazily, the line was taken whenever something first
+    /// asked, which was always AFTER `now_secs` froze: the event path asks
+    /// once its delivery plan is decided, the blocked path freezes the clock
+    /// before it even forwards to moshi, and the doctor's own reading asks a
+    /// line after taking the clock a statement earlier. The daemon polls every
+    /// few seconds, so a line published inside any of those windows carried an
+    /// epoch NEWER than the frozen clock, `classify` answered `Future`, and a
+    /// room the operator was standing in became the whole house again.
+    ///
+    /// TAKEN HERE, THE LINE CANNOT BE NEWER THAN THE CLOCK, because this is
+    /// the only way to point a probe set at the file at all: every caller
+    /// reaches it through this builder before it holds a clock. The reading
+    /// may instead be up to one window OLD, which is the safe direction and
+    /// the one the staleness bound already exists to judge.
+    /// AND POINTING IT AGAIN RE-READS, because the composition root points
+    /// every set at the daemon's own file and a caller that then points one
+    /// somewhere else meant the second path. Left sealed by the first read,
+    /// the second call would silently keep answering the first file's line.
     pub fn with_presence_path(mut self, path: String) -> Self {
         self.presence_path = path;
+        self.presence_line.take();
+        let _ = self.presence_line();
         self
     }
 
@@ -1664,6 +1687,31 @@ mod tests {
         std::fs::remove_file(&path).ok();
         assert_eq!(first.as_deref(), Some("1000 990 1 3F - Studio"));
         assert_eq!(second, first, "the second ask must not re-read the file");
+    }
+
+    #[test]
+    fn the_presence_line_is_taken_when_the_path_is_pointed_and_never_after_a_clock() {
+        // THE LINE AND THE CLOCK ARE COMPARED, so which is read first decides
+        // whether a reading can come out NEWER than the moment it is judged
+        // against. Taken lazily, the line was read whenever something first
+        // asked, which is after `now_secs` has frozen on every path there is:
+        // the event path asks once its plan is decided, the blocked path
+        // freezes the clock before it forwards to moshi, and the doctor takes
+        // the clock a statement before the line. The daemon republishes every
+        // few seconds, so a line landing inside any of those windows read as
+        // `Future` and gave the whole house back.
+        let path = scratch_path("presence-before-the-clock");
+        std::fs::write(&path, b"1000 990 1 3F - Studio").unwrap();
+        let probes = probes_at(&path);
+        // The daemon's next poll, published before anything asks for a line.
+        std::fs::write(&path, b"2000 1990 1 2F - Kitchen").unwrap();
+        let read = probes.presence_line();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(
+            read.as_deref(),
+            Some("1000 990 1 3F - Studio"),
+            "the reading is the one that was there when the set was pointed at it"
+        );
     }
 
     #[test]

@@ -3066,13 +3066,11 @@ fn run_event_pulsing(
     // THE LAMPS' OWN READINGS, TAKEN HERE AND NOT AT THE PULSE BELOW. The
     // pulse is the last thing this path does: every channel has dispatched,
     // the record is written and the catch-up has replayed, which is anywhere
-    // from a millisecond to a network deadline later. `SystemProbes` memoizes
-    // the CLOCK at the decision above but reads the presence line on first
-    // ask, so a snapshot built down there paired a line the daemon published
-    // DURING delivery with the older clock and classified it `Future`. A
-    // reading fresher than the decision then turned the one room the operator
-    // is standing in back into the whole house. Bound here, the reading, the
-    // clock it is aged against and the desk ages beside it are one moment.
+    // from a millisecond to a network deadline later. The desk ages this
+    // carries come off THIS decision, so a snapshot built down there describes
+    // a moment the plan beside it never saw. The reading itself was taken
+    // before this probe set held a clock at all (`with_presence_path`), so
+    // what is assembled here is one moment rather than three.
     //
     // TAKEN FOR EVERY EVENT, not only the ones that reach a lamp: the gate
     // below is two booleans read off this same decision, and moving the
