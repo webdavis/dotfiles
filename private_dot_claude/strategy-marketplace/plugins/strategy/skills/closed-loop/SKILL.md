@@ -119,6 +119,21 @@ Two more things carry the weight step 7 used to, and neither is optional here:
   what the old check caught that the new one does not and diff the accept sets. If they are not
   identical plus the intended closure, you moved the hole rather than closing it.
 
+## The argument log
+
+Each review round appends to `argument-<slug>.md`, beside the two `F` ledgers in the same directory, in
+the form [open-loop](../open-loop/SKILL.md) sets out: the verdict as quoted, the critique as returned,
+then one line per finding saying what changed or why it does not hold. There is no TASK line here,
+because there are no tasks.
+
+**Step 5 writes the round. Step 6's fix brief and 6v's charter read it back before they are written.** 6v
+needs it most. It is terminal and nothing reviews it, so it is the last chance to catch an accepted
+finding that was never actually closed, or a rejection that stopped being true once the fix landed. The
+register shows 6v the disposition without the argument that produced it.
+
+No script creates the file and no gate reads it. The first append creates it. Adapted from
+chaseai-yt/claudex-loop, MIT.
+
 ## Scope is what makes the termination argument true
 
 The proof that this strategy is finite assumes the finding set is BOUNDED BY THE DIFF. An unbounded

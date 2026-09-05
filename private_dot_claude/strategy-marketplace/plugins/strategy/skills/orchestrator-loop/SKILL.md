@@ -107,6 +107,22 @@ one carries its own checklist verified step by step. Parallel sol attempts are a
 fails while another runs, wait for the running one, restart the failed one after it, and run every
 subsequent sol review sequentially.
 
+## The argument log
+
+The adjudication step appends each round to `argument-<slug>.md`, beside the two `F` ledgers, in the form
+[open-loop](../open-loop/SKILL.md) sets out: the verdict as quoted, the critique as returned, then one
+line per finding saying what changed or why it does not hold. No TASK line, because this strategy files
+none.
+
+Two rounds here are unusually easy to lose. sol and the mutation agent run in PARALLEL on separate
+worktrees, so their arguments arrive interleaved and neither saw the other's, and the log is where the
+two become one record instead of two half-read reports. A restarted sol review, which this strategy
+allows after a failure, also comes back with no memory of the attempt it replaced.
+
+The fix round reads it back before touching anything, which is what keeps findings from being re-argued
+in the next slice. No script creates the file and no gate reads it. Adapted from chaseai-yt/claudex-loop,
+MIT.
+
 ## The testing charter
 
 This is the part that makes the tests worth writing first. Hard-to-test code is read as a SOLID

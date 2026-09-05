@@ -152,6 +152,39 @@ A reviewer that happens to see an out-of-scope defect NAMES it in a separate "ob
 section carrying no disposition. Those never enter the register, and the reconciliation counts only
 in-scope findings.
 
+## The argument log
+
+Each review round appends to `argument-<slug>.md`, beside the checklist and the register in the same
+directory. No script creates it and no gate reads it. The first append creates it, and it exists for the
+next round rather than for the verifier.
+
+```markdown
+## Round <n>, step <2|4a|4a-s|4b|7>, <reviewer>
+
+VERDICT: <quoted exactly as returned>
+
+<the critique, as returned>
+
+### Adjudication
+
+- F<n> ACCEPTED: <what changed, and the reproduction that earned it>
+- F<n> REJECTED: <why it does not hold, measured rather than argued>
+- F<n> TASK #<n>: <why it waits, and what would make it urgent>
+```
+
+**Step 5 writes the round. Step 6's fix brief and step 7's charter read it back before either is
+written.** The register records what a finding BECAME and the evidence a gate can check. The log records
+WHY, which the register has no column for, and a rejection whose reason is written down nowhere is
+indistinguishable next round from a finding nobody read.
+
+Reading it back is the half that does the work. Every reviewer here is a FRESH dispatch that remembers
+nothing: sol runs read-only in a new session, Fable is reached by inheritance, and neither has seen the
+round before. Hand step 7 the log and it can check whether an accepted fix closed what was actually
+argued, and whether a rejection still holds after the fix. Skip it and step 7 re-litigates round one.
+
+Adapted from chaseai-yt/claudex-loop, MIT, where the reviewer instead keeps one session across rounds and
+the log is the deliverable.
+
 ## Filing step 8's tasks
 
 Every open finding becomes a task; nothing is demoted to a comment. Filing one also requires a
