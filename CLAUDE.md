@@ -66,6 +66,7 @@ files.
 
 ```bash
 just test-unit          # Unit suite only (the fast commit gate)
+just test-bashunit      # One suite's `<name>.test.sh` files alone (default test/unit)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
@@ -74,11 +75,15 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 ```
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
-slow one is deleted rather than tolerated. Bash unit tests are **bats**, one behavior per `@test`,
-through HOST bats-core; the Neovim config's Lua specs (`dot_config/nvim/tests/*_spec.lua`) run under
-`nvim --headless --clean -l` through `just test-nvim`, a dependency of `test-unit`; Rust is tested with
-`cargo test`. A large purge in 2026-08 left 160+ deleted files in git history as a cherry-pick pool:
-restore individual logic asserts from it, never wholesale.
+slow one is deleted rather than tolerated. Bash tests are migrating from bats to **bashunit** (operator
+ruling 2026-09-03): a bashunit file is `test/<suite>/<name>.test.sh`, non-executable, one behavior per
+`function test_*`, run as one of the three lanes of `test/run-test-suite.sh`. The files still on bats are
+one behavior per `@test` through HOST bats-core, run by each suite's own runner; both shapes are legal
+until the migration finishes, and no new bats file is added. The Neovim config's Lua specs
+(`dot_config/nvim/tests/*_spec.lua`) run under `nvim --headless --clean -l` through `just test-nvim`,
+also a dependency of `test-unit`; Rust is tested with `cargo test`. A large purge in 2026-08 left 160+
+deleted files in git history as a cherry-pick pool: restore individual logic asserts from it, never
+wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
@@ -91,19 +96,19 @@ source logic while leaving the declarations intact would turn the test red. If i
 testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
 config that disagrees with itself is now caught by review, not by a gate.
 
-The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim` and then
-the one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled
-each run (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native
-shuffle; shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY
-performance summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings
-never fail the run.
+The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then
+`just test-neotest-bashunit`, then the one runner (`test/run-test-suite.sh`) with
+`--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run (replay a failure with
+`TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle; shuffling degrades to
+sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance summary lists any test
+over the threshold as a refactor-or-move-suite candidate; warnings never fail the run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
 agreement any more: the parity test was declaration-consistency checking, not tool behavior, so it went
 with the 2026-08-05 scope ruling. **Edit one and you must edit the other by hand.** The pre-push hook
-deliberately runs no suite. Each suite's runner executes its own `.sh` and `.bats` once, with host
-bats-core.
+deliberately runs no suite. Each suite's runner executes its own `.test.sh`, `.sh` and `.bats` once,
+through host bashunit and host bats-core.
 
 So a commit can briefly carry an integration or e2e regression, and so can a push: **CI is the only gate
 that runs the suite**, and it runs on pull requests and on pushes to `main` only. A push to a topic
@@ -114,10 +119,22 @@ deliberately.
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
 `test/` root. Three trees are carved out: a suite's own `helpers/`, the shared cross-suite
 `test/helpers/`, and `test/fixtures/**`. The two helper trees admit non-executable `*.sh` only, so an
-executable file or a `.bats` there still fails. The checker also rejects any symlink below `test/`, a
-non-executable suite `*.sh`, and a nested file in a flat suite. Add a test by dropping a new executable
-`test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth `dirname "${BASH_SOURCE[0]}")/../..`); it is
-picked up automatically.
+executable file or a `.bats` there still fails, and neither they nor `test/fixtures/**` may hold a
+`<name>.test.sh`, because a test file outside a suite is one no suite recipe runs. The checker also
+rejects any symlink below `test/`, a non-executable suite `*.sh`, and a nested file in a flat suite. Add
+a test by dropping a new executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
+`dirname "${BASH_SOURCE[0]}")/../..`); it is picked up automatically.
+
+A bashunit file inverts that mode rule and must NOT be executable: bashunit sources its test files, while
+`run-test-suite.sh` discovers `*.sh` by `-perm -u+x`, so an executable `<name>.test.sh` would run twice,
+the second time as a bare script where `assert_same` does not exist.
+
+**bashunit is never handed a directory**, in the runner or in a recipe. Its own path argument scans
+RECURSIVELY for `*[tT]est.sh` plus a `.bash` twin, so a directory reaches a fixture named `latest.sh`, an
+executable `contest.sh` the `*.sh` lane also runs, and every other suite's files, which would put an
+integration test in the unit gate and leave it out of its own recipe. `run-test-suite.sh` passes an
+exact, suite-local, `-maxdepth 1` list of `*.test.sh` paths instead. Color is disabled with `NO_COLOR=1`,
+because `--no-color` is ignored in either position on 0.50.1.
 
 ### Chezmoi operations
 
@@ -346,11 +363,11 @@ files and checks them with yq.
 
 The contributor toolchain is Homebrew plus uv, no dev shell (the flake was removed 2026-08-05).
 `just setup` installs it into a fresh checkout: `brew bundle --file=Brewfile.dev` for the binary tools
-(actionlint, age, bash, bats-core, chezmoi, coreutils, gitleaks, jq, just, luacheck, shellcheck, shfmt,
-stylua, taplo, treefmt, uv, yq, zizmor), then a uv install of mdformat and its six plugins. On dresden
-those formulae are also declared in `.chezmoidata/system_packages_autoinstall.yaml`, so the weekly bundle
-keeps them; `Brewfile.dev` is what a machine without that bundle needs. Nix remains installed on the
-machine for unrelated uses; this repo never invokes it.
+(actionlint, age, bash, bashunit, bats-core, chezmoi, coreutils, gitleaks, jq, just, luacheck,
+shellcheck, shfmt, stylua, taplo, treefmt, uv, yq, zizmor), then a uv install of mdformat and its six
+plugins. On dresden those formulae are also declared in `.chezmoidata/system_packages_autoinstall.yaml`,
+so the weekly bundle keeps them; `Brewfile.dev` is what a machine without that bundle needs. Nix remains
+installed on the machine for unrelated uses; this repo never invokes it.
 
 **mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
 silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
@@ -358,6 +375,27 @@ the `setup` recipe and again in the toolchain step of `.github/workflows/lint.ym
 the two agree, so they must be moved together by hand. The same hand-sync applies to `Brewfile.dev`
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
+
+**bashunit is pinned in CI and gated by the unit and full test suites.** A release that changed an output
+shape would leave `neotest-bashunit`'s frozen fixtures green while it misreported real runs, so the
+adapter records the release it was measured against in `parse.verified_version` and
+`just test-neotest-bashunit` refuses to certify fixtures captured from a different one, naming both
+versions. CI cannot rely on that gate alone: the runner's cached Homebrew index poured 0.43.0 against
+fixtures measured on 0.50.1 and the gate did its job by turning the whole Lint job red. So the toolchain
+step in `.github/workflows/lint.yml` downloads bashunit's release asset itself and verifies it against a
+sha256 pinned beside the version, rather than taking the formula or running an unpinned installer script.
+Pinning the checksum in this repository is what the version alone cannot do: a compromised upstream
+release can rewrite a tag and the checksum it publishes, but not the one in our tree.
+
+The release is now named in three places, and nothing enforces that they agree: `BASHUNIT_VERSION` and
+`BASHUNIT_SHA256` in that workflow step, and `parse.verified_version`. Move all three together by hand,
+and moving any of them means re-measuring every fixture rather than editing a number.
+
+Local stays Homebrew (`Brewfile.dev`, `.chezmoidata/system_packages_autoinstall.yaml`), because Homebrew
+has no declarative version pin the way `uv`'s `==` does. The cost: a `brew upgrade bashunit` past the pin
+makes `just test-unit` refuse on a machine where nobody touched a test, until the fixtures are
+re-measured and all three pins are updated. That is the stylua trade below, accepted for the same reason:
+a visible failure on an untouched file beats a silent behavior change.
 
 **stylua is deliberately NOT pinned.** It is also a byte rewriter, same class of risk as mdformat, but
 Homebrew has no declarative version pin the way `uv`'s `==` does. The cost: a newer stylua on a fresh
