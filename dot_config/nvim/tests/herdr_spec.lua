@@ -11,6 +11,75 @@ local herdr = require("custom_api.herdr")
 -- that does not exist.
 local STATES = { "idle", "working", "blocked", "done", "unknown" }
 
+-- `agent_pane` is the one function here that is not pure and not glue: the ORDER
+-- of its gate, its listing and its continuation is the behavior under test. The
+-- two herdr-nvim modules it reaches for are replaced through `package.loaded`,
+-- which is the same seam idea as `github.runner`, and both are restored after
+-- the case so no other spec in this process sees them. `exec` answers only
+-- `herdr pane current --current`; any other command is an error rather than a
+-- fallthrough, so a call that asked for something else cannot pass quietly.
+local function with_stubbed_herdr(scenario, on_pane)
+  local calls = { list = 0, continuation = 0 }
+  local saved = {
+    agents = package.loaded["herdr-nvim.agents"],
+    exec = package.loaded["herdr-nvim.exec"],
+    herdr_env = vim.env.HERDR_ENV,
+    workspace_id = vim.env.HERDR_WORKSPACE_ID,
+    -- A refusal notifies, and under `--clean` that lands on the runner's own
+    -- stdout and merges into the next case's report line.
+    notify = vim.notify,
+  }
+
+  package.loaded["herdr-nvim.agents"] = {
+    list = function()
+      calls.list = calls.list + 1
+      return { { kind = "claude", workspace_id = scenario.workspace_id, pane_id = "wW:p3K" } }
+    end,
+    resolve = function(list)
+      return list[1]
+    end,
+    display = function(agent)
+      return agent.kind
+    end,
+  }
+  package.loaded["herdr-nvim.exec"] = {
+    default_exec = function(argv)
+      local command = table.concat(argv, " ")
+      assert(command == "herdr pane current --current", "unexpected command: " .. command)
+      if not scenario.live_workspace_id then
+        return { code = 1, stdout = "", stderr = "no pane" }
+      end
+      return {
+        code = 0,
+        stderr = "",
+        stdout = vim.json.encode({
+          result = {
+            pane = { pane_id = scenario.live_workspace_id .. ":p9", workspace_id = scenario.live_workspace_id },
+          },
+        }),
+      }
+    end,
+  }
+  vim.env.HERDR_ENV = "1"
+  vim.env.HERDR_WORKSPACE_ID = scenario.workspace_id
+  vim.notify = function() end
+
+  local ok, err = pcall(herdr.agent_pane, function(pane_id)
+    calls.continuation = calls.continuation + 1
+    if on_pane then
+      on_pane(pane_id)
+    end
+  end)
+
+  package.loaded["herdr-nvim.agents"] = saved.agents
+  package.loaded["herdr-nvim.exec"] = saved.exec
+  vim.env.HERDR_ENV = saved.herdr_env
+  vim.env.HERDR_WORKSPACE_ID = saved.workspace_id
+  vim.notify = saved.notify
+  assert(ok, err)
+  return calls
+end
+
 return {
   ["may_send sends on idle"] = function()
     assert(herdr.may_send("idle") == "send", herdr.may_send("idle"))
@@ -175,5 +244,51 @@ return {
     local all = { { kind = "claude", workspace_id = "wW", pane_id = "wW:p3K" } }
     assert(#herdr.claude_agents_here(all, nil) == 0, "a nil workspace matched an agent")
     assert(#herdr.claude_agents_here(all, "wX") == 0, "another workspace's agent matched")
+  end,
+
+  -- Round 2. HERDR_WORKSPACE_ID and HERDR_PANE_ID are stamped in when the
+  -- TERMINAL launches and are never updated, but a cross-workspace pane move
+  -- keeps the terminal and changes both. Measured on herdr 0.8.2: a pane moved
+  -- from w18:p2 to w19:p2 kept terminal term_65ab65225b56329 while its shell
+  -- still reported HERDR_WORKSPACE_ID=w18, and `herdr pane current --current`
+  -- answered w19:p2 in w19. An editor moved out from under its agent would
+  -- otherwise keep sending to the workspace it was started in.
+  ["a pane that has moved workspaces is refused"] = function()
+    local moved = herdr.stale_workspace_refusal("wW", "wX")
+    assert(moved, "a moved pane was allowed")
+    assert(moved:find("wX", 1, true) and moved:find("wW", 1, true), moved)
+  end,
+
+  -- A herdr that cannot answer is its own refusal, with its own words: reusing
+  -- the moved-pane message would tell the operator their editor moved to a
+  -- workspace called nil, which sends them looking for a move that never
+  -- happened.
+  ["a pane herdr cannot place is refused without claiming it moved"] = function()
+    local unplaced = herdr.stale_workspace_refusal("wW", nil)
+    assert(unplaced, "an unresolvable live workspace was allowed")
+    assert(unplaced:find("could not say", 1, true), unplaced)
+    assert(not unplaced:find("moved", 1, true), unplaced)
+  end,
+
+  ["a pane that has not moved is allowed"] = function()
+    local refusal = herdr.stale_workspace_refusal("wW", "wW")
+    assert(refusal == nil, tostring(refusal))
+  end,
+
+  -- The refusal has to happen BEFORE the listing and instead of the
+  -- continuation: a lookup that ran would have read the old workspace's agents,
+  -- and a continuation that ran would have let `launch_or_attach` split a pane.
+  ["a stale workspace lists no agents and runs no continuation"] = function()
+    local calls = with_stubbed_herdr({ workspace_id = "wW", live_workspace_id = "wX" })
+    assert(calls.list == 0, "agents.list was called " .. calls.list .. " times")
+    assert(calls.continuation == 0, "the continuation ran " .. calls.continuation .. " times")
+  end,
+
+  ["a pane still in its own workspace lists agents and runs the continuation"] = function()
+    local calls = with_stubbed_herdr({ workspace_id = "wW", live_workspace_id = "wW" }, function(pane_id)
+      assert(pane_id == "wW:p3K", tostring(pane_id))
+    end)
+    assert(calls.list == 1, "agents.list was called " .. calls.list .. " times")
+    assert(calls.continuation == 1, "the continuation ran " .. calls.continuation .. " times")
   end,
 }

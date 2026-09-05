@@ -36,6 +36,39 @@ function M.may_send(status)
   return VERDICTS[status] or "warn"
 end
 
+-- ╭───────────────────╮
+-- │ Talking to herdr  │
+-- ╰───────────────────╯
+
+local function herdr_cli(argv)
+  return require("herdr-nvim.exec").default_exec(argv)
+end
+
+-- Where this editor's pane IS, as opposed to where it was started. herdr stamps
+-- HERDR_WORKSPACE_ID, HERDR_TAB_ID and HERDR_PANE_ID into the environment when
+-- the TERMINAL launches and never updates them, but a cross-workspace pane move
+-- keeps that terminal and changes all three. Measured on herdr 0.8.2: a pane
+-- moved from w18:p2 to w19:p2 kept terminal term_65ab65225b56329 while its shell
+-- still reported HERDR_WORKSPACE_ID=w18.
+--
+-- `pane current --current` is the one place this seam asks that question, and it
+-- is the right one to ask here: the command answers the CALLER's pane, which is
+-- a trap for anything wanting the FOCUSED pane and is exactly what is wanted for
+-- "which pane am I". It resolves by terminal rather than by the environment, so
+-- it answered w19:p2 for the moved pane above. Returns nil when it cannot say,
+-- and the caller refuses on nil rather than guessing.
+local function live_pane()
+  local result = herdr_cli({ "herdr", "pane", "current", "--current" })
+  if result.code ~= 0 then
+    return nil
+  end
+  local ok, decoded = pcall(vim.json.decode, result.stdout)
+  if not ok or type(decoded) ~= "table" then
+    return nil
+  end
+  return (decoded.result or {}).pane
+end
+
 -- ╭────────────╮
 -- │ Which pane │
 -- ╰────────────╯
@@ -52,6 +85,25 @@ function M.workspace_refusal(herdr_env, workspace_id)
   end
   if not workspace_id or workspace_id == "" then
     return "herdr set no HERDR_WORKSPACE_ID for this pane, so a lookup cannot be scoped"
+  end
+  return nil
+end
+
+-- The second half of the gate, once the live pane is known. Refusing rather than
+-- adapting to the live workspace is deliberate: `agents.list` and
+-- `agents.resolve` inside `herdr-nvim` read the same stale environment, so an
+-- editor that has been moved cannot be served correctly by any amount of work on
+-- this side. The operator restarts it in its new pane, which costs one command
+-- and cannot deliver a buffer to the workspace they walked away from.
+function M.stale_workspace_refusal(env_workspace_id, live_workspace_id)
+  if not live_workspace_id then
+    return "herdr could not say which pane this editor is in, so a lookup cannot be scoped"
+  end
+  if live_workspace_id ~= env_workspace_id then
+    return ("this editor pane has moved to %s since it started in %s, so its herdr environment is stale; restart it in its pane"):format(
+      live_workspace_id,
+      env_workspace_id
+    )
   end
   return nil
 end
@@ -87,6 +139,15 @@ function M.agent_pane(on_pane)
     return
   end
 
+  -- Before the listing, not after: a listing that ran would already have read
+  -- the agents of the workspace this editor merely used to be in.
+  local pane = live_pane()
+  refusal = M.stale_workspace_refusal(vim.env.HERDR_WORKSPACE_ID, pane and pane.workspace_id)
+  if refusal then
+    vim.notify("herdr: " .. refusal, vim.log.levels.WARN)
+    return
+  end
+
   local agents = require("herdr-nvim.agents")
   local all, err = agents.list()
   if not all then
@@ -94,7 +155,9 @@ function M.agent_pane(on_pane)
     return
   end
 
-  local claude = M.claude_agents_here(all, vim.env.HERDR_WORKSPACE_ID)
+  -- The live workspace, not the environment's copy of it: the two are equal by
+  -- the gate above, and reading the live one keeps that true if the gate moves.
+  local claude = M.claude_agents_here(all, pane.workspace_id)
 
   if #claude == 0 then
     return on_pane(nil)
@@ -125,10 +188,6 @@ end
 -- ╭─────────────╮
 -- │ How to send │
 -- ╰─────────────╯
-
-local function herdr_cli(argv)
-  return require("herdr-nvim.exec").default_exec(argv)
-end
 
 -- The agent's state at send time, read fresh rather than taken from the listing
 -- `agent_pane` resolved on: a picker the operator sat in front of for a while is
