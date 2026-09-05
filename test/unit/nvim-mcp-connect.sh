@@ -19,6 +19,8 @@
 #   o) a multi-line reply     -> never reaches the server
 #   p) a correct identity then padding then garbage -> never reaches the server
 #   q) a successful resolution leaves no probe file behind
+#   r) a record naming a TCP endpoint  -> refused, exit 3, never connected to
+#   s) a socket outside a private tree -> refused, exit 3, never connected to
 #
 # herdr, nvim and the nvim-mcp binary are all fake executables in a per-case
 # PATH, so no herdr server and no Neovim is ever contacted.
@@ -36,8 +38,20 @@ if ! command -v jq >/dev/null 2>&1; then
   printf 'SKIP: jq not on PATH; the resolver parses herdr JSON with jq\n'
   exit 0
 fi
+if [[ ! -x /usr/bin/perl ]]; then
+  printf 'SKIP: /usr/bin/perl is absent, and the socket cases need a real unix socket\n'
+  exit 0
+fi
 [[ -f $SCRIPT ]] || fail "missing script: $SCRIPT"
 JQ_PATH="$(command -v jq)"
+
+# make_socket <path> -- a real, bound, listening unix socket. System perl,
+# because bash cannot make one and the resolver's `-S` test wants the real
+# thing rather than a regular file standing in for it.
+make_socket() {
+  /usr/bin/perl -MIO::Socket::UNIX -e \
+    'IO::Socket::UNIX->new(Local => $ARGV[0], Listen => 1) or die $!' "$1"
+}
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -66,7 +80,8 @@ setup_case() {
   CASE="$work/$1"
   CASE_PATH="$CASE/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   mkdir -p "$CASE/bin" "$CASE/run" "$CASE/registry" "$CASE/tmp"
-  chmod 700 "$CASE/registry"
+  # 0700, because the resolver refuses a socket outside a private tree.
+  chmod 700 "$CASE/registry" "$CASE/run"
   : >"$CASE/identity"
   : >"$CASE/hang"
   printf '%s' '{"error":{"code":"pane_not_found"},"id":"cli:pane:layout"}' >"$CASE/layout.json"
@@ -195,6 +210,7 @@ grep -qF "w1:t1" "$CASE/err" || fail "injected-mismatch: the refusal does not na
 # --- c) a registry record whose identity matches -----------------------------
 setup_case registry-hit
 write_layout w1:t1 w1:p1 w1:p2
+make_socket "$CASE/run/n1.sock"
 record w1:p2 4242 "$CASE/run/n1.sock"
 printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
 run_case HERDR_PANE_ID=w1:p1
@@ -266,10 +282,13 @@ grep -qF "$CASE/run/inner.sock" "$CASE/err" || fail 'nested-pane: the inner inst
 setup_case dead-socket
 write_layout w1:t1 w1:p1 w1:p4
 mkdir -p "$CASE/run/aaa" "$CASE/run/bbb"
+chmod 700 "$CASE/run/aaa" "$CASE/run/bbb"
 dead_sock="$CASE/run/aaa/nvim.$dead_pid.0"
 live_sock="$CASE/run/bbb/nvim.$$.0"
+# The dead one stays a plain file on purpose: kill -0 filters it before
+# anything looks at what kind of file it is.
 : >"$dead_sock"
-: >"$live_sock"
+make_socket "$live_sock"
 {
   printf '%s|w1:p4 %s\n' "$dead_sock" "$dead_pid"
   printf '%s|w1:p4 %s\n' "$live_sock" "$$"
@@ -399,4 +418,35 @@ left="$(find "$CASE/tmp" -type f | wc -l | tr -d ' ')"
 [[ $left -eq 0 ]] ||
   fail "probe-file-cleanup: the probe file survived the exec ($left left in the case TMPDIR)"
 
-printf 'PASS: nvim-mcp-connect.sh (17 cases)\n'
+# --- r) a record naming a TCP endpoint --------------------------------------
+# `nvim --listen` takes a TCP address as readily as a path, and Neovim trusts
+# every RPC peer, so another account can watch a TCP listener, learn the
+# identity it reports, and rebind the port after a crash to replay it. The
+# resolver will not connect to one.
+setup_case tcp-endpoint
+write_layout w1:t1 w1:p1 w1:p2
+printf 'w1:p2 4242 127.0.0.1:6666 /repo\n' >"$CASE/registry/4242"
+printf '127.0.0.1:6666|w1:p2 4242\n' >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "tcp-endpoint: expected exit 3, got $RC ($(cat "$CASE/err"))"
+grep -qF '127.0.0.1:6666' "$CASE/err" || fail "tcp-endpoint: the refusal does not name it ($(cat "$CASE/err"))"
+[[ ! -s $CASE/probed ]] || fail 'tcp-endpoint: it was connected to before being refused'
+[[ ! -f $CASE/exec ]] || fail 'tcp-endpoint: the server was run against it'
+
+# --- s) a real socket outside a caller-owned 0700 tree ----------------------
+# A socket any account can reach is one any account can rebind after the owner
+# dies, and the identity it then reports is whatever its owner chooses.
+setup_case loose-socket
+write_layout w1:t1 w1:p1 w1:p2
+mkdir -p "$CASE/open"
+chmod 755 "$CASE/open"
+make_socket "$CASE/open/n1.sock"
+record w1:p2 4242 "$CASE/open/n1.sock"
+printf '%s|w1:p2 4242\n' "$CASE/open/n1.sock" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "loose-socket: expected exit 3, got $RC ($(cat "$CASE/err"))"
+grep -qF "$CASE/open" "$CASE/err" || fail "loose-socket: the refusal does not name it ($(cat "$CASE/err"))"
+[[ ! -s $CASE/probed ]] || fail 'loose-socket: it was connected to before being refused'
+[[ ! -f $CASE/exec ]] || fail 'loose-socket: the server was run against it'
+
+printf 'PASS: nvim-mcp-connect.sh (19 cases)\n'

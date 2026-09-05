@@ -76,6 +76,34 @@ probe_out="$(mktemp "${probe_dir%/}/nvim-mcp-connect.XXXXXX")"
 # as a crash rather than as the reason it printed.
 trap 'rm -f "$probe_out" 2>/dev/null || true' EXIT
 
+# dir_mode <path> -- the permission bits. BSD stat first, GNU second; neither
+# answering leaves this empty, which every caller reads as a refusal.
+dir_mode() {
+  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null || true
+}
+
+# socket_fault <path> -- why this endpoint is not a private unix socket, empty
+# when it is one. `nvim --listen` takes a TCP address or any path, and Neovim
+# trusts every RPC peer it accepts, so an endpoint another account can reach is
+# an endpoint another account can rebind after its owner dies and then answer
+# the identity probe with whatever it likes. Only a socket inside a directory
+# this user owns at 0700 is out of that reach.
+socket_fault() {
+  local dir mode
+  [[ -S $1 ]] || {
+    printf 'is not a unix socket'
+    return 0
+  }
+  dir="${1%/*}"
+  [[ -O $dir ]] || {
+    printf 'sits in %s, which this user does not own' "$dir"
+    return 0
+  }
+  mode="$(dir_mode "$dir")"
+  [[ $mode == 700 ]] ||
+    printf 'sits in %s, which is mode %s rather than 0700' "$dir" "${mode:-unreadable}"
+}
+
 # identity <socket> -- "<pane id> <pid>" as the instance reports itself, empty
 # if it does not. Deadline-bounded (stock macOS ships no timeout(1)), and the
 # reply is rejected WHOLE rather than trimmed to fit: a cap that truncates turns
@@ -120,10 +148,7 @@ if [[ -L $registry ]]; then
 elif [[ -e $registry ]]; then
   [[ -d $registry ]] || die 2 "the registry $registry is not a directory"
   [[ -O $registry ]] || die 2 "the registry $registry is not owned by this user"
-  # BSD stat first, GNU second; neither answering leaves mode empty, which
-  # refuses. No find(1), so the tool guard above stays the only dependency
-  # this script has beyond nvim and jq.
-  mode="$(stat -f '%Lp' "$registry" 2>/dev/null || stat -c '%a' "$registry" 2>/dev/null || true)"
+  mode="$(dir_mode "$registry")"
   [[ $mode == 700 ]] || die 2 "the registry $registry is not mode 0700"
 fi
 
@@ -135,6 +160,7 @@ fi
 layout="$(herdr pane layout --pane "$HERDR_PANE_ID" 2>/dev/null || true)"
 tab="$(printf '%s' "$layout" | jq -r '.result.layout.tab_id // empty' 2>/dev/null || true)"
 [[ -n $tab ]] || die 2 "herdr did not report a layout for pane $HERDR_PANE_ID"
+# Space-delimited on both ends, because membership is tested as *" $pane "*.
 siblings=" $(printf '%s' "$layout" | jq -r '.result.layout.panes[].pane_id' | tr '\n' ' ')"
 
 # Candidates accumulate as "<pane id> <pid> <socket>" lines.
@@ -145,6 +171,19 @@ for record in "$registry"/*; do
   # A record that disagrees with its own filename is not one this design wrote.
   [[ -n ${pane:-} && -n ${sock:-} && ${pid:-} == "${record##*/}" ]] || continue
   [[ $siblings == *" $pane "* ]] || continue
+  # A record naming something other than an absolute path is a TCP or named
+  # endpoint, and one naming a path that exists but is not a private socket is
+  # reachable by another account. Both are refused, before any connection,
+  # because a record is OUR data and one of these is an anomaly rather than
+  # noise. A path that simply does not exist is a dead instance and falls
+  # through to the identity check below, which prunes it.
+  if [[ $sock != /* ]]; then
+    die 3 "the record for pane $pane names $sock, which is not an absolute path, so it is a TCP or named endpoint that another account can observe and rebind"
+  fi
+  if [[ -e $sock ]]; then
+    fault="$(socket_fault "$sock")"
+    [[ -z $fault ]] || die 3 "the record for pane $pane names $sock, which $fault"
+  fi
   if [[ "$(identity "$sock")" != "$pane $pid" ]]; then
     rm -f "$record"
     continue
@@ -162,6 +201,9 @@ if [[ -z $candidates ]]; then
     pid="${pid%.0}"
     [[ $pid =~ ^[0-9]+$ ]] || continue
     kill -0 "$pid" 2>/dev/null || continue
+    # Skipped rather than refused: the runtime root is a directory anything may
+    # drop a file into, so one odd entry must not block every resolution.
+    [[ -z "$(socket_fault "$sock")" ]] || continue
     reported="$(identity "$sock")"
     pane="${reported% *}"
     [[ -n $reported && $reported == "$pane $pid" && $siblings == *" $pane "* ]] || continue
