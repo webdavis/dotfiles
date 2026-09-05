@@ -1,14 +1,13 @@
 -- dial.nvim owns <C-a>/<C-x>: numbers and dates as it ships them, plus the word cycles boole.nvim
--- used to toggle (dropped in the same commit). `preserve_case` reproduces boole's caps handling
--- (true -> false, True -> False, TRUE -> FALSE) for the loops boole allowed it on. Loaded eagerly
--- like the bare spec it replaces: no startup trigger moves before PR 30a.
+-- used to toggle (dropped in the same commit). Loaded eagerly like the bare spec it replaces: no
+-- startup trigger moves before PR 30a.
 return {
   "monaqa/dial.nvim",
   config = function()
     local augend = require("dial.augend")
 
-    -- boole's built-in loops that also matched Capitalized and UPPER forms.
-    local case_preserving = {
+    -- boole's built-in loops, which also matched the Capitalized and UPPER forms of each word.
+    local cased = {
       { "true", "false" },
       { "yes", "no" },
       { "on", "off" },
@@ -93,11 +92,27 @@ return {
       augend.date.new({ pattern = "%m/%d", default_kind = "day", only_valid = true }),
       augend.date.new({ pattern = "%H:%M", default_kind = "day", only_valid = true }),
     }
-    for _, elements in ipairs(case_preserving) do
-      table.insert(
-        group,
-        augend.constant.new({ elements = elements, word = true, cyclic = true, preserve_case = true })
-      )
+    -- Each cased loop is registered three times, once per spelling, rather than once with
+    -- `preserve_case`. That option matches case-INSENSITIVELY, which accepts spellings boole never
+    -- did: on `tRuE 1` boole left the word alone and stepped the number to `2`, while dial flipped
+    -- `tRuE` to `false` and left the number where it was. Three exact cycles restore boole's three
+    -- spellings and no more.
+    local spellings = {
+      function(word)
+        return word
+      end,
+      function(word)
+        return word:sub(1, 1):upper() .. word:sub(2)
+      end,
+      string.upper,
+    }
+    for _, elements in ipairs(cased) do
+      for _, spelling in ipairs(spellings) do
+        table.insert(
+          group,
+          augend.constant.new({ elements = vim.tbl_map(spelling, elements), word = true, cyclic = true })
+        )
+      end
     end
     for _, elements in ipairs(exact) do
       table.insert(group, augend.constant.new({ elements = elements, word = true, cyclic = true }))
