@@ -247,10 +247,15 @@ for _, spec in ipairs(specs) do
 end
 assert(fugitive, "no vim-fugitive spec in lua/plugins/git.lua")
 
-local configured, config_error = with_fake_sinks(function()
-  fugitive.config()
+-- The fugitive mappings ARE the spec's `keys` rows, so the callbacks come from
+-- there rather than from a faked `map()`; `keys` is a function, which lazy.nvim
+-- calls for its rows, so this calls it the same way.
+local built, keys_error = with_fake_sinks(function()
+  for _, row in ipairs(fugitive.keys()) do
+    captured[row[1]] = { lhs = row[1], rhs = row[2], desc = row.desc }
+  end
 end)
-assert(configured, "the fugitive spec's config raised: " .. tostring(config_error))
+assert(built, "the fugitive spec's keys raised: " .. tostring(keys_error))
 
 local gitsigns_spec
 for _, spec in ipairs(specs) do
