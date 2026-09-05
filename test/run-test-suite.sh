@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] <suite-dir> -- run one
-# test suite: its executable *.sh tests, then its *.bats suites. Shared by every
-# test recipe so the checked-discovery and fd-closing rules below live in ONE
-# place.
+# run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] [--only-bashunit]
+# <suite-dir> -- run one test suite: its bashunit `<name>.test.sh` files, then
+# its executable *.sh tests, then its *.bats suites. Shared by every test recipe
+# so the checked-discovery and fd-closing rules below live in ONE place.
 #
 # Two correctness rules the gate depends on:
 #
@@ -26,6 +26,8 @@
 #                      TEST_SEED=<seed>. (Bats 1.11 has no built-in shuffle.)
 #   --warn-slow-ms N   print a WARN-ONLY summary of *.sh tests over N ms; the
 #                      warnings never fail the run.
+#   --only-bashunit    run the bashunit lane alone and stop, for focused
+#                      iteration through `just test-bashunit`.
 #
 # TEST_SEED and UNIT_WARN_MS still work as env fallbacks; a flag wins over the
 # matching env var. Timing uses bash's built-in EPOCHREALTIME (no external
@@ -33,16 +35,18 @@
 # order otherwise.
 set -euo pipefail
 
-usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] <suite-dir>'
+usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] [--only-bashunit] <suite-dir>'
 
 # Parsed by parse_args; declared here so every function can see them.
 shuffle=0
 seed=""
 warn=0
 warn_ms=""
+only_bashunit=0
 suite_directory=""
 status=0
 any_sh=0
+any_bashunit=0
 slow=()
 # Set in main; global so the EXIT trap can still see it after main returns.
 workdir=""
@@ -91,6 +95,7 @@ parse_args() {
         warn_ms="${1#*=}"
         require_unsigned_integer "$warn_ms"
         ;;
+      --only-bashunit) only_bashunit=1 ;;
       -*) die_usage ;;
       *)
         [[ -z $suite_directory ]] || die_usage
@@ -199,6 +204,36 @@ run_sh_tests() { # <sh_list_file>
   return 0
 }
 
+# Run the suite's bashunit files from <bashunit_list_file>.
+#
+# The list is an EXACT, suite-local set of `*.test.sh` paths rather than a
+# directory handed to bashunit, and that is the whole point of running the lane
+# from here. bashunit's own path argument makes it scan RECURSIVELY for
+# `*[tT]est.sh` plus a `.bash` twin (bashunit::helper::find_files_recursive at
+# 0.50.1), which reaches three things it must not: a fixture named `latest.sh`,
+# an executable `contest.sh` that the *.sh lane below ALSO runs, and every other
+# suite's files, so an integration test would run under the unit gate and be
+# missed by its own recipe. Discovery belongs where it is checked and bounded to
+# one flat suite, which is here.
+run_bashunit_files() { # <bashunit_list_file>
+  local bashunit_list="$1"
+  local bashunit_files=() f
+  while IFS= read -r -d '' f; do
+    bashunit_files+=("$f")
+  done <"$bashunit_list"
+  ((${#bashunit_files[@]} > 0)) || return 0
+  any_bashunit=1
+
+  printf '== bashunit (%s) ==\n' "$suite_directory"
+  if ! command -v bashunit >/dev/null 2>&1; then
+    printf 'FAIL: bashunit is not installed; run "brew install bashunit" (it is declared in .chezmoidata/system_packages_autoinstall.yaml)\n' >&2
+    status=1
+    return
+  fi
+  # NO_COLOR, not --no-color: the flag is ignored in either position on 0.50.1.
+  NO_COLOR=1 bashunit "${bashunit_files[@]}" || status=1
+}
+
 # Run the suite's *.bats suites from <bats_list_file>.
 run_bats_suites() { # <bats_list_file>
   local bats_list="$1"
@@ -244,10 +279,21 @@ discover_bats_tests() { # <outfile>
   fi
 }
 
+# `*.test.sh` exactly, and only the ones sitting flat in THIS suite. Note this
+# runs before the *.sh discovery below and matches a strict subset of it, except
+# that a bashunit file is never executable, so the two lanes cannot both claim
+# the same file: test/validate-tests.sh is what pins that mode rule.
+discover_bashunit_tests() { # <outfile>
+  if ! discover_tests "$suite_directory" "$1" -name '*.test.sh'; then
+    printf 'FAIL: %s .test.sh discovery failed; refusing to run a partial list\n' "$suite_directory" >&2
+    exit 1
+  fi
+}
+
 # An empty suite is a green no-op: say so and stop. The bats list file is empty
 # exactly when discovery found no bats files.
 exit_zero_if_no_tests_found() { # <bats_list_file>
-  if [[ $any_sh -eq 0 && ! -s $1 ]]; then
+  if [[ $any_sh -eq 0 && $any_bashunit -eq 0 && ! -s $1 ]]; then
     printf 'no tests found in %s\n' "$suite_directory"
     exit 0
   fi
@@ -266,7 +312,14 @@ main() {
 
   workdir="$(mktemp -d)"
   trap 'rm -rf "$workdir"' EXIT
-  local sh_list="$workdir/sh" bats_list="$workdir/bats"
+  local sh_list="$workdir/sh" bats_list="$workdir/bats" bashunit_list="$workdir/bashunit"
+
+  discover_bashunit_tests "$bashunit_list"
+  run_bashunit_files "$bashunit_list"
+  if [[ $only_bashunit -eq 1 ]]; then
+    [[ $any_bashunit -eq 1 ]] || printf 'no bashunit tests found in %s\n' "$suite_directory"
+    exit "$status"
+  fi
 
   discover_sh_tests "$sh_list"
   run_sh_tests "$sh_list"

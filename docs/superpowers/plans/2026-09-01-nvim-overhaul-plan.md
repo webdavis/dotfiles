@@ -5,10 +5,17 @@
 > syntax for tracking.
 
 **Goal:** Move the live Neovim config into chezmoi unchanged, then land every fix, drop, add, custom
-plugin and the lazy-load pass as 69 small reviewed pull requests, ending at a verified clean editor.
+plugin and the lazy-load pass as 70 task entries across up to 60 small reviewed pull requests, ending
+at a verified clean editor. The count is conditional: PR 10b (task 20) ships only on a crate row of
+the 7.3 table, and PR 9's record takes the resolver row, so **69 tasks execute across 59 pull
+requests** as things stand.
 
-**Architecture:** One task per pull request in the spec's section 11 order and lanes. The source is
-`dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
+**Architecture:** One task per pull request in the spec's section 11 order and lanes, with two
+exceptions. The twelve startup-trigger tasks 49 to 60 ship as three pull requests of four TASKS each
+(PR 30a, 30b, 30c), by the operator's 2026-09-03 batching ruling stated in full below; that is what
+turns 69 PR-bearing tasks into 60 pull requests. And task 63, the acceptance bar, has no pull request
+of its own: it runs on PR 31's branch before that merge, so it shares PR 31 with task 62. The source
+is `dot_config/nvim/`; pure Lua under `lua/custom_api/` has headless tests in `tests/` run by
 `nvim --headless --clean -l tests/run.lua`; bash pieces are bats tested until the bashunit
 program's T1 lands and bashunit tested after it (spec 11). Every PR ships a dump diff.
 
@@ -23,7 +30,10 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 ## Global Constraints
 
 - Decision H: the import carries zero change; every fix is a later PR (spec 3.7).
-- One PR per behavior, small (operator rule 2026-08-10); at most two lanes open at once.
+- One PR per behavior, small (operator rule 2026-08-10); at most two lanes open at once. Two
+  exceptions: the startup-trigger batch, PR 30a to 30c, where four near-identical TASKS share a pull
+  request and are still evidenced per task (and inside a task, per plugin); and task 63, which runs
+  on PR 31's branch rather than taking a pull request of its own.
 - Every test passes within a second; bash tests are bats until the bashunit program's T1 lands and
   bashunit after it, Lua tests use the headless runner (6.3).
 - We test the behavior of tools we wrote, nothing else: no plugin, chezmoi or launchd assertions.
@@ -126,7 +136,7 @@ Inventory: `~/.claude/pipeline/nvim-overhaul/inventory-2026-09-01.md`.
 | LSP and tools        | PR 5a, 5b, 17a, 27, 29a, 29c, 29d, 29e                      |
 | drops and git        | PR 17b, 17c, 17d, 17e, 18, 22b, 24, 24a, 24b, 25            |
 | standalone           | PR 4a, 4b, 4c, 4d, 6b, 19a, 19b, 20, 21, 22a, 26a, 26b, 26c, 28a, 28b, 29b |
-| last                 | PR 30a, 30b1, 30b2, 30c1 to 30c9, 30d, 31, then task 63     |
+| last                 | PR 30a, 30b, 30c, 30d, 31, then task 63                     |
 
 PR 14 is last in its lane because it waits on PR 28b (the neotest spec it edges) and on the pns
 refactor that builds `--elapsed`. PR 28a's Bash row waits on T1 and T2 of the bashunit program (spec
@@ -181,7 +191,7 @@ so init.lua and every plugin never load and the dump silently captures nothing),
 Fires `doautocmd User VeryLazy` FIRST, inside the dump process itself, and asserts a known
 VeryLazy-triggered plugin (`which-key.nvim`) shows loaded afterward, erroring otherwise: the dump runs
 in its own process, so without this every VeryLazy-triggered plugin (which-key, noice, textobjects,
-unimpaired, claudecode after PR 30c9) is silently absent from both sides of every diff. Global pass:
+unimpaired, claudecode after PR 30c) is silently absent from both sides of every diff. Global pass:
 `nvim_get_keymap(mode)` for `n`, `v`, `x`, `s`, `o`, `i`, `c`, `t`. Buffer-local pass: `:edit
 $DOTFILES/justfile`, then
 `vim.wait(5000, function() return vim.fn.maparg("]g", "n", false, true).buffer == 1 end)` (`]g` is the
@@ -746,7 +756,9 @@ PR 10b. Two shapes, one taken:
 
 **`nvim-mcp` rows (5, 6, 4 pass).** Create
 `.chezmoiscripts/run_onchange_after_73-install-nvim-mcp.sh.tmpl` (`cargo install --git
-https://github.com/linw1995/nvim-mcp --rev 0b5ace3`, guarded on `command -v cargo`, quiet on no-op),
+https://github.com/linw1995/nvim-mcp --rev 0b5ace3`, guarded on `[[ -x $HOME/.cargo/bin/cargo ]]` and
+never on `command -v cargo`, because rustup is provisioned by a `before` script in the same apply and
+`~/.cargo/bin` is not on the apply shell's PATH yet; quiet on no-op),
 `lua/plugins/nvim-mcp.lua`. Modify `modify_private_dot_claude.json` (a stable `nvim-mcp` entry beside
 composio), `private_dot_codex/private_config.toml.tmpl` (one `[mcp_servers.nvim]` table beside the
 ten), `.chezmoitemplates/global-agent-rules.md` and `dot_config/nvim/CLAUDE.md` (the 7.5 rule
@@ -931,17 +943,25 @@ are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
 blame"`).
 
-**Interfaces:** `annotate.compose_text(parts)` (pure) with
-`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, one
-part per line, with no blank line where a part is nil. `annotate.line()` gathers the parts,
+**Interfaces:** `annotate.compose_text(parts, separator)` (pure) with
+`parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, the
+parts joined by `separator` (a newline by default) with no doubled separator where a part is nil.
+`annotate.line()` passes ` | ` (space, pipe, space), so the STORED text is one line: herdr-nvim's
+`ui.comment_list` renders one buffer line per comment out of the comment's own text (`ui.lua:89`,
+`ui.lua:147` at the installed commit `41c30f5`), and `nvim_buf_set_lines` raises
+`'replacement string' item contains newlines`, so every two-part annotation broke `<leader>Al`
+(measured 2026-09-05). This repository does not patch third-party plugins, so the separator moved
+rather than the plugin, and it reverts to a newline by changing one constant once herdr-nvim can list
+a multi-line comment. `annotate.line()` gathers the parts,
 `@<rel>:<line>` for the mention, the first `vim.diagnostic.get` on the line, the enclosing treesitter
 node whose type ends in `function_definition`, `function_declaration` or `method_definition`, and
 `git.blame_sha` plus `git.latest_commit`, then calls `herdr-nvim`'s
 `comments.add(bufnr, line, line, text)` and passes the returned id to `ui.decorate(id)` (both read at
 the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50`).
 
-- [ ] **Step 1, red:** `annotate_spec`: all four parts join one per line; mention only; a nil middle
-  part leaves no blank line; the order is mention, diagnostic, function, blame. FAIL. **Step 2:**
+- [ ] **Step 1, red:** `annotate_spec`: all four parts join with the separator; mention only; a nil
+  middle part doubles no separator; the default separator is a newline; the order is mention,
+  diagnostic, function, blame. FAIL. **Step 2:**
   implement; the module name confirmed with the operator first (rename rule). No fake herdr and no
   state fixture: nothing here reads an agent's state.
 - [ ] **Mutants:** join with spaces (red); drop the diagnostic part (red); emit an empty line for a
@@ -1000,16 +1020,19 @@ keymap). Create `tests/ledger_awk_spec.lua`.
 columns are `id, step, severity, summary, disposition, evidence`, and emits one
 `<file>:<line>: F<n> <severity> <disposition>: <summary>` per row: `<file>:<line>` from a `path:line`
 token in the summary when the row carries one, else the ledger file and the row's own line number.
-`FIXED` rows are skipped unless the command was banged. Default file: the newest
+Closed rows are skipped unless the command was banged, matched as a PREFIX of `FIXED` so that
+`FIXED-NOTEST` is skipped too. Default file: the newest
 `~/.claude/pipeline/slices/findings-*.md`.
 
-- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of three rows (one with a `path:line` token,
-  one without, one `FIXED`) through the same awk with `vim.system` and asserts the output lines, then
-  the same input with the bang flag asserting four lines. FAIL. (`vim.system` is a core API and is
-  available under the `--clean` runner, measured 2026-09-03.) **Step 2:** implement the command.
-- [ ] **Mutants:** never skip `FIXED` (red); ignore the `path:line` token (red).
+- [ ] **Step 1, red:** `ledger_awk_spec` pipes a heredoc of rows (one with a `path:line` token, one
+  without, one `FIXED`, one `FIXED-NOTEST`) through the same awk with `vim.system` and asserts the
+  output lines, then the same input with the bang flag asserting every row back. FAIL. (`vim.system`
+  is a core API and is available under the `--clean` runner, measured 2026-09-03.) **Step 2:**
+  implement the command.
+- [ ] **Mutants:** never skip a closed row (red); match the disposition for equality with `FIXED`
+  rather than as a prefix (red); ignore the `path:line` token (red).
 - [ ] **Step 3, live, pasted:** `:ReviewLedger` on a real findings file fills the quickfix list and
-  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the `FIXED` rows.
+  `:cnext` lands on the ledger row; `:ReviewLedger!` additionally lists the closed rows.
 - [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): load a findings ledger into the
   quickfix list`.
 
@@ -1387,18 +1410,34 @@ The twelve startup-trigger tasks below each make one plugin load when first used
 startup. They are near-identical, and twelve separate pull requests means twelve full pipeline runs
 for the same outcome.
 
-**They ship as three groups of four, in the numbered order below.** The plan's per-plugin steps,
-gates and mutants still apply to every plugin individually; only the pull request boundary moves.
+**They ship as three groups of four TASKS, in the numbered order below, as PR 30a, PR 30b and
+PR 30c.** Four tasks is not four plugins: task 49 alone covers the whole LSP group's specs.
+
+| Pull request | Tasks    | What each task covers                       |
+| ------------ | -------- | ------------------------------------------- |
+| PR 30a       | 49 to 52 | the LSP group, fugitive, octo, treesj       |
+| PR 30b       | 53 to 56 | auto-save, overseer, harpoon, urlview       |
+| PR 30c       | 57 to 60 | sort, live-rename, aerial, claudecode.nvim  |
+
+Those three identifiers replace the twelve this plan carried before the ruling (30a, 30b1, 30b2 and
+30c1 to 30c9), everywhere: the goal count, the architecture note, the lane table, the task headings
+and the dependencies. PR 30d, the lazy flip, is unchanged and now depends on PR 30a, 30b and 30c.
+
+The plan's per-plugin steps, gates and mutants still apply to every plugin individually; only the
+pull request boundary moves. Task 51 depended on task 50 when they were separate pull requests; both
+now land in PR 30a, so that dependency is a commit order inside one pull request rather than a
+between-pull-request edge.
 
 Why three rather than one: if a plugin breaks when made lazy, the failure has to be attributable. A
 group of four keeps the keymap dump and the startup comparison small enough to name the culprit
 without bisecting, which is what the original one-per-PR split was protecting. One pull request of
 twelve would lose that; three loses very little of it.
 
-Each group's pull request body must list its four plugins and give the per-plugin evidence
-separately, so a reader can still see which plugin each measurement belongs to.
+Each group's pull request body must list its four TASKS and give the evidence per task, so a reader
+can see which task each measurement belongs to. Inside a task that covers several plugin specs, task
+49 above being the one, the evidence stays per plugin as the task's own steps require.
 
-### Task 49: PR 30a, startup triggers for the LSP group (spec 9)
+### Task 49: PR 30a (1 of 4), startup triggers for the LSP group (spec 9)
 
 Lane: last. Depends on: PR 29a, PR 12, PR 29c (`lsp.lua`). Brief: `brief-nvim-triggers-lsp.md`.
 Closes 48 (part).
@@ -1410,7 +1449,7 @@ Closes 48 (part).
   still attaches clangd with both flags; a keymap or command that no longer fires is a wrong trigger,
   fixed in-round.
 
-### Task 50: PR 30b1, startup triggers for fugitive (spec 9)
+### Task 50: PR 30a (2 of 4), startup triggers for fugitive (spec 9)
 
 Lane: last. Depends on: PR 24 (`git.lua`). Brief: `brief-nvim-triggers-fugitive.md`. Closes 48 (part).
 
@@ -1418,16 +1457,18 @@ Lane: last. Depends on: PR 24 (`git.lua`). Brief: `brief-nvim-triggers-fugitive.
   Commit: `perf(nvim): lazy-load fugitive on its commands and keys`.
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged; G5 records the drop; every `<C-g>` map fires live.
 
-### Task 51: PR 30b2, startup triggers for octo (spec 9)
+### Task 51: PR 30a (3 of 4), startup triggers for octo (spec 9)
 
-Lane: last. Depends on: PR 30b1 (`git.lua`). Brief: `brief-nvim-triggers-octo.md`. Closes 48 (part).
+Lane: last. Depends on: task 50, which lands earlier in this same pull request (`git.lua`). Brief:
+`brief-nvim-triggers-octo.md`. Closes 48 (part).
 
 - [ ] **Step 1:** octo `cmd = "Octo"` plus its `<leader>gh` keys, in `git.lua`. Commit: `perf(nvim):
   lazy-load octo on its command and keys`.
 - [ ] **Step 2:** Gates G1 to G6; G4 unchanged; G5 records the drop; the `<leader>gh` maps fire live
   and the octo `<localleader>` popup still appears.
 
-The nine 30c tasks below share one shape (spec 9, spec 11): lane last; each depends on PR 1 to 29e
+The nine remaining startup-trigger tasks below share one shape (spec 9, spec 11): lane last; each
+depends on PR 1 to 29e
 (the lane rule) plus the shared-file predecessor its Depends line names; each adds ONE trigger to ONE
 spec file and changes nothing else there; each runs gates G1 to G6 with G4 unchanged (lazy `keys`
 still dump) and G5 recording the drop; every keymap and command the trigger names fires live, and one
@@ -1436,7 +1477,7 @@ The specs the section 9 table lists as already triggered (`kulala`, `ansible`, `
 group, `grug-far`, `codesnap`, `xcodebuild.nvim` and the rest of that row) get NO PR: lazy.nvim already
 marks them lazy, verified 2026-09-01 against the live spec files.
 
-### Task 52: PR 30c1, startup trigger for treesj (spec 9)
+### Task 52: PR 30a (4 of 4), startup trigger for treesj (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-treesj.md`. Closes 48 (part).
 
@@ -1444,7 +1485,7 @@ Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-treesj.md`. Clos
   lazy-load treesj`.
 - [ ] **Step 2:** the shared gates above; the five `<leader>j` maps fire live.
 
-### Task 53: PR 30c2, startup trigger for auto-save (spec 9)
+### Task 53: PR 30b (1 of 4), startup trigger for auto-save (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
 Closes 48 (part).
@@ -1453,7 +1494,7 @@ Closes 48 (part).
   toggle in `keys`. Commit: `perf(nvim): lazy-load auto-save`.
 - [ ] **Step 2:** the shared gates above; an edit still auto-saves and `<leader>uv` still toggles.
 
-### Task 54: PR 30c3, startup trigger for overseer (spec 9)
+### Task 54: PR 30b (2 of 4), startup trigger for overseer (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e; PR 14 (`overseer.lua`). Brief: `brief-nvim-trigger-overseer.md`.
 Closes 48 (part).
@@ -1463,7 +1504,7 @@ Closes 48 (part).
 - [ ] **Step 2:** the shared gates above; `<leader>o`, `<M-7>`, `<M-8>`, `<M-;>` and `<M-[>` fire
   live and a task completion still reaches pns (PR 14's edge).
 
-### Task 55: PR 30c4, startup trigger for harpoon (spec 9)
+### Task 55: PR 30b (3 of 4), startup trigger for harpoon (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e; PR 22a (`harpoon.lua`). Brief: `brief-nvim-trigger-harpoon.md`.
 Closes 48 (part).
@@ -1472,7 +1513,7 @@ Closes 48 (part).
   `perf(nvim): lazy-load harpoon`.
 - [ ] **Step 2:** the shared gates above; every harpoon map fires live.
 
-### Task 56: PR 30c5, startup trigger for urlview (spec 9)
+### Task 56: PR 30b (4 of 4), startup trigger for urlview (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-urlview.md`. Closes 48 (part).
 
@@ -1480,21 +1521,21 @@ Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-urlview.md`. Clo
   urlview`.
 - [ ] **Step 2:** the shared gates above; `<leader>U` maps and `:UrlView` fire live.
 
-### Task 57: PR 30c6, startup trigger for sort (spec 9)
+### Task 57: PR 30c (1 of 4), startup trigger for sort (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-sort.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `sort.lua` gains `cmd = "Sort"` and its keys. Commit: `perf(nvim): lazy-load sort`.
 - [ ] **Step 2:** the shared gates above; `:Sort` and its keys fire live.
 
-### Task 58: PR 30c7, startup trigger for live-rename (spec 9)
+### Task 58: PR 30c (2 of 4), startup trigger for live-rename (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-live-rename.md`. Closes 48 (part).
 
 - [ ] **Step 1:** `live-rename.lua` gains `keys`. Commit: `perf(nvim): lazy-load live-rename`.
 - [ ] **Step 2:** the shared gates above; the rename map fires live on an LSP buffer.
 
-### Task 59: PR 30c8, startup trigger for aerial (spec 9)
+### Task 59: PR 30c (3 of 4), startup trigger for aerial (spec 9)
 
 Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-aerial.md`. Closes 48 (part).
 
@@ -1502,7 +1543,7 @@ Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-aerial.md`. Clos
 - [ ] **Step 2:** the shared gates above; the aerial toggle fires live and the PR 2 close-sidebars
   autocmd still closes it on quit.
 
-### Task 60: PR 30c9, startup trigger for claudecode.nvim (spec 9, 7.2)
+### Task 60: PR 30c (4 of 4), startup trigger for claudecode.nvim (spec 9, 7.2)
 
 Lane: last. Depends on: PR 1 to 29e; PR 16 (`claudecode.lua`). Brief:
 `brief-nvim-trigger-claudecode.md`. Closes 48 (part).
@@ -1514,7 +1555,7 @@ Lane: last. Depends on: PR 1 to 29e; PR 16 (`claudecode.lua`). Brief:
 
 ### Task 61: PR 30d, the lazy flip (spec 9, 9.1)
 
-Lane: last. Depends on: PR 30a, 30b1, 30b2, 30c1 to 30c9. Brief: `brief-nvim-lazy-flip.md`. Closes
+Lane: last. Depends on: PR 30a, 30b, 30c. Brief: `brief-nvim-lazy-flip.md`. Closes
 48.
 
 - [ ] **Step 1, the set, before editing:** `:Lazy` under the harness lists every spec; the ones with

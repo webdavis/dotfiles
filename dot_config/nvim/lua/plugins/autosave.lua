@@ -26,7 +26,7 @@ local function save_condition(buf)
     return false
   end
   -- claudecode.nvim's proposed-edit buffers, which a timed write would accept.
-  return require("custom_api.autosave").should_save(vim.api.nvim_buf_get_name(buf), vim.fn.getbufvar(buf, "&buftype"))
+  return require("custom_api.autosave").should_save(buf)
 end
 
 return {
@@ -63,7 +63,7 @@ return {
       group = write_flag_group,
       pattern = "AutoSaveWritePre",
       callback = function(args)
-        vim.b[args.data.saved_buffer].autosave_write = true
+        require("custom_api.autosave").mark_write(args.data.saved_buffer)
       end,
     })
 
@@ -71,7 +71,7 @@ return {
       group = write_flag_group,
       pattern = "AutoSaveWritePost",
       callback = function(args)
-        vim.b[args.data.saved_buffer].autosave_write = nil
+        require("custom_api.autosave").clear_write(args.data.saved_buffer)
       end,
     })
 

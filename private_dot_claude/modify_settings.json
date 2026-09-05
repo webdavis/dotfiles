@@ -569,7 +569,8 @@
 {{-   $merged = setValueAtPath "extraKnownMarketplaces.pns" (dict
       "source" (dict "source" "directory" "path" (printf "%s/.claude/pns-marketplace" $home))) $merged -}}
 {{-   $merged = setValueAtPath "extraKnownMarketplaces.strategy" (dict
-      "source" (dict "source" "directory" "path" (printf "%s/.claude/strategy-marketplace" $home))) $merged -}}
+      "source" (dict "source" "directory" "path"
+        (printf "%s/.claude/strategy-marketplace" $home))) $merged -}}
 {{- end -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user

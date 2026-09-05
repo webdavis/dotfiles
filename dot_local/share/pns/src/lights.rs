@@ -10,6 +10,12 @@
 //! between what a process believes and what the disk says is the class this
 //! crate keeps paying for.
 
+// The working-file name grammar moved to `pns-domain`, because the safety
+// predicates that read the same names are policy too and cannot reach back
+// into this package. `sweep_claim` below still writes the sweep's own suffix.
+use pns_domain::lights::WORKING_SWEEP;
+pub use pns_domain::lights::working_owner;
+
 /// The one word herdr's agent-status enum uses for a loop that is running.
 ///
 /// The enum is `idle`, `working`, `blocked`, `unknown`, read off the binary's
@@ -445,52 +451,6 @@ is no pane to key the lease to; run it inside the pane, or name one with --pane"
 
 pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
 pns loop end [--pane <id>]";
-
-/// The run that owns a WORKING FILE in a marker directory, or None for an
-/// ordinary marker.
-///
-/// TWO SUFFIXES AND ONE ANSWER. A publish writes `<name>.new.<pid>` beside the
-/// marker it is about to rename over, and a sweep writes `<name>.sweep.<pid>`
-/// when it takes one to remove it. Both are one run's private working name,
-/// both carry that run's own process id, and a sweep has to tell them from the
-/// markers it is there to judge.
-///
-/// THE PID IS WHAT MAKES IT DECIDABLE, and matching the bare suffix was not.
-/// Pane ids and session ids are opaque words from another program, and both
-/// alphabets admit a dot: a pane called `a.new.b` produced a lease file every
-/// sweep stepped over, so it aged out never, while a working file whose own run
-/// had died was never collected either. A name is a working file only when what
-/// follows the LAST such marker is a positive process id, which is a name only
-/// this crate's own writers produce.
-///
-/// THE RIGHTMOST OF THE TWO SUFFIXES, compared by OFFSET rather than tried one
-/// after the other: `a.new.b.sweep.1` is the sweep's own working file on a
-/// marker shaped like a publish, and trying `.new.` first found it, read the
-/// marker's own name as the owner, failed to parse it as a pid and answered
-/// `None`, so that working file was never collected. Two runs never write
-/// both suffixes into one name, so only one candidate is ever real; comparing
-/// offsets picks it without caring which writer's shape it was.
-pub fn working_owner(name: &str) -> Option<&str> {
-    let pending = name.rfind(WORKING_PENDING).map(|at| (at, WORKING_PENDING));
-    let sweep = name.rfind(WORKING_SWEEP).map(|at| (at, WORKING_SWEEP));
-    let (at, marker) = match (pending, sweep) {
-        (Some(pending), Some(sweep)) => {
-            if pending.0 >= sweep.0 {
-                pending
-            } else {
-                sweep
-            }
-        }
-        (Some(only), None) | (None, Some(only)) => only,
-        (None, None) => return None,
-    };
-    let owner = &name[at + marker.len()..];
-    (crate::parse_count(owner)? > 0).then_some(owner)
-}
-
-/// The two working-file markers, in the spelling their writers use.
-const WORKING_PENDING: &str = ".new.";
-const WORKING_SWEEP: &str = ".sweep.";
 
 /// One run's private name for a marker it has taken to remove.
 pub fn sweep_claim(directory: &std::path::Path, name: &str, pid: u32) -> std::path::PathBuf {
@@ -1418,8 +1378,7 @@ mod tests {
         last_interaction, lease_marker, loop_command, loop_running, muted_after, muted_entries,
         muted_places, muted_report, news_after, next_streak, parse_held_token, parse_news,
         parse_streak, pulse_fires, quiet_command, render_held_token, render_muted, render_news,
-        render_streak, resume_from, say, shown, step_ms, unread_arming, working_owner,
-        workspace_agent_statuses,
+        render_streak, resume_from, say, shown, step_ms, unread_arming, workspace_agent_statuses,
     };
     use crate::config::Behaviour;
 
@@ -1516,74 +1475,6 @@ mod tests {
             next_streak(None, false, 1_000, GRACE),
             None,
             "nothing working and no streak stays nothing"
-        );
-    }
-
-    #[test]
-    fn a_working_file_is_told_from_a_marker_by_the_process_id_that_owns_it() {
-        // THE COLLISION THIS EXISTS TO CLOSE. Pane ids and session ids are
-        // opaque words from another program and both alphabets admit a dot, so
-        // a name matched on the bare suffix put a real marker beyond every
-        // sweep: it aged out never and its lamp could not be released.
-        assert_eq!(working_owner("s1.new.4321"), Some("4321"));
-        assert_eq!(working_owner("wW:p21.sweep.99"), Some("99"));
-        assert_eq!(
-            working_owner("a.new.b"),
-            None,
-            "a pane whose own name spells the suffix is a MARKER, not a publish"
-        );
-        for marker in [
-            "s1",
-            "wW:p21",
-            "a.new.",
-            "a.new.0",
-            "a.sweep.-1",
-            "a.new.b.c",
-        ] {
-            assert_eq!(working_owner(marker), None, "{marker:?} is a marker");
-        }
-    }
-
-    #[test]
-    fn a_working_file_is_told_by_its_rightmost_suffix_not_its_first() {
-        // A MARKER NAMED FOR THE SUFFIX ITSELF SITS TO THE LEFT of the sweep's
-        // own working file on that marker: `a.new.b` is the marker, and the
-        // sweep taking it writes `a.new.b.sweep.<pid>` beside it. The first
-        // `rsplit_once` this used to run found `.new.` and stopped there,
-        // reading the marker's own name as the owner and failing to parse it
-        // as a pid, so the sweep's working file was judged a marker too and
-        // was never collected: one abandoned run leaks a working file forever.
-        assert_eq!(
-            working_owner("a.new.b.sweep.1"),
-            Some("1"),
-            "the sweep's working file on a marker shaped like a publish"
-        );
-        assert_eq!(
-            working_owner("a.sweep.1.new.2"),
-            Some("2"),
-            "and the reverse nesting reads the same way"
-        );
-        assert_eq!(
-            working_owner("x.sweep.1"),
-            Some("1"),
-            "a plain sweep working file is unaffected"
-        );
-        // THE SAME SUFFIX TWICE, which is the one shape the two cases above
-        // cannot judge: each of them carries one `.new.` and one `.sweep.`, so
-        // `rfind` and `find` return the same offset for both and the rightmost
-        // rule is decided by the comparison alone. Here the comparison has
-        // nothing to do and the SEARCH DIRECTION is the whole answer: `find`
-        // stops at the left occurrence, reads `b.new.5` as the owner, fails to
-        // parse it as a pid and calls a real working file a marker.
-        assert_eq!(
-            working_owner("a.new.b.new.5"),
-            Some("5"),
-            "a publish on a marker whose own name spells the publish suffix"
-        );
-        assert_eq!(
-            working_owner("a.sweep.b.sweep.7"),
-            Some("7"),
-            "and the sweep suffix reads the same way"
         );
     }
 

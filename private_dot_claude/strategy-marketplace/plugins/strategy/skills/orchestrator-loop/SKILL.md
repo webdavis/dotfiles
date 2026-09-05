@@ -1,6 +1,10 @@
 ---
 name: orchestrator-loop
-description: Run a slice where the orchestrator is inside the loop, writing the failing tests and the seams itself instead of briefing an implementer, with two concurrent reviews and no deferred findings. Use when the behaviour can be stated as a test, when a task says Strategy-B, or when the user says "/strategy:orchestrator-loop".
+description: >-
+  Run a slice where the orchestrator is inside the loop, writing the failing tests and the seams
+  itself instead of briefing an implementer, with no deferred findings. Use when the behaviour can
+  be stated as a test, when a task says Strategy-B, or when the user says
+  "/strategy:orchestrator-loop".
 ---
 
 # Orchestrator-loop
@@ -9,8 +13,11 @@ description: Run a slice where the orchestrator is inside the loop, writing the 
 implementer; here it writes the FAILING TESTS and the trait seams ITSELF, and those tests are the
 specification. There is no prose brief and no brief review, because a concrete failing test says what a
 paragraph of instructions only gestures at. The tests are the spec, the red state and the design in one
-artifact. The second difference is that its two reviews run CONCURRENTLY rather than one after the
-other.
+artifact.
+
+**That is the only distinction.** Concurrency is not a second one: open-loop mandates parallel 4a and
+4b reviews too, and closed-loop inherits them. Who writes the tests is what separates this skill from
+its siblings.
 
 **It is also closed-loop in the findings sense**: every finding is fixed in this iteration and none
 becomes a task. The three names do not sit on one axis. Two of them
@@ -57,8 +64,31 @@ one opens `F` ledgers and deviates the step it does not have:
 - Everything else the `F` ledgers require still applies, **including step 6v**. Dropping step 7 without
   6v would leave the fix with nothing checking it at all.
 
+## The assumptions ledger, before the first test is written
+
+Here the tests ARE the spec, so a wrong assumption does not become a wrong paragraph. It becomes a wrong
+test that then passes. Confirm before writing red. Present a NUMBERED ledger as ONE batch:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, the original implementation, or a convention>
+```
+
+This is not the prose brief this strategy does without. It states what you already resolved from the
+tree so that no question is spent on it. The brief this skill rejects is a paragraph of instructions
+telling an implementer what to build.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the tests you
+are about to write. The ledger is presented ONCE, because dripping it out as individual questions is the
+waste it exists to prevent. Despite the name it is not one of the two verifier ledgers, and no script
+reads it. This ledger and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
+
 ## Per slice, in order
 
+1. **The orchestrator confirms the assumptions ledger**, in one batch, before any test exists.
 1. **The orchestrator writes the failing tests and the trait seams**, inline. Red first, always.
 1. **An implementer makes them green**, plus a differential check against the original implementation
    wherever one exists.
@@ -66,8 +96,10 @@ one opens `F` ledgers and deviates the step it does not have:
    Same slice, SEPARATE worktrees: the mutating agent edits production code and reverts, so sharing one
    worktree produces false SURVIVED results, and a false SURVIVED reads as a coverage gap that sends the
    next round to plug a hole that does not exist.
+1. **The orchestrator adjudicates and appends the round to the argument log.** Before the fixes, not
+   after: the fix round reads that log, so writing it later leaves the first fix round without its input.
 1. **The findings are fixed BEFORE the next slice starts.** Nothing carries over.
-1. **The orchestrator adjudicates, pushes, waits for CI, and merges.**
+1. **The orchestrator pushes, waits for CI, and merges.**
 
 Budget, and re-forecast it against real numbers rather than letting the estimate drift: tests 10
 minutes, implement 15, sol and mutation in parallel 15, fixes 10, push and CI and merge 12.
@@ -76,6 +108,21 @@ Independent slices MAY run in parallel; reliability is the bound rather than a f
 one carries its own checklist verified step by step. Parallel sol attempts are allowed, but if one
 fails while another runs, wait for the running one, restart the failed one after it, and run every
 subsequent sol review sequentially.
+
+## The argument log
+
+Adjudication appends each round to `argument-<slug>.md`, beside the two `F` ledgers, in the form
+[open-loop](../open-loop/SKILL.md) sets out: the finding identifiers and the reasoning only, pointing at
+the reviewer's output and the register for everything else.
+
+Two rounds here are unusually easy to lose. sol and the mutation agent run in PARALLEL on separate
+worktrees, so their arguments arrive interleaved and neither saw the other's, and the log is where the
+two become one record instead of two half-read reports. A restarted sol review, which this strategy
+allows after a failure, also comes back with no memory of the attempt it replaced, so its round is
+written when it is adjudicated rather than held.
+
+Read the existing entries before dispatching the implementer, before either review, before the fix round
+and before any restarted sol review. No script creates the file and no gate reads it.
 
 ## The testing charter
 
