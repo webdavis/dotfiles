@@ -6,115 +6,142 @@
 # current directory or git root and so cannot tell two Neovim panes in one herdr
 # workspace apart (docs/research/2026-09-nvim-mcp-evaluation.md, criterion 3).
 #
-# The five steps of spec 7.3, in order:
+# The five steps are spec 7.3's and are not restated here. Three things this
+# file decides that the spec does not:
 #
-#   1. NVIM_MCP_SOCKET wins. Whichever side spawned the other wrote the address
-#      down, so the common case is created rather than inferred.
-#   2. Topology. `herdr pane layout --pane <id>` gives the caller's tab and its
-#      sibling panes. The pane id is passed EXPLICITLY: `herdr pane current`
-#      answers the CALLER's pane, so a resolver that asks it matches nothing.
-#   3. Identity, not presence. A socket that answers proves only that SOMETHING
-#      is there, and Neovim 0.12.5 binds a dead instance's path without
-#      complaint (measured), so each candidate is asked over RPC for its own
-#      pane id and pid and both are compared. A mismatch prunes the entry.
-#   4. Two verified candidates is a PICKER, never a guess: a guess edits the
-#      wrong buffer. The enumeration goes to stderr, where the harness shows it.
-#   5. Zero is a refusal naming its reason.
+#   - The pane id is passed to `herdr pane layout` EXPLICITLY. `pane current`
+#     answers the CALLER's pane, so a resolver that asks it matches nothing.
+#   - NVIM_MCP_SOCKET SELECTS from the verified set rather than bypassing it.
+#     The spec would use an injected socket as-is, which lets a stale or hostile
+#     value reach any Neovim the caller can open. Both injection directions
+#     split the pane inside the caller's own tab, so nothing legitimate is lost.
+#   - Identity is a BOUNDED probe with a strict reply grammar, because a socket
+#     that accepts and never answers would otherwise hang the harness forever.
 #
 # Exit codes: 3 a refusal, 4 the picker, 2 an environmental fault (a missing
-# tool, a broken herdr answer). On success this process is REPLACED by
-# nvim-mcp, so there is no fourth outcome. There is no memo file: the harness
-# starts this once per session and the exec keeps that instance for the
-# session's life, which is the sticky selection spec 7.3 asks for.
+# tool, unsafe registry state, a broken herdr answer). On success this process
+# is REPLACED by nvim-mcp, so there is no fourth outcome. No memo file: the
+# harness starts this once per session and the exec holds that instance for the
+# session, which is the sticky selection spec 7.3 asks for.
+#
+# TWO STATED LIMITS, left open for the operator rather than worked around.
+# (a) The probe and the connection are separate processes, so a same-UID process
+# can rebind the path between them. Every same-UID process here already holds
+# the operator's whole authority, so that is inside the trust boundary, not
+# across it; closing it needs a server that verifies pane and pid over the
+# connection it keeps, which is the custom-crate row.
+# (b) The picker is an exit code and stderr, not the tool result spec 7.3 step 4
+# asks for, because a wrapper that execs the server cannot return one.
 set -euo pipefail
+
+# die <exit code> <message...>
+die() {
+  local code="$1"
+  shift
+  printf 'nvim-mcp-connect: %s\n' "$*" >&2
+  exit "$code"
+}
 
 # Both hard dependencies, checked FIRST, before herdr, the registry or any
 # socket: otherwise the missing tool surfaces as whatever fails next, which
 # reads as a herdr fault and sends the operator to debug the wrong thing.
 for required in nvim jq; do
-  if ! command -v "$required" >/dev/null 2>&1; then
-    printf 'nvim-mcp-connect: %s is not on PATH, and the resolver needs it\n' "$required" >&2
-    exit 2
-  fi
+  command -v "$required" >/dev/null 2>&1 ||
+    die 2 "$required is not on PATH, and the resolver needs it"
 done
 
-# The registry Neovim writes on VimEnter and removes on VimLeavePre
-# (dot_config/nvim/lua/config/autocmds.lua): "<pane id> <pid> <socket> <cwd>",
-# cwd last because it is the field that can hold spaces.
+# Written by dot_config/nvim/lua/config/autocmds.lua: a 0700 DIRECTORY holding
+# one file per instance, named for its pid, holding "<pane> <pid> <socket>
+# <cwd>" (cwd last, the only field that can hold spaces). One file per pid, not
+# one shared file: two instances starting at once would lose each other's line,
+# and a nested Neovim inheriting its parent's pane id would replace it instead
+# of becoming the second candidate a picker names.
 registry="${NVIM_MCP_REGISTRY:-${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mcp/registry}"
 server="${NVIM_MCP_BIN:-$HOME/.local/libexec/nvim-mcp/nvim-mcp}"
 # The root :help serverstart() documents. $TMPDIR alone is the macOS case and
 # misses every Linux socket; $TMPDIR already ends in a slash there.
 runtime_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp/}nvim.${USER:-$(id -un)}}"
+# Seconds a single identity probe may take. A knob only so the test can bound
+# itself well inside its own one-second budget.
+deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"
+[[ $deadline =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 2 'NVIM_MCP_PROBE_DEADLINE must be seconds'
 
-refuse() {
-  printf 'nvim-mcp-connect: %s\n' "$*" >&2
-  exit 3
-}
+probe_out="$(mktemp)"
+# `|| true` so a failing cleanup cannot overwrite the exit status: bash reports
+# the trap's own status, and a refusal that surfaces as 127 reads to the harness
+# as a crash rather than as the reason it printed.
+trap 'rm -f "$probe_out" 2>/dev/null || true' EXIT
 
-# identity <socket> -- what the instance behind <socket> says it is, as
-# "<pane id> <pid>". Empty output (or a non-zero nvim) means it did not answer.
+# identity <socket> -- "<pane id> <pid>" as the instance reports itself, empty
+# if it does not. Deadline-bounded (stock macOS ships no timeout(1)), capped at
+# 128 bytes, and only a strict "<pane> <decimal pid>" reply is accepted, so an
+# oversized or multi-line answer cannot exhaust memory or smuggle whitespace
+# into the candidate framing.
 identity() {
+  local job watchdog reply
+  : >"$probe_out"
   nvim --server "$1" --remote-expr \
-    'join([getenv("HERDR_PANE_ID"), getpid()], " ")' 2>/dev/null || true
+    'join([getenv("HERDR_PANE_ID"), getpid()], " ")' >"$probe_out" 2>/dev/null &
+  job=$!
+  # Stock macOS ships no timeout(1) and bash has no wait-with-deadline, so a
+  # child that TERMs the probe is the portable stand-in. It costs a healthy
+  # probe NOTHING, which a polling loop cannot say: at any poll interval, every
+  # probe pays one interval it did not need.
+  { sleep "$deadline" && kill -TERM "$job"; } </dev/null >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$job" 2>/dev/null || true
+  kill -TERM "$watchdog" 2>/dev/null || true
+  reply="$(head -c 128 "$probe_out")"
+  [[ $reply =~ ^[A-Za-z0-9:_-]+\ [0-9]+$ ]] || return 0
+  printf '%s' "$reply"
 }
 
-# --- step 1: injection -------------------------------------------------------
-if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
-  [[ -n "$(identity "$NVIM_MCP_SOCKET")" ]] ||
-    refuse "NVIM_MCP_SOCKET names $NVIM_MCP_SOCKET, which no Neovim answers on; unset it or point it at a live instance"
-  exec "$server" --connect "$NVIM_MCP_SOCKET"
+# Read AND pruned, so the state is checked before either. A symlink would aim a
+# delete elsewhere; anything looser than a 0700 directory this user owns lets
+# another account plant a record. Absent is fine, the fallback covers it.
+if [[ -L $registry ]]; then
+  die 2 "the registry $registry is a symlink; refusing to read or prune through it"
+elif [[ -e $registry ]]; then
+  [[ -d $registry ]] || die 2 "the registry $registry is not a directory"
+  [[ -O $registry ]] || die 2 "the registry $registry is not owned by this user"
+  # BSD stat first, GNU second; neither answering leaves mode empty, which
+  # refuses. No find(1), so the tool guard above stays the only dependency
+  # this script has beyond nvim and jq.
+  mode="$(stat -f '%Lp' "$registry" 2>/dev/null || stat -c '%a' "$registry" 2>/dev/null || true)"
+  [[ $mode == 700 ]] || die 2 "the registry $registry is not mode 0700"
 fi
 
 [[ -n ${HERDR_PANE_ID:-} ]] ||
-  refuse 'HERDR_PANE_ID is not set, so there is no pane to resolve from; export NVIM_MCP_SOCKET, or start the agent in a herdr pane'
+  die 3 'HERDR_PANE_ID is not set, so there is no pane to resolve from; start the agent in a herdr pane'
 
-# --- step 2: topology --------------------------------------------------------
 # herdr answers a bad pane id with {"error":...} and exit 0, so the shape is
 # checked rather than the status.
 layout="$(herdr pane layout --pane "$HERDR_PANE_ID" 2>/dev/null || true)"
 tab="$(printf '%s' "$layout" | jq -r '.result.layout.tab_id // empty' 2>/dev/null || true)"
-if [[ -z $tab ]]; then
-  printf 'nvim-mcp-connect: herdr did not report a layout for pane %s\n' "$HERDR_PANE_ID" >&2
-  exit 2
-fi
+[[ -n $tab ]] || die 2 "herdr did not report a layout for pane $HERDR_PANE_ID"
 siblings=" $(printf '%s' "$layout" | jq -r '.result.layout.panes[].pane_id' | tr '\n' ' ')"
 
-# --- step 3: identity over the registry --------------------------------------
-# Candidates accumulate as "<pane id> <pid> <socket>" lines; pruned registry
-# entries are dropped by rewriting the file from the lines that survived.
+# Candidates accumulate as "<pane id> <pid> <socket>" lines.
 candidates=""
-kept=""
-pruned=0
-if [[ -r $registry ]]; then
-  while read -r pane pid sock cwd; do
-    [[ -n ${pane:-} && -n ${pid:-} && -n ${sock:-} ]] || continue
-    # A pane outside this tab is not ours to judge: keep the entry, skip it.
-    if [[ $siblings != *" $pane "* ]]; then
-      kept="$kept$pane $pid $sock $cwd"$'\n'
-      continue
-    fi
-    # Identity, not presence: the entry names a pid, and only the instance
-    # that reports BOTH that pid and that pane id is the one it registered.
-    if [[ "$(identity "$sock")" != "$pane $pid" ]]; then
-      pruned=1
-      continue
-    fi
-    kept="$kept$pane $pid $sock $cwd"$'\n'
-    candidates="$candidates$pane $pid $sock"$'\n'
-  done <"$registry"
-  if [[ $pruned -eq 1 ]]; then
-    printf '%s' "$kept" >"$registry"
+for record in "$registry"/*; do
+  [[ -f $record && ! -L $record ]] || continue
+  read -r pane pid sock _ <"$record" || true
+  # A record that disagrees with its own filename is not one this design wrote.
+  [[ -n ${pane:-} && -n ${sock:-} && ${pid:-} == "${record##*/}" ]] || continue
+  [[ $siblings == *" $pane "* ]] || continue
+  if [[ "$(identity "$sock")" != "$pane $pid" ]]; then
+    rm -f "$record"
+    continue
   fi
-fi
+  candidates="$candidates$pane $pid $sock"$'\n'
+done
 
-# The runtime-root fallback, for an instance that never wrote a registry line.
-# The pid comes out of the filename, so kill -0 filters the graveyard without a
-# single connection; identity still runs on whatever survives, because a pid is
-# reusable too.
+# The fallback, for an instance that never wrote a record. The pid is in the
+# filename, so kill -0 filters the graveyard (383 dead sockets, no live one, per
+# the evaluation) with no connection; identity still runs on the survivors.
 if [[ -z $candidates ]]; then
   for sock in "$runtime_root"/*/nvim.*.0; do
-    [[ -S $sock || -e $sock ]] || continue
+    [[ -e $sock ]] || continue
     pid="${sock##*/nvim.}"
     pid="${pid%.0}"
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -126,11 +153,21 @@ if [[ -z $candidates ]]; then
   done
 fi
 
-# --- steps 4 and 5: pick, do not stall; refuse only when nothing is alive -----
+# Injection SELECTS, it does not bypass.
+if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
+  pinned=""
+  while read -r pane pid sock; do
+    [[ ${sock:-} == "$NVIM_MCP_SOCKET" ]] && pinned="$pane $pid $sock"$'\n'
+  done <<<"$candidates"
+  [[ -n $pinned ]] ||
+    die 3 "NVIM_MCP_SOCKET names $NVIM_MCP_SOCKET, which is not a verified Neovim in tab $tab of pane $HERDR_PANE_ID; unset it, or pin a Neovim in this tab"
+  candidates="$pinned"
+fi
+
 count="$(printf '%s' "$candidates" | grep -c . || true)"
 case "$count" in
   0)
-    refuse "no live Neovim in tab $tab (the tab of pane $HERDR_PANE_ID); launch the agent from Neovim (<leader>Cc), or export NVIM_MCP_SOCKET"
+    die 3 "no live Neovim in tab $tab (the tab of pane $HERDR_PANE_ID); launch the agent from Neovim (<leader>Cc), or export NVIM_MCP_SOCKET"
     ;;
   1)
     read -r pane pid sock <<<"$candidates"
