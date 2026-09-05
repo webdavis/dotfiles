@@ -239,7 +239,28 @@ if nvim_mcp_pane and nvim_mcp_pane ~= "" then
       end
       -- 0700, because the resolver refuses to read or prune a registry any
       -- other account could have planted a record in.
-      vim.fn.mkdir(nvim_mcp_dir, "p", tonumber("700", 8))
+      --
+      -- NOT race free, which is why the failure is caught rather than allowed
+      -- to propagate: mkdir tests for each component and then creates it, so
+      -- two instances starting together both find the directory missing and
+      -- the loser raises E739 out of the create and registers nothing. One
+      -- record then survives where there are two live editors, and the
+      -- resolver, whose fallback only runs when the registry yields nothing,
+      -- selects it silently instead of offering the picker. Losing the race is
+      -- fine; what matters is that the winner left the private directory this
+      -- design expects.
+      local made = pcall(vim.fn.mkdir, nvim_mcp_dir, "p", tonumber("700", 8))
+      if not made then
+        local info = vim.uv.fs_stat(nvim_mcp_dir)
+        if
+          not info
+          or info.type ~= "directory"
+          or info.uid ~= vim.uv.getuid()
+          or info.mode % 512 ~= tonumber("700", 8)
+        then
+          return
+        end
+      end
       local temp = nvim_mcp_record .. ".tmp"
       local file = io.open(temp, "w")
       if not file then
