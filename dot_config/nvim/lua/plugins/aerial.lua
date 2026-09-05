@@ -1,20 +1,13 @@
--- `<leader>as` is a GLOBAL map that happens to be bound from `on_attach`, so on a
--- lazy spec it cannot bootstrap its own plugin: lazy loads aerial and re-feeds
--- the key before anything has attached, and `on_attach` has not run to bind it
--- yet, so the picker never opens (measured). Naming this same function in `keys`
--- gives lazy a real mapping to install at load time; `on_attach` still rebinds
--- the identical function afterwards.
-local function snacks_picker()
-  require("aerial").snacks_picker({
-    layout = {
-      -- preset = "dropdown",
-      -- preview = false,
-    },
-  })
-end
-
 return {
   "stevearc/aerial.nvim",
+  -- aerial attaches from its own `BufEnter`/`WinEnter` autocmds, and its first
+  -- backend is treesitter, so before this branch it attached to any buffer with
+  -- a parser, not only an LSP one. The plugin therefore has to be loaded by the
+  -- time a file buffer is entered, or `on_attach` never runs and the buffer-local
+  -- `{` and `}` jumps never appear. `LspAttach` would miss every treesitter-only
+  -- buffer; these two events cover a file read and a new file, and neither fires
+  -- on a startup with no file, which is what keeps aerial off the startup path.
+  event = { "BufReadPost", "BufNewFile" },
   -- Every command aerial registers, so one typed at the command line still
   -- works while the plugin is unloaded.
   cmd = {
@@ -31,11 +24,10 @@ return {
     "AerialPrev",
     "AerialToggle",
   },
-  -- `<leader>as` is bound by `on_attach` below rather than beside the others,
-  -- so it only ever appears once aerial has attached to a buffer. It still
-  -- belongs here: without it the key does nothing at all until something else
-  -- loads the plugin. `{` and `}` are buffer-local to an aerial-attached
-  -- buffer, which means aerial is already loaded by the time they exist.
+  -- These eight are bound in `config`, so before this branch they existed from
+  -- startup even with no file open. `<leader>as`, `{` and `}` are not here: they
+  -- are bound by `on_attach`, so they have never existed before aerial attached
+  -- to a buffer, and the event above is what gets them back.
   keys = {
     { "<leader>at", desc = "Aerial: toggle sidebar (don't focus)" },
     { "<leader>aa", desc = "Aerial: toggle sidebar (don't focus)" },
@@ -45,7 +37,6 @@ return {
     { "<leader>aO", desc = "Aerial: open sidebar (and focus)" },
     { "<leader>ac", desc = "Aerial: close sidebar" },
     { "<leader>aC", desc = "Aerial: close all sidebars" },
-    { "<leader>as", snacks_picker, desc = "Aerial: Snacks picker" },
   },
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
@@ -61,7 +52,19 @@ return {
         map({ mode = "n", lhs = "{", rhs = "AerialPrev", desc = "Aerial: jump to next code object", buffer = bufnr })
         map({ mode = "n", lhs = "}", rhs = "AerialNext", desc = "Aerial: jump to previous code object", buffer = bufnr })
 
-        map({ mode = "n", lhs = "<leader>as", rhs = snacks_picker, desc = "Aerial: Snacks picker" })
+        map({
+          mode = "n",
+          lhs = "<leader>as",
+          rhs = function()
+            require("aerial").snacks_picker({
+              layout = {
+                -- preset = "dropdown",
+                -- preview = false,
+              },
+            })
+          end,
+          desc = "Aerial: Snacks picker",
+        })
       end,
     }
 
