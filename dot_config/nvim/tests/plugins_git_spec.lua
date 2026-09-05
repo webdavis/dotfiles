@@ -17,7 +17,11 @@
 -- gitsigns and Fugitive name theirs and read back which window ended up
 -- current.
 
-local config_root = ({ ... })[1] or vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
+-- The runner prepends `<config_root>/lua/?.lua` to package.path, and it invokes
+-- a spec with `dofile`, which passes no arguments at all. A vararg here would
+-- therefore always fall through to the source beside this file, ignore
+-- `--config`, and pass while pointed at a config with none of the guards in it.
+local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
 -- What each fake was asked to do. Every counter must stay at zero for a guarded
 -- key: reaching any of them means the callback ran past its guard.
