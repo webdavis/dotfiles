@@ -1128,17 +1128,28 @@ every row exactly one PR registers a server (10a or 10b), and it is the PR whose
 keeps.
 
 **Instance selection, decided 2026-09-03 (this supersedes the symmetric-injection-plus-liveness
-sketch it replaces).** The resolver, `~/.local/libexec/nvim-mcp-connect.sh` (it is the command the
-MCP registration runs, so `libexec` per the placement rules), identifies Neovim by pane id and by the
-environment of the pane the agent runs in, never by focus. Five steps, in order:
+sketch it replaces).** The resolver, `~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh` (it is the
+command the MCP registration runs, so `libexec` per the placement rules), identifies Neovim by pane
+id and by the environment of the pane the agent runs in, never by focus. Five steps, in order:
 
 1. **Injection, both directions.** Whichever side creates the other writes the address down, so the
    common case is created rather than inferred. A Neovim that spawns an agent pane passes its own
    socket with `herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>` (7.2; `--env` is verified
    to exist on 0.8.2), and an agent pane that spawns a Neovim pane sets the variable the other way
-   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). A variable that is set is used
-   as-is, subject to step 3, and discovery is only ever the leftover case of two panes neither of
-   which created the other. That is what criterion 3 is measured against.
+   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). Discovery is only ever the
+   leftover case of two panes neither of which created the other, and that is what criterion 3 is
+   measured against.
+
+   **Amended 2026-09-05: a set variable SELECTS from the verified set, it is not used as-is.** This
+   step originally said an injected socket is used as-is, subject to step 3 alone. A path that
+   reaches step 3 without steps 2 and 4 is a hole: the value can be stale, or written by anything
+   able to set an environment variable, and the resolver would then connect to whatever answers on
+   it, which is any Neovim the caller can open. PR 10a therefore builds the candidate set first
+   (steps 2 and 3) and lets the variable pick one of its members; a socket outside that set is
+   refused with both the socket and the tab named. Two consequences, both accepted: `HERDR_PANE_ID`
+   is required even when a socket is pinned, so the resolver does not run outside herdr at all, and
+   a pin naming a Neovim in ANOTHER tab refuses. Neither costs a real workflow, because both
+   injection directions split the pane inside the caller's own tab.
 1. **Topology match.** The agent's pane is not the Neovim pane, but herdr knows both:
    `herdr pane layout --pane <id>` gives that pane's tab and its siblings, and one sibling matches
    the registry. Pass the pane id EXPLICITLY: `herdr pane current` answers the CALLER's pane, never
@@ -1157,21 +1168,39 @@ environment of the pane the agent runs in, never by focus. Five steps, in order:
 
    The candidate list is then narrowed to the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
    exports like every pane, and to the tab step 2 named.
-1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal, and the
-   picker is a TOOL RESULT rather than a user interface: the MCP server is something the agent
-   calls, so it returns a refusal whose payload ENUMERATES the candidates (pane id, cwd, current
-   file, pid) together with the exact argument that disambiguates them. The agent then asks its own
+1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal, and never a
+   guess, because a guess edits the wrong buffer. What the picker IS differs by row.
+
+   On the CRATE row it is a TOOL RESULT rather than a user interface: the MCP server is something
+   the agent calls, so it returns a payload ENUMERATING the candidates (pane id, cwd, current file,
+   pid) together with the exact argument that disambiguates them, and the agent then asks its own
    user or applies a rule its caller supplied. No terminal is required anywhere, which is what makes
-   this reachable from a resolver that owns no window. Never guess, because a guess edits the wrong
-   buffer, and never return a bare error string, because that ends the turn instead of continuing
-   it.
+   this reachable from a resolver that owns no window.
+
+   **On the RESOLVER row it is a refusal that enumerates, ruled 2026-09-05.** A wrapper that `exec`s
+   the server either becomes that server or exits, and a process that has exited has no tool result
+   to return, so the resolver exits 4 and writes one line per candidate (socket, pane id, pid) to
+   stderr, which both harnesses surface as server-startup text. The agent sees every candidate, and
+   the operator disambiguates with `NVIM_MCP_SOCKET` or by launching the agent from Neovim
+   (`<leader>Cc`). This is accepted rather than worked around for one measured reason: PR 9 could
+   not produce the ambiguous case in normal use, because one Neovim per workspace is the ordinary
+   shape and the tab narrows what is left, so the enumeration fires rarely and costs one command
+   when it does. The structured tool result stays the crate row's behavior and is the upgrade path
+   if the ambiguous case turns out to be common.
 1. **Refuse only when nothing is alive.** Zero verified candidates is a refusal with the reason
    named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
    `NVIM_MCP_SOCKET`.
 
-**Sticky selection.** An instance resolved by injection or by the picker is remembered for that agent
-and reused, with step 3's identity check re-run on EVERY use; a failed check drops the memo and
-re-resolves. The cost of choosing is paid once per session rather than once per call.
+**Sticky selection, amended 2026-09-05 for the resolver row.** The promise this section carried was
+that a resolved instance is remembered and step 3's identity check re-runs on EVERY use, a failed
+check dropping the memo and re-resolving. That is the CRATE row's behavior and part of what the crate
+row buys. On the resolver row the pin lasts exactly as long as the server process: `nvim-mcp` connects
+once at startup and keeps that client, and the resolver has already been replaced by `exec` before the
+first tool call, so it gets no say afterwards. There is no per-call recheck and no re-resolution, and
+a Neovim that exits leaves later tool calls talking to a stale client until the server restarts, which
+for both harnesses means a new session. Accepted rather than worked around, because a wrapper cannot
+reach inside a server it has become: automatic recovery is server lifecycle work and lives on the
+crate row. The cost of choosing is still paid once per session rather than once per call.
 
 **The registry is correct by construction.** Neovim registers `{ pane_id, socket, cwd, pid }` on
 start and DEREGISTERS on `VimLeavePre`, so steps 3 and 5 are a backstop rather than the mechanism.
@@ -1179,11 +1208,39 @@ The discovery fallback, listing `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvi
 root Neovim documents, `:help serverstart()`, `vimfn.txt:8813`; `$TMPDIR` alone is the macOS case and
 misses every Linux socket), is what covers an instance that died without running its autocommand.
 
-The resolver is capped at 150 lines of bash with a bats test on the selection function fed fixture
-strings. The 80-line cap this section carried was written against the three-step order and does not
-survive the registry, the identity check, the picker and the memo; PR 10a states its measured line
-count in the body, and a resolver that cannot fit is the signal to take the crate row instead. The
-picker needs no terminal, because it is the structured tool result of step 4 rather than a window.
+The resolver is capped at 150 EXECUTABLE lines of bash with a test on its behavior. The 80-line cap
+this section carried was written against the three-step order and does not survive the registry, the
+identity check, the picker and the memo.
+
+**Amended 2026-09-05: the cap counts EXECUTABLE lines, not the whole file.** PR 10a measured 187
+lines total: 100 executable, 74 comment and 13 blank, and 40 of those comment lines are the header
+the reviews required, carrying the steps it departs from, the exit codes and the limit below.
+Counting comments toward a size cap pays an author to delete the commentary this repository's reviews
+ask for, which is the opposite of what the cap exists to buy. So the cap binds the executable logic,
+PR 10a states its measured composition in the body, and a resolver whose EXECUTABLE logic cannot fit
+is still the signal to take the crate row instead.
+
+**The trust boundary, stated 2026-09-05.** The resolver verifies an instance's pane and pid over one
+`nvim --remote-expr` process and then hands the socket path to a second process, the MCP server, so a
+process running as the same user can rebind that path in between and the instance checked need not be
+the instance edited. That is recorded as a limit rather than closed, because same-user is INSIDE the
+trust boundary on this machine rather than across it: any process running as the operator can already
+read `~/.claude.json`, edit any file in any repository and run the agent itself, so an attacker able
+to rebind the socket has no need to. The only real closure for the same-user case is a server that
+verifies pane and pid over the connection it then keeps, which no wrapper can do and which is the
+crate row.
+
+What the resolver defends against is another ACCOUNT, and the guarantee is narrower than a 0700
+registry alone would suggest. `nvim --listen` accepts a TCP address or any path it is given, and
+Neovim trusts every remote-procedure-call peer it accepts, so an endpoint another account can reach
+is one that account can rebind once the owner dies and then answer the identity probe from, with a
+pane and pid of its choosing, through a record this repository genuinely wrote. A 0700 registry stops
+another account planting a RECORD; it says nothing about where that record points. So the guarantee
+is stated over the ENDPOINT as well: the resolver connects only to a unix socket inside a directory
+the caller owns at mode 0700, which is what Neovim's own default runtime root under
+`stdpath("run")` gives, and it refuses a recorded TCP endpoint or a socket in a looser directory by
+name rather than skipping it. Outside that shape there is no cross-account guarantee, and a
+deployment that moves sockets elsewhere loses it.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
@@ -1192,7 +1249,7 @@ script, exposing exactly five tools (`current_buffer`, `list_buffers`, `read_buf
 internally, reading the same three variables and the same `NVIM_MCP_SOCKET` pin.
 
 The budget: the PR 9 evaluation is one working day, extended once by the first row of the table and
-never otherwise; the resolver is capped at 150 lines of bash plus its bats file; the custom crate gets
+never otherwise; the resolver is capped at 150 executable lines of bash plus its test file; the custom
 its own design spec (PR 10a) before code and is capped at the five tools and about 600 lines of Rust
 (PR 10b). When the crate row is reached, the crate is still built inside this program, because no
 other candidate exists (the second one is Linux-only). Today's reading is that `linw1995/nvim-mcp`

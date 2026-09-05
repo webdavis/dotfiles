@@ -203,3 +203,79 @@ vim.api.nvim_create_autocmd("User", {
     end
   end,
 })
+
+-- Tell the nvim-mcp resolver which Neovim lives in which herdr pane (spec 7.3).
+-- ~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh reads this registry to answer
+-- "which Neovim does this agent mean" by pane rather than by focus or by
+-- current directory, neither of which can tell two Neovim panes in one
+-- workspace apart.
+--
+-- ONE FILE PER INSTANCE, named for its pid, holding
+-- "<pane id> <pid> <socket> <cwd>" (cwd last, the only field that can hold
+-- spaces). A single shared file loses an update when two instances start at
+-- once, and keys a nested Neovim over its parent because both inherit the same
+-- pane id; per-pid files make the nested pair two candidates the resolver's
+-- picker names instead of one that silently wins.
+--
+-- Written to a temp name and renamed, which is atomic within the directory, so
+-- the resolver never reads a half-written record. Each instance removes only
+-- its own file, so no exit can delete another's. A record left by a crash is
+-- pruned by the resolver's identity check.
+--
+-- Written only under herdr: without HERDR_PANE_ID there is no pane to register
+-- and the resolver has nothing to match against.
+local nvim_mcp_pane = vim.env.HERDR_PANE_ID
+if nvim_mcp_pane and nvim_mcp_pane ~= "" then
+  local nvim_mcp_dir = (vim.env.XDG_STATE_HOME or (vim.env.HOME .. "/.local/state")) .. "/nvim-mcp/registry"
+  local nvim_mcp_record = nvim_mcp_dir .. "/" .. vim.fn.getpid()
+
+  vim.api.nvim_create_autocmd("VimEnter", {
+    group = augroup("nvim_mcp_registry"),
+    callback = function()
+      -- Empty when Neovim was started with no socket at all; there is then
+      -- nothing for the resolver to connect to.
+      if vim.v.servername == "" then
+        return
+      end
+      -- 0700, because the resolver refuses to read or prune a registry any
+      -- other account could have planted a record in.
+      --
+      -- NOT race free, which is why the failure is caught rather than allowed
+      -- to propagate: mkdir tests for each component and then creates it, so
+      -- two instances starting together both find the directory missing and
+      -- the loser raises E739 out of the create and registers nothing. One
+      -- record then survives where there are two live editors, and the
+      -- resolver, whose fallback only runs when the registry yields nothing,
+      -- selects it silently instead of offering the picker. Losing the race is
+      -- fine; what matters is that the winner left the private directory this
+      -- design expects.
+      local made = pcall(vim.fn.mkdir, nvim_mcp_dir, "p", tonumber("700", 8))
+      if not made then
+        local info = vim.uv.fs_stat(nvim_mcp_dir)
+        if
+          not info
+          or info.type ~= "directory"
+          or info.uid ~= vim.uv.getuid()
+          or info.mode % 512 ~= tonumber("700", 8)
+        then
+          return
+        end
+      end
+      local temp = nvim_mcp_record .. ".tmp"
+      local file = io.open(temp, "w")
+      if not file then
+        return
+      end
+      file:write(table.concat({ nvim_mcp_pane, vim.fn.getpid(), vim.v.servername, vim.fn.getcwd() }, " "), "\n")
+      file:close()
+      os.rename(temp, nvim_mcp_record)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = augroup("nvim_mcp_registry_leave"),
+    callback = function()
+      os.remove(nvim_mcp_record)
+    end,
+  })
+end

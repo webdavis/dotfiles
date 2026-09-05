@@ -75,6 +75,16 @@ The global `map()` is the primary way keymaps are defined outside of plugin `key
 map({ mode = "n", lhs = "<leader>x", rhs = function() ... end, desc = "Do thing" })
 ```
 
+## Open Neovim buffers
+
+A file that is open in a Neovim buffer is edited through the Neovim MCP tools, never with `Write` or
+`Edit`. Check with the MCP `list_buffers` tool before writing a file under the current project; a disk
+write collides with the unsaved buffer and the operator loses one side.
+
+The `nvim` server has NO edit tool, which is the trap. Reading is `read`; EDITING is `exec_lua` running
+`nvim_buf_set_lines`, which is undoable and never touches the file on disk. Falling back to `Write`
+because nothing is called `edit` is the exact mistake this rule exists to prevent.
+
 ## Conventions
 
 - **Keymaps**: Global keymaps in `config/keymaps.lua`; plugin-specific keymaps in their respective plugin
