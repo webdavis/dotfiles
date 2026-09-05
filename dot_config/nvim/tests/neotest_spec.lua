@@ -80,6 +80,11 @@ write_fixture("mono/packages/web/package.json", '{ "devDependencies": { "vitest"
 local behind_empty = write_fixture("mono/packages/web/fixtures/package.json", "{}")
 local behind_empty_file = write_fixture("mono/packages/web/fixtures/a.test.js", 'import { test } from "vitest";\n')
 
+-- A Python project carrying a stray manifest that names no runner.
+local pystray = write_fixture("pystray/pyproject.toml", '[project]\nname = "pystray"\n')
+write_fixture("pystray/package.json", "{}")
+write_fixture("pystray/tests/test_math.py", "def test_adds():\n    assert 1 + 1 == 2\n")
+
 -- A manifest no JSON parser can read.
 local broken = write_fixture("broken/package.json", '{ "devDependencies": { "vitest": }')
 write_fixture("broken/tests/x.test.js", 'import { test } from "vitest";\n')
@@ -96,6 +101,11 @@ end
 --- roots on the nearest ancestor holding a package.json.
 local function package_root(path)
   return vim.fs.root(path, "package.json")
+end
+
+--- neotest-python roots on a Python project marker, not on a package.json.
+local function python_root(path)
+  return vim.fs.root(path, "pyproject.toml")
 end
 
 local function no_root()
@@ -142,7 +152,7 @@ local function route()
     ["neotest-vitest"] = vitest,
     ["neotest-jest"] = jest,
     ["neotest-nodejs"] = node,
-    ["neotest-python"] = { name = "neotest-python", root = no_root },
+    ["neotest-python"] = { name = "neotest-python", root = python_root },
     ["neotest-golang"] = setmetatable({}, {
       __call = function()
         return { name = "neotest-golang", root = no_root, constructed = true }
@@ -346,6 +356,19 @@ cases["a directory run names the adapter the nearest package declares"] = functi
   assert(
     intermediate.ran and intermediate.ran.adapter == "neotest-vitest:" .. directory_of(behind_empty),
     "expected vitest by name, got " .. tostring(intermediate.ran and intermediate.ran.adapter)
+  )
+end
+
+cases["a directory run dispatches the only non-JavaScript adapter rather than asking"] = function()
+  -- A stray package.json in a Python project roots all three JavaScript adapters, and none of
+  -- them is what the operator meant. Nothing here declares a JavaScript runner and exactly one
+  -- other adapter is rooted, so there is nothing to ask about.
+  local routed = route()
+  local python = routed.press_run_all(directory_of(pystray))
+  assert(not python.prompted, "the run asked when only one adapter could have been meant")
+  assert(
+    python.ran and python.ran.adapter == "neotest-python:" .. directory_of(pystray),
+    "expected python by name, got " .. tostring(python.ran and python.ran.adapter)
   )
 end
 

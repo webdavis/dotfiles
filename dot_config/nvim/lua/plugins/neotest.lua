@@ -226,6 +226,13 @@ local function run_all_tests()
       return neotest.run.run({ directory, adapter = entry.id })
     end
   end
+  -- Nothing here declares a JavaScript runner, so an attached JavaScript adapter is attached only
+  -- because some package.json exists, which a Python project can carry by accident. One other
+  -- adapter rooted here is the answer, and the chooser only ever offers JavaScript adapters,
+  -- because JavaScript is the only ambiguity this arbitrates.
+  if #other == 1 then
+    return neotest.run.run({ directory, adapter = other[1].id })
+  end
   if #javascript == 1 then
     return neotest.run.run({ directory, adapter = javascript[1].id })
   end
