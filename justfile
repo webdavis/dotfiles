@@ -83,12 +83,13 @@ apply:
 # `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
 # `just ship` run `just test`.
 
-# Unit suite only: the commit gate. test-nvim runs first (the Lua specs), then
-# test-bashunit (the *.test.sh files), then the shell suite. --shuffle
+# Unit suite only: the commit gate. The two Lua camps run first (the nvim config's
+# specs, then neotest-bashunit's), then test-bashunit (the *.test.sh files), then
+# the shell suite. --shuffle
 # randomizes order to flush hidden ordering deps (seed printed for replay);
 # --warn-slow-ms flags slow tests in a warn-only summary. The other suites run
 # the same runner plain.
-test-unit: validate-tests test-nvim test-bashunit
+test-unit: validate-tests test-nvim test-neotest-bashunit test-bashunit
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -180,6 +181,13 @@ test-rust:
 # commit gate and, through test-unit, in `just test`.
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
+
+# neotest-bashunit's own specs (dot_local/share/neotest-bashunit/tests), the
+# same runner shape one directory over. `--clean` is load-bearing rather than
+# merely fast here: the rules under test are the pure ones in parse.lua, so they
+# must hold with neotest itself not installed. test-unit depends on this recipe.
+test-neotest-bashunit:
+  nvim --headless --clean -l dot_local/share/neotest-bashunit/tests/run.lua
 
 # Every `<name>.test.sh` below test/, run by bashunit (a brew formula, declared
 # in Brewfile.dev, the CI toolchain step and the machine YAML). bashunit's
