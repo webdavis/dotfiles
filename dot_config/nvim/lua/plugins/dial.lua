@@ -79,6 +79,15 @@ return {
     local group = {
       augend.integer.alias.decimal_int,
       augend.integer.alias.hex,
+
+      -- Vim's own `nrformats` defaults to "bin,hex", and dial's shipped group covers neither binary
+      -- nor an uppercase prefix, so taking over <C-a> silently lost both: only the leading `0`
+      -- matched, and `0b101` stepped to `1b101` where native gives `0b110`, `0X1F` to `1X1F` where
+      -- native gives `0X20`. dial ships the lowercase `0b`; the two uppercase prefixes are ours,
+      -- and `0X` renders its digits uppercase to match the prefix it was written with.
+      augend.integer.alias.binary,
+      augend.integer.new({ radix = 2, prefix = "0B", natural = true }),
+      augend.integer.new({ radix = 16, prefix = "0X", natural = true, case = "upper" }),
       augend.date.new({ pattern = "%Y/%m/%d", default_kind = "day" }),
       augend.date.new({ pattern = "%Y-%m-%d", default_kind = "day" }),
       augend.date.new({ pattern = "%m/%d", default_kind = "day", only_valid = true }),
