@@ -65,7 +65,7 @@ local location_rows = {
 }
 
 local piped_rows = {
-  "| F1 | 6v | HIGH | a code span holding `left\\|FIXED` inside it | ACCEPTED | rationale |",
+  "| F1 | 6v | HIGH | a code span holding `left|FIXED` inside it | ACCEPTED | rationale |",
   "| F2 | 6v | LOW | an escaped pipe \\| sitting in prose | ACCEPTED | rationale |",
 }
 
@@ -131,7 +131,7 @@ return {
   ["keeps a row whose code span holds a pipe and the word FIXED"] = function()
     local lines = awk_over(write_register(piped_rows), 0)
     assert(#lines == 2, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
-    assert(lines[1]:find("F1 HIGH ACCEPTED: a code span holding `left\\|FIXED` inside it", 1, true), lines[1])
+    assert(lines[1]:find("F1 HIGH ACCEPTED: a code span holding `left|FIXED` inside it", 1, true), lines[1])
   end,
 
   ["reads the disposition past an escaped pipe in the summary"] = function()
