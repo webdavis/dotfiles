@@ -13,15 +13,17 @@ M.suffix = ".test.sh"
 
 ---The bashunit release every rule in this file was measured against.
 ---
----Homebrew has no declarative version pin, so all three declarations in this
----repository (Brewfile.dev, the CI toolchain step, the machine package set)
----install whatever is current, and `brew info bashunit` reports the formula as
----unpinned and auto-bumped. A release that changes an output shape would leave
----this adapter's frozen fixtures green while it silently misreported real runs,
----so the gate refuses to certify fixtures captured from a different release and
----names both versions. That is the same trade the repository takes on stylua
----and for the same reason: a visible failure on an untouched file beats a
----silent behavior change.
+---A release that changes an output shape would leave this adapter's frozen
+---fixtures green while it silently misreported real runs, so the gate refuses
+---to certify fixtures captured from a different release and names both
+---versions. CI installs this exact release through bashunit's own installer,
+---because a runner's cached Homebrew index poured 0.43.0 into a job measured
+---on this version; that pin and this field must move together by hand. The
+---Homebrew declarations (Brewfile.dev, the machine package set) stay unpinned,
+---since Homebrew has no declarative version pin, so on a local machine this
+---gate is the only pin there is. That is the same trade the repository takes
+---on stylua and for the same reason: a visible failure on an untouched file
+---beats a silent behavior change.
 ---
 ---Moving this means re-measuring, not just editing: every fixture in
 ---tests/parse_spec.lua is transcribed from a run of this exact version.

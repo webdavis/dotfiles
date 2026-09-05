@@ -376,13 +376,21 @@ the two agree, so they must be moved together by hand. The same hand-sync applie
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
-**bashunit is not pinned either, and its gate is the pin.** Homebrew reports the formula as unpinned and
-auto-bumped, so all three declarations install whatever is current, and a release that changed an output
-shape would leave `neotest-bashunit`'s frozen fixtures green while it misreported real runs. The adapter
-records the release it was measured against in `parse.verified_version` and `just test-neotest-bashunit`
-refuses to certify fixtures captured from a different one, naming both versions. Same trade as stylua
-below: a visible failure on an untouched file beats a silent behavior change. Moving that field means
-re-measuring every fixture, not editing a number.
+**bashunit is pinned in CI and gated everywhere.** A release that changed an output shape would leave
+`neotest-bashunit`'s frozen fixtures green while it misreported real runs, so the adapter records the
+release it was measured against in `parse.verified_version` and `just test-neotest-bashunit` refuses to
+certify fixtures captured from a different one, naming both versions. CI cannot rely on that gate alone:
+the runner's cached Homebrew index poured 0.43.0 against fixtures measured on 0.50.1 and the gate did its
+job by turning the whole Lint job red. So the toolchain step in `.github/workflows/lint.yml` installs the
+exact release through bashunit's own installer, with checksum verification made strict, instead of taking
+the formula. That pin and `parse.verified_version` must move together by hand, and moving either one
+means re-measuring every fixture rather than editing a number.
+
+Local stays Homebrew (`Brewfile.dev`, `.chezmoidata/system_packages_autoinstall.yaml`), because Homebrew
+has no declarative version pin the way `uv`'s `==` does. The cost: a `brew upgrade bashunit` past the pin
+makes `just test-unit` refuse on a machine where nobody touched a test, until the fixtures are
+re-measured and both places are moved. That is the stylua trade below, accepted for the same reason: a
+visible failure on an untouched file beats a silent behavior change.
 
 **stylua is deliberately NOT pinned.** It is also a byte rewriter, same class of risk as mdformat, but
 Homebrew has no declarative version pin the way `uv`'s `==` does. The cost: a newer stylua on a fresh
