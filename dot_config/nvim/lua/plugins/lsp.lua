@@ -304,11 +304,14 @@ return {
 
           -- The following require none-ls-extras.nvim:
           require("none-ls.formatting.ansiblelint"),
-          -- Deliberately NOT gated on a global `eslint`: the source resolves its command
-          -- with `from_node_modules()` per buffer, and a condition runs once at setup, so
-          -- gating it would drop the source for the whole session on every machine that
-          -- keeps eslint in `node_modules/.bin` rather than on PATH.
-          require("none-ls.diagnostics.eslint"),
+          -- Project-local eslint only, and NOT gated on a global one: a `condition` runs
+          -- once at setup, so gating would drop the source for the whole session on every
+          -- machine that keeps eslint in `node_modules/.bin` rather than on PATH. The
+          -- source's own `from_node_modules()` resolver falls back to a literal `eslint`,
+          -- whose failed spawn in a project without one warns and sets `_failed`, which
+          -- disables the shared source for the rest of the session; `only_local` drops that
+          -- fallback, so a project with no eslint is a quiet no-op instead.
+          require("none-ls.diagnostics.eslint").with({ only_local = "node_modules/.bin" }),
         },
       })
     end,
