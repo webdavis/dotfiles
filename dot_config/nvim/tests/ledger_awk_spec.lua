@@ -67,6 +67,9 @@ local location_rows = {
 local piped_rows = {
   "| F1 | 6v | HIGH | a code span holding `left|FIXED` inside it | ACCEPTED | rationale |",
   "| F2 | 6v | LOW | an escaped pipe \\| sitting in prose | ACCEPTED | rationale |",
+  "| F3 | 6v | LOW | a doubled span ``left|FIXED`` inside it | ACCEPTED | rationale |",
+  "| F4 | 6v | LOW | one ` unmatched backtick and nothing else | ACCEPTED | rationale |",
+  "| F5 | 6v | LOW | a span ending in a backslash `left|FIXED\\` here | ACCEPTED | rationale |",
 }
 
 return {
@@ -128,9 +131,27 @@ return {
     assert(lines[5]:find("^hooks%.rs:2757: F5 LOW ACCEPTED: "), lines[5])
   end,
 
+  -- A run of N backticks opens a span that only a run of N closes, so a doubled
+  -- delimiter is one span rather than two toggles, an unmatched run is literal
+  -- text, and a backslash inside a span is not an escape.
+  ["reads a doubled backtick delimiter as one span"] = function()
+    local lines = awk_over(write_register(piped_rows), 0)
+    assert(lines[3]:find("F3 LOW ACCEPTED: a doubled span ``left|FIXED`` inside it", 1, true), lines[3])
+  end,
+
+  ["treats an unmatched backtick run as literal text"] = function()
+    local lines = awk_over(write_register(piped_rows), 0)
+    assert(lines[4]:find("F4 LOW ACCEPTED: one ` unmatched backtick and nothing else", 1, true), lines[4])
+  end,
+
+  ["closes a span whose last character is a backslash"] = function()
+    local lines = awk_over(write_register(piped_rows), 0)
+    assert(lines[5]:find("F5 LOW ACCEPTED: a span ending in a backslash `left|FIXED\\` here", 1, true), lines[5])
+  end,
+
   ["keeps a row whose code span holds a pipe and the word FIXED"] = function()
     local lines = awk_over(write_register(piped_rows), 0)
-    assert(#lines == 2, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
+    assert(#lines == 5, "got " .. #lines .. " lines: " .. table.concat(lines, " / "))
     assert(lines[1]:find("F1 HIGH ACCEPTED: a code span holding `left|FIXED` inside it", 1, true), lines[1])
   end,
 

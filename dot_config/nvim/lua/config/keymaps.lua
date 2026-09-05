@@ -325,17 +325,44 @@ map({
 -- the register grammar puts a commit sha on every one of them.
 local ledger_awk = [==[
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+# How many backticks run on from position i.
+function run_len(s, i, len,   n) {
+  n = 0
+  while (i + n <= len && substr(s, i + n, 1) == "`") n++
+  return n
+}
+# Where the span opened at i by a run of n backticks closes, as the index of the
+# last backtick of the CLOSING run, or 0 when nothing closes it. A run of N
+# closes only on a run of N, which is what makes a doubled delimiter one span
+# rather than two toggles that cancel.
+function span_end(s, i, len, n,   j, r) {
+  j = i + n
+  while (j <= len) {
+    if (substr(s, j, 1) != "`") { j++; continue }
+    r = run_len(s, j, len)
+    if (r == n) return j + n - 1
+    j += r
+  }
+  return 0
+}
 # A cell may hold a pipe two ways, escaped and inside a code span, so the row is
 # walked rather than split on the raw character: either one would otherwise
-# shift every column after it and let a summary masquerade as a disposition.
-function cells(line, out,   i, c, n, cell, tick, len) {
-  split("", out); n = 0; cell = ""; tick = 0; len = length(line)
-  for (i = 1; i <= len; i++) {
+# shift every column after it and let a summary masquerade as a disposition. A
+# closed span is taken whole, an unmatched run is ordinary text, and a backslash
+# escapes only OUTSIDE a span, which is where markdown puts escapes too.
+function cells(line, out,   i, c, n, cell, len, r, e) {
+  split("", out); n = 0; cell = ""; len = length(line); i = 1
+  while (i <= len) {
     c = substr(line, i, 1)
-    if (c == "\\" && i < len) { cell = cell c substr(line, i + 1, 1); i++; continue }
-    if (c == "`") tick = 1 - tick
-    else if (c == "|" && tick == 0) { out[++n] = cell; cell = ""; continue }
-    cell = cell c
+    if (c == "`") {
+      r = run_len(line, i, len)
+      e = span_end(line, i, len, r)
+      if (e > 0) { cell = cell substr(line, i, e - i + 1); i = e + 1; continue }
+      cell = cell substr(line, i, r); i += r; continue
+    }
+    if (c == "\\" && i < len) { cell = cell c substr(line, i + 1, 1); i += 2; continue }
+    if (c == "|") { out[++n] = cell; cell = ""; i++; continue }
+    cell = cell c; i++
   }
   out[++n] = cell
   return n
