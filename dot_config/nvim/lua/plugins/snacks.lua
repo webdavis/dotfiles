@@ -86,6 +86,11 @@ return {
         replace_netrw = false, -- Don't replace netrw with the snacks explorer.
         trash = true,
       },
+      -- The gate on xcodebuild.nvim's SwiftUI, UIKit and AppKit previews and on its
+      -- snapshot-test diffs: both refuse to render unless `snacks.image.config.enabled`
+      -- is true (`core/previews.lua:78`). Both produce PNG, which Ghostty draws through
+      -- the Kitty graphics protocol, and `magick` is installed for the other formats.
+      image = { enabled = true },
       indent = { enabled = false },
       input = { enabled = true },
       notifier = {
