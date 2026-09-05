@@ -99,6 +99,14 @@ dir_mode() {
 # this user owns at 0700 is out of that reach.
 socket_fault() {
   local dir mode
+  # SYMLINK FIRST, and it is a refusal rather than something to resolve: -S
+  # follows the link while the ownership and mode tests below read its LEXICAL
+  # parent, so an alias inside a directory this user owns would pass both while
+  # the socket actually reached is one any account can rebind.
+  [[ -L $1 ]] && {
+    printf 'is a symlink, and only the socket itself can be judged'
+    return 0
+  }
   [[ -S $1 ]] || {
     printf 'is not a unix socket'
     return 0

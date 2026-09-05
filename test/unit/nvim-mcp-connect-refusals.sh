@@ -15,10 +15,12 @@
 #   p) a correct identity then padding then garbage -> never reaches the server
 #   r) a record naming a TCP endpoint  -> refused, exit 3, never connected to
 #   s) a socket outside a private tree -> refused, exit 3, never connected to
+#   u) a symlink alias to a public socket -> refused, exit 3, never connected to
 #
 set -euo pipefail
 
-# shellcheck source=test/unit/helpers/nvim-mcp-connect.sh
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=helpers/nvim-mcp-connect.sh
 source "$(dirname "${BASH_SOURCE[0]}")/helpers/nvim-mcp-connect.sh"
 
 # --- e) zero candidates refuses, naming the reason ---------------------------
@@ -165,4 +167,25 @@ grep -qF "$CASE/open" "$CASE/err" || fail "loose-socket: the refusal does not na
 [[ ! -s $CASE/probed ]] || fail 'loose-socket: it was connected to before being refused'
 [[ ! -f $CASE/exec ]] || fail 'loose-socket: the server was run against it'
 
-printf 'PASS: %s (11 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- u) a symlink inside a private directory pointing at a public socket ----
+# `-S` and the ownership and mode tests disagree about what they are looking
+# at: the first follows the link to its target, the second two read the LEXICAL
+# parent of the link. So an alias this user creates inside their own 0700
+# directory passes both while the socket actually reached is one any account can
+# rebind.
+setup_case symlink-alias
+write_layout w1:t1 w1:p1 w1:p2
+mkdir -p "$CASE/open"
+chmod 755 "$CASE/open"
+make_socket "$CASE/open/target.sock"
+ln -s "$CASE/open/target.sock" "$CASE/run/alias.sock"
+record w1:p2 4242 "$CASE/run/alias.sock"
+printf '%s|w1:p2 4242\n' "$CASE/run/alias.sock" >"$CASE/identity"
+run_case HERDR_PANE_ID=w1:p1
+[[ $RC -eq 3 ]] || fail "symlink-alias: expected exit 3, got $RC ($(cat "$CASE/err"))"
+grep -qF "$CASE/run/alias.sock" "$CASE/err" ||
+  fail "symlink-alias: the refusal does not name it ($(cat "$CASE/err"))"
+[[ ! -s $CASE/probed ]] || fail 'symlink-alias: it was connected to before being refused'
+[[ ! -f $CASE/exec ]] || fail 'symlink-alias: the server was run against it'
+
+printf 'PASS: %s (12 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
