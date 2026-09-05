@@ -156,10 +156,27 @@ when it is absent, reporting `cargo not found at ~/.cargo/bin/cargo; build defer
 would fail it for a property of how cargo is installed on this machine, which the candidate does not
 control.
 
-What the amendment costs, stated rather than hidden: on a fresh machine with no rustup, PR 10a's
-`run_onchange_after_73` installs nothing and reports the deferral, so the MCP server is absent until
-rustup exists and a later apply runs. That is the exposure pns and uu already carry, extended to one more
-tool, and it is the whole of what the YAML clause was asking for.
+What the amendment costs, stated rather than hidden: **a bespoke rustup provisioning path that sits
+outside the YAML package inventory.** Rust arrives through
+`.chezmoiscripts/run_once_before_20-install-rustup.sh.tmpl`, which curls the upstream rustup installer,
+rather than through `brew bundle` like every other tool in
+`.chezmoidata/system_packages_autoinstall.yaml`. So the toolchain has its own installer, its own trust
+decision and its own upgrade story, and none of that is visible where a reader looks for the package set.
+That is the real price of the amendment, and it is one this repository is already paying for pns and uu.
+
+**It does NOT cost a second apply**, and an earlier draft of this record said it did. The rustup script
+is a `before` script, so it runs ahead of every `after` script in the same apply, and the builders
+resolve the deterministic path rather than probing `PATH`:
+`run_onchange_after_58-build-pns-engine.sh.tmpl` sets `cargo_bin="$HOME/.cargo/bin/cargo"` above the
+comment "a fresh machine provisions rustup during THIS apply and `~/.cargo/bin` is not on the apply
+shell's PATH yet". A fresh machine therefore builds on the first apply. A builder that guarded on
+`command -v cargo` WOULD defer, for exactly the reason that comment gives, and it would also not be
+implementing this amendment.
+
+So the amendment carries a requirement: **PR 10a's install script must guard the direct path, never
+`command -v cargo`.** As shipped on the `nvim-mcp-ship` branch it does:
+`run_onchange_after_73-install-nvim-mcp.sh.tmpl` sets the same `cargo_bin="$HOME/.cargo/bin/cargo"` under
+the same comment and defers on `[[ ! -x $cargo_bin ]]` (measured).
 
 **This amendment is the operator's to reject.** Rejected, criterion 6 fails, the decision table's "5 or 6
 fails" row applies, and the custom crate ships instead of the resolver row this record takes.
