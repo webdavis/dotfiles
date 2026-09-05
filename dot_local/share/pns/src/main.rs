@@ -11544,11 +11544,18 @@ mod tests {
 
     #[test]
     fn the_pulse_is_handed_the_reading_taken_before_the_channels_ran() {
-        // THE ORDERING ITSELF, end to end, which is the one thing a test built
-        // out of hand calls to `presence_snapshot` cannot pin: it takes the
-        // reading at whatever moment the test chooses, so construction moved
-        // back down to the pulse leaves it green. Here the event path chooses,
-        // and a channel republishes the reading WHILE the legs dispatch.
+        // THE SNAPSHOT CONTRACT, end to end, which is the one thing a test
+        // built out of hand calls to `presence_snapshot` cannot pin: it takes
+        // the reading at whatever moment the test chooses rather than the one
+        // the event path chooses. Here the event path chooses, and a channel
+        // republishes the reading WHILE the legs dispatch.
+        //
+        // WHAT MAKES IT RED is restoring the LAZY read in
+        // `system::with_presence_path` and moving construction down to the
+        // pulse: Kitchen received where the decision saw the study. Moving
+        // construction ALONE leaves this green, and correctly so, because the
+        // eager read already fixed the line before any leg ran. This pins the
+        // contract, not the statement order that currently delivers it.
         let home = scratch("pulse-sink-ordering");
         let line = home.join("presence");
         let now = now_secs().expect("a clock");

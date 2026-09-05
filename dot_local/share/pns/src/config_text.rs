@@ -203,9 +203,10 @@ pub const LAYOUT: &[Table] = &[
                          # in rooms above and not in exclude. While the keyboard still speaks\n\
                          # for where you are, this is the room the lamps narrow to, and motion\n\
                          # in it agrees. Newer motion in ANOTHER room is two live readings that\n\
-                         # cannot both be you, so nothing narrows at all until the keyboard goes\n\
-                         # quiet. Unset, the keyboard names no room and motion answers alone,\n\
-                         # exactly as it does once the desk goes stale.\n",
+                         # cannot both be you, and nothing narrows for as long as both stand: a\n\
+                         # keystroke ends it here, the motion going quiet ends it there. Unset,\n\
+                         # the keyboard names no room and motion answers alone, exactly as it\n\
+                         # does once the desk goes stale.\n",
                 sample: Sample::Example("\"\""),
             },
             Key {

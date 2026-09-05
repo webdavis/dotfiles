@@ -1264,9 +1264,13 @@ off the room listing.
 - Success: `Routing.lamps` holds only the lamps that room holds; `unresolved` and `refusals` are
   untouched, because a name the bridge could not answer is a typo whether or not the operator is
   standing in that room.
-- Failure sources: every one of them narrows NOTHING and says which (`src/presence_room.rs:Full`):
-  `Nowhere` (a fresh poll that found motion in no watched room, and the room they are in may have no
-  sensor), each `src/presence.rs:Unreadable` variant, a router answering `home::HomePresence::NotHome`,
+- Failure sources: each narrows NOTHING and says which (`src/presence_room.rs:Full`). WHEN NO USABLE
+  CONFIGURED DESK ANSWERS, that is `Nowhere` (a fresh poll that found motion in no watched room, and the
+  room they are in may have no sensor) and each `src/presence.rs:Unreadable` variant; a desk inside its
+  bound with a `desk_room` named takes them all, so an unlocked desk at 119 seconds against the shipped
+  120 keeps the Studio with no usable motion at all. `NotHome` gates the MOTION BRANCH ONLY and is
+  reached only where motion is what selected the room, because a keyboard being typed on is the
+  operator's own hand and a router that disagrees is wrong about the router. The remaining three are
   `Ambiguous` (a desk still inside its bound in one room and newer motion in another), a desk that would
   have won with no `desk_room` named and no usable motion to answer instead, and a room that holds no
   lamp this event would light.

@@ -89,9 +89,10 @@ exclude = []
 # in rooms above and not in exclude. While the keyboard still speaks
 # for where you are, this is the room the lamps narrow to, and motion
 # in it agrees. Newer motion in ANOTHER room is two live readings that
-# cannot both be you, so nothing narrows at all until the keyboard goes
-# quiet. Unset, the keyboard names no room and motion answers alone,
-# exactly as it does once the desk goes stale.
+# cannot both be you, and nothing narrows for as long as both stand: a
+# keystroke ends it here, the motion going quiet ends it there. Unset,
+# the keyboard names no room and motion answers alone, exactly as it
+# does once the desk goes stale.
 desk_room = "3F - Studio"
 # How long the desk keeps speaking for where you ARE after the last
 # keystroke, bounded 1 to 3600. Inside it a warm desk beats motion of
