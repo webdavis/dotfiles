@@ -141,10 +141,18 @@ return {
       -- set a breakpoint and step through it. Kept clear of the existing Ds/Dt maps and the Dp
       -- profiler subgroup; a capital second letter pairs with its lowercase neighbor, the same
       -- pattern this file already uses (xt/xT, xb/xB).
+      --
+      -- The three breakpoint maps go through xcodebuild's own dap module rather than nvim-dap
+      -- directly, because breakpoint persistence was only half wired: the `dap.setup()` call in
+      -- config above installs a `BufReadPost *.swift` autocmd that LOADS breakpoints from the
+      -- project's breakpoints.json, and nothing ever wrote that file. Each of these wrappers
+      -- calls the plain nvim-dap function and then saves. Outside a configured project the save
+      -- is a silent no-op (the file open fails and the function returns), so they stay safe on a
+      -- Swift buffer that belongs to no Xcode project.
       {
         "<leader>Db",
         function()
-          require("dap").toggle_breakpoint()
+          require("xcodebuild.integrations.dap").toggle_breakpoint()
         end,
         desc = "Debug: toggle breakpoint",
       },
@@ -152,8 +160,18 @@ return {
         "<leader>DB",
         function()
           require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: "))
+          require("xcodebuild.integrations.dap").save_breakpoints()
         end,
         desc = "Debug: conditional breakpoint",
+      },
+      -- A log point: prints on hit instead of stopping, and `{expr}` interpolates. No equivalent
+      -- existed, and it is the cheapest way to trace a Swift value without stopping the app.
+      {
+        "<leader>Dm",
+        function()
+          require("xcodebuild.integrations.dap").toggle_message_breakpoint()
+        end,
+        desc = "Debug: toggle message breakpoint",
       },
       {
         "<leader>Dc",
@@ -183,10 +201,13 @@ return {
         end,
         desc = "Debug: step out",
       },
+      -- xcodebuild's terminate, not nvim-dap's: it also cancels the xcodebuild action that is
+      -- still running behind the session and closes dap-ui, so stopping the debugger no longer
+      -- leaves a build or test run going with nothing showing it.
       {
         "<leader>Dx",
         function()
-          require("dap").terminate()
+          require("xcodebuild.integrations.dap").terminate_session()
         end,
         desc = "Debug: terminate",
       },
