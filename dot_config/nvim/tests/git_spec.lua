@@ -346,6 +346,44 @@ return {
     assert(seen[1].stdin == "unsaved one\nline two\n", "stdin was " .. tostring(seen[1].stdin))
   end,
 
+  -- A `fileformat=dos` buffer holds its lines without the carriage returns, so
+  -- rejoining them with LF hands git bytes that differ from the file's own
+  -- committed blob and every line of an UNCHANGED file blames as uncommitted.
+  ["blame_sha sends a dos buffer with the carriage returns its file has"] = function()
+    local sha = in_buffer({ "crlf one", "crlf two" }, function(file)
+      vim.bo.fileformat = "dos"
+      return with_shell({
+        [("git blame -L 1,1 --porcelain --contents - -- %s"):format(file)] = {
+          0,
+          "581dae8e37117196fb31ce1658a1c55ec3128b19 1 1 1\nauthor Sentinel Person",
+        },
+      }, function()
+        return git.blame_sha({ file = file, line = 1 })
+      end)
+    end)
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+    assert(seen[1].stdin == "crlf one\r\ncrlf two\r\n", "stdin was " .. string.format("%q", tostring(seen[1].stdin)))
+  end,
+
+  -- Same class of failure at the other end of the file: a tracked file with no
+  -- trailing newline is `noendofline`, and stapling one on made git see a file
+  -- that differs from its blob.
+  ["blame_sha sends a buffer with no final newline without adding one"] = function()
+    local sha = in_buffer({ "nonl one", "nonl two" }, function(file)
+      vim.bo.endofline = false
+      return with_shell({
+        [("git blame -L 1,1 --porcelain --contents - -- %s"):format(file)] = {
+          0,
+          "581dae8e37117196fb31ce1658a1c55ec3128b19 1 1 1\nauthor Sentinel Person",
+        },
+      }, function()
+        return git.blame_sha({ file = file, line = 1 })
+      end)
+    end)
+    assert(sha == "581dae8e37117196fb31ce1658a1c55ec3128b19", "sha was " .. tostring(sha))
+    assert(seen[1].stdin == "nonl one\nnonl two", "stdin was " .. string.format("%q", tostring(seen[1].stdin)))
+  end,
+
   -- Git answers for the repository of the directory it RUNS in, not the one the
   -- path it was handed lives in, so blaming an absolute path from a cwd outside
   -- the repository reported `fatal: not a git repository`.

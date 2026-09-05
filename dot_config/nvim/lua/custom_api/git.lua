@@ -336,17 +336,28 @@ local function parse_blame_porcelain(text)
   return sha
 end
 
+-- What each `fileformat` puts between lines when the buffer is written out.
+local LINE_SEPARATOR = { unix = "\n", dos = "\r\n", mac = "\r" }
+
 -- The text the editor is showing for `file`. Blaming the saved copy answers for
 -- a line the operator may have already replaced, so what the buffer holds is
 -- what goes to git; git reports a line that is only in the buffer as
 -- uncommitted, which is the true answer. The keymaps blame the current buffer,
 -- so a name that does not match it means there is nothing unsaved to send.
+--
+-- These have to be the bytes the file itself would hold, not the lines glued
+-- with LF and a newline stapled on: a `fileformat=dos` buffer rejoined with LF,
+-- or a file with no trailing newline given one, differs from its own committed
+-- blob, so every line of an UNCHANGED file blamed as uncommitted.
 local function buffer_contents(file)
   if vim.api.nvim_buf_get_name(0) ~= file then
     return nil
   end
 
-  return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n") .. "\n"
+  local separator = LINE_SEPARATOR[vim.bo.fileformat] or "\n"
+  local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), separator)
+
+  return vim.bo.endofline and text .. separator or text
 end
 
 local function blame_sha(opts)
