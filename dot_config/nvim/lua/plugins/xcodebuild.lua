@@ -9,7 +9,7 @@ return {
     commit = "633eb71c0b354581837025581b7261dbe5361226",
     dependencies = {
       "MunifTanjim/nui.nvim", -- required: health.lua marks it optional = false
-      "folke/snacks.nvim", -- the picker every other surface in this config uses, selected in opts
+      "folke/snacks.nvim", -- the picker every other surface in this config uses, selected in opts below
       "stevearc/oil.nvim", -- file-tree sync into the Xcode project
       "mfussenegger/nvim-dap", -- operator-approved 2026-09-02, see the spec 12.2 correction
       { "rcarriga/nvim-dap-ui", dependencies = { "nvim-neotest/nvim-nio" } },
@@ -54,6 +54,14 @@ return {
         -- helper script this machine does not grant. Set explicitly so the config states the
         -- decision instead of relying on device_proxy's own is_installed() fallback.
         pymobiledevice = { enabled = false },
+        -- The picker is chosen by first match down a fixed list (telescope, then snacks, then
+        -- fzf-lua) in the plugin's own pickers.setup(). All three default to enabled, so snacks
+        -- only wins today because neither of the others is installed: an accident, not a
+        -- choice, and installing telescope later would silently move every Xcode picker off
+        -- the surface the rest of this config uses. Turning the two off makes snacks the
+        -- declared winner.
+        telescope_nvim = { enabled = false },
+        fzf_lua = { enabled = false },
       },
     },
     config = function(_, opts)
