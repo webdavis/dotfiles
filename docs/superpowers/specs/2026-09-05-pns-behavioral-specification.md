@@ -1,10 +1,13 @@
 # pns behavioral specification
 
-Recorded 2026-09-05 against `origin/main` at `7ee33504`, from the crate at `dot_local/share/pns` and
-its callers in this repository. This is the repository-level statement inventory the refactor plan at
-`docs/superpowers/plans/2026-09-05-pns-refactor-plan.md` moves code against. It states what pns does
-today, not what it should do. Where the code and this document disagree, the code is right and the
-document is the defect.
+Recorded 2026-09-05 against `origin/main` at `cac6ff3f`, which carries the presence policy merge
+`7c58f94b` and the first extraction, PR 5.1 (`10a2116d`, so `render`, `safety`, `parse_count` and
+`working_owner` are cited under `crates/pns-domain/src/`), from the crate at `dot_local/share/pns`
+and its callers in this repository. This is the repository-level statement inventory the refactor
+plan at `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md` moves code against. It states what
+pns does today, not what it should do. Where the code and this document disagree, the code is right
+and the document is the defect. Corrected the same day after review: fourteen statements gained
+pins, lost a wrong one, or had a clause no test reaches marked as such.
 
 ## How to read it
 
@@ -15,8 +18,10 @@ Every statement is one line of observable behavior with two citations underneath
   refactor, so grep for the symbol when a number has moved.
 - `Pin:` the test whose failure would announce a change, named as the leaf test name with its file and
   line. A second pin is written `also`. A statement no test pins says `UNPINNED` and names what was
-  looked for. A move of the code behind an UNPINNED statement writes the missing test first, against
-  the code where it lives today, per `dot_local/share/pns/docs/specs/unpinned-behaviors.md`.
+  looked for. A statement whose pins leave one clause unreached carries that clause on an
+  `UNPINNED:` line under them, with the plan step that writes its test; it counts as UNPINNED. A move
+  of the code behind an UNPINNED statement or clause writes the missing test first, against the code
+  where it lives today, per `dot_local/share/pns/docs/specs/unpinned-behaviors.md`.
 
 Scenario prose, thresholds one step either side, and the reasoning behind each rule live in the
 crate's own specifications under `dot_local/share/pns/docs/specs/` (seventeen areas, written
@@ -68,8 +73,8 @@ S003. A first word that names no command and carries no producer flag and no hel
 
 S004. An empty argv is the valid empty event: it is decided, rendered and delivered, with `pns`,
       `done` and `done` filled in for the missing agent, state and body.
-      Source: `src/main.rs:209-214 is_producer_argv`, `src/render.rs:15-23 title`,
-      `src/render.rs:42-53 message`.
+      Source: `src/main.rs:209-214 is_producer_argv`, `crates/pns-domain/src/render.rs:15-23 title`,
+      `crates/pns-domain/src/render.rs:42-53 message`.
       Pin: `a_bare_invocation_is_still_the_empty_event_the_contract_calls_valid`
            at tests/dispatch.rs:685
 
@@ -89,7 +94,7 @@ S006. Every producer event path exits 0, whatever a channel, a config, a probe o
 
 S007. A subcommand word wins over producer flags that follow it (`pns pulse --agent x` is a pulse
       invocation refused with exit 2, not an event).
-      Source: `src/main.rs:63-144 main` (order), `src/main.rs:3952-3993 pulse_mode`.
+      Source: `src/main.rs:63-144 main` (order), `src/main.rs:4172-4213 pulse_mode`.
       Pin: UNPINNED. No test drives a subcommand word carrying producer flags; the nearest is the
       doctor's extra-word refusal, which uses a bare word.
 
@@ -119,7 +124,7 @@ S009. A value flag as the last token, or followed by a recognized flag, warns
            at src/args.rs:162
 
 S010. The exact warning sentence is printed as `pns: <flag> given without a value; ignoring`.
-      Source: `src/args.rs:105 parse_args`, `src/main.rs:2738-2759 event_mode`.
+      Source: `src/args.rs:105 parse_args`, `src/main.rs:2857-2878 event_mode`.
       Pin: UNPINNED. The unit tests assert only that the warning names the flag; no test asserts the
       sentence.
 
@@ -139,7 +144,7 @@ S012. An unknown token in flag position is skipped in silence; a stray leading w
 
 S013. `--help` or `-h` in flag position prints `USAGE` to stdout and returns before any config load,
       probe, warning or delivery, with stderr exactly empty and no state directory created.
-      Source: `src/main.rs:2738-2759 event_mode`.
+      Source: `src/main.rs:2857-2878 event_mode`.
       Pin: `the_help_flag_prints_the_usage_and_reaches_nothing_at_all`
            at tests/dispatch.rs:445
       also `help_in_flag_position_wins_wherever_it_reaches_the_event_parser`
@@ -167,7 +172,7 @@ S016. `--local-only` keeps only plugins declaring `local`; `--remote-only` keeps
 S017. Both narrowing flags together plan nothing, and the event path prints exactly one line to stdout:
       `pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every
       channel; nothing was sent`. No other empty plan prints anything.
-      Source: `src/routing.rs:72-130 channel_plan`, `src/main.rs:2913 run_event`.
+      Source: `src/routing.rs:72-130 channel_plan`, `src/main.rs:3032 run_event`.
       Pin: `both_narrowing_flags_together_deliver_nothing_and_say_so`
            at tests/dispatch.rs:139
       also `a_scrub_warning_is_not_printed_when_no_channel_will_run`
@@ -185,23 +190,23 @@ S019. `--channel <route>` names a hermes route, never a URL: `PNS_HERMES_URL` wi
       route posts to the default, a usable route swaps the default URL's final path segment, and an
       unusable name prints `pns: --channel "<name>" is not a usable route name; posting to the default
       route` and posts to the default.
-      Source: `src/main.rs:3826-3853 hermes_url_for`, `src/channels/hermes.rs:91 channel_url`,
-      `src/safety.rs:70 route_name_is_usable`.
+      Source: `src/main.rs:4046-4073 hermes_url_for`, `src/channels/hermes.rs:91 channel_url`,
+      `crates/pns-domain/src/safety.rs:70 route_name_is_usable`.
       Pin: `a_route_name_swaps_the_default_urls_final_segment`
            at src/channels/hermes.rs:129
       also `one_rule_judges_a_route_name_wherever_it_is_read`
            at src/channels/hermes.rs:105
 
 S020. No test drives `--channel` from argv to the wire, and no test pins the refusal line above.
-      Source: `src/main.rs:3826-3853 hermes_url_for`.
+      Source: `src/main.rs:4046-4073 hermes_url_for`.
       Pin: UNPINNED. The route-on-the-wire test covers the config-named stale-alert route only
       (`the_stale_alert_posts_to_the_hermes_route_the_config_named`).
 
 S021. `--pane <id>` failing the safety allowlist is replaced by the empty string for every leg, and one
       stderr line `pns: dropped a pane id with shell metacharacters; no channel will focus a pane` is
       printed, only when a leg will run.
-      Source: `src/engine.rs:244 decide` (`pane_dropped`), `src/main.rs:3245-3325 dispatch_legs`,
-      `src/safety.rs:17 pane_is_safe`.
+      Source: `src/engine.rs:244 decide` (`pane_dropped`), `src/main.rs:3434-3514 dispatch_legs`,
+      `crates/pns-domain/src/safety.rs:17 pane_is_safe`.
       Pin: `a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event`
            at tests/dispatch.rs:386
       also `a_scrub_warning_is_not_printed_when_no_channel_will_run`
@@ -235,7 +240,7 @@ S025. `pns pulse [<exit-code>]`: help anywhere in the tail prints `PULSE_USAGE` 
       with no config read; a tail longer than one word, or a word that is not all ASCII digits,
       prints `PULSE_USAGE` to stderr and exits 2; an all-zero code is a success pulse and any other
       digit run a failure pulse.
-      Source: `src/main.rs:3952-3993 pulse_mode`, `src/main.rs:3995 PULSE_USAGE`, `src/pulse.rs:95-112
+      Source: `src/main.rs:4172-4213 pulse_mode`, `src/main.rs:4215 PULSE_USAGE`, `src/pulse.rs:95-112
       exit_behaviour`.
       Pin: `pulse_help_prints_its_own_usage_before_any_config_load`
            at tests/dispatch.rs:822
@@ -244,20 +249,24 @@ S025. `pns pulse [<exit-code>]`: help anywhere in the tail prints `PULSE_USAGE` 
 
 S026. `pns pulse` fails CLOSED on a broken config: it prints `pns: config error (<detail>); no pulse`,
       dials no bridge and exits 0; an absent config is silent and dials nothing.
-      Source: `src/main.rs:3952-3993 pulse_mode`.
+      Source: `src/main.rs:4172-4213 pulse_mode`.
       Pin: `a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly`
            at tests/dispatch.rs:781
       also `an_unknown_plugin_never_resurrects_a_disabled_pulse`
            at tests/dispatch.rs:913
       also `an_absent_config_stays_silent_in_pulse_mode`
            at tests/dispatch.rs:807
+      also `the_pulse_config_warning_says_what_pulse_mode_actually_did`
+           at tests/dispatch.rs:951
+      UNPINNED: that a malformed config dials no bridge; no test opens a spy bridge behind a broken
+           config. Test in PR 6.13.
 
 S027. The global usage still says `pns pulse <exit-code>` while `PULSE_USAGE` makes the code optional.
-      Source: `src/main.rs:166-190 USAGE`, `src/main.rs:3995 PULSE_USAGE`.
+      Source: `src/main.rs:166-190 USAGE`, `src/main.rs:4215 PULSE_USAGE`.
       Pin: UNPINNED. A recorded defect (backlog B30), not a tested contract.
 
 S028. `pns home` always exits 0, ignores every further argv word, and prints exactly one report.
-      Source: `src/main.rs:69 main`, `src/main.rs:4012-4126 home_mode`.
+      Source: `src/main.rs:69 main`, `src/main.rs:4232-4346 home_mode`.
       Pin: `every_way_the_home_probe_is_not_set_up_says_which_one_it_is`
            at tests/dispatch.rs:1400
 
@@ -269,7 +278,7 @@ S030. `pns quiet` with no argument reports and mutes nothing; `pns quiet <durati
       absolute expiry and reports it back off the file; `pns quiet off` unlinks the file; any other
       shape prints `QUIET_USAGE` on stderr and exits 2; a write that failed exits 1 and reports the
       mute that still stands.
-      Source: `src/main.rs:9104-9175 quiet_mode`, `src/main.rs:9179 QUIET_USAGE`.
+      Source: `src/main.rs:9355-9426 quiet_mode`, `src/main.rs:9430 QUIET_USAGE`.
       Pin: `a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it`
            at tests/dispatch.rs:2439
       also `off_removes_the_state_file_and_the_next_event_decorates_again`
@@ -282,46 +291,46 @@ S030. `pns quiet` with no argument reports and mutes nothing; `pns quiet <durati
            at tests/dispatch.rs:2761
 
 S031. `pns quiet --help` is refused with exit 2 like any other unparseable duration.
-      Source: `src/main.rs:9104-9175 quiet_mode` (no help arm).
+      Source: `src/main.rs:9355-9426 quiet_mode` (no help arm).
       Pin: UNPINNED. Code-derived.
 
 S032. `pns doctor` with any extra word, the empty string included, prints `pns: usage: pns doctor` on
       stderr and exits 2 before anything is printed, sent or spawned.
-      Source: `src/main.rs:4147-4376 doctor_mode`, `src/main.rs:7718 DOCTOR_USAGE`.
+      Source: `src/main.rs:4367-4596 doctor_mode`, `src/main.rs:7969 DOCTOR_USAGE`.
       Pin: `a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel`
            at tests/dispatch.rs:3538
 
 S033. `pns doctor` exits 1 when any send failed, when the host is unpaired, or when nothing at all was
       sent; every other state exits 0, and no read-only section moves the code.
-      Source: `src/doctor.rs:232-256 exit_code`, `src/main.rs:4147-4376 doctor_mode`.
+      Source: `src/doctor.rs:247-271 exit_code`, `src/main.rs:4367-4596 doctor_mode`.
       Pin: `only_a_run_that_sent_something_and_failed_nothing_exits_zero`
-           at src/doctor.rs:1215
+           at src/doctor.rs:1296
       also `an_unpaired_host_alone_earns_the_exit_code_a_one`
-           at src/doctor.rs:1597
+           at src/doctor.rs:1678
       also `the_doctor_reports_a_dead_daemon_without_moving_its_exit_code`
            at tests/daemon.rs:389
 
 S034. `pns recap --since <epoch> --until <epoch>` requires both flags exactly once, each a plain count,
       with `since <= until`; any other word, a repeated flag or a backwards window prints
       `pns: usage: pns recap --since <epoch> --until <epoch>` and exits 2 having posted nothing.
-      Source: `src/main.rs:7752-7857 recap_mode`, `src/main.rs:8227 recap_bounds`.
+      Source: `src/main.rs:8003-8108 recap_mode`, `src/main.rs:8478 recap_bounds`.
       Pin: `a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing`
            at tests/dispatch.rs:6442
 
 S035. `pns daemon <word>` serves `run`, `schedule` and `cancel`; every other word, `--help` included,
       prints `DAEMON_USAGE` on stderr and exits 2.
-      Source: `src/main.rs:4982-4992 daemon_mode`, `src/main.rs:4994 DAEMON_USAGE`.
+      Source: `src/main.rs:5203-5213 daemon_mode`, `src/main.rs:5215 DAEMON_USAGE`.
       Pin: UNPINNED. The three verbs are pinned end to end; no test drives the unknown-verb arm.
 
 S036. `pns daemon run <anything>` is refused with `DAEMON_USAGE` and exit 2 before the clock starts.
-      Source: `src/main.rs:6773-6829 daemon_run`.
+      Source: `src/main.rs:7024-7080 daemon_run`.
       Pin: UNPINNED. Code-derived; the plist passes exactly `daemon run`.
 
 S037. `pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>]
       [--unless-marker <name>] -- <args>` validates and publishes one spool record by rename, waits
       on nothing, and exits 0; an unparseable argv is usage plus exit 2, no clock is exit 1, a refused
       registration is `pns daemon: <refusal>` plus exit 1.
-      Source: `src/main.rs:7343-7379 daemon_schedule`, `src/main.rs:7408 parse_schedule`.
+      Source: `src/main.rs:7594-7630 daemon_schedule`, `src/main.rs:7659 parse_schedule`.
       Pin: `a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`
            at tests/daemon.rs:191
       also `a_scheduled_job_runs_once_and_its_effect_is_observable`
@@ -330,14 +339,14 @@ S037. `pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<s
 S038. `pns daemon cancel --id <id>` exits 0 whether or not the job was there (`cancelled` or
       `no job named`), exits 1 for an id that is not a job id or a removal error, and exits 2 for any
       other argv shape.
-      Source: `src/main.rs:7448-7478 daemon_cancel`, `src/daemon.rs cancel`.
+      Source: `src/main.rs:7699-7729 daemon_cancel`, `src/daemon.rs cancel`.
       Pin: UNPINNED. No integration test drives `daemon cancel`; `cancel`'s library half is exercised
       only through the unit module.
 
 S039. `pns lights tick` exits 0 on every path and prints nothing on a healthy one; `pns lights quiet`
       is the lamps' by-hand mute; any other lights verb prints `LIGHTS_USAGE` and exits 2. A word
       trailing `lights tick` is dropped rather than refused.
-      Source: `src/main.rs:4999-5012 lights_mode`, `src/main.rs:5014 LIGHTS_USAGE`, `src/main.rs:5742
+      Source: `src/main.rs:5220-5233 lights_mode`, `src/main.rs:5235 LIGHTS_USAGE`, `src/main.rs:5963
       lights_tick`.
       Pin: `the_tick_says_nothing_at_all_however_many_times_it_runs`
            at tests/dispatch.rs:8340
@@ -348,47 +357,49 @@ S040. `pns lights quiet [<place> [<duration>|off]]`: bare reports; `<place>` mut
       end; `<place> <duration>` mutes for that long; `<place> off` unmutes; a place no lamp, room or
       zone answers to, a bad duration or any other arity exits 2; no clock or an unwritable file exits
       1; a bare mute with no `quiet_hours` configured is refused.
-      Source: `src/main.rs:5479-5575 lights_quiet`, `src/lights.rs:1183 quiet_command`,
-      `src/lights.rs:1249 bare_mute_secs`.
+      Source: `src/main.rs:5700-5796 lights_quiet`, `src/lights.rs:1143 quiet_command`,
+      `src/lights.rs:1209 bare_mute_secs`.
       Pin: `an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`
            at tests/dispatch.rs:2139
       also `a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built`
            at tests/dispatch.rs:2361
       also `a_bare_mute_lasts_until_the_operators_quiet_hours_end`
-           at src/lights.rs:3391
+           at src/lights.rs:3282
 
 S041. `pns loop begin [--pane <id>]` writes the lease marker for the pane and registers the lights tick
       for the whole lease length; `pns loop end` removes it; no pane, an unsafe pane, or an unknown
       verb or shape exits 2; no clock or an unwritable marker exits 1; `end` with nothing to remove
       is a success.
-      Source: `src/main.rs:5237-5291 loop_mode`, `src/main.rs:5303 end_lease`, `src/lights.rs:417
-      loop_command`, `src/lights.rs:446 LOOP_USAGE`.
+      Source: `src/main.rs:5458-5512 loop_mode`, `src/main.rs:5524 end_lease`, `src/lights.rs:423
+      loop_command`, `src/lights.rs:452 LOOP_USAGE`.
       Pin: `a_lease_is_keyed_to_the_pane_it_was_typed_in_and_refused_when_there_is_none`
-           at src/lights.rs:2066
+           at src/lights.rs:1957
       also `a_pane_that_cannot_name_a_file_and_an_argument_this_does_not_know_are_refused`
-           at src/lights.rs:2105
+           at src/lights.rs:1996
       also `a_lease_taken_by_hand_schedules_the_tick_that_reads_it`
            at tests/dispatch.rs:8293
       also `a_lease_that_could_not_be_given_back_is_reported_rather_than_called_a_success`
-           at src/main.rs:11492
+           at src/main.rs:12245
 
 S042. `pns nag` takes no argument; any extra word prints `NAG_USAGE` to stderr, exits 2, delivers
       nothing and consumes nothing.
-      Source: `src/main.rs:4401-4568 nag_mode`, `src/main.rs:4752-4765 NAG_USAGE`.
+      Source: `src/main.rs:4622-4789 nag_mode`, `src/main.rs:4973-4986 NAG_USAGE`.
       Pin: `pns_nag_refuses_an_argument_rather_than_falling_through_to_a_fire`
            at tests/hooks.rs:3528
 
 S043. `pns setup [--force]` accepts zero words or exactly `--force`; every other shape prints
       `SETUP_USAGE` and exits 2 first, before `HOME`, the config path or the terminal is looked at.
-      Source: `src/main.rs:8434-8542 setup_mode`, `src/main.rs:9088 SETUP_USAGE`.
+      Source: `src/main.rs:8685-8793 setup_mode`, `src/main.rs:9339 SETUP_USAGE`.
       Pin: `a_setup_typed_wrong_is_refused_with_what_it_takes_rather_than_walked_anyway`
            at tests/dispatch.rs:646
+      UNPINNED: the precedence (usage before `HOME`, the config path and the terminal); the test
+           passes with `HOME` checked first. Test in PR 6.12.
 
 S044. `pns setup` refuses, each with exit 2 and nothing written: an unset or empty `HOME`; a config
       already at the name without `--force`; a path that does not resolve or cannot be checked, with
       or without `--force`; a stdin that is not a terminal. A publication failure after the walk is
       the only exit 1.
-      Source: `src/main.rs:8434-8542 setup_mode`, `src/main.rs:8396 unresolvable_ancestor`.
+      Source: `src/main.rs:8685-8793 setup_mode`, `src/main.rs:8647 unresolvable_ancestor`.
       Pin: `an_empty_home_is_refused_by_name_before_anything_is_written`
            at tests/setup.rs:617
       also `the_first_run_walk_refuses_a_config_that_is_already_there_and_leaves_it_alone`
@@ -405,10 +416,10 @@ S044. `pns setup` refuses, each with exit 2 and nothing written: an unset or emp
 S045. `pns presence poll [--daemon]` takes one reading of the bridge's room motion, publishes it to
       the presence state file, and stands down when another poll holds the lock; the hand-typed form
       says so and exits 1, the daemon's form stays silent and exits 0.
-      Source: `src/main.rs:5017-5031 presence_mode`, `src/main.rs:5038-5062 presence_launch`,
-      `src/main.rs:5072-5110 presence_poll`, `src/main.rs:5189-5223 Polled`.
+      Source: `src/main.rs:5238-5252 presence_mode`, `src/main.rs:5259-5283 presence_launch`,
+      `src/main.rs:5293-5331 presence_poll`, `src/main.rs:5410-5444 Polled`.
       Pin: `a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses`
-           at src/main.rs:9389
+           at src/main.rs:9643
       also `two_live_contenders_and_exactly_one_is_inside_the_poll`
            at src/presence_lock.rs:119
 
@@ -430,8 +441,8 @@ S047. The payload is read from stdin on a thread, at most `MAX_PAYLOAD_BYTES + 1
       inside `PNS_PAYLOAD_DEADLINE_MS` (default 5,000 ms); a payload nobody finishes writing yields no
       notification and exit 0; a payload over the cap is not whole and is never forwarded, but still
       notifies.
-      Source: `src/main.rs:2608-2679 read_payload`, `src/main.rs:2680 MAX_PAYLOAD_BYTES`,
-      `src/main.rs:2690 payload_is_whole`.
+      Source: `src/main.rs:2727-2798 read_payload`, `src/main.rs:2799 MAX_PAYLOAD_BYTES`,
+      `src/main.rs:2809 payload_is_whole`.
       Pin: `a_payload_at_the_cap_is_whole_and_is_still_submitted`
            at tests/hooks.rs:827
       also `a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were`
@@ -441,7 +452,7 @@ S047. The payload is read from stdin on a thread, at most `MAX_PAYLOAD_BYTES + 1
 
 S048. A payload that is not UTF-8 fails the string read, and the hook returns 0 having done nothing at
       all: no forward, no card. A pinned known limit.
-      Source: `src/main.rs:2608-2679 read_payload`.
+      Source: `src/main.rs:2727-2798 read_payload`.
       Pin: `a_payload_that_is_not_utf8_drops_the_approval_and_tells_the_operator_nothing`
            at tests/hooks.rs:966
 
@@ -500,7 +511,7 @@ S053. A hook writes nothing to stdout; on `blocked` that is asserted as exactly 
 
 S054. Nothing asserts that stderr is EMPTY on a healthy hook run, and the plugin-selection warning on a
       hook path is printed with no `pns: ` prefix.
-      Source: `src/main.rs:2798-3104 run_event` (the `eprintln!("{warning}")`).
+      Source: `src/main.rs:2917-3223 run_event` (the `eprintln!("{warning}")`).
       Pin: UNPINNED. Searched `tests/hooks.rs` for stderr assertions; only the unknown-event line and
       two nag lines are asserted.
 
@@ -527,7 +538,7 @@ S055. `prompt`: writes `session-<id>.start` holding the epoch only when none exi
 S056. `stop`: claims the turn marker by rename first, before the reply and the condenser; the elapsed
       seconds against `PNS_PULSE_THRESHOLD_SECS` (default 300, inclusive) decide `long_running`; two
       Stops racing one turn cannot both report it long.
-      Source: `src/main.rs:2087-2135 end_of_turn`, `src/main.rs:2075 consume_turn_marker`,
+      Source: `src/main.rs:2092-2140 end_of_turn`, `src/main.rs:2080 consume_turn_marker`,
       `src/pulse.rs:73-78 session_was_long`.
       Pin: `a_turn_long_enough_pulses_and_a_short_one_does_not`
            at tests/hooks.rs:2719
@@ -546,7 +557,7 @@ S057. `stop`: the reply is the payload's `last_assistant_message`, else the tran
       to `1 + attempts` times (default 4, max 10) with `interval` between (default 150 ms, max 5 s);
       the transcript is opened only when `symlink_metadata` says regular file, and only its last
       4,000,000 bytes are read.
-      Source: `src/main.rs:2171-2193 turn_reply`, `src/main.rs:2194-2219 transcript_tail`,
+      Source: `src/main.rs:2176-2198 turn_reply`, `src/main.rs:2199-2224 transcript_tail`,
       `src/hooks.rs:289-315 transcript_reply`.
       Pin: `the_payloads_own_final_text_becomes_the_detail_without_reading_a_transcript`
            at tests/hooks.rs:139
@@ -564,7 +575,7 @@ S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-g
       `CONDENSER_DEADLINE` (30 s, `PNS_CONDENSER_DEADLINE_MS`); the last usable `STATE|SUMMARY` line
       wins, only `done`, `asking` and `blocked` are verdicts, and anything else falls back to
       `("done", preview(reply))`.
-      Source: `src/main.rs:2220-2258 condense`, `src/main.rs:2259-2293 condenser_home`,
+      Source: `src/main.rs:2225-2263 condense`, `src/main.rs:2264-2298 condenser_home`,
       `src/hooks.rs:324-333 condenser_verdict`, `src/hooks.rs:345-355 condenser_prompt`.
       Pin: `a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back`
            at tests/hooks.rs:186
@@ -582,7 +593,7 @@ S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-g
 S059. `stop`: `branch` comes from `git rev-parse --abbrev-ref HEAD` in the payload's `cwd` under a 5 s
       bound, `project` is the last segment of `cwd`, `pane` is `HERDR_PANE_ID` verbatim, and the event
       never reaches moshi.
-      Source: `src/main.rs:2294-2319 git_branch`, `src/main.rs:2087-2135 end_of_turn`.
+      Source: `src/main.rs:2299-2324 git_branch`, `src/main.rs:2092-2140 end_of_turn`.
       Pin: `the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downstream`
            at tests/hooks.rs:235
       also `an_ordinary_stop_never_reaches_moshi`
@@ -590,19 +601,19 @@ S059. `stop`: `branch` comes from `git rev-parse --abbrev-ref HEAD` in the paylo
 
 S060. `stop` and `stop-failure` both clear the nag record for the session (answered marker first, then
       the record).
-      Source: `src/main.rs:4603-4649 clear_nag`, `src/main.rs:2087 end_of_turn`, `src/main.rs:2136
+      Source: `src/main.rs:4824-4870 clear_nag`, `src/main.rs:2092 end_of_turn`, `src/main.rs:2141
       failed_turn`.
       Pin: `an_answered_approval_is_never_nudged_by_either_clearing_signal`
            at tests/hooks.rs:3605
 
 S061. The `stop-failure` call into `clear_nag` has no test of its own.
-      Source: `src/main.rs:2136-2170 failed_turn`.
+      Source: `src/main.rs:2141-2175 failed_turn`.
       Pin: UNPINNED. The clearing sweep drives `resolved` and `stop` only.
 
 S062. `stop-failure`: claims the turn marker, delivers state `failed` with the payload's error as the
       detail, spawns no condenser and reads no transcript, still earns its pulse when the turn was
       long, and never reaches moshi.
-      Source: `src/main.rs:2136-2170 failed_turn`.
+      Source: `src/main.rs:2141-2175 failed_turn`.
       Pin: `a_turn_that_died_notifies_as_failed_and_says_what_killed_it`
            at tests/hooks.rs:251
       also `a_dead_turn_consumes_the_marker_so_the_next_turn_is_not_measured_from_its_start`
@@ -616,7 +627,7 @@ S062. `stop-failure`: claims the turn marker, delivers state `failed` with the p
 
 S063. `blocked`: runs `blocking_event` (section 3) and the full `First` tail; the turn marker is left
       alone; the decision ring line carries `mode=`, `agent=` and `tool=` off the payload.
-      Source: `src/main.rs:488-679 hook_mode`, `src/main.rs:2320-2364 blocking_event`.
+      Source: `src/main.rs:488-679 hook_mode`, `src/main.rs:2325-2369 blocking_event`.
       Pin: `an_approval_leaves_the_turn_marker_alone`
            at tests/hooks.rs:1224
       also `the_decision_log_carries_the_payloads_mode_agent_and_tool`
@@ -643,7 +654,7 @@ S065. `plan-ready` specifically has no test; its behavior is inferred from the s
 
 S066. `resolved`: writes the session's answered nag marker, removes the record, ends the session's wait
       marker only when the payload carries no `agent_id` key, loads no config and delivers nothing.
-      Source: `src/main.rs:488-679 hook_mode`, `src/main.rs:4603-4649 clear_nag`.
+      Source: `src/main.rs:488-679 hook_mode`, `src/main.rs:4824-4870 clear_nag`.
       Pin: `a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`
            at tests/hooks.rs:2959
       also `a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit`
@@ -730,7 +741,7 @@ S071. `config-change` with `source = policy_settings` appends one line `<epoch> 
 
 S072. An `Observation` or a `Nudge` writes its decision ring line and then returns before the journal,
       the activity ring, the return-moment claim, the replay, the marker advance and the pulse.
-      Source: `src/main.rs:2782 Attempt`, `src/main.rs:2798-3104 run_event` (the
+      Source: `src/main.rs:2901 Attempt`, `src/main.rs:2917-3223 run_event` (the
       `attempt != Attempt::First` return).
       Pin: `an_observation_still_delivers_and_is_logged`
            at tests/hooks.rs:4436
@@ -740,7 +751,7 @@ S072. An `Observation` or a `Nudge` writes its decision ring line and then retur
 S073. The default agent is `claude`; `PNS_AGENT=codex` is the Codex hook installer's spelling and
       changes the moshi subcommand (`codex-hook`) and switches the nag off.
       Source: `src/main.rs:488-679 hook_mode`, `src/hooks.rs:362-364 moshi_subcommand`,
-      `src/main.rs:4650-4749 arm_nag`, `src/main.rs:4752 CLAUDE_AGENT`.
+      `src/main.rs:4871-4970 arm_nag`, `src/main.rs:4973 CLAUDE_AGENT`.
       Pin: `a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run`
            at tests/hooks.rs:996
       also `nothing_is_armed_when_nothing_should_be`
@@ -752,7 +763,7 @@ S074. `blocking_event` runs in this order: start the moshi forward, set `PNS_SKI
       process only if the spawn really began, arm the nag, run the notification, then wait on the
       submission for the deadline. Only the surface decides the forward: it happens for every surface
       but `Desk`, and visibility, Focus, the mute and the phone overrides cannot reach it.
-      Source: `src/main.rs:2320-2364 blocking_event`, `src/main.rs:2377-2388 forward_to_moshi`.
+      Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:2382-2393 forward_to_moshi`.
       Pin: `a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision`
            at tests/hooks.rs:367
       also `the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_phone`
@@ -776,14 +787,16 @@ S074. `blocking_event` runs in this order: start the moshi forward, set `PNS_SKI
 
 S075. Only `claude` and `codex` map to a moshi subcommand on the hook path; any other `PNS_AGENT`
       forwards nothing and exits 0 while the notification still goes out.
-      Source: `src/hooks.rs:362-364 moshi_subcommand`, `src/main.rs:2320-2364 blocking_event`.
+      Source: `src/hooks.rs:362-364 moshi_subcommand`, `src/main.rs:2325-2369 blocking_event`.
       Pin: `a_harness_pns_does_not_register_for_is_never_handed_to_moshi`
            at tests/hooks.rs:520
+      UNPINNED: that the notification still goes out for an unregistered agent; the test checks only
+           the exit code and the absent forward. Test in PR 6.3.
 
 S076. The payload crosses to `moshi-hook <sub>` byte for byte on the child's stdin, written from a
       separate thread, whether or not pns could parse it; the child inherits the whole environment;
       the binary is `MOSHI_HOOK_BIN` else `/opt/homebrew/bin/moshi-hook`.
-      Source: `src/main.rs:2445-2476 spawn_moshi_hook`, `src/main.rs:2477 DEFAULT_MOSHI_HOOK_BIN`.
+      Source: `src/main.rs:2564-2595 spawn_moshi_hook`, `src/main.rs:2596 DEFAULT_MOSHI_HOOK_BIN`.
       Pin: `a_payload_pns_cannot_parse_is_still_submitted_verbatim`
            at tests/hooks.rs:1034
       also `a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification`
@@ -795,7 +808,7 @@ S077. `answer_within` polls every 10 ms up to the submit deadline, returns the c
       finished, and on expiry kills and reaps the child and returns 0; a child killed by a signal is 0
       too; moshi's 2 comes back as 2; the answered path keeps stdout inherited so moshi's line is the
       hook's line.
-      Source: `src/main.rs:2539-2561 answer_within`, `src/main.rs:2491 moshi_decision`.
+      Source: `src/main.rs:2658-2680 answer_within`, `src/main.rs:2610 moshi_decision`.
       Pin: `a_moshi_that_never_answers_stops_holding_the_operators_prompt`
            at tests/hooks.rs:2188
       also `the_gate_is_bounded_by_the_same_clock_as_the_hook`
@@ -811,23 +824,23 @@ S078. The submit deadline is `PNS_MOSHI_SUBMIT_DEADLINE_MS` (a literal 0 falls t
       `[plugins.mobile] submit_deadline_secs` off the armed table (1 to 3600, 0 refused by name), else
       5 s; a refused value prints `pns: config error (<detail>); the moshi submission keeps its
       <n>-second bound`.
-      Source: `src/main.rs:2570-2607 submit_deadline`, `src/main.rs:2587 configured_submit_deadline`,
-      `src/config.rs:1902 submit_deadline`.
+      Source: `src/main.rs:2689-2726 submit_deadline`, `src/main.rs:2706 configured_submit_deadline`,
+      `src/config.rs:1904 submit_deadline`.
       Pin: `the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`
-           at src/config.rs:2850
+           at src/config.rs:2956
       also `a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name`
-           at src/config.rs:2940
+           at src/config.rs:3046
 
 S079. Exactly one submission per prompt, however the wait ends, on both entry points; no non-blocking
       event ever spawns one.
-      Source: `src/main.rs:2320-2364 blocking_event`, `src/main.rs:235-247 gate_mode`.
+      Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:235-247 gate_mode`.
       Pin: `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`
            at tests/hooks.rs:607
       also `the_gate_submits_one_prompt_exactly_once`
            at tests/hooks.rs:2503
 
 S080. A forwarded approval is recorded with `skip_phone=yes` and is never journaled as missed.
-      Source: `src/main.rs:2798-3104 run_event`, `src/missed_notifications.rs:79-83 was_missed`.
+      Source: `src/main.rs:2917-3223 run_event`, `src/missed_notifications.rs:79-83 was_missed`.
       Pin: `an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed`
            at tests/hooks.rs:1161
 
@@ -847,7 +860,7 @@ S082. No test asserts that a gate run leaves no marker behind, and no test measu
 S083. The blocked hook's card is state `blocked`, project from the payload's `cwd`, detail from the
       message chain (`Bash: command=rm -rf /tmp/x` for Claude Code, `shell: command=bash -lc rm -rf
       build` for Codex), pane from `HERDR_PANE_ID`.
-      Source: `src/main.rs:2320-2364 blocking_event`, `src/main.rs:2626 project_of`.
+      Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:2745 project_of`.
       Pin: `a_blocked_hook_cards_the_operator_as_blocked_and_says_what_was_asked`
            at tests/hooks.rs:572
       also `a_real_claude_approval_cards_the_tool_that_wants_to_run`
@@ -864,50 +877,50 @@ S084. Desk idle age is `/usr/sbin/ioreg -c IOHIDSystem`, the last field of the f
       line, in whole seconds; a garbled, empty or failed reading is `None`, never 0 seconds idle.
       Source: `src/system.rs idle_reading`, `src/presence.rs:30 idle_secs_from_ns`.
       Pin: `the_idle_probe_argv_matches_the_bash_original`
-           at src/system.rs:1940
+           at src/system.rs:1988
       also `the_idle_probe_reports_whole_seconds_from_the_nanosecond_count`
-           at src/system.rs:1577
+           at src/system.rs:1600
       also `an_empty_reading_is_unknown_rather_than_zero_seconds_idle`
-           at src/presence.rs:133
+           at src/presence.rs:149
       also `contaminated_idle_output_reads_as_unknown_rather_than_a_reading`
-           at src/system.rs:1407
+           at src/system.rs:1430
       also `an_idle_command_that_fails_reports_unknown_which_fails_open_into_a_push`
-           at src/system.rs:1583
+           at src/system.rs:1606
 
 S085. The console lock is `/usr/sbin/ioreg -n Root -d1`, the `"IOConsoleLocked"` key matched with its
       quotes, `Yes` or `No`; anything else is `None`, and only `Some(true)` disqualifies the desk.
       The lock is read only where the idle probe returned a reading.
       Source: `src/system.rs parse_screen_locked`, `src/engine.rs:341-420 surface_reading`.
       Pin: `a_console_key_that_is_missing_or_says_something_else_reads_as_no_reading`
-           at src/system.rs:1474
+           at src/system.rs:1497
       also `the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading`
            at src/engine.rs:1414
       also `the_lock_is_not_spawned_where_idle_failed`
-           at src/system.rs:1981
+           at src/system.rs:2029
       also `an_unlocked_or_unreadable_console_leaves_every_verdict_exactly_as_it_was`
            at src/surface.rs:517
 
 S086. The Back Tap marker is the modification time of `PNS_PHONE_MARKER_FILE` else
       `$HOME/.local/state/pns/phone-attention.marker`, read off the link itself; absent is `None` and
       never fresh. Nothing in the crate writes it.
-      Source: `src/system.rs PhoneMarkerProbe for SystemProbes`, `src/main.rs:2389-2417 system_probes`.
+      Source: `src/system.rs PhoneMarkerProbe for SystemProbes`, `src/main.rs:2394-2422 system_probes`.
       Pin: `the_marker_probe_reads_the_link_itself_never_its_target`
-           at src/system.rs:1622
+           at src/system.rs:1645
       also `an_absent_marker_reports_unknown_which_the_marker_rule_fails_closed_on`
-           at src/system.rs:1613
+           at src/system.rs:1636
 
 S087. The phone's input clock is the newest access time of a mosh client pty, found by
       `/usr/bin/pgrep -x mosh-server`, `/usr/bin/pgrep -P <ids>`, `/bin/ps -o tty= -p <ids>`, then a
       stat of `/dev/<tty>`; any step failing is `None`; `pgrep -P` is never called with no parents.
       Source: `src/system.rs phone_reading`, `src/system.rs newest_terminal_atime`.
       Pin: `the_discovery_argv_is_pinned_to_the_chain_that_was_measured_live`
-           at src/system.rs:1763
+           at src/system.rs:1811
       also `a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one`
-           at src/system.rs:1796
+           at src/system.rs:1844
       also `no_mosh_server_at_all_never_asks_for_children_of_nothing`
-           at src/system.rs:1820
+           at src/system.rs:1868
       also `the_freshest_terminal_wins_across_every_session_found`
-           at src/system.rs:1906
+           at src/system.rs:1954
 
 S088. The session view is `herdr workspace list` (the focused workspace's `active_tab_id`) then `herdr
       pane layout --pane <origin>` (tab, focused pane, zoom), never `herdr pane current`; any failure
@@ -915,11 +928,11 @@ S088. The session view is `herdr workspace list` (the focused workspace's `activ
       Source: `src/system.rs SessionViewProbe for SystemProbes`, `src/system.rs parse_focused_tab`,
       `src/system.rs parse_layout`.
       Pin: `the_view_asks_the_session_what_is_focused_and_never_asks_for_the_current_pane`
-           at src/system.rs:2190
+           at src/system.rs:2238
       also `any_herdr_call_failing_leaves_the_view_unreadable_rather_than_guessing`
-           at src/system.rs:2260
+           at src/system.rs:2308
       also `a_session_with_no_focused_workspace_is_unreadable_rather_than_a_guess`
-           at src/system.rs:2247
+           at src/system.rs:2295
       also `an_unreadable_view_delivers_rather_than_suppressing_on_doubt`
            at tests/dispatch.rs:359
 
@@ -931,7 +944,7 @@ S089. Every subprocess reading runs under `run_bounded`: 5 s (`PROBE_DEADLINE`),
       Pin: `a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking`
            at tests/hooks.rs:2121
       also `starting_twice_and_reading_twice_spawns_each_probe_once`
-           at src/system.rs:1144
+           at src/system.rs:1167
 
 S090. Every reading on one probe set is memoized, the empty answer included, and the wall clock is one
       `now_secs()` read shared by every age; an unreadable clock ages nothing, so the phone and marker
@@ -953,7 +966,7 @@ S091. A stated override (`PNS_IDLE_SECS`, `PNS_PHONE_INPUT_AGE`) is trusted and 
            at tests/hooks.rs:1352
 
 S092. The world is read at dispatch, not at the moment the hook started.
-      Source: `src/main.rs:2320-2364 blocking_event` (one probe set built there).
+      Source: `src/main.rs:2325-2369 blocking_event` (one probe set built there).
       Pin: `the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started`
            at tests/hooks.rs:2540
 
@@ -977,6 +990,8 @@ S093. `surface(desk_age, phone_age, marker_age, fresh_secs, locked)` answers `De
            at src/surface.rs:492
       also `a_locked_screen_with_a_fresh_back_tap_is_still_the_phone_and_never_away`
            at src/surface.rs:505
+      UNPINNED: the boundary itself (an age equal to the window is stale, `<` not `<=`); no matrix
+           row sits exactly at expiry. Test in PR 5.2.
 
       Worked examples, from the matrix test: desk 90 s and phone 5 s reads `Mobile`; desk 30 s and
       phone 30 s reads `Desk`; desk 2 s locked with no phone reads `Away`; desk 600 s and phone 600 s
@@ -1061,7 +1076,7 @@ S100. End to end: away cards the phone and logs but raises no banner; at the des
 S101. `mobile_watch_card` defaults to false; a value of the wrong type is refused out loud with `pns:
       config error ([plugins.mobile] mobile_watch_card is <type>, not a boolean); the mobile watching
       card stays off`.
-      Source: `src/main.rs:3381 watch_card`.
+      Source: `src/main.rs:3570 watch_card`.
       Pin: `a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`
            at tests/dispatch.rs:715
 
@@ -1110,7 +1125,7 @@ S104. The operator mute is `quiet-until` holding one epoch; `is_muted(expiry, no
       and false for a missing expiry or a missing clock; an absent file says nothing, a corrupt or
       unreadable one complains once per event with `pns: state error (quiet-until ...); nothing is
       muted, clear it with pns quiet off` and delivers everything.
-      Source: `src/main.rs:9203 read_quiet_expiry`, `src/main.rs:9224 muted_now`, `src/quiet.rs:57-62
+      Source: `src/main.rs:9454 read_quiet_expiry`, `src/main.rs:9475 muted_now`, `src/quiet.rs:57-62
       is_muted`, `src/quiet.rs:36-44 expiry_from_state`.
       Pin: `nothing_readable_is_not_muted_which_is_the_opposite_of_the_lights_window`
            at src/quiet.rs:206
@@ -1129,7 +1144,7 @@ S105. A macOS Focus silences only when `[focus] silence` names an asserted mode,
       display name, case-mapped both ways; an empty list opens no file; an unreadable store or catalog
       silences nothing; the two files are read under the 256 KiB ceiling through the regular-file
       guard.
-      Source: `src/main.rs:9278-9298 focus_now`, `src/main.rs:9229 FOCUS_DB`, `src/focus.rs:45
+      Source: `src/main.rs:9529-9549 focus_now`, `src/main.rs:9480 FOCUS_DB`, `src/focus.rs:45
       active_modes`, `src/focus.rs:79 mode_names`, `src/focus.rs:124 silenced`.
       Pin: `a_store_holding_a_live_assertion_names_the_mode_that_is_on`
            at src/focus.rs:418
@@ -1168,7 +1183,7 @@ S107. `[plugins.hue] quiet_hours = "HH:MM-HH:MM"` parses into one `QuietWindow`;
       (hue.quiet_hours is <offender>, not a HH:MM-HH:MM window); no pulse`, said once and only where
       a pulse was due; an empty string is no window.
       Source: `src/channels/hue.rs quiet_window`, `src/channels/hue.rs quiet_hours_refusal`,
-      `src/main.rs:3510-3584 fire_pulse_unless_quiet`.
+      `src/main.rs:3699-3773 fire_pulse_unless_quiet`.
       Pin: `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`
            at src/channels/hue.rs:2201
       also `a_quiet_hours_of_the_wrong_type_is_refused_by_name_and_by_type`
@@ -1196,7 +1211,7 @@ S108. `quiet_now(window, minute)`: start inclusive, end exclusive, wrapping midn
 S109. On a machine with no `[lights]` table the quiet window gates the whole room pulse and nothing
       else; on a machine with one it reaches no routed lamp, so a typo in the house key cannot darken
       a routed lamp. The hand-run pulse and the doctor are exempt.
-      Source: `src/main.rs:3510-3584 fire_pulse_unless_quiet`, `src/main.rs:3952-3993 pulse_mode`.
+      Source: `src/main.rs:3699-3773 fire_pulse_unless_quiet`, `src/main.rs:4172-4213 pulse_mode`.
       Pin: `a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`
            at tests/dispatch.rs:1648
       also `a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`
@@ -1207,14 +1222,14 @@ S109. On a machine with no `[lights]` table the quiet window gates the whole roo
            at tests/dispatch.rs:3353
 
 S110. The clock for the quiet gate is read fresh at the gate, not at the run's start.
-      Source: `src/main.rs:3510-3584 fire_pulse_unless_quiet`.
+      Source: `src/main.rs:3699-3773 fire_pulse_unless_quiet`.
       Pin: UNPINNED. Stated in the source as an honest limit: a test's clock does not advance mid-run.
 
 S111. The dim window answers per lamp and per behaviour: `Full` outside, `Dimmed` for a listed
       behaviour inside, `Dark` for an unlisted one; an empty `dim_behaviours` darkens everything; an
       unparseable window darkens that lamp alone and names it.
-      Source: `src/channels/hue.rs dim_showing`, `src/channels/hue.rs DimWindow`, `src/channels/hue.rs
-      window_refusal`.
+      Source: `src/channels/hue.rs:665 dim_showing`, `src/channels/hue.rs:388 DimWindow`,
+      `src/channels/hue.rs:631 window_refusal`.
       Pin: `inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`
            at src/channels/hue.rs:1769
       also `a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode`
@@ -1227,8 +1242,8 @@ S111. The dim window answers per lamp and per behaviour: `Full` outside, `Dimmed
 S112. The lamps' by-hand mute (`lights-quiet`, `<epoch> <place>` per line, at most 32 lines) reaches a
       lamp by its own name, its room or any zone holding it, on the event flash and the tick alike; an
       unreadable record mutes everything and says so once; a missing file is ordinary.
-      Source: `src/channels/hue.rs muted_now`, `src/main.rs:5710 ad_hoc_quiet`, `src/lights.rs:1107
-      muted_entries`, `src/lights.rs:1149 MAX_MUTED_PLACES`.
+      Source: `src/channels/hue.rs muted_now`, `src/main.rs:5931 ad_hoc_quiet`, `src/lights.rs:1067
+      muted_entries`, `src/lights.rs:1109 MAX_MUTED_PLACES`.
       Pin: `a_mute_reaches_a_lamp_by_its_own_name_by_its_room_and_by_any_zone_holding_it`
            at src/channels/hue.rs:1874
       also `a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch`
@@ -1236,12 +1251,12 @@ S112. The lamps' by-hand mute (`lights-quiet`, `<epoch> <place>` per line, at mo
       also `a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event`
            at tests/dispatch.rs:2207
       also `an_unreadable_lights_quiet_complains_and_an_absent_one_says_nothing`
-           at src/main.rs:9839
+           at src/main.rs:10099
       also `a_mute_reading_nobody_could_take_leaves_every_lamp_quiet_rather_than_loud`
-           at src/main.rs:10343
+           at src/main.rs:10608
 
 S113. The tick's sustained breath answers to the lamp mutes only, never to `pns quiet` or a Focus.
-      Source: `src/main.rs:5742-5861 lights_tick` (reads no `quiet-until` and no Focus store).
+      Source: `src/main.rs:5963-6082 lights_tick` (reads no `quiet-until` and no Focus store).
       Pin: UNPINNED. No test runs the tick with a live `quiet-until` or a Focus store.
 
 ### 4.7 The blocked backstop
@@ -1249,40 +1264,40 @@ S113. The tick's sustained breath answers to the lamp mutes only, never to `pns 
 S114. A `LAMP_BLOCKED` state (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) starts a wait
       marker `lights-blocked/<session>` holding the decision's clock, only when both lamp switches are
       live; every other state ends it unconditionally; an unsafe session id or no clock writes nothing.
-      Source: `src/main.rs:908-937 update_blocked_marker`, `src/lights.rs:1012
-      blocked_marker_action`, `src/lights.rs:1033 blocked_marker`, `src/pulse.rs:127 LAMP_BLOCKED`.
+      Source: `src/main.rs:908-937 update_blocked_marker`, `src/lights.rs:972
+      blocked_marker_action`, `src/lights.rs:993 blocked_marker`, `src/pulse.rs:127 LAMP_BLOCKED`.
       Pin: `a_blocked_event_starts_a_wait_and_every_other_event_ends_one`
-           at src/lights.rs:3049
+           at src/lights.rs:2940
       also `a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`
-           at src/main.rs:11578
+           at src/main.rs:12331
       also `a_blocked_turn_lights_the_lamps_once_the_map_exists`
            at tests/dispatch.rs:2008
 
 S115. The tick sweeps a wait past `[lights.blocked] give_up_after_secs` (default 57,600, bounds 60 to
       604,800), both edges closed, taking the marker by rename and re-reading it before removal; a
       marker from the future is live.
-      Source: `src/main.rs:6449 sweep_blocked`, `src/main.rs:5416-5461 sweep_markers`,
-      `src/lights.rs:519 marker_is_live`, `src/config.rs DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`.
+      Source: `src/main.rs:6700 sweep_blocked`, `src/main.rs:5637-5682 sweep_markers`,
+      `src/lights.rs:479 marker_is_live`, `src/config.rs DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`.
       Pin: `a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`
-           at src/main.rs:11825
+           at src/main.rs:12578
       also `the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves`
-           at src/main.rs:11789
+           at src/main.rs:12542
       also `a_sweep_takes_a_marker_before_removing_it_and_leaves_no_working_file_behind`
-           at src/main.rs:11932
+           at src/main.rs:12685
       also `the_sweep_leaves_a_marker_that_is_mid_publish_alone`
-           at src/main.rs:11862
+           at src/main.rs:12615
       also `a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`
-           at src/lights.rs:2042
+           at src/lights.rs:1933
 
 S116. Configuration refuses a `give_up_after_secs` strictly below `[nag] after_secs`, naming both keys
       and both values; equal is accepted.
       Source: `src/config.rs backstop_outlasts_the_nag`.
       Pin: `a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys`
-           at src/config.rs:3276
+           at src/config.rs:3382
 
 S117. The blocked lamp's one flash is muted with everything else by the operator mute; the tick's
       sustained blue breath is not.
-      Source: `src/main.rs:2798-3104 run_event` (the `blocked_lamp` gate), `src/main.rs:6459
+      Source: `src/main.rs:2917-3223 run_event` (the `blocked_lamp` gate), `src/main.rs:6710
       blocked_lamp`.
       Pin: `the_operators_own_mute_takes_the_blocked_lamp_with_everything_else`
            at tests/dispatch.rs:2102
@@ -1293,7 +1308,7 @@ S118. The `pane` value never reaches `GateInputs`; only `pane_present` and `pane
       Pin: `no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans`
            at src/decision_log.rs:565
       also `a_herdr_pane_id_is_safe_colon_and_all_or_no_banner_can_focus_a_pane`
-           at src/safety.rs:89
+           at crates/pns-domain/src/safety/tests.rs:14
 
 ## 5. Routing and legs
 
@@ -1343,7 +1358,7 @@ S122. The roster is six registrations in this order: `router` (Sensor), `presenc
       Pin: `the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only`
            at src/routing.rs:384
       also `the_check_list_holds_one_entry_per_registration_in_registration_order`
-           at src/doctor.rs:897
+           at src/doctor.rs:978
 
 S123. `Registry::enabled` refuses an unregistered plugin name whether or not it is switched on, refuses
       a plugin enabled without the one it borrows a credential from, and returns a `Selection` in
@@ -1374,8 +1389,8 @@ S126. Every leg is handed one rendered `Event { agent, state, project, branch, d
       preview, pane }`, serialized with `mode` as the tenth, per-leg field; the title is `agent ·
       state · project`, the message falls back detail, state, `done`, and the branch prefix is
       `branch: body`.
-      Source: `src/main.rs:3343 rendered_event`, `src/channels/mod.rs:21-52 Event`, `src/render.rs:15
-      title`, `src/render.rs:42 message`.
+      Source: `src/main.rs:3532 rendered_event`, `src/channels/mod.rs:21-52 Event`,
+      `crates/pns-domain/src/render.rs:15 title`, `crates/pns-domain/src/render.rs:42 message`.
       Pin: `a_channel_is_handed_the_rendered_event_not_the_raw_arguments`
            at tests/dispatch.rs:80
       also `the_event_is_the_channel_contracts_json_object`
@@ -1383,33 +1398,42 @@ S126. Every leg is handed one rendered `Event { agent, state, project, branch, d
       also `the_mode_is_the_only_per_leg_field_so_one_event_serializes_both_ways`
            at src/channels/mod.rs:182
       also `title_falls_back_to_relay_and_done_when_the_caller_gave_neither`
-           at src/render.rs:154
+           at crates/pns-domain/src/render/tests.rs:22
       also `message_falls_back_to_done_when_it_was_given_nothing_at_all`
-           at src/render.rs:197
+           at crates/pns-domain/src/render/tests.rs:65
+      also `title_carries_agent_state_and_project`
+           at crates/pns-domain/src/render/tests.rs:9
+      also `message_prefixes_the_branch_when_there_is_one`
+           at crates/pns-domain/src/render/tests.rs:34
+      also `message_is_the_detail_alone_when_there_is_no_branch`
+           at crates/pns-domain/src/render/tests.rs:55
+      also `message_falls_back_to_the_state_when_there_is_no_detail`
+           at crates/pns-domain/src/render/tests.rs:60
 
 S127. The preview is the message up to 260 characters, cut at the last sentence end that fits, else
       clipped to 259 plus an ellipsis; the reply cap is 8,000 characters keeping the tail; exactly
       four whitespace characters collapse.
-      Source: `src/render.rs PREVIEW_MAX_CHARS`, `src/render.rs:78-108 preview`, `src/render.rs:120
-      clipped`, `src/render.rs:62-73 flatten_reply`.
+      Source: `crates/pns-domain/src/render.rs:8 PREVIEW_MAX_CHARS`,
+      `crates/pns-domain/src/render.rs:78-108 preview`, `crates/pns-domain/src/render.rs:120 clipped`,
+      `crates/pns-domain/src/render.rs:62-73 flatten_reply`.
       Pin: `a_body_at_the_cap_passes_through_untouched`
-           at src/render.rs:285
+           at crates/pns-domain/src/render/tests.rs:153
       also `one_character_over_the_cap_with_no_sentence_end_is_hard_cut_and_marked`
-           at src/render.rs:291
+           at crates/pns-domain/src/render/tests.rs:159
       also `a_sentence_ending_exactly_at_the_cap_is_where_the_cut_lands`
-           at src/render.rs:299
+           at crates/pns-domain/src/render/tests.rs:167
       also `a_reply_exactly_at_the_cap_is_left_whole`
-           at src/render.rs:259
+           at crates/pns-domain/src/render/tests.rs:127
       also `one_character_past_the_cap_is_already_a_cut`
-           at src/render.rs:264
+           at crates/pns-domain/src/render/tests.rs:132
       also `whitespace_outside_the_four_is_content_the_turn_wrote_rather_than_a_separator`
-           at src/render.rs:231
+           at crates/pns-domain/src/render/tests.rs:99
 
 S128. Dispatch precedence: with `PNS_CHANNELS_DIR` set non-empty, executables win for every name; with
       it unset or empty, a compiled-in plugin wins and `<dir>/<name>.sh` serves only names with no
       native arm; the default directory is `$HOME/.local/libexec/pns/channels`.
-      Source: `src/channels/mod.rs:112 native_first`, `src/main.rs:3855-3876 deliver_leg`,
-      `src/main.rs:3882 resolve_path`.
+      Source: `src/channels/mod.rs:112 native_first`, `src/main.rs:4075-4096 deliver_leg`,
+      `src/main.rs:4102 resolve_path`.
       Pin: `an_explicit_channels_dir_means_executables_win`
            at src/channels/banner.rs:370
       also `the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent`
@@ -1418,20 +1442,20 @@ S128. Dispatch precedence: with `PNS_CHANNELS_DIR` set non-empty, executables wi
 S129. One channel's failure or panic costs no sibling its turn: every channel is constructed before the
       first delivery, each `deliver_leg` runs under `catch_unwind`, and a panic is `Failed("the <name>
       channel PANICKED; nothing was sent")` with no panic text quoted.
-      Source: `src/main.rs:3245-3325 dispatch_legs`.
+      Source: `src/main.rs:3434-3514 dispatch_legs`.
       Pin: `a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`
            at tests/dispatch.rs:209
       also `a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one`
            at tests/dispatch.rs:3207
 
 S130. No test drives a real panic through `dispatch_legs`, `pulse_outcome` or `lights_report`.
-      Source: `src/main.rs:3245-3325 dispatch_legs`, `src/main.rs:3768 pulse_outcome`,
-      `src/main.rs:3728 lights_report`.
+      Source: `src/main.rs:3434-3514 dispatch_legs`, `src/main.rs:3988 pulse_outcome`,
+      `src/main.rs:3948 lights_report`.
       Pin: UNPINNED. `PANICKED` appears in `tests/` nowhere.
 
 S131. Only a `ReportOutcome` leg's `Delivered` or `Failed` sentence reaches stdout, prefixed `pns: `;
       `Unlaunched` prints in neither mode; `Silent` never prints.
-      Source: `src/channels/mod.rs:72-107 Delivery`, `src/main.rs:2798-3104 run_event`.
+      Source: `src/channels/mod.rs:72-107 Delivery`, `src/main.rs:2917-3223 run_event`.
       Pin: `either_verdict_reaches_the_operator_on_a_reporting_leg_and_nothing_does_otherwise`
            at src/channels/mod.rs:144
       also `every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`
@@ -1443,9 +1467,9 @@ S132. Seven sites still dispatch on a destination NAME: `deliver_leg`'s match, `
       `mobile` refusal gate, `disabled_backend_warnings`'s `router` and `mobile` literals,
       `run_event`'s `durable_route` any-name-is-hermes, `deliver_recap`'s literal `hermes`,
       `enabled_hue_table` and `plugin_settings(config, "hermes")`, and the doctor's by-name pairing.
-      Source: `src/main.rs:3855 deliver_leg`, `src/main.rs:3245 dispatch_legs`, `src/main.rs:3457
-      disabled_backend_warning`, `src/main.rs:2798 run_event`, `src/main.rs:8325 deliver_recap`,
-      `src/main.rs:3359 enabled_hue_table`, `src/main.rs:3495 plugin_settings`, `src/main.rs:4147
+      Source: `src/main.rs:4075 deliver_leg`, `src/main.rs:3434 dispatch_legs`, `src/main.rs:3646
+      disabled_backend_warning`, `src/main.rs:2917 run_event`, `src/main.rs:8576 deliver_recap`,
+      `src/main.rs:3548 enabled_hue_table`, `src/main.rs:3684 plugin_settings`, `src/main.rs:4367
       doctor_mode`.
       Pin: UNPINNED. These are the central switches the refactor removes; nothing pins them and
       nothing should.
@@ -1475,7 +1499,7 @@ S135. The activate target is `PNS_TERMINAL_BUNDLE_ID`, else the inherited `__CFB
       `com.mitchellh.ghostty`; the click string is `<herdr> workspace focus <ws>; <herdr> agent focus
       <pane>` with herdr's absolute path.
       Source: `src/channels/banner.rs:24-32 click_command`, `src/channels/banner.rs
-      DEFAULT_TERMINAL_BUNDLE_ID`, `src/main.rs:3782 banner_channel`.
+      DEFAULT_TERMINAL_BUNDLE_ID`, `src/main.rs:4002 banner_channel`.
       Pin: `an_unknown_terminal_activates_the_default`
            at src/channels/banner.rs:360
       also `a_delivered_leg_posts_the_banner_with_the_click_baked_in`
@@ -1493,18 +1517,18 @@ S137. `[plugins.mobile]` must name `type = "moshi"`; an absent or empty type, or
       refusal quoting the key or the value, printed once as `pns: config error (<reason>); no card is
       pushed` and carried onto the leg so `dispatch_legs` fails `mobile` ahead of either seam.
       Source: `src/channels/moshi.rs:58 mobile_backend`, `src/channels/moshi.rs:31 MOSHI_TYPE`,
-      `src/main.rs:3422 read_mobile`, `src/main.rs:3245-3325 dispatch_legs`.
+      `src/main.rs:3611 read_mobile`, `src/main.rs:3434-3514 dispatch_legs`.
       Pin: `the_table_has_to_name_a_backend_and_the_refusal_names_the_key`
            at src/channels/moshi.rs:295
       also `a_type_no_compiled_in_backend_answers_is_refused_quoting_it`
-           at src/home.rs:1508, src/channels/moshi.rs:318
+           at src/channels/moshi.rs:318
       also `a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_seam`
            at tests/dispatch.rs:3077
 
 S138. A switched-off `[plugins.mobile]` or `[plugins.router]` table with a bad `type` is not refused on
       the event path; the doctor alone says `pns: [plugins.<table>] is switched off and names no
       backend this binary answers (the only type is "<type>"); nothing refuses it until it is enabled`.
-      Source: `src/main.rs:3457 disabled_backend_warning`.
+      Source: `src/main.rs:3646 disabled_backend_warning`.
       Pin: `the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does`
            at tests/dispatch.rs:3177
 
@@ -1514,7 +1538,7 @@ S139. The card is one HTTPS POST of `{"token", "title", "message": <preview>}` p
       no redirect, 2xx delivered and anything else failed.
       Source: `src/channels/moshi.rs:114 webhook_body`, `src/channels/moshi.rs:107 herdr_link`,
       `src/channels/moshi.rs:145 deliver`, `src/channels/moshi.rs:190 POST_DEADLINE`,
-      `src/channels/moshi.rs:195-232 UreqPost`, `src/main.rs:3801 moshi_channel`.
+      `src/channels/moshi.rs:195-232 UreqPost`, `src/main.rs:4021 moshi_channel`.
       Pin: `the_body_carries_token_title_and_the_preview_as_the_message`
            at src/channels/moshi.rs:405
       also `a_token_posts_once_to_the_url_with_the_preview_never_the_message`
@@ -1595,7 +1619,7 @@ S143. A silent leg posts under `ASYNC_DEADLINE` (10 s); a reporting leg posts un
       `remote_deadline(PNS_REMOTE_TIMEOUT)`: default 5 s, garbled falls back to 5, `0` is no deadline,
       above 86,400 clamps to 86,400.
       Source: `src/channels/hermes.rs:189 ASYNC_DEADLINE`, `src/channels/hermes.rs:202
-      remote_deadline`, `src/main.rs:3810 hermes_channel`.
+      remote_deadline`, `src/main.rs:4030 hermes_channel`.
       Pin: `the_sync_deadline_validates_and_defaults_to_five`
            at src/channels/hermes.rs:420
       also `an_explicit_zero_deadline_is_no_deadline_like_curls_dash_m_zero`
@@ -1625,7 +1649,7 @@ S146. An executable channel is `Command::new(<dir>/<name>.sh)` with the event JS
       piped stdin, stdout and stderr inherited, waited on with NO deadline and NO output ceiling; a
       spawn that failed is `Unlaunched("could not launch the channel at <path> (<error>); nothing was
       sent")` and a channel that ran is `Silent` whatever its exit status.
-      Source: `src/main.rs:3916-3934 deliver`.
+      Source: `src/main.rs:4136-4154 deliver`.
       Pin: `the_delivered_event_is_newline_terminated_for_line_oriented_channels`
            at tests/dispatch.rs:697
       also `an_absent_channel_is_simply_not_installed`
@@ -1635,7 +1659,7 @@ S146. An executable channel is `Command::new(<dir>/<name>.sh)` with the event JS
 
 S147. The absence of a deadline on an executable channel, and a channel writing onto the event's
       inherited stdout, are pinned by nothing.
-      Source: `src/main.rs:3916-3934 deliver`.
+      Source: `src/main.rs:4136-4154 deliver`.
       Pin: UNPINNED. Recorded as a finding, not merely a missing test.
 
 ### 6.5 `hue` as an attention indicator, `router` and `presence` as sensors
@@ -1643,11 +1667,11 @@ S147. The absence of a deadline on an executable channel, and a channel writing 
 S148. Hue is registered as a channel with `event_dispatched: false`, so no notification routes to it;
       the doctor checks it as a `Pulse`, and the event path drives it through `fire_pulse` and the
       lamp writes in section 10.
-      Source: `src/registry.rs:255-321 ROSTER`, `src/doctor.rs:117 kind_of`.
+      Source: `src/registry.rs:255-321 ROSTER`, `src/doctor.rs:122 kind_of`.
       Pin: `a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected`
            at src/routing.rs:364
       also `a_selected_channel_no_event_dispatches_is_a_pulse_rather_than_a_send`
-           at src/doctor.rs:972
+           at src/doctor.rs:1053
 
 S149. The router is a sensor: enabled, it is selected and named as known, no leg is planned for it, no
       event ever reaches it, and its reading is consumed by nothing in the delivery plan today.
@@ -1659,18 +1683,18 @@ S149. The router is a sensor: enabled, it is selected and named as known, no leg
 
 S150. The presence sensor's reading is printed by the doctor in place of the sensor skip, never
       counted as a send.
-      Source: `src/doctor.rs:117 kind_of`, `src/doctor.rs:165 presence_said`.
+      Source: `src/doctor.rs:122 kind_of`, `src/doctor.rs:172 presence_said`.
       Pin: `the_selected_room_sensor_is_a_reading_rather_than_the_sensor_skip`
-           at src/doctor.rs:789
+           at src/doctor.rs:867
       also `a_reading_is_never_counted_as_a_send_however_good_it_is`
-           at src/doctor.rs:880
+           at src/doctor.rs:958
       also `every_way_of_not_knowing_says_which_way_it_is`
-           at src/doctor.rs:829
+           at src/doctor.rs:907
 
 ## 7. Every file pns reads or writes
 
 The state directory is `PNS_STATE_DIR`, else `$HOME/.local/state/pns` (`src/main.rs:732 state_dir`),
-created on demand. Every file this crate creates there is mode 0600 (`src/main.rs:2051
+created on demand. Every file this crate creates there is mode 0600 (`src/main.rs:2056
 STATE_FILE_MODE`); directories take the umask.
 
 ### 7.1 Publication and ring protocols
@@ -1690,13 +1714,17 @@ S152. A ring append is one exclusive critical section: take `<ring>.lock` by `cr
       the caller's ceiling, prune to the caller's depth, republish by rename, release the lock on drop.
       Source: `src/main.rs:1871-1945 append_ring_line`, `src/main.rs:1818 claim_ring_lock`,
       `src/main.rs:1794 RING_LOCK_ATTEMPTS`, `src/main.rs:1800 RING_LOCK_STALE_SECS`,
-      `src/main.rs:6696 HeldLock`.
+      `src/main.rs:6947 HeldLock`.
       Pin: `the_shared_append_prunes_each_ring_to_its_own_callers_depth`
            at tests/dispatch.rs:4200
       also `a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event`
            at tests/dispatch.rs:4315
       also `the_ring_keeps_only_the_most_recent_decisions_with_the_oldest_gone`
            at tests/dispatch.rs:3673
+      also `two_policy_settings_changes_racing_the_prune_lose_neither_line`
+           at tests/hooks.rs:5996
+      UNPINNED: the 200 attempts, the 1 ms spacing and the 5 s orphan age; no test drives the lock
+           to those limits. Test in PR 11.1.
 
 S153. A ring the append cannot read back heals to the one line just written, unless the read-back
       failed with `NotFound` because a claim renamed the file away.
@@ -1720,7 +1748,7 @@ S155. Ownership of a contended state file is taken by rename onto a name carryin
       or by `create_new`, and never by unlink (measured: eight racers unlinking one path were all told
       they succeeded).
       Source: `src/main.rs:1754 take_claim`, `src/main.rs:1596 claim_journal`, `src/main.rs:1335
-      claim_moment`, `src/main.rs:4867 claim_lock`; `docs/decisions/0001`.
+      claim_moment`, `src/main.rs:5088 claim_lock`; `docs/decisions/0001`.
       Pin: `a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed`
            at tests/dispatch.rs:5240
       also `racing_present_events_deliver_exactly_one_replay_between_them`
@@ -1769,7 +1797,7 @@ S158. `missed-notifications`: the journal, one JSON object per line `{at, agent,
       written only on `Attempt::First` when `was_missed` holds (`!skip_phone && !watching &&
       !plan.banner && !plan.phone_card`), read by key never by position, and consumed only by the
       replay's claim.
-      Source: `src/main.rs:2011 MISSED_NOTIFICATIONS`, `src/main.rs:839-858 record_missed`,
+      Source: `src/main.rs:2016 MISSED_NOTIFICATIONS`, `src/main.rs:839-858 record_missed`,
       `src/missed_notifications.rs:169-180 entry`, `src/missed_notifications.rs:190-230 entries`,
       `src/missed_notifications.rs:79-83 was_missed`, `src/missed_notifications.rs:49 KEPT`.
       Pin: `a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_shown`
@@ -1789,16 +1817,16 @@ S158. `missed-notifications`: the journal, one JSON object per line `{at, agent,
 
 S159. `was_missed` asks the PLAN, never a delivery outcome, so an event narrowed with both flags, or
       one whose plan carded a machine with no phone channel, is not journaled; the doc comment admits
-      it. This is the highest-cost defect the refactor exists to fix. The pin below holds today's
-      plan-level rule; its successor will pin the outcome-level one.
+      it. This is the highest-cost defect the refactor exists to fix.
       Source: `src/missed_notifications.rs:79-83 was_missed`.
-      Pin: `a_delivered_event_journals_nothing_at_all`
-           at tests/dispatch.rs:4274
+      Pin: UNPINNED. `a_delivered_event_journals_nothing_at_all` (tests/dispatch.rs:4274) delivers
+           its card, so a plan-based and an outcome-based journal both pass it; nothing tells the
+           two loss cases apart. Test in PR 11.3.
 
 S160. `activity`: the activity ring, every event in the journal's own shape, fields capped at 120, kept
       at 150, read back under 1 MiB, never claimed and never consumed; the recap counts its window.
-      Source: `src/main.rs:2016 ACTIVITY`, `src/main.rs:983-991 record_activity`, `src/main.rs:2031
-      ACTIVITY_KEPT`, `src/main.rs:2038 ACTIVITY_MAX_CHARS`.
+      Source: `src/main.rs:2021 ACTIVITY`, `src/main.rs:983-991 record_activity`, `src/main.rs:2036
+      ACTIVITY_KEPT`, `src/main.rs:2043 ACTIVITY_MAX_CHARS`.
       Pin: `every_event_is_recorded_in_the_activity_ring_delivered_or_not`
            at tests/dispatch.rs:5747
       also `a_full_activity_ring_prunes_to_its_own_depth_instead_of_collapsing_to_one_line`
@@ -1807,7 +1835,7 @@ S160. `activity`: the activity ring, every event in the journal's own shape, fie
 S161. `last-present`: one epoch, the return window's near edge; advanced only forward, only from
       inside a moment claim, only when `is_present` (surface not `Away`), and only after the card site
       has counted the window; an unparseable marker is no edge, never epoch zero.
-      Source: `src/main.rs:2021 LAST_PRESENT`, `src/main.rs:1025-1039 mark_present`,
+      Source: `src/main.rs:2026 LAST_PRESENT`, `src/main.rs:1025-1039 mark_present`,
       `src/main.rs:1056 advance_marker`, `src/main.rs:1072 read_epoch`,
       `src/missed_notifications.rs:133-135 is_present`.
       Pin: `a_present_event_moves_the_last_present_marker_and_an_away_event_does_not`
@@ -1858,7 +1886,7 @@ S165. `claim_by_rename`'s refusal to rename over a claim already at this pid's o
 
 S166. `session-<id>.start`: the turn marker, one epoch, written by `prompt` only when absent, claimed
       by rename to `session-<id>.start.claim.<pid>` by `stop` and `stop-failure`, never swept.
-      Source: `src/main.rs:724 turn_marker`, `src/main.rs:683-703 start_of_turn`, `src/main.rs:2075
+      Source: `src/main.rs:724 turn_marker`, `src/main.rs:683-703 start_of_turn`, `src/main.rs:2080
       consume_turn_marker`.
       Pin: `the_first_prompt_of_a_turn_writes_a_marker_and_a_later_one_does_not_reset_it`
            at tests/hooks.rs:51
@@ -1867,7 +1895,7 @@ S166. `session-<id>.start`: the turn marker, one epoch, written by `prompt` only
 
 S167. `quiet-until`: one epoch, published by `pns quiet <duration>`, unlinked by `pns quiet off`, read
       by every event and by the bare report. See S030 and S104.
-      Source: `src/main.rs:9186 QUIET_UNTIL`, `src/main.rs:9104-9175 quiet_mode`.
+      Source: `src/main.rs:9437 QUIET_UNTIL`, `src/main.rs:9355-9426 quiet_mode`.
       Pin: `a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it`
            at tests/dispatch.rs:2439
       also `off_removes_the_state_file_and_the_next_event_decorates_again`
@@ -1876,7 +1904,7 @@ S167. `quiet-until`: one epoch, published by `pns quiet <duration>`, unlinked by
 S168. `home-staleness`: one line, the staleness episode identity (config key names and the words
       `device`, `other`, `none`), written or cleared by a Home reading only; NotHome and Unknown leave
       it untouched; an unusable state directory costs one repeated warning.
-      Source: `src/main.rs:2057 STALENESS_MEMORY`, `src/main.rs:754 remember_staleness`,
+      Source: `src/main.rs:2062 STALENESS_MEMORY`, `src/main.rs:754 remember_staleness`,
       `src/main.rs:741 remembered_staleness`, `src/home.rs episode_id`.
       Pin: `the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state`
            at tests/dispatch.rs:1087
@@ -1892,66 +1920,66 @@ S169. `policy-settings-audit`: see S071; twenty lines, read by nothing in produc
 
 S170. `phone-attention.marker`: read for its link mtime only; no writer exists in `src/`. An outside
       program's touch is the whole signal.
-      Source: `src/main.rs:2389-2417 system_probes`, `src/system.rs PhoneMarkerProbe for
+      Source: `src/main.rs:2394-2422 system_probes`, `src/system.rs PhoneMarkerProbe for
       SystemProbes`.
       Pin: `the_marker_probe_reads_the_link_itself_never_its_target`
-           at src/system.rs:1622
+           at src/system.rs:1645
 
 S171. `lights-news`: one line `<done_at> <failed_at>` (`0` for not yet), merged forward by every
       `Done` or `Failed` event whatever the delivery did and whatever the lamp switches say, owned by
       rename (`lights-news.claim.<pid>`, two attempts 2 ms apart, then a blind merge); anything but two
       counts is no news.
-      Source: `src/main.rs:6717 LIGHTS_NEWS`, `src/main.rs:6344-6371 record_news`, `src/main.rs:6374
-      claim_news`, `src/main.rs:6393 NEWS_CLAIM_ATTEMPTS`, `src/lights.rs:154 render_news`,
-      `src/lights.rs:167 parse_news`, `src/lights.rs:194 news_after`.
+      Source: `src/main.rs:6968 LIGHTS_NEWS`, `src/main.rs:6595-6622 record_news`, `src/main.rs:6625
+      claim_news`, `src/main.rs:6644 NEWS_CLAIM_ATTEMPTS`, `src/lights.rs:160 render_news`,
+      `src/lights.rs:173 parse_news`, `src/lights.rs:200 news_after`.
       Pin: `a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds`
            at tests/dispatch.rs:2241
       also `the_news_record_is_written_whatever_the_lamps_are_doing`
            at tests/dispatch.rs:2279
       also `the_news_record_survives_as_one_line_and_anything_else_is_no_news`
-           at src/lights.rs:1626
+           at src/lights.rs:1517
       also `the_news_record_is_written_for_a_finished_or_a_dead_turn_and_read_back_as_it_was`
-           at src/main.rs:11518
+           at src/main.rs:12271
 
 S172. `lights-held`: one line, space-separated tokens, each a bare fixture path or
       `<path>@<end-ms>:<brightness>:<word>`; written bare before the arm and with phases after the
       breath; removed when nothing is held; an unreadable record holds EVERYTHING for the pulse and is
       kept, not cleared, by the return.
-      Source: `src/main.rs:6648 LIGHTS_HELD`, `src/main.rs:6502 read_held`, `src/main.rs:6544
-      remember_held`, `src/lights.rs:879 render_held_token`, `src/lights.rs:900 parse_held_token`.
+      Source: `src/main.rs:6899 LIGHTS_HELD`, `src/main.rs:6753 read_held`, `src/main.rs:6795
+      remember_held`, `src/lights.rs:839 render_held_token`, `src/lights.rs:860 parse_held_token`.
       Pin: `a_held_records_phase_round_trips_through_remember_held_and_read_held`
-           at src/main.rs:9961
+           at src/main.rs:10221
       also `a_bare_token_on_disk_still_reads_as_a_held_lamp_with_no_phase`
-           at src/main.rs:9989
+           at src/main.rs:10249
       also `a_held_record_that_is_absent_holds_nothing_and_one_that_will_not_read_holds_everything`
-           at src/main.rs:9939
+           at src/main.rs:10199
       also `a_held_entrys_phase_round_trips_through_its_rendered_token`
-           at src/lights.rs:2795
+           at src/lights.rs:2686
       also `a_bare_token_reads_as_no_phase_and_a_malformed_one_falls_back_to_bare`
-           at src/lights.rs:2859
+           at src/lights.rs:2750
 
 S173. `lights-streak`: one line `<since> <last_seen>`, advanced by the tick alone; a garbled file is
       refused rather than read as 1970; cleared (removed) behind the 120 s grace.
-      Source: `src/main.rs:6617 LIGHTS_STREAK`, `src/main.rs:6469 advance_streak`, `src/main.rs:6614
-      WORKING_GRACE_SECS`, `src/lights.rs:90 render_streak`, `src/lights.rs:100 parse_streak`,
-      `src/lights.rs:120 next_streak`.
+      Source: `src/main.rs:6868 LIGHTS_STREAK`, `src/main.rs:6720 advance_streak`, `src/main.rs:6865
+      WORKING_GRACE_SECS`, `src/lights.rs:96 render_streak`, `src/lights.rs:106 parse_streak`,
+      `src/lights.rs:126 next_streak`.
       Pin: `the_streak_starts_survives_a_gap_between_turns_and_clears_behind_the_grace`
-           at src/lights.rs:1480
+           at src/lights.rs:1439
 
 S174. `lights-blocked/<session>`: one epoch per waiting session (S114, S115).
-      Source: `src/lights.rs:1021 blocked_dir`.
+      Source: `src/lights.rs:981 blocked_dir`.
       Pin: `a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_it`
            at tests/hooks.rs:2894
 
 S175. `lights-loop/<pane>`: one epoch per pane holding a loop lease, written by `pns loop begin`,
       renewed in place (no create, write then `set_len`) by the pane's own events, swept by the tick
       once past `lease_timeout_secs` (default 3900, both edges closed), removed by `pns loop end`.
-      Source: `src/lights.rs:394 lease_dir`, `src/lights.rs:399 lease_marker`, `src/main.rs:5338
-      renew_loop_lease`, `src/main.rs:5358 sweep_leases`, `src/main.rs:5303 end_lease`.
+      Source: `src/lights.rs:400 lease_dir`, `src/lights.rs:405 lease_marker`, `src/main.rs:5559
+      renew_loop_lease`, `src/main.rs:5579 sweep_leases`, `src/main.rs:5524 end_lease`.
       Pin: `a_lease_is_renewed_only_while_it_exists_and_swept_once_it_times_out`
-           at src/main.rs:11409
+           at src/main.rs:12162
       also `a_renewal_writes_through_the_lease_it_found_rather_than_publishing_a_new_one`
-           at src/main.rs:11456
+           at src/main.rs:12209
       also `a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds`
            at tests/dispatch.rs:2241
 
@@ -1959,69 +1987,71 @@ S176. `lights-shell/<shell-pid>`: one epoch per interactive shell running a trac
       by the bashrc (section 9) and never by this crate; the tick sweeps a file whose name is not a
       positive pid or whose process is gone, leaves a live shell's empty marker alone, and reads the
       OLDEST live epoch.
-      Source: `src/main.rs:6645 LIGHTS_SHELL_DIR`, `src/main.rs:6416-6440 sweep_shell_markers`.
+      Source: `src/main.rs:6896 LIGHTS_SHELL_DIR`, `src/main.rs:6667-6691 sweep_shell_markers`.
       Pin: `the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`
-           at src/main.rs:11665
+           at src/main.rs:12418
       also `a_marker_whose_shell_is_gone_is_swept_and_never_read`
-           at src/main.rs:11689
+           at src/main.rs:12442
       also `a_name_that_is_not_a_shell_pid_is_swept`
-           at src/main.rs:11712
+           at src/main.rs:12465
       also `a_live_shell_whose_marker_holds_no_epoch_yet_is_left_alone`
-           at src/main.rs:11742
+           at src/main.rs:12495
 
 S177. `lights-quiet`: the lamp mute (S112), removed when nothing is muted, republished whole by every
       `pns lights quiet` write.
-      Source: `src/main.rs:6760 LIGHTS_QUIET`, `src/main.rs:5647 publish_muted`, `src/main.rs:5675
+      Source: `src/main.rs:7011 LIGHTS_QUIET`, `src/main.rs:5868 publish_muted`, `src/main.rs:5896
       muted_state`.
       Pin: `off_clears_one_place_and_leaves_the_others_where_they_were`
-           at src/lights.rs:3522
+           at src/lights.rs:3413
       also `the_report_names_every_live_place_and_says_so_when_there_are_none`
-           at src/lights.rs:3212
+           at src/lights.rs:3103
 
 S178. `lights-said` and `lights-quiet-said`: the tick's and the event path's separate say-once
       memories; a complaint is said once, again only when it changes, and forgotten when it clears so
       its return is news.
-      Source: `src/main.rs:6720 LIGHTS_SAID`, `src/main.rs:6751 LIGHTS_QUIET_SAID`, `src/main.rs:6567
-      say_lights_once`, `src/lights.rs:1062 say`.
+      Source: `src/main.rs:6971 LIGHTS_SAID`, `src/main.rs:7002 LIGHTS_QUIET_SAID`, `src/main.rs:6818
+      say_lights_once`, `src/lights.rs:1022 say`.
       Pin: `a_complaint_that_cleared_is_forgotten_so_its_return_is_news_again`
-           at src/main.rs:11243
+           at src/main.rs:11522
       also `a_tick_says_a_complaint_once_and_says_it_again_only_when_it_changes`
-           at src/lights.rs:3086
+           at src/lights.rs:2977
 
 S179. `lights-tick.lock`: taken by `create_new` before the tick resolves anything, believed for 37 s
       (`MAX_REFRESH_SECS` + the tick's bridge deadline + 1), taken over by rename when older, released
       on drop; a lock whose mtime cannot be read counts as live.
-      Source: `src/main.rs:6665 LIGHTS_TICK_LOCK`, `src/main.rs:6676 lights_tick_stale_secs`,
-      `src/main.rs:4867 claim_lock`, `src/main.rs:4911 lock_aged_out`.
+      Source: `src/main.rs:6916 LIGHTS_TICK_LOCK`, `src/main.rs:6927 lights_tick_stale_secs`,
+      `src/main.rs:5088 claim_lock`, `src/main.rs:5132 lock_aged_out`.
       Pin: `a_second_tick_stands_down_while_a_first_still_holds_the_lamps`
-           at src/main.rs:10549
+           at src/main.rs:10817
 
 S180. Legacy deletion targets: every tick removes `lights-glow`, `lights-working-since` and the
       `lights-needs` directory without reading them, with no marker recording that it did.
-      Source: `src/main.rs:6601-6606 sweep_legacy_state`.
+      Source: `src/main.rs:6852-6857 sweep_legacy_state`.
       Pin: `the_first_tick_sweeps_the_state_the_old_names_held`
-           at src/main.rs:11224
+           at src/main.rs:11503
+      UNPINNED: that every tick calls the sweep, and that no marker records it; the test calls the
+           sweeper once, directly. Test in PR 6.7.
 
 S181. Working-name families: `<name>.new.<pid>` (a pending publish), `<name>.sweep.<pid>` (a sweep
       claim), `<name>.claim.<pid>`, `<name>.held.<pid>.<seq>`, `<ring>.lock`, `~claim.<pid>.<seq>.<id>`
       and `~pending.<pid>.<id>` in the spool. `working_owner` reads a marker directory's working file
       by its RIGHTMOST suffix and a positive pid; one whose owner is alive is never swept.
-      Source: `src/lights.rs:473 working_owner`, `src/lights.rs:496 sweep_claim`,
+      Source: `crates/pns-domain/src/lights.rs:32 working_owner`, `src/lights.rs:456 sweep_claim`,
       `src/daemon.rs WORKING_PREFIX`.
       Pin: `a_working_file_is_told_from_a_marker_by_the_process_id_that_owns_it`
-           at src/lights.rs:1523
+           at crates/pns-domain/src/lights/tests.rs:7
       also `a_working_file_is_told_by_its_rightmost_suffix_not_its_first`
-           at src/lights.rs:1548
+           at crates/pns-domain/src/lights/tests.rs:32
       also `a_pending_file_whose_run_is_gone_is_collected_and_a_marker_that_spells_it_is_swept`
-           at src/main.rs:11894
+           at src/main.rs:12647
 
 S182. `nag/<session>.pending`: one JSON record `{agent, project, branch, detail, pane, armed}` per
       waiting approval, published by `arm_nag`, claimed by the fire as `<name>.claim.<pid>` built from
       the WHOLE file name, removed by `clear_nag` best-effort; `nag/fire.lock` is the fire window,
       taken by `create_new`, aged out at 60 s and then taken by rename.
       Source: `src/nag.rs:99 nag_dir`, `src/nag.rs:105 record_path`, `src/nag.rs:152 RECORD_SUFFIX`,
-      `src/nag.rs:169 FIRE_LOCK`, `src/nag.rs:180 FIRE_STALE_SECS`, `src/main.rs:4810 claim_record`,
-      `src/main.rs:4855 claim_fire`.
+      `src/nag.rs:169 FIRE_LOCK`, `src/nag.rs:180 FIRE_STALE_SECS`, `src/main.rs:5031 claim_record`,
+      `src/main.rs:5076 claim_fire`.
       Pin: `arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first`
            at tests/hooks.rs:3708
       also `two_ids_that_differ_only_after_a_dot_claim_two_different_names`
@@ -2033,7 +2063,7 @@ S182. `nag/<session>.pending`: one JSON record `{agent, project, branch, detail,
 
 S183. The `fire.lock` age-out path and a stranded `<session>.pending.claim.<pid>` are exercised by no
       test.
-      Source: `src/main.rs:4867 claim_lock`, `src/main.rs:4401-4568 nag_mode`.
+      Source: `src/main.rs:5088 claim_lock`, `src/main.rs:4622-4789 nag_mode`.
       Pin: UNPINNED. Recorded in `docs/specs/nagging.md`.
 
 S184. `daemon/<id>`: the spool, one TAB-separated `key=value` line per job with `args` as a JSON
@@ -2056,7 +2086,7 @@ S184. `daemon/<id>`: the spool, one TAB-separated `key=value` line per job with 
 
 S185. `daemon-markers/<name>`: an empty 0600 file whose presence cancels a job carrying
       `unless_marker`; a symlinked markers directory cancels nothing; nothing sweeps the directory.
-      Source: `src/daemon.rs marker_dir`, `src/daemon.rs marker_exists`, `src/main.rs:4942
+      Source: `src/daemon.rs marker_dir`, `src/daemon.rs marker_exists`, `src/main.rs:5163
       write_marker`.
       Pin: `a_present_marker_cancels_the_job_before_anything_runs`
            at src/daemon.rs:692
@@ -2068,11 +2098,11 @@ S185. `daemon-markers/<name>`: an empty 0600 file whose presence cancels a job c
 S186. `daemon-heartbeat`: `<pid> <epoch>`, published by rename every pass, beside the spool and never
       inside it, never removed; the doctor grades it by age (10 s stale) and never by pid.
       Source: `src/daemon.rs heartbeat_path`, `src/daemon.rs publish_heartbeat`, `src/daemon.rs
-      HEARTBEAT_STALE_SECS`, `src/doctor.rs:648 daemon_line`.
+      HEARTBEAT_STALE_SECS`, `src/doctor.rs:663 daemon_line`.
       Pin: `a_heartbeat_round_trips_and_anything_else_is_no_heartbeat_at_all`
-           at src/doctor.rs:1763
+           at src/doctor.rs:1844
       also `the_daemons_doctor_line_tells_the_truth_in_four_states`
-           at src/doctor.rs:1677
+           at src/doctor.rs:1758
       also `the_daemon_does_not_write_a_log_line_per_tick`
            at tests/daemon.rs:296
 
@@ -2110,45 +2140,45 @@ S189. The config file is `$HOME/.config/pns/config.toml`, read whole with no dea
       symlink is `Unreadable`; `Missing`, `Unreadable`, `Malformed` and `Invalid` are four distinct
       outcomes and a `Malformed` detail is rebuilt from the parser's message and a line number,
       never the offending line.
-      Source: `src/config.rs config_path`, `src/config.rs:1838-1855 load_config`, `src/config.rs:932
+      Source: `src/config.rs config_path`, `src/config.rs:1840-1857 load_config`, `src/config.rs:934
       parse_config`.
       Pin: `a_malformed_line_is_reported_without_echoing_its_value`
-           at src/config.rs:2190
+           at src/config.rs:2296
       also `the_shipped_config_template_still_parses_through_this_schema`
-           at src/config.rs:4326
+           at src/config.rs:4564
 
 S190. `pns setup` writes `$HOME/.config/pns/config.toml.new.<pid>.<nanos>` at 0600 by `create_new`,
       hard-links it to `config.toml`, removes the pending name, and under `--force` first claims
       `config.toml.<UTC stamp>.backup` by `create_new` and renames the old config onto it; nothing
       else on disk is touched.
-      Source: `src/main.rs:8897 publish_config`, `src/main.rs:8930 pending_name`, `src/main.rs:8941
-      write_then_publish`, `src/main.rs:9019 keep_aside_at`, `src/main.rs:9078 CONFIG_FILE_MODE`.
+      Source: `src/main.rs:9148 publish_config`, `src/main.rs:9181 pending_name`, `src/main.rs:9192
+      write_then_publish`, `src/main.rs:9270 keep_aside_at`, `src/main.rs:9329 CONFIG_FILE_MODE`.
       Pin: `a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file`
-           at src/main.rs:12392
+           at src/main.rs:13145
       also `a_config_that_appeared_during_the_walk_is_refused_rather_than_written_over`
-           at src/main.rs:12422
+           at src/main.rs:13175
       also `a_pending_file_left_by_an_abandoned_run_is_never_the_file_this_one_writes_into`
-           at src/main.rs:12566
+           at src/main.rs:13319
       also `a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one`
-           at src/main.rs:12448
+           at src/main.rs:13201
       also `a_same_second_backup_collision_names_the_backup_it_could_not_claim`
-           at src/main.rs:12631
+           at src/main.rs:13384
 
 S191. Nothing in the crate calls `fsync`, `sync_all` or `sync_data`; durability across a power loss is
       not settled by the code.
-      Source: `src/main.rs:774-803 publish_state_line`, `src/main.rs:8941 write_then_publish`.
+      Source: `src/main.rs:774-803 publish_state_line`, `src/main.rs:9192 write_then_publish`.
       Pin: UNPINNED. A finding for the persistence step, not a missing test.
 
 S192. `~/.config/pns/codex-home`: the condenser's stripped Codex home, created 0700, with a 0600
       `config.toml` holding `model = "gpt-5.5"` and `model_reasoning_effort = "low"` written only when
       absent, and `auth.json` re-linked to `$HOME/.codex/auth.json` on every run.
-      Source: `src/main.rs:2259-2293 condenser_home`.
+      Source: `src/main.rs:2264-2298 condenser_home`.
       Pin: UNPINNED. The re-entry guard test proves the home is used; nothing reads the modes back.
 
 S193. The daemon's own stdout and stderr, and every job child's stderr, land in
       `~/.local/log/pns-daemon.log`; the daemon writes no line per tick and no line per successful
       firing.
-      Source: `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:34-37`, `src/main.rs:7106
+      Source: `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:34-37`, `src/main.rs:7357
       spawn_job`.
       Pin: `the_daemon_does_not_write_a_log_line_per_tick`
            at tests/daemon.rs:296
@@ -2170,8 +2200,8 @@ S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_MS` (10 to 60,000 m
       when `[daemon] enabled = false`, refuses permanently and exits 0 when the spool path is not a
       directory, and otherwise loops: sleep one tick, count, every thirtieth tick re-read the switch
       and reconcile the presence poll job, then one pass.
-      Source: `src/main.rs:6773-6829 daemon_run`, `src/main.rs:7318 daemon_tick`, `src/main.rs:7222
-      daemon_enabled`, `src/main.rs:7215 SWITCH_TICKS`, `src/daemon.rs prepare_spool`.
+      Source: `src/main.rs:7024-7080 daemon_run`, `src/main.rs:7569 daemon_tick`, `src/main.rs:7473
+      daemon_enabled`, `src/main.rs:7466 SWITCH_TICKS`, `src/daemon.rs prepare_spool`.
       Pin: `turning_the_config_switch_off_stops_a_running_daemon`
            at tests/daemon.rs:654
       also `a_spool_that_is_not_a_directory_refuses_the_start_and_exits_zero`
@@ -2181,21 +2211,21 @@ S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_MS` (10 to 60,000 m
 
 S196. A config that cannot be read reads as ENABLED, with `pns daemon: the config could not be read
       (<detail>); carrying on enabled` on stderr; no `[daemon]` table is enabled too.
-      Source: `src/main.rs:7222 daemon_enabled`, `src/config.rs DEFAULT_DAEMON_ENABLED`.
+      Source: `src/main.rs:7473 daemon_enabled`, `src/config.rs DEFAULT_DAEMON_ENABLED`.
       Pin: `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`
-           at src/config.rs:2718
+           at src/config.rs:2824
 
 S197. One pass reaps first, then publishes the heartbeat, then drains the spool; with no readable
       clock it reaps and returns.
-      Source: `src/main.rs:6848 daemon_pass`.
+      Source: `src/main.rs:7099 daemon_pass`.
       Pin: `a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone`
-           at src/main.rs:11093
+           at src/main.rs:11371
 
 S198. The drain scans the spool sorted, skipping `~`-prefixed working files; a read-only peek settles
       only `Wait`; every other verdict claims by rename first and re-reads; an irregular entry is left
       alone, never opened, and named once per daemon lifetime; a record that is not a record is
       dropped naming the rule it broke.
-      Source: `src/main.rs:6910-6956 drain_spool`, `src/main.rs:6965-7013 act`, `src/daemon.rs
+      Source: `src/main.rs:7161-7207 drain_spool`, `src/main.rs:7216-7264 act`, `src/daemon.rs
       spool_entries`, `src/daemon.rs peek`.
       Pin: `an_irregular_spool_entry_is_left_alone_and_never_opened`
            at tests/daemon.rs:501
@@ -2218,7 +2248,7 @@ S199. `decide(job, now, marker_exists, running)`: `now > until` drops as expired
 S200. A fired job re-arms at `now + every` with `until` unchanged (nothing when past the lease), hands
       the repeat back create-if-absent, releases its claim, then spawns; a dropped job prints
       `pns daemon: dropped \`<id>\` because <its lease had expired|its marker was already there>`.
-      Source: `src/main.rs:7042-7081 fire`, `src/daemon.rs:327-330 rearm`, `src/main.rs:6965-7013
+      Source: `src/main.rs:7293-7332 fire`, `src/daemon.rs:327-330 rearm`, `src/main.rs:7216-7264
       act`.
       Pin: `a_repeating_job_re_arms_at_now_plus_every_and_a_one_shot_does_not_re_arm`
            at src/daemon.rs:727
@@ -2233,33 +2263,33 @@ S201. A job child is `current_exe()` with the record's argv, stdin and stdout nu
       in its own process group; its bound is `tick * 30` (30 s) for every job but `lights`, which gets
       `max(30 s, MAX_REFRESH_SECS + tick_bridge_deadline + tick)` = 37 s; past the bound the whole
       group gets SIGKILL, then the child, then a `wait`; the reap uses `try_wait` and never blocks.
-      Source: `src/main.rs:7106 spawn_job`, `src/main.rs:7199 child_bound`, `src/main.rs:7173
-      CHILD_TICKS`, `src/main.rs:7124 reap`, `src/main.rs:7149 kill_group`.
+      Source: `src/main.rs:7357 spawn_job`, `src/main.rs:7450 child_bound`, `src/main.rs:7424
+      CHILD_TICKS`, `src/main.rs:7375 reap`, `src/main.rs:7400 kill_group`.
       Pin: `a_hung_child_does_not_stall_the_tick_and_is_killed`
            at tests/daemon.rs:208
       also `a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it`
-           at src/main.rs:10411
+           at src/main.rs:10678
 
 S202. `kill_group` refuses pid 0, 1 and anything not representable as `pid_t`.
-      Source: `src/main.rs:7149 kill_group`.
+      Source: `src/main.rs:7400 kill_group`.
       Pin: UNPINNED. Guard is code and comment only.
 
 S203. On the daemon's exit, by SIGTERM or by the switch, a child mid-flight is orphaned, not killed,
       and the heartbeat is left to age out.
-      Source: `src/main.rs:6773-6829 daemon_run`, `src/main.rs:7106 spawn_job`.
+      Source: `src/main.rs:7024-7080 daemon_run`, `src/main.rs:7357 spawn_job`.
       Pin: UNPINNED. `DaemonGuard` kills with SIGKILL and asserts nothing about children.
 
 S204. The daemon registers its own `presence` job (`presence poll --daemon`, every `poll_secs`, lease
       300 s, due kept) when the presence table is armed, and cancels it when the table is absent,
       switched off or refused.
-      Source: `src/main.rs:7271-7305 ensure_presence_poll`, `src/main.rs:7237 PRESENCE_JOB`,
-      `src/main.rs:7243 PRESENCE_LEASE_SECS`.
+      Source: `src/main.rs:7522-7556 ensure_presence_poll`, `src/main.rs:7488 PRESENCE_JOB`,
+      `src/main.rs:7494 PRESENCE_LEASE_SECS`.
       Pin: `an_armed_sensor_registers_the_poll_at_its_own_interval`
-           at src/main.rs:9747
+           at src/main.rs:10001
       also `a_sensor_that_is_off_cancels_the_poll_it_had_registered`
-           at src/main.rs:9780
+           at src/main.rs:10036
       also `a_sweep_refreshes_the_lease_without_moving_a_poll_that_is_already_due`
-           at src/main.rs:9801
+           at src/main.rs:10059
 
 S205. A registration is refused when `due` is more than 30 days from now in either direction, when
       `every` is outside 1 to 86,400, when `args` is empty, over 32 words or over 4,096 bytes, when
@@ -2365,7 +2395,7 @@ S217. One event yields one behaviour word: `failed` is `Failed`; a `LAMP_BLOCKED
 S218. The pulse fires when `plan.pulse` or the behaviour is `Blocked`, unless silenced; it is the LAST
       thing the event path does after every channel, and a bridge that will not answer costs the
       lamps and nothing else.
-      Source: `src/main.rs:2798-3104 run_event`, `src/main.rs:3510-3584 fire_pulse_unless_quiet`.
+      Source: `src/main.rs:2917-3223 run_event`, `src/main.rs:3699-3773 fire_pulse_unless_quiet`.
       Pin: `a_lights_table_changes_nothing_about_an_ordinary_notification`
            at tests/dispatch.rs:1570
       also `a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`
@@ -2386,14 +2416,16 @@ S219. With no `[lights]` table the pulse signals whole rooms: the `room` listing
 S220. With a `[lights]` table the pulse resolves the map once and writes `pulse_body` per routed lamp
       at `light/<id>`, skipping a lamp the mute covers or that holds a state; the locked shapes are
       4,000 ms at brightness 100 for `done` and `failed`.
-      Source: `src/main.rs:3642 run_pulse_writes`, `src/lights.rs:639 pulse_fires`,
+      Source: `src/main.rs:3842 run_pulse_writes`, `src/lights.rs:599 pulse_fires`,
       `src/channels/hue.rs pulse_body`, `src/config.rs DEFAULT_DONE`.
       Pin: `the_pulse_body_carries_the_locked_colour_duration_and_brightness`
            at src/channels/hue.rs:1948
       also `a_pulse_fires_on_a_lamp_it_is_routed_for_unless_a_held_state_has_that_lamp`
-           at src/lights.rs:2244
+           at src/lights.rs:2135
       also `a_blocked_turn_lights_the_lamps_once_the_map_exists`
            at tests/dispatch.rs:2008
+      also `a_pulse_reaches_only_a_routed_lamp_that_is_neither_muted_nor_held`
+           at src/main.rs:11543
 
 S221. The `failure` pulse and the `unread` failure breath share one `FAILURE_COLOR`.
       Source: `src/pulse.rs:23-66` (the colour constants).
@@ -2421,36 +2453,36 @@ S222. Names resolve lamp, then room, then zone, each question (`shows`, `dim_win
 
 S223. The house holds four states ranked `Blocked` > `Looping` > `UnreadFailure` > `UnreadSuccess`;
       each lamp shows the most urgent state its own `shows` routing lists, or nothing.
-      Source: `src/lights.rs:531 Held`, `src/lights.rs:602 active_held`, `src/lights.rs:624 shown`.
+      Source: `src/lights.rs:491 Held`, `src/lights.rs:562 active_held`, `src/lights.rs:584 shown`.
       Pin: `every_held_state_is_active_at_once_and_they_rank_blocked_loop_then_unread`
-           at src/lights.rs:2196
+           at src/lights.rs:2087
       also `one_lamp_shows_the_most_urgent_state_it_is_routed_for_and_nothing_it_is_not`
-           at src/lights.rs:2218
+           at src/lights.rs:2109
 
 S224. `unread` arms on news newer than the last interaction, failure at once and success after
       `[lights.unread] after_secs` (default 300, 0 to 86,400), never while anything is working, never
       with no interaction, never from the future; red wins when both are pending; the interaction edge
       is the freshest of desk, phone input and phone marker, with the clock read after the samples.
-      Source: `src/lights.rs:253 unread_arming`, `src/lights.rs:296 last_interaction`,
-      `src/main.rs:6289 last_interaction`.
+      Source: `src/lights.rs:259 unread_arming`, `src/lights.rs:302 last_interaction`,
+      `src/main.rs:6540 last_interaction`.
       Pin: `unread_arms_on_news_the_operator_has_not_been_back_for_and_on_nothing_else`
-           at src/lights.rs:1732
+           at src/lights.rs:1623
       also `success_news_waits_out_its_delay_and_failure_news_does_not`
-           at src/lights.rs:1781
+           at src/lights.rs:1672
       also `the_interaction_edge_is_the_freshest_of_the_three_roads`
-           at src/lights.rs:1868
+           at src/lights.rs:1759
 
 S225. The loop lamp arms on any of: an agent streak at least `threshold_secs` old (default 300) while
       agents are still working, a shell marker whose own start is that old, or a live lease; the two
       clocks are never pooled.
-      Source: `src/lights.rs:362 loop_running`, `src/lights.rs:315 Loop`, `src/lights.rs:33
-      workspace_agent_statuses`, `src/lights.rs:68 any_working`.
+      Source: `src/lights.rs:368 loop_running`, `src/lights.rs:321 Loop`, `src/lights.rs:39
+      workspace_agent_statuses`, `src/lights.rs:74 any_working`.
       Pin: `work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`
-           at src/lights.rs:1983
+           at src/lights.rs:1874
       also `a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`
-           at src/lights.rs:2019
+           at src/lights.rs:1910
       also `a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`
-           at src/lights.rs:1923
+           at src/lights.rs:1814
 
 S226. The tick: sweep the legacy names, derive the house from the machine (herdr workspace list, the
       streak, the shell markers, the leases, the blocked markers, the news, the interaction edge),
@@ -2458,31 +2490,31 @@ S226. The tick: sweep the legacy names, derive the house from the machine (herdr
       moved, clear the DIFFERENCE by name, write the bare held record, breathe, write the phase
       record, say complaints once, and re-register itself while anything is in flight; exit 0 and
       print nothing on every healthy path.
-      Source: `src/main.rs:5742-5861 lights_tick`, `src/main.rs:5926-6089 run_tick_writes`,
-      `src/main.rs:6209 lights_house`, `src/main.rs:6131 drive_breaths`.
+      Source: `src/main.rs:5963-6082 lights_tick`, `src/main.rs:6163-6326 run_tick_writes`,
+      `src/main.rs:6460 lights_house`, `src/main.rs:6382 drive_breaths`.
       Pin: `a_tick_arms_a_held_lamp_records_it_and_a_dark_house_puts_it_out_by_name`
-           at src/main.rs:10153
+           at src/main.rs:10413
       also `a_lamp_this_arm_wrote_to_stays_held_rather_than_being_put_out_behind_the_arm`
-           at src/main.rs:10270
+           at src/main.rs:10533
       also `a_phased_record_clears_by_its_bare_path_never_by_the_suffix`
-           at src/main.rs:10232
+           at src/main.rs:10494
       also `a_tick_whose_bridge_answered_nothing_keeps_the_record_it_was_holding`
-           at src/main.rs:10611
+           at src/main.rs:10881
       also `a_record_cleared_during_the_breath_is_left_cleared_rather_than_resurrected`
-           at src/main.rs:11061
+           at src/main.rs:11338
       also `the_phase_reaches_disk_only_after_the_breath_that_earned_it_has_run`
-           at src/main.rs:11020
+           at src/main.rs:11296
       also `a_tick_whose_record_moved_under_it_stands_down_rather_than_re_arming_the_lamps`
-           at src/main.rs:10509
+           at src/main.rs:10776
       also `a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding`
            at tests/dispatch.rs:8542
       also `a_held_record_that_will_not_publish_stops_the_arm_rather_than_lighting_a_lamp`
-           at src/main.rs:10377
+           at src/main.rs:10643
 
 S227. The tick renews its own lease (300 s) while a streak, a shell marker or a lease is in flight and
       lets it lapse otherwise; the feature switched off still puts a held lamp out where a bridge can be
       named, and hue switched off keeps the record.
-      Source: `src/main.rs:5742-5861 lights_tick`, `src/main.rs:3209 schedule_lights_tick`.
+      Source: `src/main.rs:5963-6082 lights_tick`, `src/main.rs:3398 schedule_lights_tick`.
       Pin: `a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold`
            at tests/dispatch.rs:8241
       also `a_tick_with_nothing_in_flight_lets_its_own_lease_lapse`
@@ -2494,22 +2526,22 @@ S228. A breath fills the interval: fades are issued from the tick's own start, e
       before by `FADE_LEAD_MS` = 50, the first fade carrying colour and `on`, every later one
       brightness and duration alone, pooled across lamps into one schedule and never past the budget;
       a phase token resumes the next leg when its due is within one step, else starts over.
-      Source: `src/lights.rs:796 breath_fades`, `src/lights.rs:965 resume_from`, `src/lights.rs:751
+      Source: `src/lights.rs:756 breath_fades`, `src/lights.rs:925 resume_from`, `src/lights.rs:711
       step_ms`, `src/channels/hue.rs breath_arm_body`, `src/channels/hue.rs fade_body`.
       Pin: `each_fade_leads_the_one_before_it_so_the_lamp_never_pauses_at_an_end`
-           at src/lights.rs:2359
+           at src/lights.rs:2250
       also `every_last_fade_is_issued_inside_the_budget_and_lands_after_it`
-           at src/lights.rs:2371
+           at src/lights.rs:2262
       also `a_budget_that_cannot_fit_even_one_fade_is_empty`
-           at src/lights.rs:2522
+           at src/lights.rs:2413
       also `a_resumed_breath_composes_across_two_ticks_on_a_fake_clock`
-           at src/main.rs:10869
+           at src/main.rs:11141
       also `a_phase_sitting_further_ahead_than_one_step_reads_as_stale`
-           at src/lights.rs:2957
+           at src/lights.rs:2848
       also `a_lamp_that_changed_state_starts_its_new_colour_at_once_rather_than_resuming`
-           at src/main.rs:10955
+           at src/main.rs:11229
       also `two_breathing_lamps_share_one_schedule_rather_than_running_back_to_back`
-           at src/main.rs:10647
+           at src/main.rs:10918
       also `the_arm_states_the_colour_and_the_first_fade_and_every_fade_after_it_states_neither`
            at src/channels/hue.rs:2109
 
@@ -2521,7 +2553,7 @@ S229. Putting a held lamp out is `{"on":{"on":false}}`, never a restore.
 S230. The operator's return (an event whose surface is not `Away`, both switches live) writes the
       clear to every path in `lights-held` and forgets the file; an ordinary event costs one failed
       open and no network.
-      Source: `src/main.rs:3119 clear_held_lamps`.
+      Source: `src/main.rs:3308 clear_held_lamps`.
       Pin: `the_operators_return_puts_out_a_glow_without_any_daemon_running`
            at tests/dispatch.rs:8405
       also `an_event_holding_no_glow_reaches_the_bridge_for_nothing`
@@ -2530,7 +2562,7 @@ S230. The operator's return (an event whose surface is not `Away`, both switches
 S231. Every event registers the lights tick (`due` kept if pending, `until = due.max(now + lease)`,
       `every = refresh_secs`, args `["lights", "tick"]`), with a 300 s lease, or 43,200 s when the
       event was journaled; a registration that cannot be written costs the event nothing.
-      Source: `src/main.rs:3175 register_lights_tick`, `src/main.rs:3209 schedule_lights_tick`,
+      Source: `src/main.rs:3364 register_lights_tick`, `src/main.rs:3398 schedule_lights_tick`,
       `src/main.rs:714 ORDINARY_LEASE_SECS`, `src/main.rs:719 JOURNALLED_LEASE_SECS`.
       Pin: `an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer`
            at tests/dispatch.rs:8095
@@ -2541,16 +2573,16 @@ S232. The bridge transport disables TLS verification, sends `hue-application-key
       at 10 s (`BRIDGE_DEADLINE`), `refresh_secs / 5` on the tick (at least 1 s), and 1 s for the typed
       mute command; nothing tests the real transport.
       Source: `src/channels/hue.rs UreqBridge`, `src/channels/hue.rs BRIDGE_DEADLINE`,
-      `src/channels/hue.rs TYPED_COMMAND_DEADLINE`, `src/main.rs:6745 tick_bridge_deadline`.
+      `src/channels/hue.rs TYPED_COMMAND_DEADLINE`, `src/main.rs:6996 tick_bridge_deadline`.
       Pin: UNPINNED. Every body and path assertion is a unit test through the `Bridge` trait.
 
 S233. The presence poll reads the bridge's per-room `grouped_motion` roll-up for the watched rooms,
       picks the newest edge at the precision the bridge sends, refuses a room whose report is invalid,
       and publishes the reading; a bridge that did not answer leaves the last reading where it was.
       Source: `src/presence_hue.rs:41 poll`, `src/presence_hue.rs:55 reading`,
-      `src/presence_instant.rs:29 instant_from_utc`, `src/main.rs:5072-5110 presence_poll`.
+      `src/presence_instant.rs:29 instant_from_utc`, `src/main.rs:5293-5331 presence_poll`.
       Pin: `a_bridge_that_did_not_answer_leaves_the_last_reading_where_it_was`
-           at src/main.rs:9428
+           at src/main.rs:9682
       also `an_instant_becomes_the_second_it_names_and_the_fraction_inside_it`
            at src/presence_instant.rs:133
       also `a_day_the_month_does_not_have_is_refused_rather_than_rolled_forward`
@@ -2561,34 +2593,34 @@ S234. `classify` turns the reading into `PresenceStatus`: a known room with the 
       stale past `stale_after_secs`, a future epoch, an unwatched room).
       Source: `src/presence.rs:79-112 classify`, `src/presence.rs:40-49 PresenceStatus`.
       Pin: `a_known_room_is_named_with_the_age_of_its_motion_edge`
-           at src/doctor.rs:810
+           at src/doctor.rs:888
       also `a_fresh_poll_that_found_nobody_says_nowhere_rather_than_unknown`
-           at src/doctor.rs:821
+           at src/doctor.rs:899
       also `every_way_of_not_knowing_says_which_way_it_is`
-           at src/doctor.rs:829
+           at src/doctor.rs:907
 
 S235. The room presence reading is consumed by no delivery decision today; the in-flight presence
       policy branch (`pns-hue-presence-policy`) adds the snapshot at decide, the narrowing over the
       eligible lamps, the `presence-decisions` ring and the `desk_room` config bound.
-      Source: `src/main.rs:2798-3104 run_event` (no presence read); the branch diff.
+      Source: `src/main.rs:2917-3223 run_event` (no presence read); the branch diff.
       Pin: UNPINNED on `main`; the branch carries its own tests.
 
 ## 11. The nag
 
 S236. `[nag] after_secs` is the switch and the schedule: 30 to 3600 arms it, 0 and an absent table are
       off, anything else is refused by name; a config nobody can parse reads as off.
-      Source: `src/config.rs nag_schedule`, `src/main.rs:4967 nag_after_secs`, `src/main.rs:4765
+      Source: `src/config.rs nag_schedule`, `src/main.rs:5188 nag_after_secs`, `src/main.rs:4986
       NAG_OFF`.
       Pin: `the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`
-           at src/config.rs:2772
+           at src/config.rs:2878
       also `a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name`
-           at src/config.rs:2814
+           at src/config.rs:2920
 
 S237. `arm_nag` (claude only, after the forward starts, before the notification) unlinks this session's
       answered marker, publishes the record, and registers `nag:<session>` with `due = now +
       after_secs`, `until = due + after_secs`, `unless_marker nag-<session>`, args `["nag"]`; a refused
       registration drops the record and says so; an unsafe or over-long session id arms nothing.
-      Source: `src/main.rs:4650-4749 arm_nag`, `src/nag.rs:119 job_id`, `src/nag.rs:112 marker_name`.
+      Source: `src/main.rs:4871-4970 arm_nag`, `src/nag.rs:119 job_id`, `src/nag.rs:112 marker_name`.
       Pin: `arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first`
            at tests/hooks.rs:3708
       also `an_approval_whose_nudge_could_not_be_scheduled_leaves_no_record_behind`
@@ -2602,7 +2634,7 @@ S237. `arm_nag` (claude only, after the forward starts, before the notification)
 
 S238. `clear_nag` writes the answered marker first, whether or not a record is there, then removes the
       record; a clear landing inside the fire's claim window still writes the marker.
-      Source: `src/main.rs:4603-4649 clear_nag`.
+      Source: `src/main.rs:4824-4870 clear_nag`.
       Pin: `an_answered_approval_is_never_nudged_by_either_clearing_signal`
            at tests/hooks.rs:3605
       also `a_clear_landing_inside_the_fires_claim_window_still_writes_the_marker`
@@ -2612,7 +2644,7 @@ S239. The fire takes `nag/fire.lock` by exclusive create (losers say nothing and
       `.pending` record by rename before reading it, judges each as unreadable, answered, stale or
       counted, writes every answered marker before the card, delivers one card whatever the count,
       and removes the claims after; an unreadable record is named on stderr and dropped.
-      Source: `src/main.rs:4401-4568 nag_mode`, `src/main.rs:4855 claim_fire`, `src/main.rs:4810
+      Source: `src/main.rs:4622-4789 nag_mode`, `src/main.rs:5076 claim_fire`, `src/main.rs:5031
       claim_record`, `src/nag.rs:318 fate`, `src/nag.rs:278 is_stale`.
       Pin: `fires_racing_over_one_directory_still_produce_exactly_one_card`
            at tests/hooks.rs:3382
@@ -2627,14 +2659,14 @@ S239. The fire takes `nag/fire.lock` by exclusive create (losers say nothing and
 
 S240. Staleness is `armed > now || now > armed + 2 * after_secs`; a nudge is an ordinary delivery
       through `decide` as `Attempt::Nudge`, suppressible, and a suppressed nudge is lost.
-      Source: `src/nag.rs:278 is_stale`, `src/nag.rs:222 nudge`, `src/main.rs:2798-3104 run_event`.
+      Source: `src/nag.rs:278 is_stale`, `src/nag.rs:222 nudge`, `src/main.rs:2917-3223 run_event`.
       Pin: `a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`
            at tests/hooks.rs:1733
       also `the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`
            at tests/hooks.rs:3995
 
 S241. The per-record rename in `claim_record` is not killed by any test; the code says so.
-      Source: `src/main.rs:4810 claim_record`.
+      Source: `src/main.rs:5031 claim_record`.
       Pin: UNPINNED. Kept on the measurement.
 
 ## 12. Missed notifications and the replay
@@ -2666,7 +2698,7 @@ S243. The replay delivers at most one card off the batch it claimed, as a dispat
 
 S244. `[recap] replay_card = false` gates the card and never the journal; the doctor's wording changes
       with the switch.
-      Source: `src/main.rs:1114-1241 replay_missed`, `src/main.rs:7602 missed_line`,
+      Source: `src/main.rs:1114-1241 replay_missed`, `src/main.rs:7853 missed_line`,
       `src/missed_notifications.rs:463-494 waiting_line`.
       Pin: `the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it`
            at tests/dispatch.rs:4432
@@ -2689,7 +2721,7 @@ S245. The window is `(since, until]` over the activity ring; a loud window (at l
 S246. `pns recap` reads the window off the activity ring (an unreadable ring is an empty window),
       reads the config once (a config that will not load names no route and no summarizer and forces
       `digest_as_thread` off), and composes a body under two budgets, 25 lines and 1,800 characters.
-      Source: `src/main.rs:7752-7857 recap_mode`, `src/recap.rs:34 MAX_LINES`, `src/recap.rs:53
+      Source: `src/main.rs:8003-8108 recap_mode`, `src/recap.rs:34 MAX_LINES`, `src/recap.rs:53
       MAX_CHARS`, `src/recap.rs:931 fit`.
       Pin: `the_body_opens_with_the_window_and_its_count_and_puts_needs_you_above_the_night`
            at src/recap.rs:1180
@@ -2697,6 +2729,8 @@ S246. `pns recap` reads the window off the activity ring (an unreadable ring is 
            at src/recap.rs:1284
       also `a_worst_case_window_stays_inside_one_discord_message`
            at src/recap.rs:1347
+      UNPINNED: an unreadable ring read as an empty window, and a failed config load forcing
+           `digest_as_thread` off; the composition tests never reach either. Test in PR 6.6.
 
 S247. The header `While you were away, <from>-<to> · <n> event(s)` is composed before any cut; the
       NEEDS YOU section is never cut; the night is one `HH:MM <mark> <agent>/<state> <project>:
@@ -2719,7 +2753,7 @@ S248. Merged pull requests come from one `gh pr list --repo <r> --state merged -
       merged:<utc(since+1)>..<utc(until)> --json number,title,body --limit 50` per configured repo
       under 30 s and 512 KiB; any repo failing fails the whole section; no `[recap] repos` means no
       `gh` process at all.
-      Source: `src/main.rs:7967 merged_pull_requests`, `src/main.rs:8162-8180 GH_LIMIT GH_DEADLINE
+      Source: `src/main.rs:8218 merged_pull_requests`, `src/main.rs:8413-8431 GH_LIMIT GH_DEADLINE
       GH_READ_MAX`.
       Pin: `a_configured_repositorys_merges_become_the_new_behavior_section`
            at tests/dispatch.rs:7127
@@ -2732,8 +2766,8 @@ S249. Review notes are one directory listed once, regular files matching the glo
       with mtime in `(since, until]`, newest first, at most 25, each opened `O_NOFOLLOW` and
       re-checked on the handle, read to 64 KiB; a note that will not open is said, not dropped; a
       glob pointing nowhere makes the section unavailable.
-      Source: `src/main.rs:8055 notes_matching`, `src/main.rs:8138 read_note`, `src/main.rs:8183
-      MAX_NOTES`, `src/main.rs:8185 NOTE_READ_MAX`.
+      Source: `src/main.rs:8306 notes_matching`, `src/main.rs:8389 read_note`, `src/main.rs:8434
+      MAX_NOTES`, `src/main.rs:8436 NOTE_READ_MAX`.
       Pin: `only_the_notes_the_glob_names_and_the_window_covers_are_ever_read`
            at tests/dispatch.rs:7362
       also `a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_else`
@@ -2746,7 +2780,7 @@ S250. One summarizer budget (`summarizer_deadline_secs`, default 240, max 3600, 
       every failure falls to the plain list with `(The summarizer did not answer, so this is the
       plain list.)`; an answer over 16 KiB or carrying U+FFFD is refused whole; each line is
       sanitized and cut to 120.
-      Source: `src/main.rs:8206 summarize`, `src/main.rs:7919 left_of`, `src/recap.rs:652 answer`,
+      Source: `src/main.rs:8457 summarize`, `src/main.rs:8170 left_of`, `src/recap.rs:652 answer`,
       `src/recap.rs:689 safe_line`, `src/recap.rs:1107 MAX_ANSWER_BYTES`.
       Pin: `one_recap_spends_one_summarizer_budget_however_many_questions_it_asks`
            at tests/dispatch.rs:7567
@@ -2791,8 +2825,8 @@ S252. `is_invisible` is the whole Unicode 17.0 Cf category, checked against an i
 
 S253. The recap posts to the `pns-recap` route with exactly one fallback to the default route, and
       the wall clock is one `HH:MM` function with `--:--` for an unreadable moment.
-      Source: `src/main.rs:8295 post_recap`, `src/main.rs:8325 deliver_recap`, `src/main.rs:8369
-      RECAP_ROUTE`, `src/main.rs:8253 wall_clock`, `src/main.rs:8381 NO_WALL_CLOCK`.
+      Source: `src/main.rs:8546 post_recap`, `src/main.rs:8576 deliver_recap`, `src/main.rs:8620
+      RECAP_ROUTE`, `src/main.rs:8504 wall_clock`, `src/main.rs:8632 NO_WALL_CLOCK`.
       Pin: `a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`
            at tests/native.rs:353
       also `a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero`
@@ -2800,7 +2834,7 @@ S253. The recap posts to the `pns-recap` route with exactly one fallback to the 
 
 S254. The `--:--` placeholder, the summarizer child's inherited environment, and a forking `gh` or
       summarizer are pinned by nothing.
-      Source: `src/main.rs:8206 summarize`, `src/system.rs:76-148 run_bounded`.
+      Source: `src/main.rs:8457 summarize`, `src/system.rs:76-148 run_bounded`.
       Pin: UNPINNED. Recorded in `docs/specs/return-recap.md`.
 
 ## 14. The doctor
@@ -2809,21 +2843,21 @@ S255. `pns doctor` prints the fixed opening sentence, one line per REGISTRATION 
       selected sensor is a skip or a presence reading, hue is a pulse, the three channels are sends),
       a summary `pns doctor: <n> sent, <n> failed, <n> skipped`, then the pairing, Focus, daemon, nag,
       lights, decision ring and journal sections.
-      Source: `src/main.rs:4147-4376 doctor_mode`, `src/main.rs:7723 DOCTOR_OPENING`,
-      `src/doctor.rs:93 checks`, `src/doctor.rs:139 line`, `src/doctor.rs:212 summary`.
+      Source: `src/main.rs:4367-4596 doctor_mode`, `src/main.rs:7974 DOCTOR_OPENING`,
+      `src/doctor.rs:98 checks`, `src/doctor.rs:144 line`, `src/doctor.rs:227 summary`.
       Pin: `the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_each_one`
            at tests/dispatch.rs:3014
       also `the_check_list_holds_one_entry_per_registration_in_registration_order`
-           at src/doctor.rs:897
+           at src/doctor.rs:978
       also `the_summary_counts_every_check_exactly_once`
-           at src/doctor.rs:1053
+           at src/doctor.rs:1134
       also `a_line_names_its_plugin_and_its_outcome_and_a_failure_quotes_the_channel`
-           at src/doctor.rs:997
+           at src/doctor.rs:1078
 
 S256. The doctor bypasses every gate structurally (it calls `dispatch_legs`, never `decide`), sends
       `agent pns, state doctor`, the fixed detail, no pane, every leg `sync`, and its lamps, banner,
       card and hermes post are LIVE effects.
-      Source: `src/main.rs:4147-4376 doctor_mode`, `src/main.rs:7736 DOCTOR_DETAIL`.
+      Source: `src/main.rs:4367-4596 doctor_mode`, `src/main.rs:7987 DOCTOR_DETAIL`.
       Pin: `the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrides`
            at tests/dispatch.rs:3298
       also `the_doctor_reaches_the_bridge_inside_the_lights_quiet_window`
@@ -2832,7 +2866,7 @@ S256. The doctor bypasses every gate structurally (it calls `dispatch_legs`, nev
 S257. A leg's outcome is paired by NAME: `Delivered` is sent, `Failed` and `Unlaunched` are failed,
       `Silent` is `sent, this channel reports no outcome`; a leg absent from the deliveries is `FAILED,
       the leg was never dispatched`.
-      Source: `src/main.rs:4147-4376 doctor_mode`, `src/doctor.rs:74 Outcome`.
+      Source: `src/main.rs:4367-4596 doctor_mode`, `src/doctor.rs:74 Outcome`.
       Pin: `a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made`
            at tests/dispatch.rs:3267
       also `a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one`
@@ -2842,22 +2876,22 @@ S258. The pulse check dials only when the hue table resolves (bridge and key bot
       otherwise `hue: FAILED, pulse SKIPPED -- no hue bridge and key in the config ([plugins.hue]
       bridge, key); nothing was signalled`; `Signalled(0)` is a failure naming both causes it cannot
       choose between.
-      Source: `src/main.rs:3704 hue_resolves`, `src/main.rs:3768 pulse_outcome`, `src/main.rs:7731
+      Source: `src/main.rs:3924 hue_resolves`, `src/main.rs:3988 pulse_outcome`, `src/main.rs:7982
       NO_HUE_BRIDGE_LINE`.
       Pin: `a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms`
            at tests/dispatch.rs:3380
       also `a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_choose_between`
            at tests/dispatch.rs:3409
       also `the_pulse_line_claims_neither_a_flash_nor_a_cause_it_cannot_know`
-           at src/doctor.rs:1030
+           at src/doctor.rs:1111
 
 S259. Pairing spawns `moshi-hook status --json` (5 s) then `moshi-hook status` (8 s), never `probe`;
       reads only `paired`, `hostId`, `displayName`; refuses an answer over 1 MiB before parsing (the
       reader stops at 2 MiB); relays the one `server:` line at column zero as `pns doctor: moshi
       says: <text>`; and filters every relayed value to printable ASCII, 200 characters.
-      Source: `src/main.rs:7505 read_pairing`, `src/main.rs:7539 PAIRING_READ_MAX`, `src/doctor.rs:301
-      pairing_report`, `src/doctor.rs:340 ANSWER_MAX`, `src/doctor.rs:349 server_said`,
-      `src/doctor.rs:401 printable`, `src/doctor.rs:410 RELAY_MAX`.
+      Source: `src/main.rs:7756 read_pairing`, `src/main.rs:7790 PAIRING_READ_MAX`, `src/doctor.rs:316
+      pairing_report`, `src/doctor.rs:355 ANSWER_MAX`, `src/doctor.rs:364 server_said`,
+      `src/doctor.rs:416 printable`, `src/doctor.rs:425 RELAY_MAX`.
       Pin: `the_doctor_runs_moshi_hook_exactly_twice_and_never_probes`
            at tests/dispatch.rs:7697
       also `a_moshi_hook_that_never_returns_does_not_park_the_doctor`
@@ -2865,38 +2899,38 @@ S259. Pairing spawns `moshi-hook status --json` (5 s) then `moshi-hook status` (
       also `an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read`
            at tests/dispatch.rs:7919
       also `a_relayed_value_carrying_a_newline_or_a_control_byte_cannot_forge_a_report_line`
-           at src/doctor.rs:1434
+           at src/doctor.rs:1515
       also `an_identity_moshi_named_cannot_forge_a_report_line_either`
-           at src/doctor.rs:1470
+           at src/doctor.rs:1551
       also `an_over_long_relayed_value_stops_at_the_cap`
-           at src/doctor.rs:1504
+           at src/doctor.rs:1585
       also `only_a_server_line_at_column_zero_is_relayed`
-           at src/doctor.rs:1376
+           at src/doctor.rs:1457
 
 S260. The Focus line is one of five sentences plus an optional catalog clause; the daemon line one of
       six states graded by heartbeat age; the nag line one of two; the lights section one of six
       states; none moves the exit code.
-      Source: `src/main.rs:7639 focus_line`, `src/main.rs:7693 daemon_line`, `src/doctor.rs:648
-      daemon_line`, `src/doctor.rs:710 nag_line`, `src/doctor.rs:484 lights_lines`.
+      Source: `src/main.rs:7890 focus_line`, `src/main.rs:7944 daemon_line`, `src/doctor.rs:663
+      daemon_line`, `src/doctor.rs:725 nag_line`, `src/doctor.rs:499 lights_lines`.
       Pin: `the_doctor_tells_the_truth_about_a_named_focus_in_every_state`
            at tests/dispatch.rs:7968
       also `a_mode_catalog_the_doctor_cannot_read_is_said_and_never_reported_as_health`
            at tests/dispatch.rs:8042
       also `the_daemons_doctor_line_tells_the_truth_in_four_states`
-           at src/doctor.rs:1677
+           at src/doctor.rs:1758
       also `a_daemon_switched_off_but_still_beating_is_reported_as_still_beating`
-           at src/doctor.rs:1720
+           at src/doctor.rs:1801
       also `the_nag_line_names_the_schedule_or_says_the_feature_is_off`
-           at src/doctor.rs:725
+           at src/doctor.rs:740
       also `the_lights_section_says_which_of_its_six_states_the_config_is_in`
-           at src/doctor.rs:1111
-      also `every_lights_state_says_something_rather_than_printing_nothing`
            at src/doctor.rs:1192
+      also `every_lights_state_says_something_rather_than_printing_nothing`
+           at src/doctor.rs:1273
 
 S261. The decision section renders the last five ring entries newest first with control bytes
       escaped, and the journal line COUNTS entries and never parses one; the doctor writes nothing to
       its state directory, appends no decision and journals nothing.
-      Source: `src/main.rs:7569 decision_section`, `src/main.rs:7602 missed_line`,
+      Source: `src/main.rs:7820 decision_section`, `src/main.rs:7853 missed_line`,
       `src/decision_log.rs:261-276 section`, `src/missed_notifications.rs:463-494 waiting_line`.
       Pin: `the_doctor_prints_the_decision_section_after_its_summary_newest_first`
            at tests/dispatch.rs:3959
@@ -2910,7 +2944,7 @@ S261. The decision section renders the last five ring entries newest first with 
            at src/decision_log.rs:897
 
 S262. The doctor reports nothing about the operator's own `pns quiet` mute.
-      Source: `src/main.rs:4147-4376 doctor_mode` (no reader of `quiet-until`).
+      Source: `src/main.rs:4367-4596 doctor_mode` (no reader of `quiet-until`).
       Pin: UNPINNED. An established gap, not a missing test.
 
 ## 15. Setup
@@ -2919,21 +2953,21 @@ S263. The walk prints the preamble and asks between six and fifteen prompts in f
       feature's credentials right after the question that armed it; every answer is trimmed, only a
       typed `y`/`yes` (any case) arms, a comma list keeps only non-empty values, and a blank
       credential declines its feature and says so.
-      Source: `src/main.rs:8554 walk`, `src/main.rs:8854 means_yes`, `src/main.rs:8872 list`,
-      `src/main.rs:8637 nothing_given`, `src/main.rs:9081 SETUP_PREAMBLE`.
+      Source: `src/main.rs:8805 walk`, `src/main.rs:9105 means_yes`, `src/main.rs:9123 list`,
+      `src/main.rs:8888 nothing_given`, `src/main.rs:9332 SETUP_PREAMBLE`.
       Pin: `the_only_answer_that_arms_a_feature_is_a_yes_somebody_typed`
-           at src/main.rs:12307
+           at src/main.rs:13060
       also `a_comma_separated_answer_names_only_the_values_somebody_typed`
-           at src/main.rs:12338
+           at src/main.rs:13091
       also `an_answer_of_nothing_but_spaces_is_a_blank_one`
-           at src/main.rs:12322
+           at src/main.rs:13075
       also `a_credential_left_blank_declines_its_feature_rather_than_arming_an_empty_one`
            at src/setup.rs:330
 
 S264. The four secret prompts arm `Hushed` before printing: echo off, `ECHONL` on, nine signals held,
       restored on drop in that order; a secret never reaches the pty transcript and always reaches
       the published 0600 file.
-      Source: `src/main.rs:8670 ask_hidden`, `src/main.rs:8727-8828 Hushed`.
+      Source: `src/main.rs:8921 ask_hidden`, `src/main.rs:8978-9079 Hushed`.
       Pin: `a_secret_typed_into_setup_never_reaches_the_pty_output`
            at tests/setup.rs:288
       also `a_signal_sent_during_the_hidden_read_is_held_until_the_guard_drops`
@@ -2942,18 +2976,18 @@ S264. The four secret prompts arm `Hushed` before printing: echo off, `ECHONL` o
 S265. A read from the background (`EIO` with the terminal owned by another group) says `bring it to
       the foreground with fg`; a non-UTF-8 paste is `the answers could not be read: ...`; a closed
       input is `the answers ended before the walk did`.
-      Source: `src/main.rs:8678 read_answer`, `src/main.rs:8711 read_failure`, `src/main.rs:8692
+      Source: `src/main.rs:8929 read_answer`, `src/main.rs:8962 read_failure`, `src/main.rs:8943
       reading_from_the_background`.
       Pin: `a_background_read_names_job_control_rather_than_an_io_fault`
-           at src/main.rs:12601
+           at src/main.rs:13354
       also `a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending`
            at tests/setup.rs:249
 
 S266. The only backend the walk accepts is `unifi` (Enter or any case spelling); anything else
       declines the home probe and the walk continues.
-      Source: `src/main.rs:8866 router_backend`, `src/home.rs UNIFI_TYPE`.
+      Source: `src/main.rs:9117 router_backend`, `src/home.rs UNIFI_TYPE`.
       Pin: `the_only_backend_the_walk_accepts_is_one_the_home_probe_answers`
-           at src/main.rs:12353
+           at src/main.rs:13106
       also `a_backend_the_home_probe_cannot_answer_declines_the_probe_rather_than_arming_it`
            at src/setup.rs:377
 
@@ -2976,27 +3010,31 @@ S267. Composition is `compose_config(&Answers)`, pure, rendered through `config_
 
 S268. The composed text goes through `parse_config` before anything is written; a refusal prints
       `pns setup: what it composed does not load (<detail>); nothing was written` and exits 2.
-      Source: `src/main.rs:8434-8542 setup_mode`.
+      Source: `src/main.rs:8685-8793 setup_mode`.
       Pin: UNPINNED end to end; the unit tests parse both ends of the walk on every run.
 
 S269. The backup is `config.toml.<UTC stamp>.backup`, moved (never copied) before the new file is
       linked, chmodded 0600 only when a regular file; no clock means no backup and a refusal; a
       same-second collision refuses; a symlinked config moves the link, not its target.
-      Source: `src/main.rs:9001 keep_aside`, `src/main.rs:9019 keep_aside_at`, `src/setup.rs:156
+      Source: `src/main.rs:9252 keep_aside`, `src/main.rs:9270 keep_aside_at`, `src/setup.rs:156
       backup_path`.
       Pin: `the_backup_sits_beside_the_config_stamped_with_the_instant_it_was_moved`
            at src/setup.rs:506
       also `a_clock_that_cannot_be_read_names_no_backup_at_all`
            at src/setup.rs:519
       also `a_forced_run_keeps_the_config_it_replaced_rather_than_what_that_config_named`
-           at src/main.rs:12532
+           at src/main.rs:13285
       also `a_forced_replacement_with_nothing_to_replace_keeps_nothing_aside`
-           at src/main.rs:12481
+           at src/main.rs:13234
       also `a_directory_at_the_config_path_is_named_rather_than_the_backup_it_could_not_replace`
-           at src/main.rs:12693
+           at src/main.rs:13446
+      also `a_same_second_backup_collision_names_the_backup_it_could_not_claim`
+           at src/main.rs:13384
+      also `a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one`
+           at src/main.rs:13201
 
 S270. The `also_kept` tail (backup written, link failed, config path empty) has no test.
-      Source: `src/main.rs:8983 also_kept`.
+      Source: `src/main.rs:9234 also_kept`.
       Pin: UNPINNED. Recorded in `docs/specs/setup-and-publication.md`.
 
 ## 16. The home probe
@@ -3055,7 +3093,7 @@ S274. A Home verdict with a key pointing elsewhere is a staleness, said in the t
       as one alert (`agent pns, state stale`, key names only, to `stale_alert_channel` or the default
       route) once per episode identity; duplicates are the direction to fail in.
       Source: `src/home.rs stale_identifiers`, `src/home.rs stale_warning`, `src/home.rs
-      stale_alert_channel`, `src/main.rs:4012-4126 home_mode`.
+      stale_alert_channel`, `src/main.rs:4232-4346 home_mode`.
       Pin: `a_staleness_is_a_home_verdict_with_a_key_pointing_somewhere_else`
            at src/home.rs:1891
       also `a_new_stale_state_is_delivered_as_one_alert_carrying_the_warning_sentence`
@@ -3076,24 +3114,24 @@ S275. `TABLE_KEYS` is the schema's one statement, checked in both directions: ev
       serves, and the renderer's `LAYOUT` matches the roster exactly.
       Source: `src/config.rs:524-624 TABLE_KEYS`, `src/config_text.rs:55 LAYOUT`.
       Pin: `every_key_the_roster_declares_is_read_by_the_table_that_declares_it`
-           at src/config.rs:3998
+           at src/config.rs:4235
       also `every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves`
-           at src/config.rs:3729
+           at src/config.rs:3835
       also `every_layout_table_matches_the_config_roster_exactly_in_both_directions`
-           at src/config_text.rs:1708
+           at src/config_text.rs:1731
 
 S276. A loaded config is authoritative and an absent `enabled` reads false; `[daemon] enabled`
       defaults on; `[nag]` defaults off; `[recap]` defaults `replay_card`, `digest`,
       `digest_as_thread` true, `min_events` 8, `summarizer_deadline_secs` 240 (max 3600), no repos, no
       notes; `[focus] silence` is a list of names.
-      Source: `src/config.rs:832-872 Config`, `src/config.rs Recap`, `src/config.rs:932-1009
+      Source: `src/config.rs:834-874 Config`, `src/config.rs Recap`, `src/config.rs:934-1011
       parse_config`.
       Pin: `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`
-           at src/config.rs:2718
+           at src/config.rs:2824
       also `the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`
-           at src/config.rs:2772
+           at src/config.rs:2878
       also `recap_defaults_are_asserted_against_the_code_rather_than_copied_literals`
-           at src/config_text.rs:1258
+           at src/config_text.rs:1281
 
 S277. `[lights]` absent is `None`; a bare `[lights]` is every locked default (`refresh_secs` 12 in 10 to
       30; pulses 4000 ms at 100; blocked 2000 ms 100/30 with `give_up_after_secs` 57,600; unread
@@ -3103,41 +3141,45 @@ S277. `[lights]` absent is `None`; a bare `[lights]` is every locked default (`r
       Source: `src/config.rs Lights`, `src/config.rs bounded`, `src/config.rs percent`,
       `src/config.rs ends_agree`.
       Pin: `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`
-           at src/config.rs:3047
+           at src/config.rs:3153
       also `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`
-           at src/config.rs:3186
+           at src/config.rs:3292
       also `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`
-           at src/config.rs:3330
+           at src/config.rs:3436
       also `a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it`
-           at src/config.rs:3155
+           at src/config.rs:3261
       also `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`
-           at src/config.rs:3116
+           at src/config.rs:3222
 
 S278. `[lights.lamp|room|zone.<name>]` declarations read exactly `shows`, `dim_window` and
       `dim_behaviours`; `shows = []` is an override and an absent `shows` inherits; `dim_behaviours`
       without a `dim_window` is refused.
       Source: `src/config.rs parse_targets`, `src/config.rs TARGET_KEYS`.
       Pin: `an_unknown_declaration_key_is_refused_by_name_with_the_path_the_operator_wrote`
-           at src/config.rs:3543
+           at src/config.rs:3649
       also `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`
-           at src/config.rs:3449
+           at src/config.rs:3555
       also `a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`
-           at src/config.rs:3477
+           at src/config.rs:3583
       also `dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`
-           at src/config.rs:3514
+           at src/config.rs:3620
 
 S279. `[plugins.presence]` (type `hue`, `rooms`, `exclude`, `poll_secs` 2 to 60 default 5,
       `stale_after_secs` default 15 and at least `poll_secs`) parses into `Presence`; a refused table
       is `pns: config error (<detail>); the room sensor is unread`.
-      Source: `src/config.rs:1944-2024 parse_presence`, `src/config.rs Presence`.
+      Source: `src/config.rs:1946-2026 parse_presence`, `src/config.rs Presence`.
       Pin: `a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor`
-           at src/config_text.rs:1671
+           at src/config_text.rs:1694
 
 S280. `type` is the one word that selects a backend under every table that has one; the retired
       `brand`, `phone` and top-level `[home]` spellings are refused by name.
-      Source: `src/config.rs parse_config`, `src/config.rs TABLE_KEYS`.
+      Source: `src/config.rs:934 parse_config`, `src/config.rs:524 TABLE_KEYS`.
       Pin: `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`
-           at src/config.rs:3706
+           at src/config.rs:3812
+      also `a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key`
+           at src/config.rs:3740
+      also `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`
+           at src/config.rs:2264
 
 S281. `render(values)` walks `LAYOUT` once: core tables live, opt-in tables commented when absent,
       leftovers refused by name; a secret marker `{ keepassxc = "<entry>", field = "<Field>" }` with
@@ -3145,25 +3187,25 @@ S281. `render(values)` walks `LAYOUT` once: core tables live, opt-in tables comm
       with no author quotes; a literal is
       quoted with `{` and `}` escaped; a `note` becomes commented lines and is refused when it opens
       an action or carries a control character.
-      Source: `src/config_text.rs:736-777 render`, `src/config_text.rs:1062 secret_action`,
-      `src/config_text.rs:1041 SECRET_FIELDS`, `src/config_text.rs:705 quoted`,
-      `src/config_text.rs:959 take_note`.
+      Source: `src/config_text.rs:759-800 render`, `src/config_text.rs:1085 secret_action`,
+      `src/config_text.rs:1064 SECRET_FIELDS`, `src/config_text.rs:728 quoted`,
+      `src/config_text.rs:982 take_note`.
       Pin: `render_walks_every_layout_table_and_writes_no_heading_outside_it`
-           at src/config_text.rs:1124
+           at src/config_text.rs:1147
       also `an_opt_in_table_absent_renders_commented_and_present_renders_live`
-           at src/config_text.rs:1640
+           at src/config_text.rs:1663
       also `a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted`
-           at src/config_text.rs:1344
+           at src/config_text.rs:1367
       also `a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the_stub`
-           at src/config_text.rs:1383
+           at src/config_text.rs:1406
       also `a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure`
-           at src/config_text.rs:1895
+           at src/config_text.rs:1918
       also `a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up`
-           at src/config_text.rs:1921
+           at src/config_text.rs:1944
       also `a_note_holding_a_chezmoi_action_opening_is_refused_by_name`
-           at src/config_text.rs:1948
+           at src/config_text.rs:1971
       also `a_note_holding_a_newline_stays_commented_on_every_line`
-           at src/config_text.rs:1551
+           at src/config_text.rs:1574
 
 S282. `pns-config-render <values> <template>` reads, refuses a literal at any of five secret-bearing
       keys by path (never echoing the value), renders, stubs the chezmoi actions and self-parses, and
@@ -3193,19 +3235,19 @@ S283. The shipped template is pinned three ways from inside the crate against fi
       Source: `src/config.rs SHIPPED_TEMPLATE`, `src/config.rs CONFIG_VALUES`, `src/config.rs
       LIVE_TABLES`, `src/config.rs RESOLVED_CONFIG_SNAPSHOT`.
       Pin: `the_committed_template_is_render_over_the_committed_values_file`
-           at src/config.rs:4060
+           at src/config.rs:4297
       also `every_table_the_operator_runs_is_still_live_in_the_shipped_template`
-           at src/config.rs:4135
+           at src/config.rs:4373
       also `the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`
-           at src/config.rs:4207
+           at src/config.rs:4445
       also `the_shipped_template_states_the_blocked_backstop_at_its_default_uncommented`
-           at src/config.rs:4349
+           at src/config.rs:4594
 
 S284. A broken config fails OPEN on the delivery path (core plugins, loud) and CLOSED on every lamp path
       (no pulse, no tick arm, every mute refused by name), enabled on the daemon switch, and 5 s on the
       submit deadline.
-      Source: `src/registry.rs:368-392 select_plugins`, `src/main.rs:3952 pulse_mode`,
-      `src/main.rs:5742 lights_tick`, `src/main.rs:7222 daemon_enabled`, `src/main.rs:2587
+      Source: `src/registry.rs:368-392 select_plugins`, `src/main.rs:4172 pulse_mode`,
+      `src/main.rs:5963 lights_tick`, `src/main.rs:7473 daemon_enabled`, `src/main.rs:2706
       configured_submit_deadline`.
       Pin: `one_typod_table_name_costs_a_configured_machine_no_channel`
            at tests/dispatch.rs:744
@@ -3215,25 +3257,28 @@ S284. A broken config fails OPEN on the delivery path (core plugins, loud) and C
            at tests/dispatch.rs:8367
 
 S285. `load_config` has no read deadline, and there is no config version key.
-      Source: `src/config.rs:1838-1855 load_config`, `src/config.rs:524-624 TABLE_KEYS`.
+      Source: `src/config.rs:1840-1857 load_config`, `src/config.rs:524-624 TABLE_KEYS`.
       Pin: UNPINNED. Two open questions for the configuration step.
 
 ## 18. Counts
 
-Computed over this file on 2026-09-05 (`grep -c '^S[0-9][0-9][0-9]\. '` and
-`grep -c '^      Pin: UNPINNED'`):
+Computed over this file on 2026-09-05 (`grep -c '^S[0-9][0-9][0-9]\. '`,
+`grep -c '^      Pin: UNPINNED'` and `grep -c '^      UNPINNED:'`). A statement with an `UNPINNED:`
+clause counts as UNPINNED, so the review of the same day moved eight statements out of the pinned row
+(S026, S043, S075, S093, S152, S180 and S246 by a clause, S159 whole):
 
 | Count                                          | Value |
 | ---------------------------------------------- | ----- |
 | Statements                                     | 285   |
-| Pinned by at least one test                    | 243   |
-| UNPINNED                                       | 42    |
-| Test references (a test may pin many statements) | 766   |
-| Distinct Rust tests referenced                 | 699   |
+| Pinned in every clause                         | 235   |
+| UNPINNED, whole (43) or by one clause (7)      | 50    |
+| Test references (a test may pin many statements) | 776   |
+| Distinct Rust tests referenced                 | 708   |
 
 The crate's own register, `dot_local/share/pns/docs/specs/unpinned-behaviors.md`, lists 79 test-gap
 rows and 26 open-question rows harvested from the seventeen area specifications; the UNPINNED
 statements above are the subset that reach the interface this inventory describes, plus the
 declarations (the LaunchAgent, the hook table, the justfile recipes) that the 2026-08-05 testing
-ruling keeps out of test scope on purpose. Every UNPINNED statement a plan step moves gets its test
-first, against the code where it lives, in the pull request before the move.
+ruling keeps out of test scope on purpose. Every UNPINNED statement or clause a plan step moves gets
+its test first, against the code where it lives, in the pull request before the move; each `UNPINNED:`
+clause names that step.
