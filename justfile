@@ -83,11 +83,13 @@ apply:
 # `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
 # `just ship` run `just test`.
 
-# Unit suite only: the commit gate. test-nvim runs first (the Lua specs), then
-# the shell suite. --shuffle randomizes order to flush hidden ordering deps
-# (seed printed for replay); --warn-slow-ms flags slow tests in a warn-only
-# summary. The other suites run the same runner plain.
-test-unit: validate-tests test-nvim
+# Unit suite only: the commit gate. The two Lua camps run first (the nvim
+# config's specs, then neotest-bashunit's), then the one runner, which runs the
+# suite's own three lanes in order: its bashunit `*.test.sh` files, its
+# executable *.sh tests, its *.bats suites. --shuffle randomizes the *.sh order
+# to flush hidden ordering deps (seed printed for replay); --warn-slow-ms flags
+# slow tests in a warn-only summary. The other suites run the same runner plain.
+test-unit: validate-tests test-nvim test-neotest-bashunit
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -103,14 +105,14 @@ test-e2e: validate-tests
 # herdr plugins cover the pure decision functions in their src/main.rs (every
 # Command call sits behind an untested boundary by design) with inline
 # `#[cfg(test)] mod tests`. pns and uu are NOT pure-decision libraries: each
-# has four (pns) or one (uu) integration binaries under tests/ that spawn the
+# has four (pns) or six (uu) integration binaries under tests/ that spawn the
 # real compiled engine as a subprocess against a private sandboxed HOME,
 # alongside their own inline unit tests.
 #
 # THE RUST CAMP RUNS UNDER A ONE-SECOND TEST BUDGET, enforced by a Drop guard
-# on each integration binary's sandbox harness (pns: tests/support/mod.rs;
-# uu: tests/cli.rs's Home). A sandbox alive past one second at its own drop
-# WARNS on stderr, greppable as "test budget"; past five seconds it FAILS the
+# on each integration binary's sandbox harness (both crates keep it at
+# tests/support/mod.rs). A sandbox alive past one second at its own drop WARNS
+# on stderr, greppable as "test budget"; past five seconds it FAILS the
 # build, unless the test called `allow_slow("reason")` on it because the cost
 # is structural (an epoch-second lease, a whole-second deadline config key)
 # rather than a regression. This is a LOWER BOUND on the test's own sandbox
@@ -180,12 +182,35 @@ test-rust:
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
+# neotest-bashunit's own specs (dot_local/share/neotest-bashunit/tests), the
+# same runner shape one directory over. `--clean` is load-bearing rather than
+# merely fast here: the rules under test are the pure ones in parse.lua, so they
+# must hold with neotest itself not installed. test-unit depends on this recipe.
+test-neotest-bashunit:
+  nvim --headless --clean -l dot_local/share/neotest-bashunit/tests/run.lua
+
+# ONE suite's bashunit `<name>.test.sh` files, for focused iteration. Every
+# suite recipe above already runs its own bashunit lane through the same
+# runner, so this adds no coverage: it narrows a run to that lane, and defaults
+# to the unit suite because that is where the migration starts.
+#
+# bashunit is never handed a DIRECTORY, here or in the runner. Its own path
+# argument scans recursively for `*[tT]est.sh` plus a `.bash` twin, which
+# reaches fixtures, the executable *.sh tests the other lane runs, and every
+# other suite's files; the runner passes an exact, suite-local list instead.
+# validate-tests is a dependency for the same reason it is on every other suite
+# recipe: the mode and placement rules are what keep the two lanes from
+# claiming one file.
+test-bashunit suite="test/unit": validate-tests
+  ./test/run-test-suite.sh --only-bashunit {{ suite }}
+
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
-# test/integration, test/e2e, test/test-system); suite *.sh must be executable;
-# no symlinks are allowed anywhere below test/ (a physical find skips them, so
-# they would evade every gate). A suite's helpers/ and test/fixtures/** are
-# exempt.
+# test/integration, test/e2e, test/test-system); suite *.sh must be executable,
+# except a bashunit `<name>.test.sh`, which must NOT be and which never belongs
+# in helpers/ or fixtures/; no symlinks are allowed anywhere below test/ (a
+# physical find skips them, so they would evade every gate). A suite's helpers/
+# and test/fixtures/** are otherwise exempt.
 validate-tests:
   ./test/validate-tests.sh
 

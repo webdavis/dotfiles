@@ -219,10 +219,10 @@ return {
       { "<leader>gS", function() Snacks.picker.git_stash() end, desc = "Snacks (Git): stash" },
 
       -- gh:
-      { "<leader>Gi", function() Snacks.picker.gh_issue() end, desc = "GitHub Issues (open)" },
-      { "<leader>GI", function() Snacks.picker.gh_issue({ state = "all" }) end, desc = "GitHub Issues (all)" },
-      { "<leader>Gp", function() Snacks.picker.gh_pr() end, desc = "GitHub Pull Requests (open)" },
-      { "<leader>GP", function() Snacks.picker.gh_pr({ state = "all" }) end, desc = "GitHub Pull Requests (all)" },
+      { "<leader>ghfi", function() Snacks.picker.gh_issue() end, desc = "GitHub Issues (open)" },
+      { "<leader>ghfI", function() Snacks.picker.gh_issue({ state = "all" }) end, desc = "GitHub Issues (all)" },
+      { "<leader>ghfp", function() Snacks.picker.gh_pr() end, desc = "GitHub Pull Requests (open)" },
+      { "<leader>ghfP", function() Snacks.picker.gh_pr({ state = "all" }) end, desc = "GitHub Pull Requests (all)" },
 
       -- Search:
       { "<leader>s/", function() Snacks.picker.search_history() end, desc = "Snacks: search history" },

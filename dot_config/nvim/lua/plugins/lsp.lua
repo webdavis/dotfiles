@@ -268,7 +268,7 @@ return {
           formatting.mdformat.with({
             extra_args = { "--number", "--wrap", "105" },
           }),
-          -- nixfmt, rubocop and eslint come from a project's toolchain, not Mason. A source whose
+          -- nixfmt and rubocop come from a project's toolchain, not Mason. A source whose
           -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
           -- only where its command exists.
           formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
@@ -304,11 +304,14 @@ return {
 
           -- The following require none-ls-extras.nvim:
           require("none-ls.formatting.ansiblelint"),
-          require("none-ls.diagnostics.eslint").with({
-            condition = function()
-              return vim.fn.executable("eslint") == 1
-            end,
-          }),
+          -- Project-local eslint only, and NOT gated on a global one: a `condition` runs
+          -- once at setup, so gating would drop the source for the whole session on every
+          -- machine that keeps eslint in `node_modules/.bin` rather than on PATH. The
+          -- source's own `from_node_modules()` resolver falls back to a literal `eslint`,
+          -- whose failed spawn in a project without one warns and sets `_failed`, which
+          -- disables the shared source for the rest of the session; `only_local` drops that
+          -- fallback, so a project with no eslint is a quiet no-op instead.
+          require("none-ls.diagnostics.eslint").with({ only_local = "node_modules/.bin" }),
         },
       })
     end,
@@ -320,6 +323,7 @@ return {
     },
     config = function()
       local lsp_format = require("lsp-format")
+      local format_admission = require("custom_api.lsp_format")
 
       lsp_format.setup({
         lua = {
@@ -379,18 +383,27 @@ return {
         group = format_group,
         callback = function(args)
           local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
-          -- Registers the client for :Format. It also hangs lsp-format's own asynchronous
-          -- BufWritePost formatter on the buffer, which would format a second time after the
-          -- synchronous BufWritePre below has already run; drop that one.
-          lsp_format.on_attach(client, args.buf)
-          vim.api.nvim_clear_autocmds({ group = "Format", buffer = args.buf })
+          format_admission.admit(client, args.buf, lsp_format)
         end,
       })
+
+      -- A server can gain or lose `textDocument/formatting` long after it attached,
+      -- and neither event reaches LspAttach. The configured ESLint server registers
+      -- formatting once it has resolved its project settings, and unregisters it when
+      -- that configuration changes; a client left in the queue after losing it is
+      -- selected by the plugin, which then returns WITHOUT advancing to the sibling
+      -- formatters behind it, so the whole save sends nothing.
+      format_admission.install_handlers(lsp_format)
 
       vim.api.nvim_create_autocmd("BufWritePre", {
         group = format_group,
         pattern = "*",
-        callback = safe_format,
+        -- Wrapped, not passed directly: `safe_format` returns true on success and
+        -- Neovim deletes an autocmd whose callback returns true, so passing it bare
+        -- makes the first successful save the last one that formats.
+        callback = function()
+          safe_format()
+        end,
       })
 
       -- ╭──────────────╮

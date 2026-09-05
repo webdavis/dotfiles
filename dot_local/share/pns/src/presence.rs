@@ -111,6 +111,22 @@ pub fn classify(
     }
 }
 
+/// Why there is no reading, in one phrase and with no prefix on it.
+///
+/// ONE WORDING, TWO READERS, following `channels::hue::missing_sentence`: the
+/// doctor prefixes it with the plugin name and the lamp journal writes it
+/// inside its own line, and an operator who reads the same unknown reported
+/// two different ways has to work out whether they are the same problem.
+pub fn unreadable_said(reason: &Unreadable) -> String {
+    match reason {
+        Unreadable::NoReading => "no reading".to_string(),
+        Unreadable::NoClock => "the clock could not be read".to_string(),
+        Unreadable::Stale { poll_age_secs } => format!("stale, poll {poll_age_secs}s old"),
+        Unreadable::Future => "future epoch".to_string(),
+        Unreadable::NotWatched => "the reported room is not one this config watches".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{PresenceStatus, Unreadable, classify, idle_secs_from_ns};

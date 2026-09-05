@@ -119,7 +119,7 @@ fn holds_something(path: &str) -> bool {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::lanes::tests::ScriptedRunner;
+    use crate::lanes::stubs::ScriptedRunner;
 
     /// `/bin/sh` stands in for an installed tailscaled and `/etc/hosts` for a
     /// published manifest: both exist on every host this runs on, and neither

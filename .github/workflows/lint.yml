@@ -13,8 +13,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # bashunit comes from its release asset rather than the formula, because the runner's
+      # cached Homebrew index pours whatever release it happens to hold (0.43.0 on
+      # 2026-09-05) while neotest-bashunit's fixtures were measured against one exact
+      # release. BASHUNIT_VERSION, BASHUNIT_SHA256 and M.verified_version in
+      # dot_local/share/neotest-bashunit/lua/neotest-bashunit/parse.lua all name that release
+      # and nothing enforces that the three agree: move them together by hand, after
+      # re-measuring the fixtures. The checksum is the half a compromised upstream release
+      # cannot rewrite, so it is pinned here and not read from the release.
       - name: Install the lint and test toolchain (Homebrew + uv, no nix)
-        run: brew install actionlint age bash bats-core chezmoi coreutils jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor && uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        env:
+          BASHUNIT_VERSION: "0.50.1"
+          BASHUNIT_SHA256: "18d83d590c5304f1853dd4fe4fec4ec6effbd9fe5a21831fe9f66f70afe17d93"
+        run: |
+          brew install actionlint age bash bats-core chezmoi coreutils jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL --retry 3 -o "$HOME/.local/bin/bashunit" "https://github.com/TypedDevs/bashunit/releases/download/${BASHUNIT_VERSION}/bashunit"
+          printf '%s  %s\n' "$BASHUNIT_SHA256" "$HOME/.local/bin/bashunit" | shasum -a 256 -c -
+          chmod 0755 "$HOME/.local/bin/bashunit"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Lint drift gate (treefmt)
         run: just lint-check
       - name: Run the repo test suite
