@@ -379,7 +379,14 @@ return {
         return
       end
       local serialized = vim.tbl_map(function(task)
-        return task:serialize()
+        local defn = task:serialize()
+        -- `Task:serialize()` drops `default_component_params`, and the built-in
+        -- "open output in quickfix" action reads those task defaults directly
+        -- rather than the component's resolved copy. Without them a restored
+        -- task's action fell back to the stock errorformat and targeted
+        -- `FAIL util_spec: assertion: actual.lua:42` instead of `actual.lua`.
+        defn.default_component_params = task.default_component_params
+        return defn
       end, tasks)
       vim.fn.mkdir(bundle_dir, "p")
       -- writefile over io.open: it writes the file in one call and reports failure
