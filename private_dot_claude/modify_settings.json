@@ -506,9 +506,24 @@
        2026-08-02 by replacing the hasKey call with a literal `true`: no case in
        test/unit/claude-enabled-plugins.sh changed verdict, which is what makes
        it dead rather than defensive. */ -}}
+{{- /* Roster ids whose DEFAULT is off rather than on. Membership changes only
+       what a machine with no entry of its own gets, so the live-state read
+       below still wins and `claude plugin enable <id>` still sticks: this is a
+       default, not an override.
+
+       `babysitter@a5c.ai` is held here over two upstream defects, found in
+       review 2026-09-05. An ordinary SessionStart with the plugin enabled
+       creates a run and executes any `.a5c/hooks/on-run-start/` script it
+       discovers in the repository through Bash, non-executable files included,
+       with no approval separate from the one the operator gave the plugin's own
+       hook. And the installed Claude and Codex adapters both drop Stop's
+       `decision: "block"`, so a skill that yields expecting Stop to resume the
+       orchestration can terminate early instead. Take the id off this list once
+       an upstream release fixes both. */ -}}
+{{- $defaultDisabledPlugins := list "babysitter@a5c.ai" -}}
 {{- $enabledPlugins := dict -}}
 {{- range $pluginName := $declaredPlugins -}}
-{{-   $pluginEnabled := true -}}
+{{-   $pluginEnabled := not (has $pluginName $defaultDisabledPlugins) -}}
 {{-   $liveValue := index $livePlugins $pluginName -}}
 {{-   $liveValueKind := kindOf $liveValue -}}
 {{-   if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
