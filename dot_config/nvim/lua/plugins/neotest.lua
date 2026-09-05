@@ -11,91 +11,107 @@ local javascript_filetypes = {
   "typescriptreact",
 }
 
---- The shapes a node:test import takes. `from "node:test"` ends both the one-line and the
---- multiline form of a static import, including a TypeScript `import type`.
-local node_test_import_patterns = {
-  "require%s*%(%s*['\"]node:test['\"]",
-  "import%s*%(?%s*['\"]node:test['\"]",
-  "from%s+['\"]node:test['\"]",
+--- The tree-sitter language a JavaScript-family file is parsed with, or nil when the routing has
+--- nothing to parse it as.
+---
+--- `.tsx` is read as `typescript`. The `tsx` grammar is not among the ones this config installs,
+--- and the typescript one still parses the import block of a `.tsx` file; only the JSX below it
+--- becomes an error node, which nothing here reads. `.coffee` has no grammar at all, so a
+--- CoffeeScript test file can never be node:test's.
+local javascript_languages = {
+  js = "javascript",
+  jsx = "javascript",
+  mjs = "javascript",
+  cjs = "javascript",
+  ts = "typescript",
+  mts = "typescript",
+  cts = "typescript",
+  tsx = "typescript",
 }
 
---- `source` with comments removed and every string literal blanked, except literals holding
---- exactly `node:test`, which survive as `"node:test"` so the patterns above can still see the
---- module specifier of a real import.
+--- The four shapes that make node:test a runtime dependency: a static import, a re-export, a
+--- `require` call and a dynamic `import` call.
 ---
---- A textual strip cannot do this. It reads `'require("node:test")'`, an ordinary string, as an
---- import, and a `//` inside a URL literal ends the line early and loses a real import written
---- beside it. Single, double and template quotes all open a literal, and a backslash escapes the
---- next character.
----
---- The known ceiling is the regular-expression literal: `/["']/` opens a quote this scan then
---- follows. Recognising one needs the preceding token, which is a parser; treesitter is the
---- upgrade if a real file ever trips on it.
----@param source string
----@return string
-local function code_only(source)
-  local out, index, length = {}, 1, #source
-  while index <= length do
-    -- Copy the run up to the next character that could open a comment or a literal.
-    local interesting = source:find("['\"`/]", index)
-    if not interesting then
-      out[#out + 1] = source:sub(index)
-      break
-    end
-    out[#out + 1] = source:sub(index, interesting - 1)
-    index = interesting
+--- Asked of the parse tree rather than of the text. A regular expression, a template substitution,
+--- a literal nested inside one, a comment and an ordinary string are each their own node type, so
+--- none of them can be read as an import, and an import written after any of them is still found.
+local node_test_query_text = [[
+  (import_statement source: (string (string_fragment) @specifier)) @declaration
+  (export_statement source: (string (string_fragment) @specifier)) @declaration
+  (call_expression
+    function: (identifier) @callee
+    arguments: (arguments (string (string_fragment) @specifier))
+    (#eq? @callee "require"))
+  (call_expression
+    function: (import)
+    arguments: (arguments (string (string_fragment) @specifier)))
+]]
 
-    local pair = source:sub(index, index + 1)
-    local quote = source:sub(index, index)
-    if pair == "//" then
-      index = source:find("\n", index, true) or length + 1
-    elseif pair == "/*" then
-      local close = source:find("*/", index + 2, true)
-      out[#out + 1] = "\n"
-      index = close and close + 2 or length + 1
-    elseif quote == "/" then
-      out[#out + 1] = quote
-      index = index + 1
-    else
-      local content, cursor = {}, index + 1
-      while cursor <= length do
-        local character = source:sub(cursor, cursor)
-        if character == "\\" then
-          cursor = cursor + 2
-        elseif character == quote then
-          break
-        else
-          content[#content + 1] = character
-          cursor = cursor + 1
-        end
-      end
-      out[#out + 1] = table.concat(content) == "node:test" and '"node:test"' or '""'
-      index = cursor + 1
+--- The compiled query for `language`, or nil when its grammar is not installed. Memoized, because
+--- compiling is what makes the FIRST call expensive and the routing runs per file.
+local compiled_queries = {}
+local function node_test_query(language)
+  if compiled_queries[language] == nil then
+    local ok, query = pcall(vim.treesitter.query.parse, language, node_test_query_text)
+    compiled_queries[language] = ok and query or false
+  end
+  return compiled_queries[language] or nil
+end
+
+--- Whether an import or re-export is type-only. TypeScript erases those before anything runs, so
+--- they name the module at compile time and say nothing about the runner the file uses.
+---@param declaration TSNode?
+---@return boolean
+local function is_type_only(declaration)
+  if not declaration then
+    return false
+  end
+  for child in declaration:iter_children() do
+    if child:type() == "type" then
+      return true
     end
   end
-  return table.concat(out)
+  return false
 end
 
 --- Whether `file_path` imports or requires `node:test`.
 ---
 --- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
---- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import". The whole
---- file is read rather than a prefix, because a license or generated preamble can push a real
---- import past any cutoff, and a missed import hands the file to a runner that cannot run it.
----
---- Comments and string contents come out before the match, so neither a note that merely names the
---- module nor a string that spells out an import statement reads as one.
+--- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import".
 ---@param file_path string
 ---@return boolean
 local function imports_node_test(file_path)
+  local language = javascript_languages[file_path:match("%.([^.]+)$") or ""]
+  local query = language and node_test_query(language)
+  if not query then
+    return false
+  end
   local handle = io.open(file_path, "r")
   if not handle then
     return false
   end
-  local source = code_only(handle:read("*a") or "")
+  local source = handle:read("*a") or ""
   handle:close()
-  for _, pattern in ipairs(node_test_import_patterns) do
-    if source:match(pattern) then
+
+  local parsed, parser = pcall(vim.treesitter.get_string_parser, source, language)
+  if not parsed then
+    return false
+  end
+  for _, match in query:iter_matches(parser:parse()[1]:root(), source) do
+    local specifier, declaration
+    for id, nodes in pairs(match) do
+      local node = type(nodes) == "table" and nodes[1] or nodes
+      if query.captures[id] == "specifier" then
+        specifier = node
+      elseif query.captures[id] == "declaration" then
+        declaration = node
+      end
+    end
+    if
+      specifier
+      and vim.treesitter.get_node_text(specifier, source) == "node:test"
+      and not is_type_only(declaration)
+    then
       return true
     end
   end
@@ -430,6 +446,12 @@ return {
       -- callable metatable, which nothing here needs. WHEN THE PIN MOVES, re-audit for options
       -- initialized inside `__call`, methods reachable only through the metatable, and mutable
       -- table fields the copy would share rather than own.
+      -- Compiled here, on the main loop, and not on first use. Tree-sitter's own first load
+      -- creates an augroup, and `is_test_file` is asked from async contexts where that raises
+      -- E5560; the error would be caught and read as "this file imports nothing".
+      node_test_query("javascript")
+      node_test_query("typescript")
+
       local vitest = vim.tbl_extend("force", require("neotest-vitest"), {
         is_test_file = function(file_path)
           return owner_of(file_path) == "neotest-vitest"

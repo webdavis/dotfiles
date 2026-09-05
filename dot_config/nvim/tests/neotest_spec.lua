@@ -15,8 +15,17 @@
 -- node:test returns a whole new adapter table. vitest is neither, because the routing does not
 -- construct it: its `__call` puts its own dependency gate ahead of the caller's predicate, so the
 -- routing copies the module and overrides the field, and the stub is a plain table.
+--
+-- Tree-sitter is NOT stubbed either. The routing asks a parser which nodes are imports, so the
+-- runner's `--clean` start is given back the directory nvim-treesitter installs grammars into.
+-- A machine carrying no JavaScript grammar, which is how CI installs Neovim, exercises the stated
+-- fallback instead: a file whose language cannot be parsed has no node:test import to find.
 
 local plugin_spec = require("plugins.neotest")[1]
+
+vim.opt.runtimepath:append(vim.fn.stdpath("data") .. "/site")
+local _, javascript_grammar = pcall(vim.treesitter.language.add, "javascript")
+javascript_grammar = javascript_grammar == true
 
 -- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
 -- one, so a working directory read back after `:cd` would not string-compare against the path
@@ -76,6 +85,35 @@ local snippet_file = write_fixture(
 )
 local url_file =
   write_fixture("vitest-root/tests/url.test.js", 'const url = "https://example"; import { test } from "node:test";\n')
+
+-- A regular expression is neither an import nor a place one can hide.
+local regex_file =
+  write_fixture("vitest-root/tests/regex.test.js", 'const re = /["\']/;\nimport { test } from "node:test";\n')
+local regex_lookalike_file = write_fixture(
+  "vitest-root/tests/lookalike.test.js",
+  'import { test } from "vitest";\nconst bad = /require("node:test")/;\n'
+)
+
+-- A template substitution holds code; a literal nested inside one does not.
+local template_file =
+  write_fixture("vitest-root/tests/template.test.js", 'const runner = `${(await import("node:test")).test}`;\n')
+local nested_template_file = write_fixture(
+  "vitest-root/tests/nested-template.test.js",
+  'import { test } from "vitest";\nconst s = `${ `require("node:test")` }`;\n'
+)
+
+-- Type-only declarations name node:test at compile time and are erased before anything runs.
+local type_import_file = write_fixture(
+  "vitest-root/tests/typed.test.ts",
+  'import type { TestContext } from "node:test";\nimport { test } from "vitest";\n'
+)
+local type_export_file = write_fixture(
+  "vitest-root/tests/reexport.test.ts",
+  'export type { TestContext } from "node:test";\nimport { test } from "vitest";\n'
+)
+
+-- A language with no grammar to parse it.
+local coffee_file = write_fixture("vitest-root/tests/legacy.test.coffee", 'test = require("node:test")\n')
 
 -- A real node:test import pushed past the head of the file by a generated preamble.
 local preamble = (" * a generated preamble line, one of many, padding this header out\n"):rep(120)
@@ -239,38 +277,46 @@ local function route()
   }
 end
 
---- How many of the three JavaScript adapters claim `path`.
-local function claim_count(routed, path)
-  local count = 0
-  for _, predicate in ipairs({ routed.vitest, routed.jest, routed.node }) do
+--- The one adapter claiming `path`, or nil. Two claimants is itself a failure, so every case
+--- that asks this is also asserting that ownership stayed single.
+local function owner(routed, path)
+  local claimed = {}
+  for name, predicate in pairs({
+    ["neotest-vitest"] = routed.vitest,
+    ["neotest-jest"] = routed.jest,
+    ["neotest-nodejs"] = routed.node,
+  }) do
     if predicate(path) then
-      count = count + 1
+      claimed[#claimed + 1] = name
     end
   end
-  return count
+  table.sort(claimed)
+  assert(#claimed <= 1, "more than one adapter claimed " .. path .. ": " .. table.concat(claimed, " "))
+  return claimed[1]
+end
+
+--- The adapter that must own a file importing node:test: node:test itself where the JavaScript
+--- grammar is installed, and `without_grammar` where none is. Both are real answers this routing
+--- gives, and which one a machine sees is decided by what it has installed.
+local function node_or(without_grammar)
+  return javascript_grammar and "neotest-nodejs" or without_grammar
 end
 
 local cases = {}
 
 cases["one package declaring both runners gives its files to vitest"] = function()
   local routed = route()
-  assert(claim_count(routed, dual_file) == 1, "expected exactly one adapter to claim the file")
-  assert(routed.vitest(dual_file), "the documented precedence gives vitest the file")
-  assert(not routed.jest(dual_file), "jest did not stand down for vitest")
+  assert(owner(routed, dual_file) == "neotest-vitest", "the documented precedence gives vitest the file")
 end
 
 cases["a nested jest package inside a vitest repository keeps its own files"] = function()
   -- The nearest package that names a runner is the one that meant it, so a nested jest package
   -- is not swallowed by a vitest ancestor. Precedence only settles a package declaring both.
   local routed = route()
-  assert(routed.jest(nested_file), "the nested jest package lost its own file")
-  assert(not routed.vitest(nested_file), "vitest crossed a package boundary")
-  assert(claim_count(routed, nested_file) == 1, "expected exactly one adapter to claim the file")
-  assert(routed.vitest(vitest_root_file), "vitest gave up a file in the package that declares it")
-  assert(claim_count(routed, vitest_root_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, nested_file) == "neotest-jest", "the nested jest package lost its own file")
+  assert(owner(routed, vitest_root_file) == "neotest-vitest", "vitest gave up a file in the package that declares it")
   -- A nested package naming no runner declares nothing, so the ancestor's choice still stands.
-  assert(routed.vitest(silent_nested_file), "an empty nested manifest took the file from vitest")
-  assert(claim_count(routed, silent_nested_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, silent_nested_file) == "neotest-vitest", "an empty nested manifest took the file from vitest")
 end
 
 cases["a nested git repository does not inherit a runner from outside it"] = function()
@@ -278,7 +324,7 @@ cases["a nested git repository does not inherit a runner from outside it"] = fun
   -- and a repository that declares no runner then runs its tests under one it never chose. The
   -- same boundary rejects an adapter whose root sits outside the repository.
   local routed = route()
-  assert(claim_count(routed, inner_file) == 0, "the nested repository inherited a runner from outside it")
+  assert(owner(routed, inner_file) == nil, "the nested repository inherited a runner from outside it")
   local run = routed.press_run_all(directory_of(inner_git))
   assert(not run.prompted, "the run offered adapters rooted outside the repository")
   assert(run.ran == directory_of(inner_git), "expected a plain run, got " .. vim.inspect(run.ran))
@@ -289,8 +335,7 @@ cases["a runner an intermediate package declares is found through a nested empty
   -- detection looks at the working directory and the git root, neither of which is the package
   -- that declares the runner. The file ends up with no claimant at all.
   local routed = route()
-  assert(routed.vitest(behind_empty_file), "the intermediate package's runner was lost")
-  assert(claim_count(routed, behind_empty_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, behind_empty_file) == "neotest-vitest", "the intermediate package's runner was lost")
 end
 
 cases["node:test owns the file names its own matcher rejects"] = function()
@@ -299,9 +344,37 @@ cases["node:test owns the file names its own matcher rejects"] = function()
   -- ownership with one rule and standing down with another left those files with no claimant.
   local routed = route()
   for _, path in ipairs({ e2e_node_file, mjs_node_file, cjs_node_file }) do
-    assert(routed.node(path), "a node:test file had no claimant: " .. path)
-    assert(claim_count(routed, path) == 1, "expected exactly one adapter to claim " .. path)
+    assert(owner(routed, path) == node_or("neotest-vitest"), "a node:test file had the wrong claimant: " .. path)
   end
+end
+
+cases["a regular expression is neither an import nor a place to hide one"] = function()
+  -- A scanner copying every non-comment slash as code loses the import written after a regular
+  -- expression holding a quote, and reads the contents of one holding a require call as an import.
+  local routed = route()
+  assert(owner(routed, regex_file) == node_or("neotest-vitest"), "a regular expression hid a real import")
+  assert(owner(routed, regex_lookalike_file) == "neotest-vitest", "a regular expression read as an import")
+end
+
+cases["a template substitution is code and a literal nested in one is not"] = function()
+  local routed = route()
+  assert(owner(routed, template_file) == node_or("neotest-vitest"), "a template substitution hid a real import")
+  assert(owner(routed, nested_template_file) == "neotest-vitest", "a nested literal read as an import")
+end
+
+cases["a type-only import or re-export is not a runtime dependency"] = function()
+  -- TypeScript erases these before anything runs, so they name node:test at compile time only.
+  -- The file's real runner is the one its runtime import names.
+  local routed = route()
+  assert(owner(routed, type_import_file) == "neotest-vitest", "a type-only import claimed the file for node:test")
+  assert(owner(routed, type_export_file) == "neotest-vitest", "a type-only re-export claimed the file for node:test")
+end
+
+cases["a file whose language has no grammar has no node:test owner"] = function()
+  -- Nothing parses CoffeeScript here, so the import cannot be seen and is not guessed at. The
+  -- package's declared runner takes the file instead.
+  local routed = route()
+  assert(owner(routed, coffee_file) == "neotest-vitest", "an unparseable language was given to node:test")
 end
 
 cases["a node:test mention inside a comment is not an import"] = function()
@@ -309,8 +382,7 @@ cases["a node:test mention inside a comment is not an import"] = function()
   -- while vitest and jest both stand down for it.
   local routed = route()
   for _, path in ipairs({ commented_file, block_commented_file }) do
-    assert(not routed.node(path), "a comment read as an import: " .. path)
-    assert(routed.vitest(path), "a comment cost the package's own runner a file: " .. path)
+    assert(owner(routed, path) == "neotest-vitest", "a comment cost the package's own runner a file: " .. path)
   end
 end
 
@@ -319,17 +391,14 @@ cases["a string that looks like an import is not one, and a URL does not hide on
   -- as an import, and a `//` inside a URL literal ends the line early, losing the real import
   -- written beside it.
   local routed = route()
-  assert(not routed.node(snippet_file), "a quoted snippet read as an import")
-  assert(routed.vitest(snippet_file), "a quoted snippet cost the package its own file")
-  assert(routed.node(url_file), "a URL literal hid a real import")
-  assert(claim_count(routed, url_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, snippet_file) == "neotest-vitest", "a quoted snippet read as an import")
+  assert(owner(routed, url_file) == node_or("neotest-vitest"), "a URL literal hid a real import")
 end
 
 cases["the multiline and require shapes of a node:test import both count"] = function()
   local routed = route()
   for _, path in ipairs({ multiline_file, required_file }) do
-    assert(routed.node(path), "an import shape went unrecognized: " .. path)
-    assert(claim_count(routed, path) == 1, "expected exactly one adapter to claim " .. path)
+    assert(owner(routed, path) == node_or("neotest-vitest"), "an import shape went unrecognized: " .. path)
   end
 end
 
@@ -337,17 +406,13 @@ cases["a node:test import past the head of a long file is still an import"] = fu
   -- A license or generated preamble pushes the real import down the file, so a reader that
   -- stops after a prefix hands the file to the runner the package declares instead.
   local routed = route()
-  assert(routed.node(late_import_file), "a preamble hid the import")
-  assert(not routed.vitest(late_import_file), "vitest took a node:test file")
-  assert(claim_count(routed, late_import_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, late_import_file) == node_or("neotest-vitest"), "a preamble hid the import")
 end
 
 cases["a file importing node:test is node:test's, whatever the project declares"] = function()
+  -- Nothing above this file declares a runner, so without a grammar nobody owns it at all.
   local routed = route()
-  assert(routed.node(node_file), "a node:test file had no claimant")
-  assert(not routed.vitest(node_file), "vitest did not stand down for a node:test file")
-  assert(not routed.jest(node_file), "jest did not stand down for a node:test file")
-  assert(claim_count(routed, node_file) == 1, "expected exactly one adapter to claim the file")
+  assert(owner(routed, node_file) == node_or(nil), "a node:test file had the wrong claimant")
 end
 
 cases["the configured predicates answer a nil path instead of raising"] = function()
@@ -366,15 +431,16 @@ cases["the predicates answer inside a fast event, where a Vimscript read would r
   -- Every other case asks from the main loop, where `vim.fn.readfile` works. neotest does not:
   -- it asks from its own async contexts, and a Vimscript call raises E5560 there, which a `pcall`
   -- turns into "no import" rather than an error anyone sees. A libuv callback is the strictest of
-  -- those contexts, so ask from one, on a deadline. Both filesystem reads are covered: the import
-  -- read for the node:test file, and the outward manifest walk for the vitest one.
+  -- those contexts, so ask from one, on a deadline. Both reads are covered: the parse of the
+  -- node:test file, and the outward manifest walk for the vitest one. Tree-sitter's own first
+  -- load creates an augroup and raises there too, which is why the routing warms it up front.
   local routed = route()
   local answers, failure, done = {}, nil, false
   local timer = assert(vim.uv.new_timer())
   timer:start(0, 0, function()
     local ok, result = pcall(function()
       return {
-        node = routed.node(node_file),
+        node = routed.node(node_file) == (javascript_grammar and true or false),
         vitest = routed.vitest(dual_file),
       }
     end)
@@ -391,7 +457,7 @@ cases["the predicates answer inside a fast event, where a Vimscript read would r
   timer:close()
   assert(ran, "the fast event never ran")
   assert(not failure, "a predicate raised inside a fast event: " .. tostring(failure))
-  assert(answers.node, "the import read answered no inside a fast event")
+  assert(answers.node, "the import read answered wrong inside a fast event")
   assert(answers.vitest, "the manifest walk answered no inside a fast event")
 end
 
