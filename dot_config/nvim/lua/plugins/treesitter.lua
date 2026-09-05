@@ -2,9 +2,10 @@
 return {
   "nvim-treesitter/nvim-treesitter",
   dependencies = {
-    {
-      "WhoIsSethDaniel/mason-tool-installer.nvim",
-    },
+    -- mason-tool-installer was never a treesitter dependency: it installs Mason
+    -- tools, not parsers, and nothing here calls it. Being listed made it load
+    -- with this eager spec, which kept the whole Mason side of the LSP group
+    -- eager too. It carries its own trigger now (plugins/lsp.lua).
     {
       "nvim-treesitter/nvim-treesitter-context",
       opts = {
