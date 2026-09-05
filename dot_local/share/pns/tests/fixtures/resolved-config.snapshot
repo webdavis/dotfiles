@@ -53,6 +53,42 @@ Config {
                 ),
             },
         },
+        "presence": PluginEntry {
+            enabled: true,
+            settings: {
+                "desk_room": String(
+                    "3F - Studio",
+                ),
+                "desk_stale_after_secs": Integer(
+                    120,
+                ),
+                "exclude": Array(
+                    [],
+                ),
+                "poll_secs": Integer(
+                    5,
+                ),
+                "rooms": Array(
+                    [
+                        String(
+                            "3F - Studio",
+                        ),
+                        String(
+                            "2F - Kitchen",
+                        ),
+                        String(
+                            "3F - MBedroom",
+                        ),
+                    ],
+                ),
+                "stale_after_secs": Integer(
+                    15,
+                ),
+                "type": String(
+                    "hue",
+                ),
+            },
+        },
         "router": PluginEntry {
             enabled: true,
             settings: {

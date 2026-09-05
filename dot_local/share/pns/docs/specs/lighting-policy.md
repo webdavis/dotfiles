@@ -1235,6 +1235,108 @@ Then NOTHING is armed and the complaint is returned.
   file. The residue is stated: a lamp held under a name this run could not read stays lit until the
   repaired record names it again or the operator's next return clears it.
 
+### 33. The lamps narrow to the room the operator is physically in
+
+Given a resolved `Routing` and an armed `[plugins.presence]` table,
+
+When `src/main.rs:narrow_to_presence` runs it through `src/presence_policy.rs:narrow` on the event
+path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_tick_writes`),
+
+Then `src/presence_room.rs:chosen` weighs the desk's idle clock against the bridge's motion edge, and
+`src/presence_policy.rs:narrow` takes the room it answers to the lamp map. A WARM DESK IS A CLAIM ON THE
+OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_stale_after_secs` the keyboard
+says they are at the desk, while motion says A BODY moved in a room and never whose. So while the desk
+still speaks,
+
+- motion in the desk's own room AGREES with it, and that room is kept;
+- motion NO NEWER than the desk loses to it, the tie included, where a hand is what made the reading;
+- NEWER motion in ANOTHER room is AMBIGUOUS and narrows nothing. The bridge reports a room that is still
+  occupied as age zero rather than as the age of the edge that began it, so "newer" here is routinely
+  three seconds after a keystroke and means only that somebody is in that other room. Read as the
+  operator having walked out, it handed every lamp to whoever else was moving in the house.
+
+Past the bound, with the screen locked, or with no readable idle clock, the desk has no claim at all and
+motion answers alone. With no `desk_room` named, the desk can name no room, so usable motion answers
+alone as well and `NoDeskRoom` is recorded only when nothing else could answer either. A lamp belongs to
+a room by the bridge's own membership (`src/channels/hue.rs:Lamp.room`), which `resolve` already joined
+off the room listing.
+
+- Success: `Routing.lamps` holds only the lamps that room holds; `unresolved` and `refusals` are
+  untouched, because a name the bridge could not answer is a typo whether or not the operator is
+  standing in that room.
+- Failure sources: each narrows NOTHING and says which (`src/presence_room.rs:Full`). WHEN NO USABLE
+  CONFIGURED DESK ANSWERS, that is `Nowhere` (a fresh poll that found motion in no watched room, and the
+  room they are in may have no sensor) and each `src/presence.rs:Unreadable` variant; a desk inside its
+  bound with a `desk_room` named takes them all, so an unlocked desk at 119 seconds against the shipped
+  120 keeps the Studio with no usable motion at all. `NotHome` gates the MOTION BRANCH ONLY and is
+  reached only where motion is what selected the room, because a keyboard being typed on is the
+  operator's own hand and a router that disagrees is wrong about the router. The remaining three are
+  `Ambiguous` (a desk still inside its bound in one room and newer motion in another), a desk that would
+  have won with no `desk_room` named and no usable motion to answer instead, and a room that holds no
+  lamp this event would light.
+- Fail direction: PRESENCE ONLY EVER NARROWS. Not knowing costs the narrowing and nothing else, and a
+  narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
+  (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
+- Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
+  `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
+  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`, bounded 1 to
+  `src/config.rs:MAX_DESK_STALE_AFTER_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
+  its own.
+- Required side effects: one JSON object per decision appended to the `presence-decisions` ring
+  (`src/presence_journal.rs:entry`), carrying the reading, the desk clock, the router verdict and the
+  room chosen or the reason none was. `pns doctor`'s presence leg reads the last one back
+  (`src/main.rs:last_narrowing`).
+- Forbidden side effects: reading `src/surface.rs:Surface`. It answers where the operator's EYES are and
+  is what picks a notifier; read as location it is `Desk` for two minutes after the last keystroke,
+  which ignores fresh motion in the kitchen for that whole window, and `Away` whenever neither the
+  keyboard nor the phone has been touched lately, which reads a phone in a pocket at home as an empty
+  house. Also forbidden: taking any reading twice. One `SystemProbes` supplies the clock, the idle
+  counter, the screen lock and the presence line, all memoized, so the reading and the decision cannot
+  straddle a boundary. The presence line is taken EAGERLY, where the set is pointed at the file
+  (`src/system.rs:with_presence_path`), which is before that set can hold a clock: read after one, a
+  line the daemon republished in the meantime carried an epoch newer than the frozen clock and
+  classified as `Future`.
+- Timeout and cancellation: none; `narrow` is a total function of its arguments and touches no bridge.
+  The router's own verdict is NOT dialled here (`src/main.rs:home_presence` answers `Unknown`), because
+  two `home::ROUTER_DEADLINE` calls behind a lamp would outlive a tick's whole interval.
+- Idempotency and duplicates: pure, so the same snapshot always gives the same routing.
+- Privacy: the room is the bridge's own text, escaped by `serde_json` on the way into the ring so a name
+  carrying a newline cannot forge a second entry, and filtered by `src/doctor.rs:shown_room` on the way
+  out. The router verdict is recorded as one word, never with the matched key's value.
+- Process ownership and cleanup: the ring prunes itself to `decision_log::KEPT`; the write is fail-quiet,
+  in `src/main.rs:record_decision`'s style.
+- Compatibility contract: a machine with no `[plugins.presence]` table passes `None` and reaches none of
+  this, so its lamp map behaves exactly as it did before the feature existed.
+
+### 34. Presence narrows over the lamps THIS event would light, never over all of them
+
+Given a room whose only lamp is routed for some other behaviour, and a fresh reading naming that room,
+
+When either lamp path narrows,
+
+Then the routing is filtered to the lamps this event would actually write to BEFORE `narrow` is called,
+so the room holds nothing and the fallback in behaviour 33 leaves the whole routing standing.
+
+- Success: the lamps that were going to light still light, in whatever room the operator is not.
+- Failure sources: none of its own; it is a reordering of two filters that already existed.
+- Fail direction: full routing, which is the same fail-open the rest of this feature takes.
+- Thresholds: none.
+- Required side effects: the eligibility question is asked ONCE and used twice, as the set presence
+  narrows over and as the write itself (`src/main.rs:run_pulse_writes`'s `write_for` and
+  `src/main.rs:run_tick_writes`'s `breath_for`). "Eligible" has to mean "would light", so it answers the
+  mute, the routing, the held record and the dim window together: a lamp the dim window darkens writes
+  nothing either.
+- Forbidden side effects: narrowing first and filtering second. That order kept a kitchen lamp routed
+  for `blocked` alone through a `done` event, then dropped it at the per-lamp gate, and wrote nothing at
+  all (`src/main.rs:a_pulse_narrows_over_the_lamps_this_behaviour_would_reach_and_not_the_rest`,
+  `src/main.rs:a_tick_narrows_over_the_lamps_this_state_would_reach_and_not_the_rest`).
+- Timeout and cancellation: not applicable.
+- Idempotency and duplicates: the predicate is pure, so asking it twice per lamp costs microseconds and
+  cannot disagree with itself.
+- Privacy: no new text.
+- Process ownership and cleanup: no state written.
+
 ______________________________________________________________________
 
 ## Gaps
