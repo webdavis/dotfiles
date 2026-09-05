@@ -25,16 +25,18 @@
 -- 8. Local-install PATH: `claude` is on PATH in every herdr pane through the
 --    bashrc; nothing to do.
 --
--- No startup trigger here: `cmd` and `keys` are the load triggers, so the plugin
--- costs nothing until a command or a key reaches it. The lock file has to exist
--- before the CLI connects, which is why a later pull request moves this to
--- `event = "VeryLazy"` (spec 9).
+-- `event = "VeryLazy"` is the load trigger (spec 9). `cmd` alone would be wrong:
+-- the lock file has to exist before the CLI connects (question 4 above), and
+-- nothing types a `ClaudeCode*` command or presses a `<leader>C` key first. The
+-- `cmd` and `keys` lists stay so the commands and the maps are declared, and so
+-- the plugin still loads for a session that reaches one before `VeryLazy` fires.
 return {
   "coder/claudecode.nvim",
   commit = "2390c6e45c4789072c293ac69de051d169668b29",
   dependencies = {
     "folke/snacks.nvim",
   },
+  event = "VeryLazy",
   cmd = {
     "ClaudeCodeAdd",
     "ClaudeCodeDiffAccept",
@@ -50,16 +52,13 @@ return {
     -- Not a claudecode.nvim command: the shared herdr seam (spec 7.4) sends raw
     -- text to the agent's herdr pane, which is the path that reaches a free-text
     -- prompt, a non-Claude agent and an unsaved scratch buffer. It lives on this
-    -- spec because `<leader>C` is the Claude group and a `keys` entry is what
-    -- keeps the whole group lazy.
+    -- spec because `<leader>C` is the Claude group, and every key of that group
+    -- is declared in one place.
     --
-    -- KNOWN SIDE EFFECT: reaching the seam through this spec loads the plugin,
-    -- so the first `<leader>Cp` also starts the WebSocket server and writes
-    -- ~/.claude/ide/<port>.lock, which the seam itself does not need. Kept
-    -- deliberately: the lock has to exist before any CLI connects (question 4
-    -- above), so an early start is the direction this config wants anyway, and
-    -- moving the key out would split one Claude group across two files for a
-    -- server that `<leader>Cc` starts a keystroke later regardless.
+    -- The seam needs no WebSocket server, and since `VeryLazy` this spec starts
+    -- one before the key is ever pressed. That is the direction this config
+    -- wants anyway (question 4 above), and moving the key out would split one
+    -- Claude group across two files to avoid a server it no longer causes.
     {
       "<leader>Cp",
       function()
