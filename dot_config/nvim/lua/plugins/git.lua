@@ -1469,23 +1469,22 @@ return {
         "nvim-tree/nvim-web-devicons",
       },
       -- `Octo` is the only command octo defines, and `octo.setup()` in `config`
-      -- is what creates it. The `<leader>gh` mappings are created there too, so
-      -- like fugitive above they have to be named here or the first press does
-      -- nothing; `desc` mirrors each `map()` call so the which-key popup reads
-      -- the same before and after octo loads. The `<localleader>` groups are
-      -- registered by the `FileType octo` autocmd in `config`, which runs when
-      -- the command loads octo, before any octo buffer exists.
+      -- is what creates it, so it has to be named up front. The rows below are
+      -- the `<leader>gh` mappings themselves: lazy.nvim installs the placeholder
+      -- at startup and sets the real mapping from the same row once octo loads.
+      -- The `<localleader>` groups stay in `config`, registered by its
+      -- `FileType octo` autocmd, which is not a keymap the spec can carry.
       cmd = "Octo",
       keys = {
-        { "<leader>ghg", desc = "Octo: list gists" },
-        { "<leader>ghi", desc = "Octo: list issues" },
-        { "<leader>ghI", desc = "Octo: create issue" },
-        { "<leader>ghm", desc = "Octo: merge pull request" },
-        { "<leader>ghn", desc = "Octo: notifications" },
-        { "<leader>ghp", desc = "Octo: list pull requests" },
-        { "<leader>ghP", desc = "Octo: create pull request" },
-        { "<leader>ghr", desc = "Octo: list repos" },
-        { "<leader>ghw", desc = "Octo: list workflow runs" },
+        { "<leader>ghg", "<cmd>Octo gist list<cr>", desc = "Octo: list gists", silent = true },
+        { "<leader>ghi", "<cmd>Octo issue list<cr>", desc = "Octo: list issues", silent = true },
+        { "<leader>ghI", "<cmd>Octo issue create<cr>", desc = "Octo: create issue", silent = true },
+        { "<leader>ghm", "<cmd>Octo pr merge<cr>", desc = "Octo: merge pull request", silent = true },
+        { "<leader>ghn", "<cmd>Octo notification<cr>", desc = "Octo: notifications", silent = true },
+        { "<leader>ghp", "<cmd>Octo pr list<cr>", desc = "Octo: list pull requests", silent = true },
+        { "<leader>ghP", "<cmd>Octo pr create<cr>", desc = "Octo: create pull request", silent = true },
+        { "<leader>ghr", "<cmd>Octo repo list<cr>", desc = "Octo: list repos", silent = true },
+        { "<leader>ghw", "<cmd>Octo run list<cr>", desc = "Octo: list workflow runs", silent = true },
       },
       config = function()
         require("octo").setup({
@@ -1506,16 +1505,6 @@ return {
             },
           },
         })
-
-        map({ mode = "n", lhs = "<leader>ghg", rhs = "Octo gist list", desc = "Octo: list gists" })
-        map({ mode = "n", lhs = "<leader>ghi", rhs = "Octo issue list", desc = "Octo: list issues" })
-        map({ mode = "n", lhs = "<leader>ghI", rhs = "Octo issue create", desc = "Octo: create issue" })
-        map({ mode = "n", lhs = "<leader>ghm", rhs = "Octo pr merge", desc = "Octo: merge pull request" })
-        map({ mode = "n", lhs = "<leader>ghn", rhs = "Octo notification", desc = "Octo: notifications" })
-        map({ mode = "n", lhs = "<leader>ghp", rhs = "Octo pr list", desc = "Octo: list pull requests" })
-        map({ mode = "n", lhs = "<leader>ghP", rhs = "Octo pr create", desc = "Octo: create pull request" })
-        map({ mode = "n", lhs = "<leader>ghr", rhs = "Octo repo list", desc = "Octo: list repos" })
-        map({ mode = "n", lhs = "<leader>ghw", rhs = "Octo run list", desc = "Octo: list workflow runs" })
 
         local opts = {
           prefix = "<localleader>",
