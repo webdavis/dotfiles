@@ -96,6 +96,14 @@ return {
     },
   },
   opts = {
+    -- The plugin's own default is `info`, and its logger sends INFO, DEBUG and
+    -- TRACE through `nvim_echo`, which writes to STDERR in a headless run. Every
+    -- `--headless` start that reached `VimLeavePre` therefore printed
+    -- `[ClaudeCode] [init] [INFO] Claude Code integration stopped` and failed the
+    -- zero-stderr startup gate (`logger.lua`, `init.lua:597` at the pinned
+    -- commit). `warn` drops those three levels only: WARN and ERROR go through
+    -- `vim.notify` instead and still surface.
+    log_level = "warn",
     terminal = {
       provider = "none",
     },
