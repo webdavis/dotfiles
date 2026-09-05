@@ -325,9 +325,13 @@ cases["a nested git repository does not inherit a runner from outside it"] = fun
   -- same boundary rejects an adapter whose root sits outside the repository.
   local routed = route()
   assert(owner(routed, inner_file) == nil, "the nested repository inherited a runner from outside it")
+  -- And a plain run is not a safe fallback once a root has been refused: neotest picks a
+  -- directory's adapter without asking `is_test_file`, so it would reach for the very adapter
+  -- rooted outside the repository that was just turned down.
   local run = routed.press_run_all(directory_of(inner_git))
   assert(not run.prompted, "the run offered adapters rooted outside the repository")
-  assert(run.ran == directory_of(inner_git), "expected a plain run, got " .. vim.inspect(run.ran))
+  assert(not run.ran, "the run fell back to letting neotest choose, got " .. vim.inspect(run.ran))
+  assert(#run.notified == 1, "the operator was not told why nothing ran")
 end
 
 cases["a runner an intermediate package declares is found through a nested empty manifest"] = function()

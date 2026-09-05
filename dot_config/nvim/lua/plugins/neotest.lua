@@ -366,11 +366,11 @@ local function run_all_tests()
     return not repository or root == repository or vim.startswith(root, repository .. "/")
   end
 
-  local javascript, other = {}, {}
+  local javascript, other, refused = {}, {}, false
   for _, adapter in ipairs(require("neotest.config").adapters) do
     local root = adapter.root(directory)
     if root and javascript_adapters[adapter.name] and not inside_repository(root) then
-      root = nil
+      root, refused = nil, true
     end
     if root then
       local entry = { name = adapter.name, id = ("%s:%s"):format(adapter.name, root) }
@@ -392,6 +392,18 @@ local function run_all_tests()
   end
   if #javascript == 1 then
     return neotest.run.run({ directory, adapter = javascript[1].id })
+  end
+  -- Letting neotest choose is not a safe fallback once a root has been refused: it picks a
+  -- directory's adapter without asking `is_test_file`, so it would reach straight back for the
+  -- adapter rooted outside the repository that was just turned down.
+  if refused then
+    vim.notify(
+      ("neotest: every JavaScript adapter here roots outside %s, so there is nothing to run. Run from the package that owns those tests."):format(
+        repository
+      ),
+      vim.log.levels.WARN
+    )
+    return
   end
   if #javascript == 0 then
     return neotest.run.run(directory)
