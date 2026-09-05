@@ -835,6 +835,13 @@ fn a_payload_at_the_cap_is_whole_and_is_still_submitted() {
     // MECHANISM-BOUND: the submission is read off the record, so this goes
     // RED at the endpoint switch for item 25 to rewrite.
     let sandbox = Sandbox::new("hook-blocked-at-cap");
+    // THE MEGABYTE IS THE TEST, so its cost is structural: the payload is
+    // read, rendered, handed to the submission and written to three channels,
+    // and that measures 2.656 s on an IDLE machine (2026-09-05, twenty runs
+    // of the same path outside libtest). It is the slowest honest sandbox in
+    // this file by an order of magnitude. The budget WARNING still prints,
+    // which is what keeps it under review rather than forgotten.
+    sandbox.allow_slow("a megabyte through the whole path, measured at 2.656 s idle");
     let mut command = sandbox.pns();
     command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
@@ -1956,7 +1963,18 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
 
 /// Every bound below is proved the same way: run the thing against input that
 /// would block forever, with a tight injected deadline, and require an answer.
-const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+///
+/// THE TIGHTNESS LIVES IN THE INJECTED DEADLINE AND NEVER HERE. This is only
+/// how long the harness waits before calling a run hung, so its one job is to
+/// sit far past every honest run. At five seconds it did not: five was also
+/// the engine's own payload and submission deadlines and the local sandbox
+/// ceiling, and `a_payload_at_the_cap_is_whole_and_is_still_submitted` costs
+/// 2.656 s on an IDLE machine (measured 2026-09-05, twenty runs), so a loaded
+/// one pushed it past all four at once and this was what decided the verdict.
+/// Thirty seconds is better than ten times that worst honest reading. A real
+/// hang is still caught here, and a merely slow run is still caught by the
+/// sandbox guard, which names the test.
+const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
