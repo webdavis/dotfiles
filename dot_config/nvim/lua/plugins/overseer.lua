@@ -85,9 +85,21 @@ return {
   "stevearc/overseer.nvim",
   opts = {},
   -- Every command overseer registers itself (overseer/init.lua `commands`) plus
-  -- the five this file's `config` creates. A command defined only inside
-  -- `config` cannot trigger the load unless its name is here, so it would simply
-  -- not exist until something else loaded the plugin.
+  -- the five this file's `config` creates, minus `OverseerShell`, which gets the
+  -- loader below instead. A command defined only inside `config` cannot trigger
+  -- the load unless its name is here, so it would simply not exist until
+  -- something else loaded the plugin.
+  --
+  -- Every name left here survives a placeholder. lazy's placeholder is
+  -- `nargs="*"` and replays the command from `event.fargs`, EXCEPT when the real
+  -- command's `nargs` contains `1` or `?`, where it replays the raw `event.args`
+  -- untouched (lazy/core/handler/cmd.lua). So the `nargs="?"` five
+  -- (`OverseerDeleteBundle`, `OverseerLoadBundle`, `OverseerOpen`,
+  -- `OverseerSaveBundle`, `OverseerToggle`) and the `nargs=0` four
+  -- (`OverseerClose`, `OverseerRestartLast`, `OverseerTaskAction`,
+  -- `OverseerWatchRun`) are all safe. `OverseerRun` is `nargs="*"`, but
+  -- `commands._run_template` reads only `fargs`, which is the one thing the
+  -- placeholder reproduces faithfully.
   cmd = {
     "OverseerClose",
     "OverseerDeleteBundle",
@@ -96,11 +108,51 @@ return {
     "OverseerRestartLast",
     "OverseerRun",
     "OverseerSaveBundle",
-    "OverseerShell",
     "OverseerTaskAction",
     "OverseerToggle",
     "OverseerWatchRun",
   },
+  -- `OverseerShell` is the one command here that reads the RAW argument string:
+  -- `commands._run_shell` takes `params.args` and makes it the task's `cmd`. A
+  -- placeholder hands `event.fargs` to `nvim_cmd` as a LIST, and that API keeps
+  -- each element as one argument while rebuilding the `args` STRING by joining
+  -- them with a single space. So `fargs` arrives intact and `args` does not,
+  -- which is why `OverseerRun` needs no loader and this does: the FIRST
+  -- `:OverseerShell! ls a\ b` reached overseer as `ls a b` and turned one
+  -- filename into two, and repeated spaces collapsed the same way. Once overseer
+  -- had loaded the real command took over and every later call was right, which
+  -- is what made it easy to miss.
+  --
+  -- So this declares what overseer declares and replays the untouched
+  -- `event.args`. Deleting the proxy BEFORE the load is what makes the replay
+  -- safe: overseer's `create_commands` would overwrite the name anyway, but if
+  -- the load ever failed to define it, re-dispatching into this same callback
+  -- would recurse instead of failing with E492.
+  init = function()
+    vim.api.nvim_create_user_command("OverseerShell", function(event)
+      vim.api.nvim_del_user_command("OverseerShell")
+      require("lazy").load({ plugins = { "overseer.nvim" } })
+      vim.cmd({
+        cmd = "OverseerShell",
+        -- A bare `:OverseerShell` prompts for the command instead, and `nvim_cmd`
+        -- rejects an empty string as an argument ("expected non-whitespace"), so
+        -- the no-argument call has to pass no argument rather than one empty one.
+        args = event.args ~= "" and { event.args } or {},
+        bang = event.bang or nil,
+        mods = event.smods,
+      })
+    end, {
+      -- Overseer's own declaration at the pin, copied field for field. It takes
+      -- no range and no count, so neither is forwarded.
+      bang = true,
+      nargs = "*",
+      -- A built-in completion type, so the command line completes here without
+      -- loading overseer at all. The placeholder had to load the plugin to
+      -- answer the first `<Tab>`.
+      complete = "shellcmdline",
+      desc = "Run a shell command as an overseer task. With `!` the task is created but not started",
+    })
+  end,
   -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
   -- same rhs when the plugin loads, so there is no second copy in `config`. The
   -- four `:`-prefixed rows leave the cmdline open for an argument, so they carry
