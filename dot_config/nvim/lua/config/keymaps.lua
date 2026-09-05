@@ -309,3 +309,58 @@ map({
   end,
   desc = "Yank inside nearest '' to clipboard",
 })
+
+-- ┏━━━━━━━━━━━━━━━━━━━━━━━┓
+-- ┃    Review Ledger      ┃
+-- ┗━━━━━━━━━━━━━━━━━━━━━━━┛
+
+-- One awk program, no Lua parser. The pipeline's findings registers are not
+-- tracked by this repository, so a reader written in Lua would be a second thing
+-- to keep in step with the table format. `f` is the ledger path used when a row
+-- carries no `path:line` token of its own; `all` of 1 keeps the FIXED rows.
+local ledger_awk = [==[
+function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+BEGIN { FS = "|" }
+/^[ \t]*\|[ \t]*F[0-9]+[ \t]*\|/ {
+  id = trim($2); severity = trim($4); summary = trim($5); disposition = trim($6)
+  if (disposition == "FIXED" && all != 1) next
+  where = f ":" FNR
+  if (match(summary, /[^ \t`]*[.\/][^ \t`]*:[0-9]+/)) where = substr(summary, RSTART, RLENGTH)
+  printf "%s: %s %s %s: %s\n", where, id, severity, disposition, summary
+}
+]==]
+
+vim.api.nvim_create_user_command("ReviewLedger", function(opts)
+  local register = opts.args ~= "" and vim.fn.expand(opts.args) or ""
+  if register == "" then
+    -- `glob` expands the tilde itself, and `expand` must NOT run first: it
+    -- expands the WILDCARD too, so `glob` would be handed every match joined by
+    -- newlines and would match nothing (measured 2026-09-05).
+    local found = vim.fn.glob("~/.claude/pipeline/slices/findings-*.md", false, true)
+    table.sort(found, function(a, b)
+      return vim.fn.getftime(a) > vim.fn.getftime(b)
+    end)
+    register = found[1]
+  end
+  if not register or register == "" then
+    vim.notify("ReviewLedger: no findings register found", vim.log.levels.WARN)
+    return
+  end
+  local lines = vim.fn.systemlist(
+    ("awk -v f=%s -v all=%d %s %s"):format(
+      vim.fn.shellescape(register),
+      opts.bang and 1 or 0,
+      vim.fn.shellescape(ledger_awk),
+      vim.fn.shellescape(register)
+    )
+  )
+  vim.fn.setqflist({}, " ", { title = "ReviewLedger " .. register, lines = lines, efm = "%f:%l: %m" })
+  vim.cmd("copen")
+end, {
+  nargs = "?",
+  bang = true,
+  complete = "file",
+  desc = "Load a findings register into the quickfix list (! keeps the FIXED rows)",
+})
+
+return { ledger_awk = ledger_awk }
