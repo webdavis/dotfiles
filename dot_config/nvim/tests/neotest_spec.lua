@@ -69,6 +69,14 @@ local multiline_file =
   write_fixture("vitest-root/tests/multi.test.ts", 'import {\n  test,\n  describe,\n} from "node:test";\n')
 local required_file = write_fixture("vitest-root/tests/required.test.js", 'const { test } = require("node:test");\n')
 
+-- A string that only looks like an import, and a real import beside a URL on the same line.
+local snippet_file = write_fixture(
+  "vitest-root/tests/snippet.test.js",
+  'import { test } from "vitest";\nconst snippet = \'require("node:test")\';\n'
+)
+local url_file =
+  write_fixture("vitest-root/tests/url.test.js", 'const url = "https://example"; import { test } from "node:test";\n')
+
 -- A real node:test import pushed past the head of the file by a generated preamble.
 local preamble = (" * a generated preamble line, one of many, padding this header out\n"):rep(120)
 local late_import_file =
@@ -298,6 +306,17 @@ cases["a node:test mention inside a comment is not an import"] = function()
     assert(not routed.node(path), "a comment read as an import: " .. path)
     assert(routed.vitest(path), "a comment cost the package's own runner a file: " .. path)
   end
+end
+
+cases["a string that looks like an import is not one, and a URL does not hide one"] = function()
+  -- Both are ordinary JavaScript. A textual strip reads `'require("node:test")'`, a plain string,
+  -- as an import, and a `//` inside a URL literal ends the line early, losing the real import
+  -- written beside it.
+  local routed = route()
+  assert(not routed.node(snippet_file), "a quoted snippet read as an import")
+  assert(routed.vitest(snippet_file), "a quoted snippet cost the package its own file")
+  assert(routed.node(url_file), "a URL literal hid a real import")
+  assert(claim_count(routed, url_file) == 1, "expected exactly one adapter to claim the file")
 end
 
 cases["the multiline and require shapes of a node:test import both count"] = function()

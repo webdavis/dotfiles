@@ -19,6 +19,63 @@ local node_test_import_patterns = {
   "from%s+['\"]node:test['\"]",
 }
 
+--- `source` with comments removed and every string literal blanked, except literals holding
+--- exactly `node:test`, which survive as `"node:test"` so the patterns above can still see the
+--- module specifier of a real import.
+---
+--- A textual strip cannot do this. It reads `'require("node:test")'`, an ordinary string, as an
+--- import, and a `//` inside a URL literal ends the line early and loses a real import written
+--- beside it. Single, double and template quotes all open a literal, and a backslash escapes the
+--- next character.
+---
+--- The known ceiling is the regular-expression literal: `/["']/` opens a quote this scan then
+--- follows. Recognising one needs the preceding token, which is a parser; treesitter is the
+--- upgrade if a real file ever trips on it.
+---@param source string
+---@return string
+local function code_only(source)
+  local out, index, length = {}, 1, #source
+  while index <= length do
+    -- Copy the run up to the next character that could open a comment or a literal.
+    local interesting = source:find("['\"`/]", index)
+    if not interesting then
+      out[#out + 1] = source:sub(index)
+      break
+    end
+    out[#out + 1] = source:sub(index, interesting - 1)
+    index = interesting
+
+    local pair = source:sub(index, index + 1)
+    local quote = source:sub(index, index)
+    if pair == "//" then
+      index = source:find("\n", index, true) or length + 1
+    elseif pair == "/*" then
+      local close = source:find("*/", index + 2, true)
+      out[#out + 1] = "\n"
+      index = close and close + 2 or length + 1
+    elseif quote == "/" then
+      out[#out + 1] = quote
+      index = index + 1
+    else
+      local content, cursor = {}, index + 1
+      while cursor <= length do
+        local character = source:sub(cursor, cursor)
+        if character == "\\" then
+          cursor = cursor + 2
+        elseif character == quote then
+          break
+        else
+          content[#content + 1] = character
+          cursor = cursor + 1
+        end
+      end
+      out[#out + 1] = table.concat(content) == "node:test" and '"node:test"' or '""'
+      index = cursor + 1
+    end
+  end
+  return table.concat(out)
+end
+
 --- Whether `file_path` imports or requires `node:test`.
 ---
 --- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
@@ -26,9 +83,8 @@ local node_test_import_patterns = {
 --- file is read rather than a prefix, because a license or generated preamble can push a real
 --- import past any cutoff, and a missed import hands the file to a runner that cannot run it.
 ---
---- Comments come out before the match, so a note that merely names the module does not read as an
---- import. The strip is textual and knows nothing about string literals, so a `//` inside one ends
---- that line early; no import statement survives that shape anyway.
+--- Comments and string contents come out before the match, so neither a note that merely names the
+--- module nor a string that spells out an import statement reads as one.
 ---@param file_path string
 ---@return boolean
 local function imports_node_test(file_path)
@@ -36,9 +92,8 @@ local function imports_node_test(file_path)
   if not handle then
     return false
   end
-  local source = handle:read("*a") or ""
+  local source = code_only(handle:read("*a") or "")
   handle:close()
-  source = source:gsub("/%*.-%*/", "\n"):gsub("//[^\n]*", "")
   for _, pattern in ipairs(node_test_import_patterns) do
     if source:match(pattern) then
       return true
