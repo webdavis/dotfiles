@@ -38,22 +38,60 @@ return {
     },
     cond = vim.fn.has("mac") == 1,
     opts = {
-      -- Lazy loading on `ft = "swift"` misses `VimEnter`: opening `nvim` and then `:e Foo.swift`
-      -- registers this feature's autocmd after `VimEnter` has already fired, so the previous
-      -- run's logs, marks and diagnostics silently never restore. Upstream's own recommended
-      -- spec has no lazy trigger at all for exactly this reason. Loading eagerly to make the
-      -- default true would put the whole plugin on every startup for a feature that only saves
-      -- one manual re-run; not worth it here, so the default is turned off explicitly instead.
-      restore_on_start = false,
+      -- The write half of report persistence: with this off the plugin never saves the report
+      -- at all (`project/builder.lua:81`, `tests/runner.lua:199`), so last run's logs, marks
+      -- and diagnostics are gone every session. The read half is a `VimEnter` autocmd, which
+      -- an `ft = "swift"` spec always registers too late to fire, so `config` below calls
+      -- `load_last_report()` directly. Both halves now work without loading eagerly.
+      restore_on_start = true,
       -- Off by default upstream. `<leader>xv` toggles this, and a bound key that reports
       -- coverage is disabled and shows nothing is a dead key by another name; shipping "the
       -- Swift stack" with coverage dark by default was the audit's own named omission.
       code_coverage = { enabled = true },
+      code_coverage_report = {
+        -- Upstream's 60/30 thresholds are the conventional pair and there is no house number
+        -- to prefer over them. Expanding the tree is the change: the report exists to be read.
+        open_expanded = true,
+      },
+      project_config = {
+        -- Both off upstream. On, the plugin finds the project config from a file anywhere
+        -- below the project root rather than only at the cwd, and re-reads it when the cwd
+        -- moves. Worth it for a workspace holding a package and an app side by side.
+        search_in_parent_dirs = true,
+        reload_on_cwd_change = true,
+      },
+      project_manager = {
+        -- Off upstream. On, a new file is added to the xcodeproj nearest to it rather than to
+        -- the one configured, which is what makes the file-tree sync correct when a workspace
+        -- holds more than one project. With a single project it is a no-op.
+        find_xcodeproj = true,
+      },
+      test_explorer = {
+        -- Off upstream. A skipped test that is invisible reads as a test that does not exist.
+        show_disabled_tests = true,
+      },
       integrations = {
-        -- Needs pymobiledevice3 (not installed, a pipx tool) plus passwordless sudo for a
-        -- helper script this machine does not grant. Set explicitly so the config states the
-        -- decision instead of relying on device_proxy's own is_installed() fallback.
-        pymobiledevice = { enabled = false },
+        -- pymobiledevice3 is installed (uv tool, declared in
+        -- `.chezmoidata/system_packages_autoinstall.yaml`), which is what builds and runs apps
+        -- on a physical device and on anything below iOS 17. The iOS 17+ secure tunnel needs
+        -- one more step this config cannot take: a root-owned copy of the plugin's
+        -- `tools/remote_debugger` and a passwordless sudo rule for it (`:h xcodebuild.ios17`).
+        -- Everything else this integration does works without it.
+        pymobiledevice = { enabled = true },
+        -- On, `xcode-build-server config` runs with the scheme matching the current file's
+        -- target instead of the project's, so `buildServer.json` describes the target actually
+        -- being edited and sourcekit-lsp resolves imports correctly in a multi-scheme project.
+        xcode_build_server = { enabled = true, guess_scheme = true },
+        -- DELIBERATELY off, and the one feature not turned on. codelldb is the pre-Xcode-16
+        -- debug adapter; from Xcode 16 the plugin uses `lldb-dap` out of the toolchain and
+        -- says so in `integrations/dap.lua:594`. This machine is Xcode 26.6, so enabling it
+        -- would swap a current adapter for the legacy one. The path is filled in anyway, from
+        -- the Mason install `lsp.lua` already declares, so the fallback is one boolean away
+        -- and needs no path hunting on the day an old toolchain matters.
+        codelldb = {
+          enabled = false,
+          codelldb_path = vim.fn.stdpath("data") .. "/mason/packages/codelldb/extension/adapter/codelldb",
+        },
         -- The picker is chosen by first match down a fixed list (telescope, then snacks, then
         -- fzf-lua) in the plugin's own pickers.setup(). All three default to enabled, so snacks
         -- only wins today because neither of the others is installed: an accident, not a
