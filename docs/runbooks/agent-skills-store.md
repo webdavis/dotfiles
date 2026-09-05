@@ -210,13 +210,19 @@ Code and Codex get their correct copies from the babysitter plugin instead; only
 load that plugin at all, needs a file.
 
 `treefmt.toml` excludes `private_dot_hermes/private_skills/**` from mdformat, for the same reason
-`dot_agents/**` is excluded: the copy is byte-identical to upstream and mdformat would mangle its YAML
-frontmatter.
+`dot_agents/**` is excluded: it is vendored skill content with YAML frontmatter mdformat would mangle.
 
-It carries no `forks` drift-watch entry, and that is deliberate rather than an omission. The file is a
-stub whose whole body tells the agent to run `babysitter instructions:babysit-skill --harness hermes` and
-follow what comes back, so the instructions that matter are fetched at run time from the CLI pinned in
-`.chezmoidata/system_packages_autoinstall.yaml`. Re-compare it against `a5c-ai/babysitter-hermes`
+**Its dependency section is deliberately not upstream's.** Upstream's block reads a pinned SDK version
+out of a `versions.json` beside the plugin bundle and `npm i -g` installs it. Hermes sets no
+`PLUGIN_ROOT` and this delivery ships no `versions.json`, so that resolver produces `latest`, and the
+install line then downgrades the machine's pinned CLI for every tool that shares it. The local copy uses
+the already-installed `babysitter` and installs nothing at all; a missing CLI is reported rather than
+repaired. Keep it that way when porting anything else from upstream.
+
+It carries no `forks` drift-watch entry, and that is deliberate rather than an omission. The rest of the
+file is a stub whose body tells the agent to run `babysitter instructions:babysit-skill --harness hermes`
+and follow what comes back, so the instructions that matter are fetched at run time from the CLI pinned
+in `.chezmoidata/system_packages_autoinstall.yaml`. Re-compare it against `a5c-ai/babysitter-hermes`
 `skills/babysit/SKILL.md` when that pin is bumped, which is the only moment its content can meaningfully
 have moved.
 
