@@ -489,7 +489,8 @@
     "skill-creator@claude-plugins-official"
     "worktrunk@worktrunk"
     "last30days@last30days-skill"
-    "plannotator@plannotator" -}}
+    "plannotator@plannotator"
+    "babysitter@a5c.ai" -}}
 {{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: both the pns
        and the strategy marketplaces are DIRECTORIES on disk, and neither
        directory is deployed on Linux. Declaring a marketplace whose path is not
@@ -505,9 +506,24 @@
        2026-08-02 by replacing the hasKey call with a literal `true`: no case in
        test/unit/claude-enabled-plugins.sh changed verdict, which is what makes
        it dead rather than defensive. */ -}}
+{{- /* Roster ids whose DEFAULT is off rather than on. Membership changes only
+       what a machine with no entry of its own gets, so the live-state read
+       below still wins and `claude plugin enable <id>` still sticks: this is a
+       default, not an override.
+
+       `babysitter@a5c.ai` is held here over two upstream defects, found in
+       review 2026-09-05. An ordinary SessionStart with the plugin enabled
+       creates a run and executes any `.a5c/hooks/on-run-start/` script it
+       discovers in the repository through Bash, non-executable files included,
+       with no approval separate from the one the operator gave the plugin's own
+       hook. And the installed Claude and Codex adapters both drop Stop's
+       `decision: "block"`, so a skill that yields expecting Stop to resume the
+       orchestration can terminate early instead. Take the id off this list once
+       an upstream release fixes both. */ -}}
+{{- $defaultDisabledPlugins := list "babysitter@a5c.ai" -}}
 {{- $enabledPlugins := dict -}}
 {{- range $pluginName := $declaredPlugins -}}
-{{-   $pluginEnabled := true -}}
+{{-   $pluginEnabled := not (has $pluginName $defaultDisabledPlugins) -}}
 {{-   $liveValue := index $livePlugins $pluginName -}}
 {{-   $liveValueKind := kindOf $liveValue -}}
 {{-   if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
@@ -534,7 +550,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       seven keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       eight keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
@@ -559,6 +575,19 @@
 {{- $merged = setValueAtPath "extraKnownMarketplaces.plannotator" (dict
     "source" (dict "source" "github" "repo" "backnotprop/plannotator")
     "autoUpdate" true) $merged -}}
+{{- /* Babysitter's marketplace. `a5c.ai` is the name the marketplace declares
+       for itself, so it is the key `claude plugin marketplace add` writes and
+       the one the `babysitter@a5c.ai` plugin id resolves against. autoUpdate is
+       set here for the same reason as the five above: the CLI never writes it,
+       and without it the marketplace and its plugin sit at the installed
+       version forever. */ -}}
+{{- /* The LIST path form, not the dotted string the siblings use: this key
+       contains a dot, and a dotted path would create a nested `a5c` map with an
+       `ai` child instead of the one key Claude Code writes. */ -}}
+{{- $merged = setValueAtPath (list "extraKnownMarketplaces" "a5c.ai") (dict
+    "source" (dict "source" "github" "repo" "a5c-ai/babysitter-claude")
+    "autoUpdate" true) $merged -}}
+
 {{- /* THIS REPO'S OWN MARKETPLACE, a DIRECTORY rather than a repo to fetch.
        `{source: "directory", path: <absolute>}` is the shape `claude plugin
        marketplace add <path>` writes into user settings, read back off a real
