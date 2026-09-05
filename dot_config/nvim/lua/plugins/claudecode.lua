@@ -52,6 +52,14 @@ return {
     -- prompt, a non-Claude agent and an unsaved scratch buffer. It lives on this
     -- spec because `<leader>C` is the Claude group and a `keys` entry is what
     -- keeps the whole group lazy.
+    --
+    -- KNOWN SIDE EFFECT: reaching the seam through this spec loads the plugin,
+    -- so the first `<leader>Cp` also starts the WebSocket server and writes
+    -- ~/.claude/ide/<port>.lock, which the seam itself does not need. Kept
+    -- deliberately: the lock has to exist before any CLI connects (question 4
+    -- above), so an early start is the direction this config wants anyway, and
+    -- moving the key out would split one Claude group across two files for a
+    -- server that `<leader>Cc` starts a keystroke later regardless.
     {
       "<leader>Cp",
       function()
