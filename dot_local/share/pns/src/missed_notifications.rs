@@ -1,4 +1,6 @@
-//! The journal of notifications the operator could not have perceived.
+//! The journal of notifications the operator could not have perceived: the
+//! JSON codec that writes and reads one entry, and the three predicates that
+//! decide whether an event was missed.
 //!
 //! POLICY ONLY, in `decision_log`'s style: every function here is a total
 //! function of its arguments, with no config, no clock, no environment, no
@@ -6,47 +8,23 @@
 //! the file is, appends what comes back and prints what the doctor asks for.
 //! This module never learns where the journal lives.
 //!
-//! THE PRIVACY RULE, in one sentence: the journal holds what a CARD would
-//! have shown, no pns command ever prints an entry, and the only thing that
-//! reads an entry back is the replayer, which delivers it to the same
-//! channels the live event would have reached. `waiting_line` is where that
-//! rule is STRUCTURAL rather than promised: it counts non-empty lines and has
-//! no parse, so there is no code path in it that can emit a field.
-//!
 //! WHY THIS IS NOT THE DECISION RING. The two files have different readers.
 //! The ring is read by a human through `pns doctor` and therefore admits no
 //! free text at all; the journal is read by the replayer and is useless
 //! without the event's own text. Fusing them would mean either printing
 //! content to a terminal or journaling nothing worth replaying.
+//!
+//! What a miss COMPOSES INTO moved to `pns-domain`. The codec stays because
+//! this crate is where `serde_json` lives, and the three predicates stay
+//! because they answer over the engine's `Decision`.
 
 use crate::args::EventArgs;
 use crate::engine::{Decision, Overrides};
 use crate::surface::{Surface, Visibility};
 
-/// How many missed notifications the journal keeps.
-///
-/// TWENTY FIVE RATHER THAN THE RING'S FIVE. Five is argued from one
-/// intervening Stop hook, which is a scale of seconds; this file has to
-/// survive an absence of hours, and twenty five covers an evening at a few
-/// notifiable events an hour. Unbounded is wrong for the other reason: this
-/// is state, not a log stream, and nothing rotates it.
-///
-/// RAISING IT IS THIS ONE NUMBER ONLY UP TO A CEILING, and the ceiling is
-/// near enough to state. Each of the five text fields is capped at
-/// `render::PREVIEW_MAX_CHARS` characters, and one character can cost six
-/// bytes escaped (a control byte is written `\u001b`), so a worst-case entry
-/// MEASURES 7,876 bytes and a full journal 196,900, which is 75% of the 256
-/// KiB the composition root reads any of these state files back through.
-/// Past a depth of 33 a full journal no longer reads back at all, and the
-/// append answers a file it cannot read by republishing the one line it just
-/// wrote: the journal would collapse to a single entry exactly when it is
-/// fullest, and silently. Raising this past 33 means raising that read cap in
-/// the same change.
-///
-/// ORDINARY ENTRIES ARE NOWHERE NEAR THAT, a few hundred bytes of plain text,
-/// so the ceiling is reached only by fields that are all escape bytes. It is
-/// stated because the collapse is silent, not because it is likely.
-pub const KEPT: usize = 25;
+pub use pns_domain::missed::{
+    Entry, KEPT, NEEDS_YOU, event_count, needing_you, recap_card, summary, waiting_line,
+};
 
 /// Whether the operator COULD NOT HAVE PERCEIVED this event.
 ///
@@ -179,25 +157,6 @@ pub fn entry(event: &EventArgs, at: Option<u64>, max_chars: usize) -> String {
     .to_string()
 }
 
-/// One journal entry read back: the six values `entry` wrote, and nothing
-/// else.
-///
-/// THE READ SIDE OF `entry`, kept beside it so the pair changes together. It
-/// is a struct rather than a `serde_json::Value` because the replay renders
-/// from it and a caller holding a `Value` would be free to reach for a key
-/// nobody wrote.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Entry {
-    /// The epoch the miss was journaled at, absent when the writer had no
-    /// readable clock.
-    pub at: Option<u64>,
-    pub agent: String,
-    pub state: String,
-    pub project: String,
-    pub branch: String,
-    pub detail: String,
-}
-
 /// The journal's contents read back into entries, oldest first, which is the
 /// order the append leaves the file in.
 ///
@@ -229,193 +188,6 @@ pub fn entries(contents: &str) -> Vec<Entry> {
         .collect()
 }
 
-/// The one card a replay delivers, whatever the count: the true count, then
-/// as many entries as fit, NEWEST FIRST.
-///
-/// ONE SHAPE AND NO SPECIAL CASE. A summary for many plus the real card for
-/// exactly one would be two code paths, two sets of tests and a seam where
-/// the two can disagree about what a replayed card looks like; and a
-/// one-entry summary carries the same content the real card would, because
-/// an entry holds exactly the values `render::title` and `render::message`
-/// consume.
-///
-/// `waiting` ARRIVES IN THE FILE'S OWN ORDER, oldest first, and is rendered
-/// newest first here, because `render::preview` cuts from the START: what
-/// survives a cut has to be what matters most.
-///
-/// THE COUNT IS ALWAYS THE REAL COUNT, even when the body stopped early, so
-/// the card never claims a number it did not show and never shows a number it
-/// cannot back. The body stops at `render::PREVIEW_MAX_CHARS` rather than
-/// leaving the cut to `preview`, so the operator is told how many are behind
-/// the ones they can read; the full text of every entry already reached the
-/// durable log when it happened.
-///
-/// THE NEWEST ENTRY GOES IN WHATEVER ITS LENGTH, and only the ones behind it
-/// have to fit. MEASURED: a single missed notification with a 209-character
-/// detail took the body one character past the cap, so the loop stopped
-/// before appending anything and the card read "1 missed notification" with
-/// no content at all, which is precisely the notification it exists to
-/// deliver. The cut for that one entry is `render::preview`'s, on the way
-/// out, which is where every other over-long body is already cut.
-pub fn summary(waiting: &[Entry]) -> String {
-    let mut body = match waiting.len() {
-        1 => "1 missed notification".to_string(),
-        many => format!("{many} missed notifications"),
-    };
-    for (shown, entry) in waiting.iter().rev().enumerate() {
-        let separator = if shown == 0 { ". " } else { "; " };
-        let extended = format!("{body}{separator}{}", rendered(entry));
-        // STOPPED RATHER THAN SKIPPED, which is also what lets the index above
-        // stand in for how many were shown: the entries left out are the
-        // oldest, and a body that skipped a long one to reach an older short
-        // one would read as though the newest were missing.
-        //
-        // AND NEVER BEFORE THE FIRST ONE. `shown == 0` is the newest entry
-        // with nothing appended yet, and stopping there leaves the count
-        // standing alone as the whole card.
-        if shown > 0 && extended.chars().count() > crate::render::PREVIEW_MAX_CHARS {
-            break;
-        }
-        body = extended;
-    }
-    body
-}
-
-/// The states that mean an agent is WAITING ON THE OPERATOR rather than
-/// reporting to them.
-///
-/// ONE LIST, TWO READERS. The phone card's needs-you line and the recap's own
-/// NEEDS YOU section are the same question asked at two sizes, and two copies
-/// of this list would drift the day a sixth state joins. The first four are the
-/// mid-turn arm's own words in the composition root; `failed` is a turn that
-/// died, which needs the operator every bit as much as one that asked.
-pub const NEEDS_YOU: [&str; 5] = ["asked", "blocked", "denied", "failed", "plan-ready"];
-
-/// The entries in a window that still need the operator, in the order they
-/// arrived.
-pub fn needing_you(entries: &[Entry]) -> Vec<Entry> {
-    entries
-        .iter()
-        .filter(|entry| NEEDS_YOU.contains(&entry.state.as_str()))
-        .cloned()
-        .collect()
-}
-
-/// The phone layer of the return recap: what still needs the operator, then
-/// the true counts, then where the rest is.
-///
-/// NEEDS YOU FIRST AND NEVER SUMMARIZED AWAY, which is why it is composed here
-/// and not by any model: the urgent line is the one a hallucination would cost
-/// the most, and it is the one thing on this card that cannot wait for the
-/// Discord recap to be read.
-///
-/// EVERY NUMBER IS A LENGTH, never a claim. `counted` is the window's own
-/// length and `missed` is the claimed journal's, so a card that ran out of room
-/// still names totals it can back. That is `summary`'s count-never-lies rule
-/// applied to a second card.
-///
-/// THE COUNTS AND THE POINTER ARE RESERVED, and the urgent items are fitted
-/// into whatever room is left. MEASURED as the reason this is not a stop rule
-/// alone: a 120-character agent and a 120-character project compose a
-/// 253-character title, the first urgent item used to go in whatever its
-/// length, and the card reached 289 characters. `render::preview` is what the
-/// phone is actually handed, and it cuts at the last SENTENCE END that fits,
-/// which is the full stop before the counts: the delivered preview was
-/// 254 characters of title with the event count, the missed count and the
-/// pointer all gone. So the newest urgent item is CUT to the room rather than
-/// dropped (a card without the one thing waiting on the operator is the
-/// notification it exists to deliver) and the card never exceeds the cap at
-/// all, which is what makes the preview a no-op.
-///
-/// TWO INDEPENDENT READS OF ONE RING, STATED. `counted` is this process's read
-/// of the window and the Discord header is the child's, so the two can differ
-/// by an event written between them. Each is honest about what it read; see
-/// `spawn_recap`'s own comment for why nothing reconciles them.
-///
-/// "recap in #pns" IS ONLY SAID WHEN THERE IS ONE. `digest_posted` is whether a
-/// child was really started, not whether one was wanted, so the card never
-/// points at a recap that was never going to arrive.
-pub fn recap_card(
-    needs_you: &[Entry],
-    counted: usize,
-    missed: usize,
-    digest_posted: bool,
-) -> String {
-    let mut counts = event_count(counted);
-    if missed > 0 {
-        counts.push_str(&format!(", {missed} missed"));
-    }
-    if digest_posted {
-        counts.push_str(". recap in #pns");
-    }
-    // THE ROOM THE COUNTS LEFT, separator included, which is what every urgent
-    // item is fitted into. A count so long that nothing is left is an empty
-    // room, and the card is then the counts alone.
-    let room = crate::render::PREVIEW_MAX_CHARS.saturating_sub(counts.chars().count() + SEPARATOR);
-    let mut urgent: Vec<String> = Vec::new();
-    for entry in needs_you.iter().rev() {
-        let mut extended = urgent.clone();
-        extended.push(crate::render::clipped(
-            &crate::render::title(&entry.agent, &entry.state, &entry.project),
-            room,
-        ));
-        // STOPPED RATHER THAN SKIPPED, and never before the first: `summary`'s
-        // own two rules, for its own two reasons. The first item is already
-        // inside the room by the clip above, so "never before the first" costs
-        // the cap nothing here.
-        if !urgent.is_empty() && joined(&extended).chars().count() > room {
-            break;
-        }
-        urgent = extended;
-    }
-    with_counts(&urgent, &counts)
-}
-
-/// The window's own count, said ONCE so the phone card and the Discord header
-/// cannot disagree about it. A one-event window read "1 events" on the phone
-/// and "1 event" in Discord while this was two sentences.
-pub fn event_count(counted: usize) -> String {
-    if counted == 1 {
-        "1 event".to_string()
-    } else {
-        format!("{counted} events")
-    }
-}
-
-/// What separates the urgent items from the counts, counted rather than
-/// guessed at, so the reservation above and the composition below cannot
-/// disagree about its width.
-const SEPARATOR: usize = ". ".len();
-
-/// The urgent items in front of the counts, or the counts alone.
-fn with_counts(urgent: &[String], counts: &str) -> String {
-    if urgent.is_empty() {
-        counts.to_string()
-    } else {
-        format!("{}. {counts}", joined(urgent))
-    }
-}
-
-/// The urgent items as one run of text, which is the thing the room is
-/// measured against.
-fn joined(urgent: &[String]) -> String {
-    urgent.join("; ")
-}
-
-/// One entry as a line of the summary: the card's own title, and its text
-/// where there is any.
-///
-/// THE TITLE ALONE FOR AN EMPTY DETAIL, because the title already carries the
-/// state a bare `done` turn would otherwise repeat after a colon.
-fn rendered(entry: &Entry) -> String {
-    let title = crate::render::title(&entry.agent, &entry.state, &entry.project);
-    if entry.detail.is_empty() {
-        title
-    } else {
-        format!("{title}: {}", entry.detail)
-    }
-}
-
 /// One text field off a parsed entry, absent and non-string alike reading as
 /// empty.
 fn text(fields: &serde_json::Map<String, serde_json::Value>, key: &str) -> String {
@@ -426,83 +198,10 @@ fn text(fields: &serde_json::Map<String, serde_json::Value>, key: &str) -> Strin
         .to_string()
 }
 
-/// The doctor's one line about the journal, from the file's contents.
-/// `contents` is `None` when there is no journal at all.
-///
-/// IT COUNTS AND NEVER PARSES, and that is the privacy rule made structural
-/// rather than promised: there is no code path in here that could emit a
-/// field, because nothing in here ever looks inside a line. Anyone tempted to
-/// make this "more helpful" by rendering the newest entry is about to print
-/// the operator's own text to a terminal, which is exactly what the decision
-/// ring refuses free text to avoid.
-///
-/// IT SAYS WHAT IS WAITING, never "you missed N". The prune drops the oldest,
-/// so over a long absence the file under-reports what was truly missed, and no
-/// line here claims a number the file cannot back.
-///
-/// IT NAMES WHAT DELIVERS THEM, which is a promise the binary keeps, and it
-/// names it EXACTLY. The sentence used to end "nothing replays them yet",
-/// which the replay made false the moment it shipped, and then "the next
-/// event the operator is present for", which promises more than the binary
-/// does: presence alone delivers nothing. Three things have to be true at
-/// once, and the sentence says all three. The operator is not away; the event
-/// earned a banner or a card (a muted one earns neither, and neither does one
-/// on a pane they are watching); and a leg was there to raise it (a machine
-/// with only a durable channel raises nothing). The zero case says nothing
-/// about replaying, because there is nothing waiting to promise anything
-/// about.
-///
-/// `replay_card` IS THE FOURTH THING, and the one no event can satisfy: with
-/// `[recap] replay_card = false` the delivery is switched off, so the promise
-/// above is one the binary cannot keep for as long as the switch stands. The
-/// off sentence says what is true instead, which is that the misses are
-/// RECORDED (the journal writes regardless of the switch) and that nothing
-/// moves them until the card is switched back on. The zero case is the same
-/// sentence either way: there is nothing waiting, so there is nothing to
-/// promise or unpromise about.
-pub fn waiting_line(contents: Option<&str>, replay_card: bool) -> String {
-    let waiting = contents
-        .unwrap_or_default()
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .count();
-    match waiting {
-        0 => NONE_WAITING.to_string(),
-        1 if replay_card => "pns doctor: 1 missed notification is waiting to be replayed; \
-             the next event that raises a banner or a card while the operator \
-             is not away delivers it."
-            .to_string(),
-        1 => "pns doctor: 1 missed notification is recorded; the catch-up card \
-             is switched off (`[recap] replay_card = false`), so nothing delivers \
-             it until the card is switched back on."
-            .to_string(),
-        many if replay_card => {
-            format!(
-                "pns doctor: {many} missed notifications are waiting to be replayed; \
-                 the next event that raises a banner or a card while the operator \
-                 is not away delivers them."
-            )
-        }
-        many => {
-            format!(
-                "pns doctor: {many} missed notifications are recorded; the catch-up card \
-                 is switched off (`[recap] replay_card = false`), so nothing delivers \
-                 them until the card is switched back on."
-            )
-        }
-    }
-}
-
-/// An empty journal, which is honestly ambiguous: either nothing was missed or
-/// a write did not land. It says what is RECORDED for that reason, and claims
-/// neither reading.
-const NONE_WAITING: &str = "pns doctor: no missed notification is recorded.";
-
 #[cfg(test)]
 mod tests {
     use super::{
-        Entry, entries, entry, is_present, needing_you, recap_card, should_replay, summary,
-        waiting_line, was_missed,
+        Entry, entries, entry, is_present, should_replay, summary, waiting_line, was_missed,
     };
     use crate::args::EventArgs;
     use crate::engine::{Decision, GateInputs, Overrides};
@@ -958,7 +657,6 @@ mod tests {
     fn waiting(count: usize) -> Vec<Entry> {
         entries(&journal(count))
     }
-
     #[test]
     fn a_summary_of_three_names_three_and_puts_the_newest_first() {
         // NEWEST FIRST because `render::preview` cuts from the START, so what
@@ -974,26 +672,6 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_entry_renders_its_title_alone_without_a_dangling_colon() {
-        // The common bare `done` turn carries no detail, and a card that read
-        // "claude \u{b7} done \u{b7} dotfiles:" would look truncated rather
-        // than complete. Pins the title-only arm of `rendered`.
-        let bare = Entry {
-            at: Some(1_000),
-            agent: "claude".to_string(),
-            state: "done".to_string(),
-            project: "dotfiles".to_string(),
-            branch: String::new(),
-            detail: String::new(),
-        };
-        let line = summary(&[bare]);
-        assert!(
-            !line.trim_end().ends_with(':') && !line.contains(": ;") && !line.contains(":;"),
-            "a bare entry must not dangle a colon: {line}"
-        );
-    }
-
-    #[test]
     fn a_summary_of_one_reads_as_a_single_notification_in_the_singular() {
         // ONE SHAPE FOR EVERY COUNT: a single entry gets the same card the
         // batch does, carrying the same values the live card would have, and
@@ -1001,261 +679,6 @@ mod tests {
         assert_eq!(
             summary(&waiting(1)),
             "1 missed notification. claude · blocked · dotfiles: summary 0"
-        );
-    }
-
-    /// One entry of a stated length, carrying a phrase no other entry in its
-    /// fixture holds, so an assertion names WHICH entry reached the body.
-    fn sized(phrase: &str, padding: usize) -> Entry {
-        Entry {
-            agent: "claude".to_string(),
-            state: "done".to_string(),
-            detail: format!("{phrase}{}", "x".repeat(padding)),
-            ..Entry::default()
-        }
-    }
-
-    #[test]
-    fn a_summary_too_long_for_the_card_stops_early_and_still_names_the_true_count() {
-        // THE COUNT NEVER LIES EITHER WAY: it is the real number even when the
-        // body ran out of room, and the body never runs past what a card
-        // renders without a cut.
-        //
-        // THE TWO NEWEST ARE LONG AND THE TWO OLDEST SHORT, which is what makes
-        // STOPPING distinguishable from SKIPPING at all. Four entries of ONE
-        // length cannot tell the two apart: what does not fit for the newest
-        // does not fit for an older one either, so a build that skipped and
-        // carried on would render exactly the same body. With a short entry
-        // waiting behind a long one, skipping reaches it and prints the oldest
-        // news as though the newest were missing.
-        let cap = crate::render::PREVIEW_MAX_CHARS;
-        let waiting = [
-            sized("the oldest short one", 0),
-            sized("the second short one", 0),
-            sized("the older long one", cap / 2),
-            sized("the newest long one", cap / 2),
-        ];
-        let body = summary(&waiting);
-        assert!(
-            body.starts_with("4 missed notifications. "),
-            "the true count leads: {body}"
-        );
-        assert!(
-            body.chars().count() <= cap,
-            "the body is inside what a card renders whole: {} chars",
-            body.chars().count()
-        );
-        assert!(
-            body.contains("the newest long one"),
-            "the newest entry is what the body spends its room on: {body}"
-        );
-        // AND NOTHING BEHIND THE ONE THAT DID NOT FIT, which is the assertion a
-        // `continue` in place of the `break` fails: it would reach past the
-        // older long entry to both short ones.
-        for skipped in [
-            "the older long one",
-            "the second short one",
-            "the oldest short one",
-        ] {
-            assert!(
-                !body.contains(skipped),
-                "{skipped} rode past the stop: {body}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_single_entry_past_the_cap_is_still_delivered_rather_than_becoming_a_bare_count() {
-        // MEASURED ON THE SHIPPED BUILD: a 209-character detail put the body
-        // one character past the cap, the loop broke before appending
-        // anything, and the whole card read "1 missed notification" with no
-        // content at all. The one notification the operator missed is exactly
-        // what a card is for, so the newest entry goes in whatever its length
-        // and `render::preview` takes the cut on the way out, which is the
-        // existing, tested path.
-        //
-        // THE TWO FIXTURES STRADDLE THE CAP BY ONE, and each asserts where it
-        // landed rather than trusting a length: 208 characters of detail is the
-        // last that fits whole, 209 the first that does not. A cap that moves
-        // fails these two lines and names the new number.
-        //
-        // THE MEASURED SHAPE, card and all: a title of `claude, blocked,
-        // dotfiles` is what puts the boundary at 208 characters of detail.
-        let carded = |detail: usize| Entry {
-            agent: "claude".to_string(),
-            state: "blocked".to_string(),
-            project: "dotfiles".to_string(),
-            detail: "x".repeat(detail),
-            ..Entry::default()
-        };
-        let cap = crate::render::PREVIEW_MAX_CHARS;
-        let fits = summary(&[carded(208)]);
-        assert_eq!(
-            fits.chars().count(),
-            cap,
-            "the fixture has to land ON the cap: {fits}"
-        );
-        assert!(fits.contains(&"x".repeat(208)), "{fits}");
-        let over = summary(&[carded(209)]);
-        assert_eq!(
-            over.chars().count(),
-            cap + 1,
-            "the fixture has to land one PAST the cap: {over}"
-        );
-        assert!(
-            over.starts_with("1 missed notification. "),
-            "the count still leads: {over}"
-        );
-        assert!(
-            over.contains(&"x".repeat(209)),
-            "the only entry there was never reached the card: {over}"
-        );
-    }
-
-    // --- the recap's own card ----------------------------------------------
-
-    /// One activity entry in a state and a project, which is all the card
-    /// renders of it.
-    fn acted(state: &str, project: &str) -> Entry {
-        Entry {
-            agent: "claude".to_string(),
-            state: state.to_string(),
-            project: project.to_string(),
-            ..Entry::default()
-        }
-    }
-
-    #[test]
-    fn the_recap_card_puts_what_needs_the_operator_in_front_of_every_count() {
-        // NEEDS YOU FIRST. The counts are the reason the card is worth reading
-        // at all, but the urgent item is the reason it is worth acting on, and
-        // a card that opened with a number would bury it.
-        let card = recap_card(
-            &[acted("done", "p"), acted("blocked", "dotfiles")],
-            12,
-            2,
-            true,
-        );
-        let urgent = card
-            .find("blocked")
-            .expect("the urgent item is on the card");
-        let count = card
-            .find("12 events")
-            .expect("the window's count is on the card");
-        assert!(urgent < count, "the counts came first: {card}");
-        assert!(card.contains("2 missed"), "{card}");
-        assert!(card.ends_with("recap in #pns"), "{card}");
-    }
-
-    #[test]
-    fn a_recap_card_with_nothing_waiting_says_so_by_saying_nothing_about_it() {
-        // NO ZERO CLAUSE. "0 missed" is a sentence about nothing, and the card
-        // is 260 characters wide; the pointer is dropped for the mirror reason,
-        // because a card must never name a recap that was never started.
-        let card = recap_card(&[], 12, 0, false);
-        assert_eq!(card, "12 events", "{card}");
-    }
-
-    #[test]
-    fn the_recap_cards_counts_survive_a_needs_you_list_too_long_to_fit() {
-        // THE COUNTS ARE RESERVED, not fitted. They are what the card can
-        // always back, so they are built first and the urgent items are fitted
-        // in front of them; a build that filled the card with titles and then
-        // cut would drop the numbers instead.
-        let crowd: Vec<Entry> = (0..40)
-            .map(|which| acted("blocked", &format!("project-{which}")))
-            .collect();
-        let card = recap_card(&crowd, 80, 3, true);
-        assert!(
-            card.contains("80 events, 3 missed. recap in #pns"),
-            "the counts were cut to make room: {card}"
-        );
-        assert!(
-            card.chars().count() <= crate::render::PREVIEW_MAX_CHARS,
-            "the card ran past what a phone renders: {} chars",
-            card.chars().count()
-        );
-        assert!(
-            card.starts_with("claude · blocked · project-39"),
-            "the newest urgent item leads: {card}"
-        );
-    }
-
-    #[test]
-    fn one_urgent_item_too_long_for_the_card_is_cut_to_fit_rather_than_dropped() {
-        // `summary`'S MEASURED RULE, applied to the second card. The one thing
-        // waiting on the operator is exactly what the card is for, so the
-        // newest item is never the thing that goes; what gives is its length.
-        let huge = acted("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
-        let card = recap_card(&[huge], 9, 0, false);
-        assert!(
-            card.contains(&"x".repeat(200)),
-            "the item was dropped: {card}"
-        );
-        assert!(
-            card.ends_with("9 events"),
-            "and the count still stands: {card}"
-        );
-    }
-
-    #[test]
-    fn every_count_survives_the_preview_the_phone_is_actually_handed() {
-        // THE DELIVERED CARD IS `render::preview` OF THE CARD, never the card
-        // itself, and that is where this used to fail. MEASURED: a
-        // 120-character agent and a 120-character project (the activity ring's
-        // own field cap, twice) compose a 253-character title; the card reached
-        // 289 characters, and the preview cuts at the last SENTENCE END that
-        // fits, which is the full stop in front of the counts. The phone was
-        // handed 254 characters of title with the event count, the missed
-        // count and the pointer all gone: every number the card exists to
-        // carry, and the pointer to where the rest of it is.
-        //
-        // ASSERTED AGAINST THE PREVIEW, never the raw detail, which is the
-        // whole point: the raw detail passed the whole time.
-        let wide = Entry {
-            agent: "a".repeat(120),
-            state: "blocked".to_string(),
-            project: "p".repeat(120),
-            ..Entry::default()
-        };
-        let card = recap_card(&[wide], 13, 2, true);
-        let delivered = crate::render::preview(&card);
-
-        assert_eq!(
-            delivered, card,
-            "the card was long enough for the preview to cut it at all"
-        );
-        assert!(delivered.contains("13 events"), "{delivered}");
-        assert!(delivered.contains("2 missed"), "{delivered}");
-        assert!(delivered.contains("recap in #pns"), "{delivered}");
-        assert!(
-            delivered.contains("blocked"),
-            "and the urgent item is still what leads: {delivered}"
-        );
-    }
-
-    #[test]
-    fn only_the_states_that_wait_on_the_operator_are_needing_you() {
-        // ONE LIST, TWO READERS, so this pins the list itself rather than the
-        // card that spends it. `done` is a report and `stale` is a warning;
-        // neither is waiting on an answer.
-        let window = vec![
-            acted("done", "p"),
-            acted("blocked", "p"),
-            acted("stale", "p"),
-            acted("asked", "p"),
-            acted("plan-ready", "p"),
-            acted("denied", "p"),
-            acted("failed", "p"),
-        ];
-        let waiting: Vec<String> = needing_you(&window)
-            .into_iter()
-            .map(|entry| entry.state)
-            .collect();
-        assert_eq!(
-            waiting,
-            ["blocked", "asked", "plan-ready", "denied", "failed"],
-            "in the order they arrived"
         );
     }
 
@@ -1318,25 +741,6 @@ mod tests {
              is switched off (`[recap] replay_card = false`), so nothing delivers \
              it until the card is switched back on."
         );
-    }
-
-    #[test]
-    fn an_absent_or_blank_journal_says_nothing_is_recorded_and_names_nothing() {
-        // AN EMPTY JOURNAL IS AMBIGUOUS: either nothing was missed or a write
-        // did not land. The line claims neither, and it never says a number.
-        let none = "pns doctor: no missed notification is recorded.";
-        assert_eq!(waiting_line(None, true), none);
-        assert_eq!(waiting_line(Some(""), true), none);
-        assert_eq!(waiting_line(Some("\n"), true), none);
-        assert_eq!(waiting_line(Some("\n   \n\t\n"), true), none);
-        // AND THE CARD'S SWITCH DOES NOT REACH THIS ARM. There is nothing
-        // waiting, so there is no promise for the switch to make or unmake,
-        // and a second sentence for the same empty journal would be one more
-        // thing to keep true for no reading gained.
-        assert_eq!(waiting_line(None, false), none);
-        assert_eq!(waiting_line(Some(""), false), none);
-        assert_eq!(waiting_line(Some("\n"), false), none);
-        assert_eq!(waiting_line(Some("\n   \n\t\n"), false), none);
     }
 
     #[test]
