@@ -23,23 +23,49 @@ end
 
 -- Runs the plugin file's `init` with a fake logger installed (or not) and fires
 -- `UIEnter`, returning the level the fake was handed, or nil when it was left alone.
+-- Runs the plugin file's `init` FIRST (the order lazy.nvim uses: `init` at
+-- startup, the logger loaded later), then attaches a UI with the fake logger
+-- installed or absent, and returns the level the fake was handed, or nil.
+local function fake_logger(record)
+  return {
+    setup = function(conf)
+      record.level = conf.log_level
+      record.calls = (record.calls or 0) + 1
+    end,
+  }
+end
+
 local function level_after_ui_attaches(logger_loaded)
-  local handed
+  local record = {}
   local real = package.loaded["claudecode.logger"]
-  package.loaded["claudecode.logger"] = logger_loaded
-      and {
-        setup = function(conf)
-          handed = conf.log_level
-        end,
-      }
-    or nil
   dofile(config_root .. "/lua/plugins/claudecode.lua").init()
+  package.loaded["claudecode.logger"] = logger_loaded and fake_logger(record) or nil
   vim.api.nvim_exec_autocmds("UIEnter", {})
   package.loaded["claudecode.logger"] = real
-  return handed
+  return record.level
+end
+
+-- The round-3 sequence: the UI attaches before the plugin has loaded (nothing
+-- to restore), the plugin then loads, and a LATER attach must still restore.
+local function level_after_early_and_late_attach()
+  local record = {}
+  local real = package.loaded["claudecode.logger"]
+  dofile(config_root .. "/lua/plugins/claudecode.lua").init()
+  package.loaded["claudecode.logger"] = nil
+  vim.api.nvim_exec_autocmds("UIEnter", {})
+  package.loaded["claudecode.logger"] = fake_logger(record)
+  vim.api.nvim_exec_autocmds("UIEnter", {})
+  vim.api.nvim_exec_autocmds("UIEnter", {})
+  package.loaded["claudecode.logger"] = real
+  return record.level, record.calls
 end
 
 return {
+  ["a UI that attached before the plugin loaded does not spend the hook"] = function()
+    local level, calls = level_after_early_and_late_attach()
+    assert(level == "info", "late attach did not restore: " .. tostring(level))
+    assert(calls == 1, "restore ran " .. tostring(calls) .. " times, want once")
+  end,
   ["a UI attaching after the plugin loaded raises the level back to info"] = function()
     assert(level_after_ui_attaches(true) == "info")
   end,

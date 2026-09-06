@@ -111,14 +111,22 @@ return {
   -- `UIEnter`, and only when the logger has already been loaded, so a normal
   -- interactive start (UI first, plugin at `VeryLazy`) is untouched.
   init = function()
+    -- Not `once`: a UI can attach and detach before the plugin loads (an
+    -- `--embed` client attaching, detaching, and letting `VeryLazy` load the
+    -- plugin with no UI), and a one-shot hook consumed then would leave a later
+    -- attach unable to restore INFO. The hook stays until it has something to
+    -- restore, and removes itself only after it has done so.
+    local group = vim.api.nvim_create_augroup("claudecode_restore_info", { clear = true })
     vim.api.nvim_create_autocmd("UIEnter", {
-      once = true,
+      group = group,
       desc = "claudecode.nvim: restore INFO logging once a UI is attached",
       callback = function()
         local logger = package.loaded["claudecode.logger"]
-        if logger then
-          logger.setup({ log_level = "info" })
+        if not logger then
+          return
         end
+        logger.setup({ log_level = "info" })
+        vim.api.nvim_del_augroup_by_id(group)
       end,
     })
   end,
