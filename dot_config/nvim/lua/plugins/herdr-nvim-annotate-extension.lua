@@ -20,8 +20,6 @@
 -- notifier.
 return {
   "webdavis/herdr-nvim-annotate-extension.nvim",
-  -- FILLME: the pin, once the plugin repository is pushed. The operator fills
-  -- this and lazy-lock.json gets its row from the install that follows.
   commit = "0a5d39889a84f0212180283e73fc345b59b199d2",
   dependencies = { "ChmaraX/herdr-nvim" },
   keys = {
