@@ -18,6 +18,7 @@
 //! already: the environment probes, the surface and visibility they are read
 //! into, and the plugin selection.
 
+pub mod decide;
 pub mod environment_reading;
 pub mod ports;
 pub mod selection;
