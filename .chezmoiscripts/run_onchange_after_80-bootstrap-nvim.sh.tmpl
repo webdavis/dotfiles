@@ -1,0 +1,200 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Brings this machine's Neovim state up to what the config declares, then PROVES
+# the result instead of trusting it: restore every plugin to its pinned commit,
+# install every Mason tool, run the config's own Lua specs against the DEPLOYED
+# tree, then check the two tools' output on disk and assert clangd's flags.
+#
+# PREREQUISITES (spec 3.9). Every one of them belongs to the machine or to an
+# earlier stage of the same apply, and none is installed here:
+#
+#   network access  lazy.nvim clones roughly ninety repositories and Mason
+#                   downloads roughly fifty packages
+#   git             lazy.nvim's only transport
+#   cargo           builds tree-sitter-cli; run_once_before_20-install-rustup
+#                   puts it at ~/.cargo/bin
+#   go              Mason builds gopls with it (spec 5.3)
+#   Xcode           the Swift stack (sourcekit-lsp, swiftlint, swiftformat)
+#
+# NO TIMEOUT, deliberately. A cold machine clones those repositories and
+# compiles tree-sitter-cli from source, and the `timeout 120` an earlier design
+# carried is exactly why a half-installed editor once read as done. A network
+# failure makes one of the steps below exit non-zero, chezmoi does not record
+# the run, and the next apply retries.
+#
+# NO DARWIN GUARD. The config deploys on both operating systems, and its only
+# macOS-only pieces are gated inside Lua with `vim.fn.has("mac")`.
+#
+# QUIET ON SUCCESS (operator ruling 2026-08-05): every step's output is captured
+# and printed only when that step fails.
+#
+# NEOVIM'S EXIT STATUS IS NOT THE PROOF. `-c 'Lazy! restore' -c 'qa!'` exits 0
+# whether the restore cloned everything or nothing, and MasonToolsInstallSync
+# behaves the same way, so the verification step below is what decides whether
+# this apply succeeded. The two commands that DO carry their status honestly are
+# the ones written to carry it: the `-l` runner (a script error exits 1) and the
+# clangd assertion's `os.exit(pcall(...))`.
+#
+# Re-runs whenever the pinned plugin set or either tool list changes:
+{{ $nvim := joinPath .chezmoi.sourceDir "dot_config/nvim" -}}
+#   lazy-lock.json {{ include (joinPath $nvim "lazy-lock.json") | sha256sum }}
+#   lua/plugins/lsp.lua {{ include (joinPath $nvim "lua/plugins/lsp.lua") | sha256sum }}
+#
+# Retry state, the mechanism run_onchange_after_58-build-pns-engine.sh.tmpl
+# uses: chezmoi records a run_onchange script as done on ANY exit 0, so a
+# deferred run (no nvim on PATH yet) must change this rendered script to re-fire
+# on the next apply.
+#
+# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
+# file at render time means an unreadable node aborts the apply and a FIFO at
+# that path hangs it forever, before any of this script's own recovery can run.
+#   retry-marker: {{ $rm := printf "%s/.cache/nvim-bootstrap/retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+config_dir="$HOME/.config/nvim"
+data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/nvim"
+verify="$HOME/.local/libexec/verify-nvim-bootstrap.sh"
+retry_marker="$HOME/.cache/nvim-bootstrap/retry"
+# `tests/` is chezmoiignored and never reaches $HOME, so the runner is addressed
+# through the source directory chezmoi already knows (spec 3.9 and 6.3).
+test_runner={{ joinPath $nvim "tests/run.lua" | quote }}
+# The SOURCE lock, deliberately, never the deployed copy at
+# $HOME/.config/nvim/lazy-lock.json. `Lazy! restore` REWRITES the deployed
+# lockfile, and lazy.nvim writes an entry only for a plugin it found installed
+# (lua/lazy/manage/lock.lua, `M.update`: the loop clears every entry, then
+# re-adds one per plugin under `plugin._.installed`). A plugin that failed to
+# clone therefore deletes its own pin, and a check against that file would
+# report nothing missing precisely when the restore went worst: a gate that
+# cannot go red. The source lock is the committed intent, chezmoi deployed it
+# earlier in this same apply, and nothing Neovim runs can reach it.
+source_lock={{ joinPath $nvim "lazy-lock.json" | quote }}
+
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+if ! command -v nvim >/dev/null 2>&1; then
+  report_line 'nvim bootstrap: nvim is not on PATH; plugin and tool install deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+# Runs one step with its output captured. A step that succeeds prints nothing; a
+# step that fails prints its name and everything it wrote, then stops the script
+# so chezmoi does not record the run and the next apply retries.
+run_step() { # <name> <command> [args...]
+  local name="$1"
+  shift
+  local log="$work/step.log"
+  if ! "$@" >"$log" 2>&1; then
+    report_section 'nvim bootstrap' "$name failed" >&2
+    cat "$log" >&2
+    exit 1
+  fi
+}
+
+# The tool list Mason is checked against, resolved from the config rather than
+# copied here, so a server or tool added to lsp.lua is verified without this
+# script being edited. Two lists feed it: mason-lspconfig names LSP SERVERS
+# (`bashls`), which mason-lspconfig's own registry mapping turns into Mason
+# PACKAGE names (`bash-language-server`), and mason-tool-installer already names
+# packages. A server with no mapping falls through under its own name and is
+# then reported missing, which is the honest answer for a server Mason cannot
+# install.
+#
+# Read off lazy.nvim's spec, not off the loaded plugins: `opts` is available
+# whether or not either plugin has been lazy-loaded in this headless run. Both
+# plugins are pinned by lazy-lock.json, whose hash is part of this script's
+# trigger, so a version that moved either interface re-fires this script rather
+# than drifting silently past it.
+cat >"$work/mason-tool-list.lua" <<'LUA'
+local out_path = arg[1]
+if not out_path or out_path == "" then
+  error("usage: nvim --headless -u <config>/init.lua -l mason-tool-list.lua <out>")
+end
+
+local plugins = require("lazy.core.config").spec.plugins
+local to_package = require("mason-lspconfig.mappings").get_mason_map().lspconfig_to_package
+
+local names = {}
+local seen = {}
+
+local function collect(plugin_name, resolve)
+  local spec = plugins[plugin_name] or error(plugin_name .. " is not in the plugin spec")
+  local declared = (spec.opts or {}).ensure_installed
+    or error(plugin_name .. " declares no ensure_installed list")
+  for _, declared_name in ipairs(declared) do
+    local name = resolve(declared_name)
+    if not seen[name] then
+      seen[name] = true
+      names[#names + 1] = name
+    end
+  end
+end
+
+collect("mason-lspconfig.nvim", function(server)
+  return to_package[server] or server
+end)
+collect("mason-tool-installer.nvim", function(tool)
+  return tool
+end)
+
+table.sort(names)
+
+local out = assert(io.open(out_path, "w"))
+out:write(table.concat(names, "\n"), "\n")
+out:close()
+LUA
+
+# `Lazy!` with the bang WAITS for the operation to finish, which is what makes
+# the headless form usable at all.
+run_step 'Lazy! restore' \
+  nvim --headless -c 'Lazy! restore' -c 'qa!'
+
+# Valid only because mason-tool-installer sets `run_on_start = false`
+# (dot_config/nvim/lua/plugins/lsp.lua:208): with autostart on, this synchronous
+# run and the startup run would install the same queue at the same time.
+run_step 'MasonToolsInstallSync' \
+  nvim --headless -c 'MasonToolsInstallSync' -c 'qa!'
+
+# `--clean` here, and `-u` in the two runs below: `-l` on its own skips source
+# state entirely (`:help startup`, item 9), so a `-l` invocation either wants no
+# config at all or must name init.lua explicitly. The runner wants none, and
+# reads the config it tests from `--config`.
+run_step 'the config test suite' \
+  nvim --headless --clean -l "$test_runner" --config "$config_dir"
+
+run_step 'the Mason tool list' \
+  nvim --headless -u "$config_dir/init.lua" -l "$work/mason-tool-list.lua" "$work/mason-tools"
+
+run_step 'verification' \
+  "$verify" \
+  "$source_lock" \
+  "$data_dir/lazy" \
+  "$work/mason-tools" \
+  "$data_dir/mason/packages"
+
+# Bug #12: mason-lspconfig v2 never read the old `servers` block, so clangd ran
+# on nvim-lspconfig's defaults with none of these flags and nothing said so. The
+# `os.exit` and the `pcall` are both load-bearing: the `-c 'lua assert(...)'
+# +qa` shape this replaced exits 0 whether the assertion holds or not, and the
+# pcall is what keeps a nil `vim.lsp.config.clangd` fail-closed.
+run_step "clangd's configured flags" \
+  nvim --headless -c 'lua os.exit(pcall(function()
+  assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--clang-tidy"))
+  assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--header-insertion=iwyu"))
+end) and 0 or 1)'
+
+rm -f "$retry_marker"
