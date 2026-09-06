@@ -1,6 +1,33 @@
+-- ╭─────────────╮
+-- │   Helpers   │
+-- ╰─────────────╯
+local log_info = vim.log.levels.INFO
+local log_warning = vim.log.levels.WARN
+local log_error = vim.log.levels.ERROR
+
+local notify_lsp_format_title = { title = "LSP Format" }
+
+-- Shared by lsp-format's `keys` rows and by its `BufWritePre` autocmd. The rows are
+-- the mappings themselves, so they have to reach this from outside `config`.
+local function safe_format()
+  if not vim.g.autoformat_on_save then
+    return true
+  end
+
+  local ok, err = pcall(function()
+    vim.cmd("Format sync")
+  end)
+
+  if not ok then
+    vim.notify("Autoformat failed: " .. err, log_error, notify_lsp_format_title)
+  end
+  return ok
+end
+
 return {
   {
     "neovim/nvim-lspconfig",
+    event = { "BufReadPre", "BufNewFile" },
     -- `init`, not `config`: mason-lspconfig's `automatic_enable` starts a server on the
     -- FileType of a file named on the command line, which happens before a scheduled
     -- `config` callback runs. A server table registered there would lose the race and the
@@ -107,10 +134,42 @@ return {
   },
   {
     "mason-org/mason.nvim",
-    opts = {},
+    cmd = "Mason",
+    -- `init` runs at startup even though the plugin itself waits for `:Mason`, and putting
+    -- Mason's bin on PATH is the one part of `mason.setup()` that cannot wait for that. Mason
+    -- is the only source of `tree-sitter` on this machine, and nvim-treesitter builds parsers
+    -- from two places that run before any buffer trigger fires: the `LazyDone` core-parser
+    -- install in plugins/treesitter.lua, and a fileless `:TSUpdate`. While this group was
+    -- eager, mason-tool-installer pulled Mason in at startup and `setup()` did the prepend as
+    -- a side effect; with every spec here lazy that side effect is gone, and `tree-sitter
+    -- build` fails with ENOENT until something types `:Mason`.
+    init = function()
+      -- The same directory and the same order `mason.setup()` uses: it prepends
+      -- `install_root_dir .. "/bin"` under its default `PATH = "prepend"`, pinned in `opts`
+      -- below so the two cannot drift apart. Every existing occurrence is dropped and one is
+      -- put back at the front, because FIRST is the whole point and merely being present is
+      -- not enough: with Homebrew ahead of it, `shfmt` and `stylua` resolve to Homebrew's
+      -- copies while Mason's sit further down the list. Rebuilding the list this way is also
+      -- what keeps a second call idempotent.
+      local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
+      local entries = { mason_bin }
+      for _, entry in ipairs(vim.split(vim.env.PATH or "", ":", { plain = true })) do
+        -- An empty entry means the working directory; dropping it is what keeps an absent
+        -- PATH from becoming a trailing colon.
+        if entry ~= mason_bin and entry ~= "" then
+          table.insert(entries, entry)
+        end
+      end
+      vim.env.PATH = table.concat(entries, ":")
+    end,
+    opts = {
+      -- Mason's own default, named because the `init` above hard-codes the same prepend.
+      PATH = "prepend",
+    },
   },
   {
     "mason-org/mason-lspconfig.nvim",
+    event = { "BufReadPre", "BufNewFile" },
     dependencies = {
       "neovim/nvim-lspconfig",
       "mason-org/mason.nvim",
@@ -144,6 +203,18 @@ return {
   },
   {
     "WhoIsSethDaniel/mason-tool-installer.nvim",
+    -- Its `init.lua` requires `mason-registry`, `mason.version` and
+    -- `mason-lspconfig` the moment it loads, so an untriggered spec here drags
+    -- the whole Mason side of the group into startup and makes their triggers
+    -- inert. `run_on_start` is false, so the commands are what it exists for.
+    cmd = {
+      "MasonToolsClean",
+      "MasonToolsInstall",
+      "MasonToolsInstallSync",
+      "MasonToolsUpdate",
+      "MasonToolsUpdateSync",
+    },
+    event = { "BufReadPre", "BufNewFile" },
     opts = {
       ensure_installed = {
 
@@ -237,6 +308,7 @@ return {
   },
   {
     "nvimtools/none-ls.nvim",
+    event = { "BufReadPre", "BufNewFile" },
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvimtools/none-ls-extras.nvim",
@@ -318,6 +390,81 @@ return {
   },
   {
     "lukas-reineke/lsp-format.nvim",
+    event = { "BufReadPre", "BufNewFile" },
+    -- The mappings and the two commands live in `config`, which now only runs
+    -- once a buffer is read, so they are named here too. Without them a fresh
+    -- instance with no file has no `ZZ` and no `<leader>c` formatting keys at
+    -- all. The rows are the mappings themselves; lazy.nvim installs the
+    -- placeholder and sets the real mapping from the same row on first press.
+    cmd = { "CustomFormatDisable", "CustomFormatEnable" },
+    keys = {
+      {
+        "ZZ",
+        function()
+          safe_format() -- runs formatting and logs errors
+          if vim.bo.modified then
+            vim.cmd("update")
+          end
+          vim.cmd("quit")
+        end,
+        desc = "Custom ZZ with safe formatting before closing the file",
+        silent = true,
+      },
+      {
+        "<leader>uf",
+        function()
+          if vim.g.autoformat_on_save then
+            vim.cmd("CustomFormatDisable")
+          else
+            vim.cmd("CustomFormatEnable")
+          end
+        end,
+        desc = "Format: toggle autoformat-on-save",
+        silent = true,
+      },
+      {
+        "<leader>cc",
+        function()
+          if vim.g.autoformat_on_save then
+            vim.cmd("CustomFormatDisable")
+          else
+            vim.cmd("CustomFormatEnable")
+          end
+        end,
+        desc = "Format: toggle autoformat-on-save",
+        silent = true,
+      },
+      {
+        "<leader>ce",
+        function()
+          vim.cmd("CustomFormatEnable")
+        end,
+        desc = "Format: enable autoformat-on-save",
+        silent = true,
+      },
+      {
+        "<leader>cd",
+        function()
+          vim.cmd("CustomFormatDisable")
+        end,
+        desc = "Format: disable autoformat-on-save",
+        silent = true,
+      },
+      {
+        "<leader>cf",
+        function()
+          vim.lsp.buf.format({
+            filter = function(client)
+              -- apply whatever logic you want (in this example, we'll only use null-ls)
+              return client.name == "null-ls"
+            end,
+            bufnr = vim.api.nvim_get_current_buf(),
+          })
+        end,
+        desc = "Format: default",
+        silent = true,
+      },
+    },
     dependencies = {
       "mfussenegger/nvim-ansible",
     },
@@ -349,30 +496,6 @@ return {
       })
 
       vim.g.autoformat_on_save = true
-
-      -- ╭─────────────╮
-      -- │   Helpers   │
-      -- ╰─────────────╯
-      local log_info = vim.log.levels.INFO
-      local log_warning = vim.log.levels.WARN
-      local log_error = vim.log.levels.ERROR
-
-      local notify_lsp_format_title = { title = "LSP Format" }
-
-      local function safe_format()
-        if not vim.g.autoformat_on_save then
-          return true
-        end
-
-        local ok, err = pcall(function()
-          vim.cmd("Format sync")
-        end)
-
-        if not ok then
-          vim.notify("Autoformat failed: " .. err, log_error, notify_lsp_format_title)
-        end
-        return ok
-      end
 
       local format_group = vim.api.nvim_create_augroup("AutoformatGroup", { clear = true })
 
@@ -442,68 +565,6 @@ return {
 
         vim.notify("Disabled **Autoformat on Save**", log_warning, notify_lsp_format_title)
       end, { desc = "LSP Format: custom FormatDisable" })
-
-      -- ╭──────────────╮
-      -- │   Mappings   │
-      -- ╰──────────────╯
-      map({
-        mode = "n",
-        lhs = "ZZ",
-        rhs = function()
-          safe_format() -- runs formatting and logs errors
-          if vim.bo.modified then
-            vim.cmd("update")
-          end
-          vim.cmd("quit")
-        end,
-        desc = "Custom ZZ with safe formatting before closing the file",
-      })
-
-      map({
-        mode = "n",
-        lhs = { "<leader>uf", "<leader>cc" },
-        rhs = function()
-          if vim.g.autoformat_on_save then
-            vim.cmd("CustomFormatDisable")
-          else
-            vim.cmd("CustomFormatEnable")
-          end
-        end,
-        desc = "Format: toggle autoformat-on-save",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<leader>ce",
-        rhs = function()
-          vim.cmd("CustomFormatEnable")
-        end,
-        desc = "Format: enable autoformat-on-save",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<leader>cd",
-        rhs = function()
-          vim.cmd("CustomFormatDisable")
-        end,
-        desc = "Format: disable autoformat-on-save",
-      })
-
-      map({
-        mode = "n",
-        lhs = "<leader>cf",
-        rhs = function()
-          vim.lsp.buf.format({
-            filter = function(client)
-              -- apply whatever logic you want (in this example, we'll only use null-ls)
-              return client.name == "null-ls"
-            end,
-            bufnr = vim.api.nvim_get_current_buf(),
-          })
-        end,
-        desc = "Format: default",
-      })
     end,
   },
 }
