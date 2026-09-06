@@ -3,9 +3,13 @@
 -- (~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh) derives the path from the
 -- HERDR_PANE_ID in its own environment and connects. Nothing is recorded and
 -- nothing is tracked: the socket IS the registration, Neovim removes it on
--- exit, a socket a crash left behind is replaced by the next start in that
--- pane (measured on 0.12.5: serverstart() on a stale path succeeds and
--- answers), and `sweep` below clears the ones no pane starts in again.
+-- exit, and a socket a crash left behind is replaced by the next start in
+-- that pane (measured on 0.12.5: serverstart() on a stale path succeeds and
+-- answers) and refused by the resolver's probe until then. There is no
+-- sweep: a probe-then-unlink of another pane's stale socket races that pane's
+-- next start (its replacement can bind and answer between the two steps and
+-- be unlinked), and macOS clears $TMPDIR at boot and daily for items idle
+-- three days anyway (com.apple.bsd.dirhelper, CLEAN_FILES_OLDER_THAN_DAYS=3).
 --
 -- The first Neovim in a pane owns the name, by design. A nested Neovim, or one
 -- in a terminal split, inherits the same pane id and finds the name taken;
@@ -50,39 +54,14 @@ function M.path(pane_id)
   return ("%s/herdr-pane-%s.sock"):format(root, (pane_id:gsub(":", ".")))
 end
 
--- Remove the pane sockets in `root` whose Neovim is gone, so crashed editors
--- do not pile names up there. Hygiene, not correctness: the resolver refuses a
--- dead socket by probing it, and macOS clears $TMPDIR at reboot and after
--- three days idle anyway. Our names only, matched on the entry NAME, so the
--- scan never stats the thousands of per-process directories Neovim leaves in
--- this root and never touches Neovim's own `nvim.<pid>.0` sockets. Liveness
--- is one connect: refused means nobody is behind the socket (about 0.1 ms),
--- accepted means somebody is, and that channel is closed with nothing sent.
--- ponytail: another Neovim between bind and listen reads as refused for a few
--- microseconds; accepted, it costs that editor its pane name and nothing else.
-function M.sweep(root)
-  for name in vim.fs.dir(root) do
-    if name:match("^herdr%-pane%-.+%.sock$") then
-      local path = root .. "/" .. name
-      local ok, channel = pcall(vim.fn.sockconnect, "pipe", path, { rpc = true })
-      if ok then
-        vim.fn.chanclose(channel)
-      else
-        vim.uv.fs_unlink(path)
-      end
-    end
-  end
-end
-
--- Sweep, then listen on this pane's socket, silently, if there is a pane and
--- the name is free. Every failure is swallowed on purpose: "address already in
+-- Listen on this pane's socket, silently, if there is a pane and the name is
+-- free. Every failure is swallowed on purpose: "address already in
 -- use" is an earlier Neovim in the same pane that should keep the name, and
 -- anything else (a root that does not exist, a path too long) only means this
 -- instance is reached by a pin rather than by pane.
 function M.listen()
   local path = M.path(vim.env.HERDR_PANE_ID)
   if path then
-    M.sweep(vim.fs.dirname(path))
     pcall(vim.fn.serverstart, path)
   end
 end
