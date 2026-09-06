@@ -35,6 +35,19 @@
 # order otherwise.
 set -euo pipefail
 
+# A test's throwaway `git init` sandbox must not inherit the OPERATOR's git
+# config. `~/.gitconfig` sets core.fsmonitor = true, so every git call in such a
+# sandbox tries to hand its index scan to a `git fsmonitor--daemon` that is not
+# there, loses the startup race, and prints `error: could not read IPC response`
+# into the gate's output. The count varies run to run because the race does, and
+# an `error:` line in a green gate was read as a failing one. That config also
+# aims core.hooksPath at the user-wide hooks, which a unit test has no business
+# running. /dev/null is a readable, empty config file, so this is a scrub rather
+# than a stub. It sits at script scope for the reason the two rules above do:
+# every test in every suite comes through this one runner, so a test written
+# tomorrow inherits the scrub without having to know it needs one.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+
 usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] [--only-bashunit] <suite-dir>'
 
 # Parsed by parse_args; declared here so every function can see them.
