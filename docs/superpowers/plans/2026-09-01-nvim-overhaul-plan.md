@@ -1266,8 +1266,10 @@ here: PR 14 adds all three edges together. Bash is an adapter we write over bash
 - [ ] **Step 1:** `nvim-neotest/neotest` `commit = "27bf921"` plus `nvim-neotest/nvim-nio`; every
   eager adapter: `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add
   neotest-rust), `nvim-neotest/neotest-python`, `fredrikaverpil/neotest-golang`, our own
-  `neotest-bashunit` (loaded with `dir = "~/.local/share/neotest-bashunit"`, the way the pns crate is
-  loaded), and `nvim-neotest/neotest-vim-test` configured for vim-test's `zigtest` runner (v3.3.1,
+  `neotest-bashunit` (operator ruling 2026-09-05: every custom Neovim plugin ships as its own
+  GitHub repository, so this is `webdavis/neotest-bashunit` installed the ordinary way, not the
+  `dir =` folder the row originally called for), and `nvim-neotest/neotest-vim-test` configured for
+  vim-test's `zigtest` runner (v3.3.1,
   updated 2026-05-07; `lawrence-laz/neotest-zig` is rejected, pinned to Zig 0.14 with issue #41 open
   ten months). Keys `<leader>tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop;
   group row `{ "<leader>t", group = "test" }`. Each pin read with `git ls-remote <repo> HEAD` and
@@ -1279,8 +1281,8 @@ here: PR 14 adds all three edges together. Bash is an adapter we write over bash
   shown working is removed from this PR rather than shipped unproven, and the body says which and
   why.
 - [ ] **Step 3:** Gates G1 to G6; G4 shows the six maps and the group row. No unit test here: the
-  third-party adapters are not ours, and `neotest-bashunit`'s own headless Lua tests live with the
-  adapter (T2), not in this PR. Commit: `feat(nvim): add neotest with the Rust, Python, Go, Bash and
+  third-party adapters are not ours, and `neotest-bashunit`'s own headless Lua tests live in its own
+  repository, not in this one. Commit: `feat(nvim): add neotest with the Rust, Python, Go, Bash and
   Zig adapters`.
 - [ ] **Step 4:** if T1 and T2 of the bashunit program have not merged when this PR opens, the Bash
   row ships in a later PR of its own and the body says so; the other four rows do not wait.

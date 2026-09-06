@@ -467,6 +467,10 @@ return {
       { "nvim-neotest/nvim-nio", lazy = true },
       { "nvim-neotest/neotest-python", commit = "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
       { "fredrikaverpil/neotest-golang", commit = "65b2be63c3de00e6f15c05388ebdc8d603dbd727" },
+      -- Ours, in its own repository and installed like any other plugin. A dependency rather
+      -- than a filetype-lazy spec, like the two above, so it reaches the runtime path when
+      -- neotest itself loads and is there before `config` builds the adapter list.
+      { "webdavis/neotest-bashunit", commit = "ddd53e68e484d807fd6d3ac625e18102d2378946" },
     },
     -- stylua: ignore start
     keys = {
@@ -524,6 +528,7 @@ return {
       -- adapter at load (init.lua:70), vitest and jest assign their defaults at load and let
       -- `__call` override only what the caller supplies, busted's config module starts at its
       -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
+      -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
       require("neotest").setup({
         adapters = {
           require("neotest-python"),
@@ -531,6 +536,7 @@ return {
           vitest,
           jest,
           node,
+          require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
         },
