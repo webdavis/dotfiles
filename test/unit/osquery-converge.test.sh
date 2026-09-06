@@ -1,8 +1,8 @@
-#!/usr/bin/env bats
+#!/usr/bin/env bash
 # osquery-converge.sh, the EXECUTION EDGE: it probes /var/osquery, installs the
 # desired state over whatever drifted, and restarts the root daemon only when
 # something did. The verdicts it folds over are pinned separately in
-# osquery-converge-drift-verdict.bats; what is pinned here is the privileged
+# osquery-converge-drift-verdict.test.sh; what is pinned here is the privileged
 # work and the restart, because those are the parts that can leave the machine
 # unmonitored.
 #
@@ -14,6 +14,13 @@
 # to answer the REAL mode from the real stat and a substituted owner pair,
 # which is what lets a correctly-installed file be modelled at all. The mode is
 # never faked, since mode drift is the case that matters most here.
+#
+# bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
+# executable bit; test/validate-tests.sh pins that shape. A test body runs
+# WITHOUT errexit, so every check is a real assertion: bats' `run` becomes a
+# plain command substitution whose `$?` assert_successful_code reads, and every
+# negative check goes through assert_file_not_contains or an assert_false
+# predicate rather than a bare `! grep`.
 
 # The desired-state file set, exactly as the tool names it. Written out here
 # rather than discovered, so a file quietly dropped from the tool's list fails
@@ -31,10 +38,11 @@ DESIRED_FILES=(
 # every stub reads its behavior out of the environment, so nothing about them is
 # per-test, and a fresh set of forks for each of them is most of what this file
 # would otherwise cost.
-setup_file() {
-  TOOL="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)/dot_local/libexec/osquery/executable_osquery-converge.sh"
-  BIN="$BATS_FILE_TMPDIR/bin"
-  PROTOTYPE="$BATS_FILE_TMPDIR/prototype"
+set_up_before_script() {
+  FILE_FIXTURE="$(mktemp -d)"
+  TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/osquery/executable_osquery-converge.sh"
+  BIN="$FILE_FIXTURE/bin"
+  PROTOTYPE="$FILE_FIXTURE/prototype"
   mkdir -p "$BIN" "$PROTOTYPE/desired/packs" "$PROTOTYPE/var-osquery/packs" "$PROTOTYPE/log/osquery"
 
   local relative
@@ -94,7 +102,7 @@ STUB
 
   # osqueryctl: record each subcommand and answer with the programmed status. A
   # successful `start` is what publishes the daemon pid the restart check reads,
-  # and it publishes a DIFFERENT pid from the one setup() leaves running, because
+  # and it publishes a DIFFERENT pid from the one set_up leaves running, because
   # a real restart produces a new process. A test that wants to model a daemon
   # that never actually went away sets OSQUERYD_PID_AFTER_START to the old pid.
   cat >"$BIN/osqueryctl" <<'STUB'
@@ -188,16 +196,17 @@ STUB
   # asserts on the waiting.
   ln -sf /usr/bin/true "$BIN/sleep"
   chmod +x "$BIN/sudo" "$BIN/osqueryctl" "$BIN/pgrep" "$BIN/stat" "$BIN/cmp"
-
-  export TOOL BIN PROTOTYPE
 }
 
-setup() {
+tear_down_after_script() { discard_fixture "$FILE_FIXTURE"; }
+
+set_up() {
   # The sandbox root, CANONICAL. The tool refuses a staging directory reached
   # through a symlink at any component, and on macOS TMPDIR sits under /var,
   # which IS a symlink to /private/var. Resolving the root once here is what
   # keeps that refusal a real assertion instead of something every test trips on.
-  ROOT="$(cd -P "$BATS_TEST_TMPDIR" && pwd -P)"
+  TEST_FIXTURE="$(mktemp -d)"
+  ROOT="$(cd -P "$TEST_FIXTURE" && pwd -P)"
   DESIRED="$ROOT/desired"
   TARGET="$ROOT/var-osquery"
   LOG_DIR="$ROOT/log/osquery"
@@ -227,6 +236,17 @@ setup() {
   export FAKE_STAT_UID_SCOPE
 }
 
+tear_down() { discard_fixture "$TEST_FIXTURE"; }
+
+# discard_fixture <path>: remove one mktemp -d this file created, and nothing
+# else. Plain rm -rf, the convention every other test in this repo uses; the
+# suite also runs on a CI host with no Trash.
+discard_fixture() {
+  [[ -n ${1:-} && -d $1 ]] || return 0
+  chmod -R u+rwX "$1" 2>/dev/null
+  rm -rf "$1"
+}
+
 # The sandbox drive. OSQUERY_CONVERGE_TEST_SEAM is what unlocks the overrides
 # below: without it the tool refuses to be pointed at a different desired state,
 # a different target directory or a different privileged binary, because in
@@ -249,11 +269,6 @@ converge() {
 
 privileged_call_count() { grep -c . "$SUDO_LOG" || true; }
 
-# The REAL mode on disk, GNU form first and BSD second (the portable order the
-# repo enforces): the stubbed stat on the sandbox PATH is deliberately not used
-# here, because it substitutes the owner pair.
-deployed_mode() { /usr/bin/stat -c '%a' "$1" 2>/dev/null || /usr/bin/stat -f '%Lp' "$1"; }
-
 restarted() { grep -qx 'start' "$OSQUERYCTL_LOG"; }
 
 # The recorded argv of the ONE privileged install that wrote <destination>, or
@@ -273,138 +288,142 @@ install_source_for() { # <destination>
   printf '%s' "${source##* }"
 }
 
-refute_log_has() { # <fixed-substring> <file>
-  # A bare `! grep` is exempted from set -e inside bats and silently no-ops, so
-  # every negative assertion goes through a function whose nonzero return counts.
-  if grep -qF -- "$1" "$2"; then
-    printf 'expected %q NOT to appear in %s, but it does:\n%s\n' "$1" "$2" "$(cat "$2")" >&2
-    return 1
-  fi
-  return 0
+# assert_install_line <destination> <prefix>: the recorded privileged install
+# argv for that destination opens with <prefix> and closes with the destination.
+# Two literal assertions rather than one glob, so the middle (the private source
+# path, which changes every run) is the only unpinned part.
+assert_install_line() {
+  local line
+  line="$(install_line_for "$1")"
+  assert_string_starts_with "$2" "$line"
+  assert_string_ends_with " $1" "$line"
 }
 
 # --- the three-state converge ----------------------------------------------
 
-@test "a converged tree is a silent no-op: nothing printed, nothing privileged, no restart" {
-  run converge
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-  [ "$(privileged_call_count)" -eq 0 ]
-  [ ! -s "$OSQUERYCTL_LOG" ]
+function test_a_converged_tree_is_a_silent_no_op_nothing_printed_nothing_privileged_no_restart() {
+  local output
+  output="$(converge 2>&1)"
+  assert_successful_code
+  assert_empty "$output"
+  assert_same 0 "$(privileged_call_count)"
+  assert_is_file_empty "$OSQUERYCTL_LOG"
 }
 
-@test "a wiped file is reinstalled and the daemon is restarted" {
+function test_a_wiped_file_is_reinstalled_and_the_daemon_is_restarted() {
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [ -f "$TARGET/osquery.conf" ]
-  cmp -s "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
-  restarted
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_exists "$TARGET/osquery.conf"
+  assert_files_equals "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  assert_true restarted
 }
 
-@test "a wiped pack is reinstalled too, so a partial wipe is fully repaired" {
+function test_a_wiped_pack_is_reinstalled_too_so_a_partial_wipe_is_fully_repaired() {
   rm -f "$TARGET/packs/intrusion-detection.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  cmp -s "$DESIRED/packs/intrusion-detection.conf" "$TARGET/packs/intrusion-detection.conf"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_files_equals "$DESIRED/packs/intrusion-detection.conf" "$TARGET/packs/intrusion-detection.conf"
 }
 
-@test "correct bytes under a world-writable mode are reinstalled, not passed over" {
+function test_correct_bytes_under_a_world_writable_mode_are_reinstalled_not_passed_over() {
   # The escalation vector: osqueryd reads this file as root.
   chmod 0666 "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [ "$(deployed_mode "$TARGET/osquery.conf")" = 644 ]
-  restarted
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_permissions 644 "$TARGET/osquery.conf"
+  assert_true restarted
 }
 
-@test "a path owned by a non-root user is reinstalled, files and directories alike" {
+function test_a_path_owned_by_a_non_root_user_is_reinstalled_files_and_directories_alike() {
   # The dimension the stubbed stat exists for: a sandbox cannot make a
   # root-owned file, so the owner pair is substituted. osqueryd runs these
   # queries AS ROOT, so a config owned by the login user is one that user can
   # rewrite before the daemon's next config load, whatever its bytes say.
-  FAKE_STAT_UID=501 run converge
-  [ "$status" -eq 0 ]
-  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install -o root -g wheel -m 0644 "*" $TARGET/osquery.conf" ]]
-  grep -qF -- "-n /usr/bin/install -d -o root -g wheel -m 0755 $TARGET" "$SUDO_LOG"
+  FAKE_STAT_UID=501 converge >/dev/null 2>&1
+  assert_successful_code
+  assert_install_line "$TARGET/osquery.conf" '-n /usr/bin/install -o root -g wheel -m 0644 '
+  assert_file_contains "$SUDO_LOG" "-n /usr/bin/install -d -o root -g wheel -m 0755 $TARGET"
 }
 
-@test "a setuid bit on a live file reads as drift, not as a matching 0644" {
+function test_a_setuid_bit_on_a_live_file_reads_as_drift_not_as_a_matching_0644() {
   # Why the probe asks stat for %p and not %Lp: %Lp prints only the low nine
   # permission bits, so a setuid file in the root daemon's directory would come
   # back looking like an ordinary 0644 config and be passed over. The repair
   # line is the assertion rather than the resulting mode, because %Lp reads 644
   # off a setuid file too.
   chmod u+s "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install -o root -g wheel -m 0644 "*" $TARGET/osquery.conf" ]]
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_install_line "$TARGET/osquery.conf" '-n /usr/bin/install -o root -g wheel -m 0644 '
 }
 
-@test "a symlink standing at the config path is replaced by a regular file" {
+function test_a_symlink_standing_at_the_config_path_is_replaced_by_a_regular_file() {
   # A crafted link is the case the type check exists for: this one wears the
   # desired bytes and a 0644 mode of its own, so every other dimension reads as
   # converged and only its TYPE says otherwise. Leaving it would point the root
   # daemon's config at a path its author still controls. `install` replaces the
   # link rather than writing through it (measured), so the repair is safe once
   # the link is refused as a file.
-  cp "$DESIRED/osquery.conf" "$BATS_TEST_TMPDIR/referent.conf"
+  cp "$DESIRED/osquery.conf" "$ROOT/referent.conf"
   rm -f "$TARGET/osquery.conf"
-  ln -s "$BATS_TEST_TMPDIR/referent.conf" "$TARGET/osquery.conf"
+  ln -s "$ROOT/referent.conf" "$TARGET/osquery.conf"
   chmod -h 0644 "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [ ! -L "$TARGET/osquery.conf" ]
-  cmp -s "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_is_not_symlink "$TARGET/osquery.conf"
+  assert_files_equals "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
 }
 
-@test "the install carries owner, group and mode in ONE call" {
+function test_the_install_carries_owner_group_and_mode_in_one_call() {
   # Not a tee-then-chmod pair: a file that exists between the two carries the
   # creating umask and the invoking owner for that window.
   rm -f "$TARGET/osquery.flags"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ "$(install_line_for "$TARGET/osquery.flags")" == "-n /usr/bin/install -o root -g wheel -m 0644 "*" $TARGET/osquery.flags" ]]
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_install_line "$TARGET/osquery.flags" '-n /usr/bin/install -o root -g wheel -m 0644 '
 }
 
-@test "the privileged install names /usr/bin/install, never a PATH lookup" {
+function test_the_privileged_install_names_usr_bin_install_never_a_path_lookup() {
   # `sudo -n` preserves the caller's PATH, and this host's PATH leads with
   # /opt/homebrew/bin, which is group-writable and owned by the operator. A bare
   # `install` in a privileged call is therefore a name any process at the
   # operator's privilege level can answer, and root would run their binary.
   rm -f "$TARGET/osquery.flags"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ "$(install_line_for "$TARGET/osquery.flags")" == "-n /usr/bin/install "* ]]
-  refute_log_has '-n install ' "$SUDO_LOG"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_string_starts_with '-n /usr/bin/install ' "$(install_line_for "$TARGET/osquery.flags")"
+  assert_file_not_contains "$SUDO_LOG" '-n install '
 }
 
-@test "an osqueryctl resolved into a directory root does not own is refused, never handed to sudo" {
+function test_an_osqueryctl_resolved_into_a_directory_root_does_not_own_is_refused_never_handed_to_sudo() {
   # The same PATH hole, on the other privileged binary: /opt/homebrew/bin is
   # owned by the operator, so a name resolved there is a name a user-level
   # process can answer for root.
+  local output
   rm -f "$TARGET/osquery.conf"
-  FAKE_STAT_UID=501 FAKE_STAT_UID_SCOPE="$BIN" run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *osqueryctl* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(FAKE_STAT_UID=501 FAKE_STAT_UID_SCOPE="$BIN" converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains osqueryctl "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "an osqueryctl resolved into a group-writable directory is refused too" {
+function test_an_osqueryctl_resolved_into_a_group_writable_directory_is_refused_too() {
   # /opt/homebrew/bin is drwxrwxr-x, so ownership alone is not the whole test:
   # a directory anyone in the group can write is a directory whose entries they
   # can replace.
+  local output
   mkdir -p "$ROOT/loose-bin"
   cp "$BIN/osqueryctl" "$ROOT/loose-bin/osqueryctl"
   chmod 0775 "$ROOT/loose-bin"
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_STUB="$ROOT/loose-bin/osqueryctl" run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *loose-bin* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(OSQUERYCTL_STUB="$ROOT/loose-bin/osqueryctl" converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains loose-bin "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a seam variable set without the test seam is refused, so it is not a production knob" {
+function test_a_seam_variable_set_without_the_test_seam_is_refused_so_it_is_not_a_production_knob() {
   # Pointing the desired state at another tree is root installing THAT tree's
   # bytes into the root daemon's configuration directory, so the override has to
   # be unavailable to anything but a test that says so.
@@ -416,166 +435,175 @@ refute_log_has() { # <fixed-substring> <file>
   # asserts a refusal converges the REAL machine instead. That is not theoretical:
   # it happened, and it is why the tool now also refuses a seam engaged without
   # them (pinned below).
-  run env -u OSQUERY_CONVERGE_TEST_SEAM PATH="$BIN:$PATH" OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL"
-  [ "$status" -ne 0 ]
-  [[ $output == *OSQUERY_CONVERGE_DESIRED_DIR* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  local output
+  output="$(env -u OSQUERY_CONVERGE_TEST_SEAM PATH="$BIN:$PATH" OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL" 2>&1)"
+  assert_unsuccessful_code
+  assert_contains OSQUERY_CONVERGE_DESIRED_DIR "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "the test seam without a target directory is refused, never defaulted to /var/osquery" {
+function test_the_test_seam_without_a_target_directory_is_refused_never_defaulted_to_var_osquery() {
   # The seam engaged with only SOME overrides is the shape that converged the live
-  # machine out of a bats sandbox: every value is individually legal, and the two
+  # machine out of a test sandbox: every value is individually legal, and the two
   # that were omitted default to production.
-  run env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
-    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL"
-  [ "$status" -ne 0 ]
-  [[ $output == *OSQUERY_CONVERGE_TARGET_DIR* ]]
-  refute_log_has '/var/osquery' "$SUDO_LOG"
-  [ "$(privileged_call_count)" -eq 0 ]
+  local output
+  output="$(env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
+    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" "$TOOL" 2>&1)"
+  assert_unsuccessful_code
+  assert_contains OSQUERY_CONVERGE_TARGET_DIR "$output"
+  assert_file_not_contains "$SUDO_LOG" '/var/osquery'
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "the test seam without a sudo is refused too, so root is never the real one" {
-  run env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
-    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" OSQUERY_CONVERGE_TARGET_DIR="$TARGET" "$TOOL"
-  [ "$status" -ne 0 ]
-  [[ $output == *OSQUERY_CONVERGE_SUDO* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+function test_the_test_seam_without_a_sudo_is_refused_too_so_root_is_never_the_real_one() {
+  local output
+  output="$(env PATH="$BIN:$PATH" OSQUERY_CONVERGE_TEST_SEAM=1 \
+    OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" OSQUERY_CONVERGE_TARGET_DIR="$TARGET" "$TOOL" 2>&1)"
+  assert_unsuccessful_code
+  assert_contains OSQUERY_CONVERGE_SUDO "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "the privileged install reads from a private staging copy, not from the deployed tree" {
+function test_the_privileged_install_reads_from_a_private_staging_copy_not_from_the_deployed_tree() {
   # The source symlink race: the -L check on a deployed staging file and the
   # `install` that reads it are far apart, and `install` reads its source AS
   # ROOT. Copying to a private 0700 directory first means the path root reads is
   # one no other process can substitute between the check and the read.
-  rm -f "$TARGET/osquery.flags"
-  run converge
-  [ "$status" -eq 0 ]
   local source
+  rm -f "$TARGET/osquery.flags"
+  converge >/dev/null 2>&1
+  assert_successful_code
   source="$(install_source_for "$TARGET/osquery.flags")"
-  [[ -n $source ]]
-  [[ $source != "$DESIRED"/* ]]
+  assert_not_empty "$source"
+  assert_string_not_starts_with "$DESIRED/" "$source"
   # The mode of the directory root read from, recorded by the sudo stub at the
   # moment of the call.
-  grep -qE -- "^$source 700$" "$INSTALL_SOURCE_LOG"
+  assert_matches "^$source 700$" "$(cat "$INSTALL_SOURCE_LOG")"
 }
 
-@test "the content comparison reads the private copy, not the deployed staging tree" {
+function test_the_content_comparison_reads_the_private_copy_not_the_deployed_staging_tree() {
   # The install side of this is pinned above; this is the VERDICT side. A
   # comparison against the deployed tree while the install reads the private copy
   # lets the two disagree: the bytes that decided "converged" are then not the
   # bytes that would have been written, so a staging file swapped after the copy
   # is taken produces a verdict for content that never gets installed.
   printf 'drifted\n' >"$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
+  converge >/dev/null 2>&1
+  assert_successful_code
   # Something really was compared, or the two assertions below are vacuous.
-  [ -s "$CMP_LOG" ]
+  assert_is_file_not_empty "$CMP_LOG"
   # Every comparison names the private stage as its desired side, and none of
   # them names the deployed staging tree.
-  refute_log_has "$DESIRED/" "$CMP_LOG"
-  grep -q '/osquery-converge\.' "$CMP_LOG"
+  assert_file_not_contains "$CMP_LOG" "$DESIRED/"
+  assert_matches '/osquery-converge\.' "$(cat "$CMP_LOG")"
 }
 
-@test "only the drifted file is reinstalled, so a repair is not a rewrite of everything" {
+function test_only_the_drifted_file_is_reinstalled_so_a_repair_is_not_a_rewrite_of_everything() {
   rm -f "$TARGET/osquery.flags"
-  run converge
-  [ "$status" -eq 0 ]
-  refute_log_has "$TARGET/osquery.conf" "$SUDO_LOG"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_not_contains "$SUDO_LOG" "$TARGET/osquery.conf"
 }
 
-@test "a repair says which file it repaired and why" {
+function test_a_repair_says_which_file_it_repaired_and_why() {
+  local output
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ $output == *"$TARGET/osquery.conf"* ]]
-  [[ $output == *missing* ]]
+  output="$(converge 2>&1)"
+  assert_successful_code
+  assert_contains "$TARGET/osquery.conf" "$output"
+  assert_contains missing "$output"
 }
 
 # --- the directories --------------------------------------------------------
 
-@test "a group-writable target directory is repaired to 0755 root:wheel" {
+function test_a_group_writable_target_directory_is_repaired_to_0755_root_wheel() {
   chmod 0775 "$TARGET"
-  run converge
-  [ "$status" -eq 0 ]
-  grep -qF -- "-n /usr/bin/install -d -o root -g wheel -m 0755 $TARGET" "$SUDO_LOG"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_contains "$SUDO_LOG" "-n /usr/bin/install -d -o root -g wheel -m 0755 $TARGET"
 }
 
-@test "a missing packs directory is created before the packs are installed into it" {
+function test_a_missing_packs_directory_is_created_before_the_packs_are_installed_into_it() {
   rm -rf "$TARGET/packs"
-  run converge
-  [ "$status" -eq 0 ]
-  [ -f "$TARGET/packs/intrusion-detection.conf" ]
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_exists "$TARGET/packs/intrusion-detection.conf"
 }
 
 # --- refusals ---------------------------------------------------------------
 
-@test "a desired file that is not deployed is a loud failure, never a silent skip" {
+function test_a_desired_file_that_is_not_deployed_is_a_loud_failure_never_a_silent_skip() {
   # Without it there is nothing to converge toward, and passing over it would
   # leave a wiped /var/osquery file wiped while reporting success.
+  local output
   rm -f "$DESIRED/packs/intrusion-detection.conf"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *"packs/intrusion-detection.conf"* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "packs/intrusion-detection.conf" "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a file in the desired tree the tool does not install is refused, not ignored" {
+function test_a_file_in_the_desired_tree_the_tool_does_not_install_is_refused_not_ignored() {
   # The list of files is NAMED rather than globbed, so that nothing planted in
   # the staging tree is promoted root-owned into the daemon's directory. The
   # cost of naming it is a file that could sit there being ignored forever, so
   # the mismatch is a loud refusal instead.
+  local output
   printf 'planted\n' >"$DESIRED/packs/planted.conf"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *planted.conf* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains planted.conf "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a symlink planted in the desired tree under an unlisted name is refused too" {
+function test_a_symlink_planted_in_the_desired_tree_under_an_unlisted_name_is_refused_too() {
   # The staging scan is `! -type d` rather than `-type f` precisely so a link is
   # seen: `-type f` would look straight past this one, and the file the tool
   # never installs would sit there being ignored forever.
+  local output
   ln -s /etc/passwd "$DESIRED/packs/planted-link.conf"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *planted-link.conf* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains planted-link.conf "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a planted file is matched on its exact relative path, not on a pattern or a basename" {
+function test_a_planted_file_is_matched_on_its_exact_relative_path_not_on_a_pattern_or_a_basename() {
   # Two ways that match could weaken and still pass the plain case above: an
   # unquoted right-hand side turns the staged name into a glob, so a file
   # called `*.conf` would match a listed pack and be waved through; and a
   # basename comparison would wave through a pack sitting in the wrong
   # directory. Both end in a staged file that is never installed and never
   # mentioned.
+  local output
   printf 'planted\n' >"$DESIRED/packs/*.conf"
   printf 'planted\n' >"$DESIRED/intrusion-detection.conf"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *"packs/*.conf"* ]]
-  [[ $output == *"desired/intrusion-detection.conf"* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "packs/*.conf" "$output"
+  assert_contains "desired/intrusion-detection.conf" "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a desired file that cannot be read is never treated as converged" {
+function test_a_desired_file_that_cannot_be_read_is_never_treated_as_converged() {
   # Once the desired state is copied into a private directory before anything is
   # compared, an unreadable STAGING file is caught by the copy rather than by the
   # comparison: this pins the refusal, and that it costs no privileged call. The
   # comparison's own error direction is the LIVE case below, which is where cmp
   # can still fail.
+  local output
   chmod 000 "$DESIRED/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [[ $output != *"restarted osqueryd"* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_not_contains "restarted osqueryd" "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a LIVE file that cannot be compared is reinstalled, never counted as converged" {
+function test_a_live_file_that_cannot_be_compared_is_reinstalled_never_counted_as_converged() {
   # cmp answers 2 when it could not compare, which is not evidence that the
   # bytes match. Reading it as a match would pass over the file in silence and
   # report a converged tree, so an unreadable comparison reinstalls instead.
@@ -590,24 +618,26 @@ refute_log_has() { # <fixed-substring> <file>
   # ACL leaves the mode 0644 and the owner intact, so unreadability is the only
   # thing wrong: read as a match, the tree is fully converged and NOTHING
   # happens, which is the silent pass this pins.
+  local output
   chmod +a "everyone deny read" "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ "$(install_line_for "$TARGET/osquery.conf")" == "-n /usr/bin/install "* ]]
-  [[ $output == *unreadable* ]]
+  output="$(converge 2>&1)"
+  assert_successful_code
+  assert_string_starts_with '-n /usr/bin/install ' "$(install_line_for "$TARGET/osquery.conf")"
+  assert_contains unreadable "$output"
 }
 
-@test "a symlink in the desired tree is refused rather than installed through" {
+function test_a_symlink_in_the_desired_tree_is_refused_rather_than_installed_through() {
   rm -f "$DESIRED/osquery.conf"
   ln -s /etc/passwd "$DESIRED/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
+  converge >/dev/null 2>&1
+  assert_unsuccessful_code
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "osquery not being installed at all is a quiet no-op" {
+function test_osquery_not_being_installed_at_all_is_a_quiet_no_op() {
+  local output
   rm -f "$TARGET/osquery.conf"
-  run env PATH="$BIN:$PATH" \
+  output="$(env PATH="$BIN:$PATH" \
     OSQUERY_CONVERGE_TEST_SEAM=1 \
     OSQUERY_CONVERGE_TRUSTED_UID="$(id -u)" \
     OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" \
@@ -615,30 +645,31 @@ refute_log_has() { # <fixed-substring> <file>
     OSQUERY_CONVERGE_SUDO="$BIN/sudo" \
     OSQUERY_CONVERGE_OSQUERYCTL="$BIN/definitely-not-installed" \
     OSQUERY_CONVERGE_LOG_DIR="$LOG_DIR" \
-    "$TOOL"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-  [ "$(privileged_call_count)" -eq 0 ]
+    "$TOOL" 2>&1)"
+  assert_successful_code
+  assert_empty "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a symlink standing where the target directory belongs is refused, never repaired through" {
+function test_a_symlink_standing_where_the_target_directory_belongs_is_refused_never_repaired_through() {
   # MEASURED: `install -d` on a preplanted symlink exits 0, chmods the REFERENT
   # and leaves the link in place. Repairing an irregular directory would
   # therefore hand the root daemon's configuration directory to wherever the
   # link points, so the only safe answer is to refuse before any privileged call.
+  local output
   mkdir -p "$ROOT/decoy"
   chmod 0700 "$ROOT/decoy"
   rm -rf "$TARGET"
   ln -s "$ROOT/decoy" "$TARGET"
-  run converge
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
-  [[ $output == *"$TARGET"* ]]
-  [ "$(deployed_mode "$ROOT/decoy")" = 700 ]
-  [ -L "$TARGET" ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_same 0 "$(privileged_call_count)"
+  assert_contains "$TARGET" "$output"
+  assert_file_permissions 700 "$ROOT/decoy"
+  assert_is_symlink "$TARGET"
 }
 
-@test "a symlink standing where the packs directory belongs claims nothing and repairs nothing" {
+function test_a_symlink_standing_where_the_packs_directory_belongs_claims_nothing_and_repairs_nothing() {
   # The measured end state before this refusal existed: `install -d` exits 0
   # without replacing the link, the tool prints "repaired ... (not a regular
   # file)" and exits 0, and all four packs are then written THROUGH the link.
@@ -648,21 +679,22 @@ refute_log_has() { # <fixed-substring> <file>
   # The target directory is left needing a repair of its own, which the tool
   # would reach FIRST. Zero privileged calls is therefore also the assertion that
   # both directory verdicts are taken before either one is acted on.
+  local output
   mkdir -p "$ROOT/decoy-packs"
   rm -rf "$TARGET/packs"
   ln -s "$ROOT/decoy-packs" "$TARGET/packs"
   chmod 0775 "$TARGET"
-  run converge
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
-  [[ $output != *repaired* ]]
-  [[ $output != *installed* ]]
-  [ ! -s "$OSQUERYCTL_LOG" ]
-  [ -L "$TARGET/packs" ]
-  [ -z "$(ls -A "$ROOT/decoy-packs")" ]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_same 0 "$(privileged_call_count)"
+  assert_not_contains repaired "$output"
+  assert_not_contains installed "$output"
+  assert_is_file_empty "$OSQUERYCTL_LOG"
+  assert_is_symlink "$TARGET/packs"
+  assert_is_directory_empty "$ROOT/decoy-packs"
 }
 
-@test "a staging directory that is itself a symlink is refused, not followed" {
+function test_a_staging_directory_that_is_itself_a_symlink_is_refused_not_followed() {
   # Both completeness halves are defeated by this one move: `find <dir>` does not
   # descend a symlinked directory ARGUMENT, and `[[ -L $dir/file ]]` resolves the
   # directory component before testing the leaf. So a planted file in the
@@ -674,186 +706,195 @@ refute_log_has() { # <fixed-substring> <file>
   rm -rf "$DESIRED"
   ln -s "$ROOT/substitute" "$DESIRED"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
+  converge >/dev/null 2>&1
+  assert_unsuccessful_code
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a staging directory reached through a symlinked PARENT is refused too" {
+function test_a_staging_directory_reached_through_a_symlinked_parent_is_refused_too() {
   # The same defeat one component higher up, which a check on the leaf alone
   # would pass.
   mkdir -p "$ROOT/elsewhere"
   mv "$DESIRED" "$ROOT/elsewhere/desired"
   ln -s "$ROOT/elsewhere" "$ROOT/parent-link"
   rm -f "$TARGET/osquery.conf"
-  DESIRED="$ROOT/parent-link/desired" run converge
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
+  DESIRED="$ROOT/parent-link/desired" converge >/dev/null 2>&1
+  assert_unsuccessful_code
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "a staging tree the tool cannot fully read is a refusal, not a silent pass" {
+function test_a_staging_tree_the_tool_cannot_fully_read_is_a_refusal_not_a_silent_pass() {
   # find's exit status is what says the listing is complete. Read through a
   # process substitution it is discarded, so an unreadable subdirectory hid
   # whatever it held and the run reported success over a tree it never saw.
   mkdir -p "$DESIRED/packs/unreadable"
   printf 'planted\n' >"$DESIRED/packs/unreadable/planted.conf"
   chmod 0000 "$DESIRED/packs/unreadable"
-  rm -f "$TARGET/osquery.conf"
-  run converge
+  converge >/dev/null 2>&1
+  local status=$?
   chmod 0755 "$DESIRED/packs/unreadable"
-  [ "$status" -ne 0 ]
-  [ "$(privileged_call_count)" -eq 0 ]
+  assert_not_same 0 "$status"
+  assert_same 0 "$(privileged_call_count)"
 }
 
-@test "an unknown argument is a usage error, never a silent full converge" {
-  run converge --dry-run
-  [ "$status" -ne 0 ]
-  [[ $output == *usage* ]]
-  [ "$(privileged_call_count)" -eq 0 ]
+function test_an_unknown_argument_is_a_usage_error_never_a_silent_full_converge() {
+  local output
+  output="$(converge --dry-run 2>&1)"
+  assert_unsuccessful_code
+  assert_contains usage "$output"
+  assert_same 0 "$(privileged_call_count)"
 }
 
 # --- the restart ------------------------------------------------------------
 
-@test "a stop that fails with no daemon running does not stop the run, because a fresh host has nothing to stop" {
+function test_a_stop_that_fails_with_no_daemon_running_does_not_stop_the_run() {
   # The legitimate half of a failing stop: no LaunchDaemon is loaded and no plist
   # sits in /Library/LaunchDaemons, so the vendor stop really does fail and the
   # start that follows is the first daemon this host has had.
   rm -f "$TARGET/osquery.conf"
   : >"$DAEMON_PID_FILE"
-  OSQUERYCTL_STOP_EXIT=1 run converge
-  [ "$status" -eq 0 ]
-  restarted
+  OSQUERYCTL_STOP_EXIT=1 converge >/dev/null 2>&1
+  assert_successful_code
+  assert_true restarted
 }
 
-@test "a daemon whose parent pid never changed is not a restart, however the stop exited" {
+function test_a_daemon_whose_parent_pid_never_changed_is_not_a_restart_however_the_stop_exited() {
   # `osqueryctl stop` is `launchctl unload` plus an rm, and launchctl LOGS a
   # failure while exiting 0, so neither the stop's status nor a liveness check
   # can tell a bounced daemon from one that never went away. The pid recorded
   # BEFORE the stop is what can: an unchanged parent is the old process still
   # running the old configuration.
+  local output
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_STOP_EXIT=1 OSQUERYD_PID_AFTER_START=4242 run converge
-  [ "$status" -ne 0 ]
-  [[ $output != *"restarted osqueryd"* ]]
-  [[ $output == *4242* ]]
+  output="$(OSQUERYCTL_STOP_EXIT=1 OSQUERYD_PID_AFTER_START=4242 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_not_contains "restarted osqueryd" "$output"
+  assert_contains 4242 "$output"
 }
 
-@test "a restart is claimed only when the parent pid actually changed" {
+function test_a_restart_is_claimed_only_when_the_parent_pid_actually_changed() {
+  local output
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  [[ $output == *"restarted osqueryd"* ]]
-  [[ $output == *5150* ]]
+  output="$(converge 2>&1)"
+  assert_successful_code
+  assert_contains "restarted osqueryd" "$output"
+  assert_contains 5150 "$output"
 }
 
-@test "a start that fails is FATAL even while a daemon is still running" {
+function test_a_start_that_fails_is_fatal_even_while_a_daemon_is_still_running() {
   # The case that separates an UNGUARDED start from a guarded one. Both calls
   # used to be silenced, so a stop that failed to unload followed by a start
   # that failed left the PREVIOUS daemon up on its PREVIOUS configuration while
   # the script printed 'osquery setup complete.': the liveness check alone
   # cannot catch that, because a daemon really is running. The start's own
   # status is what says the new configuration was never loaded.
+  local output
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_STOP_EXIT=1 OSQUERYCTL_START_EXIT=1 run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *"'osqueryctl start' FAILED"* ]]
+  output="$(OSQUERYCTL_STOP_EXIT=1 OSQUERYCTL_START_EXIT=1 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "'osqueryctl start' FAILED" "$output"
 }
 
-@test "a start that fails after a successful stop leaves no success line" {
-  # The other half: here the stop worked, so the daemon really is gone. A
-  # `[[ != ]]` and not a `! grep`, which set -e ignores inside bats.
+function test_a_start_that_fails_after_a_successful_stop_leaves_no_success_line() {
+  # The other half: here the stop worked, so the daemon really is gone. A real
+  # refutation and not a `! grep`, which no shell option can fail a test on.
+  local output
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_START_EXIT=1 run converge
-  [ "$status" -ne 0 ]
-  [[ $output != *"restarted osqueryd"* ]]
+  output="$(OSQUERYCTL_START_EXIT=1 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_not_contains "restarted osqueryd" "$output"
 }
 
-@test "a missing vendor plist refuses the restart and never stops the daemon" {
+function test_a_missing_vendor_plist_refuses_the_restart_and_never_stops_the_daemon() {
   # `osqueryctl start` copies that plist into /Library/LaunchDaemons. Without
   # it the stop would succeed and the start could not, so the check runs first.
+  local output
   rm -f "$TARGET/io.osquery.agent.plist"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  refute_log_has stop "$OSQUERYCTL_LOG"
-  [[ $output == *io.osquery.agent.plist* ]]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_file_not_contains "$OSQUERYCTL_LOG" stop
+  assert_contains io.osquery.agent.plist "$output"
 }
 
-@test "a symlink standing in for the vendor plist refuses the restart" {
+function test_a_symlink_standing_in_for_the_vendor_plist_refuses_the_restart() {
   # `-f` follows a link, so a preplanted symlink here reads as a healthy vendor
   # plist and `osqueryctl start` would copy its referent into
   # /Library/LaunchDaemons and load it as root. The file belongs to the osquery
   # package, so anything but a regular file at that path is a refusal.
+  local output
   rm -f "$TARGET/io.osquery.agent.plist"
   printf 'attacker plist\n' >"$ROOT/attacker.plist"
   ln -s "$ROOT/attacker.plist" "$TARGET/io.osquery.agent.plist"
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -ne 0 ]
-  refute_log_has stop "$OSQUERYCTL_LOG"
-  [[ $output == *io.osquery.agent.plist* ]]
+  output="$(converge 2>&1)"
+  assert_unsuccessful_code
+  assert_file_not_contains "$OSQUERYCTL_LOG" stop
+  assert_contains io.osquery.agent.plist "$output"
 }
 
-@test "a config the daemon cannot parse refuses the restart and never stops the daemon" {
+function test_a_config_the_daemon_cannot_parse_refuses_the_restart_and_never_stops_the_daemon() {
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_CONFIG_CHECK_EXIT=1 run converge
-  [ "$status" -ne 0 ]
-  refute_log_has stop "$OSQUERYCTL_LOG"
+  OSQUERYCTL_CONFIG_CHECK_EXIT=1 converge >/dev/null 2>&1
+  assert_unsuccessful_code
+  assert_file_not_contains "$OSQUERYCTL_LOG" stop
 }
 
-@test "a daemon that never comes back is a loud failure, not a reported success" {
+function test_a_daemon_that_never_comes_back_is_a_loud_failure_not_a_reported_success() {
+  local output
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_START_LEAVES_DAEMON_DOWN=1 run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *osqueryd* ]]
+  output="$(OSQUERYCTL_START_LEAVES_DAEMON_DOWN=1 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains osqueryd "$output"
 }
 
-@test "a daemon that dies inside the settle window is a loud failure" {
+function test_a_daemon_that_dies_inside_the_settle_window_is_a_loud_failure() {
   # launchctl load returns before the spawn, and the vendor plist sets KeepAlive
   # with ThrottleInterval 60, so a daemon present at t+1s and gone at t+3s is a
   # minute away from its next respawn. Present-once is not alive.
   rm -f "$TARGET/osquery.conf"
   printf '1\n' >"$DAEMON_LIVES"
-  run converge
-  [ "$status" -ne 0 ]
+  converge >/dev/null 2>&1
+  assert_unsuccessful_code
 }
 
-@test "a daemon that comes back under a NEW pid inside the settle window is a failure" {
+function test_a_daemon_that_comes_back_under_a_new_pid_inside_the_settle_window_is_a_failure() {
   # The other shape of a crash: nothing is ever absent, so a check for "is an
   # osqueryd there" is satisfied throughout. What happened is that the daemon
   # this run started died and KeepAlive replaced it, which is why liveness is
   # the SAME parent staying up rather than any parent being present.
+  local output
   rm -f "$TARGET/osquery.conf"
-  DAEMON_RESPAWN_PID=9999 run converge
-  [ "$status" -ne 0 ]
-  [[ $output == *"gone again"* ]]
+  output="$(DAEMON_RESPAWN_PID=9999 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "gone again" "$output"
 }
 
-@test "the restart is judged on the ppid-1 parent, never on an arbitrary worker" {
+function test_the_restart_is_judged_on_the_ppid_1_parent_never_on_an_arbitrary_worker() {
   # The watchdog respawns workers on its own, so a worker pid proves nothing.
   rm -f "$TARGET/osquery.conf"
-  run converge
-  [ "$status" -eq 0 ]
-  grep -qF -- '-P 1 -x osqueryd' "$BATS_TEST_TMPDIR/pgrep.argv"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_contains "$PGREP_ARGV" '-P 1 -x osqueryd'
 }
 
 # --- the log directory ------------------------------------------------------
 
-@test "a missing log directory is created, because the daemon logs into it" {
+function test_a_missing_log_directory_is_created_because_the_daemon_logs_into_it() {
   rm -rf "$LOG_DIR"
-  run converge
-  [ "$status" -eq 0 ]
-  [ -d "$LOG_DIR" ]
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_directory_exists "$LOG_DIR"
 }
 
-@test "creating the log directory does not bounce the root daemon" {
+function test_creating_the_log_directory_does_not_bounce_the_root_daemon() {
   # Deliberately outside the restart decision: a directory that did not exist
   # changes nothing a running daemon holds in memory, and it is unprivileged
   # and ours. Folding it in would restart osqueryd over a mkdir, which is a far
   # heavier act than the condition warrants.
   rm -rf "$LOG_DIR"
-  run converge
-  [ "$status" -eq 0 ]
-  [ ! -s "$OSQUERYCTL_LOG" ]
-  [ "$(privileged_call_count)" -eq 0 ]
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_is_file_empty "$OSQUERYCTL_LOG"
+  assert_same 0 "$(privileged_call_count)"
 }

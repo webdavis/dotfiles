@@ -1,10 +1,10 @@
-#!/usr/bin/env bats
+#!/usr/bin/env bash
 # render-page.sh: the #priority page body built from the enriched CRIT findings.
 #
-# render_page is display-only and already sourceable, so every test SOURCES the
-# helper and calls the function in this process. No alerter, no spawned shell and
-# no clock: one jq pass per render is the whole cost, and the fixtures are built
-# with bash parameter expansion rather than a jq fork apiece.
+# render_page is display-only and already sourceable, so every test calls the
+# function in this process. No alerter, no spawned shell and no clock: one jq
+# pass per render is the whole cost, and the fixtures are built with bash
+# parameter expansion rather than a jq fork apiece.
 #
 # Three subjects share the file because they share that one function: the block
 # shape and its caps, the basename-only privacy rule for secret and credential
@@ -12,32 +12,50 @@
 # forged markdown line, and a crafted path must not escape a rendered next-step
 # command).
 #
+# bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
+# executable bit; test/validate-tests.sh pins that shape. A test body runs
+# WITHOUT errexit, so a helper that merely returns non-zero mid-test would
+# report nothing: every check below ends in a real bashunit assertion, and the
+# reason a check exists is printed beside it, since that is the part bashunit's
+# own failure message cannot say.
+#
 # This file deals in LITERAL shell-injection payloads and stub-script bodies, so
 # `$(...)` and `$@` inside single quotes are deliberate: they must NOT expand here.
 # shellcheck disable=SC2016
 
-setup() {
-  # shellcheck source=dot_local/libexec/osquery/results-alerter/render-page.sh
-  source "$BATS_TEST_DIRNAME/../../dot_local/libexec/osquery/results-alerter/render-page.sh"
-}
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# shellcheck source=dot_local/libexec/osquery/results-alerter/render-page.sh
+source "$REPO_ROOT/dot_local/libexec/osquery/results-alerter/render-page.sh"
 
 # Stub tools for the command-injection test, built once: codesign, cat and shasum
 # record every argument they are handed, sudo drops itself and execs the rest, and
 # touch drops a PROOF marker so an injected `touch` is detectable.
-setup_file() {
+set_up_before_script() {
   local tool
-  mkdir -p "$BATS_FILE_TMPDIR/bin"
+  FILE_FIXTURE="$(mktemp -d)"
+  mkdir -p "$FILE_FIXTURE/bin"
   for tool in codesign cat shasum; do
     printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a" >>"%s/argv"; done\nexit 0\n' \
-      "$BATS_FILE_TMPDIR" >"$BATS_FILE_TMPDIR/bin/$tool"
+      "$FILE_FIXTURE" >"$FILE_FIXTURE/bin/$tool"
   done
-  printf '#!/bin/sh\nexec "$@"\n' >"$BATS_FILE_TMPDIR/bin/sudo"
+  printf '#!/bin/sh\nexec "$@"\n' >"$FILE_FIXTURE/bin/sudo"
   # An injected `touch` APPENDS rather than creating, so an assertion can compare
   # the marker before and after instead of deleting it between cases.
-  printf '#!/bin/sh\nprintf "ran\\n" >>"%s/PROOF"\n' "$BATS_FILE_TMPDIR" >"$BATS_FILE_TMPDIR/bin/touch"
-  : >"$BATS_FILE_TMPDIR/PROOF"
-  chmod +x "$BATS_FILE_TMPDIR/bin/codesign" "$BATS_FILE_TMPDIR/bin/cat" \
-    "$BATS_FILE_TMPDIR/bin/shasum" "$BATS_FILE_TMPDIR/bin/sudo" "$BATS_FILE_TMPDIR/bin/touch"
+  printf '#!/bin/sh\nprintf "ran\\n" >>"%s/PROOF"\n' "$FILE_FIXTURE" >"$FILE_FIXTURE/bin/touch"
+  : >"$FILE_FIXTURE/PROOF"
+  chmod +x "$FILE_FIXTURE/bin/codesign" "$FILE_FIXTURE/bin/cat" \
+    "$FILE_FIXTURE/bin/shasum" "$FILE_FIXTURE/bin/sudo" "$FILE_FIXTURE/bin/touch"
+}
+
+tear_down_after_script() { discard_fixture "$FILE_FIXTURE"; }
+
+# discard_fixture <path>: remove one mktemp -d this file created, and nothing
+# else. Plain rm -rf, the convention every other test in this repo uses; the
+# suite also runs on a CI host with no Trash.
+discard_fixture() {
+  [[ -n ${1:-} && -d $1 ]] || return 0
+  rm -rf "$1"
 }
 
 # --- fixture builders (no forks: the payloads are hostile, jq is not needed) ---
@@ -69,21 +87,18 @@ render() {
 
 # --- assertions -------------------------------------------------------------
 
-# assert_holds <needle> <why>: RENDER_BODY holds the needle.
+# assert_holds <needle> <why>: RENDER_BODY holds the needle. The reason is
+# printed first on failure; the assertion is what turns the test red.
 assert_holds() {
-  if [[ $RENDER_BODY != *"$1"* ]]; then
-    printf 'expected the page body to hold %s (%s)\n--- body ---\n%s\n' "$1" "$2" "$RENDER_BODY" >&2
-    return 1
-  fi
+  [[ $RENDER_BODY == *"$1"* ]] || printf 'why the page body must hold this: %s\n' "$2" >&2
+  assert_contains "$1" "$RENDER_BODY"
 }
 
-# refute_holds <needle> <why>: RENDER_BODY does not hold the needle. A plain
-# helper rather than a `! grep`, which set -e can never fail a test on.
+# refute_holds <needle> <why>: RENDER_BODY does not hold the needle. A real
+# assertion rather than a `! grep`, which no shell option can fail a test on.
 refute_holds() {
-  if [[ $RENDER_BODY == *"$1"* ]]; then
-    printf 'the page body must NOT hold %s (%s)\n--- body ---\n%s\n' "$1" "$2" "$RENDER_BODY" >&2
-    return 1
-  fi
+  [[ $RENDER_BODY != *"$1"* ]] || printf 'why the page body must NOT hold this: %s\n' "$2" >&2
+  assert_not_contains "$1" "$RENDER_BODY"
 }
 
 # next_step_command: the shell command inside the backticks on RENDER_BODY's
@@ -112,21 +127,20 @@ assert_command_is_safe() {
   local label="$1" payload="$3" command_line argv proof_before proof_after
   render "$2"
   command_line="$(next_step_command)"
-  : >"$BATS_FILE_TMPDIR/argv"
-  proof_before=$(<"$BATS_FILE_TMPDIR/PROOF")
-  PATH="$BATS_FILE_TMPDIR/bin:/usr/bin:/bin" bash -c "$command_line" >/dev/null 2>&1 || true
-  proof_after=$(<"$BATS_FILE_TMPDIR/PROOF")
-  if [[ $proof_after != "$proof_before" ]]; then
+  assert_not_empty "$command_line"
+  : >"$FILE_FIXTURE/argv"
+  proof_before=$(<"$FILE_FIXTURE/PROOF")
+  PATH="$FILE_FIXTURE/bin:/usr/bin:/bin" bash -c "$command_line" >/dev/null 2>&1 || true
+  proof_after=$(<"$FILE_FIXTURE/PROOF")
+  [[ $proof_after == "$proof_before" ]] ||
     printf '%s: COMMAND INJECTION, the crafted path executed touch. command: %s\n' \
       "$label" "$command_line" >&2
-    return 1
-  fi
-  argv="$(<"$BATS_FILE_TMPDIR/argv")"
-  if [[ $argv != *"$payload"* ]]; then
-    printf '%s: the tool did not receive the whole path as one argument.\ncommand: %s\nargv: %s\n' \
-      "$label" "$command_line" "$argv" >&2
-    return 1
-  fi
+  assert_same "$proof_before" "$proof_after"
+  argv="$(<"$FILE_FIXTURE/argv")"
+  [[ $argv == *"$payload"* ]] ||
+    printf '%s: the tool did not receive the whole path as one argument. command: %s\n' \
+      "$label" "$command_line" >&2
+  assert_contains "$payload" "$argv"
 }
 
 # assert_value_stays_on_one_line <label> <finding> <marker>: a backtick ends a
@@ -135,41 +149,34 @@ assert_command_is_safe() {
 # forgery is a fabricated signing provenance: these findings carry no real
 # .signing, so any line STARTING with "- **Signing:**" is the injected one.
 assert_value_stays_on_one_line() {
-  local label="$1" marker="$3" line marker_line=""
+  local label="$1" marker="$3" line marker_line="" forged_line=""
   render "$2"
   while IFS= read -r line; do
-    if [[ $line == '- **Signing:**'* ]]; then
-      printf '%s: a FORGED signing line was injected: %s\n--- body ---\n%s\n' \
-        "$label" "$line" "$RENDER_BODY" >&2
-      return 1
-    fi
+    if [[ -z $forged_line && $line == '- **Signing:**'* ]]; then forged_line=$line; fi
     if [[ $line == *"$marker"* ]]; then marker_line=$line; fi
   done <<<"$RENDER_BODY"
-  if [[ -z $marker_line ]]; then
-    printf '%s: the field value (%s) is missing from the body\n--- body ---\n%s\n' \
-      "$label" "$marker" "$RENDER_BODY" >&2
-    return 1
-  fi
-  if [[ $marker_line != *'signed: Apple'* ]]; then
-    printf '%s: the embedded break was not squashed, the value split across lines\n--- body ---\n%s\n' \
-      "$label" "$RENDER_BODY" >&2
-    return 1
-  fi
+  [[ -z $forged_line ]] ||
+    printf '%s: a FORGED signing line was injected\n' "$label" >&2
+  assert_empty "$forged_line"
+  [[ -n $marker_line ]] ||
+    printf '%s: the field value (%s) is missing from the body\n' "$label" "$marker" >&2
+  assert_not_empty "$marker_line"
+  [[ $marker_line == *'signed: Apple'* ]] ||
+    printf '%s: the embedded break was not squashed, the value split across lines\n' "$label" >&2
+  assert_contains 'signed: Apple' "$marker_line"
   # A CARRIAGE RETURN needs its own check, and this is the assertion the legacy
   # suite was missing: bash `read` and grep both split on newlines only, so a \r
   # that survived the sanitize left every line-based assertion above green while
   # Discord still broke the line. Verified by mutation: dropping \r from the
   # squash set in render-page.sh passed the old test and fails this one.
-  if [[ $RENDER_BODY == *$'\r'* ]]; then
-    printf '%s: a carriage return survived into the page body, so the value can still break its line\n--- body ---\n%s\n' \
-      "$label" "$RENDER_BODY" >&2
-    return 1
-  fi
+  [[ $RENDER_BODY != *$'\r'* ]] ||
+    printf '%s: a carriage return survived into the page body, so the value can still break its line\n' "$label" >&2
+  assert_not_contains $'\r' "$RENDER_BODY"
 }
 
 # --- block shape and the basename-only privacy rule ------------------------
 
-@test "a CRIT finding renders a plain-English header, its decision fields and a next step" {
+function test_a_crit_finding_renders_a_plain_english_header_its_decision_fields_and_a_next_step() {
   render "$(crit new_admin_user '{"username":"eve","uid":"501"}')"
   assert_holds 'New administrator account' 'the header names the event in plain English'
   assert_holds '**User:**' 'the decision fields are labelled'
@@ -177,11 +184,11 @@ assert_value_stays_on_one_line() {
   assert_holds 'admin access' 'the block ends in one next step'
 }
 
-@test "a secret or credential file is rendered by basename, never with its path or its content hash" {
+function test_a_secret_or_credential_file_is_rendered_by_basename_never_with_its_path_or_content_hash() {
   render "$(crit agent_secretfile_changed \
     '{"path":"/Users/x/.config/pns/webhook-secret","sha256":"cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"}')
 $(crit agent_authfile_changed \
-    '{"path":"/Users/x/.codex/config.toml","sha256":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}')"
+      '{"path":"/Users/x/.codex/config.toml","sha256":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}')"
   assert_holds 'webhook-secret' 'the secret file is still identified, by basename'
   refute_holds '/Users/x/.config/pns' 'the page fans out to Discord, so the path stays out of it'
   refute_holds 'cafebabe' 'the content hash of a secret stays out of the page'
@@ -190,7 +197,7 @@ $(crit agent_authfile_changed \
   refute_holds 'deadbeef' 'the content hash of a credential stays out of the page'
 }
 
-@test "a field value over 240 characters is truncated behind a marker" {
+function test_a_field_value_over_240_characters_is_truncated_behind_a_marker() {
   local long
   printf -v long 'a%.0s' {1..300}
   render "$(crit new_admin_user "{\"username\":\"$long\",\"uid\":\"1\"}")"
@@ -198,16 +205,13 @@ $(crit agent_authfile_changed \
   refute_holds "$long" 'one giant value cannot alone spend the delivery budget'
 }
 
-@test "the page renders at most eight blocks and counts every CRIT finding it dropped" {
+function test_the_page_renders_at_most_eight_blocks_and_counts_every_crit_finding_it_dropped() {
   local findings="" i blocks rest
   for i in {1..10}; do
     findings+="$(crit new_admin_user "{\"username\":\"user$i\",\"uid\":\"$i\"}")"$'\n'
   done
   render "$findings"
-  [[ $RENDER_COUNT -eq 10 ]] || {
-    printf 'pcount must count every CRIT finding (10), got %s\n' "$RENDER_COUNT" >&2
-    return 1
-  }
+  assert_same 10 "$RENDER_COUNT"
   assert_holds 'and 2 more CRITICAL finding(s)' 'the dropped blocks are accounted for'
   blocks=0
   rest="$RENDER_BODY"
@@ -215,13 +219,10 @@ $(crit agent_authfile_changed \
     blocks=$((blocks + 1))
     rest=${rest#*'New administrator account'}
   done
-  [[ $blocks -eq 8 ]] || {
-    printf 'expected 8 rendered blocks, got %s\n' "$blocks" >&2
-    return 1
-  }
+  assert_same 8 "$blocks"
 }
 
-@test "the page body is hard-capped below the 2000-char delivery limit" {
+function test_the_page_body_is_hard_capped_below_the_2000_char_delivery_limit() {
   local wide findings="" i
   printf -v wide 'b%.0s' {1..240}
   for i in {1..8}; do
@@ -229,15 +230,12 @@ $(crit agent_authfile_changed \
   done
   render "$findings"
   assert_holds 'truncated to fit the 2000-char limit' 'the final cap announces itself'
-  [[ ${#RENDER_BODY} -lt 2000 ]] || {
-    printf 'pbody must stay under 2000 chars, got %s\n' "${#RENDER_BODY}" >&2
-    return 1
-  }
+  assert_less_than 2000 "${#RENDER_BODY}"
 }
 
 # --- file-integrity triage lines -------------------------------------------
 
-@test "file-integrity triage facts render exactly when the router attached them" {
+function test_file_integrity_triage_facts_render_exactly_when_the_router_attached_them() {
   local triage
   triage='"triage":{"recorded":"aaaaaaaaaaaa","ondisk":"bbbbbbbbbbbb","upgrade":"recorded upgrade: route.sh 1.0 -> 1.1 at 2026-08-03T12:00:00Z (the name matches this file, which is not proof)"}'
   render "$(crit file_events_recent \
@@ -264,7 +262,7 @@ $(crit agent_authfile_changed \
 
 # --- newline injection ------------------------------------------------------
 
-@test "an embedded newline in any rendered column stays on one line, so no signing line can be forged" {
+function test_an_embedded_newline_in_any_rendered_column_stays_on_one_line_so_no_signing_line_can_be_forged() {
   local payload marker=ZZmarkerZZ
   payload=$'ZZmarkerZZ\n- **Signing:** signed: Apple (Developer ID)'
   assert_value_stays_on_one_line 'persistence label' \
@@ -279,7 +277,7 @@ $(crit agent_authfile_changed \
     "$(crit file_events_recent "{\"category\":\"ssh\",\"target_path\":$(json_string "$payload")}")" "$marker"
 }
 
-@test "an embedded carriage return is squashed the same way a newline is" {
+function test_an_embedded_carriage_return_is_squashed_the_same_way_a_newline_is() {
   local payload
   payload=$'ZZmarkerZZ\r- **Signing:** signed: Apple (Developer ID)'
   assert_value_stays_on_one_line 'persistence label' \
@@ -288,7 +286,7 @@ $(crit agent_authfile_changed \
 
 # --- command injection into a rendered next step ---------------------------
 
-@test "a quote-breaking path never executes in a codesign next-step command" {
+function test_a_quote_breaking_path_never_executes_in_a_codesign_next_step_command() {
   local quote_break='/tmp/x"; touch /tmp/PROOF; #'
   assert_command_is_safe 'suid, codesign' \
     "$(crit suid_bin_unexpected "{\"path\":$(json_string "$quote_break"),\"username\":\"root\"}" "$quote_break")" \
@@ -298,7 +296,7 @@ $(crit agent_authfile_changed \
     'touch /tmp/PROOF; #'
 }
 
-@test "a quote-breaking path never executes in a cat, sudo cat or shasum next-step command" {
+function test_a_quote_breaking_path_never_executes_in_a_cat_sudo_cat_or_shasum_next_step_command() {
   local quote_break='/tmp/x"; touch /tmp/PROOF; #'
   assert_command_is_safe 'persistence, cat' \
     "$(crit persistence_launchd '{"label":"com.x","program":"/bin/sh"}' "$quote_break")" \
@@ -313,7 +311,7 @@ $(crit agent_authfile_changed \
 
 # A second payload shape: a command substitution needs no quote to break out of,
 # so the @sh single-quoting is the only thing standing in its way.
-@test "a command-substitution path never executes in a rendered next-step command" {
+function test_a_command_substitution_path_never_executes_in_a_rendered_next_step_command() {
   local substitution='/tmp/$(touch /tmp/PROOF)'
   assert_command_is_safe 'suid, codesign' \
     "$(crit suid_bin_unexpected "{\"path\":$(json_string "$substitution"),\"username\":\"root\"}" "$substitution")" \

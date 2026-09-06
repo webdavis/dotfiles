@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env bash
 # The undelivered-alerts store inside alert-dispatch.sh: the two read-only
 # queue-health counters the watchdog polls, and the quote handling every write
 # helper depends on.
@@ -14,21 +14,34 @@
 # bash, where a URL carrying an apostrophe was loudly REJECTED by the store. The
 # round-trip scenario therefore runs under /bin/bash (3.2 on macOS), once per
 # file, recording each helper's exit status for the tests to assert.
+#
+# bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
+# executable bit; test/validate-tests.sh pins that shape. A test body runs
+# WITHOUT errexit, so every check below is a real assertion: a bare `[[ ]]`
+# would report nothing.
 
-REPO_ROOT="${BATS_TEST_DIRNAME%/test/unit}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DISPATCH="$REPO_ROOT/dot_local/libexec/osquery/executable_alert-dispatch.sh"
 APOSTROPHE_URL="http://127.0.0.1:8644/webhooks/o'brien-priority"
 APOSTROPHE_REASON="operator's note: gateway refused the page"
+
+# The helper is function definitions plus env-defaulted globals, so it is sourced
+# ONCE here rather than per test: bashunit runs every test body in its own
+# subshell, and set_up below repoints the store before any function is called.
+# shellcheck source=dot_local/libexec/osquery/executable_alert-dispatch.sh
+source "$DISPATCH"
 
 # Drive every write helper inside ONE strict-bash run, so the escapes execute
 # under the version being pinned, and record each step's exit status in a file
 # the tests read. Nothing here asserts: a failure must surface as the named
 # behavior's red test, not as an unattributable setup error.
-setup_file() {
+set_up_before_script() {
   local strict_bash=/bin/bash
   [[ -x $strict_bash ]] || strict_bash="$(command -v bash)"
-  mkdir -p "$BATS_FILE_TMPDIR/quote-safety"
-  "$strict_bash" -s "$DISPATCH" "$BATS_FILE_TMPDIR/quote-safety" <<'STRICT_SCENARIO'
+  FILE_FIXTURE="$(mktemp -d)"
+  QUOTE_WORK="$FILE_FIXTURE/quote-safety"
+  mkdir -p "$QUOTE_WORK"
+  "$strict_bash" -s "$DISPATCH" "$QUOTE_WORK" <<'STRICT_SCENARIO'
 set -uo pipefail
 source "$1"
 work="$2"
@@ -59,10 +72,21 @@ printf '%s' "$?" >"$work/status.id-delete"
 STRICT_SCENARIO
 }
 
-setup() {
-  source "$DISPATCH"
-  QUOTE_WORK="$BATS_FILE_TMPDIR/quote-safety"
-  OSQUERY_UNDELIVERED_ALERTS_DB="$BATS_TEST_TMPDIR/undelivered.sqlite3"
+tear_down_after_script() { discard_fixture "$FILE_FIXTURE"; }
+
+set_up() {
+  TEST_FIXTURE="$(mktemp -d)"
+  OSQUERY_UNDELIVERED_ALERTS_DB="$TEST_FIXTURE/undelivered.sqlite3"
+}
+
+tear_down() { discard_fixture "$TEST_FIXTURE"; }
+
+# discard_fixture <path>: remove one mktemp -d this file created, and nothing
+# else. Plain rm -rf, the convention every other test in this repo uses; the
+# suite also runs on a CI host with no Trash.
+discard_fixture() {
+  [[ -n ${1:-} && -d $1 ]] || return 0
+  rm -rf "$1"
 }
 
 # step_status <name>: the exit status the strict-bash scenario recorded.
@@ -75,70 +99,79 @@ step_status() {
 # quote_query <sql>: read one value out of the scenario's store, read-only.
 quote_query() { sqlite3 -readonly "$QUOTE_WORK/store.sqlite3" "$1"; }
 
+# path_exists <path>: a predicate for assert_false, so a negative check fails the
+# test on its own rather than relying on an errexit a bashunit body does not set.
+path_exists() { [[ -e $1 ]]; }
+
 # --- the read-only queue-health counters -------------------------------------
 
-@test "both counters read zero before anything has ever been stored" {
-  [[ "$(osquery_pending_alert_count)" == 0 ]]
-  [[ "$(osquery_dead_letter_count)" == 0 ]]
+function test_both_counters_read_zero_before_anything_has_ever_been_stored() {
+  assert_same 0 "$(osquery_pending_alert_count)"
+  assert_same 0 "$(osquery_dead_letter_count)"
 }
 
-@test "a count probe never creates the database it reads" {
+function test_a_count_probe_never_creates_the_database_it_reads() {
   osquery_pending_alert_count >/dev/null
   osquery_dead_letter_count >/dev/null
-  [[ ! -e $OSQUERY_UNDELIVERED_ALERTS_DB ]]
+  assert_false path_exists "$OSQUERY_UNDELIVERED_ALERTS_DB"
 }
 
-@test "a counter reads zero while its table is still un-bootstrapped, not an error" {
+function test_a_counter_reads_zero_while_its_table_is_still_un_bootstrapped_not_an_error() {
   sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" 'CREATE TABLE unrelated (x);'
-  [[ "$(osquery_pending_alert_count)" == 0 ]]
-  [[ "$(osquery_dead_letter_count)" == 0 ]]
+  assert_same 0 "$(osquery_pending_alert_count)"
+  assert_same 0 "$(osquery_dead_letter_count)"
 }
 
-@test "the counters report how many pages are queued and how many the drain gave up on" {
+function test_the_counters_report_how_many_pages_are_queued_and_how_many_the_drain_gave_up_on() {
   sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" <<'SQL'
 CREATE TABLE pending_alerts (request_id TEXT, next_attempt_after INTEGER);
 CREATE TABLE dead_letter_alerts (request_id TEXT);
 INSERT INTO pending_alerts (request_id, next_attempt_after) VALUES ('a', 0), ('b', 0), ('c', 0);
 INSERT INTO dead_letter_alerts (request_id) VALUES ('x'), ('y');
 SQL
-  [[ "$(osquery_pending_alert_count)" == 3 ]]
-  [[ "$(osquery_dead_letter_count)" == 2 ]]
+  assert_same 3 "$(osquery_pending_alert_count)"
+  assert_same 2 "$(osquery_dead_letter_count)"
 }
 
-@test "an unreadable store fails the probe instead of reporting a false zero" {
+function test_an_unreadable_store_fails_the_probe_instead_of_reporting_a_false_zero() {
+  local pending dead
   printf 'this is not a sqlite database, it is garbage\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
-  run osquery_pending_alert_count
-  [[ $status -ne 0 ]]
-  [[ -z $output ]]
-  run osquery_dead_letter_count
-  [[ $status -ne 0 ]]
-  [[ -z $output ]]
+  pending="$(osquery_pending_alert_count 2>&1)"
+  assert_unsuccessful_code
+  assert_empty "$pending"
+  dead="$(osquery_dead_letter_count 2>&1)"
+  assert_unsuccessful_code
+  assert_empty "$dead"
 }
 
 # --- quote handling under the strict (macOS system) bash ---------------------
 
-@test "an apostrophe in the page URL is stored intact instead of being rejected by corrupted SQL" {
-  [[ "$(step_status url-store)" == 0 ]]
-  [[ "$(quote_query "SELECT url FROM pending_alerts WHERE request_id='osquery-apos-url';")" == "$APOSTROPHE_URL" ]]
+function test_an_apostrophe_in_the_page_url_is_stored_intact_instead_of_being_rejected_by_corrupted_sql() {
+  assert_same 0 "$(step_status url-store)"
+  assert_same "$APOSTROPHE_URL" \
+    "$(quote_query "SELECT url FROM pending_alerts WHERE request_id='osquery-apos-url';")"
 }
 
-@test "the drain SELECT carries an apostrophe URL through to the delivery attempt" {
+function test_the_drain_select_carries_an_apostrophe_url_through_to_the_delivery_attempt() {
   local rows
   OSQUERY_UNDELIVERED_ALERTS_DB="$QUOTE_WORK/store.sqlite3"
   rows="$(_osquery_pending_alert_rows)"
-  [[ $rows == *"osquery-apos-url	$APOSTROPHE_URL"* ]]
+  assert_contains "$(printf 'osquery-apos-url\t%s' "$APOSTROPHE_URL")" "$rows"
 }
 
-@test "an apostrophe in a dead-letter reason completes the move out of the pending queue" {
-  [[ "$(step_status reason-store)" == 0 ]]
-  [[ "$(step_status reason-deadletter)" == 0 ]]
-  [[ "$(quote_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-apos-reason';")" == "$APOSTROPHE_REASON" ]]
-  [[ "$(quote_query "SELECT COUNT(*) FROM pending_alerts WHERE request_id='osquery-apos-reason';")" == 0 ]]
+function test_an_apostrophe_in_a_dead_letter_reason_completes_the_move_out_of_the_pending_queue() {
+  assert_same 0 "$(step_status reason-store)"
+  assert_same 0 "$(step_status reason-deadletter)"
+  assert_same "$APOSTROPHE_REASON" \
+    "$(quote_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-apos-reason';")"
+  assert_same 0 \
+    "$(quote_query "SELECT COUNT(*) FROM pending_alerts WHERE request_id='osquery-apos-reason';")"
 }
 
-@test "an apostrophe request id survives retry bookkeeping and its delete-by-id" {
-  [[ "$(step_status id-store)" == 0 ]]
-  [[ "$(step_status id-transient)" == 0 ]]
-  [[ "$(step_status id-delete)" == 0 ]]
-  [[ "$(quote_query "SELECT COUNT(*) FROM pending_alerts WHERE request_id='osquery-o''brien';")" == 0 ]]
+function test_an_apostrophe_request_id_survives_retry_bookkeeping_and_its_delete_by_id() {
+  assert_same 0 "$(step_status id-store)"
+  assert_same 0 "$(step_status id-transient)"
+  assert_same 0 "$(step_status id-delete)"
+  assert_same 0 \
+    "$(quote_query "SELECT COUNT(*) FROM pending_alerts WHERE request_id='osquery-o''brien';")"
 }

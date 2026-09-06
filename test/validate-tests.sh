@@ -4,12 +4,15 @@
 # argument so the test-system suite can point it at scratch trees. It fails when
 # a test file cannot be seen by, or could escape, the gate:
 #
-#   - a *.sh OR *.bats not sitting DIRECTLY in a recognized suite
+#   - ANY *.bats, anywhere below test/. bats-core left the toolchain once every
+#     bash test moved to bashunit, so no runner discovers or executes a bats
+#     file: one below test/ is a test that would silently never run;
+#   - a *.sh not sitting DIRECTLY in a recognized suite
 #     (test/unit, test/integration, test/e2e, test/test-system); a suite's
 #     helpers/ AND the shared, cross-suite test/helpers/ may hold only
 #     NON-executable *.sh (sourced libs; an executable file there is a misplaced
-#     test, and bats never belong there); test/fixtures/** is exempt; only
-#     validate-tests.sh and run-test-suite.sh may sit at test/ root;
+#     test); test/fixtures/** is exempt; only validate-tests.sh and
+#     run-test-suite.sh may sit at test/ root;
 #   - a suite *.sh that is not executable (invisible to the runner's -perm probe),
 #     EXCEPT the bashunit shape `<name>.test.sh`, which must be the other way
 #     round: bashunit SOURCES its test files and never execs them, while
@@ -45,9 +48,11 @@ check_symlinks() { # <root> <workdir>
   return 0
 }
 
-# Placement / mode: every discovered *.sh and *.bats must sit directly in a
-# recognized suite (or be an exempt helper / fixture / allowlisted root script),
-# and each suite *.sh must be executable.
+# Placement / mode: every *.bats is rejected outright, and every discovered *.sh
+# must sit directly in a recognized suite (or be an exempt helper / fixture /
+# allowlisted root script), with each suite *.sh executable. Bats files are
+# still DISCOVERED here, precisely so a stray one can be reported rather than
+# ignored.
 check_placement() { # <root> <workdir>
   local root="$1"
   local files_list="$2/files"
@@ -59,11 +64,18 @@ check_placement() { # <root> <workdir>
   local bad="" file
   while IFS= read -r -d '' file; do
     case "$file" in
-      # fixtures/ holds data and sourced libs. Nothing ever runs bats from
-      # there, so a *.bats under fixtures/ is a test that would never run; a
-      # <name>.test.sh has the opposite problem, since `just test-bashunit`
-      # scans the whole tree and WOULD run it, from outside any suite.
-      "$root"/fixtures/*.bats | "$root"/fixtures/*.test.sh)
+      # A bats file ANYWHERE below the root, fixtures/ and helpers/ included.
+      # bats-core left the toolchain with the last bats test, so nothing
+      # discovers or runs one: it is a test that would never execute. This arm
+      # sorts first so no later arm (a fixtures or helpers exemption) can admit
+      # one.
+      *.bats)
+        bad+="$file (bats-core is retired; port it to a bashunit <name>.test.sh in a suite)"$'\n'
+        ;;
+      # fixtures/ holds data and sourced libs. A <name>.test.sh there would be
+      # run from outside any suite, since `just test-bashunit` scans the whole
+      # tree.
+      "$root"/fixtures/*.test.sh)
         bad+="$file (tests never belong in fixtures/; move it into a suite)"$'\n'
         ;;
       "$root"/fixtures/*) continue ;;
@@ -76,7 +88,7 @@ check_placement() { # <root> <workdir>
         ;;
       # A suite's helpers/ holds sourced, non-executable *.sh only. An
       # executable file there is a misplaced test that no runner would ever
-      # discover, and bats never belong there, so both fail the guard.
+      # discover, so it fails the guard.
       "$root"/unit/helpers/*.sh | "$root"/integration/helpers/*.sh | "$root"/e2e/helpers/*.sh | "$root"/test-system/helpers/*.sh)
         if [[ -x $file ]]; then
           bad+="$file (helpers are sourced, not executed; remove the executable bit, or move the test into its suite)"$'\n'
@@ -88,7 +100,7 @@ check_placement() { # <root> <workdir>
       # The shared, cross-suite test/helpers/ dir (sourced libs used by more than
       # one suite) follows the same rule as a suite's helpers/: sourced,
       # non-executable *.sh only. An executable file there is a misplaced test no
-      # runner discovers, and bats never belong there, so both fail the guard.
+      # runner discovers, so it fails the guard.
       "$root"/helpers/*.sh)
         if [[ -x $file ]]; then
           bad+="$file (helpers are sourced, not executed; remove the executable bit, or move the test into a suite)"$'\n'
@@ -116,9 +128,6 @@ check_placement() { # <root> <workdir>
       "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh | "$root"/test-system/*.sh)
         [[ -x $file ]] || bad+="$file (not executable; run chmod +x on it)"$'\n'
         ;;
-      "$root"/unit/*.bats | "$root"/integration/*.bats | "$root"/e2e/*.bats | "$root"/test-system/*.bats)
-        :
-        ;; # bats live flat in a suite; bats itself runs them (no +x needed)
       *)
         bad+="$file (outside the unit/integration/e2e/test-system suites and not an allowlisted root script)"$'\n'
         ;;

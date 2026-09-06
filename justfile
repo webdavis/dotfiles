@@ -85,16 +85,16 @@ apply:
 
 # Unit suite only: the commit gate. The two Lua camps run first (the nvim
 # config's specs, then neotest-bashunit's), then the one runner, which runs the
-# suite's own three lanes in order: its bashunit `*.test.sh` files, its
-# executable *.sh tests, its *.bats suites. --shuffle randomizes the *.sh order
-# to flush hidden ordering deps (seed printed for replay); --warn-slow-ms flags
-# slow tests in a warn-only summary. The other suites run the same runner plain.
+# suite's own two lanes in order: its bashunit `*.test.sh` files, then its
+# executable *.sh tests. --shuffle randomizes the *.sh order to flush hidden
+# ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
+# warn-only summary. The other suites run the same runner plain.
 test-unit: validate-tests test-nvim test-neotest-bashunit
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
-# suite's executable *.sh tests, then its *.bats (host bats-core, a brew
-# formula; the nix fallback is gone with the flake).
+# suite's bashunit `*.test.sh` files (host bashunit, a brew formula), then its
+# executable *.sh tests.
 test-integration: validate-tests
   ./test/run-test-suite.sh test/integration
 
@@ -204,13 +204,14 @@ test-neotest-bashunit:
 test-bashunit suite="test/unit": validate-tests
   ./test/run-test-suite.sh --only-bashunit {{ suite }}
 
-# Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
-# *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
-# test/integration, test/e2e, test/test-system); suite *.sh must be executable,
-# except a bashunit `<name>.test.sh`, which must NOT be and which never belongs
-# in helpers/ or fixtures/; no symlinks are allowed anywhere below test/ (a
-# physical find skips them, so they would evade every gate). A suite's helpers/
-# and test/fixtures/** are otherwise exempt.
+# Placement / mode / symlink guard (test/validate-tests.sh): every *.sh below
+# test/ must sit DIRECTLY in a recognized suite (test/unit, test/integration,
+# test/e2e, test/test-system); suite *.sh must be executable, except a bashunit
+# `<name>.test.sh`, which must NOT be and which never belongs in helpers/ or
+# fixtures/; a *.bats anywhere below test/ is rejected outright, since bats-core
+# left the toolchain and no runner would execute it; no symlinks are allowed
+# anywhere below test/ (a physical find skips them, so they would evade every
+# gate). A suite's helpers/ and test/fixtures/** are otherwise exempt.
 validate-tests:
   ./test/validate-tests.sh
 
