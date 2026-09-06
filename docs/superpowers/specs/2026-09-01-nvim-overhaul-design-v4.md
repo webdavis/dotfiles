@@ -65,7 +65,8 @@ v4.4 folds the decisions of 2026-09-03
 1. Custom #2 is `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline `awk`, with no
    module and no fixture file (7.7, 6.3, 10.9).
 1. Custom #1 keeps the producer and loses the module: pns owns the tier through a new `--elapsed`
-   flag, and PR 14 is re-sequenced to run after the pns refactor lands (7.7, 11).
+   flag, and PR 14 is re-sequenced to run after the pns refactor lands (7.7, 11). SUPERSEDED by v4.5
+   below on the module half: #1 is now its own repository. The `--elapsed` and sequencing halves stand.
 1. neotest stays, with one adapter per language; `webdavis/neotest-swift` and `rouge8/neotest-rust`
    are both dropped as pins, Bash gets an adapter we write over bashunit and Zig rides the shared
    `neotest-vim-test`, and PR 28 splits into PR 28a and PR 28b (5.3, 12.1, 11).
@@ -84,6 +85,16 @@ v4.4 folds the decisions of 2026-09-03
 One item in that document is NOT decided and stays an open question here: whether the osquery
 pipeline's Rust port is scheduled next (12.8). The bashunit scope, open when this slice began, was
 decided while it ran: the whole corpus moves off bats (12.1).
+
+v4.5 folds one operator ruling of 2026-09-05, which supersedes the v4.4 line above about custom #1
+losing its module:
+
+1. **Every custom Neovim plugin is its own public repository**, installed by any lazy.nvim user the
+   ordinary way, never a `lua/custom_api/` module lifted out later. Custom #1 becomes
+   `webdavis/pns.nvim`; custom #3, which shipped as `custom_api/annotate.lua` before the ruling,
+   becomes `webdavis/herdr-nvim-annotate-extension.nvim` by a follow-up extraction. Custom #2 is not
+   a plugin and does not move. `pns --version` becomes a deliverable of the pns refactor's PR 8.3,
+   because the plugin gates itself on a minimum pns version (7.7, 11, 12.4).
 
 ## 0. Status and provenance
 
@@ -934,7 +945,7 @@ dot_config/nvim/tests/
   herdr_spec.lua       # 7.4: may_send over all five states (PR 11), then agent_name and
                        # plan_launch (PR 13)
   ledger_awk_spec.lua  # 7.7 #2: the :ReviewLedger awk, fed a heredoc through vim.system
-  annotate_spec.lua    # 7.7 #3: the annotation composer
+  annotate_spec.lua    # 7.7 #3: the annotation composer; moves out with the extraction
                        # 7.7 #1 has no file here: it is its own repo, webdavis/pns.nvim
 ```
 
@@ -1268,12 +1279,22 @@ portability becomes a goal.
 
 ### 7.7 Custom plugins #1 to #3, approved
 
-All three shrank on 2026-09-03; #1 regained a shape of its own on 2026-09-05, and only one is still
-a `lua/custom_api/` module. #1 is a small plugin in its own repository with one public call, #2 is
-one command over one awk program, and #3 is one composer feeding `herdr-nvim`'s own annotation
-store. Where a `custom_api` module survives it lives under `lua/custom_api/`, function-named with no
-handle so it can be lifted into its own repository later, with a pure core under unit test (6.3) and
-a thin editor edge; its name is a proposal and the rename rule applies (confirm before creating).
+All three shrank on 2026-09-03. #1 is a small plugin with one public call, #2 is one command over one
+awk program, and #3 is one composer feeding `herdr-nvim`'s own annotation store.
+
+**Every custom Neovim plugin is its own public repository** (operator ruling 2026-09-05), installed
+by any lazy.nvim user the ordinary way, never a `lua/custom_api/` module lifted out later. Three
+exist: `webdavis/pns.nvim` (#1), `webdavis/herdr-nvim-annotate-extension.nvim` (#3) and
+`webdavis/neotest-bashunit` (the bashunit adapter, spec 11 T2). Each is function-named with no
+handle in the plugin name, with a pure core under unit test (6.3) and a thin editor edge, and the
+tests live in the plugin's own repository rather than in `dot_config/nvim/tests/`.
+
+Two consequences worth stating, because both look like exceptions and are not. #2 is NOT a plugin:
+it is a `:ReviewLedger` user command of about ten lines in `keymaps.lua` with no module at all, so
+the ruling has nothing to reach and it stays here. And #3 SHIPPED as `lua/custom_api/annotate.lua`
+before the ruling landed, so its extraction into the repository named above is follow-up work on a
+module that already works, not a redesign; `lua/custom_api/` keeps its other twelve members, which
+are this config's own internals and were never candidates for a plugin.
 
 **#1, the editor-side pns producer (PR 14).** Overseer, `xcodebuild.nvim` and neotest runs report to
 pns the way the shell notifier does, through a small standalone Neovim plugin with its own GitHub
@@ -1324,7 +1345,10 @@ unchanged.
 
 Two sequencing consequences. PR 14 lands AFTER the pns refactor, which is where `--elapsed` is built
 (the operator froze pns work pending that refactor on 2026-09-03), and after PR 28b, whose neotest
-spec it edges. PR 28a and PR 28b therefore ship WITHOUT any pns edge, and PR 14 adds all three.
+spec it edges. PR 28a and PR 28b therefore ship WITHOUT any pns edge, and PR 14 turns all three on
+at once. Only the overseer one is an edit to a plugin spec here; the neotest and xcodebuild
+integrations live in `pns.nvim` and arm themselves once their host plugin is present, so PR 14
+touches neither `neotest.lua` nor the xcodebuild spec.
 
 **#2, the review-ledger quickfix (PR 15).** The pipeline's findings registers
 (`~/.claude/pipeline/slices/findings-*.md`) hold one table whose rows start with `| F<n>` and whose
@@ -1340,8 +1364,10 @@ register grammar puts a commit sha on every one of those rows, so they are close
 the findings.
 
 There is no `custom_api` module and no fixture file, and that is the point: one parser, in the only
-place both sides can see it. `~/.claude/pipeline/findings-register.sh` is NOT tracked by this
-repository (verified: `git ls-files private_dot_claude` returns no pipeline entry), so Neovim cannot
+place both sides can see it. Nor is there a plugin, which is why the own-repository ruling above
+does not reach this one: ten lines of a user command are not a plugin to extract.
+`~/.claude/pipeline/findings-register.sh` is NOT tracked by this repository (verified:
+`git ls-files private_dot_claude` returns no pipeline entry), so Neovim cannot
 call a `quickfix` subcommand living there, and a second parser in Lua would be a second thing to keep
 in step with the table format. If the pipeline scripts are ever brought into this repository, the awk
 moves there and the command calls it. The check is one headless case that pipes a heredoc of rows
@@ -1367,8 +1393,12 @@ overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec a
 the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
 into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
 composer is a text function over data the editor already holds. Pure and tested:
-`compose_text(parts, separator)`, including that a nil part contributes no gap. The module name
-(`custom_api/annotate.lua` proposed) follows the rename rule above.
+`compose_text(parts, separator)`, including that a nil part contributes no gap. It shipped as
+`lua/custom_api/annotate.lua` with `tests/annotate_spec.lua` beside it, before the own-repository
+ruling of 2026-09-05. Under that ruling it becomes `webdavis/herdr-nvim-annotate-extension.nvim`,
+which the operator has created: the composer, its tests and the `<leader>Cx` edge move there, and
+this config installs it like any other plugin. That extraction is follow-up work, tracked separately
+from PR 16, which shipped the module.
 
 **The stored text is ONE line, parts joined by ` | `** (space, pipe, space) in that same order. It was
 one part per line until 2026-09-05, when a review measured that herdr-nvim cannot list a multi-line
@@ -1670,7 +1700,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 26b | Bump hlslens +1 (bug #15)                                                                                | PR 2                  | 16                                          |
 | PR 26c | Bump catppuccin with the colorscheme rename (bug #16, `ui.lua`)                                         | PR 2                  | 17                                          |
 | PR 27 | gopls in Mason and `go` in the YAML (`lsp.lua`)                                                          | PR 17a                | 37                                          |
-| PR 28a | neotest core plus every eager adapter (Rust, Python, Go, Bash over our own `neotest-bashunit`, and Zig through the shared `neotest-vim-test`), `<leader>t` and its which-key group row (`which-key.lua`); each adapter verified against a scratch project in a real pane. No pns edge | PR 3, PR 12, and for the Bash row only, the bashunit program's T1 and T2 | 44 (part) |
+| PR 28a | neotest core plus every eager adapter (Rust, Python, Go, Bash over our own `neotest-bashunit`, and Zig through the shared `neotest-vim-test`), `<leader>t` and its which-key group row (`which-key.lua`); each adapter verified against a scratch project in a real pane. No pns edge, here or ever: `pns.nvim` arms its own neotest integration | PR 3, PR 12, and for the Bash row only, the bashunit program's T1 and T2 | 44 (part) |
 | PR 28b | The ft-lazy adapters (JS/TS, Lua, Java, Elixir, Swift from Codeberg); each verified against a scratch project in a real pane. No pns edge | PR 28a | 44 (part) |
 | PR 29a | Health floor: none-ls executable gating (`lsp.lua`)                                                     | PR 27                 | 68 (none-ls half), 71 (health half)         |
 | PR 29b | Health floor: the treesitter runtimepath investigation and the treesitter-context check                | PR 2                  | 36 (note), 68, 71 (health half)             |
@@ -1759,9 +1789,14 @@ encode:
 - `lua/plugins/claudecode.lua`, the `<leader>C` keymap file: PR 12, 11, 13, 16, 30c9.
 - `lua/plugins/noice.lua`: PR 17c, 22b, 29c. `lua/plugins/blink-cmp.lua`: PR 17b, 29c.
 - `lua/config/autocmds.lua`: PR 4b, 20. `lua/config/options.lua`: PR 20, 29c.
-- `lua/plugins/neotest.lua`: PR 28a (creates it), 28b (adds the ft-lazy adapters), 14 (the pns edge).
+- `lua/plugins/neotest.lua`: PR 28a (creates it), 28b (adds the ft-lazy adapters). NOT PR 14: the
+  neotest and xcodebuild integrations live in `pns.nvim` and arm themselves on the host plugin's
+  presence, so PR 14 edits neither this file nor the xcodebuild spec.
 - `lua/plugins/overseer.lua`: PR 19a, 19b, 14, 30c3. `lua/plugins/autosave.lua`: PR 12, 24, 30c2.
-- `lua/plugins/harpoon.lua`: PR 22a, 30c4. The xcodebuild spec: PR 3, 14. `lua/config/lazy.lua`:
+  PR 14's one edit here registers the plugin's `on_complete` component, which is the only integration
+  that cannot arm itself.
+- `lua/plugins/pns.lua`: PR 14 creates it, and nothing else touches it.
+- `lua/plugins/harpoon.lua`: PR 22a, 30c4. The xcodebuild spec: PR 3. `lua/config/lazy.lua`:
   PR 4a, 30d.
 - `dot_config/nvim/CLAUDE.md`: PR 2, 4d, then the registering PR (10a or 10b).
 - `private_dot_codex/private_config.toml.tmpl`: the PR that lands it, then the registering PR.
@@ -1794,8 +1829,9 @@ re-gated since its last merge of `main` is not a verdict.
    criteria 1 to 3 fail; the custom crate only on a criterion 4, 5 or 6 failure. The evaluation in
    PR 9 decides, by the 7.3 table, inside its one-day budget; PR 10a or PR 10b ships and registers.
 4. **The custom server's name**, if built. Default `nvim-workspace-mcp`; confirm before creating it
-   (rename rule). The same applies to the one module name 7.7 still proposes,
-   `custom_api/annotate.lua`; #1 and #2 no longer create a module at all.
+   (rename rule). 7.7 no longer proposes a module name: #1 is the repository `webdavis/pns.nvim` and
+   creates no module here, #2 creates none at all, and #3's `custom_api/annotate.lua` shipped and is
+   being extracted to `webdavis/herdr-nvim-annotate-extension.nvim` under the own-repository ruling.
 5. **Agent keymap prefix.** Default `<leader>C` "claude"; the implementer may pick another free letter
    under the section 8.2 rule, stating why.
 6. **`go` via Homebrew for Mason's gopls.** Default: yes, it is what decision D requires to work; the

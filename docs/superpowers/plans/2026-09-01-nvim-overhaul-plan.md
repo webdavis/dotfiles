@@ -939,6 +939,13 @@ Lane: agent. Depends on: PR 12, PR 13 (`claudecode.lua`), PR 23 (`blame_sha`). B
 state gate, the one-slot queue, the detached `herdr agent wait`, the recheck and the state machine
 are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`.
 
+**This task is superseded in place, not rewritten.** It SHIPPED as the local module below, and the
+own-repository ruling landed after it (2026-09-05: every custom Neovim plugin is its own public
+repository, spec 7.7). Under that ruling custom #3 becomes
+`webdavis/herdr-nvim-annotate-extension.nvim`, which the operator has created, and the composer, its
+spec and the `<leader>Cx` edge move there. Extracting it is FOLLOW-UP work with its own task; the
+file list below is the record of what PR 16 built, not an instruction to build it locally again.
+
 **Files:** Create `lua/custom_api/annotate.lua`, `tests/annotate_spec.lua`. Modify
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
 blame"`).
@@ -1027,13 +1034,19 @@ themselves. Edge facts, re-verified at the pins: `xcodebuild.nvim` fires `User` 
 - [ ] **Step 4, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
   the tool and the task; a 10 s one gives none; the 35 s run's `--elapsed 35` appears in the pasted
   command line. The banner is not asserted (the engine suppresses it for the watched pane).
-- [ ] **Step 5:** Gates G1 to G6; G4 unchanged. Commit:
+- [ ] **Step 5:** Gates G1 to G6. G4 is NOT unchanged and must not be claimed so: the dump's plugin
+  state pass emits a row per `require("lazy").plugins()` entry, so installing the plugin necessarily
+  adds one. Require exactly that: ONE added plugin state row, `pns.nvim`, with its `lazy` and
+  `loaded` fields as the spec sets them, and not one keymap row added, removed or changed anywhere
+  in the global or buffer-local passes, because the plugin binds nothing. Commit:
   `feat(nvim): report task completions to pns`.
 
 ### Task 27: PR 15, custom #2, the review-ledger quickfix (spec 7.7)
 
 Lane: agent. Depends on: PR 7f, PR 8 (`keymaps.lua`). Brief: `brief-nvim-review-ledger.md`. Closes custom
-#2. Shrunk 2026-09-03: no `custom_api` module and no fixture file.
+#2. Shrunk 2026-09-03: no `custom_api` module and no fixture file. The own-repository ruling of
+2026-09-05 does not reach this one and nothing here moves: `:ReviewLedger` is a user command of about
+ten lines, not a plugin, so there is nothing to extract into a repository.
 `~/.claude/pipeline/findings-register.sh` is NOT tracked by this repository (verified: `git ls-files
 private_dot_claude` returns no pipeline entry), so Neovim cannot call a `quickfix` subcommand living
 there, and a second parser in Lua would be a second thing to keep in step with the table format. One awk
@@ -1284,8 +1297,9 @@ Lane: standalone. Depends on: PR 3, PR 12 (`which-key.lua`), and for the Bash ro
 `brief-nvim-neotest-core.md`.
 Closes 44 (part). Re-scoped 2026-09-03: both adapter pins the plan carried are dropped
 (`webdavis/neotest-swift` is an empty scaffold, one `lua/.gitkeep`; `rouge8/neotest-rust` was
-archived 2025-08-19), the set is now one adapter per language (spec 5.3), and the pns edge is NOT
-here: PR 14 adds all three edges together. Bash is an adapter we write over bashunit, and Zig rides
+archived 2025-08-19), the set is now one adapter per language (spec 5.3), and there is no pns edge
+here, or in any later PR: `pns.nvim` ships its own neotest integration and arms it when neotest is
+present, so nothing in this file ever calls pns. Bash is an adapter we write over bashunit, and Zig rides
 `nvim-neotest/neotest-vim-test` rather than an overseer template.
 
 **Files:** Create `lua/plugins/neotest.lua`. Modify `lua/plugins/which-key.lua`, the lock.
