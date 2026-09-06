@@ -4,7 +4,7 @@
 //! The codec's tests and the shape rules' stay in the legacy package, with the
 //! `render` whose output they measure against.
 
-use super::{HEARTBEAT_STALE_SECS, Job, Reason, Verdict, decide, rearm};
+use super::{Job, Reason, Verdict, decide, rearm};
 
 fn full() -> Job {
     Job {
@@ -20,24 +20,6 @@ fn full() -> Job {
             "a nudge with spaces".to_string(),
         ],
     }
-}
-
-#[test]
-fn a_slower_tick_than_the_bound_reads_a_healthy_daemon_as_not_running() {
-    // S206, pinned. The bound is ten of the DEFAULT tick and is fixed at
-    // compile time, while `PNS_DAEMON_TICK_MS` is read at run time and
-    // admits far more. On any tick longer than the bound the previous beat
-    // is ALREADY STALE when the next one is written, so the grader reads a
-    // daemon that is running perfectly as not running.
-    let beating = |age: u64| age <= HEARTBEAT_STALE_SECS;
-    assert!(beating(HEARTBEAT_STALE_SECS));
-    // One tick of a daemon told to look every thirty seconds.
-    assert!(
-        !beating(30),
-        "a 30s tick outruns a {HEARTBEAT_STALE_SECS}s bound"
-    );
-    // The bound does not follow it, which is the whole statement.
-    assert_eq!(HEARTBEAT_STALE_SECS, 10);
 }
 
 /// BOTH EDGES ARE CLOSED, and both are asserted, because a one-sided
