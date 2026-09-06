@@ -215,13 +215,20 @@ measured: `missed.rs` 323 plus `missed/tests.rs` 306; the root module splits its
 `record_path`, `claim_path` (path grammar) stay for PR 11.5. Tests: by name. Sizes: `nag.rs` ~180 plus
 tests ~140. Statements: S239 (`fate`), S240.
 
-**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `validate_shape`,
-`Heartbeat`, the bounds (`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`,
-`MIN_EVERY_SECS`, `DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`,
-`172-340`) to `pns-domain/src/jobs.rs`. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`,
-`publish_*`, `marker_exists`, `prepare_spool` stay for PR 11.5. Tests: `decide`, `rearm`,
-`validate_shape`, `validate_registration`, heartbeat round trip, by name. Sizes: `jobs.rs` ~230 plus
-tests ~350. Statements: S199, S200 (the `rearm` half), S205, S206.
+**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `Heartbeat`, the bounds
+(`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`, `MIN_EVERY_SECS`,
+`DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`, `172-340`) to
+`pns-domain/src/jobs.rs`. `validate_shape` and `validate_registration` do NOT move, against this row's
+first draft: `validate_shape`'s last rule caps the RENDERED record, which makes it a fact about the
+serialized form rather than about the job, and `validate_registration` calls it. Both stay beside
+`render` with their own tests, and both go to `pns-adapters` with the TAB codec in PR 11.5, which is
+where the serialized form lands. A pure `validate_shape(job, rendered_len)` would let the rule move
+later; nothing needs it yet. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`, `publish_*`,
+`marker_exists`, `prepare_spool` stay for PR 11.5 too. Tests: `decide`, `rearm`, heartbeat round trip, by
+name; the two validators' tests stay with them. S206's own test is written here, red-first, in
+`doctor.rs` rather than the domain, because the behavior it states belongs to the grader `daemon_line`
+and a test beside the constant can only restate the constant. Sizes: `jobs.rs` ~230 plus tests ~350.
+Statements: S199, S200 (the `rearm` half), S205, S206.
 
 **PR 5.7 the lights policy.** Moves from `src/lights.rs`: `WORKING`, `any_working`, `Streak`,
 `next_streak`, `News`, `news_after`, `Unread`, `unread_arming`, `last_interaction`, `Loop`,
@@ -600,13 +607,15 @@ successors of S158, S242, S243.
 **PR 11.5 the remaining filesystem protocols.** Pure move of the protocols that stay protocols because
 another process is the other party: the spool (`spool_entries`, `peek`, `claim`, `hand_back`,
 `publish_if_absent`, `publish_job`, `cancel`, `marker_exists`, `prepare_spool`, `publish_heartbeat`, the
-TAB codec, `WORKING_PREFIX`, from `src/daemon.rs`), the journal claim and hold protocol
-(`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`, `owner_is_gone`, the window
-claim), the nag records and fire lock (`nag_dir`, `record_path`, `claim_path`, `render`/`parse`,
-`claim_record`, `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`), the marker
-directories (`lease_dir`, `lease_marker`, `blocked_dir`, `blocked_marker`, `sweep_claim`,
-`sweep_markers`, `sweep_leases`, `sweep_shell_markers`, `sweep_legacy_state`), the turn marker claim, and
-the setup publish (`publish_config`, `pending_name`, `write_then_publish`, `keep_aside_at`) into
+TAB codec, `WORKING_PREFIX`, and `validate_shape` and `validate_registration`, which PR 5.6 left behind
+because the first caps the RENDERED record and the second calls it, from `src/daemon.rs`), the journal
+claim and hold protocol (`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`,
+`owner_is_gone`, the window claim), the nag records and fire lock (`nag_dir`, `record_path`,
+`claim_path`, `render`/`parse`, `claim_record`, `claim_fire`, `claim_lock`, `publish_lock`,
+`lock_aged_out`, `release_fire`), the marker directories (`lease_dir`, `lease_marker`, `blocked_dir`,
+`blocked_marker`, `sweep_claim`, `sweep_markers`, `sweep_leases`, `sweep_shell_markers`,
+`sweep_legacy_state`), the turn marker claim, and the setup publish (`publish_config`, `pending_name`,
+`write_then_publish`, `keep_aside_at`) into
 `pns-adapters/src/protocols/{spool,claims,nag,markers,turn,config_publish}.rs`. Each keeps the
 decision-0001 invariant as a one-line comment linking the record. Unpinned first: S165 (recorded as
 accepted; the source says no test can plant it), S183. Tests: by name; the claim rows of
