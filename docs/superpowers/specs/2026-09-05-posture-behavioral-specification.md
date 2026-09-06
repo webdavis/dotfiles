@@ -396,7 +396,8 @@ weakens one names it in its description.
   durably queued (S226, S267, S278, S015).
 - **SI-5** Write-ahead delivery. A page is persisted before the first network attempt and deleted
   only on a confirmed 2xx; a failed persist is the only hard failure (S145, S146). Section 5 keeps
-  this promise through pns's ledger rather than posture's own table.
+  this promise through pns's ledger rather than posture's own table, which holds only once the
+  ledger row is committed before dispatch and the result envelope says so (section 5.2).
 - **SI-6** The pipeline-broken alarms stay audible for every producer, the two muted ones
   included (S183). Under section 5 this becomes the last-resort banner posture raises when the
   delivery engine itself cannot take the event.
@@ -477,15 +478,29 @@ envelope on stdout, per page, heartbeat or digest. The request carries producer 
 the producer request id (today's occurrence-derived `osquery-<32 hex>`, renamed), a source event name
 (`page`, `heartbeat`, `digest`, `gap`, `cursor-reset`), the normalized signal (`NeedsAttention` for a
 page, `Observation` for the heartbeat and the digest), the rendered body as bounded detail, and the
-route `priority`. Posture reads one bit out of the result: whether pns has durably recorded the
-request and now owns its delivery. That bit is what `send_alert`'s return value means today (S144),
-so every producer's notify-before-persist rule (SI-4) keeps its exact shape: advance the cursor,
-baseline or marker only when the engine answered that it holds the event.
+route the pns route work assigns to posture (section 5.5, item 5; `priority` itself keeps its old
+contract until the bash is gone). Posture reads one bit out of the result: whether pns has durably
+recorded the request and now owns its delivery. That bit is what `send_alert`'s return value means
+today (S144), so every producer's notify-before-persist rule (SI-4) keeps its exact shape: advance
+the cursor, baseline or marker only when the engine answered that it holds the event.
 
-The priority route on the gateway is re-keyed to the pns signing secret and its prompt changed to
-pns's body fields, so one signer serves three routes and the runtime key file
-`~/.config/osquery/webhook-secret` retires. The route's own KeePassXC entry is not in this repository
-(section 3.4), so retiring it is a hand step.
+pns does not give that bit today, and the port must not pretend it does. On the event path the
+channels are dispatched first and the record written afterwards (`dot_local/share/pns/src/main.rs`,
+`dispatch_legs` at 3101 and `record_decision` at 3122), and both the decision ring and the missed
+journal drop a write failure on purpose (`main.rs:814-822 record_decision`, `:839-858
+record_missed`, each `let _ = append_ring_line`). A successful exit therefore says the channels were
+tried, not that anything was committed, and a producer that advanced its cursor on it would lose a
+page the moment pns was killed between dispatch and record. `accepted` is sound only when it names a
+committed, retriable obligation for that request id: a ledger row written before dispatch (pns PR
+11.4) and reported as written in the result envelope (pns PR 7.3). That work is a prerequisite of the
+plan's first step, not of its fifth, so posture's `AlertSink` contract is written against a real
+acknowledgement rather than a promised one.
+
+A pns-keyed route for posture is added on the gateway beside `priority`, so one signer serves every
+pns producer. `priority` keeps its own key and body while any bash producer or queued retry still
+POSTs the old contract, and retires with the runtime key file `~/.config/osquery/webhook-secret` only
+after the queue is drained (section 5.5, item 5; plan step 0.3 and PR 6.7). The old route's KeePassXC
+entry is not in this repository (section 3.4), so retiring it is a hand step.
 
 What posture gains beyond parity:
 
@@ -510,28 +525,65 @@ What it costs, and how each cost is met:
   re-submits under the same request id and the ledger deduplicates when it recovers. The gateway
   already treats the request id as idempotent (`alert-dispatch.sh:1064` names the rule), and pns
   PR 7.3 carries the id on the wire.
-- The pipeline-broken alarm (SI-6, S183). When the binary is absent, exits nonzero, or returns no
-  parseable envelope, the engine itself is the broken component, and no engine can report that. So
-  posture keeps one last-resort banner, a bounded `osascript` spawn with the fixed loud sound and
-  the backslash-first literal escape (S180), raised only on that path. This is the alarm for the
-  engine being down, not a second delivery engine: it retries nothing, stores nothing and posts
-  nowhere.
-- The operator mute and Focus. Under pns a muted event still reaches the durable log, is journaled
-  as a miss, and replays on return (pns S103, S106). A security page raised under a mute therefore
-  lands in Discord immediately and on the banner and phone later. Decision 4 in the plan asks the
-  operator whether that is the wanted behavior; this document recommends it, because the operator
-  set the mute and Discord still pings.
-- The two muted producers. `Observation` reaches the durable log and nothing else, which is what
-  "silent, no sound, tier muted" achieves today once section 3.4's finding is taken into account:
-  the wire `tier` was already rendering as nothing.
+- The pipeline-broken alarm (SI-6, S183). When the binary is absent, exits nonzero, hangs to its
+  deadline, or returns no parseable envelope, the engine itself is the broken component, and no
+  engine can report that. So posture keeps one last-resort banner, a bounded `osascript` spawn with
+  the fixed loud sound and the backslash-first literal escape (S180), raised only on that path. This
+  is the alarm for the engine being down, not a second delivery engine: it retries nothing, stores
+  nothing and posts nowhere. It covers DETECTABLE failure and nothing more. A pns binary replaced by
+  one that answers `accepted` and delivers nothing is invisible to this path, because the answer is
+  the only thing a producer can see, and SI-14's honesty applies: the banner is not a tamper defence
+  and the documents must not describe it as one. Catching that case is the integrity check below.
+- Independent integrity and health checks for pns. Delegating delivery puts pns on posture's trust
+  path, so posture judges pns the way it judges every other component: without asking pns. None of
+  the following is answered by the pns binary. The deployed `~/.local/libexec/pns/pns` gets a
+  known-good tuple under the same authorized-build rule the plan's decision 2 gives posture's own
+  binary, so a swapped engine pages like a swapped script. `posture watchdog` reads launchd's state
+  for `com.webdavis.pns-daemon` and the daemon's liveness directly, the way probe 2 reads the six
+  agents today (S212), and pages a daemon that is unloaded or wedged. The watchdog opens pns's
+  ledger read-only, exactly as S176 to S178 open the SQLite queue today, and pages an unreadable
+  ledger, any dead-lettered row, and an undelivered backlog that grew across two passes. Executable
+  presence is not detection and replaces none of these; the plan's PR 6.4 is corrected accordingly.
+- The operator mute and Focus. OPERATOR DECISION PENDING (the reviewer recommends b); plan decision
+  4 carries both options and this document chooses neither. What is true of pns today, read from the
+  code: a mute or a configured Focus zeroes the banner, the phone card and the pulse and keeps only
+  the durable leg (`crates/pns-domain/src/routing.rs:107-114`, where the durable leg is wanted
+  unconditionally; `src/engine.rs:978` a muted decision keeps the durable log and drops every
+  decorative leg, `:1011` no pulse, `:1043` the mute beats a forced phone card, `:1074` a named
+  Focus does the same). So "Discord at once" is correct as ROUTING INTENT: the hermes leg is
+  planned. It is not a delivery guarantee and not a phone ping. The replay does not fire when the
+  mute lapses; it waits for the next event that earns the operator a banner or a card
+  (`src/missed_notifications.rs:91-93 should_replay`) and delivers a catch-up card then, so "on the
+  banner and phone on return" overstates what the operator would see. Option (a) accepts that: a
+  security page under a mute reaches Discord, is journaled, and interrupts nobody until the mute
+  ends and something else fires; the argument is that a mute is about interruption, not
+  concealment, and that no producer has yet been allowed to overrule the operator in pns. Option
+  (b) says a security `NeedsAttention` is the one class that may: the funnel detector's page reports
+  a service newly exposed to the public internet and tells the operator to "close it now"
+  (`executable_tailscale-monitor.sh:132`), so an hour of Focus extends an unintended exposure by an
+  hour, and a tamper page on a tracked path (S081 to S084) carries the same shape. Under (b) pns
+  gains an operator-configured bypass, set in the operator's own pns config for this producer's
+  `NeedsAttention` only, so the operator still holds the switch. Under both options the heartbeat
+  and the digest stay quiet and interrupt nothing.
+- The heartbeat and the digest. Today both send `CRIT` with an empty sound (`executable_heartbeat.sh:51,
+  :80, :101`; `executable_digest.sh:226`), and `send_alert` raises the local notification first,
+  silent when the sound is empty, then POSTs any `CRIT` regardless of sound
+  (`executable_alert-dispatch.sh:1186-1193`). So each arrives in Discord daily and as a silent
+  banner. Section 3.4's finding is that the wire `tier` renders as nothing, not that the message
+  does. The port PRESERVES both: the heartbeat and the digest reach the durable route (Discord) and a
+  silent local banner, with no phone card, no pulse and no replay. An `Observation` that reached the
+  durable log and nothing else would drop the daily Discord line and the silent banner, and that is
+  not approved; section 5.5 states the requirement the pns route work must meet.
 - The queue counters, the drainer and the watchdog's probe 4 (S173, S176 to S178, S188 to S192,
-  S216). These become pns's concern. The plan names the pns-side requirements: the daemon
-  dead-letters a row after the same bounded attempts and age, raises its own loud alert when it does
-  or when the undelivered backlog grows across two passes, and `pns doctor` reports the ledger. Until
-  that pull request lands, posture's alerter cannot switch over, which is why the plan sequences it.
-- Sequencing. Posture's producer cutovers wait on three pns pull requests (7.3, 11.4 and the
-  priority-route work). Everything else in the port (the domain, the converge, the enricher, the
-  allowlist writer, the manifest audit, the readers) does not, and the plan orders it so.
+  S216). The drainer and the counters over the SQLite queue retire with the queue. The plan names
+  the pns-side requirements: the daemon dead-letters a row after the same bounded attempts and age,
+  raises its own loud alert when it does or when the undelivered backlog grows across two passes,
+  and `pns doctor` reports the ledger. That does not replace probe 4: pns reporting on pns is not
+  independent, so the watchdog keeps its own read of the ledger and the daemon, as stated above.
+- Sequencing. The three pns pull requests (7.3, 11.4 and the priority-route work) are prerequisites
+  of the plan's step 1, together with the mixed-producer route transition the plan's step 0 settles.
+  Nothing in the ladder starts before the durable acknowledgement exists, because the `AlertSink`
+  contract every use case is written against is that acknowledgement.
 
 ### 5.3 Option (b): posture keeps a signed webhook client behind a port
 
@@ -554,24 +606,40 @@ Ranked by result quality (memory `optimal-over-cheap`, ruling 2026-09-05), optio
 axis the charter names: one delivery engine, one presence gate, one journal, one signer. Option (b)
 wins only on schedule, and the operator has ruled that schedule is not a design input. The
 recommendation is (a), with the priority-route work filed as its own pull request in the pns
-program, sequenced before posture's first producer cutover, and with the last-resort banner as the
-one delivery-shaped thing posture keeps. No bash facade survives either way.
+program, sequenced before posture's first step (plan step 0), and with the last-resort banner as the
+one delivery-shaped thing posture keeps. No bash facade survives either way. The 2026-09-06 review
+upheld (a) on the ruling that pns is the one engine, withdrew "better on every axis" as the reason
+(option (a) gives up the failure isolation (b) keeps), and attached the conditions section 5.2 now
+carries: a durable acknowledgement before step 1, independent checks on pns, and the route overlap.
 
 ### 5.5 What the priority-route pull request must deliver
 
 Stated here so the pns program can size it; the design belongs there.
 
 1. `pns submit --json` accepts a route name and a `NeedsAttention` or `Observation` signal from a
-   producer, and its result says whether the ledger row was written (the durable bit posture reads).
-2. An `Observation` reaches the durable log and nothing else; a `NeedsAttention` reaches the log and
-   the presence-gated surfaces.
+   producer, and its result says whether the ledger row was COMMITTED before dispatch (the durable
+   bit posture reads). An `accepted` that is answered before the row is on disk, or that is answered
+   when the write failed, is a defect in pns, and posture's stub tests treat it as not accepted.
+2. A `NeedsAttention` reaches the log and the presence-gated surfaces. The heartbeat and the digest
+   reach the hermes route (Discord) and a silent local banner and nothing else: no phone card, no
+   pulse, no journal entry for replay. Whether that is an `Observation` with a route that names both
+   surfaces or a third signal is the pns program's design; the requirement is that Discord keeps its
+   daily heartbeat and digest lines (S204, S296) and the desk keeps the silent banner.
 3. The hermes body for a producer-supplied detail must render posture's page whole (the 1900
    character cap of S133 already fits Discord), with the request id on the wire.
 4. The daemon dead-letters an undelivered row after bounded attempts and age, and raises its own
    loud alert on a dead-letter or a backlog that grew across two passes; `pns doctor` shows both.
-5. The `priority` route in the hermes config is re-keyed to the pns secret and its prompt switched to
-   pns's fields, in the encrypted source `private_dot_hermes/encrypted_private_config.yaml.age`,
-   which the operator edits.
+   The ledger stays a file posture can open read-only without the daemon's help, and the daemon
+   stays a launchd job posture can inspect, because section 5.2's independent checks read both.
+5. A pns-keyed route for posture's producers is added to the hermes config while the existing
+   `priority` route keeps its key and body, because the bash producers and every retry still queued
+   in the SQLite store POST the old contract until the last one is gone. The old route and the
+   runtime key file `~/.config/osquery/webhook-secret` retire only after the plan's PR 6.7 has
+   drained the queue (plan, step 0). The edit is in the encrypted source
+   `private_dot_hermes/encrypted_private_config.yaml.age`, which the operator edits.
+6. Whether a security `NeedsAttention` from this producer may bypass the operator's mute is decided
+   by plan decision 4, which is pending. If the operator takes (b), the bypass is a pns config
+   option the operator sets, and this pull request carries it.
 
 ## 6. What the port drops, with the reason
 
@@ -586,9 +654,12 @@ behavior lives afterwards.
   durability promise (SI-5) is kept by the result envelope.
 - **D3** The durable retry of the local banner, its table, its expiry and the `occurred` subtitle
   (S181, S182, S184 to S186). pns replays a missed notification on the operator's return carrying the
-  original time (pns S155 to S165); a late banner with a subtitle is the weaker version of that.
-- **D4** The two read-only queue counters and the watchdog's queue probe (S176 to S178, S216).
-  pns's daemon and doctor own the ledger's health (section 5.5, item 4).
+  original time (pns S155 to S165); a late banner with a subtitle is the weaker version of that. This
+  is a deliberate delivery change (section 6.1), not parity.
+- **D4** The two read-only queue counters over the SQLite store and the watchdog's queue probe as
+  written (S176 to S178, S216). The watchdog does not lose the probe; it re-reads it against pns's
+  ledger and daemon without asking pns (section 5.2), so the independence of the check is kept and
+  only its subject changes. A deliberate change (section 6.1).
 - **D5** The hand-rolled HMAC, the webhook POST site, the retry-with-backoff attempt loop and the
   localhost-only check on stored URLs (S152 to S156, S167). pns signs and posts; posture never
   stores a URL, so there is none to check.
@@ -603,7 +674,8 @@ behavior lives afterwards.
   the count is a typed value.
 - **D9** The unlocked fallback on a host without `lockf`, on the alerter, the drainer and the writer
   (S003, S189, and that clause of S299). A Rust `flock` has no missing-binary case; a lock that
-  cannot be taken fails closed.
+  cannot be taken fails closed. Observable on a host that lost `lockf`: the bash ran unlocked, the
+  port refuses to run, so this is a deliberate change (section 6.1).
 - **D10** The `declare -F` presence checks on reused seams and the conditional sourcing of helpers
   (S018, S019, S078, S107, S217, S231, S232). One binary has no partial install, and an absent
   triage helper becomes a compile-time fact.
@@ -621,6 +693,47 @@ on its containing directory (S329) stays, because `sudo -n` still preserves the 
 The converge's `rm -rf` of its private stage (S349) stays as a Rust `remove_dir_all` on a path the
 process created, because the `trash` rule covers operator files, not a per-run temporary directory
 the tool owns.
+
+### 6.1 The delivery changes the port makes on purpose
+
+"No product changes" was the first draft's claim and it is false as written: moving delivery into
+pns changes what the operator can observe, and each change below is approved as a deliberate one
+rather than smuggled in as parity. Everything not listed here is expected to behave as the bash does,
+and a difference found there is a regression.
+
+- D1 and D2: the SQLite queue, its drainer and its LaunchAgent are replaced by pns's ledger and
+  daemon. Observable: one fewer agent, one fewer state file, the retry cadence and dead-letter
+  policy become pns's.
+- D3: the durable local-banner retry (a late banner with an `occurred` subtitle) is replaced by
+  pns's presence replay, which fires on the next qualifying event after the operator returns and
+  delivers a catch-up card. Observable: a banner missed while away is not re-shown as a banner.
+- D4: the watchdog's two SQLite counters are replaced by an independent read of pns's ledger and
+  daemon state. Observable: the page wording names pns's ledger; the check stays posture's own.
+- D5 and D6: the hand-rolled HMAC, the POST site, the retry loop, and the `tier`, `event_type`,
+  `host` and `ts` body fields are replaced by pns's signer and body. Observable: the Discord line is
+  rendered by the pns route's prompt rather than the `priority` route's, and the page title and full
+  detail are preserved in it (section 5.5, item 3).
+- D7: the ordinary banner is raised by pns's banner destination instead of `alerter` or `osascript`
+  directly. Observable: the banner's look is pns's.
+- D9: a host that lost `lockf` ran the alerter, the drainer and the writer unlocked; the port fails
+  closed instead.
+- The presence gate: a `NeedsAttention` page reaches the phone when the operator is away, which the
+  pipeline never did. Observable: a new surface for the same page.
+- The operator mute: whatever decision 4 settles, it is a change, because the bash had no mute.
+
+Option E of the allowlist boundary design (own-agent suppression by manifest membership, retiring
+the empty-`sha256` convention) is NOT on this list. It changes suppression semantics and gets its own
+pull request with its own evidence after the port; plan decision 5 records that separation.
+
+### 6.2 What the port preserves, and the claim that would have dropped it
+
+The heartbeat's daily Discord line and its silent banner (S204, S205), the digest's daily Discord
+message and its silent banner (S296), and every ordinary silent banner an empty sound produces today
+(S143) are preserved. The first draft of section 5.2 said an `Observation` reaches the durable log
+and nothing else; read against `send_alert` (`executable_alert-dispatch.sh:1186-1193`), which
+notifies locally first and then POSTs every `CRIT` whether or not a sound was requested, that
+sentence would have removed both daily messages and the silent banners. Section 5.2 and section 5.5
+now state the preservation as a requirement on the pns route work.
 
 ## 7. Vocabulary
 
@@ -2988,6 +3101,13 @@ Computed over this document on 2026-09-05 with `grep -c '^S[0-9][0-9][0-9]\. '` 
 Only two of the 186 cases go uncited, both in `test/e2e/osquery-alerter-criteria.bats`: the pair that
 asserts the retired flat `launch-allowlist.txt` is not consulted and that the unified
 `OSQUERY_LAUNCHD_ALLOWLIST` variable is what the entry reads (`:178`, `:189`).
+
+The 368 statements are an inventory of what the bash does, not proof that a port matches it. A
+statement is checkable only where a test names it, and 199 are not; for those, a Rust test written
+from the statement's prose checks the porter's reading of the bash, not the bash. The plan's section
+4, rule 1, therefore requires a bash-derived acceptance example (the exact input and the output the
+running script produced) for every UNPINNED statement a pull request moves, captured before the Rust
+test that interprets it is written.
 
 The pinned share concentrates in six tools (the alerter entry and its four stages, the digest
 builder, the heartbeat, the converge tool and its verdict core, and the two dispatch counters). Five

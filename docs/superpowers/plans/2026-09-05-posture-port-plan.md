@@ -32,10 +32,15 @@ inputs, all read in full for this plan:
   (`src/lanes/spawn.rs:59`) and its two clients of pns (`src/alert.rs`, `src/delivery.rs:11`);
 - the locked decisions in the specification's section 4 and the delivery decision in its section 5.
 
-Three pull requests in the pns program gate posture's producer cutovers and nothing else: PR 7.3
-(`pns submit --json` with a result envelope), PR 11.4 (the write-ahead delivery ledger the daemon
-drains), and the priority-route pull request the specification's section 5.5 sizes. Steps 1 to 4 and
-step 7 below do not wait on them; steps 5 and 6 do.
+Three pull requests in the pns program are prerequisites of step 1: PR 7.3 (`pns submit --json` with
+a result envelope), PR 11.4 (the write-ahead delivery ledger the daemon drains), and the
+priority-route pull request the specification's section 5.5 sizes. They are prerequisites of the
+whole ladder and not only of the producer cutovers because pns today acknowledges nothing durably:
+the channels are dispatched before the record is written and a failed journal write is dropped
+(`dot_local/share/pns/src/main.rs:3101-3122`, `:814-858`; spec section 5.2). The `AlertSink`
+contract every use case in step 3 is written against is that acknowledgement, so writing the use
+cases first would mean writing them against a promise. Step 0 below lists what must be settled
+before PR 1.1 opens.
 
 ## 2. The target workspace
 
@@ -147,8 +152,12 @@ today, over ports the use case declares. Names are proposed.
 
 `AlertSink` is the one port every producer shares. Its contract is the specification's S144 as a
 type: `fn submit(&self, alert: &Alert) -> Accepted | NotAccepted(reason)`, where `Accepted` means the
-engine has durably recorded the event and owns its delivery from here. Notify-before-persist (SI-4)
-is then one line in each use case: advance state only on `Accepted`.
+engine has COMMITTED a ledger row for this request id before dispatching anything and owns its
+delivery from here: a retriable obligation, not a report that the channels were tried. The adapter
+answers `Accepted` only from a result envelope whose diagnostics say the row was written; an
+`accepted` with no such diagnostic, a `degraded`, a refusal, garbage, silence or a timeout are all
+`NotAccepted`. Notify-before-persist (SI-4) is then one line in each use case: advance state only on
+`Accepted`.
 
 Ports are narrow but cohesive: `Spool` is one trait with claim, restore, rotate and sweep, because
 those four operations form one transactional protocol over one file family; splitting them would
@@ -185,13 +194,14 @@ let a test double honour one and not the others.
   `xattr` and `file`. Replaces `enrich-finding.sh`'s spawns.
 - `process`: `ProcessTable`, `pgrep`, the ppid-1 parent, `kill(pid, 0)`. Replaces `pgrep -fq` and
   `daemon_parent_pid`.
-- `gateway`: `GatewayHealth`, one unsigned GET of the priority route under a deadline through
-  `ureq`. Replaces the watchdog's probe 3.
+- `gateway`: `GatewayHealth`, one unsigned GET of the gateway route posture posts to (the pns-keyed
+  route once `priority` retires) under a deadline through `ureq`. Replaces the watchdog's probe 3.
 - `pns_producer`: `AlertSink`, spawning the deployed `pns` binary with `submit --json`, encoding the
   request with `pns-protocol`, decoding the result, mapping the durable bit, with the child bounded.
   Replaces `alert-dispatch.sh` (spec section 5).
 - `last_resort_banner`: the one `osascript` spawn posture keeps, raised only when the engine could
-  not take the event. Replaces the alarm role of `_osquery_notify_local_durable`.
+  not take the event in a way posture can see (absent, nonzero, timed out, unparseable). Replaces
+  the alarm role of `_osquery_notify_local_durable`. It is not a tamper defence (spec section 5.2).
 - `privileged`: `PrivilegedInstall` (`/usr/bin/sudo -n /usr/bin/install -o root -g wheel -m ...` out
   of the private copy) and `Osqueryctl` (resolved and trust-checked; `config-check`, `stop`,
   `start`). Replaces the converge's privileged calls.
@@ -265,42 +275,122 @@ to this port, and the specification's section 1 lists the references.
 
 ### 3.1 The build step
 
-`.chezmoiscripts/run_onchange_after_03-build-posture.sh.tmpl` mirrors the pns builder
-(`run_onchange_after_58-build-pns-engine.sh.tmpl`): it hashes every `*.rs`, the manifests and the
-lock so any source change re-fires it, defers with a retry marker when `~/.cargo/bin/cargo` or the
-deployed source is absent, builds with `--locked --bin posture`, compares the artifact with the
-deployed binary, and installs a changed one with `/usr/bin/install -m 755` into
-`~/.local/libexec/posture/posture`. It differs from the pns builder in two ways: there is no daemon to
-kickstart, because every posture agent is interval- or watch-driven and spawns a fresh process per
-tick, so no pending marker and no `launchctl` call; and it runs at `03`, before the manifest runner
-at `05`. The ordering is by target name with the script attributes removed:
-`chezmoi --source <checkout> managed --include=scripts` lists
-`.chezmoiscripts/03-build-posture.sh` before `.chezmoiscripts/05-osquery-known-good-manifests.sh`
-before `.chezmoiscripts/50-setup-osquery.sh`, and chezmoi's reference says scripts run "in ASCII
-order of their target names". A companion test, `test/unit/posture-build-install.sh`, mirrors
-`test/unit/pns-engine-build-install.sh` (render the script, stub cargo, assert the install path and
-the marker behavior).
+`.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl` (slot proposed; beside the pns builder
+and after `05`) mirrors `run_onchange_after_58-build-pns-engine.sh.tmpl`: it defers with a retry
+marker when `~/.cargo/bin/cargo` or the deployed source is absent, builds with
+`--locked --bin posture`, compares the artifact with the deployed binary, and installs a changed one
+with `/usr/bin/install -m 755` into `~/.local/libexec/posture/posture`. It differs from the pns
+builder in four ways.
+
+There is no daemon to kickstart, because every posture agent is interval- or watch-driven and spawns
+a fresh process per tick, so no pending marker and no `launchctl` call.
+
+The build does NOT run before the manifest runner. The first draft put it at slot `03` so the
+artifact would exist when `05` hashed it, and that ordering is wrong: a release build takes tens of
+seconds to minutes, and `05` is placed first (S351) because the WatchPaths alerter judges the change
+an apply makes exactly once and waits at most `OSQUERY_PIPELINE_SETTLE_SECONDS` (5 s,
+`results-alerter/pipeline-verdict.sh:136`) for a manifest that predates it (S098). A compile in front
+of `05` would hold the manifests for every already-deployed script and plist the same apply changed
+past that budget, and each of them would page a false CRIT that is never reconsidered. So the
+builder runs after `05`, and the tuple for the binary comes from the build record below rather than
+from a file that has to exist at `05`.
+
+Its trigger header hashes more than its own tree. Besides every `*.rs`, `build.rs`, the manifests
+and the lock under `dot_local/share/posture/`, it globs the sibling path dependency
+`dot_local/share/pns/crates/pns-protocol/**` the same way, because a change there changes the bytes
+this installs and the pns builder's header would fire only the pns build. The compiler is a build
+input too: the header carries the active toolchain's identity, read at render time the way the retry
+marker is (`stat` on the active toolchain's `rustc` under `~/.rustup/toolchains`, its modification
+time and never its contents; the exact probe is proposed), so a `rustup update` re-fires the build
+and the record and the tuple move with the bytes in the same run. Without it a toolchain change
+would ride into the deployed binary on the next unrelated source edit, unreviewed as a change of
+its own. The record also carries `rustc --version --verbose` so the pull request and the audit trail
+can say which compiler produced the vouched bytes.
+
+It publishes the known-good tuple for the binary it installs, in this order, all in one script run:
+build; write the BUILD RECORD (`~/.local/state/posture-build-record`, proposed: the sha256 and byte
+size of the artifact it is about to install and the compiler identity, mode 600, published by rename
+over the previous record, which is kept beside it until the run ends); refresh the manifests by
+invoking `run_after_05` by its source-relative path the way the allowlist writer does (S307,
+`executable_allowlist.sh:34`), so the pipeline manifest now carries the new tuple; then install the
+binary. A failed manifest refresh restores the previous record and leaves the old binary and the old
+tuple in force (the runner installs nothing on a refusal, S352, S358), and a failed install leaves a
+manifest that vouches for bytes not yet deployed, so the old binary pages, which is the safe
+direction; in both cases the builder exits nonzero so chezmoi retries the run. The tuple always
+precedes the bytes, so the alerter never sees a change the manifest predates and needs no settle, and
+the watchdog's audit can observe a mismatch only during the install itself, one `install(1)` rename
+wide. Section 3.2 states the rules the manifest runner follows when it reads the record.
+
+The release artifact is measured. The manifest audit refuses to hash a manifested file over
+`OSQUERY_PIPELINE_AUDIT_MAX_BYTES` (8 MiB, `executable_pipeline-audit.sh:91`) and reports it
+`oversize`, which the watchdog pages as "too large to hash" (`executable_uptime-watchdog.sh:338-346`).
+The deployed `pns` binary measures 4,285,136 bytes and `uu` 3,246,960 on 2026-09-06, so a stripped
+release build of a crate this size fits, but PR 1.1 records `wc -c` of the artifact and the release
+profile (`strip = true`, `lto = true`, `codegen-units = 1`, `panic = "abort"`, proposed) in its
+description, and a build that crosses 8 MiB fails the builder rather than publishing a tuple the
+audit will page on every tick.
+
+A companion test, `test/unit/posture-build-install.sh`, mirrors `test/unit/pns-engine-build-install.sh`
+(render the script, stub cargo, assert the install path, the record, the refresh call, the ordering
+and the marker behavior).
 
 ### 3.2 File-integrity coverage of the new directory, and of the binary
 
-Three copies of the tracked set gain one line each, in the same pull request and before any posture
-file deploys: `osquery.conf.tmpl`'s `pipeline_integrity` category under `file_paths` and
-`file_paths_hashes` (`osquery-converge/desired/osquery.conf.tmpl:39-84`), the manifest runner's
-pipeline `case` arm (`run_after_05:192-206`), and the verdict's `_pipeline_is_tracked`
-(`pipeline-verdict.sh:397-406`), each adding `~/.local/libexec/posture/*`. The `managed_bin` watch
-already covers `~/.local/libexec/%%`, so the new directory fires under both categories exactly as the
-old one does (spec section 3.9).
+The first draft called this "three one-line edits". It is five edits to the tracked-set copies plus
+the callers and globs of section 3.3, all in the same pull request and before any posture file
+deploys, each adding `~/.local/libexec/posture/*` beside the `osquery/*` pattern it mirrors:
+
+- membership: the manifest runner's pipeline `case` arm (`run_after_05:192-206`), so the runner
+  lists posture's managed files in the pipeline manifest;
+- classification: the verdict's `_pipeline_is_tracked` (`pipeline-verdict.sh:397-406`), so a change
+  under the directory is judged rather than treated as an untracked neighbour;
+- manifest selection: the verdict's `_pipeline_manifest_for` (`pipeline-verdict.sh:278-284`), which
+  the first draft missed. It routes `~/.local/libexec/osquery/*` to the pipeline manifest and EVERY
+  other `~/.local/libexec/*` path to the managed-bin manifest, and the two manifests never vouch for
+  each other (S090). Without this edit the runner would list posture's files in the pipeline
+  manifest and the verdict would look them up in the bin manifest, find no tuple, and page every
+  file on every change;
+- both watch arrays: `osquery.conf.tmpl`'s `pipeline_integrity` category under `file_paths` and
+  again under `file_paths_hashes` (`osquery-converge/desired/osquery.conf.tmpl:39-84`), so the change
+  event carries a digest and takes the hashed path (S362). The `managed_bin` watch already covers
+  `~/.local/libexec/%%`, so the new directory fires under both categories exactly as the old one does
+  (spec section 3.9).
 
 The binary itself is not chezmoi-managed, so `chezmoi managed` never lists it and the manifest runner
 would leave it unvouched; under a tracked directory that is a page on every rebuild. Decision 2 in
-section 8 settles this. The recommended shape: the manifest runner gains a third arm that hashes the
-BUILD ARTIFACT at `~/.local/share/posture/target/release/posture` (the product of managed source,
-never the protected tree) and writes one tuple for the deployed path with mode `0755` and the apply's
-uid into the pipeline manifest, skipping the tuple when the artifact is absent so a missing build
-leaves the deployed binary unvouched, which pages, which is the safe direction. This is why the build
-runs at `03`: the artifact must exist before `05` hashes it. Editing the desired osquery config also
-pages a CRIT until the full apply lands, which is the known property of manifesting intent that
-CLAUDE.md records for every templated target.
+section 8 settles this with four rules the manifest runner follows, replacing the first draft's
+"hash `target/release/posture` at `05`", which would have blessed whatever bytes an out-of-band
+`cargo build` had left in the target directory while the onchange builder skipped the install.
+
+1. The digest comes from an AUTHORIZED build only. The runner gains a third arm that reads the build
+   record the builder wrote (section 3.1) and emits one tuple for `~/.local/libexec/posture/posture`
+   with the recorded sha256, mode `0755` and the apply's uid. It never hashes the target directory
+   and never hashes the deployed binary, for the reason the other two columns never read the
+   protected tree (`run_after_05:62-91`). The record is user-writable state, like the chezmoi source
+   it derives from, and SI-14's claim covers it: an attacker who can rewrite the record can rewrite
+   the source, and neither is defended at this layer.
+2. When no build ran, the trusted tuple is RETAINED, not recomputed. The record changes only when the
+   builder installed new bytes, so an apply that rebuilt nothing re-emits the same tuple, and a
+   `cargo build` run by hand, or a binary copied into place by hand, is drift the audit never adopts:
+   it pages until an authorized build republishes the record, and a build that produced byte-identical
+   output leaves the tuple as it was.
+3. An absent artifact still gets a tuple. When no record exists (a fresh machine whose build was
+   deferred, S368's shape), the runner writes a tuple for the deployed path whose digest is the
+   sha256 of the empty input, which no binary can match, so the path is enumerated by the manifest
+   audit (S227 to S240) and reported `missing` or `content` until the build lands. Omitting the
+   tuple would drop the path from the one check that enumerates the manifest rather than the
+   filesystem, and a binary planted at that path would then be judged only as an untracked
+   neighbour.
+4. Installation and publication are coordinated by the builder, not by slot order: record, refresh,
+   install, in that sequence and in one script (section 3.1), so the audit never observes a tuple
+   without its bytes for longer than one `install(1)` rename. Slot order alone cannot provide this,
+   because `05` runs once per apply and a build that finishes after it would otherwise wait a whole
+   apply for its tuple.
+
+A compiler or dependency bump changes the bytes and, through the builder, the record and the tuple
+in the same run, so it does not page. Editing the desired osquery config also pages a CRIT until the
+full apply lands, which is the known property of manifesting intent that CLAUDE.md records for every
+templated target.
 
 ### 3.3 The data files move
 
@@ -308,9 +398,21 @@ CLAUDE.md records for every templated target.
 `~/.local/libexec/osquery/posture-controls.json`; the stutter goes because the directory now names
 the tool), and the six desired-state files move to `~/.local/libexec/posture/converge/desired/`.
 References that change with them: the poller's `CONTROLS_FILE` default
-(`firewall-gatekeeper-monitor.sh:30`) until that script is deleted, the converge's staging path,
+(`firewall-gatekeeper-monitor.sh:30`) until that script is deleted, the converge's staging path
+(`osquery-converge.sh`'s desired-tree constant, and later the `Staging` adapter's path),
 `treefmt.toml:118-126`'s four `osquery-config-render` globs, and the template's own header comment.
 Decision 3 in section 8 asks whether the data moves at all.
+
+The relocation must not weaken the converge's boundary. Today root reads installation bytes only out
+of an unprivileged, per-run, mode 0700 private copy of the staging tree, never out of the deployed
+tree (SI-7, S327, S332), and every component of the staging path is walked for a symlink before that
+copy is made (SI-8, S325, S334). The new path `~/.local/libexec/posture/converge/desired/` is one
+directory deeper and gains no privilege: the symlink walk covers the added component, the private
+copy is still taken before any read root performs, and the 48 converge cases that pin those two
+rules re-express against the new path in PR 7.1. A pull request that moved the tree and read it
+directly, or that let `install -d` follow a link at the new depth, would weaken SI-7 or SI-8; the
+specification's section 4 makes such a pull request name the weakening, and this plan expects none
+to.
 
 ### 3.4 Plists, loaders and the two callers
 
@@ -341,10 +443,11 @@ the crate.
 ### 3.6 The manifest runner stays bash
 
 `run_after_05` is a chezmoi runner that calls chezmoi and sudo, not one of the twelve entry points,
-and it stays a plain script. It changes twice: the one-line arm of section 3.2 and the binary tuple
-of decision 2 in step 1, and the removal of the `osquery/*` arm in step 8 once that directory is
-empty. The allowlist writer keeps invoking it by its source-relative path
-(`allowlist.sh:34`, `MANIFEST_RUNNER_REL`), now from the `Publisher` adapter.
+and it stays a plain script. It changes twice: the membership arm of section 3.2 and the build-record
+arm of decision 2 in step 1, and the removal of the `osquery/*` arm in step 8 once that directory is
+empty. Two callers invoke it by its source-relative path (`allowlist.sh:34`, `MANIFEST_RUNNER_REL`):
+the allowlist writer, now from the `Publisher` adapter, and the posture builder after it writes the
+build record (section 3.1).
 
 ## 4. Rules every pull request in the ladder obeys
 
@@ -353,10 +456,18 @@ empty. The allowlist writer keeps invoking it by its source-relative path
    request carries a mapping table from the retired test to its successor (pns keeps that table in
    `dot_local/share/pns/docs/test-baseline.md`; posture keeps
    `dot_local/share/posture/docs/test-baseline.tsv` with the 186 case names recorded in step 1).
-   For an UNPINNED statement the test is written first
-   against the Rust code, fails for the stated reason, then passes; where the orphan fixture under
-   `test/fixtures/` asserted the same behavior, the Rust test cites it. Every fix is mutation-checked
-   by hand against an unmutated control, and the table goes in the pull request.
+   For an UNPINNED statement the pull request first records a BASH-DERIVED ACCEPTANCE EXAMPLE: the
+   exact input handed to the running bash function or script (sourced into a sandbox `HOME`, the way
+   the bats harnesses do) and the output, exit status and files it produced, captured before any
+   Rust for that statement is written and committed under
+   `dot_local/share/posture/docs/acceptance/<statement>.md` (proposed) with the command that produced
+   it. The Rust test then asserts that example, not the statement's prose, because the 368 statements
+   are an inventory and not proof of parity: a test written from the prose alone checks the porter's
+   reading of the bash, and the bash is what the machine has been running. Where the orphan fixture
+   under `test/fixtures/` asserted the same behavior, the example cites it. The test fails for the
+   stated reason, then passes. Every fix is mutation-checked by hand against an unmutated control,
+   and the table goes in the pull request. A pull request may not delete the bash it captured from
+   until its examples are committed, which the cutover rule below already implies.
 2. **Gates.** `just test-rust`, `just lint-check`, the builder's build line, `just ship` before the
    pull request opens (a topic branch with no open pull request runs the suite nowhere), and
    `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` on the two pull requests that
@@ -414,10 +525,36 @@ which UNPINNED statements get their first test); **Surface** (the deployed refer
 with `wc -l` and splits again if a projection was wrong). A pull request with no **Cutover** row
 deploys source and changes no plist or caller.
 
-### Step 0: the pns program's route pull request
+### Step 0: what is settled before PR 1.1 opens
 
-Not a posture pull request. The specification's section 5.5 lists what it delivers. Posture's step 5
-lands after it, and steps 1 to 4 do not wait for it.
+None of this is a posture pull request, and PR 1.1 does not open until all four are done.
+
+**0.1 The durable acknowledgement.** pns PR 7.3 (`pns submit --json` and its result envelope) and
+PR 11.4 (the ledger row written before dispatch) have merged, and the envelope reports the committed
+row, so `accepted` means a retriable obligation for that request id (spec section 5.2). Verified by
+the pns program's own tests for the crash window between dispatch and record, which PR 11.4 names.
+
+**0.2 The priority-route pull request**, sized by the specification's section 5.5, delivering the
+route, the heartbeat and digest preservation (item 2), and the ledger and daemon readable without the
+daemon's help (item 4).
+
+**0.3 The mixed-producer route transition.** The first draft re-keyed the `priority` route and
+changed its body in one step, while every bash producer still POSTs the old body under the old key
+until its cutover in step 6, and every retry already queued in the SQLite store carries the old body
+and is signed with the old key by the drainer (S145, S165 to S169). Re-keying the route would turn
+each of those into a 401 and, after the permanent-status rule, a dead-letter (S168). So the pns-keyed
+route is ADDED beside `priority`, the two run in parallel for the whole of step 6, and `priority`
+retires with its key file only in PR 6.7, after the queue is confirmed empty. The empty check covers
+all three tables, not the two the counters read (S176): `pending_alerts` and `dead_letter_alerts`
+through the two library functions, and `pending_local_notifications` through a `sqlite3 -readonly`
+count, because a banner still queued for redelivery (S181, S184) is a page the operator has not seen
+and the counters do not report it.
+
+**0.4 The independent pns checks are designed**, as spec section 5.2 requires: the tuple for the
+deployed `pns` binary under decision 2's authorized-build rule (the pns builder writes the same kind
+of record posture's does), the launchd read of `com.webdavis.pns-daemon`, and the read-only ledger
+probe. Designed here, built in PR 6.4, because PR 6.4 is where probe 4 is re-expressed and the design
+must exist before the use case it feeds is written in step 3.
 
 ### Step 1: the workspace and the deployment prerequisites
 
@@ -425,17 +562,30 @@ lands after it, and steps 1 to 4 do not wait for it.
 crates (each `lib.rs` a doc comment naming its responsibility), `Cargo.lock`, the `posture` binary
 printing usage and exiting 2 on every word (S298, S341), `docs/README.md`, and
 `docs/test-baseline.tsv` holding the 186 bats and bashunit case names as the set to map from. Adds
-`run_onchange_after_03-build-posture.sh.tmpl`, `test/unit/posture-build-install.sh`, and the three
-`test-rust` lines. **Tests**: the build-install test; a cli test that every subcommand word is
-refused with usage and exit 2 until it exists. **Surface**: the builder, the justfile. **Sizes**:
-`main.rs` under 60; the rest are doc comments. **Order**: first.
+`run_onchange_after_58-build-posture.sh.tmpl` (slot proposed, section 3.1) with its build record and
+manifest refresh, `test/unit/posture-build-install.sh`, and the three `test-rust` lines. The release
+profile is set and the artifact is measured against the audit's 8 MiB bound (section 3.1); the
+number goes in the pull request. **Tests**: the build-install test, including the record-refresh-
+install ordering and the refusal to publish an artifact over 8 MiB; a cli test that every subcommand
+word is refused with usage and exit 2 until it exists. **Surface**: the builder, the justfile.
+**Sizes**: `main.rs` under 60; the rest are doc comments. **Order**: first, after step 0. Until PR
+1.2 lands the binary sits under `~/.local/libexec/` as an untracked neighbour, as `pns` and `uu` do
+today, so nothing pages.
 
-**PR 1.2 file-integrity coverage of `~/.local/libexec/posture/`.** The three one-line arms of
-section 3.2, plus the binary tuple arm of decision 2 in `run_after_05`. **Tests**: none of the three
-copies is in test scope (the 2026-08-05 ruling); the pull request records the three diffs side by
-side. **Cutover**: the operator applies; the manifest gains the binary tuple; nothing pages, because
-the directory is empty until PR 1.1's binary lands and that binary is vouched for by the same apply.
-The desired `osquery.conf` change restarts osqueryd through the converge on that apply.
+**PR 1.2 file-integrity coverage of `~/.local/libexec/posture/`.** The five edits of section 3.2
+(membership, classification, `_pipeline_manifest_for`, both watch arrays) plus the build-record arm
+of decision 2 in `run_after_05`, with its four rules: digest from the record only, tuple retained when
+no build ran, the empty-input digest for a missing record, publication coordinated by the builder.
+**Tests**: none of the tracked-set copies is in test scope (the 2026-08-05 ruling); the pull request
+records the five diffs side by side. The record arm IS in scope, because it is logic this repository
+wrote: `test/unit/posture-manifest-record.sh` (proposed) drives the runner over a sandbox record and
+asserts the tuple for each of the four rules, including that a record whose digest is not 64 hex
+refuses the whole manifest the way S356 refuses an implausible hash. **Cutover**: the operator
+applies; the manifest gains the binary tuple from the record PR 1.1's builder wrote on the earlier
+apply; nothing pages, because the deployed binary is the one the record describes. If the earlier
+build was deferred (no cargo yet), the empty-input tuple is written and the audit pages `missing` on
+every tick until the build lands, which is stated here as the expected cost on a fresh machine. The
+desired `osquery.conf` change restarts osqueryd through the converge on that apply.
 
 ### Step 2: the domain, red first
 
@@ -553,12 +703,14 @@ byte (S306), run the targeted apply and the manifest runner (sudo prompt), and e
 request and result envelopes, and `last_resort_banner.rs`. **Statements**: the successors of S142 to
 S149 (the request id from the occurrence identity, CRIT-only submission, the durable bit), S180 (the
 backslash-first literal) and S183 (the fixed loud sound, raised only on the engine-down path).
-**Tests**: a scripted `pns` stub answering `accepted`, `degraded`, a refusal, garbage and nothing;
-the durable bit follows the ledger diagnostic, never the delivery outcome; a stub that hangs is
+**Tests**: a scripted `pns` stub answering `accepted` with the committed-row diagnostic, `accepted`
+WITHOUT it, `degraded`, a refusal, garbage and nothing; the durable bit follows the committed-row
+diagnostic alone, never the delivery outcome and never the bare word `accepted`; a stub that hangs is
 killed at the deadline and reported as not accepted; the banner spawn happens on exactly the
-not-accepted-because-the-engine-failed path and never on a clean refusal; the key never appears in
-argv (there is none). **Order**: after step 0. **Sizes**: `pns_producer.rs` ~200 plus tests ~350;
-`last_resort_banner.rs` ~80 plus tests ~120.
+not-accepted-because-the-engine-failed path (absent, nonzero, timeout, unparseable) and never on a
+clean refusal or a missing diagnostic; the key never appears in argv (there is none). **Order**:
+after step 0. **Sizes**: `pns_producer.rs` ~200 plus tests ~350; `last_resort_banner.rs` ~80 plus
+tests ~120.
 
 ### Step 6: the producer cutovers
 
@@ -570,7 +722,8 @@ their Rust successors).
 `executable_heartbeat.sh`, `test/integration/osquery-heartbeat.bats`. `canary-freshness.sh` stays
 until the watchdog cutover, because the watchdog still sources it. **Cutover**: the operator applies,
 runs `posture heartbeat` by hand once (a silent Discord line reading "observed" arrives on the
-priority route through pns), confirms the pns ledger recorded it, then trashes the retired script.
+pns-keyed route, and a silent banner on the desk), confirms the pns ledger recorded it, then trashes
+the retired script.
 **Sizes**: `heartbeat.rs` (application) ~120; cli under 40.
 
 **PR 6.2 `posture digest`.** **Statements**: S280 to S297. **Surface**: the digest plist,
@@ -597,12 +750,20 @@ trashes the eight retired files. **Sizes**: `judge_results.rs` ~280 plus `judge_
 
 **PR 6.4 `posture watchdog`.** **Statements**: S207 to S240. **Surface**: the watchdog plist,
 `executable_uptime-watchdog.sh`, `executable_pipeline-audit.sh`, `executable_canary-freshness.sh`,
-`test/fixtures/osquery-watchdog-lib.bash`, `osquery-manifest-lib.bash`. Probe 4 (S216) is not
-ported (spec D4); a probe that the deployed `pns` binary exists and is executable replaces it, named
-as new behavior with its test. **Cutover**: apply; the operator reads one healthy tick's silence in
-the agent log, then stops the digest agent by hand (`launchctl bootout`) for one tick, confirms the
-"not loaded" page, bootstraps it back, and trashes the retired files. **Sizes**: `watchdog.rs`
-(application) ~260 plus tests ~350.
+`test/fixtures/osquery-watchdog-lib.bash`, `osquery-manifest-lib.bash`. Probe 4 (S216) is
+re-expressed against pns (spec D4 and section 5.2), designed in step 0.4, and none of it asks pns:
+the deployed `~/.local/libexec/pns/pns` is judged against its known-good tuple through the same
+`KnownGood` and `DeployedState` ports the manifest audit uses; `LaunchdState` reads
+`com.webdavis.pns-daemon` and pages it unloaded or not running, exactly as probe 2 reads the six
+agents (S212); and a `PnsLedger` port (proposed, in `posture-adapters`) opens the ledger read-only,
+never creating it (S178's rule), and pages an unreadable ledger, any dead-lettered row, and an
+undelivered backlog that grew across two consecutive ticks (S216's own shape, over the new store).
+Executable presence is asserted by none of these and is not a probe. **Tests**: first tests for each
+of the three, over the scripted runner and a sandbox ledger, including that a ledger the process
+cannot open pages rather than reading zero. **Cutover**: apply; the operator reads one healthy
+tick's silence in the agent log, then stops the digest agent by hand (`launchctl bootout`) for one
+tick, confirms the "not loaded" page, bootstraps it back, and trashes the retired files. **Sizes**:
+`watchdog.rs` (application) ~260 plus tests ~350.
 
 **PR 6.5 `posture poll`.** **Statements**: S241 to S267. **Surface**: the poller plist,
 `executable_firewall-gatekeeper-monitor.sh`, `test/fixtures/osquery-poller-lib.bash`; the controls
@@ -624,12 +785,15 @@ adapter parsed in the agent log. **Sizes**: `funnel.rs` ~140 plus tests ~220.
 plist and its loader, `executable_drain-undelivered-alerts.sh`, `executable_alert-dispatch.sh`,
 `test/unit/osquery-alert-dispatch.bats`, `test/integration/osquery-drain-continuation.bats`,
 `test/helpers/build-dispatch-harness.sh`. **Cutover**, and this one has a precondition: before the
-apply, the operator confirms both counters read zero (the two library functions, sourced into a
-shell, or `sqlite3 -readonly` over the two tables) so no page is stranded in the retiring queue, and
-after the apply trashes the retired files, the queue's three files, `osquery-spool/`,
-`osquery-tailscale-funnel` (the two leftovers of spec section 3.10) and
-`~/.config/osquery/webhook-secret` (retired with the route in step 0). **Order**: after PR 6.1 to
-6.6, because every producer must have stopped writing the queue first.
+apply, the operator confirms all THREE tables are empty, not the two the counters read: `pending_alerts`
+and `dead_letter_alerts` through the two library functions sourced into a shell, and
+`pending_local_notifications` through `sqlite3 -readonly` over that table, because a banner queued for
+redelivery (S181) is a page the operator has not seen and no counter reports it (step 0.3). Only then
+does the operator retire the old `priority` route and its key in the hermes config, apply, and trash
+the retired files, the queue's three files, `osquery-spool/`, `osquery-tailscale-funnel` (the two
+leftovers of spec section 3.10) and `~/.config/osquery/webhook-secret`. **Order**: after PR 6.1 to
+6.6, because every producer must have stopped writing the queue first, and the old route must outlive
+the last queued retry.
 
 ### Step 7: the converge
 
@@ -672,54 +836,92 @@ Every one of these is the operator's and never an agent's:
 - Every `chezmoi apply` in the ladder, with KeePassXC unlocked (fourteen templates read it).
 - The osqueryd restarts: PR 1.2 and PR 8.1 change the desired `osquery.conf` and the converge
   restarts the daemon on that apply; PR 7.1's planted drift restarts it again.
-- Step 0's hermes edit: re-key the `priority` route to the pns secret and switch its prompt to pns's
-  fields in `private_dot_hermes/encrypted_private_config.yaml.age` (age identity required), then
-  retire the runtime key file `~/.config/osquery/webhook-secret` in PR 6.7.
+- Step 0's hermes edit: ADD the pns-keyed route for posture beside the existing `priority` route in
+  `private_dot_hermes/encrypted_private_config.yaml.age` (age identity required), leaving `priority`
+  and its key untouched for the whole of step 6; then, in PR 6.7 and only after the three-table
+  check, remove the `priority` route and trash `~/.config/osquery/webhook-secret`.
+- Decision 4, once taken: if (b), setting the mute bypass for posture's `NeedsAttention` in the
+  operator's own pns config.
 - The live verification of each cutover, as its **Cutover** row states, before the pull request that
   deletes the bash merges.
 - Trashing each retired deployed file after its apply (chezmoi deletes nothing), and reading the one
   expected CRIT page per trashed file.
-- Confirming the two queue counters read zero before PR 6.7's apply.
+- Confirming all three queue tables are empty before PR 6.7's apply (the two counters plus a
+  read-only count of `pending_local_notifications`).
 - TCC: no posture subcommand needs a grant the bash did not already have. `osqueryd` itself keeps
   Full Disk Access as today; `posture poll` reads the same world-readable files the poller reads.
 
 ## 8. Decisions the operator makes before code moves
 
-Two options each, the recommendation first.
+Two options each. Four were reviewed on 2026-09-06 and stand with the conditions recorded under each;
+the fourth is reopened and awaits the operator.
 
-1. **How posture delivers.** (a) Posture is a pns producer through `pns submit --json` with the
-   priority route re-keyed to the pns secret; pns owns the ledger, the retries, the presence gate,
-   the phone and the replay; posture keeps one last-resort banner for the engine-down case
-   (spec section 5.2). (b) Posture ports the dispatch library as its own `AlertSink`: a second
-   SQLite queue, drainer, dead-letter policy and signer key, with no presence gate, phone, replay or
-   recap (spec section 5.3). Recommendation: (a). It is better on every axis the charter names and
-   worse only on schedule, which the operator has ruled is not a design input; the cost is that the
-   producer cutovers wait for three pns pull requests, and the plan is ordered so nothing else does.
+1. **How posture delivers.** (a) Posture is a pns producer through `pns submit --json`; pns owns the
+   ledger, the retries, the presence gate, the phone and the replay; posture keeps one last-resort
+   banner for the engine-down case (spec section 5.2). (b) Posture ports the dispatch library as its
+   own `AlertSink`: a second SQLite queue, drainer, dead-letter policy and signer key, with no
+   presence gate, phone, replay or recap (spec section 5.3). Decision: (a), with three conditions.
+   The `accepted` bit must mean a committed, retriable obligation for that request id; today pns
+   dispatches before it records and drops a failed journal write (`main.rs:3101-3122`, `:814-858`),
+   so PR 7.3 and PR 11.4 are prerequisites of step 1, not of step 5 (step 0.1). Posture keeps
+   independent integrity and health checks on pns (the binary's tuple, the daemon's launchd state,
+   the ledger read-only), because (a) gives up the failure isolation (b) had and the engine-down
+   banner covers detectable failure only, never a pns that forges `accepted` (spec section 5.2, PR
+   6.4). And the route transition runs both routes in parallel until the queue is drained (step 0.3).
+   "Better on every axis" is withdrawn as the reason: (a) is chosen because pns is the one
+   notification engine by ruling, and the lost isolation is paid for by the checks.
 2. **Whether the built binary is vouched for by the file-integrity arm.** (a) The manifest runner
-   hashes the build artifact and writes one tuple for the deployed binary, so a swapped binary pages
-   like a swapped script does today; the build moves to slot `03` so the artifact exists at `05`.
-   (b) The binary lives under a tracked directory as an untracked neighbour, the way the `pns` and
-   `uu` binaries do today, and the file-integrity arm is blind to it. Recommendation: (a). Posture is
-   the tool that judges the integrity of everything else; leaving its own binary unwatched would make
-   the port a regression against the scripts it replaces.
+   writes one tuple for the deployed binary, so a swapped binary pages like a swapped script does
+   today. (b) The binary lives under a tracked directory as an untracked neighbour, the way the `pns`
+   and `uu` binaries do today, and the file-integrity arm is blind to it. Decision: (a)'s coverage,
+   with the mechanism of the first draft replaced. The digest comes from an authorized build's record,
+   never from `target/release/posture`, which an out-of-band build can change while the onchange
+   builder skips the install; the tuple is retained, not recomputed, when no build ran; an absent
+   artifact still gets a tuple so the manifest-enumerating audit sees the path; installation and
+   publication are coordinated inside the builder (record, refresh, install), because slot order
+   cannot do it; the build does not move to `03`, because a compile ahead of `05` would hold every
+   other manifest past the verdict's 5 s settle budget and page false CRITs (section 3.1, section
+   3.2). The sibling `pns-protocol` crate and the compiler identity are build inputs, and the
+   artifact is measured against the audit's 8 MiB bound.
 3. **Where posture's files live.** (a) `~/.local/libexec/posture/` for the binary, `controls.json`
-   and `converge/desired/`, joining the three tracked-set copies once in PR 1.2 and leaving the
-   `osquery/` arms in PR 8.1. (b) Everything stays under `~/.local/libexec/osquery/` beside the
-   scripts it replaces, touching no watch path or manifest arm. Recommendation: (a). CLAUDE.md's
-   naming rule says a libexec directory names the system, and osquery is the vendor daemon, not the
-   tool; (b) saves two one-line edits and leaves the tool misnamed for good.
-4. **Whether a security page honours the operator's mute.** (a) It does: under pns a muted or
-   Focus-silenced page still lands in Discord at once, is journaled as a miss, and reaches the banner
-   and phone on the operator's return (pns S103, S106). (b) pns gains a mute bypass for
-   `NeedsAttention` from this producer, which is a pns design change. Recommendation: (a). The
-   operator set the mute, Discord still pings, and a bypass would be the first producer allowed to
-   overrule the operator in pns.
-5. **Whether the port changes product behavior along the way.** (a) It does not: option E of the
+   and `converge/desired/`. (b) Everything stays under `~/.local/libexec/osquery/` beside the scripts
+   it replaces, touching no watch path or manifest arm. Decision: (a). The binary, the controls and
+   the desired state form one tool's directory, which is the CLAUDE.md shape (a directory names a
+   system, and `osquery/` was a permitted domain name too, so the naming rule alone did not decide
+   it). The cost is not "three one-line edits": it is five edits to the tracked-set copies, with
+   `_pipeline_manifest_for` (`pipeline-verdict.sh:278-284`) the one the first draft missed and the
+   one whose omission would page every posture file, plus the callers and render globs of section
+   3.3, and the relocation must leave the converge's symlink refusal and its private 0700 copy
+   exactly as strong at the deeper path (section 3.3).
+4. **Whether a security page honours the operator's mute.** OPERATOR DECISION PENDING (the reviewer
+   recommends b). (a) It does: a muted or Focus-silenced page is planned to the hermes leg (Discord)
+   at once and to nothing else, is journaled as a miss, and is caught up by a card on the next event
+   after the mute lapses that earns the operator something (`routing.rs:107-114`,
+   `missed_notifications.rs:91-93`; pns S106). Discord is routing intent, not a delivery guarantee
+   or a phone ping, and the replay is event-driven, not timed to the mute's end. For (a): a mute is
+   about interruption, not concealment; nothing is hidden; no producer has yet been allowed to
+   overrule the operator in pns. (b) pns gains an operator-configured bypass for this producer's
+   security `NeedsAttention`, which the operator sets in their own pns config. For (b): the funnel
+   detector reports a service newly exposed to the public internet and says "close it now"
+   (`executable_tailscale-monitor.sh:132`), so an hour of Focus extends an unintended exposure by an
+   hour, and a tamper page on a tracked path has the same shape; "every existing page tolerates an
+   hour" was asserted, not shown. Under both options routine observations (the heartbeat, the digest)
+   stay quiet. Spec section 5.2 carries the same two options; neither document chooses.
+5. **Whether the port changes product behavior along the way.** (a) The port makes the delivery
+   changes listed in spec section 6.1 and no others: D1 to D7 and D9 as stated there, the presence
+   gate as a new surface, and whatever decision 4 settles; the heartbeat's and the digest's daily
+   Discord lines and every ordinary silent banner are preserved (spec section 6.2); option E of the
    allowlist boundary design (own-agent suppression by manifest membership, retiring the
    empty-`sha256` convention) and any change to the detector set or the page wording are separate
-   pull requests after the port. (b) Fold option E into PR 2.3, since the verdict is being rewritten
-   anyway. Recommendation: (a). A port whose tests re-express the bats pins by name proves nothing
-   if the behavior changed underneath; option E is a one-page follow-up with its own red test.
+   pull requests after the port, each with its own evidence. (b) Fold option E into PR 2.3, since the
+   verdict is being rewritten anyway. Decision: (a), reworded. The first draft said "none", which was
+   false: D3 replaces banner retries with presence replay, D4 changes what the queue-health probe
+   reads, D9 removes an observable fallback, and each is now named as deliberate. What made "none"
+   dangerous rather than only wrong is that the first draft's `Observation` (durable log and nothing
+   else) would have removed the heartbeat and digest Discord messages that `send_alert` sends today
+   for every `CRIT` regardless of sound (`executable_alert-dispatch.sh:1186-1193`), and that was
+   never approved. The 368 statements are an inventory, not proof of parity; rule 1 of section 4 now
+   requires a bash-derived acceptance example for every UNPINNED statement before its Rust test.
 
 Two matters are recorded as settled rather than asked. The LaunchAgent labels keep the
 `com.webdavis.osquery-*` spelling, because renaming them is a separate migration touching six
