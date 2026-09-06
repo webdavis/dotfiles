@@ -21,17 +21,35 @@ pub trait NotificationDestination {
     fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery;
 }
 
-/// The approval round trip: hand the prompt to the phone and wait, bounded,
-/// for the operator to answer it.
+/// The approval round trip: hand the harness payload to the phone and wait,
+/// bounded, for the operator to answer it.
 ///
-/// `None` IS THE DEADLINE EXPIRING, and it is not a denial. A phone that never
-/// answers must release the prompt rather than hold it, so the caller
-/// distinguishes "the operator said no" from "nobody said anything" and only
-/// the first is a decision. The deadline itself belongs to the adapter, which
-/// is what owns the child process and the socket.
+/// TWO STEPS AND NOT ONE, because the caller acts between them. A forward that
+/// really BEGAN suppresses this process's own phone leg, since the card moshi
+/// is raising is one the surface model cannot know about, and that suppression
+/// happens before anybody waits for an answer. Collapsing the pair would make
+/// the suppression unobservable and the ordering untestable.
+///
+/// THE PAYLOAD CROSSES AS BYTES, never as a parsed event: it belongs to the
+/// harness and reaches the other side byte for byte whether or not pns could
+/// parse it.
+///
+/// The answer is the exit code the harness contract defines, and `None` from
+/// `forward` is a spawn that never began, which is not a denial.
+///
+/// Checked against `blocking_event` (`src/main.rs:2339-2346`), where the
+/// filter chain spawns and the `is_some` branch sets `PNS_SKIP_PHONE`, and
+/// `gate_mode` (`src/main.rs:245`), which spawns and waits with no arming
+/// between. Statements: S074, S076.
 pub trait ApprovalForwarder {
-    fn ask(&self, event: &Event) -> Option<bool>;
+    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Forwarded>;
+    fn answer(&self, forwarded: Forwarded) -> i32;
 }
+
+/// A forward that really began, and nothing more. It carries no detail because
+/// no caller reads one: its whole meaning is that a child exists to wait on.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Forwarded(pub u32);
 
 /// The catch-up: whatever the journal is holding, delivered now.
 ///
