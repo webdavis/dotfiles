@@ -1,14 +1,18 @@
-//! Workspace Jump: create-or-focus a herdr workspace by label.
+//! Workspace Jump: herdr workspace navigation.
 //!
-//! Bound to the quick-jump chords as one `plugin_action` per workspace. A
-//! keybinding passes no arguments, so each action's argv carries the label and
-//! the working directory; herdr does not run an action through a shell, so `~`
-//! is expanded here rather than by the shell.
+//! Two things herdr has no built-in for, sharing one workspace list:
 //!
-//! Usage: herdr-workspace-jump <label> <cwd>
+//!   jump <label> <cwd>   create-or-focus a workspace by label
+//!   last-workspace       toggle back to the previously-focused workspace
+//!   record               the `workspace.focused` event hook feeding the toggle
+//!
+//! Bound as one `plugin_action` per chord. A keybinding passes no arguments, so
+//! each action's argv carries what it needs, and herdr does not run an action
+//! through a shell, so `~` is expanded here rather than by the shell.
 
 mod cli;
 mod jump;
+mod mru;
 mod protocol;
 mod socket;
 
@@ -17,9 +21,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use cli::CliWorkspaceDirectory;
-use jump::{Jump, jump};
+use jump::{Jump, WorkspaceDirectory, jump};
 use protocol::JumpError;
 use socket::{DEADLINE, SocketWorkspaceDirectory};
+
+const USAGE: &str = "usage: herdr-workspace-jump jump <label> <cwd> | herdr-workspace-jump last-workspace | herdr-workspace-jump record";
 
 /// Expand a leading `~`, which herdr's argv-only action commands cannot do.
 fn expand_tilde(raw: &str, home: Option<&str>) -> Result<PathBuf, String> {
@@ -36,20 +42,22 @@ fn expand_tilde(raw: &str, home: Option<&str>) -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(tail.trim_start_matches('/')))
 }
 
-/// Try the socket, then the CLI.
+/// Run one operation against herdr, over the socket if it answers and through
+/// the CLI if it does not.
 ///
-/// The whole jump is retried rather than the failed call, because the socket
-/// may have failed before it listed anything. That is safe in both directions:
-/// a create that failed did not create, and a create whose answer was lost is
-/// found by the second list and focused instead of duplicated.
-fn run(
+/// The whole operation is retried rather than the failed call, because the
+/// socket may have failed before it listed anything. That is safe for a jump in
+/// both directions: a create that failed did not create, and a create whose
+/// answer was lost is found by the second list and focused instead of
+/// duplicated. It is safe for the toggle because focusing is idempotent.
+fn with_directory<T>(
     socket_path: Option<String>,
     herdr_binary: Option<String>,
-    label: &str,
-    cwd: &str,
-) -> Result<Jump, JumpError> {
+    operation: impl Fn(&mut dyn WorkspaceDirectory) -> Result<T, JumpError>,
+) -> Result<T, JumpError> {
     let over_socket = match socket_path.filter(|path| !path.is_empty()) {
-        Some(path) => attempt_socket(Path::new(&path), label, cwd),
+        Some(path) => SocketWorkspaceDirectory::connect(Path::new(&path), DEADLINE)
+            .and_then(|mut directory| operation(&mut directory)),
         None => Err(JumpError::Unreachable(
             "HERDR_SOCKET_PATH is unset".to_string(),
         )),
@@ -59,39 +67,78 @@ fn run(
         Err(failure) => failure,
     };
     let mut directory = CliWorkspaceDirectory::using(herdr_binary);
-    jump(&mut directory, label, cwd).map_err(|cli_failure| JumpError::BothPathsFailed {
+    operation(&mut directory).map_err(|cli_failure| JumpError::BothPathsFailed {
         cli: cli_failure.to_string(),
         socket: socket_failure.to_string(),
     })
 }
 
-fn attempt_socket(path: &Path, label: &str, cwd: &str) -> Result<Jump, JumpError> {
-    let mut directory = SocketWorkspaceDirectory::connect(path, DEADLINE)?;
-    jump(&mut directory, label, cwd)
+/// Resolve the environment herdr injects into every plugin command.
+fn herdr_environment() -> (Option<String>, Option<String>) {
+    (
+        env::var("HERDR_SOCKET_PATH").ok(),
+        env::var("HERDR_BIN_PATH").ok(),
+    )
+}
+
+fn run_jump(label: &str, raw_cwd: &str) -> Result<Jump, String> {
+    let cwd = expand_tilde(raw_cwd, env::var("HOME").ok().as_deref())?;
+    let cwd = cwd.to_string_lossy().to_string();
+    let (socket_path, herdr_binary) = herdr_environment();
+    with_directory(socket_path, herdr_binary, |directory| {
+        jump(directory, label, &cwd)
+    })
+    .map_err(|failure| format!("could not jump to {label}: {failure}"))
+}
+
+fn run_last_workspace() -> Result<mru::Bounce, String> {
+    let state = mru::state_file(
+        env::var("HERDR_PLUGIN_STATE_DIR").ok().as_deref(),
+        env::var("HOME").ok().as_deref(),
+    );
+    let (socket_path, herdr_binary) = herdr_environment();
+    with_directory(socket_path, herdr_binary, |directory| {
+        mru::bounce(directory, &state)
+    })
+    .map_err(|failure| format!("could not toggle to the previous workspace: {failure}"))
+}
+
+/// The `workspace.focused` hook. It only reads an event and writes a file, so
+/// it never touches herdr and cannot fail the event.
+fn run_record() {
+    let state = mru::state_file(
+        env::var("HERDR_PLUGIN_STATE_DIR").ok().as_deref(),
+        env::var("HOME").ok().as_deref(),
+    );
+    mru::record(
+        &state,
+        &env::var("HERDR_PLUGIN_EVENT_JSON").unwrap_or_default(),
+    );
 }
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    let [label, raw_cwd] = arguments.as_slice() else {
-        eprintln!("herdr-workspace-jump: usage: herdr-workspace-jump <label> <cwd>");
-        return ExitCode::from(2);
-    };
-    let cwd = match expand_tilde(raw_cwd, env::var("HOME").ok().as_deref()) {
-        Ok(cwd) => cwd,
-        Err(reason) => {
-            eprintln!("herdr-workspace-jump: {reason}");
-            return ExitCode::FAILURE;
+    let outcome = match arguments
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["jump", label, raw_cwd] => run_jump(label, raw_cwd).map(|_| ()),
+        ["last-workspace"] => run_last_workspace().map(|_| ()),
+        ["record"] => {
+            run_record();
+            Ok(())
+        }
+        _ => {
+            eprintln!("herdr-workspace-jump: {USAGE}");
+            return ExitCode::from(2);
         }
     };
-    match run(
-        env::var("HERDR_SOCKET_PATH").ok(),
-        env::var("HERDR_BIN_PATH").ok(),
-        label,
-        &cwd.to_string_lossy(),
-    ) {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(failure) => {
-            eprintln!("herdr-workspace-jump: could not jump to {label}: {failure}");
+    match outcome {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(reason) => {
+            eprintln!("herdr-workspace-jump: {reason}");
             ExitCode::FAILURE
         }
     }
@@ -177,18 +224,17 @@ mod tests {
     }
 
     #[test]
-    fn run_completes_a_jump_over_the_socket_without_touching_the_cli() {
+    fn with_directory_completes_a_jump_over_the_socket_without_touching_the_cli() {
         let list =
             r#"{"id":"req_1","result":{"workspaces":[{"workspace_id":"w11","label":"dotfiles"}]}}"#;
         let ok = r#"{"id":"req_2","result":{"type":"ok"}}"#;
         let path = one_shot_herdr("run-ok", vec![list.to_string(), ok.to_string()]);
 
         // The CLI binary does not exist, so a fallback would fail the assertion.
-        let outcome = run(
+        let outcome = with_directory(
             Some(path.to_string_lossy().to_string()),
             Some("/nonexistent/herdr-binary".to_string()),
-            "dotfiles",
-            "/tmp",
+            |directory| jump(directory, "dotfiles", "/tmp"),
         );
 
         assert_eq!(outcome, Ok(Jump::Focused("w11".to_string())));
@@ -198,14 +244,13 @@ mod tests {
     }
 
     #[test]
-    fn run_falls_back_to_the_cli_when_the_socket_path_is_absent() {
+    fn with_directory_falls_back_to_the_cli_when_the_socket_path_is_absent() {
         // Both paths are dead, so the surviving error proves which one answered
         // last: the CLI failure, carrying the socket failure behind it.
-        let failure = run(
+        let failure = with_directory(
             None,
             Some("/nonexistent/herdr-binary".to_string()),
-            "dotfiles",
-            "/tmp",
+            |directory| jump(directory, "dotfiles", "/tmp"),
         );
         let rendered = match failure {
             Err(error) => error.to_string(),
@@ -226,14 +271,13 @@ mod tests {
     }
 
     #[test]
-    fn run_falls_back_to_the_cli_when_the_socket_cannot_be_opened() {
+    fn with_directory_falls_back_to_the_cli_when_the_socket_cannot_be_opened() {
         let absent = std::env::temp_dir().join("hwj-run-no-socket");
         let _ = std::fs::remove_file(&absent);
-        let failure = run(
+        let failure = with_directory(
             Some(absent.to_string_lossy().to_string()),
             Some("/nonexistent/herdr-binary".to_string()),
-            "dotfiles",
-            "/tmp",
+            |directory| jump(directory, "dotfiles", "/tmp"),
         );
         let rendered = match failure {
             Err(error) => error.to_string(),
