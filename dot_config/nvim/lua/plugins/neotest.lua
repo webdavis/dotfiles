@@ -467,11 +467,10 @@ return {
       { "nvim-neotest/nvim-nio", lazy = true },
       { "nvim-neotest/neotest-python", commit = "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
       { "fredrikaverpil/neotest-golang", commit = "65b2be63c3de00e6f15c05388ebdc8d603dbd727" },
-      -- Ours, deployed by chezmoi from `dot_local/share/neotest-bashunit` rather than cloned, so
-      -- it carries no commit and never reaches `lazy-lock.json`. A dependency rather than a
-      -- filetype-lazy spec, like the two above, so it reaches the runtime path when neotest
-      -- itself loads and is there before `config` builds the adapter list.
-      { dir = "~/.local/share/neotest-bashunit" },
+      -- Ours, in its own repository and installed like any other plugin. A dependency rather
+      -- than a filetype-lazy spec, like the two above, so it reaches the runtime path when
+      -- neotest itself loads and is there before `config` builds the adapter list.
+      { "webdavis/neotest-bashunit", commit = "FILLME" },
     },
     -- stylua: ignore start
     keys = {

@@ -96,12 +96,12 @@ source logic while leaving the declarations intact would turn the test red. If i
 testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
 config that disagrees with itself is now caught by review, not by a gate.
 
-The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then
-`just test-neotest-bashunit`, then the one runner (`test/run-test-suite.sh`) with
-`--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run (replay a failure with
-`TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle; shuffling degrades to
-sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance summary lists any test
-over the threshold as a refactor-or-move-suite candidate; warnings never fail the run.
+The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then the
+one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each
+run (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle;
+shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance
+summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
+run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
@@ -385,20 +385,22 @@ the two agree, so they must be moved together by hand. The same hand-sync applie
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
-**bashunit is pinned in CI and gated by the unit and full test suites.** A release that changed an output
-shape would leave `neotest-bashunit`'s frozen fixtures green while it misreported real runs, so the
-adapter records the release it was measured against in `parse.verified_version` and
-`just test-neotest-bashunit` refuses to certify fixtures captured from a different one, naming both
-versions. CI cannot rely on that gate alone: the runner's cached Homebrew index poured 0.43.0 against
-fixtures measured on 0.50.1 and the gate did its job by turning the whole Lint job red. So the toolchain
-step in `.github/workflows/lint.yml` downloads bashunit's release asset itself and verifies it against a
-sha256 pinned beside the version, rather than taking the formula or running an unpinned installer script.
-Pinning the checksum in this repository is what the version alone cannot do: a compromised upstream
-release can rewrite a tag and the checksum it publishes, but not the one in our tree.
+**bashunit is pinned in CI, and the gate that used to check the pin now lives in another repository.**
+The `neotest-bashunit` adapter moved out to `webdavis/neotest-bashunit` when custom Neovim plugins became
+their own repositories, and it took `parse.verified_version` and its frozen fixtures with it. That
+version check is still real, it just runs over there and in `:checkhealth neotest-bashunit`, not in this
+repository's suite: nothing here notices a bashunit whose output shape moved.
 
-The release is now named in three places, and nothing enforces that they agree: `BASHUNIT_VERSION` and
-`BASHUNIT_SHA256` in that workflow step, and `parse.verified_version`. Move all three together by hand,
-and moving any of them means re-measuring every fixture rather than editing a number.
+The CI pin stays, because this repository's own `*.test.sh` corpus runs on whatever bashunit the runner
+has. The toolchain step in `.github/workflows/lint.yml` downloads bashunit's release asset itself and
+verifies it against a sha256 pinned beside the version, rather than taking the formula or running an
+unpinned installer script; the runner's cached Homebrew index once poured 0.43.0 into a job and turned
+the whole Lint job red. Pinning the checksum here is what the version alone cannot do: a compromised
+upstream release can rewrite a tag and the checksum it publishes, but not the one in our tree.
+
+`BASHUNIT_VERSION` and `BASHUNIT_SHA256` in that workflow step move together by hand. When the pin moves,
+the adapter repository's `M.verified_version` and fixtures have to be re-measured too, and nothing across
+the two repositories enforces that.
 
 Local stays Homebrew (`Brewfile.dev`, `.chezmoidata/system_packages_autoinstall.yaml`), because Homebrew
 has no declarative version pin the way `uv`'s `==` does. The cost: a `brew upgrade bashunit` past the pin
