@@ -1,15 +1,16 @@
 # shellcheck shell=bash
 # Shared fixture for the nvim-mcp-connect.sh tests. SOURCED, never executed:
-# test/unit/nvim-mcp-connect-resolution.sh and
-# test/unit/nvim-mcp-connect-refusals.sh each source this and then run their own
-# cases. One fixture rather than two that can drift apart.
+# test/unit/nvim-mcp-connect-resolution.sh, nvim-mcp-connect-refusals.sh and
+# nvim-mcp-connect-siblings.sh each source this and then run their own cases.
+# One fixture rather than three that can drift apart.
 #
 # What it provides:
 #   fail <message>          print and exit non-zero
-#   setup_case <name>       a private sandbox with a stub nvim and nvim-mcp
+#   setup_case <name>       a private sandbox with a stub nvim, herdr and nvim-mcp
 #   private_path <tool>...  a PATH holding only what is named
 #   make_socket <path>...   real, bound unix sockets
 #   live <path>...          real sockets the nvim stub ANSWERS on
+#   write_layout <tab> <pane...>  what the herdr stub answers for `pane layout`
 #   run_case <env...>       run the resolver; sets RC, $CASE/out, $CASE/err
 #
 # The caller sets nothing first and cleans up nothing after: this installs its
@@ -45,13 +46,13 @@ make_socket() {
 # The stubs are written ONCE and find their case through NMC_CASE at run time.
 mkdir -p "$work/bin"
 
-# The two things the resolver asks nvim for. `--server <socket> --remote-expr 1`
-# is the liveness probe: the socket is logged BEFORE the answer is looked up,
-# then it hangs if listed in $NMC_CASE/hang (as ONE process, the way a stuck
-# nvim client is: a child holding the pipe would outlive the watchdog's kill),
-# answers exactly `1` (no newline, as the real reply) if listed in
-# $NMC_CASE/live, and otherwise exits 1 the way a refused connection does. Any
-# other invocation is the run-dir query, logged to $NMC_CASE/queried and
+# The two things the resolver asks nvim for. `--server <socket> --remote-expr
+# getpid()` is the liveness probe: the socket is logged BEFORE the answer is
+# looked up, then it hangs if listed in $NMC_CASE/hang (as ONE process, the
+# way a stuck nvim client is: a child holding the pipe would outlive the
+# watchdog's kill), answers a pid with no newline (as the real reply) if listed
+# in $NMC_CASE/live, and otherwise exits 1 the way a refused connection does.
+# Any other invocation is the run-dir query, logged to $NMC_CASE/queried and
 # answered with the contents of $NMC_CASE/rundir.
 cat >"$work/bin/nvim" <<'STUB'
 #!/bin/bash
@@ -59,11 +60,24 @@ if [[ $1 == --server ]]; then
   printf '%s\n' "$2" >>"$NMC_CASE/probed"
   grep -qxF -- "$2" "$NMC_CASE/hang" && exec sleep 3
   grep -qxF -- "$2" "$NMC_CASE/live" || exit 1
-  printf 1
+  printf 4242
   exit 0
 fi
 printf '%s\n' "$*" >>"$NMC_CASE/queried"
 cat "$NMC_CASE/rundir"
+STUB
+
+# herdr 0.8.2 as the resolver sees it: `pane layout --pane <id>` prints the
+# layout document, or exits 1 with nothing on stdout for a pane it does not
+# know. Every call is logged. $NMC_CASE/herdr-hang makes it hang as one
+# process; $NMC_CASE/herdr-fail makes it fail the way a crashed herdr does.
+cat >"$work/bin/herdr" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NMC_CASE/herdr-argv"
+[[ -e $NMC_CASE/herdr-hang ]] && exec sleep 3
+[[ -e $NMC_CASE/herdr-fail ]] && exit 1
+[[ "$1 $2" == "pane layout" && -f $NMC_CASE/layout.json ]] || exit 1
+cat "$NMC_CASE/layout.json"
 STUB
 
 cat >"$work/bin/nvim-mcp" <<'STUB'
@@ -71,19 +85,23 @@ cat >"$work/bin/nvim-mcp" <<'STUB'
 printf '%s\n' "$*" >"$NMC_CASE/exec"
 STUB
 
-chmod +x "$work/bin/nvim" "$work/bin/nvim-mcp"
+chmod +x "$work/bin/nvim" "$work/bin/herdr" "$work/bin/nvim-mcp"
 
 # setup_case <name> -- a private sandbox for one case. Sets CASE (its
 # directory), with:
-#   $CASE/run       the run root (production: $TMPDIR/nvim.<user>); pane
-#                   sockets are expected directly inside it
-#   $CASE/rundir    what the nvim stub reports as stdpath("run"): a per-process
-#                   directory UNDER the run root, the shape 0.12 gives
-#   $CASE/live      sockets the nvim stub answers on
-#   $CASE/hang      sockets the nvim stub never answers on
-#   $CASE/probed    every socket the nvim stub was asked about
-#   $CASE/queried   every run-dir query the nvim stub received
-#   $CASE/exec      the argv the nvim-mcp stub was execed with
+#   $CASE/run          the run root (production: $TMPDIR/nvim.<user>); pane
+#                      sockets are expected directly inside it
+#   $CASE/rundir       what the nvim stub reports as stdpath("run"): a
+#                      per-process directory UNDER the run root, the shape 0.12
+#                      gives
+#   $CASE/live         sockets the nvim stub answers on
+#   $CASE/hang         sockets the nvim stub never answers on
+#   $CASE/layout.json  what the herdr stub prints; absent means herdr knows no
+#                      such pane
+#   $CASE/probed       every socket the nvim stub was asked about
+#   $CASE/queried      every run-dir query the nvim stub received
+#   $CASE/herdr-argv   every herdr call
+#   $CASE/exec         the argv the nvim-mcp stub was execed with
 setup_case() {
   CASE="$work/$1"
   CASE_PATH="$work/bin:/usr/bin:/bin"
@@ -99,21 +117,33 @@ live() {
   printf '%s\n' "$@" >>"$CASE/live"
 }
 
+# write_layout <tab> <pane...> -- the herdr 0.8.2 layout document naming <tab>
+# and the panes that share it, the fields the resolver reads and nothing more.
+write_layout() {
+  local tab="$1" panes="" pane
+  shift
+  for pane in "$@"; do
+    panes="$panes{\"pane_id\":\"$pane\"},"
+  done
+  printf '{"id":"cli:pane:layout","result":{"layout":{"panes":[%s],"tab_id":"%s"},"type":"pane_layout"}}' \
+    "${panes%,}" "$tab" >"$CASE/layout.json"
+}
+
 # private_path <tool>... -- a PATH holding ONLY the named tools plus what the
-# resolver itself needs (bash, dirname, sleep), so an absence fixture cannot be
-# invalidated by whatever another host keeps in /usr/bin.
+# resolver itself needs (bash, dirname, sleep, grep, cut), so an absence
+# fixture cannot be invalidated by whatever another host keeps in /usr/bin.
 private_path() {
   mkdir -p "$CASE/pathbin"
-  ln -s /bin/bash /usr/bin/dirname /bin/sleep "$@" "$CASE/pathbin/"
+  ln -s /bin/bash /usr/bin/dirname /bin/sleep /usr/bin/grep /usr/bin/cut "$@" "$CASE/pathbin/"
   CASE_PATH="$CASE/pathbin"
 }
 
 # run_case <env assignments...> -- runs the resolver in the current CASE, on
 # CASE_PATH, under `env -i` so nothing of this shell's own herdr or pin leaks
 # in. XDG_RUNTIME_DIR is the caller's to set: most cases point it at $CASE/run,
-# and the one that leaves it unset is testing the run-dir query. The probe
-# deadline defaults to production's two seconds; only the case that WANTS it to
-# expire shortens it, through CASE_DEADLINE.
+# and the one that leaves it unset is testing the run-dir query. The deadline
+# defaults to production's two seconds; only the cases that WANT it to expire
+# shorten it, through CASE_DEADLINE.
 #
 # Sets RC; stdout is $CASE/out, stderr is $CASE/err. RC is read by the sourcing
 # test, not here.

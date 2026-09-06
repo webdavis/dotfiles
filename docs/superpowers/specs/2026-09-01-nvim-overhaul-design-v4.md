@@ -1135,7 +1135,7 @@ pane the agent runs in, never by focus. The mechanism is a **pane-named socket**
 herdr pane listens on `<run root>/herdr-pane-<pane id>.sock`
 (`dot_config/nvim/lua/custom_api/pane_socket.lua`), so the Neovim an agent means is the one whose pane
 id the agent's own environment carries, and the resolver DERIVES the path rather than looking it up.
-Nothing is recorded anywhere. Three steps, in order:
+Nothing is recorded anywhere. Four steps, in order:
 
 1. **An explicit pin wins.** `NVIM_MCP_SOCKET` names the socket, and it is used if a Neovim answers on
    it. Whichever side creates the other writes it down: a Neovim that spawns an agent pane passes its
@@ -1150,8 +1150,19 @@ Nothing is recorded anywhere. Three steps, in order:
    seconds by default, and only the exact reply passes. Nothing answering is a refusal (exit 3) that
    names the pane and both remedies: launch the agent from Neovim (`<leader>Cc`), or export
    `NVIM_MCP_SOCKET`.
-1. **Neither set: nvim-mcp's own `--connect auto`.** Outside herdr there is no pane to derive from, and
-   the server's own heuristic is the best answer available.
+1. **Else the panes sharing this pane's tab.** The agent's pane is usually BESIDE the Neovim pane,
+   not inside it, so the resolver asks `herdr pane layout --pane <own id>` (the id passed
+   explicitly: `pane current` answers the CALLER's pane, which is this one) for the panes in the
+   same tab, maps each through the same colon-to-dot rule, and keeps the ones a Neovim answers on.
+   Exactly one is connected to. Several are a PICKER, never a guess, because a guess edits the wrong
+   buffer: on the resolver row that is exit 4 with one line per candidate (socket, pane id, pid) on
+   stderr, which both harnesses surface as server-startup text, and the operator disambiguates with
+   `NVIM_MCP_SOCKET` or by launching the agent from Neovim (`<leader>Cc`). A wrapper that `exec`s
+   the server cannot return a tool result, so the structured enumeration stays the crate row's
+   shape. None is the exit 3 refusal above. herdr missing, failing, silent or past the deadline means
+   no siblings, never a crash; jq is not needed, the two fields are lifted with `grep`.
+1. **Neither variable set: nvim-mcp's own `--connect auto`.** Outside herdr there is no pane to
+   derive from, and the server's own heuristic is the best answer available.
 
 **Why a socket name and not a registry.** The registry this replaced (one record per instance in a 0700
 state directory, published by rename, pruned by an identity probe, matched to the agent's tab through
@@ -1170,8 +1181,8 @@ correctness: the resolver refuses a dead socket by probing it, and macOS clears 
 at boot and daily for items older than three days (`com.apple.bsd.dirhelper`,
 `CLEAN_FILES_OLDER_THAN_DAYS=3`). The first Neovim in a pane owns the name: a nested Neovim, or one
 in a terminal split, inherits the same pane id, finds the name taken, swallows that and keeps its
-default socket, so the outer editor is the one the agent reaches. There is no picker, because a pane
-has one name.
+default socket, so the outer editor is the one the agent reaches. A pane has one name, so the only
+ambiguity left is two Neovim panes in one tab, which is the picker above.
 
 **The run root.** `stdpath("run")` is NOT that root: with `XDG_RUNTIME_DIR` unset (macOS) it is a
 PER-PROCESS directory, `$TMPDIR/nvim.<user>/<random>`, which no other process can compute. Both sides
@@ -1182,12 +1193,12 @@ about 20 ms, under the probe's deadline) rather than recomputing it, so TMPDIR h
 name stay Neovim's. Exported EMPTY, `XDG_RUNTIME_DIR` makes Neovim report an empty run dir and start no
 default server at all; the pane then gets no socket and the resolver exits 2.
 
-**What discovery does not cover, accepted.** An agent started by hand in a pane BESIDE the Neovim pane,
-neither created by the other, has a pane id of its own and finds no socket under it; it is refused
-with the two remedies. The old topology step (siblings from `herdr pane layout`) covered that case at
-the price of the registry it needed and a picker for two editors in one tab. If that case turns out to
-be common, the compatible extension is a sibling lookup over the same pane-named sockets, not a
-registry.
+**What discovery does not cover, accepted.** A Neovim in ANOTHER tab of the workspace is not a
+candidate: the tab is the unit herdr shows side by side, and widening to the workspace would make
+the picker fire for every second editor in it. A Neovim started outside herdr, or before this
+config shipped, has no pane socket and is reached only by a pin. And the picker is stderr text, not
+a tool result the agent can continue its turn from; the crate row is the upgrade path if the
+two-editors-in-one-tab layout turns out to be common.
 
 **Sticky selection, amended 2026-09-05 for the resolver row.** The promise this section carried was
 that a resolved instance is remembered and step 3's identity check re-runs on EVERY use, a failed
