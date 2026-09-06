@@ -387,7 +387,11 @@ it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case
 blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and `hook` rows plus the
 hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated, because the child
 handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker). Statements: S022,
-S023, S074 to S083.
+S023, S074 to S083. AS BUILT, the use case takes the moshi subcommand as an `Option` and orders five
+steps over four ports; which agents forward at all, whether the payload is whole and whether the operator
+is reachable stay at the composition root as three reads it already performed. `ApprovalPath` holds the
+`std::process::Child` on the root's side and the port carries a `Forwarded` marker, because a child
+process is exactly what `pns-application` may not name.
 
 **PR 6.4 `ReplayMissedNotifications` and `RecordActivity`.** Moves `replay_missed`, `Moment`,
 `claim_moment`, `StrandedWindow`, `stranded_window_claim`, `window_claim_suffix`, `window_claim_is_free`,
