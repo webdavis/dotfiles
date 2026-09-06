@@ -26,6 +26,7 @@
   "harpoon": { "branch": "harpoon2", "commit": "87b1a3506211538f460786c23f98ec63ad9af4e5" },
   "helpview.nvim": { "branch": "main", "commit": "518789535a0cb146224a428edf93a70f98b795db" },
   "herdr-nvim": { "branch": "main", "commit": "41c30f528e645cecb1e387c46de9dc416ecf978e" },
+  "herdr-nvim-annotate-extension.nvim": { "branch": "main", "commit": "0a5d39889a84f0212180283e73fc345b59b199d2" },
   "kulala.nvim": { "branch": "main", "commit": "cd3eaa83b8d60533837202dede73238334d71832" },
   "lazy.nvim": { "branch": "main", "commit": "306a05526ada86a7b30af95c5cc81ffba93fef97" },
   "lazydev.nvim": { "branch": "main", "commit": "01bc2aacd51cf9021eb19d048e70ce3dd09f7f93" },
