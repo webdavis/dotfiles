@@ -280,20 +280,31 @@ behind, `was_missed`, `should_replay` and `is_present`, out of `src/missed_notif
 into `missed/tests.rs`. Sizes: `decision.rs` ~170; three test files of 350 to 450. `decide`'s signature
 does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, S118, and S106, S158
 (predicate), S159, S161 (predicate) arriving from PR 5.4; S159's own test stays assigned to PR 11.3.
+`decide` itself stayed here because it is generic over the probe traits; THAT REASON EXPIRED AT PR 6.1,
+which made those traits ports, and PR 6.1e moved it to `pns-application/src/decide.rs` beside them.
 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
 `presence_room.rs` (`Snapshot`, `Full`, `chosen`, `desk_age`) to
-`pns-domain/src/presence/{status,narrowing,room}.rs`. `presence_file.rs` (a state-file line codec) and
-`presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
+`pns-domain/src/presence/{status,narrowing,room}.rs`. `RawPresence` and `Edge` come with them, out of
+`presence_file.rs` and into `status.rs` beside the `classify` that takes them; the codec around them
+stays for PR 10.2 and names them at their new home. `presence_file.rs` itself (a state-file line codec)
+and `presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
 including the presence policy's own. Sizes: three production files under 200; tests under 350.
 Statements: S084 (`idle_secs_from_ns`), S234, S235.
 
-**PR 5.13 the decision record.** Moves from `src/decision_log.rs`: `KEPT`, `Record`, `printable`,
-`IDENTITY_MAX`, `tri`, `count`, `verdicts` (lines 5-66, 202-260) to `pns-domain/src/decision_record.rs`.
-Stays: `line` (the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`,
-`QUOTED_MAX` (the doctor's presentation, PR 15.1). Tests: the `printable` and `Record` tests by name.
-Sizes: ~150 plus tests ~250. Statements: S157 (`printable`).
+**PR 5.13 the decision record.** Moves from `src/decision_log.rs`: `KEPT`, `printable`, `IDENTITY_MAX`,
+`UNPRINTABLE`, `ABSENT`, `tri`, `count`, `verdicts`, `yes_no` to `pns-domain/src/decision_record.rs`, and
+`Delivery` from `channels/mod.rs` to `pns-domain/src/routing.rs`, beside the `Leg` it answers for and the
+`ReportMode` that says whether anyone reads it: `verdicts` takes it, and a destination's outcome is a
+value the policy reads rather than something the domain may reach into the adapters for. `Record` does
+NOT move here: it borrows an `&EventArgs`, which still lives in the root package. THAT REASON EXPIRED AT
+PR 6.1a, which moved `EventArgs` to the domain and left every field of `Record` domain-resident; PR 6.1e
+moved it, and the `DecisionRing` port takes it rather than a rendered line. Stays: `line`, `NO_CLOCK`
+(the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the
+doctor's presentation, PR 15.1). Tests: none move; every one drives `line` or `section`, both of which
+stay, and `decision_log.rs` splits at that seam into shared fixtures, line rows and section rows. Sizes:
+~110 plus the three test siblings under 400. Statements: S157 (`printable`).
 
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
@@ -302,9 +313,19 @@ sections 1 to 6 of the specification all sit in `main.rs`.
 ### Step 6: use cases and the ports they own, in `pns-application`
 
 New code, test-first: a use case is the ordering of calls that `run_event` and its siblings perform
-today, expressed over traits the use case declares. Each PR moves one `*_mode` body out of
-`main.rs` into a use case, leaves a one-line call at the old site, and proves the argv differential
-unchanged.
+today, expressed over traits the use case declares. Each PR moves one `*_mode` body out of `main.rs` into
+a use case, leaves a one-line call at the old site, and proves the argv differential unchanged. A PORT IS
+DECLARED FROM A CONSUMER'S REAL SIGNATURE, never from a description of its purpose. PR 6.1 declared nine
+ports before any consumer existed and three of them were wrong (`LampRecords` described a read-then-write
+nothing performs, `ReturnMoment` dropped an argument its two callers differ in, and `ApprovalForwarder`
+collapsed two steps a caller acts between); the four it MOVED from real code were all correct. PR 6.1d
+re-cut them against `main.rs` line by line. Declare a port no earlier than the call site that will
+consume it, and name that call site in its doc comment. A DEFERRAL NOTE NAMES ITS KIND, for the same
+reason. A capability-shaped reason (this crate takes no `serde_json`, opens no file, spawns no process)
+holds as long as the crate declares no such dependency. A type-shaped reason (X still lives in the root)
+expires the moment that type moves, silently, so every type-shaped note names the PR that moves the type
+and is re-checked when that PR lands. All five blocks in step 6 were type-shaped notes nobody re-read;
+not one capability-shaped note has expired.
 
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
@@ -314,34 +335,59 @@ unchanged.
 declares. Declares, test-first, the ports the later use cases need: `Clock`, `NotificationDestination`
 (`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`, `ActivityRing`, `ReturnMoment`,
 `LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from `hue.rs:744-750`), `Router` (from
-`home.rs`), `CommandRunner` (from `system.rs`). Tests: the `engine.rs` probe-count tests
-(`CountingProbes`) by name; new port tests only where a port carries logic (none should). Sizes:
-`ports/*.rs` under 120 each; `environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests
-~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to S091, S124.
+`home.rs`), `CommandRunner` (from `system.rs`). `Event` comes with them, out of `channels/mod.rs` and
+into `pns-domain/src/notification.rs`: `NotificationDestination` hands one to a destination, and a port
+may not name a type the adapters own. Its `to_json` stays where the JSON is, as the free function
+`event_json`, because an inherent impl may only be written in the crate that defines the type. THAT LIST
+IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a loop lease, runs the
+catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
+`MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, and THREE OF THE NINE DECLARED
+HERE WERE WRONG and are re-cut in PR 6.1d, which also adds `LightsTick` and annotates every surviving
+port with the consumer it was checked against, and `DecisionRing` is re-cut again in PR 6.1e to take a
+`Record` rather than a rendered line, so that PR 6.2 moves an ordering over ports that already exist.
+Tests: the `engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a port
+carries logic (none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests
+~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089
+to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
 `record_activity`, `update_blocked_marker`, `record_news`, `renew_loop_lease`, `mark_present`, the pulse
 gate, `clear_held_lamps`, `register_lights_tick`) into `pns-application/src/submit_notification.rs` as
-one use case over the PR 6.1 ports, keeping today's ordering exactly (decide, snapshot, dispatch,
-decision record, journal, marker, news, lease, activity, replay, edge, pulse, clear, tick). The
-filesystem bodies of those records stay in the root package behind port implementations until step 11.
-Tests written first: one ordering test per tail item using recording fakes for the ports (the order is
-the behavior, S072, S157, S158, S161); the existing `tests/dispatch.rs` rows stay as the acceptance
-tests. Consumer: every hook and every producer. Sizes: `submit_notification.rs` ~280 (the 300 target
-binds here; the tail becomes a `record_tail.rs` of ~200 if it does not fit),
-`submit_notification/tests.rs` ~400. Statements: S006, S017, S021, S072, S080, S106, S117, S218, S230,
-S231.
+one use case over the ports of PR 6.1 and PR 6.1b (`BlockedMarker`, `LoopLease`, `MissedReplay` and
+`LampSignal` are 6.1b's, because the tail writes four records 6.1's list did not name, and `LampRecords`
+and `LightsTick` are 6.1d's, which re-cut the first against `record_news` and `clear_held_lamps` and
+added the second), keeping today's ordering exactly. `decide` is already in `pns-application` (PR 6.1e),
+so this row orders a call rather than moving one (decide, snapshot, dispatch, decision record, journal,
+marker, news, lease, activity, replay, edge, pulse, clear, tick). The filesystem bodies of those records
+stay in the root package behind port implementations until step 11. Tests written first: one ordering
+test per tail item using recording fakes for the ports (the order is the behavior, S072, S157, S158,
+S161); the existing `tests/dispatch.rs` rows stay as the acceptance tests. Consumer: every hook and every
+producer. Sizes: `submit_notification.rs` ~280 (the 300 target binds here; the tail becomes a
+`record_tail.rs` of ~200 if it does not fit), `submit_notification/tests.rs` ~400. Statements: S006,
+S017, S021, S072, S080, S106, S117, S218, S230, S231. AS BUILT, this moves the tail from the decision
+record onward and leaves `decide`, the presence snapshot and `dispatch_legs` at the composition root,
+because those read the config and the operator's secrets; the ordering contract the fourteen tests pin
+begins at the decision record. `Journal` and `ActivityRing` are re-cut here to take the event and the
+clock rather than a rendered entry, for the reason PR 6.1e re-cut `DecisionRing`.
 
-**PR 6.3 `RequestApproval`.** Moves `blocking_event`, `forward_to_moshi`, `answer_within`,
-`moshi_decision`, `submit_deadline`, `configured_submit_deadline`, `SUBMISSION_POLL_INTERVAL`, and
-`gate_mode`'s body (`src/main.rs:235-247`, `2320-2606`) into `pns-application/src/request_approval.rs`
-over an `ApprovalForwarder` port; `spawn_moshi_hook`, `moshi_hook_bin`, `DEFAULT_MOSHI_HOOK_BIN`
-(2445-2490) become the adapter in PR 14.6 and stay in the root until then. Tests: the `tests/hooks.rs`
-approval section stays as acceptance; a use-case test pins the order (forward, skip-phone only on a real
-spawn, arm, notify, wait). Consumer: `pns hook blocked`, `pns gate`, `pns pi-hook`, proved by the argv
-differential's `gate` and `hook` rows plus the hooks suite. Sizes: ~240 plus tests ~300. Unpinned first:
-S082 (a gate run leaves no marker). Statements: S022, S023, S074 to S083.
+**PR 6.3 `RequestApproval`.** RE-CUT. The row used to move `answer_within` and `moshi_decision` into
+`pns-application`; both wait on a `std::process::Child`, and that crate spawns no process, so the move
+was one the crate boundary forbids. What moves is the ORDERING ALONE: `blocking_event`'s sequence and
+`gate_mode`'s body (`src/main.rs:235-247`, `2320-2606`) into `pns-application/src/request_approval.rs`,
+over the `ApprovalForwarder` port of PR 6.1 the `NagSchedule` and `HarnessPayload` ports of PR 6.1c, and
+the `RaiseNotification` and `PhoneSuppression` ports of PR 6.1f. The last two are what make the ordering
+statable: the notification must be invoked by the use case to sit between the arming and the wait, and
+the suppression must be observable because "only on a real spawn" is half of what S074 says. What STAYS
+in the root, as the body of the `ApprovalForwarder` adapter that PR 14.6 formalizes: `answer_within`,
+`moshi_decision`, `SUBMISSION_POLL_INTERVAL`, the child handling, and the `submit_deadline` and
+`configured_submit_deadline` config read, which is a config read and belongs with the adapter that uses
+it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case test pins the order
+(forward, skip-phone only on a real spawn, arm, notify, wait) over recording fakes. Consumer: `pns hook
+blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and `hook` rows plus the
+hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated, because the child
+handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker). Statements: S022,
+S023, S074 to S083.
 
 **PR 6.4 `ReplayMissedNotifications` and `RecordActivity`.** Moves `replay_missed`, `Moment`,
 `claim_moment`, `StrandedWindow`, `stranded_window_claim`, `window_claim_suffix`, `window_claim_is_free`,
@@ -357,11 +403,14 @@ measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245.
 **PR 6.5 `RunNag`.** Moves `nag_mode`, `arm_nag`, `clear_nag`, `record_entries`, `claim_record`,
 `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`, `marker_path`,
 `write_marker`, `nag_after_secs` (`src/main.rs:4622-5188`) into `pns-application/src/run_nag.rs` and
-`arm_nag.rs` over `NagRecords` and `JobSpool` ports. Tests: the nag section of `tests/hooks.rs` as
-acceptance. Unpinned first: S061 (the `stop-failure` clear), S183 (`fire.lock` age-out), S241 (the
-per-record rename; the code says no test can kill it, so this one is written as a two-process test or
-recorded as accepted in the decision record). Sizes: `run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300.
-Statements: S042, S060, S073 (nag half), S182, S236 to S241.
+`arm_nag.rs` over `NagRecords` (declared in PR 6.1f) and `JobSpool` (declared in PR 6.1 and confirmed by
+PR 6.1d's audit as the daemon vocabulary this row wants) ports. `arm_nag`'s own port, `NagSchedule`, is
+declared in PR 6.1c, because PR 6.3 arms the nag before this row is reached; this row implements it and
+moves the body. Tests: the nag section of `tests/hooks.rs` as acceptance. Unpinned first: S061 (the
+`stop-failure` clear), S183 (`fire.lock` age-out), S241 (the per-record rename; the code says no test can
+kill it, so this one is written as a two-process test or recorded as accepted in the decision record).
+Sizes: `run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300. Statements: S042, S060, S073 (nag half), S182,
+S236 to S241.
 
 **PR 6.6 `BuildReturnRecap`.** Moves `recap_mode`, `read_sources`, `summarized`, `left_of`,
 `recap_bounds`, `wall_clock`, `post_recap`, `deliver_recap`'s decision, `RECAP_ROUTE`, `RECAP_USAGE`,
@@ -467,12 +516,15 @@ differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus test
 `event_mode`, `USAGE`, `PULSE_USAGE`, `LIGHTS_USAGE`, `LOOP_USAGE`, `QUIET_USAGE`, `DAEMON_USAGE`,
 `NAG_USAGE`, `Overrides::from_env`, `loop_command`, `quiet_command`, `parse_schedule`, `recap_bounds`,
 `pulse_mode`'s and `quiet_mode`'s argument arms into
-`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. The both-flags refusal stays here with its tested
-wording (decision 0007) and never becomes a domain state. Unpinned first: S007 (a subcommand word
-carrying producer flags), S010 (the exact warning sentence), S015 (last flag wins), S027 (`USAGE` versus
-`PULSE_USAGE`, fixed rather than pinned: backlog B30), S031 (`pns quiet --help`). Tests: the 9 `args.rs`
-tests by name; `tests/dispatch.rs`'s argv rows as acceptance; the argv differential. Sizes: four files of
-100 to 240 plus tests under 300. Statements: S001 to S021, S025, S027, S030, S031, S034 to S046.
+`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. It also carries `Record`, held back by PR 5.13
+because it borrows an `&EventArgs`: this is where that struct's home is settled, so decide there whether
+`Record` follows it to the CLI crate or `EventArgs` splits into a domain event value and a parse result.
+The both-flags refusal stays here with its tested wording (decision 0007) and never becomes a domain
+state. Unpinned first: S007 (a subcommand word carrying producer flags), S010 (the exact warning
+sentence), S015 (last flag wins), S027 (`USAGE` versus `PULSE_USAGE`, fixed rather than pinned: backlog
+B30), S031 (`pns quiet --help`). Tests: the 9 `args.rs` tests by name; `tests/dispatch.rs`'s argv rows as
+acceptance; the argv differential. Sizes: four files of 100 to 240 plus tests under 300. Statements: S001
+to S021, S025, S027, S030, S031, S034 to S046.
 
 **PR 8.2 the harness hook adapters.** Moves `src/hooks.rs` (`HookPayload`, `parse_payload`, `flattened`,
 `one_line`, `tool_request`, `elicitation_request`, `reported_error`, `TOOL_REQUEST_MAX_CHARS`,
@@ -539,9 +591,11 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 
 **PR 10.2 the presence poll adapters.** Pure move. `presence_hue.rs` (the `grouped_motion` read),
 `presence_instant.rs` (the bridge's timestamp grammar), `presence_lock.rs` (the `flock`),
-`presence_file.rs` (the state-file line codec), the presence policy's `presence_journal.rs` (the
-`presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
-`write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
+`presence_file.rs` (the state-file line codec, importing `RawPresence` and `Edge` from the domain, where
+PR 5.12 put them: the codec is the adapter and those two types are its output, so a `classify` in the
+domain that takes them must not reach into this crate for them), the presence policy's
+`presence_journal.rs` (the `presence-decisions` ring codec), and `presence_mode`, `presence_launch`,
+`presence_poll`, `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
 `pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
@@ -567,7 +621,9 @@ file names (`DECISIONS`, `MISSED_NOTIFICATIONS`, `ACTIVITY`, `LAST_PRESENT`, `LI
 PR 11.3 lands the SQLite store section 8 settles and PR 12.1 moves the records into it; the port shape is
 the same either way, which is why the ports land first. Tests: the codec tests by name; the ring rows of
 `tests/dispatch.rs` as acceptance. Sizes: six files of 80 to 220 plus tests under 300. Statements: S157,
-S158, S160, S161, S167 to S173, S177, S178.
+S158, S160, S161, S167 to S173, S177, S178. `decision_log::line` is here rather than in PR 5.13 or PR
+6.1e: both left it deliberately, because rendering the ring's text is the file's own shape and belongs
+with the file.
 
 **PR 11.3 the SQLite store.** New infrastructure behind the PR 6.1 ports, settled in section 8. Decision
 record 0012 (the two fail directions) lands first in the same PR, then
@@ -714,14 +770,19 @@ are rewritten with a bounded accept so a mutant fails rather than hangs. Sizes: 
 S147.
 
 **PR 14.3 the three destinations, and uu's seam.** Pure move of `src/channels/banner.rs`, `moshi.rs`,
-`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `Event`, `Delivery`,
-`native_first` into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver`
-and `resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. uu's
-`Cargo.toml:36` dependency and its three import sites (`src/delivery.rs:11`, `src/delivery.rs:99`,
-`src/cli/run.rs:13`) move to the crate section 8 names in the same PR, and `cargo test --locked
---manifest-path dot_local/share/uu/Cargo.toml` is run and recorded. Unpinned first: S144 (the exact `pns:
-posted HTTP 200` line as the weekly helper's contract, asserted through the capture server). Sizes: four
-files of 120 to 260 plus tests under 450. Statements: S126, S128, S131, S133 to S147.
+`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `native_first` and
+`event_json` into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver` and
+`resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. Neither
+`Delivery` nor `Event` is among them. PR 5.13 put `Delivery` in `pns-domain/src/routing.rs` because
+`verdicts` takes it, and PR 6.1 put `Event` in `pns-domain/src/notification.rs` because the
+`NotificationDestination` port hands one to a destination; the domain may not reach into this crate for a
+type, so every destination here imports both from there. `event_json` is a free function rather than a
+method for that reason and stays one. uu's `Cargo.toml:36` dependency and its three import sites
+(`src/delivery.rs:11`, `src/delivery.rs:99`, `src/cli/run.rs:13`) move to the crate section 8 names in
+the same PR, and `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` is run and recorded.
+Unpinned first: S144 (the exact `pns: posted HTTP 200` line as the weekly helper's contract, asserted
+through the capture server). Sizes: four files of 120 to 260 plus tests under 450. Statements: S126,
+S128, S131, S133 to S147.
 
 **PR 14.4 the Focus store reader.** Pure move of `src/focus.rs` (`active_modes`, `mode_names`,
 `silenced`, `same`) and `focus_now`, `FocusReading`, `FOCUS_DB` (`src/main.rs:9480-9549`) to
@@ -733,10 +794,12 @@ name. Sizes: adapter ~150 plus tests ~350; domain ~60. Statements: S105.
 by name. Sizes: two files under 200 plus tests under 400. Statements: S272, S273.
 
 **PR 14.6 the spawned programs.** Pure move of `spawn_moshi_hook`, `moshi_hook_bin`,
-`DEFAULT_MOSHI_HOOK_BIN` (the approval forwarder), `condense`, `condenser_home`, `CONDENSER_DEADLINE`
-(the condenser), `git_branch`, `GIT_DEADLINE`, `merged_pull_requests` and the `GH_*` constants,
-`notes_matching`, `matches_glob`, `within`, `read_note`, `MAX_NOTES`, `NOTE_READ_MAX`, `summarize`,
-`spawn_job` and `spawn_recap`'s spawn, and `Hushed` with `ask_hidden`'s terminal work, to
+`DEFAULT_MOSHI_HOOK_BIN` (the approval forwarder), together with `answer_within`, `moshi_decision` and
+`SUBMISSION_POLL_INTERVAL`, which PR 6.3 left in the root for this row because they wait on a child,
+`condense`, `condenser_home`, `CONDENSER_DEADLINE` (the condenser), `git_branch`, `GIT_DEADLINE`,
+`merged_pull_requests` and the `GH_*` constants, `notes_matching`, `matches_glob`, `within`, `read_note`,
+`MAX_NOTES`, `NOTE_READ_MAX`, `summarize`, `spawn_job` and `spawn_recap`'s spawn, and `Hushed` with
+`ask_hidden`'s terminal work, to
 `pns-adapters/src/{moshi_hook,codex,git,gh,notes,summarizer,job_runner,recap_child,terminal}.rs`.
 Unpinned first: S192 (the condenser home's modes), S254 (the summarizer's inherited environment: recorded
 as accepted or closed with `env_clear` as new behavior, the operator's call inside the PR). Tests: by

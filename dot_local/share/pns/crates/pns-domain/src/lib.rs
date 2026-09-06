@@ -20,11 +20,19 @@
 //! step removes the re-exports.
 
 pub mod count;
+pub mod decision;
+pub mod decision_record;
+pub mod home;
+pub mod jobs;
 pub mod lamps;
 pub mod lights;
 pub mod missed;
+pub mod nag;
+pub mod notification;
+pub mod presence;
 pub mod pulse;
 pub mod quiet;
+pub mod recap;
 pub mod registry;
 pub mod render;
 pub mod routing;
