@@ -17,10 +17,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Runs a command and returns its stdout, or `None` when it cannot be run or
-/// exits non-zero. The seam every probe reads the world through.
-pub trait CommandRunner {
-    fn run(&self, program: &str, args: &[&str]) -> Option<String>;
-}
+/// exits non-zero. The seam every probe reads the world through, DECLARED in
+/// `pns-application` and named here for the runner that implements it.
+pub use pns_application::ports::process::CommandRunner;
 
 /// The production runner: spawns the command under a deadline and keeps its
 /// stdout.

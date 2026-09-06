@@ -5,3 +5,8 @@
 //! package. The rest of the lamp policy follows.
 
 pub mod config;
+pub mod dim;
+pub mod inventory;
+pub mod mute;
+pub mod resolve;
+pub mod window;
