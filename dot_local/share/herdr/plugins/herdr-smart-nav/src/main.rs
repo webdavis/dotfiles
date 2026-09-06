@@ -45,7 +45,7 @@ fn decide(pane: Option<&str>, is_nvim: bool, direction: &str, chord: &str) -> Ac
     }
 }
 
-// ---- impure boundary (not unit-tested; mirrors last-workspace's Command use) ----
+// ---- impure boundary (not unit-tested; shells the herdr CLI) ----
 
 fn herdr_bin() -> String {
     env::var("HERDR_BIN_PATH").unwrap_or_else(|_| "herdr".to_string())

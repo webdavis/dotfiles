@@ -38,7 +38,7 @@ partial so any future includer inherits the same bounded, fail-closed predicate.
 # containers and error envelopes all fail closed as not-healthy.
 herdr_health_check() {
   local herdr_config="$HOME/.config/herdr/config.toml"
-  local -a herdr_required_plugins=(herdr-last-workspace herdr-smart-nav)
+  local -a herdr_required_plugins=(herdr-smart-nav herdr-workspace-jump)
   local plugin_id response count session_response running reload_response reload_verdict
   local herdr_timeout_bin
   local -a herdr_cli
