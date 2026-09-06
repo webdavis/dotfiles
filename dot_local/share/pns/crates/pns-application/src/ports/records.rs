@@ -44,7 +44,10 @@ pub trait DecisionRing {
 /// (`src/main.rs:7854`). The claim-and-take path is `ReturnMoment`'s, not this
 /// one's: this read is the doctor asking what is waiting without claiming it.
 pub trait Journal {
-    fn journal(&self, entry: &str);
+    /// Takes the EVENT and the clock rather than a rendered entry, for
+    /// `DecisionRing`'s reason: the entry's text is JSON, it is rendered in
+    /// the root package until PR 11.2, and a use case cannot compose one.
+    fn journal(&self, event: &EventArgs, now: Option<u64>);
     fn read(&self) -> Option<String>;
 }
 
@@ -55,7 +58,9 @@ pub trait Journal {
 /// (`src/main.rs:1263`), which reads the whole file and windows it afterwards,
 /// so the windowing is the domain's and not this port's.
 pub trait ActivityRing {
-    fn record(&self, entry: &str);
+    /// Takes the EVENT and the clock, as `Journal` does. Its own preview cap
+    /// differs from the journal's and is the adapter's to apply.
+    fn record(&self, event: &EventArgs, now: Option<u64>);
     fn read(&self) -> Option<String>;
 }
 
