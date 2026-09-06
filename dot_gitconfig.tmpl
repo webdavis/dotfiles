@@ -182,6 +182,25 @@
 [include]
   path = ~/.config/delta/themes.gitconfig
 
+# Never start an fsmonitor daemon for a throwaway repository under the temp
+# directories. Neovim spec fixtures and agent scratch dirs create repositories
+# there constantly, and a killed process leaves its directory gone while the
+# daemon it started lives on: git ships no idle exit on macOS and no lifetime
+# setting, so the orphans accumulate until someone kills them by hand.
+#
+# Only the /private spellings match. Git resolves the discovered git dir to its
+# real path before testing it, so /var/folders/ and /tmp/ never match: those are
+# the symlinks, and the real paths are what git compares.
+#
+# The trailing slash is load-bearing. Git appends ** to a gitdir pattern that
+# ends in a slash, which is what makes it match every repository BELOW the
+# directory; without it the pattern matches only that one exact path.
+[includeIf "gitdir:/private/var/folders/"]
+  path = ~/.config/git/no-fsmonitor.gitconfig
+
+[includeIf "gitdir:/private/tmp/"]
+  path = ~/.config/git/no-fsmonitor.gitconfig
+
 [interactive]
   diffFilter = delta --color-only
 

@@ -1,0 +1,4 @@
+# Pulled in by the two includeIf stanzas in ~/.gitconfig, for every repository
+# under the temp directories, where a daemon outlives the repository that started it.
+[core]
+  fsmonitor = false
