@@ -2208,30 +2208,28 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
     command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
 }
 
-/// The deadline each silent-moshi run injects, and the window the harness's
-/// own read of the hook must end inside: FOUR TIMES that deadline.
+/// The deadline each silent-moshi run injects.
 ///
-/// FOUR TIMES IS CHOSEN AGAINST A NAMED MUTANT. A deadline hard-coded to one
-/// second, ignoring the injected value, puts EOF just past a second, which the
-/// hook run's 600ms bound refuses. Measured green runs of that one sit at
-/// 0.180-0.198s idle and 0.217s with every core busy, so the bound keeps a
-/// 2.7x margin over the worst honest run and better than 3x over a quiet
-/// machine. The gate run injects 400ms rather than 150 because its stub has a
-/// `/bin/sh` spawn inside the window; its bound scales with it, and it
-/// measures 0.408-0.420s.
+/// WHAT THESE TWO ROWS PIN, AND WHAT THEY LEAVE TO A CONTROLLED CLOCK. A row
+/// that spawns the engine has only the wall clock, and the wall clock measures
+/// the machine: the old four-times-the-deadline bound went red under load on a
+/// build that was correct. So the rows here assert what the engine SAID, that
+/// its streams closed inside `HANG_LIMIT`, its exit code and its submission
+/// count. WHEN the wait gives up and that it releases at once are pinned by
+/// the unit tests beside `answer_within_on` in `src/main.rs`, on a clock that
+/// moves only when the wait sleeps on it. The gate run injects 400ms rather
+/// than 150 because its stub has a `/bin/sh` spawn inside the window.
 const SILENT_MOSHI_DEADLINE_MS: &str = "150";
 const GATE_SILENT_MOSHI_DEADLINE_MS: &str = "400";
 
 /// What a wait that ran out says, with the bound it honoured in the sentence.
 ///
-/// THE ENGINE'S OWN WORD RATHER THAN A STOPWATCH. These two rows used to
-/// assert that the process finished inside a multiple of the injected
-/// deadline, which measured the MACHINE as much as the bound: under load the
-/// teardown alone outran it and the row went red on a build that was correct.
-/// The engine now names the deadline it honoured, so the assertion is the one
-/// the row was always about, and a build that ignored the injected value for
-/// one of its own still fails because the number in the sentence would be its
-/// own.
+/// THE ENGINE'S OWN WORD RATHER THAN A STOPWATCH. The sentence is the row's
+/// evidence that the wait ended by EXPIRY, and by the injected deadline rather
+/// than a default: a build that never expired, or expired on a bound it read
+/// from somewhere else, says something different here or nothing at all. That
+/// the number in the sentence is also the number the clock was measured
+/// against is the unit tests' claim, not this one's.
 fn expiry_line(deadline_ms: &str) -> String {
     format!(
         "pns: the moshi submission did not finish within {deadline_ms}ms; the prompt was released"

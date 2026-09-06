@@ -2655,8 +2655,23 @@ fn moshi_decision(mut child: std::process::Child) -> i32 {
 /// NOT `run_bounded`. That helper pipes the child's stdout on its way to
 /// attaching a deadline, and this path's whole stdout contract is that moshi's
 /// stream IS the hook's stream.
-fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
-    let expires_at = std::time::Instant::now() + deadline;
+fn answer_within(child: std::process::Child, deadline: Duration) -> i32 {
+    let started = std::time::Instant::now();
+    answer_within_on(child, deadline, || started.elapsed(), std::thread::sleep)
+}
+
+/// `answer_within` with its clock and its sleeper as parameters, for the
+/// reason `drive_breaths` takes both: the wait fills its whole deadline BY
+/// DESIGN, so a test that read the real clock and slept for real would live
+/// the deadline too, and would be measuring the machine rather than the bound.
+/// `elapsed` is how long the wait has been running; a fake that advances only
+/// inside `sleep` makes the moment of the give-up exact.
+fn answer_within_on(
+    mut child: std::process::Child,
+    deadline: Duration,
+    mut elapsed: impl FnMut() -> Duration,
+    mut sleep: impl FnMut(Duration),
+) -> i32 {
     loop {
         match child.try_wait() {
             // Still `moshi_decision`'s job to turn a finished child into a
@@ -2667,7 +2682,7 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
             Err(_) => return 0,
             Ok(None) => {}
         }
-        if std::time::Instant::now() >= expires_at {
+        if elapsed() >= deadline {
             let _ = child.kill();
             // REAPED, not merely signalled: an unreaped child is a zombie
             // holding its slot until pns exits, and the wait is instant on a
@@ -2696,7 +2711,7 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
             );
             return 0;
         }
-        std::thread::sleep(SUBMISSION_POLL_INTERVAL);
+        sleep(SUBMISSION_POLL_INTERVAL);
     }
 }
 
@@ -9575,16 +9590,16 @@ mod tests {
         Attempt, Bounded, Breathing, CONFIG_FILE_MODE, DEFAULT_REREAD_ATTEMPTS,
         DEFAULT_REREAD_INTERVAL, HookPayload, LIGHTS_HELD, LIGHTS_JOB, LIGHTS_NEWS, LIGHTS_SAID,
         LIGHTS_SHELL_DIR, LIGHTS_TICK_LOCK, Launch, MAX_REREAD_ATTEMPTS, MAX_REREAD_INTERVAL,
-        PRESENCE_DAEMON_FLAG, Polled, STATE_FILE_MODE, ad_hoc_quiet, answered, asks_the_bridge,
-        blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease, ensure_presence_poll,
-        held_lamps, keep_aside, keep_aside_at, last_narrowing, lights_report, list, matches_glob,
-        means_yes, muted_state, now_secs, presence_launch, presence_snapshot, publish_config,
-        publish_state_line, read_failure, read_held, read_news, read_note, recap_bounds,
-        record_news, remember_held, renew_loop_lease, republish_after, reread_attempts_from,
-        reread_interval_from, resolve_path, router_backend, run_event_pulsing, run_pulse_writes,
-        run_tick_writes, say_lights_once, sweep_blocked, sweep_leases, sweep_legacy_state,
-        sweep_markers, sweep_shell_markers, system_probes, tick_bridge_deadline,
-        update_blocked_marker, write_presence_reading,
+        PRESENCE_DAEMON_FLAG, Polled, STATE_FILE_MODE, ad_hoc_quiet, answer_within_on, answered,
+        asks_the_bridge, blocked_lamp, child_bound, daemon_pass, drive_breaths, end_lease,
+        ensure_presence_poll, held_lamps, keep_aside, keep_aside_at, last_narrowing, lights_report,
+        list, matches_glob, means_yes, muted_state, now_secs, presence_launch, presence_snapshot,
+        publish_config, publish_state_line, read_failure, read_held, read_news, read_note,
+        recap_bounds, record_news, remember_held, renew_loop_lease, republish_after,
+        reread_attempts_from, reread_interval_from, resolve_path, router_backend,
+        run_event_pulsing, run_pulse_writes, run_tick_writes, say_lights_once, sweep_blocked,
+        sweep_leases, sweep_legacy_state, sweep_markers, sweep_shell_markers, system_probes,
+        tick_bridge_deadline, update_blocked_marker, write_presence_reading,
     };
     use std::cell::RefCell;
     use std::os::unix::fs::MetadataExt;
@@ -13500,6 +13515,70 @@ mod tests {
         assert!(
             leftover.is_empty(),
             "a backup claim was left behind after the refusal: {leftover:?}"
+        );
+    }
+
+    /// A submission that never answers, driven to its give-up on a clock that
+    /// moves only when the wait sleeps on it: the code that came back, the
+    /// clock at the return, and every sleep with the reading it began at.
+    ///
+    /// THE CHILD IS REAL AND THE CLOCK IS NOT. `try_wait` needs a process, and
+    /// one that sleeps for a minute stays alive across the microseconds this
+    /// takes, so the give-up is decided by the fake clock alone. The kill is not
+    /// asserted here; the hooks suite pins it by the stub's stream closing.
+    fn silent_submission_given_up_on(
+        deadline: Duration,
+    ) -> (i32, Duration, Vec<(Duration, Duration)>) {
+        let child = std::process::Command::new("/bin/sleep")
+            .arg("60")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("a child that never answers");
+        let clock = RefCell::new(Duration::ZERO);
+        let sleeps = RefCell::new(Vec::new());
+        let code = answer_within_on(
+            child,
+            deadline,
+            || *clock.borrow(),
+            |asked| {
+                sleeps.borrow_mut().push((*clock.borrow(), asked));
+                *clock.borrow_mut() += asked;
+            },
+        );
+        (code, clock.into_inner(), sleeps.into_inner())
+    }
+
+    #[test]
+    fn a_silent_submission_is_given_up_on_when_the_clock_reaches_the_deadline() {
+        let deadline = Duration::from_millis(150);
+        let (code, clock_at_return, _) = silent_submission_given_up_on(deadline);
+        assert_eq!(code, 0, "an expiry is no opinion");
+        // THE BOUND HONOURED IS THE ONE HANDED IN, exactly: the deadline is a
+        // whole number of poll ticks, so the clock reads it at the give-up. A
+        // wait that measured against a bound of its own reads that bound here
+        // whatever its sentence says.
+        assert_eq!(
+            clock_at_return, deadline,
+            "the wait gave up at {clock_at_return:?} on a {deadline:?} deadline"
+        );
+    }
+
+    #[test]
+    fn giving_up_on_a_submission_releases_the_prompt_without_waiting_further() {
+        let deadline = Duration::from_millis(150);
+        let (_, _, sleeps) = silent_submission_given_up_on(deadline);
+        // NOT ONE SLEEP AFTER THE DEADLINE. The prompt is released the moment
+        // the wait returns, so anything it waits on after giving up is time
+        // the operator's prompt stays hidden for no reason.
+        let after_the_deadline: Vec<_> = sleeps
+            .iter()
+            .filter(|(began, _)| *began >= deadline)
+            .collect();
+        assert!(
+            after_the_deadline.is_empty(),
+            "the wait kept sleeping after it gave up: {after_the_deadline:?}"
         );
     }
 }
