@@ -410,7 +410,13 @@ measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245. Its por
 `Journal` and `ActivityRing` from PR 6.1 as re-cut by PR 6.1d and PR 6.1g, plus `RecapPublisher` and
 `ReplayDelivery`, both declared in PR 6.1g: the first takes `spawn_recap`'s decision and leaves its spawn
 in the root, and the second takes the closing `dispatch_legs` call, because the leg walk and the render
-are dispatch mechanics rather than decisions.
+are dispatch mechanics rather than decisions. AS BUILT, the use case is `replay_missed`'s DECISION: the
+four refusals, the window, the digest's worth and the card's composition, over the four ports above.
+`claim_moment`, `Moment`, the rename protocol, `activity_in`'s file read, `spawn_recap`'s spawn and
+`dispatch_legs` stay at the composition root behind `CatchUp`, and go to the adapters in PR 11.5 and PR
+14.6 as their own rows already say. `RecordActivity` is not a second use case: PR 6.2 already writes the
+ring through `ActivityRing`, and `activity_in`'s read is this row's `entries_between`. `[recap]`'s other
+fields never cross the boundary; `RecapPolicy` carries the three the decision reads.
 
 **PR 6.5 `RunNag`.** Moves `nag_mode`, `arm_nag`, `clear_nag`, `record_entries`, `claim_record`,
 `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`, `marker_path`,
