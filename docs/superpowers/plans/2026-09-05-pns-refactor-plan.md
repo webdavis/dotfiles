@@ -310,9 +310,14 @@ sections 1 to 6 of the specification all sit in `main.rs`.
 ### Step 6: use cases and the ports they own, in `pns-application`
 
 New code, test-first: a use case is the ordering of calls that `run_event` and its siblings perform
-today, expressed over traits the use case declares. Each PR moves one `*_mode` body out of
-`main.rs` into a use case, leaves a one-line call at the old site, and proves the argv differential
-unchanged.
+today, expressed over traits the use case declares. Each PR moves one `*_mode` body out of `main.rs` into
+a use case, leaves a one-line call at the old site, and proves the argv differential unchanged. A PORT IS
+DECLARED FROM A CONSUMER'S REAL SIGNATURE, never from a description of its purpose. PR 6.1 declared nine
+ports before any consumer existed and three of them were wrong (`LampRecords` described a read-then-write
+nothing performs, `ReturnMoment` dropped an argument its two callers differ in, and `ApprovalForwarder`
+collapsed two steps a caller acts between); the four it MOVED from real code were all correct. PR 6.1d
+re-cut them against `main.rs` line by line. Declare a port no earlier than the call site that will
+consume it, and name that call site in its doc comment.
 
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
@@ -328,26 +333,29 @@ may not name a type the adapters own. Its `to_json` stays where the JSON is, as 
 `event_json`, because an inherent impl may only be written in the crate that defines the type. THAT LIST
 IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a loop lease, runs the
 catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
-`MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, so that PR 6.2 moves an
-ordering over ports that already exist. Tests: the `engine.rs` probe-count tests (`CountingProbes`) by
-name; new port tests only where a port carries logic (none should). Sizes: `ports/*.rs` under 130 each;
-`environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the
-read-only-where-idle-answered rule), S089 to S091, S124.
+`MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, and THREE OF THE NINE DECLARED
+HERE WERE WRONG and are re-cut in PR 6.1d, which also adds `LightsTick` and annotates every surviving
+port with the consumer it was checked against, so that PR 6.2 moves an ordering over ports that already
+exist. Tests: the `engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a
+port carries logic (none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus
+tests ~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered
+rule), S089 to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
 `record_activity`, `update_blocked_marker`, `record_news`, `renew_loop_lease`, `mark_present`, the pulse
 gate, `clear_held_lamps`, `register_lights_tick`) into `pns-application/src/submit_notification.rs` as
 one use case over the ports of PR 6.1 and PR 6.1b (`BlockedMarker`, `LoopLease`, `MissedReplay` and
-`LampSignal` are 6.1b's, because the tail writes four records 6.1's list did not name), keeping today's
-ordering exactly (decide, snapshot, dispatch, decision record, journal, marker, news, lease, activity,
-replay, edge, pulse, clear, tick). The filesystem bodies of those records stay in the root package behind
-port implementations until step 11. Tests written first: one ordering test per tail item using recording
-fakes for the ports (the order is the behavior, S072, S157, S158, S161); the existing `tests/dispatch.rs`
-rows stay as the acceptance tests. Consumer: every hook and every producer. Sizes:
-`submit_notification.rs` ~280 (the 300 target binds here; the tail becomes a `record_tail.rs` of ~200 if
-it does not fit), `submit_notification/tests.rs` ~400. Statements: S006, S017, S021, S072, S080, S106,
-S117, S218, S230, S231.
+`LampSignal` are 6.1b's, because the tail writes four records 6.1's list did not name, and `LampRecords`
+and `LightsTick` are 6.1d's, which re-cut the first against `record_news` and `clear_held_lamps` and
+added the second), keeping today's ordering exactly (decide, snapshot, dispatch, decision record,
+journal, marker, news, lease, activity, replay, edge, pulse, clear, tick). The filesystem bodies of those
+records stay in the root package behind port implementations until step 11. Tests written first: one
+ordering test per tail item using recording fakes for the ports (the order is the behavior, S072, S157,
+S158, S161); the existing `tests/dispatch.rs` rows stay as the acceptance tests. Consumer: every hook and
+every producer. Sizes: `submit_notification.rs` ~280 (the 300 target binds here; the tail becomes a
+`record_tail.rs` of ~200 if it does not fit), `submit_notification/tests.rs` ~400. Statements: S006,
+S017, S021, S072, S080, S106, S117, S218, S230, S231.
 
 **PR 6.3 `RequestApproval`.** RE-CUT. The row used to move `answer_within` and `moshi_decision` into
 `pns-application`; both wait on a `std::process::Child`, and that crate spawns no process, so the move
