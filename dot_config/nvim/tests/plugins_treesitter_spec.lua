@@ -89,6 +89,17 @@ return {
     end)
   end,
 
+  ["a mixed-case filetype with no grammar is never queued for install"] = function()
+    -- The filetype a newer overseer.nvim pin gives its output buffers. Every
+    -- parser nvim-treesitter ships is named in lowercase, so a filetype carrying
+    -- capitals can never match one. This case is here so that pin can move
+    -- without the warning coming back.
+    with_treesitter(function(recorder)
+      open("OverseerOutput")
+      assert(#recorder.installs == 0, "installed " .. joined(recorder.installs) .. " for OverseerOutput")
+    end)
+  end,
+
   ["a dotted filetype whose base language has no grammar is never queued"] = function()
     -- `get_lang` reduces `atlas.notes` to `atlas`, so one availability test on
     -- the language covers every atlas.nvim window without a prefix match.
