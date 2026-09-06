@@ -15,10 +15,10 @@ a producer, the same way the shell's long-command notifier does.
 
 ## The boundaries
 
-Boundary names follow one rule. A trait is named for what it does and never carries a `Backend` suffix,
-and every implementer extends the trait's own name, the way `FeedStore` is implemented by
-`CoreDataFeedStore`. There are two boundaries here, `LightController` and `Notifier`, and each has a
-production implementer and a test implementer that both extend its name.
+Boundary names follow one rule. A trait is named for the role it fills, and every implementer is that
+trait's own name with its technology in front, the way `FeedStore` is implemented by `CoreDataFeedStore`.
+There are two boundaries here, `LightController` and `Notifier`, and each has a production implementer
+and a test implementer built that way.
 
 ### LightController
 
@@ -144,7 +144,8 @@ lives.
 **L010. `lights scene <name>` activates a scene by name in the target room.** Preserves bash:481.
 
 **L011. `next` and `previous` cycle a configured rotation.** Ships as `Dimmed`, `Read`, `Energize`,
-`Concentrate`. Preserves bash:224.
+`Concentrate`. Preserves bash:224. What the list holds is an open operator decision; see the end of this
+document.
 
 **L012. Both directions wrap.** `next` from the last entry lands on the first; `previous` from the first
 lands on the last. Preserves bash:240-247.
@@ -371,3 +372,44 @@ reason: a typo in a config key otherwise looks exactly like a setting that quiet
    binding does is readable in the keybinding file without consulting the script.
 1. **The two direct `openhue set scene` bindings.** F4 and F7 call `openhue` rather than the script
    today, which is why they bypass its room resolution entirely. All seven keys go through one tool.
+
+## Decisions
+
+Settled. Each is written into the design above; this is the record of what was chosen and why.
+
+1. **Install to `~/.local/libexec/lights`.** The repository rule puts everything a keybinding, launchd, a
+   hook or a `just` recipe invokes under `libexec`, and pns already lives there even though the operator
+   types `pns doctor` by hand. The aerospace keys are the dominant caller.
+1. **Brightness up and down send `dimming_delta`.** The bridge applies it to whatever the level is when
+   it arrives, so a held key composes instead of losing presses to a read-modify-write race, and the
+   clamp is the bridge's own documented clipping. Absolute `lights brightness <n>` keeps a domain clamp.
+1. **One bulk `GET /clip/v2/resource`, memoized per process.** It gives a uniform budget of one read and
+   one write for any action. The bound is 150 milliseconds: the first live smoke times this call as a
+   named step, and if it comes in slower the fallback is two targeted listings, `GET .../room` and
+   `GET .../scene`, which costs a second round trip on the scene paths and changes no trait.
+1. **The brightness floor is 1, and it is reported as 1.** See L022. The bridge rewrites a written 0 to
+   its lowest level, so the old `0%` report was never true.
+1. **The bridge credential is the existing `OpenHue :: API Key (hue-bridge-pro)` entry.** It already
+   holds the address in its username field and the key in its password field, and the pns config template
+   already reads the same two. One bridge credential in two places would be a rotation hazard.
+1. **The `openhue` formula stays declared** in `.chezmoidata/system_packages_autoinstall.yaml`. After the
+   cutover nothing in the tree calls it, but removal in this repository is manual by standing rule, and
+   the cutover is not the moment to also uninstall the fallback.
+
+### OPERATOR DECISION PENDING (recommended: add both Halo scenes)
+
+**What `next` and `previous` cycle through.** Today the rotation is `Dimmed`, `Read`, `Energize`,
+`Concentrate`, while F4 and F7 set `CC Halo Daylight` and `CC Halo Amber`, which are not in it. So
+pressing F4 and then F6 does not advance from Daylight; it hits L013 and jumps to `Read`.
+
+- **Add both Halo scenes to the rotation.** Six entries, and every scene reachable by a key is also
+  reachable by cycling. The cost is that a full cycle now takes six presses instead of four.
+- **Leave the rotation at four.** The Halo scenes stay as direct keys only, and the jump to `Read` after
+  pressing one of them stays the behavior.
+
+Recommended: add both. The current arrangement means two of the seven keys put the room into a state the
+other two cannot cycle out of, which reads as a bug every time it happens.
+
+This is a product behavior change and it is the operator's call. **Nothing in the plan depends on the
+answer:** the rotation is a list in `~/.config/lights/config.toml`, so settling it edits one line of the
+config template and no code, in any pull request or after all four.

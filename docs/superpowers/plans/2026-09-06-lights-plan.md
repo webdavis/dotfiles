@@ -120,7 +120,9 @@ chezmoi records a `run_onchange` script as done on any zero exit and a skipped b
 rendered script to fire again. It builds `--release --locked --quiet --bin lights` and installs with
 `/usr/bin/install -m 755`, which replaces through a temporary file and a rename.
 
-Install path: `~/.local/libexec/lights`. See decision 1.
+Install path: `~/.local/libexec/lights`, settled. The repository rule puts everything a keybinding,
+launchd, a hook or a `just` recipe invokes under `libexec`, and pns already sits there despite being
+typed by hand too.
 
 ### The config template
 
@@ -132,9 +134,10 @@ address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 ```
 
-That entry already exists and already carries both halves; the pns config template reads the same two
-fields from it. See decision 6. This adds a fifteenth target to the set that needs KeePassXC unlocked at
-apply time, and `CLAUDE.md` names that set, so it is updated in the same pull request.
+Reusing that entry is settled. It already exists and already carries both halves, and the pns config
+template reads the same two fields from it, so a second entry would mean one bridge credential in two
+places to rotate. This adds a fifteenth target to the set that needs KeePassXC unlocked at apply time,
+and `CLAUDE.md` names that set, so it is updated in the same pull request.
 
 Unlike the pns template, this one is handwritten. pns generates its template from a committed values file
 because its config has grown five plugin tables with argued prose in the comments; `lights` has five
@@ -185,6 +188,14 @@ removal mechanisms, so two things survive the apply and the operator removes the
 
 Both are listed in the final pull request body as manual steps rather than left to be discovered.
 
+The `openhue` formula stays declared in `.chezmoidata/system_packages_autoinstall.yaml`, settled. After
+the cutover nothing in the tree calls it, but removal here is manual by standing rule, and the cutover is
+not the moment to also uninstall the fallback.
+
+The scene rotation is the one open operator decision, and no pull request waits on it. The rotation is a
+list in the config template, so whichever way it settles the change is one line, landable in any pull
+request or after all four.
+
 ## The test plan
 
 Everything below runs in under a second and touches no bridge.
@@ -208,8 +219,11 @@ carrying no dimming, and malformed JSON. The request bodies are asserted separat
 against the four PUT shapes, with no network involved.
 
 One live smoke run belongs to the operator. Agents never write to the bridge, so the first real PUT is
-theirs. It walks the seven keys, and it also times `GET /clip/v2/resource`, which is the measurement the
-design's call budget is waiting on.
+theirs. It has two named steps: walk the seven keys, then time `GET /clip/v2/resource`. That timing is
+the one measurement the design is waiting on. Under 150 milliseconds the memoized bulk read stands as
+designed; over it, the fallback is two targeted listings, `GET .../room` and `GET .../scene`, which costs
+a second round trip on the scene paths and changes no trait and no test. Either way the number goes into
+a decision record inside the crate.
 
 Every new assertion is mutation verified by hand: break the subject, watch it go red, restore it, watch
 it go green.
