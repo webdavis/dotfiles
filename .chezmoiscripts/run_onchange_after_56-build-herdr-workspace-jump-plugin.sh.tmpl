@@ -1,0 +1,14 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds and links the herdr-workspace-jump plugin (the quick-jump chords).
+# `herdr plugin link` does NOT run the manifest's [[build]] step, so the binary
+# is compiled here. Re-runs whenever the plugin source changes.
+#
+# G2 section headers; the build partial calls report_section, so the library has
+# to be inlined ahead of it or the call is command-not-found under set -e.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "herdr-plugin-build.sh.tmpl" (dict "id" "herdr-workspace-jump") }}
+{{ end -}}
