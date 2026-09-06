@@ -77,23 +77,6 @@ return {
       end,
       desc = "Claude: launch or attach --ide",
     },
-    -- Also not a claudecode.nvim command: the line annotator (spec 7.7) writes
-    -- what the operator would otherwise retype into herdr-nvim's own annotation
-    -- store. Delivery is not its job, so this key sends nothing anywhere;
-    -- `<leader>As` and `<leader>AS` are what paste or send a pending comment.
-    --
-    -- `annotate.line()` reports a buffer it cannot annotate as `nil, reason` and
-    -- never notifies, so the keymap-layer error boundary (spec 6.1) is the one
-    -- place that refusal, and any raise out of herdr-nvim, becomes a message.
-    {
-      "<leader>Cx",
-      function()
-        require("custom_api.try")(function()
-          return require("custom_api.annotate").line()
-        end, { label = "annotate.line" })
-      end,
-      desc = "Claude: annotate line with diagnostic and blame",
-    },
   },
   opts = {
     terminal = {
