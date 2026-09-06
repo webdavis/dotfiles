@@ -20,6 +20,7 @@
 //! step removes the re-exports.
 
 pub mod count;
+pub mod decision;
 pub mod home;
 pub mod jobs;
 pub mod lamps;
