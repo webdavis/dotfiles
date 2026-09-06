@@ -45,13 +45,23 @@ pub trait ActivityRing {
 
 /// The near edge of the recap window, and the journal claimed with it.
 ///
-/// ONE CLAIM, ONE OWNER. Claiming moves the edge and takes the waiting
+/// ONE CLAIM, ONE OWNER. Claiming moves the edge and may take the waiting
 /// journal in the same critical section, because an event that took the
 /// entries without moving the edge would replay them again on the next event.
 /// `None` is a claim somebody else holds right now, which silences this event
 /// rather than failing it.
+///
+/// `take_journal` IS AN ARGUMENT AND NOT A SECOND METHOD, because the two
+/// callers differ only in it and the critical section is the same one. The
+/// event path claims the edge alone; the catch-up claims the entries with it,
+/// and only when the operator's config says a replay may card.
+///
+/// Checked against `claim_moment` (`src/main.rs:1335`) and its two callers,
+/// `mark_present` (`1038`) and the replay (`1154`). The first passes `false`
+/// and the second passes the config's own switch, which is why the flag could
+/// not be dropped.
 pub trait ReturnMoment {
-    fn claim(&self, now: Option<u64>) -> Option<Claim>;
+    fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim>;
 }
 
 /// What claiming the moment yielded: the edge the marker held, absent when
