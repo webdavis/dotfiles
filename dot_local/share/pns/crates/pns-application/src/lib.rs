@@ -13,4 +13,13 @@
 //! never names an adapter. It constructs no HTTP client, spawns no process,
 //! opens no file and reads no environment variable.
 //!
-//! Nothing has moved in yet.
+//! The ports are declared first, in `ports`, because every use case that
+//! follows is written against them. Three of the readings have moved in
+//! already: the environment probes, the surface and visibility they are read
+//! into, and the plugin selection.
+
+pub mod decide;
+pub mod environment_reading;
+pub mod ports;
+pub mod selection;
+pub mod submit_notification;
