@@ -26,7 +26,7 @@ jobs:
           BASHUNIT_VERSION: "0.50.1"
           BASHUNIT_SHA256: "18d83d590c5304f1853dd4fe4fec4ec6effbd9fe5a21831fe9f66f70afe17d93"
         run: |
-          brew install actionlint age bash bats-core chezmoi coreutils jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          brew install actionlint age bash chezmoi coreutils jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
           uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
           mkdir -p "$HOME/.local/bin"
           curl -fsSL --retry 3 -o "$HOME/.local/bin/bashunit" "https://github.com/TypedDevs/bashunit/releases/download/${BASHUNIT_VERSION}/bashunit"

@@ -51,11 +51,11 @@ again. **CI is the authority on the test suite.** Run the suite locally on deman
 ### Why the suite left this hook
 
 It used to run `just test` as well. Measured once, on 2026-07-29, a push cost 7m20s to 7m37s, of which
-about 6m30s was integration plus end-to-end plus test-system; integration alone took 216s of that. It
-runs its `.sh` tests one at a time and its `.bats` files under `bats --jobs 4`. Those seconds are one
-reading on one day, not a tracked figure: no test pins them, and the suite keeps growing. CI then ran the
-identical recipe 10 to 12 minutes later, and the commit hook had already run the unit camp, so one suite
-ran three times per push and every round of rework paid for all three.
+about 6m30s was integration plus end-to-end plus test-system; integration alone took 216s of that, run
+one test file at a time. Those seconds are one reading on one day, taken while the corpus was still on
+bats, not a tracked figure: no test pins them, and the suite keeps growing. CI then ran the identical
+recipe 10 to 12 minutes later, and the commit hook had already run the unit camp, so one suite ran three
+times per push and every round of rework paid for all three.
 
 It also could not do the job it was there for: this hook tests the WORKING TREE while CI tests the
 COMMIT, and on PR #116 the local gate passed while CI failed, on an edit that was never staged.
