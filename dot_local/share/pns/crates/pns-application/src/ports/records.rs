@@ -14,20 +14,27 @@
 //! can act on.
 
 use pns_domain::decision::{Decision, Overrides};
+use pns_domain::decision_record::Record;
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
 use pns_domain::notification::EventArgs;
 
 /// The decision log: why a card did or did not fire, newest first.
 ///
+/// `record` TAKES THE RECORD AND NOT A RENDERED LINE. The line's text is the
+/// ring's own on-disk shape, so rendering it belongs with the file; a use case
+/// handed a finished string would be ordering a write it could not have
+/// composed, and the caller would be doing half the adapter's job to call it.
+///
 /// Read as ONE STRING rather than parsed rows, because the only reader parses
 /// it itself and `None` is a machine that has recorded nothing yet, which is
-/// not a failure. Statements: S157.
-/// Checked against `record_decision` (`src/main.rs:814`), which renders the
-/// line before appending it, and the doctor's read (`src/main.rs:7823`), which
-/// hands the whole file to `decision_log::section`.
+/// not a failure.
+///
+/// Checked against `record_decision` (`src/main.rs:814`), which builds the
+/// record, renders it and appends, and the doctor's read (`src/main.rs:7823`),
+/// which hands the whole file to `decision_log::section`. Statements: S157.
 pub trait DecisionRing {
-    fn record(&self, line: &str);
+    fn record(&self, record: &Record);
     fn read(&self) -> Option<String>;
 }
 

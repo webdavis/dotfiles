@@ -17,11 +17,6 @@
 //! taken exactly as the composition root already holds them so that nothing is
 //! transformed on the way in.
 
-use crate::args::EventArgs;
-use crate::channels::Delivery;
-use crate::engine::{Decision, Overrides};
-use crate::routing::Leg;
-
 /// The record's VALUES moved to `pns-domain`: how many entries the section
 /// keeps, the verdict per leg, the readings that may be absent, and the only
 /// text a line carries. What stays here is the line's own shape and the
@@ -29,37 +24,10 @@ use crate::routing::Leg;
 pub use pns_domain::decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no};
 
 /// One decision, as everything needed to write its line. THE STRUCT IS THE
-/// SCHEMA, and every field is a value the composition root already holds.
-pub struct Record<'a> {
-    /// The event as it arrived. Its FREE TEXT never reaches a line: see
-    /// `line`.
-    pub event: &'a EventArgs,
-    /// What the engine decided, carrying the readings it decided from.
-    pub decision: &'a Decision,
-    /// The overrides that decision ran under, parsed once at the edge.
-    pub overrides: &'a Overrides,
-    /// What each dispatched leg's channel had to say. Empty is a plan that
-    /// reached no channel at all, which is the case this log exists for.
-    pub legs: &'a [(Leg, Delivery)],
-    /// Whether this line is a NUDGE about an approval already recorded rather
-    /// than the approval's own first card.
-    ///
-    /// WITHOUT IT THE RING HOLDS TWO INDISTINGUISHABLE LINES. One prompt that
-    /// went unanswered leaves two `claude/blocked` entries differing in nothing
-    /// an operator can see, and "why did I get two cards for one prompt" is the
-    /// exact question this log exists to answer. It is a BOOLEAN and no free
-    /// text is added, so the file's privacy rule is untouched.
-    pub nag: bool,
-    /// The harness payload's own permission mode, empty when the event carries
-    /// none: see `HookPayload::permission_mode`.
-    pub permission_mode: &'a str,
-    /// The harness payload's own subagent id, empty on the main thread: see
-    /// `HookPayload::agent_id`.
-    pub agent_id: &'a str,
-    /// The harness payload's own raw tool name, empty when the event names
-    /// none: see `HookPayload::tool_name`.
-    pub tool_name: &'a str,
-}
+/// SCHEMA, and it moved to `pns-domain` once every field it borrows did: the
+/// use case that orders the write holds one, and `line` below turns it into
+/// the ring's own text.
+pub use pns_domain::decision_record::Record;
 
 /// One decision as one line: `<epoch> <key=value ...>`.
 ///
