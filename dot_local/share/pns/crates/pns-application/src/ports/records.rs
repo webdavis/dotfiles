@@ -13,6 +13,7 @@
 //! diagnostic. A port that returned a result would offer a decision no caller
 //! can act on.
 
+use pns_domain::decision::{Decision, Overrides};
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
 use pns_domain::notification::EventArgs;
@@ -122,4 +123,20 @@ pub trait LoopLease {
 /// read of the config. Statements: S074, S237.
 pub trait NagSchedule {
     fn arm(&self, session_id: &str, event: &EventArgs);
+}
+
+/// The lights tick this event registers against the job spool.
+///
+/// ITS OWN PORT BESIDE `JobSpool` RATHER THAN AN OPERATION ON IT. The spool's
+/// own vocabulary is a job id and a line, which PR 6.9's daemon speaks; this
+/// caller has a decision and a set of overrides and no opinion about either.
+/// Which lease a journalled event earns, and what the tick's argv is, are the
+/// adapter's.
+///
+/// NO CLOCK IS NO REGISTRATION, never a job due at epoch zero.
+///
+/// Checked against `register_lights_tick` (`src/main.rs:3364`). Statements:
+/// S231.
+pub trait LightsTick {
+    fn register(&self, decision: &Decision, overrides: &Overrides);
 }
