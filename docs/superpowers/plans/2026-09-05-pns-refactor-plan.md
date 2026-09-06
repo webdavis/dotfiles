@@ -375,16 +375,19 @@ clock rather than a rendered entry, for the reason PR 6.1e re-cut `DecisionRing`
 `pns-application`; both wait on a `std::process::Child`, and that crate spawns no process, so the move
 was one the crate boundary forbids. What moves is the ORDERING ALONE: `blocking_event`'s sequence and
 `gate_mode`'s body (`src/main.rs:235-247`, `2320-2606`) into `pns-application/src/request_approval.rs`,
-over the `ApprovalForwarder` port of PR 6.1 and the `NagSchedule` and `HarnessPayload` ports of PR 6.1c.
-What STAYS in the root, as the body of the `ApprovalForwarder` adapter that PR 14.6 formalizes:
-`answer_within`, `moshi_decision`, `SUBMISSION_POLL_INTERVAL`, the child handling, and the
-`submit_deadline` and `configured_submit_deadline` config read, which is a config read and belongs with
-the adapter that uses it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case
-test pins the order (forward, skip-phone only on a real spawn, arm, notify, wait) over recording fakes.
-Consumer: `pns hook blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and
-`hook` rows plus the hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated,
-because the child handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker).
-Statements: S022, S023, S074 to S083.
+over the `ApprovalForwarder` port of PR 6.1 the `NagSchedule` and `HarnessPayload` ports of PR 6.1c, and
+the `RaiseNotification` and `PhoneSuppression` ports of PR 6.1f. The last two are what make the ordering
+statable: the notification must be invoked by the use case to sit between the arming and the wait, and
+the suppression must be observable because "only on a real spawn" is half of what S074 says. What STAYS
+in the root, as the body of the `ApprovalForwarder` adapter that PR 14.6 formalizes: `answer_within`,
+`moshi_decision`, `SUBMISSION_POLL_INTERVAL`, the child handling, and the `submit_deadline` and
+`configured_submit_deadline` config read, which is a config read and belongs with the adapter that uses
+it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case test pins the order
+(forward, skip-phone only on a real spawn, arm, notify, wait) over recording fakes. Consumer: `pns hook
+blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and `hook` rows plus the
+hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated, because the child
+handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker). Statements: S022,
+S023, S074 to S083.
 
 **PR 6.4 `ReplayMissedNotifications` and `RecordActivity`.** Moves `replay_missed`, `Moment`,
 `claim_moment`, `StrandedWindow`, `stranded_window_claim`, `window_claim_suffix`, `window_claim_is_free`,
@@ -400,13 +403,14 @@ measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245.
 **PR 6.5 `RunNag`.** Moves `nag_mode`, `arm_nag`, `clear_nag`, `record_entries`, `claim_record`,
 `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`, `marker_path`,
 `write_marker`, `nag_after_secs` (`src/main.rs:4622-5188`) into `pns-application/src/run_nag.rs` and
-`arm_nag.rs` over `NagRecords` and `JobSpool` ports. `arm_nag`'s own port, `NagSchedule`, is declared in
-PR 6.1c, because PR 6.3 arms the nag before this row is reached; this row implements it and moves the
-body. Tests: the nag section of `tests/hooks.rs` as acceptance. Unpinned first: S061 (the `stop-failure`
-clear), S183 (`fire.lock` age-out), S241 (the per-record rename; the code says no test can kill it, so
-this one is written as a two-process test or recorded as accepted in the decision record). Sizes:
-`run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300. Statements: S042, S060, S073 (nag half), S182, S236 to
-S241.
+`arm_nag.rs` over `NagRecords` (declared in PR 6.1f) and `JobSpool` (declared in PR 6.1 and confirmed by
+PR 6.1d's audit as the daemon vocabulary this row wants) ports. `arm_nag`'s own port, `NagSchedule`, is
+declared in PR 6.1c, because PR 6.3 arms the nag before this row is reached; this row implements it and
+moves the body. Tests: the nag section of `tests/hooks.rs` as acceptance. Unpinned first: S061 (the
+`stop-failure` clear), S183 (`fire.lock` age-out), S241 (the per-record rename; the code says no test can
+kill it, so this one is written as a two-process test or recorded as accepted in the decision record).
+Sizes: `run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300. Statements: S042, S060, S073 (nag half), S182,
+S236 to S241.
 
 **PR 6.6 `BuildReturnRecap`.** Moves `recap_mode`, `read_sources`, `summarized`, `left_of`,
 `recap_bounds`, `wall_clock`, `post_recap`, `deliver_recap`'s decision, `RECAP_ROUTE`, `RECAP_USAGE`,
