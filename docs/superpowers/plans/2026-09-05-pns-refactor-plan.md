@@ -284,8 +284,10 @@ does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
 `presence_room.rs` (`Snapshot`, `Full`, `chosen`, `desk_age`) to
-`pns-domain/src/presence/{status,narrowing,room}.rs`. `presence_file.rs` (a state-file line codec) and
-`presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
+`pns-domain/src/presence/{status,narrowing,room}.rs`. `RawPresence` and `Edge` come with them, out of
+`presence_file.rs` and into `status.rs` beside the `classify` that takes them; the codec around them
+stays for PR 10.2 and names them at their new home. `presence_file.rs` itself (a state-file line codec)
+and `presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
 including the presence policy's own. Sizes: three production files under 200; tests under 350.
 Statements: S084 (`idle_secs_from_ns`), S234, S235.
 
@@ -539,9 +541,11 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 
 **PR 10.2 the presence poll adapters.** Pure move. `presence_hue.rs` (the `grouped_motion` read),
 `presence_instant.rs` (the bridge's timestamp grammar), `presence_lock.rs` (the `flock`),
-`presence_file.rs` (the state-file line codec), the presence policy's `presence_journal.rs` (the
-`presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
-`write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
+`presence_file.rs` (the state-file line codec, importing `RawPresence` and `Edge` from the domain, where
+PR 5.12 put them: the codec is the adapter and those two types are its output, so a `classify` in the
+domain that takes them must not reach into this crate for them), the presence policy's
+`presence_journal.rs` (the `presence-decisions` ring codec), and `presence_mode`, `presence_launch`,
+`presence_poll`, `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
 `pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
