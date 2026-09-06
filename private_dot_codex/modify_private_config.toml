@@ -175,8 +175,20 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
+{{- /* Codex 0.153.4 clears a stdio server's environment down to a fixed
+       whitelist (HOME, LOGNAME, PATH, SHELL, USER, __CF_USER_TEXT_ENCODING,
+       LANG, LC_ALL, TERM, TMPDIR, TZ; codex-rs/rmcp-client/src/utils.rs), so
+       every variable the resolver routes on has to be named here or the
+       server silently falls back to `--connect auto`. env_vars forwards the
+       NAMED variables from Codex's own environment; nothing is hardcoded.
+       HERDR_SOCKET_PATH is the session half of the socket name and the herdr
+       CLI's server address, NVIM_MCP_SOCKET the operator's pin,
+       XDG_RUNTIME_DIR the run root on Linux; the other HERDR_* names are what
+       herdr documents itself as exporting and cost nothing to forward. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "nvim")
-    (dict "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)) $merged -}}
+    (dict
+      "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)
+      "env_vars" (list "HERDR_ENV" "HERDR_PANE_ID" "HERDR_SESSION" "HERDR_SOCKET_PATH" "HERDR_TAB_ID" "HERDR_WORKSPACE_ID" "NVIM_MCP_SOCKET" "XDG_RUNTIME_DIR")) $merged -}}
 
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.
