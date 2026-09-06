@@ -59,6 +59,13 @@ name alone. The allowlist tool's three verbs are `add`, `deny` and `list`.
 | `enrich-finding.sh`              | forked by `route.sh` per finding | `posture enrich <path>`         |
 | `alert-dispatch.sh`              | sourced by seven producers       | none (section 5)                |
 | `pipeline-audit.sh`              | sourced by the watchdog          | inside `posture watchdog`       |
+| `ssh-hardening.sh`               | the operator (six modes, 8.22)   | `posture ssh <verb>`            |
+
+A thirteenth entry point joined by operator ruling on 2026-09-06:
+`dot_local/bin/executable_ssh-hardening.sh`, the one file in `~/.local/bin`, which generates,
+installs, verifies, reloads and rolls back the public-key-only sshd drop-in. It is operator-invoked
+only (no LaunchAgent, no chezmoi runner, no justfile recipe), it stays so under posture, and its
+behaviors are section 8.22. The heading above keeps its count for the pipeline proper.
 
 Source: the deployment map is `Library/LaunchAgents/com.webdavis.osquery-*.plist.tmpl` (seven
 files, `ProgramArguments` at lines 7 to 11 of each), `.chezmoiscripts/run_after_50-setup-osquery.sh:46`
@@ -129,6 +136,9 @@ The operator's and the router's tools:
   lines and `-d` prints a note on a no-op (S298, S308 to S310).
 - `enrich-finding.sh` exits 0 for trusted or not applicable and 10 for untrusted or undeterminable,
   and prints one short fact line (S134).
+- `ssh-hardening.sh` exits 0 on success (a `--reload` against a confirmed-absent service included),
+  1 on every refusal or failure through `die`, and 2 on usage; 124 is the bounded runner's internal
+  status for a stopped sshd call and never the process exit (S369, S381, S391, S398).
 
 The sourced libraries return a status to a function caller rather than to a process:
 
@@ -437,6 +447,16 @@ weakens one names it in its description.
   inherits the same honest claim and adds no stronger one.
 - **SI-15** Single-host scope. The target is this machine alone, provisioned from this repository;
   no fleet framing and no per-host URL work (memory `osquery-security-project.md`).
+- **SI-16** Every sshd call is bounded. A call into `sshd` runs in a process group of its own under
+  a deadline (`SSH_HARDENING_VERIFY_DEADLINE`, default 120 s) and is stopped with TERM, a 2 s grace
+  and KILL to the whole group when it expires, reported as 124 the way `timeout(1)` reports it,
+  because one named pipe under the drop-in glob blocks `sshd -G` and `sshd -t` forever (S381,
+  S382).
+- **SI-17** No sshd restart claims success without a banner. Install never restarts the service and
+  only `--reload` does, after a bounded syntax check, the full verify, port resolution and a drift
+  guard, and it claims success only after a real SSH banner exchange on a resolved port and an
+  unchanged tree afterwards; a confirmed-absent service is the one exit-0 no-op, and nothing is
+  rolled back automatically after a restart (S386, S388, S391, S393, S394).
 
 ## 5. Delivery: how posture reaches the operator
 
@@ -544,27 +564,28 @@ What it costs, and how each cost is met:
   ledger read-only, exactly as S176 to S178 open the SQLite queue today, and pages an unreadable
   ledger, any dead-lettered row, and an undelivered backlog that grew across two passes. Executable
   presence is not detection and replaces none of these; the plan's PR 6.4 is corrected accordingly.
-- The operator mute and Focus. OPERATOR DECISION PENDING (the reviewer recommends b); plan decision
-  4 carries both options and this document chooses neither. What is true of pns today, read from the
-  code: a mute or a configured Focus zeroes the banner, the phone card and the pulse and keeps only
-  the durable leg (`crates/pns-domain/src/routing.rs:107-114`, where the durable leg is wanted
+- The operator mute and Focus. SETTLED by the operator on 2026-09-06: a security page cuts through
+  the mute and Focus for the banner and the phone. What is true of pns today, read from the code: a
+  mute or a configured Focus zeroes the banner, the phone card and the pulse and keeps only the
+  durable leg (`crates/pns-domain/src/routing.rs:107-114`, where the durable leg is wanted
   unconditionally; `src/engine.rs:978` a muted decision keeps the durable log and drops every
   decorative leg, `:1011` no pulse, `:1043` the mute beats a forced phone card, `:1074` a named
-  Focus does the same). So "Discord at once" is correct as ROUTING INTENT: the hermes leg is
-  planned. It is not a delivery guarantee and not a phone ping. The replay does not fire when the
-  mute lapses; it waits for the next event that earns the operator a banner or a card
-  (`src/missed_notifications.rs:91-93 should_replay`) and delivers a catch-up card then, so "on the
-  banner and phone on return" overstates what the operator would see. Option (a) accepts that: a
-  security page under a mute reaches Discord, is journaled, and interrupts nobody until the mute
-  ends and something else fires; the argument is that a mute is about interruption, not
-  concealment, and that no producer has yet been allowed to overrule the operator in pns. Option
-  (b) says a security `NeedsAttention` is the one class that may: the funnel detector's page reports
-  a service newly exposed to the public internet and tells the operator to "close it now"
-  (`executable_tailscale-monitor.sh:132`), so an hour of Focus extends an unintended exposure by an
-  hour, and a tamper page on a tracked path (S081 to S084) carries the same shape. Under (b) pns
-  gains an operator-configured bypass, set in the operator's own pns config for this producer's
-  `NeedsAttention` only, so the operator still holds the switch. Under both options the heartbeat
-  and the digest stay quiet and interrupt nothing.
+  Focus does the same), and the replay does not fire when the mute lapses but on the next event
+  that earns the operator a banner or a card (`src/missed_notifications.rs:91-93 should_replay`).
+  So a muted security page today would reach Discord and interrupt nobody until something else
+  fired. The funnel detector's page reports a service newly exposed to the public internet and
+  tells the operator to "close it now" (`executable_tailscale-monitor.sh:132`), so an hour of Focus
+  would extend an unintended exposure by an hour, and a tamper page on a tracked path (S081 to
+  S084) has the same shape; that is why the operator took the bypass. The bypass is a pns feature,
+  not a posture one. Posture is a producer and cannot deliver around pns's mute itself; what it does
+  is mark the event. Every security `NeedsAttention` posture submits carries a delivery class (the
+  name follows pns's config convention; `security` is the working word, proposed), and pns's
+  routing decides that events of that class reach the banner and the phone through the mute and
+  through a configured Focus, while the hermes leg keeps working exactly as it does today. Which
+  classes bypass is an operator-configured switch in pns's own config, shipped with its default
+  explicit and uncommented (the repository's rule for defaulted keys), and its implementation is one
+  more pns prerequisite pull request beside the durability ones (plan step 0.5). The heartbeat and
+  the digest are not marked and keep the quiet treatment.
 - The heartbeat and the digest. Today both send `CRIT` with an empty sound (`executable_heartbeat.sh:51,
   :80, :101`; `executable_digest.sh:226`), and `send_alert` raises the local notification first,
   silent when the sound is empty, then POSTs any `CRIT` regardless of sound
@@ -580,8 +601,9 @@ What it costs, and how each cost is met:
   raises its own loud alert when it does or when the undelivered backlog grows across two passes,
   and `pns doctor` reports the ledger. That does not replace probe 4: pns reporting on pns is not
   independent, so the watchdog keeps its own read of the ledger and the daemon, as stated above.
-- Sequencing. The three pns pull requests (7.3, 11.4 and the priority-route work) are prerequisites
-  of the plan's step 1, together with the mixed-producer route transition the plan's step 0 settles.
+- Sequencing. The four pns pull requests (7.3, 11.4, the priority-route work and the delivery class)
+  are prerequisites of the plan's step 1, together with the mixed-producer route transition the
+  plan's step 0 settles.
   Nothing in the ladder starts before the durable acknowledgement exists, because the `AlertSink`
   contract every use case is written against is that acknowledgement.
 
@@ -637,9 +659,14 @@ Stated here so the pns program can size it; the design belongs there.
    runtime key file `~/.config/osquery/webhook-secret` retire only after the plan's PR 6.7 has
    drained the queue (plan, step 0). The edit is in the encrypted source
    `private_dot_hermes/encrypted_private_config.yaml.age`, which the operator edits.
-6. Whether a security `NeedsAttention` from this producer may bypass the operator's mute is decided
-   by plan decision 4, which is pending. If the operator takes (b), the bypass is a pns config
-   option the operator sets, and this pull request carries it.
+6. The delivery class. `pns submit --json` accepts a class on the request, and pns's routing lets an
+   event of a class the operator's config names cut through the mute and a configured Focus for the
+   banner and the phone card, with the hermes leg unchanged. The switch is a pns config key listing
+   the bypassing classes, shipped in pns's config template with its default explicit and
+   uncommented. Posture submits every security `NeedsAttention` with the `security` class (proposed)
+   and never marks the heartbeat or the digest. This is its own pns pull request (plan step 0.5),
+   because it changes pns S103's rule that the mute beats every producer, and that change is pns's
+   to test.
 
 ## 6. What the port drops, with the reason
 
@@ -687,6 +714,10 @@ behavior lives afterwards.
   replaces the parity no test pinned.
 - **D14** The `bt` variable and the shfmt workaround behind it (S279). A formatter workaround with
   no behavior; the apostrophe rule (SI-13) is kept wherever a body is still built by hand.
+- **D15** The bare invocation installing (that clause of S369). `posture ssh` with no verb prints
+  usage and exits 2, and the install is named `posture ssh install`, because a subcommand that
+  writes under `/etc/ssh` when a verb is mistyped is the wrong default for a security tool; the six
+  modes are otherwise kept one for one.
 
 Two behaviors are kept although the charter might expect them dropped. The `osqueryctl` trust check
 on its containing directory (S329) stays, because `sudo -n` still preserves the caller's `PATH`.
@@ -719,7 +750,10 @@ and a difference found there is a regression.
   closed instead.
 - The presence gate: a `NeedsAttention` page reaches the phone when the operator is away, which the
   pipeline never did. Observable: a new surface for the same page.
-- The operator mute: whatever decision 4 settles, it is a change, because the bash had no mute.
+- The operator mute: a security `NeedsAttention` carries the delivery class that cuts through pns's
+  mute and Focus for the banner and the phone (decision 4, settled 2026-09-06). Observable: a
+  security page interrupts during a mute, as the bash, having no mute, always did; the heartbeat and
+  the digest do not.
 
 Option E of the allowlist boundary design (own-agent suppression by manifest membership, retiring
 the empty-`sha256` convention) is NOT on this list. It changes suppression semantics and gets its own
@@ -3083,19 +3117,272 @@ S368. `run_after_50` is a plain script that exec's the deployed converge tool, a
       Source: `.chezmoiscripts/run_after_50-setup-osquery.sh:42-58`.
       Pin: UNPINNED.
 
+### 8.22 ssh-hardening.sh
+
+Joined by operator ruling on 2026-09-06. The source is `dot_local/bin/executable_ssh-hardening.sh`
+(2,826 lines, the only file in `~/.local/bin`); the deployed path is `~/.local/bin/ssh-hardening.sh`.
+One unit test survives, `test/unit/ssh-hardening-dropin.sh`, over its two pure modes; the bats suites
+that pinned the watchdog, the install transaction, the reload and the tokenizer differential were
+purged on 2026-08-05, and the comments at `:420`, `:691` and `:2204` still name them.
+
+S369. Exactly one of `--print-config`, `--print-path`, `--verify`, `--reload`, `--rollback`,
+      `--help` or `-h` is accepted, or no argument, which installs; two or more arguments, or any
+      other word, print usage to stderr and exit 2. Dispatch is CASE-SENSITIVE (`nocasematch` is
+      switched off around the match), so `--RELOAD` is refused rather than running the one
+      disruptive mode.
+      Source: `executable_ssh-hardening.sh:2769-2824 usage, main`.
+      Pin: UNPINNED.
+
+S370. `--print-config` prints the drop-in: a comment header and the seven protected directives, each
+      exactly once, `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `UsePAM yes`,
+      `PubkeyAuthentication yes`, `PermitRootLogin no`, `GSSAPIAuthentication no`,
+      `HostbasedAuthentication no`. It escalates nothing and writes nothing.
+      Source: `executable_ssh-hardening.sh:267-299 print_config`, `:221-224 PROTECTED_KEYS`.
+      Pin: `--print-config emits every accepted directive exactly once and is pure`
+           at test/unit/ssh-hardening-dropin.sh:41-73
+
+S371. `--print-path` prints `<SSHD_CONFIG_D>/000-ssh-hardening.conf`; the `000-` prefix sorts before
+      Apple's `100-macos.conf` in `LC_ALL=C` order, which is what keeps the drop-in authoritative
+      under sshd's first-value-wins lexical Include.
+      Source: `executable_ssh-hardening.sh:136 DROPIN_NAME`, `:263-265 dropin_path`.
+      Pin: `--print-path names 000-ssh-hardening.conf under the seam and sorts before 100-macos.conf`
+           at test/unit/ssh-hardening-dropin.sh:77-96
+
+S372. Eight tool and path seams carry ABSOLUTE defaults (`SSHD_CONFIG_D`, `SSHD_MAIN_CONFIG`,
+      `SSHD_BIN`, `LAUNCHCTL_BIN`, `KEYSCAN_BIN`, `SLEEP_BIN`, `STAT_BIN`, `CKSUM_BIN`), so a stripped
+      `PATH` cannot turn a verifier into a no-op; `SSH_HARDENING_SUDO` set-but-empty means no
+      privilege wrapper; a relative Include resolves against the main config's directory, not the
+      working directory.
+      Source: `executable_ssh-hardening.sh:81-134`.
+      Pin: UNPINNED. The sandbox harness `test/fixtures/ssh-hardening-lib.bash` drives them.
+
+S373. `--verify` runs three read-only checks, ALL of them, and reports every failure once: the
+      pre-Match effective configuration through `sshd -G` (`check_global`), a text scan of every
+      Match block across the include graph (`check_match_scan`), and per-connection resolution
+      through `sshd -G -T -C` for root and for the invoking user at loopback
+      (`check_connection_specs`). The PASS line counts the protected directives from the array.
+      Source: `executable_ssh-hardening.sh:1442-1463 verify`, `:639-649`, `:1397-1411`,
+      `:1413-1440`, `:567-577 add_failure`.
+      Pin: UNPINNED.
+
+S374. A `sshd` that is not executable FAILS the verify closed, unless `SSH_HARDENING_ALLOW_MISSING_SSHD`
+      is one of `1`, `true`, `yes`, `on`, in which case the verify SKIPS with exit 0 and says the
+      configuration was NOT checked; `0`, `false`, `no`, `off` and the empty string are OFF.
+      Source: `executable_ssh-hardening.sh:556-561 verify_skip_allowed`, `:1444-1451`.
+      Pin: UNPINNED.
+
+S375. For each protected key, `sshd -G` output is judged three ways, each named: correct, wrong
+      value, absent; a failed read of the output fails closed rather than reading an unset value as
+      absent.
+      Source: `executable_ssh-hardening.sh:621-637 assert_output_hardened`.
+      Pin: UNPINNED.
+
+S376. `ChallengeResponseAuthentication` and `SkeyAuthentication` fold onto
+      `kbdinteractiveauthentication`, and `DSAAuthentication` onto `pubkeyauthentication`, so an alias
+      inside a Match block is compared against, and reported as, the directive it moves.
+      Source: `executable_ssh-hardening.sh:241-244`, `:594-603 canonical_key`.
+      Pin: UNPINNED.
+
+S377. The line tokenizer mirrors sshd's two tokenizers, every rule measured against OpenSSH 10.0p2:
+      trailing space, tab, CR and FF are trimmed off the line; the keyword ends at space, tab, CR or
+      one `=`, a double-quoted segment anywhere in it appends and ENDS it at the closing quote, ONE
+      empty first token is discarded and the next token becomes the keyword, and a `#` opening the
+      keyword after that discard is a comment; arguments split on space and tab only, single- and
+      double-quoted segments concatenate, a backslash escapes either quote, a backslash and an
+      unquoted space and is kept literally otherwise, and a `#` opening an argument comments out the
+      rest; an unterminated quote drops the line; a reader that consumed nothing is a failure.
+      Source: `executable_ssh-hardening.sh:705-952` (`trim_trailing_line_whitespace` through
+      `parse_config_line`).
+      Pin: UNPINNED. The differential suite the comment at `:691` names
+      (`test/integration/ssh-hardening-tokenizer-differential.sh`) no longer exists.
+
+S378. An Include argument is unescaped a SECOND time before resolution (every `\X` to `X`, a trailing
+      backslash kept); a relative RAW token resolves under the configuration directory; a pattern with
+      a live `*`, `?` or bracket set expands through bash, one with none is tested as a single path;
+      a bracket beginning with an unescaped `^` is REFUSED, because bash and glob(3) expand it to
+      different files; an Include with no path is refused; only regular files are kept, so a named
+      pipe never reaches an open this file makes.
+      Source: `executable_ssh-hardening.sh:992-1208` (`include_bracket_opens_a_set`,
+      `unescape_include_pattern`, `resolve_include_paths`).
+      Pin: UNPINNED.
+
+S379. The Match scan fails closed on a tree deeper than 15 Include levels, an Include cycle, an
+      unreadable file, a file whose type changed since it was resolved, or a read that failed; the
+      Match state in force where an Include appears applies INSIDE the included file and does not
+      persist back; a protected directive at a non-required value inside a Match block is a failure
+      naming the file, the canonical directive and the value.
+      Source: `executable_ssh-hardening.sh:1254-1337 scan_included_files, scan_config_file`, `:147`.
+      Pin: UNPINNED.
+
+S380. The walk starts from two roots, the main config and every regular file in the drop-in
+      directory, `LC_ALL=C` sorted and CAPTURED rather than streamed, so a failed listing is a
+      refusal and not a scan of nothing; a file reached from both roots reports once.
+      Source: `executable_ssh-hardening.sh:1360-1395 config_tree_roots`.
+      Pin: UNPINNED.
+
+S381. Every sshd call this script waits on runs under `run_bounded`: the child is started in a
+      process group of its own (monitor mode), with stdin from `/dev/null` and SIGTTOU and SIGTTIN
+      ignored; the wait polls at 0.25 s ticks up to `SSH_HARDENING_VERIFY_DEADLINE` seconds (default
+      120; anything that is not one to five digits, or is over 86400, is the default); on expiry TERM
+      goes to the whole group, then a 2 s grace, then KILL to the group, the child is reaped, and the
+      call returns 124, the status `timeout(1)` reports the same event with.
+      Source: `executable_ssh-hardening.sh:385-513` (`VERIFY_DEADLINE_SECONDS`, `stop_bounded_group`,
+      `run_bounded`).
+      Pin: UNPINNED. The e2e watchdog test the comment at `:420` names
+      (`test/e2e/ssh-hardening-verify-watchdog.sh`) was purged on 2026-08-05.
+
+S382. The install and the reload verify through a CHILD bash running this script's own `--verify`
+      with the seams passed explicitly, bounded; a child stopped at the deadline prints the TIMED OUT
+      line and counts as a failed verify. A child, because `set -e` is suppressed inside an `if !` or
+      `||` test and that suppression reaches called functions.
+      Source: `executable_ssh-hardening.sh:531-549 verify_child_command, run_verify_child`.
+      Pin: UNPINNED.
+
+S383. Install is a transaction: refuse when the drop-in directory is missing; clear the dot-prefixed
+      working files; stage through `tee` into `.000-ssh-hardening.conf.staging`; `chmod 0644`
+      explicitly; copy an existing target aside with `cp -Rp` into `.000-ssh-hardening.conf.saved`;
+      publish with one `mv -f`; move the legacy `50-no-password-auth.conf` aside to
+      `.50-no-password-auth.conf.saved`; run the child verify; then remove the saved copies. Every
+      failing step rolls back and dies. The dot prefix keeps every working file out of sshd's Include
+      glob.
+      Source: `executable_ssh-hardening.sh:1599-1708 install_dropin`, `:136-137`, `:1504-1507`.
+      Pin: UNPINNED.
+
+S384. `rollback_install` runs AT MOST ONCE and undoes only what this run did, from state recorded in
+      globals rather than inferred from disk: it removes the staging file, restores the saved target
+      or removes the one this run created, and restores the legacy file; each step warns and continues
+      rather than aborting the rollback.
+      Source: `executable_ssh-hardening.sh:1513-1556`.
+      Pin: UNPINNED.
+
+S385. INT, TERM and HUP during the install (armed before the first write, disarmed once the drop-in
+      is published and verified) stop the bounded group, wait for it, roll back, print INTERRUPTED,
+      and re-raise the same signal at the shell.
+      Source: `executable_ssh-hardening.sh:1577-1597 handle_install_interrupt`, `:1617-1619`,
+      `:1696`.
+      Pin: UNPINNED.
+
+S386. Install is INERT for the running service: it writes files and never restarts sshd; the drop-in
+      is the lock, and without it sshd reverts to its defaults at the next restart.
+      Source: `executable_ssh-hardening.sh:1-30`, `:1599-1708` (no `launchctl` call).
+      Pin: UNPINNED.
+
+S387. Install ends with `install complete: <target> is in place and the effective configuration
+      verified fully hardened`, or, under the skip seam with no runnable sshd, `wrote <target>, but
+      verification was SKIPPED`; the same predicate decides both the child's skip and this wording.
+      Source: `executable_ssh-hardening.sh:1700-1707`.
+      Pin: UNPINNED.
+
+S388. `--reload` preflight, in order, each step fatal and "sshd was not touched" until step 9:
+      validate the readiness knobs; prime `sudo -v` visibly (a sudo failure is named as one, not as a
+      service problem); refuse if `ssh-keyscan` or `sleep` is not runnable; observe the tree; run the
+      bounded, privileged `sshd -t` (output not captured, so no pipe can make the read unbounded
+      again); run the child verify; resolve the probe ports (bounded); probe the launchd service and
+      separate loaded (0), confirmed absent (113) and probe error (anything else, a refusal, never
+      read as "stopped"); re-observe the tree and refuse if anything moved; then kickstart.
+      Source: `executable_ssh-hardening.sh:2421-2569 reload_sshd`, `:2226-2230 probe_sshd_service`,
+      `:117-118`.
+      Pin: UNPINNED.
+
+S389. `SSH_HARDENING_READY_ATTEMPTS` (30) and `SSH_HARDENING_PROBE_TIMEOUT` (5) must be canonical
+      base-10 positive integers with no leading zero and at most nine digits;
+      `SSH_HARDENING_READY_INTERVAL` (1) a canonical non-negative decimal; a set-but-empty knob is
+      REFUSED rather than rewritten to the default. Refused before anything else runs.
+      Source: `executable_ssh-hardening.sh:104-111`, `:2256-2278 validate_readiness_knobs`.
+      Pin: UNPINNED.
+
+S390. Probe ports are every `port` line of the bounded `sshd -G`, each a canonical integer in
+      1 to 65535, deduplicated; none, or an unparseable one, is a refusal BEFORE the kickstart. The
+      lockout message names the launchd socket-activation caveat: the `Port` directive does not move
+      Remote Login's listener, so a nonstandard `Port` can watch the wrong port on a healthy daemon.
+      Source: `executable_ssh-hardening.sh:2280-2370 resolve_probe_ports`, `:2588`.
+      Pin: UNPINNED.
+
+S391. A CONFIRMED-ABSENT service (Remote Login off) exits 0 with nothing restarted, after re-reading
+      the tree: an unreadable tree is `die` (nonzero); a tree that moved is a WARNING and exit 0 with
+      no forward-looking claim; an unchanged tree is a sentence that names what this run measured and
+      the gap it cannot see across.
+      Source: `executable_ssh-hardening.sh:2189-2201 report_absent_service_outcome`, `:2502-2505`.
+      Pin: UNPINNED.
+
+S392. The recovery instructions (keep a session open; from the console run `--rollback` or `sudo rm
+      <drop-in>`, then toggle Remote Login) are printed BEFORE the kickstart and repeated verbatim in
+      every failure after it.
+      Source: `executable_ssh-hardening.sh:2207-2209 recovery_instructions`, `:2567`, `:2571`,
+      `:2579`, `:2588`, `:2603`, `:2609`.
+      Pin: UNPINNED. The runbook-parity test the comment at `:2204` names no longer exists.
+
+S393. Success needs, in order: `launchctl kickstart -k system/com.openssh.sshd` exit 0;
+      `launchctl print` exit 0 afterwards (refutation only, a loaded-but-crashed job also reports 0);
+      then a banner: `ssh-keyscan -T <timeout> -p <port> 127.0.0.1` exit 0 AND at least one stdout
+      line shaped like a host-key record (three or more fields, not a comment), tried over every
+      resolved port per attempt, up to the attempt count, sleeping the interval between attempts (a
+      failed sleep is fatal and names the restart as already done). No banner is `POSSIBLE LOCKOUT`
+      with the recovery text.
+      Source: `executable_ssh-hardening.sh:2380-2419 banner_output_names_host_key,
+      wait_for_ssh_banner`, `:2569-2589`.
+      Pin: UNPINNED.
+
+S394. After the banner the tree is observed a third time: unreadable is `die` naming that sshd DID
+      restart; changed is `die` with no success claim and nothing rolled back; unchanged is the
+      `reload complete` sentence, which disclaims what the daemon read at its own instant. Reload
+      never rolls back automatically: a machine that just restarted must not receive a second
+      unattended change.
+      Source: `executable_ssh-hardening.sh:2590-2612`, `:2232-2240`.
+      Pin: UNPINNED.
+
+S395. A tree observation is one record per unique file in `LC_ALL=C` order: the path, the mode, uid
+      and gid from `stat -L` (following the link, so the record describes the file opened) with the
+      type read in the same call and a non-regular type refused, and a `cksum` of the content; never
+      mtime, never the inode. Bounds: 512 file VISITS, 262144 bytes read (counted before the parse),
+      depth 15; a path holding a newline or the unit-separator byte is refused by name; every read
+      is unprivileged.
+      Source: `executable_ssh-hardening.sh:1779-2019` (`collect_config_tree_from_file`,
+      `observe_config_tree`), `:177-195`.
+      Pin: UNPINNED.
+
+S396. Two observations compare CASE-SENSITIVELY on path and report every dimension that moved: a
+      file that disappeared, one whose content changed, one whose mode or owner changed (old and new
+      attributes named), and one that appeared.
+      Source: `executable_ssh-hardening.sh:2076-2145 config_tree_is_unchanged`.
+      Pin: UNPINNED.
+
+S397. `--rollback` removes the drop-in (`die` if the removal fails or the file is still there), then
+      PROVES password access is restored: for the invoking user at `127.0.0.1` and at
+      `198.51.100.23`, a bounded `sshd -G -T -C` must show `passwordauthentication yes` or
+      `kbdinteractiveauthentication yes`; OPEN is success, BLOCKED is `die` (something else still
+      enforces the policy), ERROR is `die` (could not verify, re-run). An already-absent drop-in
+      still runs the gate. It never restarts sshd, and a `sshd` that cannot run is `die` unless the
+      skip seam is on.
+      Source: `executable_ssh-hardening.sh:2620-2767` (`resolve_password_channel`,
+      `confirm_password_access_restored`, `rollback_dropin`).
+      Pin: UNPINNED.
+
+S398. Every line is prefixed `[ssh-hardening]`; `die` prints `ERROR:` to stderr and exits 1; `warn`
+      prints `WARNING:` to stderr and continues.
+      Source: `executable_ssh-hardening.sh:246-253`.
+      Pin: UNPINNED.
+
+S399. `nocasematch` is ON at file scope so keyword and yes/no matching mirror sshd, and OFF exactly
+      twice: around the argument dispatch (S369) and around the path comparison (S396), where a
+      rename differing only in case must count as a change.
+      Source: `executable_ssh-hardening.sh:79`, `:2086`, `:2143`, `:2802`, `:2810`.
+      Pin: UNPINNED.
+
 
 ## 9. Counts
 
 Computed over this document on 2026-09-05 with `grep -c '^S[0-9][0-9][0-9]\. '` and
-`grep -c '^      Pin: UNPINNED'`.
+`grep -c '^      Pin: UNPINNED'`, and again on 2026-09-06 after section 8.22 joined (31 statements,
+2 pinned by the one plain-script unit test, 29 UNPINNED).
 
 | Count                                             | Value |
 | ------------------------------------------------- | ----- |
-| Statements                                        | 368   |
-| Pinned                                            | 169   |
-| UNPINNED                                          | 199   |
-| Distinct tests referenced                         | 184   |
-| Test cases in the corpus that cover this pipeline | 186   |
+| Statements                                        | 399   |
+| Pinned                                            | 171   |
+| UNPINNED                                          | 228   |
+| Distinct tests referenced                         | 185   |
+| Test cases in the corpus that cover this pipeline | 187   |
 | Statements the port drops (section 6)             | 46    |
 
 Only two of the 186 cases go uncited, both in `test/e2e/osquery-alerter-criteria.bats`: the pair that

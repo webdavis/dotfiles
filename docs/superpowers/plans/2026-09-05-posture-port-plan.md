@@ -30,11 +30,15 @@ inputs, all read in full for this plan:
   (`.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`);
 - uu's lane adapter shape (`dot_local/share/uu/src/lanes.rs:39-59`), its spawn seam
   (`src/lanes/spawn.rs:59`) and its two clients of pns (`src/alert.rs`, `src/delivery.rs:11`);
-- the locked decisions in the specification's section 4 and the delivery decision in its section 5.
+- the locked decisions in the specification's section 4 and the delivery decision in its section 5;
+- `dot_local/bin/executable_ssh-hardening.sh` (2,826 lines) and its one unit test,
+  `test/unit/ssh-hardening-dropin.sh`, which joined the port by operator ruling on 2026-09-06 (spec
+  section 8.22, S369 to S399).
 
-Three pull requests in the pns program are prerequisites of step 1: PR 7.3 (`pns submit --json` with
-a result envelope), PR 11.4 (the write-ahead delivery ledger the daemon drains), and the
-priority-route pull request the specification's section 5.5 sizes. They are prerequisites of the
+Four pull requests in the pns program are prerequisites of step 1: PR 7.3 (`pns submit --json` with
+a result envelope), PR 11.4 (the write-ahead delivery ledger the daemon drains), the priority-route
+pull request the specification's section 5.5 sizes, and the delivery-class pull request that lets a
+security page through the operator's mute (decision 4, step 0.5). They are prerequisites of the
 whole ladder and not only of the producer cutovers because pns today acknowledges nothing durably:
 the channels are dispatched before the record is written and a failed journal write is dropped
 (`dot_local/share/pns/src/main.rs:3101-3122`, `:814-858`; spec section 5.2). The `AlertSink`
@@ -119,6 +123,11 @@ Each module below is a stage or verdict the bash already isolates, which is the
   the occurrence id (S007 to S011, S013, S014, S016).
 - `enrich`: the signing classification over a parsed `codesign` report, the interpreter list, the
   bundle suffixes, the fact strings (S134 to S141).
+- `ssh_policy`: the seven protected directives and their alias fold, `assert_hardened` over a parsed
+  `sshd -G` listing, the two sshd tokenizers and the Include pattern analysis as functions over
+  strings, the scan's refusal set, the readiness-knob and port validation, the host-key record
+  shape, and the tree record grammar with its comparison (S370, S375 to S380, S389, S390, S393,
+  S395, S396). Split into `directives.rs`, `tokenizer.rs`, `include.rs` and `tree.rs`.
 
 Two rules the charter's SOLID section makes concrete here. `Detector` is a closed enum and the gate
 matches on it, so adding a detector is one variant plus one arm and no string comparison anywhere
@@ -149,6 +158,12 @@ today, over ports the use case declares. Names are proposed.
 - `CurateAllowlist` replaces `allowlist.sh` over `LaunchdTable`, `SourceAllowlist`, `Publisher`
   (apply one target, refresh the manifests) and `WriteLock`.
 - `Enrich` replaces `enrich-finding.sh` over `Codesign`, `PlistReader`, `Quarantine` and `FileKind`.
+- `SshInstall`, `SshVerify`, `SshReload`, `SshRollback`, `SshPrintConfig` and `SshPrintPath` replace
+  `ssh-hardening.sh`'s six modes over `Sshd` (the bounded `-G`, `-t` and `-G -T -C` calls),
+  `SshdTree` (roots, include walk, observation), `PrivilegedFs` (the five privileged file operations
+  of the install transaction), `Launchctl` (print, kickstart), `BannerProbe`, `Sleeper` and `Clock`.
+  The install's signal handling belongs to the use case, because what it rolls back is the use
+  case's own transaction state (S384, S385).
 
 `AlertSink` is the one port every producer shares. Its contract is the specification's S144 as a
 type: `fn submit(&self, alert: &Alert) -> Accepted | NotAccepted(reason)`, where `Accepted` means the
@@ -212,6 +227,17 @@ let a test double honour one and not the others.
   runner by its source-relative path. Replaces `publish_allowlist`.
 - `clock`: `Clock` and `Sleeper`, wall time, `gmtime_r`, the 0.25 s tick. Replaces `date` and
   `sleep`.
+- `bounded`: the process-group runner every `Sshd` call goes through: `setpgid`, stdin from
+  `/dev/null`, SIGTTOU and SIGTTIN ignored in the child, a 0.25 s poll to the deadline, TERM to the
+  group, a 2 s grace, KILL to the group, the reap, and a `Timeout` outcome (S381). It is the same
+  shape as the `CommandRunner` deadline above and may be the same type; the property that must
+  survive is the GROUP kill, which the sshd hang needs and a plain child kill does not deliver.
+- `sshd`, `keyscan`, `sshd_tree` and `privileged_fs`: `sshd -G`, `sshd -t` and `sshd -G -T -C <spec>`
+  by absolute path; `ssh-keyscan -T <timeout> -p <port> 127.0.0.1`; the drop-in directory listing,
+  the include walk over the domain's resolver, `stat` following the link for type, mode, uid and
+  gid, and a content digest (sha256 replaces `cksum`; a record never leaves one run); and `sudo -n`
+  `tee`, `chmod`, `cp -Rp`, `mv -f` and `rm -f` by absolute path for the install transaction and the
+  rollback (S383, S395, S397). Replaces the ssh script's spawns.
 
 A spawned child runs under an explicit deadline with process-group termination, the way uu's
 `CommandRunner::run_with_deadline` and pns's `run_bounded` already do, and every spawn goes through
@@ -224,7 +250,10 @@ one `CommandRunner` trait with a scripted double, so no adapter test runs a real
 subcommand names, and translates the outcome to an exit code; it is projected under 120 lines and
 holds no policy. The subcommands, one per entry point, are the specification's section 1 table:
 `alert`, `poll`, `funnel`, `watchdog`, `digest`, `heartbeat`, `converge`, `allowlist add|deny|list`,
-`enrich <path>`. An unknown word or a missing verb prints usage to stderr and exits 2 (S298, S341).
+`enrich <path>`, and `ssh install|verify|reload|rollback|print-config|print-path` (the
+specification's section 8.22; the mode words are kept so the runbook reads across, and a bare `ssh`
+is usage, spec D15). An unknown word or a missing verb prints usage to stderr and exits 2 (S298,
+S341, S369).
 The exit codes per subcommand are the specification's section 2, unchanged, because each caller
 depends on them.
 
@@ -235,9 +264,13 @@ roster is a security property of a security tool: `osqueryi`, `osqueryctl` (trus
 and `install` (by absolute path, converge only), `launchctl`, `pgrep`, `fdesetup`, `csrutil`,
 `sysadminctl`, `defaults`, `plutil`, `readlink`, `xattr`, `file`, `codesign`, `tailscale`, `chezmoi`
 (the allowlist writer only), the manifest runner (a chezmoi source script, writer only), the deployed
-`pns` binary, and `osascript` for the last-resort banner alone. Nothing else. `shasum`, `openssl`,
-`sqlite3`, `curl`, `jq`, `alerter`, `gtimeout`, `hostname`, `date` and `lockf` all leave: sha2,
-`ureq`, `serde_json`, libc's `flock`, `gethostname` and `gmtime_r`, and a Rust deadline replace them.
+`pns` binary, `osascript` for the last-resort banner alone, and for `posture ssh` only: `sshd`,
+`ssh-keyscan`, and under `sudo` the five file tools of the install transaction (`tee`, `chmod`,
+`cp`, `mv`, `rm`, absolute paths). Nothing else. `shasum`, `openssl`, `sqlite3`, `curl`, `jq`,
+`alerter`, `gtimeout`, `hostname`, `date` and `lockf` all leave: sha2, `ureq`, `serde_json`, libc's
+`flock`, `gethostname` and `gmtime_r`, and a Rust deadline replace them. With the ssh port `stat`,
+`cksum`, `awk`, `id`, `mktemp` and `sleep` leave too: libc's `stat` and `getpwuid`, sha2, a
+standard-library temporary file and a Rust sleep replace them.
 
 ### 2.7 What stays a file, and why
 
@@ -256,6 +289,9 @@ file keeps its current path and shape, so a cutover replays nothing and pages no
 - The SQLite queue has no successor in posture (spec section 6, D1 to D4).
 - The manifests, the controls file, the allowlist and the desired tree are external contracts and
   stay exactly as they are.
+- The sshd drop-in `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, its dot-prefixed staging and
+  saved copies, and the legacy `50-no-password-auth.conf` it moves aside are sshd's contract and
+  keep their names, content and modes byte for byte (S370, S383).
 
 No SQLite dependency enters posture. Under the recommended delivery every multi-record store belongs
 to pns.
@@ -444,10 +480,27 @@ the crate.
 
 `run_after_05` is a chezmoi runner that calls chezmoi and sudo, not one of the twelve entry points,
 and it stays a plain script. It changes twice: the membership arm of section 3.2 and the build-record
-arm of decision 2 in step 1, and the removal of the `osquery/*` arm in step 8 once that directory is
+arm of decision 2 in step 1, and the removal of the `osquery/*` arm in step 9 once that directory is
 empty. Two callers invoke it by its source-relative path (`allowlist.sh:34`, `MANIFEST_RUNNER_REL`):
 the allowlist writer, now from the `Publisher` adapter, and the posture builder after it writes the
 build record (section 3.1).
+
+### 3.7 ssh-hardening's surface
+
+There is nothing to repoint, which is the point of keeping it operator-invoked: no plist, no chezmoi
+runner, no justfile recipe, no LaunchAgent, and the port adds none. What changes when
+`dot_local/bin/executable_ssh-hardening.sh` is deleted: `~/.local/bin` becomes EMPTY, so CLAUDE.md's
+sentence "Today that leaves exactly one file in `bin` (`ssh-hardening.sh`)" and its "SSH hardening"
+section are rewritten in that pull request to name `posture ssh`; the reload and lockout-recovery
+procedure in `docs/runbooks/macos-fresh-machine-quickstart.md` is re-pointed; and the recovery
+sentence every reload failure prints (S392) names `posture ssh rollback` in place of
+`ssh-hardening.sh --rollback`, a deliberate wording change the pull request records. The deployed
+`~/.local/bin/ssh-hardening.sh` is manifested under the managed-bin arm, so trashing it after the
+apply is one expected CRIT page (S081), like every other retired file. The ssh knobs
+(`SSH_HARDENING_VERIFY_DEADLINE`, the three readiness knobs, `SSH_HARDENING_SUDO` and the eight tool
+and path seams of S372) stay environment reads, because they are operator-facing and documented; that
+is an exception to the specification's section 3.11 construction-only rule of the same kind as the
+converge's seam gate, and the exact list is proposed.
 
 ## 4. Rules every pull request in the ladder obeys
 
@@ -492,6 +545,10 @@ build record (section 3.1).
    trashing of retired files. Agents propose; the operator applies.
 7. **Repository rules.** Conventional Commits, no trailers, no em-dashes, `trash` never `rm` for
    operator files, never `chezmoi apply`, never a force push, at most two open posture branches.
+8. **Clean code.** Every posture pull request follows `~/.claude/skills/clean-code/SKILL.md` (the
+   layered modules, the boundary and seam rules, the SOLID and test-quality standards, the file-size
+   rule) paired with the Rust language skill, as the operator restated on 2026-09-06; a reviewer
+   checks against it by name, and a brief that omits the citation is incomplete.
 
 ## 5. The migration order, and why
 
@@ -515,7 +572,10 @@ charter names (converge, which runs `sudo`, goes late; producers wait for the pn
    root daemon, and writes under `/var/osquery`; it also has the best cover (48 bats plus 18
    bashunit cases), so its port is a translation of a well-pinned tool rather than a discovery
    (step 7).
-7. **Cleanup** (step 8).
+7. **ssh-hardening after the converge** (step 8), because it is the other tool that runs `sudo`,
+   the only one that can lock the operator out of the machine, and the one whose watchdog nothing
+   pins today; it shares nothing with the pipeline but the binary, so it waits for everything else.
+8. **Cleanup** (step 9).
 
 ## 6. The ladder
 
@@ -556,12 +616,20 @@ of record posture's does), the launchd read of `com.webdavis.pns-daemon`, and th
 probe. Designed here, built in PR 6.4, because PR 6.4 is where probe 4 is re-expressed and the design
 must exist before the use case it feeds is written in step 3.
 
+**0.5 The delivery class.** The pns pull request that adds a class to `pns submit --json` and a
+config key naming which classes cut through the mute and a configured Focus for the banner and the
+phone card, with the hermes leg unchanged (spec section 5.5, item 6; decision 4). The key ships in
+pns's config template with its default explicit and uncommented. It changes pns S103 (the mute beats
+every producer), so its tests are pns's; posture's side is one field on the request, set for every
+security `NeedsAttention` and never for the heartbeat or the digest, and PR 5.1 tests that.
+
 ### Step 1: the workspace and the deployment prerequisites
 
 **PR 1.1 the workspace and the builder.** Creates `dot_local/share/posture/` with the four member
 crates (each `lib.rs` a doc comment naming its responsibility), `Cargo.lock`, the `posture` binary
 printing usage and exiting 2 on every word (S298, S341), `docs/README.md`, and
-`docs/test-baseline.tsv` holding the 186 bats and bashunit case names as the set to map from. Adds
+`docs/test-baseline.tsv` holding the 186 bats and bashunit case names plus the one plain-script
+ssh-hardening test as the set to map from. Adds
 `run_onchange_after_58-build-posture.sh.tmpl` (slot proposed, section 3.1) with its build record and
 manifest refresh, `test/unit/posture-build-install.sh`, and the three `test-rust` lines. The release
 profile is set and the artifact is measured against the audit's 8 MiB bound (section 3.1); the
@@ -815,18 +883,66 @@ mode drift by hand, re-runs the apply, reads the one repair line and the daemon 
 osqueryd's parent pid changed. That restart is the operator's. **Sizes**: cli `converge.rs` under
 80; the application and adapters were measured in step 3.
 
-### Step 8: cleanup
+### Step 8: ssh-hardening
 
-**PR 8.1 the old directory leaves the tracked set.** Once `~/.local/libexec/osquery/` holds nothing
+Operator ruling 2026-09-06. Three pull requests, after the converge and before cleanup, with the
+watchdog pinned by a test before the bash is deleted, because nothing pins it today (spec S381).
+
+**PR 8.1 the ssh policy domain.** `ssh_policy/directives.rs`, `tokenizer.rs`, `include.rs` and
+`tree.rs` in `posture-domain`. **Statements**: S370 (the directive table), S375 and S376 (the
+judgement and the alias fold), S377 (both tokenizers), S378 (the Include pattern analysis, including
+the `^` refusal), S379's refusal set and S380's root rule as decisions over readings, S389 and S390
+(knob and port validation), S393's host-key record shape, S395's record grammar and S396's
+comparison. **Tests**: S370 and S371 re-express the two `ssh-hardening-dropin.sh` criteria by name;
+every other statement gets its first test, and the tokenizer's cases are the measured forms the bash
+comments record (`executable_ssh-hardening.sh:658-683`, `:809-812`, `:831-835`, `:844-850`,
+`:874-876`, `:931-944`, `:963-968`, `:979-982`, `:994-997`, `:1036-1045`, `:1058-1061`), each captured
+as a bash-derived acceptance example by running `parse_config_line` and `resolve_include_paths` in a
+sandbox before the Rust test is written (rule 1). **Sizes**: four files of 150 to 250 plus tests
+under 400 each.
+
+**PR 8.2 the bounded runner and the ssh adapters.** `bounded.rs`, `sshd.rs`, `keyscan.rs`,
+`sshd_tree.rs`, `privileged_fs.rs` and the `Launchctl` print and kickstart calls in
+`posture-adapters`. **Statements**: S381, S382 (the child verify becomes an in-process call over the
+same bounded `Sshd`, since one binary needs no re-exec to get a fresh `set -e`), S383's five
+privileged operations, S395's observation. **Tests**, and this is the pin the bash lost: a stub
+child that ignores TERM (`trap '' TERM; sleep 600`) and has started a grandchild is stopped at a
+short deadline, the whole group is gone afterwards (the grandchild's pid answers ESRCH), the outcome
+is `Timeout` and the caller sees 124 where the bash exposed it, and the runner returns inside the
+deadline plus the 2 s grace plus a tolerance; a healthy child's status passes through unchanged; the
+child reads EOF on stdin; an observation refuses a path with a newline or the unit-separator byte, a
+non-regular file at read time, and a tree past the byte or visit bound, and follows a symlinked
+include for its attributes. **Sizes**: `bounded.rs` ~180 plus tests ~300; the four adapters 80 to
+200 each plus tests.
+
+**PR 8.3 `posture ssh` and the cutover.** The six use cases over the ports of PR 8.2, the cli
+`ssh.rs`, and the install's signal handling (S385) as the use case's own concern. **Statements**:
+S369 to S399, with D15. **Surface**: `dot_local/bin/executable_ssh-hardening.sh`,
+`test/unit/ssh-hardening-dropin.sh` and `test/fixtures/ssh-hardening-lib.bash` are deleted; CLAUDE.md's
+"exactly one file in `bin`" sentence and its "SSH hardening" section, and the quickstart runbook's
+reload and lockout-recovery procedure, are rewritten to name `posture ssh` (section 3.7); the
+recovery sentence (S392) names `posture ssh rollback`. No plist, no chezmoi runner and no justfile
+recipe are added: it stays operator-invoked. **Cutover**: BEFORE the apply that deletes the script
+the operator runs `posture ssh verify` and `ssh-hardening.sh --verify` against the live tree and
+compares the PASS lines, and diffs `posture ssh print-config` against `--print-config` byte for byte;
+then applies and trashes `~/.local/bin/ssh-hardening.sh` (one expected CRIT page, S081). No reload is
+part of the cutover: `posture ssh reload` is disruptive and only ever runs because the operator typed
+it, and the drop-in on disk is unchanged by the port. **Sizes**: `ssh_install.rs` ~260 plus tests
+~350; `ssh_reload.rs` ~280 plus tests ~380; `ssh_verify.rs`, `ssh_rollback.rs` and the two print use
+cases under 150 each; cli `ssh.rs` under 80.
+
+### Step 9: cleanup
+
+**PR 9.1 the old directory leaves the tracked set.** Once `~/.local/libexec/osquery/` holds nothing
 (the operator has trashed every retired file), the three `osquery/*` arms of section 3.2 are removed
 from the watch paths, the manifest runner and the (now Rust) tracked set, and `run_after_05`'s
 docblock names the new directory. **Cutover**: apply, one osqueryd restart through the converge for
 the watch-path change.
 
-**PR 8.2 the file-size lint and the completion record.** `scripts/treefmt/rust-file-size.sh` over
+**PR 9.2 the file-size lint and the completion record.** `scripts/treefmt/rust-file-size.sh` over
 `dot_local/share/posture/**/*.rs` at the 500 cap, if the pns program's PR 18.1 has not already added
 a shared one; the completion report with the before-and-after line table (spec section 9 against
-the crate), the test mapping table complete (186 retired names, each with a successor or a reason),
+the crate), the test mapping table complete (187 retired names, each with a successor or a reason),
 and the decision records index.
 
 ## 7. Operator-only steps, collected
@@ -834,8 +950,12 @@ and the decision records index.
 Every one of these is the operator's and never an agent's:
 
 - Every `chezmoi apply` in the ladder, with KeePassXC unlocked (fourteen templates read it).
-- The osqueryd restarts: PR 1.2 and PR 8.1 change the desired `osquery.conf` and the converge
+- The osqueryd restarts: PR 1.2 and PR 9.1 change the desired `osquery.conf` and the converge
   restarts the daemon on that apply; PR 7.1's planted drift restarts it again.
+- The ssh cutover (PR 8.3): running `posture ssh verify` and `posture ssh print-config` beside the
+  bash's `--verify` and `--print-config` before the apply that deletes the script, and trashing
+  `~/.local/bin/ssh-hardening.sh` after it. No reload is part of the cutover; `posture ssh reload`
+  is disruptive and only ever runs because the operator typed it.
 - Step 0's hermes edit: ADD the pns-keyed route for posture beside the existing `priority` route in
   `private_dot_hermes/encrypted_private_config.yaml.age` (age identity required), leaving `priority`
   and its key untouched for the whole of step 6; then, in PR 6.7 and only after the three-table
@@ -860,16 +980,18 @@ the fourth is reopened and awaits the operator.
    ledger, the retries, the presence gate, the phone and the replay; posture keeps one last-resort
    banner for the engine-down case (spec section 5.2). (b) Posture ports the dispatch library as its
    own `AlertSink`: a second SQLite queue, drainer, dead-letter policy and signer key, with no
-   presence gate, phone, replay or recap (spec section 5.3). Decision: (a), with three conditions.
+   presence gate, phone, replay or recap (spec section 5.3). Decision: (a), with four conditions.
    The `accepted` bit must mean a committed, retriable obligation for that request id; today pns
    dispatches before it records and drops a failed journal write (`main.rs:3101-3122`, `:814-858`),
    so PR 7.3 and PR 11.4 are prerequisites of step 1, not of step 5 (step 0.1). Posture keeps
    independent integrity and health checks on pns (the binary's tuple, the daemon's launchd state,
    the ledger read-only), because (a) gives up the failure isolation (b) had and the engine-down
    banner covers detectable failure only, never a pns that forges `accepted` (spec section 5.2, PR
-   6.4). And the route transition runs both routes in parallel until the queue is drained (step 0.3).
-   "Better on every axis" is withdrawn as the reason: (a) is chosen because pns is the one
-   notification engine by ruling, and the lost isolation is paid for by the checks.
+   6.4). The route transition runs both routes in parallel until the queue is drained (step 0.3).
+   And every security page carries the delivery class of decision 4, whose pns pull request is the
+   fourth prerequisite (step 0.5). "Better on every axis" is withdrawn as the reason: (a) is chosen
+   because pns is the one notification engine by ruling, and the lost isolation is paid for by the
+   checks.
 2. **Whether the built binary is vouched for by the file-integrity arm.** (a) The manifest runner
    writes one tuple for the deployed binary, so a swapped binary pages like a swapped script does
    today. (b) The binary lives under a tracked directory as an untracked neighbour, the way the `pns`
@@ -893,20 +1015,24 @@ the fourth is reopened and awaits the operator.
    one whose omission would page every posture file, plus the callers and render globs of section
    3.3, and the relocation must leave the converge's symlink refusal and its private 0700 copy
    exactly as strong at the deeper path (section 3.3).
-4. **Whether a security page honours the operator's mute.** OPERATOR DECISION PENDING (the reviewer
-   recommends b). (a) It does: a muted or Focus-silenced page is planned to the hermes leg (Discord)
-   at once and to nothing else, is journaled as a miss, and is caught up by a card on the next event
-   after the mute lapses that earns the operator something (`routing.rs:107-114`,
-   `missed_notifications.rs:91-93`; pns S106). Discord is routing intent, not a delivery guarantee
-   or a phone ping, and the replay is event-driven, not timed to the mute's end. For (a): a mute is
-   about interruption, not concealment; nothing is hidden; no producer has yet been allowed to
-   overrule the operator in pns. (b) pns gains an operator-configured bypass for this producer's
-   security `NeedsAttention`, which the operator sets in their own pns config. For (b): the funnel
-   detector reports a service newly exposed to the public internet and says "close it now"
-   (`executable_tailscale-monitor.sh:132`), so an hour of Focus extends an unintended exposure by an
-   hour, and a tamper page on a tracked path has the same shape; "every existing page tolerates an
-   hour" was asserted, not shown. Under both options routine observations (the heartbeat, the digest)
-   stay quiet. Spec section 5.2 carries the same two options; neither document chooses.
+4. **Whether a security page honours the operator's mute.** SETTLED by the operator on 2026-09-06:
+   (b). (a) would have let a muted or Focus-silenced page reach the hermes leg (Discord) and nothing
+   else, journaled as a miss and caught up by a card only on the next event after the mute lapsed
+   that earned the operator something (`routing.rs:107-114`, `missed_notifications.rs:91-93`; pns
+   S106), so Discord was routing intent rather than a ping and the replay was event-driven, not timed
+   to the mute's end. The funnel detector reports a service newly exposed to the public internet and
+   says "close it now" (`executable_tailscale-monitor.sh:132`), so an hour of Focus would extend an
+   unintended exposure by an hour, and a tamper page on a tracked path has the same shape; "every
+   existing page tolerates an hour" was asserted, not shown. So (b): a security page cuts through the
+   mute and a configured Focus for the banner and the phone. The bypass is a pns feature, not a
+   posture one: posture is a producer and cannot deliver around pns's mute, so it marks every
+   security `NeedsAttention` with a delivery class (`security`, proposed, under pns's config naming),
+   and pns's routing lets events of a class the operator's config names through, with the hermes leg
+   unchanged. The switch lives in pns's config, shipped with its default explicit and uncommented, and
+   its implementation is the pns pull request of step 0.5, a prerequisite beside the durability ones.
+   Posture's own documents say only this: security `NeedsAttention` pages are submitted with that
+   class, the heartbeat and the digest are not, and the quiet treatment for observations is
+   unchanged. Spec section 5.2 and section 5.5 item 6 carry the same wording.
 5. **Whether the port changes product behavior along the way.** (a) The port makes the delivery
    changes listed in spec section 6.1 and no others: D1 to D7 and D9 as stated there, the presence
    gate as a new surface, and whatever decision 4 settles; the heartbeat's and the digest's daily
