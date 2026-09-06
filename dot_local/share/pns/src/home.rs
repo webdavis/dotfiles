@@ -64,13 +64,10 @@ pub struct RouterSettings {
     pub device: DeviceIdentity,
 }
 
-/// The seam one probe reads the router through. The production impl carries
-/// the deadline and the self-signed-TLS stance; a fake answers from a string.
-pub trait Router {
-    /// The clients listing as the router returned it, or `None` when it could
-    /// not be fetched.
-    fn clients_json(&self) -> Option<String>;
-}
+/// The seam one probe reads the router through. DECLARED in
+/// `pns-application`, beside the home-probe use case that consumes it;
+/// named here for the adapter that implements it.
+pub use pns_application::ports::devices::Router;
 
 /// The clients in a UniFi `/clients` listing, or `None` when the text is not
 /// one. `None` and an empty list are DIFFERENT readings: an empty list is a

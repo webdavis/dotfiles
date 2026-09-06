@@ -7,13 +7,9 @@ use crate::channels::hue::{Fixture, Muting, Routing, Showing, resolve};
 use std::time::Duration;
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
-pub trait Bridge {
-    fn get(&self, path: &str) -> Option<String>;
-    /// Fire and forget: `run` discards every outcome, so a bridge that
-    /// refuses tells no one. Returning a result would be a seam with no
-    /// consumer.
-    fn put(&self, path: &str, body: &str);
-}
+/// DECLARED in `pns-application`, where the lamp use cases that consume it
+/// live; named here for the adapters that implement it.
+pub use pns_application::ports::devices::Bridge;
 
 /// The three listings the routing is resolved from.
 ///

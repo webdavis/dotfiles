@@ -16,40 +16,31 @@ pub mod moshi;
 use crate::routing::ReportMode;
 
 /// One rendered event, the structured form of the channel contract's JSON
-/// object. The pane is the SANITIZED one.
-#[derive(Debug, Default, PartialEq)]
-pub struct Event {
-    pub agent: String,
-    pub state: String,
-    pub project: String,
-    pub branch: String,
-    pub detail: String,
-    pub title: String,
-    pub message: String,
-    pub preview: String,
-    pub pane: String,
-}
+/// object. THE VALUE MOVED to `pns-domain`, where the ports that hand it to a
+/// destination are declared; the wire format below stayed, because it is JSON.
+pub use pns_domain::notification::Event;
 
-impl Event {
-    /// The event as the JSON object the channel contract specifies, for an
-    /// executable channel reading one line on stdin. The delivery mode is the
-    /// one field that is per-LEG rather than per-event, so it arrives as an
-    /// argument instead of living on the struct.
-    pub fn to_json(&self, mode: ReportMode) -> String {
-        serde_json::json!({
-            "agent": self.agent,
-            "state": self.state,
-            "project": self.project,
-            "branch": self.branch,
-            "detail": self.detail,
-            "title": self.title,
-            "message": self.message,
-            "preview": self.preview,
-            "pane": self.pane,
-            "mode": mode.as_str(),
-        })
-        .to_string()
-    }
+/// The event as the JSON object the channel contract specifies, for an
+/// executable channel reading one line on stdin. The delivery mode is the
+/// one field that is per-LEG rather than per-event, so it arrives as an
+/// argument instead of living on the struct.
+///
+/// A FREE FUNCTION RATHER THAN A METHOD, because an inherent impl may only be
+/// written in the crate that defines the type, and `Event` is the domain's now.
+pub fn event_json(event: &Event, mode: ReportMode) -> String {
+    serde_json::json!({
+    "agent": event.agent,
+    "state": event.state,
+    "project": event.project,
+    "branch": event.branch,
+    "detail": event.detail,
+    "title": event.title,
+    "message": event.message,
+    "preview": event.preview,
+    "pane": event.pane,
+    "mode": mode.as_str(),
+    })
+    .to_string()
 }
 
 /// What one delivery has to say for itself.
@@ -84,7 +75,7 @@ mod tests {
             pane: "wW:p21".to_string(),
         };
         let parsed: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::Silent)).unwrap();
         assert_eq!(parsed["agent"], "claude");
         assert_eq!(parsed["detail"], "a \"quoted\" detail");
         assert_eq!(parsed["pane"], "wW:p21");
@@ -137,10 +128,10 @@ mod tests {
             ..Event::default()
         };
         let sync: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::ReportOutcome)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::ReportOutcome)).unwrap();
         assert_eq!(sync["mode"], "sync");
         let asynchronous: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::Silent)).unwrap();
         assert_eq!(asynchronous["mode"], "async");
     }
 }

@@ -4091,7 +4091,7 @@ fn deliver_leg(
     }
     deliver(
         &channels_dir.join(format!("{}.sh", leg.name)),
-        &rendered.to_json(leg.mode),
+        &pns::channels::event_json(rendered, leg.mode),
     )
 }
 
