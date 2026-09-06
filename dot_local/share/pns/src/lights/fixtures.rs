@@ -39,10 +39,6 @@ pub fn streak_from(ago: u64) -> Streak {
     }
 }
 
-/// A whole twelve-second interval, in the milliseconds the driver budgets
-/// in: the shipped refresh with nothing yet spent resolving the map.
-pub const FULL_INTERVAL_MS: u64 = 12_000;
-
 /// The locked blocked shape: two-second fades between 100 and 30.
 pub const BLOCKED: crate::config::Breath = crate::config::Breath {
     duration_ms: 2000,

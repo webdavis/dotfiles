@@ -1,6 +1,9 @@
 //! The lamps, pinned: held.
 
-use super::fixtures::*;
+use super::*;
+use crate::lamps::config::Behaviour;
+
+const NOW: u64 = 10_000;
 
 // --- the blocked lamp ---------------------------------------------------
 

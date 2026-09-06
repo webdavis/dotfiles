@@ -1,6 +1,8 @@
 //! The lamps, pinned: accent.
 
-use super::fixtures::*;
+use super::{fixtures::LOOP_MOTION, *};
+use crate::lights::held::Held;
+use crate::lights::phase::{HeldEntry, Phase, resume_from};
 
 // --- the loop's accent at the peak --------------------------------------
 
@@ -162,7 +164,7 @@ fn a_level_the_cycle_about_to_run_has_no_leg_for_starts_the_lamp_fresh() {
     // loop lamp entering its dim window keeps the same state and swaps a
     // three-leg motion for a two-leg breath. The record names a brightness
     // the dim form never fades to, so there is no leg to carry on from.
-    let dim = crate::config::Breath {
+    let dim = crate::lamps::config::Breath {
         duration_ms: 3000,
         high: 7,
         low: 1,

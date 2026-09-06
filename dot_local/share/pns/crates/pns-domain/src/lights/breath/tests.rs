@@ -1,6 +1,7 @@
 //! The lamps, pinned: breath.
 
-use super::fixtures::*;
+use super::*;
+use fixtures::{BLOCKED, FULL_INTERVAL_MS, SLOW};
 
 // --- the breath driver --------------------------------------------------
 
@@ -255,7 +256,7 @@ fn the_dim_form_is_the_same_cadence_at_the_faintest_levels_the_hardware_has() {
     // THE DIM SHAPE IS NOT A SPECIAL CASE. It is the same driver over
     // different numbers, which is what makes "dimmed" one more shape rather
     // than a second code path that can drift.
-    let dim = crate::config::Breath {
+    let dim = crate::lamps::config::Breath {
         duration_ms: 3000,
         high: 7,
         low: 1,
@@ -292,3 +293,6 @@ fn the_dim_form_is_the_same_cadence_at_the_faintest_levels_the_hardware_has() {
         ],
     );
 }
+
+mod accent;
+mod fixtures;
