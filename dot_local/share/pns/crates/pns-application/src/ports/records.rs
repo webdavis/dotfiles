@@ -23,6 +23,9 @@ use pns_domain::notification::EventArgs;
 /// Read as ONE STRING rather than parsed rows, because the only reader parses
 /// it itself and `None` is a machine that has recorded nothing yet, which is
 /// not a failure. Statements: S157.
+/// Checked against `record_decision` (`src/main.rs:814`), which renders the
+/// line before appending it, and the doctor's read (`src/main.rs:7823`), which
+/// hands the whole file to `decision_log::section`.
 pub trait DecisionRing {
     fn record(&self, line: &str);
     fn read(&self) -> Option<String>;
@@ -30,6 +33,9 @@ pub trait DecisionRing {
 
 /// The missed-notification journal: events the operator could not have
 /// perceived, kept so a replayer can find them.
+/// Checked against `record_missed` (`src/main.rs:839`) and the doctor's read
+/// (`src/main.rs:7854`). The claim-and-take path is `ReturnMoment`'s, not this
+/// one's: this read is the doctor asking what is waiting without claiming it.
 pub trait Journal {
     fn journal(&self, entry: &str);
     fn read(&self) -> Option<String>;
@@ -38,6 +44,9 @@ pub trait Journal {
 /// The activity ring: every event, WHETHER OR NOT anybody perceived it, which
 /// is what makes it a different record from the journal above. The recap reads
 /// this one to say what happened while the operator was away.
+/// Checked against `record_activity` (`src/main.rs:983`) and `activity_in`
+/// (`src/main.rs:1263`), which reads the whole file and windows it afterwards,
+/// so the windowing is the domain's and not this port's.
 pub trait ActivityRing {
     fn record(&self, entry: &str);
     fn read(&self) -> Option<String>;

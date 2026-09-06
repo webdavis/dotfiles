@@ -17,6 +17,8 @@ use pns_domain::routing::{Delivery, ReportMode};
 /// THE MODE IS PER-LEG AND SO IT IS AN ARGUMENT. The same event reaches one
 /// destination silently and another reporting, so the mode cannot live on the
 /// event. Statements: S126, S128.
+/// Checked against `dispatch_legs` (`src/main.rs:3434`), which walks the legs
+/// and pairs each with what its destination answered.
 pub trait NotificationDestination {
     fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery;
 }
