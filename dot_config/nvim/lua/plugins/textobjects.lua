@@ -11,6 +11,10 @@ return {
   },
   {
     "wellle/targets.vim",
+    -- Eager only because it has no trigger. Its text objects are Vimscript
+    -- mappings with no <Plug> surface, so a `keys` list would have to name every
+    -- object it declares.
+    lazy = false,
   },
   {
     "chrisgrieser/nvim-various-textobjs",
