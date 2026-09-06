@@ -1522,11 +1522,43 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 1. `nvim --headless +qa` writes nothing to stderr, five runs.
 2. `nvim --headless "+checkhealth" "+w! <file>" +qa` is clean: zero ERROR lines except those that
    name an absent optional external tool the config does not require (`luarocks`/hererocks, `gs`,
-   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol); each such exception is
-   listed in the PR body with its line. The three none-ls executable errors and the treesitter
-   runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. The two Snacks `vim.ui.*`
-   lines are re-checked in a TUI `:checkhealth snacks`; if they persist there they are config bugs
-   and are fixed.
+   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol), plus the three below;
+   each such exception is listed in the PR body with its line. The three none-ls executable errors
+   and the treesitter runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. Run the
+   headless capture with `Lazy! load all` before `checkhealth`: without it the lazy plugins never
+   register a health check and coverage drops from 42 sections to 15, which reads as an improvement
+   and is not one.
+
+   Three more exceptions, triaged 2026-09-05 against each health provider's source at its pinned
+   commit. Their exact lines:
+
+   ```
+   - ❌ ERROR gh not authenticated
+   - ❌ ERROR setup did not run
+   - ❌ ERROR `pymobiledevice3` detected, but the `remote_debugger` script is not installed. (see: `:help |xcodebuild.remote-debugger`)|
+   ```
+
+   - `atlas`, "gh not authenticated": a measurement artifact, not a posture. `gh` reads its host
+     list from `$XDG_CONFIG_HOME/gh/hosts.yml`, and every headless run redirects `XDG_CONFIG_HOME`
+     to a throwaway tree, so `gh` finds no host and `atlas/health.lua` reads the non-zero exit as
+     "not authenticated". Measured both ways on 2026-09-05: `gh auth status` exits 0 with the real
+     value and 1 under the redirect. Nothing to fix in the config or the plugin.
+   - `snacks`, "setup did not run" under `Snacks.dashboard`: a headless artifact, the same class as
+     the two `vim.ui.*` lines. `snacks/init.lua` gates `dashboard`, `input`, `picker`, `scroll` and
+     `scope` setup on `UIEnter`, which never fires in a process with no UI, so `did_setup` stays
+     false and `dashboard.lua` reports the error.
+   - `xcodebuild`, "pymobiledevice3 detected, but the remote_debugger script is not installed": the
+     intended state. `lua/plugins/xcodebuild.lua` records why iOS 17+ secure-tunnel debugging stays
+     off: the documented install grants passwordless root to a helper under user-writable
+     `~/Library` that resolves its interpreter and its `pymobiledevice3` entry point off PATH, both
+     user-owned. The check is right about the fact, and the fact is deliberate, so the plugin is
+     not patched and no sudo rule is added.
+
+   The two Snacks `vim.ui.*` lines and the `Snacks.dashboard` line were re-checked under a pty on
+   2026-09-05 (`script -q /dev/null nvim`, `:checkhealth snacks` fired from a `UIEnter` autocmd).
+   All three are absent there and the dashboard reports "setup ran" and "dashboard opened", so they
+   are artifacts of the headless run rather than config bugs. The pty capture leaves five snacks
+   errors, all of them already-listed absent tools.
 3. The warm headless startup median (synthetic, `User VeryLazy` fired by hand) passes the 9.1 gate:
    within 10 ms of the previous PR's number for every PR except PR 2 (captured and labelled advisory
    instead, 9.1), and below the import-day baseline by more than 10 ms for PR 30d and PR 31. The TUI
