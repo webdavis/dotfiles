@@ -13,23 +13,43 @@ notify. Controlling the lights is a different job, so `lights` is a separate too
 its own bridge client and no shared crate. When an action wants to announce itself, `lights` calls pns as
 a producer, the same way the shell's long-command notifier does.
 
-## The boundary
+## The boundaries
 
-`LightBackend` is a trait `lights` owns. Hue is one implementer, selected by `type = "hue"` in the
+Boundary names follow one rule. A trait is named for what it does and never carries a `Backend` suffix,
+and every implementer extends the trait's own name, the way `FeedStore` is implemented by
+`CoreDataFeedStore`. There are two boundaries here, `LightController` and `Notifier`, and each has a
+production implementer and a test implementer that both extend its name.
+
+### LightController
+
+`LightController` is a trait `lights` owns. Hue is one implementer, selected by `type = "hue"` in the
 config. Nothing above the trait knows that Hue exists, that the transport is HTTPS, or that a room is
 addressed by a UUID.
 
+| Role       | Name                       |
+| ---------- | -------------------------- |
+| Trait      | `LightController`          |
+| Production | `HueLightController`       |
+| Test       | `RecordingLightController` |
+
+The name is proposed, confirm before creating. The alternative is `RoomLights`, implemented by
+`HueRoomLights`: every method on the trait addresses a room rather than an individual bulb, so
+`RoomLights` puts the scope in the name and drops a role word that decades of MVC have worn thin.
+`LightController` is still the recommendation, because it survives the test implementer's name better.
+`RecordingLightController` reads as a thing that controls lights and records what it was asked to do,
+while `RecordingRoomLights` reads as a collection of lights.
+
 ```rust
-pub trait LightBackend {
-    fn room(&self, name: &RoomName) -> Result<RoomState, BackendError>;
-    fn scenes(&self, room: &RoomRef) -> Result<Vec<SceneState>, BackendError>;
-    fn set_power(&self, room: &RoomRef, on: bool) -> Result<(), BackendError>;
-    fn set_brightness(&self, room: &RoomRef, change: BrightnessChange) -> Result<(), BackendError>;
-    fn set_scene(&self, scene: &SceneRef) -> Result<(), BackendError>;
+pub trait LightController {
+    fn room(&self, name: &RoomName) -> Result<RoomState, LightControlError>;
+    fn scenes(&self, room: &RoomRef) -> Result<Vec<SceneState>, LightControlError>;
+    fn set_power(&self, room: &RoomRef, on: bool) -> Result<(), LightControlError>;
+    fn set_brightness(&self, room: &RoomRef, change: BrightnessChange) -> Result<(), LightControlError>;
+    fn set_scene(&self, scene: &SceneRef) -> Result<(), LightControlError>;
 }
 ```
 
-`RoomRef` and `SceneRef` are opaque newtypes the backend mints and the backend consumes. The domain
+`RoomRef` and `SceneRef` are opaque newtypes the controller mints and the controller consumes. The domain
 passes them around and never looks inside one, which is what keeps a Hue resource identifier from leaking
 upward into policy.
 
@@ -40,7 +60,7 @@ pub struct SceneState { pub scene: SceneRef, pub name: String, pub active: bool 
 pub enum BrightnessChange { Absolute(Brightness), Step { direction: Direction, percent: u8 } }
 pub struct Brightness(u8);  // 1 to 100, smart constructor, no public field
 
-pub enum BackendError {
+pub enum LightControlError {
     Unreachable { detail: String },
     Refused { status: u16 },
     UnknownRoom { name: String },
@@ -52,6 +72,35 @@ pub enum BackendError {
 `brightness` is `Option` because the bridge reports a grouped light's dimming as the average over the
 lights that are currently on. A room with every light off carries no brightness at all, and the type says
 so rather than inventing a zero.
+
+### Notifier
+
+`Notifier` is the second boundary, and it exists so a use case can announce what it did without knowing
+that pns is what hears it, and so a test can assert the announcement without spawning a process.
+
+```rust
+pub trait Notifier {
+    fn announce(&self, action: &Action);
+}
+```
+
+| Role       | Name                |
+| ---------- | ------------------- |
+| Trait      | `Notifier`          |
+| Production | `PnsNotifier`       |
+| Test       | `RecordingNotifier` |
+
+`announce` returns nothing. A notification that fails must never fail the light change, so there is no
+outcome for a caller to mishandle.
+
+### Reading the config is not a boundary
+
+There is no trait over the config, and no `ConfigLoader` type. Settings are read once in `main.rs`,
+before any use case exists, and are handed down as plain values; nothing above ever asks where they came
+from. A trait there would have exactly one implementer and no seam to sit in, so parsing is a free
+function, `settings::parse`, with a thin `settings::load` reading the file. If a second source ever
+appears the boundary can be introduced then, and the rule above names it `SettingsSource` with
+`TomlSettingsSource` beneath it.
 
 ## Behaviors
 
@@ -267,10 +316,10 @@ default_room = "3F - Studio"
 # single command; this turns it on for all of them.
 notify = false
 
-# The bridge that answers. `type` selects the compiled-in backend, and it is
-# required: a table naming none, or naming one nothing answers, is refused by
-# name rather than read as this one.
-[backend]
+# What controls the lights. `type` selects the compiled-in implementer, and it
+# is required: a table naming none, or naming one nothing answers, is refused
+# by name rather than read as this one.
+[controller]
 type = "hue"
 address = "<from KeePassXC at apply time>"
 key = "<from KeePassXC at apply time>"

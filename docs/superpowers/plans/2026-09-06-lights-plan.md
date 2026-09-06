@@ -17,10 +17,10 @@ dot_local/share/lights/
   src/main.rs                 composition root only, under 100 lines
   crates/
     lights-domain/            rotation, brightness, aliases, the Action value. No I/O.
-    lights-application/       the five use cases, over the LightBackend port
-    lights-adapters/          HueBridge, PnsNotifier, ConfigLoader
+    lights-application/       the five use cases, over the LightController and Notifier ports
+    lights-adapters/          HueLightController, PnsNotifier, the settings parser
     lights-cli/               argv parsing, rendering, exit codes
-  tests/                      acceptance tests driving the binary against a fake bridge
+  tests/                      acceptance tests driving the binary against recorded responses
   docs/specs/                 the behavioral specification, travelling with the crate
   docs/decisions/             decision records, likewise
 ```
@@ -38,8 +38,8 @@ There is no protocol crate. pns has one because it publishes a wire contract tha
 on. `lights` publishes nothing: its only outbound contract is the pns producer argv, which belongs to
 pns.
 
-`main.rs` reads the config, constructs the backend the config's `type` selects, hands both to the CLI and
-returns its exit code, and it does nothing else.
+`main.rs` reads the settings, constructs the `LightController` the `type` key selects and the `Notifier`
+beside it, hands them to the CLI and returns its exit code, and it does nothing else.
 
 ### Dependencies
 
@@ -76,28 +76,34 @@ what happened without matching on prose.
 
 ## The application
 
-Five use cases, each a small struct holding a `&dyn LightBackend` and the settings, each returning
-`Result<Action, LightsError>`:
+Five use cases, each a small struct holding a `&dyn LightController`, a `&dyn Notifier` and the settings,
+each returning `Result<Action, LightsError>`:
 
 `TogglePower`, `SetPower`, `AdjustBrightness`, `SetScene`, `ReportStatus`.
 
-They are the only code that sequences a read against a write, and they are tested entirely against a fake
-backend. `LightsError` maps one to one onto the exit codes in the design.
+They are the only code that sequences a read against a write, and they are tested entirely against the
+two recording implementers. `LightsError` maps one to one onto the exit codes in the design.
+
+The application crate owns both trait definitions, because the consumer owns the port. The adapters crate
+implements them and depends on the application, never the reverse.
 
 ## The adapters
 
-**`HueBridge`** implements `LightBackend`. It owns one `ureq::Agent` for the process, memoizes the single
-`GET /clip/v2/resource` behind the trait's read methods, builds the four PUT bodies, and turns a
-transport failure or a non-success status into a `BackendError`. Certificate verification is disabled for
-the bridge's self-signed certificate, with a comment saying why at the line that does it.
+**`HueLightController`** implements `LightController`. It owns one `ureq::Agent` for the process,
+memoizes the single `GET /clip/v2/resource` behind the trait's read methods, builds the four PUT bodies,
+and turns a transport failure or a non-success status into a `LightControlError`. Certificate
+verification is disabled for the bridge's self-signed certificate, with a comment saying why at the line
+that does it.
 
-**`PnsNotifier`** renders an `Action` into a detail string and spawns `~/.local/libexec/pns/pns` detached
-with both streams discarded. A missing binary is silence. It is a port the application depends on by
-trait, so a use case test asserts the notification without spawning anything.
+**`PnsNotifier`** implements `Notifier`. It renders an `Action` into a detail string and spawns
+`~/.local/libexec/pns/pns` detached with both streams discarded. A missing binary is silence.
 
-**`ConfigLoader`** parses the TOML, refuses an unknown key by name, refuses a `[backend]` table with no
-`type` or with a `type` nothing implements, and refuses a missing address or key. Its output is a plain
-settings value the rest of the crate consumes.
+**The settings parser** is a free function rather than a type. `settings::parse` reads a TOML string and
+refuses an unknown key by name, refuses a `[controller]` table with no `type` or with a `type` nothing
+implements, and refuses a missing address or key; `settings::load` is the thin file read above it. There
+is no trait and no `ConfigLoader`, because settings are read once in `main.rs` before any use case exists
+and are handed down as plain values. Nothing above ever asks where they came from, so there is no seam
+for a trait to sit in.
 
 ## Everything outside the crate
 
@@ -188,10 +194,11 @@ for an unknown current scene and for no current scene. They cover the brightness
 with one step either side of each, alias resolution for each of the three aliases, and pass-through for a
 name the table does not list.
 
-The use cases are tested against a `FakeBackend`, an in-memory implementer that records every call and
-returns scripted state. It pins that toggle reads before it writes and writes the opposite of what it
-read, that `on` and `off` write without reading, that an unknown room fails before any write is
-attempted, and that the notifier runs after the write rather than before it.
+The use cases are tested against `RecordingLightController` and `RecordingNotifier`, in-memory
+implementers that record every call and return scripted state. They pin that toggle reads before it
+writes and writes the opposite of what it read, that `on` and `off` write without reading, that an
+unknown room fails before any write is attempted, and that the notifier runs after the write rather than
+before it.
 
 The Hue adapter is tested against recorded bridge responses, JSON captured from the operator's own bridge
 with read-only GETs and committed under `tests/fixtures/`. They pin the parsing: a room resolved to its
@@ -212,15 +219,15 @@ it go green.
 There are four. Each one leaves `main` deployable, and each is gated on `just lint-check`,
 `just test-rust` and `just ship`.
 
-**PR 1: the crate skeleton, the domain and the config loader.** The workspace, the four member crates
-with their edges, `Rotation`, `Brightness`, `Aliases`, `Action`, and the TOML loader with its refusals.
-No binary is installed and no keybinding moves. Evidence: the domain and loader tests, and the file-size
-command.
+**PR 1: the crate skeleton, the domain and the settings parser.** The workspace, the four member crates
+with their edges, `Rotation`, `Brightness`, `Aliases`, `Action`, and `settings::parse` with its refusals.
+No binary is installed and no keybinding moves. Evidence: the domain and settings tests, and the
+file-size command.
 
-**PR 2: the trait, the five use cases and the command line.** `LightBackend`, the five use cases over it,
-the `FakeBackend`, argv parsing, rendering and the exit-code mapping. The binary builds and runs against
-the fake, and it is still not installed anywhere. Evidence: the use case tests, and a usage-error walk
-over every bad argument shape.
+**PR 2: the two traits, the five use cases and the command line.** `LightController` and `Notifier`, the
+five use cases over them, `RecordingLightController` and `RecordingNotifier`, argv parsing, rendering and
+the exit-code mapping. The binary builds and runs against the recording implementers, and it is still not
+installed anywhere. Evidence: the use case tests, and a usage-error walk over every bad argument shape.
 
 **PR 3: the Hue adapter, the notifier, the builder and the config template.** The bridge client against
 the recorded fixtures, the pns producer, the chezmoi builder, the config template with its KeePassXC
