@@ -1,20 +1,32 @@
--- The pane-named RPC socket (spec 7.3). A Neovim started in a herdr pane
--- listens on `<run root>/herdr-pane-<pane id>.sock`, so the nvim-mcp resolver
--- (~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh) derives the path from the
--- HERDR_PANE_ID in its own environment and connects. Nothing is recorded and
--- nothing is tracked: the socket IS the registration, Neovim removes it on
--- exit, and a socket a crash left behind is replaced by the next start in
--- that pane (measured on 0.12.5: serverstart() on a stale path succeeds and
--- answers) and refused by the resolver's probe until then. There is no
--- sweep: a probe-then-unlink of another pane's stale socket races that pane's
--- next start (its replacement can bind and answer between the two steps and
--- be unlinked), and macOS clears $TMPDIR at boot and daily for items idle
--- three days anyway (com.apple.bsd.dirhelper, CLEAN_FILES_OLDER_THAN_DAYS=3).
+-- The pane socket (spec 7.3). A Neovim started in a herdr pane listens on
+-- `<run root>/herdr-<session>-<terminal>.sock`, so the nvim-mcp resolver
+-- (~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh) can derive the same path
+-- for the pane the agent runs in and connect. Nothing is recorded and nothing
+-- is tracked: the socket IS the registration, Neovim removes it on exit, and a
+-- socket a crash left behind is replaced by the next start in that pane
+-- (measured on 0.12.5: serverstart() on a stale path succeeds and answers)
+-- and refused by the resolver's probe until then. There is no sweep: a
+-- probe-then-unlink of another pane's stale socket races that pane's next
+-- start (its replacement can bind and answer between the two steps and be
+-- unlinked), and macOS clears $TMPDIR at boot and daily for items idle three
+-- days anyway (com.apple.bsd.dirhelper, CLEAN_FILES_OLDER_THAN_DAYS=3).
+--
+-- The NAME is herdr's own identity for the pane, asked from herdr rather than
+-- read from the environment, for two measured reasons. A pane id (`wW:p3K`)
+-- is per SESSION: two herdr sessions each count from `w1:p1`, so two editors
+-- in different sessions would share a name; the session half of the name is
+-- the first six hex digits of the sha256 of HERDR_SOCKET_PATH, the one value
+-- both sides carry that differs per session. And a pane id CHANGES when the
+-- pane is moved to another workspace while the launch-time HERDR_PANE_ID does
+-- not, so a socket named for it would be invisible to its new siblings; the
+-- terminal id herdr reports (`term_65a9c8766b9261`) survives the move, and
+-- `herdr pane current --current` answers for the CALLER's terminal even from
+-- a process whose environment was cleared (measured on 0.8.2).
 --
 -- The first Neovim in a pane owns the name, by design. A nested Neovim, or one
--- in a terminal split, inherits the same pane id and finds the name taken;
--- `listen` swallows that and keeps its default socket, so the outer editor,
--- the one the operator sees in the pane, is the one the agent reaches.
+-- in a terminal split, shares the terminal and finds the name taken; `listen`
+-- swallows that and keeps its default socket, so the outer editor, the one
+-- the operator sees in the pane, is the one the agent reaches.
 
 local M = {}
 
@@ -39,31 +51,66 @@ function M.root()
   return vim.fs.dirname(run)
 end
 
--- The socket path for `pane_id`, or nil when the id cannot name one. herdr ids
--- look like `wW:p3K`; only alphanumerics, `:` and `-` are accepted, bounded,
--- so nothing that reaches the filesystem carries a separator or a length the
--- 104-byte socket path limit cannot absorb. The colon is written as a dot,
--- because serverstart() reads any address holding a colon as TCP
--- (`:help serverstart()`), and a dot is outside the accepted set so the
--- mapping cannot collide. nvim-mcp-connect.sh spells the same rule in bash.
-function M.path(pane_id)
-  local root = M.root()
-  if not root or type(pane_id) ~= "string" or #pane_id > 64 or not pane_id:match("^[%w:-]+$") then
-    return nil
-  end
-  return ("%s/herdr-pane-%s.sock"):format(root, (pane_id:gsub(":", ".")))
+-- The session half of the name. nvim-mcp-connect.sh spells the same rule
+-- with `shasum -a 256`.
+function M.session()
+  return vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6)
 end
 
--- Listen on this pane's socket, silently, if there is a pane and the name is
--- free. Every failure is swallowed on purpose: "address already in
--- use" is an earlier Neovim in the same pane that should keep the name, and
--- anything else (a root that does not exist, a path too long) only means this
--- instance is reached by a pin rather than by pane.
-function M.listen()
-  local path = M.path(vim.env.HERDR_PANE_ID)
-  if path then
-    pcall(vim.fn.serverstart, path)
+-- The socket path for herdr terminal id `terminal`, or nil when the id cannot
+-- name one. Only word characters, `_` and `-` are accepted, bounded, so
+-- nothing that reaches the filesystem carries a separator or a length the
+-- 104-byte socket path limit cannot absorb.
+function M.path(terminal)
+  local root = M.root()
+  if not root or type(terminal) ~= "string" or #terminal > 64 or not terminal:match("^[%w_-]+$") then
+    return nil
   end
+  return ("%s/herdr-%s-%s.sock"):format(root, M.session(), terminal)
+end
+
+-- Ask herdr which terminal this Neovim runs in, then `on_done(terminal)`,
+-- with nil when herdr is missing, fails, answers something else or takes
+-- longer than two seconds. Asynchronous, so a slow herdr never holds startup.
+function M.identity(on_done)
+  local ok = pcall(
+    vim.system,
+    { "herdr", "pane", "current", "--current" },
+    { text = true, timeout = 2000 },
+    function(result)
+      local decoded_ok, decoded = pcall(vim.json.decode, result.stdout or "")
+      local pane = decoded_ok and type(decoded) == "table" and type(decoded.result) == "table" and decoded.result.pane
+      on_done(result.code == 0 and type(pane) == "table" and pane.terminal_id or nil)
+    end
+  )
+  if not ok then
+    on_done(nil)
+  end
+end
+
+-- Listen on this pane's socket, silently, if this Neovim runs under herdr and
+-- the name is free. Every failure of the bind is swallowed on purpose:
+-- "address already in use" is an earlier Neovim in the same pane that should
+-- keep the name, and anything else (a path too long) only means this instance
+-- is reached by a pin rather than by pane. A herdr that does not answer is
+-- said once, because that is a pane the agent cannot reach without a pin.
+function M.listen()
+  if not vim.env.HERDR_ENV then
+    return
+  end
+  M.identity(function(terminal)
+    vim.schedule(function()
+      local path = M.path(terminal)
+      if path then
+        pcall(vim.fn.serverstart, path)
+      else
+        vim.notify(
+          "nvim-mcp: not listening for this pane, herdr did not report its terminal; the agent reaches this Neovim only through NVIM_MCP_SOCKET",
+          vim.log.levels.WARN
+        )
+      end
+    end)
+  end)
 end
 
 return M

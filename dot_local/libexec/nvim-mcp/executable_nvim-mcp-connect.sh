@@ -8,30 +8,32 @@
 # criterion 3).
 #
 # Discovery is by construction, not by lookup (spec 7.3). A Neovim started in a
-# herdr pane listens on <run root>/herdr-pane-<pane id>.sock
-# (dot_config/nvim/lua/custom_api/pane_socket.lua), so a pane id IS a socket
-# path and nothing is recorded anywhere. Nothing can go stale: Neovim removes
-# its socket on exit, and a socket a crash left behind is one nobody answers
-# on, which the probe below refuses.
+# herdr pane listens on <run root>/herdr-<session>-<terminal>.sock
+# (dot_config/nvim/lua/custom_api/pane_socket.lua): the session is the first six
+# hex digits of the sha256 of HERDR_SOCKET_PATH, the terminal is herdr's own id
+# for the pane's terminal. Both are asked from herdr or the environment on both
+# sides, so a name is DERIVED and nothing is recorded anywhere. Nothing can go
+# stale: Neovim removes its socket on exit, and a socket a crash left behind is
+# one nobody answers on, which the probe below refuses.
 #
 #   1. NVIM_MCP_SOCKET set: that socket, if a Neovim answers on it. A pin is the
 #      operator's explicit choice, so a dead pin is refused rather than quietly
 #      replaced by discovery.
-#   2. HERDR_PANE_ID set: this pane's socket, if a Neovim answers on it. The id
-#      must be a name that fits in a socket path, and the colon herdr puts in
-#      every id (`wW:p3K`) is written as a dot, because serverstart() reads any
-#      address holding a colon as TCP (:help serverstart()). The Neovim side
-#      spells the same rule.
-#   3. Else the panes sharing this pane's TAB, from `herdr pane layout --pane`
-#      with the id passed EXPLICITLY (`pane current` answers the CALLER's pane,
-#      which is this one), each mapped to its pane socket the same way and kept
-#      when a Neovim answers. One is connected to. Several are a PICKER, never a
-#      guess: exit 4 and one line per candidate on stderr, which both harnesses
-#      surface as server-startup text (spec 7.3, resolver row). None is a
-#      refusal naming both remedies. herdr missing, failing, silent or hanging
-#      means no siblings, never a crash; jq is not needed, the two fields read
-#      here are lifted with grep.
-#   4. Neither variable: nvim-mcp's own `--connect auto`.
+#   2. The pane this process runs in, from `herdr pane current --current`, which
+#      answers for the CALLER's terminal by process rather than by environment
+#      (measured on 0.8.2 from a cleared, piped environment, the shape an MCP
+#      child has). Its terminal id names this pane's socket, used if a Neovim
+#      answers on it. Never HERDR_PANE_ID: that is the launch-time id, and a
+#      pane moved to another workspace keeps it while herdr renames the pane.
+#   3. Else the panes sharing this pane's TAB, from `herdr pane list --workspace`
+#      filtered to the tab herdr reported for this pane, each named the same way
+#      and kept when a Neovim answers. One is connected to. Several are a
+#      PICKER, never a guess: exit 4 and one line per candidate on stderr, which
+#      both harnesses surface as server-startup text (spec 7.3, resolver row).
+#      None is a refusal naming both remedies.
+#   4. herdr answering nothing: inside herdr (HERDR_ENV set) that is a refusal,
+#      since the pane cannot be named; outside it, nvim-mcp's own `--connect
+#      auto`.
 #
 # The run root is the directory both sides derive the same way: XDG_RUNTIME_DIR
 # when set, else the PARENT of stdpath("run"). That parent, not stdpath("run")
@@ -42,12 +44,12 @@
 # Neovim's.
 #
 # Exit codes: 3 a refusal (nothing answers where the pin, the pane or its tab
-# points, or a pane id that cannot name a socket), 4 the picker, 2 an
-# environmental fault (nvim missing, or unable to say where its run dir is). On
-# success this process is REPLACED by nvim-mcp. The pin lasts the server
-# process: nvim-mcp connects once and keeps that client, so a Neovim that exits
-# leaves later tool calls on a stale client until the harness starts a new
-# session (spec 7.3, sticky selection).
+# points, or herdr cannot name the pane), 4 the picker, 2 an environmental
+# fault (a tool missing, or nvim unable to say where its run dir is). On success
+# this process is REPLACED by nvim-mcp. The pin lasts the server process:
+# nvim-mcp connects once and keeps that client, so a Neovim that exits leaves
+# later tool calls on a stale client until the harness starts a new session
+# (spec 7.3, sticky selection).
 set -euo pipefail
 
 # die <exit code> <message...>
@@ -58,7 +60,12 @@ die() {
   exit "$code"
 }
 
-command -v nvim >/dev/null 2>&1 || die 2 'nvim is not on PATH, and the resolver needs it'
+# All three hard dependencies, checked FIRST: otherwise a missing one surfaces
+# as whatever fails next, which reads as a herdr fault and sends the operator to
+# debug the wrong thing. herdr itself is optional and is handled below.
+for required in nvim jq shasum; do
+  command -v "$required" >/dev/null 2>&1 || die 2 "$required is not on PATH, and the resolver needs it"
+done
 
 server="${NVIM_MCP_BIN:-$HOME/.local/libexec/nvim-mcp/nvim-mcp}"
 # Seconds one nvim or herdr call may take. A knob only so the test can bound
@@ -68,7 +75,8 @@ deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"
 
 # bounded <command...> -- the command's stdout, cut off at the deadline. Stock
 # macOS ships no timeout(1) and bash has no wait-with-deadline, so a child that
-# TERMs the job is the portable stand-in; a prompt answer pays nothing for it.
+# TERMs the job is the portable stand-in; a prompt answer pays nothing for it. A
+# command that is not installed contributes nothing, the same as one that fails.
 bounded() {
   local job watchdog
   "$@" 2>/dev/null &
@@ -93,14 +101,15 @@ answers() {
   [[ $reply =~ ^[0-9]+$ ]] && printf '%s' "$reply" || true
 }
 
-# fits <pane id> -- true when the id can name a socket.
+# fits <terminal id> -- true when the id can name a socket. An id carrying a
+# slash could derive a path OUTSIDE the run root.
 fits() {
-  [[ $1 =~ ^[A-Za-z0-9:-]{1,64}$ ]]
+  [[ $1 =~ ^[A-Za-z0-9_-]{1,64}$ ]]
 }
 
-# pane_socket <pane id> -- its socket path under $root.
+# pane_socket <terminal id> -- its socket path under $root for this session.
 pane_socket() {
-  printf '%s/herdr-pane-%s.sock' "$root" "${1//:/.}"
+  printf '%s/herdr-%s-%s.sock' "$root" "$session" "$1"
 }
 
 if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
@@ -109,55 +118,59 @@ if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
   exec "$server" --connect "$NVIM_MCP_SOCKET"
 fi
 
-if [[ -n ${HERDR_PANE_ID:-} ]]; then
-  fits "$HERDR_PANE_ID" ||
-    die 3 "HERDR_PANE_ID is '$HERDR_PANE_ID', which cannot name a socket; export NVIM_MCP_SOCKET instead"
-  root="${XDG_RUNTIME_DIR:-}"
-  if [[ -z $root ]]; then
-    run_dir="$(bounded nvim --headless --clean -c 'lua io.write(vim.fn.stdpath("run"))' -c 'qa!')"
-    [[ $run_dir == /* ]] || die 2 'nvim did not report its run dir (stdpath("run")), so there is no root to look in'
-    root="$(dirname "$run_dir")"
-  fi
-  sock="$(pane_socket "$HERDR_PANE_ID")"
-  if [[ -n "$(answers "$sock")" ]]; then
-    exec "$server" --connect "$sock"
-  fi
+me="$(bounded herdr pane current --current)"
+terminal="$(jq -r '.result.pane.terminal_id // empty' <<<"$me" 2>/dev/null || true)"
+tab="$(jq -r '.result.pane.tab_id // empty' <<<"$me" 2>/dev/null || true)"
+workspace="$(jq -r '.result.pane.workspace_id // empty' <<<"$me" 2>/dev/null || true)"
+if [[ -z $terminal ]]; then
+  [[ -z ${HERDR_ENV:-} ]] || die 3 'herdr did not report which pane this is, so no Neovim can be named for it; export NVIM_MCP_SOCKET to pin one'
+  exec "$server" --connect auto
+fi
+fits "$terminal" || die 3 "herdr reports terminal '$terminal', which cannot name a socket; export NVIM_MCP_SOCKET instead"
 
-  # Candidates accumulate as "<socket> <pane id> <pid>" lines. Only the pane
-  # ids herdr 0.8.2 puts under .result.layout.panes are read, by name, so a
-  # herdr that is missing, failing or silent contributes nothing and needs no
-  # guard of its own: `bounded` swallows its exit status and its stderr. An id
-  # that cannot name a socket is skipped, because one carrying a slash would
-  # derive a path OUTSIDE the run root.
-  candidates=""
-  layout="$(bounded herdr pane layout --pane "$HERDR_PANE_ID")"
-  while IFS= read -r pane; do
-    if [[ $pane == "$HERDR_PANE_ID" ]] || ! fits "$pane"; then
-      continue
-    fi
-    sibling="$(pane_socket "$pane")"
-    pid="$(answers "$sibling")"
-    [[ -n $pid ]] && candidates+="$sibling $pane $pid"$'\n'
-  done < <(printf '%s' "$layout" | grep -o '"pane_id":"[^"]*"' | cut -d'"' -f4)
+root="${XDG_RUNTIME_DIR:-}"
+if [[ -z $root ]]; then
+  run_dir="$(bounded nvim --headless --clean -c 'lua io.write(vim.fn.stdpath("run"))' -c 'qa!')"
+  [[ $run_dir == /* ]] || die 2 'nvim did not report its run dir (stdpath("run")), so there is no root to look in'
+  root="$(dirname "$run_dir")"
+fi
+session="$(printf '%s' "${HERDR_SOCKET_PATH:-}" | shasum -a 256 | cut -c1-6)"
 
-  count="$(printf '%s' "$candidates" | grep -c . || true)"
-  case "$count" in
-    0)
-      die 3 "no Neovim answers for pane $HERDR_PANE_ID at $sock, nor for any pane sharing its tab; start Neovim in this tab, launch the agent from Neovim (<leader>Cc), or export NVIM_MCP_SOCKET"
-      ;;
-    1)
-      read -r sibling _ <<<"$candidates"
-      exec "$server" --connect "$sibling"
-      ;;
-  esac
-  {
-    printf 'nvim-mcp-connect: %s Neovims share the tab of pane %s, so it will not guess.\n' "$count" "$HERDR_PANE_ID"
-    printf 'Re-run with NVIM_MCP_SOCKET set to one of:\n'
-    while read -r sibling pane pid; do
-      [[ -n ${sibling:-} ]] && printf '  %s  pane %s  pid %s\n' "$sibling" "$pane" "$pid"
-    done <<<"$candidates"
-  } >&2
-  exit 4
+own="$(pane_socket "$terminal")"
+if [[ -n "$(answers "$own")" ]]; then
+  exec "$server" --connect "$own"
 fi
 
-exec "$server" --connect auto
+# Candidates in three ARRAYS, never one delimited string: a run root may carry
+# a space. A herdr that fails or answers something else contributes nothing.
+sockets=()
+panes=()
+pids=()
+while read -r sibling pane; do
+  fits "$sibling" || continue
+  candidate="$(pane_socket "$sibling")"
+  pid="$(answers "$candidate")"
+  [[ -n $pid ]] || continue
+  sockets+=("$candidate")
+  panes+=("$pane")
+  pids+=("$pid")
+done < <(bounded herdr pane list --workspace "$workspace" |
+  jq -r --arg tab "$tab" --arg me "$terminal" \
+    '.result.panes[]? | select(.tab_id == $tab and .terminal_id != $me) | "\(.terminal_id) \(.pane_id)"' 2>/dev/null || true)
+
+case "${#sockets[@]}" in
+  0)
+    die 3 "no Neovim answers for this pane at $own, nor for any pane sharing tab $tab; start Neovim in this tab, launch the agent from Neovim (<leader>Cc), or export NVIM_MCP_SOCKET"
+    ;;
+  1)
+    exec "$server" --connect "${sockets[0]}"
+    ;;
+esac
+{
+  printf 'nvim-mcp-connect: %s Neovims share tab %s with this pane, so it will not guess.\n' "${#sockets[@]}" "$tab"
+  printf 'Re-run with NVIM_MCP_SOCKET set to one of:\n'
+  for index in "${!sockets[@]}"; do
+    printf '  %s  pane %s  pid %s\n' "${sockets[index]}" "${panes[index]}" "${pids[index]}"
+  done
+} >&2
+exit 4

@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # nvim-mcp-connect.sh, the RESOLVING half: every case that ends with the server
-# exec'd against a socket. The refusals and the guards live in
-# nvim-mcp-connect-refusals.sh, so that each file stays inside the one-second
+# exec'd against a socket without consulting the tab. The refusals and the
+# guards live in nvim-mcp-connect-refusals.sh and the sibling cases in
+# nvim-mcp-connect-siblings.sh, so that each file stays inside the one-second
 # budget.
 #
-#   a) a live NVIM_MCP_SOCKET pin wins, and the pane socket is never probed
-#   b) HERDR_PANE_ID resolves to the live pane socket, colon written as a dot,
-#      under XDG_RUNTIME_DIR, with no run-dir query
+#   a) a live NVIM_MCP_SOCKET pin wins, and herdr is never asked
+#   b) herdr's terminal for this pane names the socket, under XDG_RUNTIME_DIR,
+#      with no run-dir query and no tab listing
 #   c) without XDG_RUNTIME_DIR the run root is the PARENT of what nvim reports
 #      as stdpath("run")
-#   d) no pane id and no pin falls back to nvim-mcp's own `--connect auto`
+#   d) outside herdr, with herdr answering nothing, nvim-mcp's own
+#      `--connect auto` is used and nvim is never consulted
 #
 set -euo pipefail
 
@@ -18,40 +20,44 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/helpers/nvim-mcp-connect.sh"
 
 # --- a) a live pin wins over the pane ----------------------------------------
-# Both are live, so the only thing that can pick the pin is the order.
 setup_case pin-wins
-live "$CASE/run/pinned.sock" "$CASE/run/herdr-pane-w1.p2.sock"
-run_case HERDR_PANE_ID=w1:p2 XDG_RUNTIME_DIR="$CASE/run" NVIM_MCP_SOCKET="$CASE/run/pinned.sock"
+me term_a
+live "$RUN/pinned.sock" "$(sock term_a)"
+run_case XDG_RUNTIME_DIR="$RUN" NVIM_MCP_SOCKET="$RUN/pinned.sock"
 [[ $RC -eq 0 ]] || fail "pin-wins: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qxF -- "--connect $CASE/run/pinned.sock" "$CASE/exec" ||
+grep -qxF -- "--connect $RUN/pinned.sock" "$CASE/exec" ||
   fail "pin-wins: the server was not run against the pin ($(cat "$CASE/exec" 2>/dev/null))"
-grep -qF "herdr-pane" "$CASE/probed" && fail 'pin-wins: the pane socket was probed although a pin was set'
+[[ ! -e $CASE/herdr-argv ]] || fail 'pin-wins: herdr was asked although a pin was set'
 
-# --- b) the pane id names the socket -----------------------------------------
-# w1:p2 must reach herdr-pane-w1.p2.sock: serverstart() reads a colon as a TCP
-# address, so the Neovim side writes it as a dot and the resolver must agree.
-setup_case pane
-live "$CASE/run/herdr-pane-w1.p2.sock"
-run_case HERDR_PANE_ID=w1:p2 XDG_RUNTIME_DIR="$CASE/run"
-[[ $RC -eq 0 ]] || fail "pane: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qxF -- "--connect $CASE/run/herdr-pane-w1.p2.sock" "$CASE/exec" ||
-  fail "pane: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
-[[ ! -e $CASE/queried ]] || fail 'pane: nvim was asked for the run dir although XDG_RUNTIME_DIR was set'
+# --- b) herdr's terminal for this pane names the socket ----------------------
+# term_65a9c8766b9261 is the shape 0.8.2 reports. The socket carries the
+# session hash too, so an editor in another herdr session cannot be reached
+# by a name that happens to repeat there.
+setup_case own-pane
+me term_65a9c8766b9261
+live "$(sock term_65a9c8766b9261)"
+run_case XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 0 ]] || fail "own-pane: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $RUN/herdr-9a663d-term_65a9c8766b9261.sock" "$CASE/exec" ||
+  fail "own-pane: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
+[[ "$(cat "$CASE/herdr-argv")" == 'pane current --current' ]] ||
+  fail "own-pane: herdr was asked more than this pane's identity ($(cat "$CASE/herdr-argv"))"
+[[ ! -e $CASE/queried ]] || fail 'own-pane: nvim was asked for the run dir although XDG_RUNTIME_DIR was set'
 
 # --- c) the run root is asked from nvim and is the parent of its answer ------
 # stdpath("run") is per process on 0.12 ($TMPDIR/nvim.<user>/<random>), so the
-# shared root is its parent. The stub reports $CASE/run/a1b2c3.
+# shared root is its parent. The stub reports $RUN/a1b2c3.
 setup_case run-root
-live "$CASE/run/herdr-pane-w1.p2.sock"
-run_case HERDR_PANE_ID=w1:p2
+me term_a
+live "$(sock term_a)"
+run_case
 [[ $RC -eq 0 ]] || fail "run-root: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qxF -- "--connect $CASE/run/herdr-pane-w1.p2.sock" "$CASE/exec" ||
-  fail "run-root: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
+grep -qxF -- "--connect $(sock term_a)" "$CASE/exec" || fail "run-root: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
 [[ -s $CASE/queried ]] || fail 'run-root: nvim was never asked for the run dir'
 
-# --- d) nothing to resolve from falls back to auto ---------------------------
+# --- d) outside herdr, nothing to resolve from falls back to auto ------------
 setup_case auto
-run_case
+run_case HERDR_ENV=
 [[ $RC -eq 0 ]] || fail "auto: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect auto" "$CASE/exec" || fail "auto: wrong argv ($(cat "$CASE/exec" 2>/dev/null))"
 [[ ! -e $CASE/probed && ! -e $CASE/queried ]] || fail 'auto: nvim was consulted with nothing to resolve from'

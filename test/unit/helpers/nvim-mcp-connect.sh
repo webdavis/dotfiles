@@ -5,13 +5,15 @@
 # One fixture rather than three that can drift apart.
 #
 # What it provides:
-#   fail <message>          print and exit non-zero
-#   setup_case <name>       a private sandbox with a stub nvim, herdr and nvim-mcp
-#   private_path <tool>...  a PATH holding only what is named
-#   make_socket <path>...   real, bound unix sockets
-#   live <path>...          real sockets the nvim stub ANSWERS on
-#   write_layout <tab> <pane...>  what the herdr stub answers for `pane layout`
-#   run_case <env...>       run the resolver; sets RC, $CASE/out, $CASE/err
+#   fail <message>            print and exit non-zero
+#   setup_case <name>         a private sandbox with a stub nvim, herdr and nvim-mcp
+#   private_path <tool>...    a PATH holding only what is named
+#   make_socket <path>...     real, bound unix sockets
+#   live <path>...            real sockets the nvim stub ANSWERS on
+#   me <terminal>             what herdr answers for the resolver's own pane
+#   siblings <tab>|<term>|<pane>...  what herdr answers for the workspace's panes
+#   sock <terminal>           the socket path that terminal's Neovim listens on
+#   run_case <env...>         run the resolver; sets RC, $CASE/out, $CASE/err
 #
 # The caller sets nothing first and cleans up nothing after: this installs its
 # own work directory and EXIT trap in the sourcing shell.
@@ -27,13 +29,27 @@ if [[ ! -x /usr/bin/perl ]]; then
   printf 'SKIP: /usr/bin/perl is absent, and the socket cases need a real unix socket\n'
   exit 0
 fi
+for tool in jq shasum; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf 'SKIP: %s not on PATH; the resolver needs it\n' "$tool"
+    exit 0
+  fi
+done
 [[ -f $SCRIPT ]] || fail "missing script: $SCRIPT"
+# Read by private_path in the sourcing test, not here.
+# shellcheck disable=SC2034
+JQ_PATH="$(command -v jq)"
 
 # Under /tmp with a SHORT name, not the Darwin per-user temp directory: these
 # cases bind real unix sockets, and sun_path is 104 bytes, which
 # /var/folders/<...>/T/tmp.XXXXXXXXXX/<case>/... exhausts on its own.
 work="$(mktemp -d /tmp/nmc.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
+
+# The session half of every socket name: sha256("/s/a.sock") starts with
+# 9a663d, and run_case exports HERDR_SOCKET_PATH=/s/a.sock. The Lua spec pins
+# the same six characters, so both sides are held to one rule.
+SESSION=9a663d
 
 # make_socket <path>... -- real, bound, listening unix sockets, all in ONE perl
 # process: bash cannot make one, the resolver's `-S` test wants the real thing,
@@ -67,17 +83,27 @@ printf '%s\n' "$*" >>"$NMC_CASE/queried"
 cat "$NMC_CASE/rundir"
 STUB
 
-# herdr 0.8.2 as the resolver sees it: `pane layout --pane <id>` prints the
-# layout document, or exits 1 with nothing on stdout for a pane it does not
-# know. Every call is logged. $NMC_CASE/herdr-hang makes it hang as one
-# process; $NMC_CASE/herdr-fail makes it fail the way a crashed herdr does.
+# herdr 0.8.2 as the resolver sees it. `pane current --current` answers the
+# document in $NMC_CASE/me.json, or exits 1 with nothing when there is none;
+# `pane list --workspace <the workspace me.json named>` answers
+# $NMC_CASE/list.json. Every call is logged; anything else is refused loudly.
+# $NMC_CASE/herdr-hang makes every call hang as one process, herdr-fail makes
+# every call fail the way a crashed herdr does, herdr-list-fail only the list.
 cat >"$work/bin/herdr" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NMC_CASE/herdr-argv"
 [[ -e $NMC_CASE/herdr-hang ]] && exec sleep 3
 [[ -e $NMC_CASE/herdr-fail ]] && exit 1
-[[ "$1 $2" == "pane layout" && -f $NMC_CASE/layout.json ]] || exit 1
-cat "$NMC_CASE/layout.json"
+if [[ "$*" == "pane current --current" ]]; then
+  [[ -f $NMC_CASE/me.json ]] || exit 1
+  exec cat "$NMC_CASE/me.json"
+fi
+if [[ -f $NMC_CASE/ws && "$*" == "pane list --workspace $(cat "$NMC_CASE/ws")" ]]; then
+  [[ -e $NMC_CASE/herdr-list-fail ]] && exit 1
+  exec cat "$NMC_CASE/list.json"
+fi
+printf 'herdr stub: unexpected argv: %s\n' "$*" >&2
+exit 99
 STUB
 
 cat >"$work/bin/nvim-mcp" <<'STUB'
@@ -88,16 +114,14 @@ STUB
 chmod +x "$work/bin/nvim" "$work/bin/herdr" "$work/bin/nvim-mcp"
 
 # setup_case <name> -- a private sandbox for one case. Sets CASE (its
-# directory), with:
-#   $CASE/run          the run root (production: $TMPDIR/nvim.<user>); pane
-#                      sockets are expected directly inside it
+# directory) and RUN (the run root, production's $TMPDIR/nvim.<user>), with:
 #   $CASE/rundir       what the nvim stub reports as stdpath("run"): a
 #                      per-process directory UNDER the run root, the shape 0.12
 #                      gives
 #   $CASE/live         sockets the nvim stub answers on
 #   $CASE/hang         sockets the nvim stub never answers on
-#   $CASE/layout.json  what the herdr stub prints; absent means herdr knows no
-#                      such pane
+#   $CASE/me.json      herdr's answer for the resolver's own pane (see `me`)
+#   $CASE/list.json    herdr's answer for the workspace's panes (see `siblings`)
 #   $CASE/probed       every socket the nvim stub was asked about
 #   $CASE/queried      every run-dir query the nvim stub received
 #   $CASE/herdr-argv   every herdr call
@@ -105,10 +129,11 @@ chmod +x "$work/bin/nvim" "$work/bin/herdr" "$work/bin/nvim-mcp"
 setup_case() {
   CASE="$work/$1"
   CASE_PATH="$work/bin:/usr/bin:/bin"
-  mkdir -p "$CASE/run"
+  RUN="$CASE/run"
+  mkdir -p "$RUN"
   : >"$CASE/live"
   : >"$CASE/hang"
-  printf '%s/a1b2c3' "$CASE/run" >"$CASE/rundir"
+  printf '%s/a1b2c3' "$RUN" >"$CASE/rundir"
 }
 
 # live <path>... -- real sockets the probe answers on.
@@ -117,33 +142,47 @@ live() {
   printf '%s\n' "$@" >>"$CASE/live"
 }
 
-# write_layout <tab> <pane...> -- the herdr 0.8.2 layout document naming <tab>
-# and the panes that share it, the fields the resolver reads and nothing more.
-write_layout() {
-  local tab="$1" panes="" pane
-  shift
-  for pane in "$@"; do
-    panes="$panes{\"pane_id\":\"$pane\"},"
+# me <terminal> -- herdr's answer for the resolver's own pane: pane w1:p1 in
+# tab w1:t1 of workspace w1, on the given terminal.
+me() {
+  printf '{"id":"cli:pane:current","result":{"pane":{"pane_id":"w1:p1","tab_id":"w1:t1","terminal_id":"%s","workspace_id":"w1"}}}' \
+    "$1" >"$CASE/me.json"
+  printf 'w1' >"$CASE/ws"
+}
+
+# siblings <tab>|<terminal>|<pane>... -- herdr's answer for the workspace's
+# panes, in the 0.8.2 shape the resolver reads.
+siblings() {
+  local entries="" spec tab terminal pane
+  for spec in "$@"; do
+    IFS='|' read -r tab terminal pane <<<"$spec"
+    entries="$entries{\"pane_id\":\"$pane\",\"tab_id\":\"$tab\",\"terminal_id\":\"$terminal\",\"workspace_id\":\"w1\"},"
   done
-  printf '{"id":"cli:pane:layout","result":{"layout":{"panes":[%s],"tab_id":"%s"},"type":"pane_layout"}}' \
-    "${panes%,}" "$tab" >"$CASE/layout.json"
+  printf '{"id":"cli:pane:list","result":{"panes":[%s]}}' "${entries%,}" >"$CASE/list.json"
+}
+
+# sock <terminal> -- the socket a Neovim on that terminal listens on, under RUN.
+sock() {
+  printf '%s/herdr-%s-%s.sock' "$RUN" "$SESSION" "$1"
 }
 
 # private_path <tool>... -- a PATH holding ONLY the named tools plus what the
-# resolver itself needs (bash, dirname, sleep, grep, cut), so an absence
+# resolver itself needs (bash, dirname, sleep, cut, shasum), so an absence
 # fixture cannot be invalidated by whatever another host keeps in /usr/bin.
 private_path() {
   mkdir -p "$CASE/pathbin"
-  ln -s /bin/bash /usr/bin/dirname /bin/sleep /usr/bin/grep /usr/bin/cut "$@" "$CASE/pathbin/"
+  ln -s /bin/bash /usr/bin/dirname /bin/sleep /usr/bin/cut /usr/bin/shasum "$@" "$CASE/pathbin/"
   CASE_PATH="$CASE/pathbin"
 }
 
 # run_case <env assignments...> -- runs the resolver in the current CASE, on
 # CASE_PATH, under `env -i` so nothing of this shell's own herdr or pin leaks
-# in. XDG_RUNTIME_DIR is the caller's to set: most cases point it at $CASE/run,
-# and the one that leaves it unset is testing the run-dir query. The deadline
-# defaults to production's two seconds; only the cases that WANT it to expire
-# shorten it, through CASE_DEADLINE.
+# in. The case is inside herdr by default (HERDR_ENV, a fixed
+# HERDR_SOCKET_PATH); a case outside herdr passes HERDR_ENV= to unset it.
+# XDG_RUNTIME_DIR is the caller's to set: most cases point it at $RUN, and the
+# one that leaves it unset is testing the run-dir query. The deadline defaults
+# to production's two seconds; only the cases that WANT it to expire shorten
+# it, through CASE_DEADLINE.
 #
 # Sets RC; stdout is $CASE/out, stderr is $CASE/err. RC is read by the sourcing
 # test, not here.
@@ -156,6 +195,8 @@ run_case() {
     NVIM_MCP_BIN="$work/bin/nvim-mcp" \
     NMC_CASE="$CASE" \
     NVIM_MCP_PROBE_DEADLINE="${CASE_DEADLINE:-2}" \
+    HERDR_ENV=1 \
+    HERDR_SOCKET_PATH=/s/a.sock \
     "$@" \
     bash "$SCRIPT" >"$CASE/out" 2>"$CASE/err" || RC=$?
 }
