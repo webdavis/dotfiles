@@ -29,12 +29,10 @@ if [[ ! -x /usr/bin/perl ]]; then
   printf 'SKIP: /usr/bin/perl is absent, and the socket cases need a real unix socket\n'
   exit 0
 fi
-for tool in jq shasum; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    printf 'SKIP: %s not on PATH; the resolver needs it\n' "$tool"
-    exit 0
-  fi
-done
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'SKIP: jq not on PATH; the resolver needs it\n'
+  exit 0
+fi
 [[ -f $SCRIPT ]] || fail "missing script: $SCRIPT"
 # Read by private_path in the sourcing test, not here.
 # shellcheck disable=SC2034
@@ -47,8 +45,9 @@ work="$(mktemp -d /tmp/nmc.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 
 # The session half of every socket name: sha256("/s/a.sock") starts with
-# 9a663d, and run_case exports HERDR_SOCKET_PATH=/s/a.sock. The Lua spec pins
-# the same six characters, so both sides are held to one rule.
+# 9a663d, run_case exports HERDR_SOCKET_PATH=/s/a.sock, and the nvim stub
+# answers that hash the way the real vim.fn.sha256 would. The Lua spec pins the
+# same six characters, so both sides are held to one rule.
 SESSION=9a663d
 
 # make_socket <path>... -- real, bound, listening unix sockets, all in ONE perl
@@ -68,8 +67,10 @@ mkdir -p "$work/bin"
 # way a stuck nvim client is: a child holding the pipe would outlive the
 # watchdog's kill), answers a pid with no newline (as the real reply) if listed
 # in $NMC_CASE/live, and otherwise exits 1 the way a refused connection does.
-# Any other invocation is the run-dir query, logged to $NMC_CASE/queried and
-# answered with the contents of $NMC_CASE/rundir.
+# Any other invocation is the identity query, logged to $NMC_CASE/queried and
+# answered with two lines: the contents of $NMC_CASE/rundir (production:
+# stdpath("run")) and the session hash (production: vim.fn.sha256 of
+# HERDR_SOCKET_PATH, first six characters; here the fixed SESSION).
 cat >"$work/bin/nvim" <<'STUB'
 #!/bin/bash
 if [[ $1 == --server ]]; then
@@ -81,6 +82,7 @@ if [[ $1 == --server ]]; then
 fi
 printf '%s\n' "$*" >>"$NMC_CASE/queried"
 cat "$NMC_CASE/rundir"
+printf '\n%s' 9a663d
 STUB
 
 # herdr 0.8.2 as the resolver sees it. `pane current --current` answers the
@@ -117,7 +119,7 @@ chmod +x "$work/bin/nvim" "$work/bin/herdr" "$work/bin/nvim-mcp"
 # directory) and RUN (the run root, production's $TMPDIR/nvim.<user>), with:
 #   $CASE/rundir       what the nvim stub reports as stdpath("run"): a
 #                      per-process directory UNDER the run root, the shape 0.12
-#                      gives
+#                      gives; the session hash follows it on a second line
 #   $CASE/live         sockets the nvim stub answers on
 #   $CASE/hang         sockets the nvim stub never answers on
 #   $CASE/me.json      herdr's answer for the resolver's own pane (see `me`)
@@ -169,11 +171,11 @@ sock() {
 }
 
 # private_path <tool>... -- a PATH holding ONLY the named tools plus what the
-# resolver itself needs (bash, dirname, sleep, cut, shasum), so an absence
+# resolver itself needs (bash, dirname, sleep), so an absence
 # fixture cannot be invalidated by whatever another host keeps in /usr/bin.
 private_path() {
   mkdir -p "$CASE/pathbin"
-  ln -s /bin/bash /usr/bin/dirname /bin/sleep /usr/bin/cut /usr/bin/shasum "$@" "$CASE/pathbin/"
+  ln -s /bin/bash /usr/bin/dirname /bin/sleep "$@" "$CASE/pathbin/"
   CASE_PATH="$CASE/pathbin"
 }
 

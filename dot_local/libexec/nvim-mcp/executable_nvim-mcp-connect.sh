@@ -10,8 +10,8 @@
 # Discovery is by construction, not by lookup (spec 7.3). A Neovim started in a
 # herdr pane listens on <run root>/herdr-<session>-<terminal>.sock
 # (dot_config/nvim/lua/custom_api/pane_socket.lua): the session is the first six
-# hex digits of the sha256 of HERDR_SOCKET_PATH, the terminal is herdr's own id
-# for the pane's terminal. Both are asked from herdr or the environment on both
+# hex digits of vim.fn.sha256 over HERDR_SOCKET_PATH, the terminal is herdr's
+# own id for the pane's terminal. Both are asked from herdr or the environment on both
 # sides, so a name is DERIVED and nothing is recorded anywhere. Nothing can go
 # stale: Neovim removes its socket on exit, and a socket a crash left behind is
 # one nobody answers on, which the probe below refuses.
@@ -61,10 +61,10 @@ die() {
   exit "$code"
 }
 
-# All three hard dependencies, checked FIRST: otherwise a missing one surfaces
-# as whatever fails next, which reads as a herdr fault and sends the operator to
+# Both hard dependencies, checked FIRST: otherwise a missing one surfaces as
+# whatever fails next, which reads as a herdr fault and sends the operator to
 # debug the wrong thing. herdr itself is optional and is handled below.
-for required in nvim jq shasum; do
+for required in nvim jq; do
   command -v "$required" >/dev/null 2>&1 || die 2 "$required is not on PATH, and the resolver needs it"
 done
 
@@ -137,24 +137,32 @@ if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
 fi
 
 me="$(bounded herdr pane current --current)"
-terminal="$(jq -r '.result.pane.terminal_id // empty' <<<"$me" 2>/dev/null || true)"
-tab="$(jq -r '.result.pane.tab_id // empty' <<<"$me" 2>/dev/null || true)"
-workspace="$(jq -r '.result.pane.workspace_id // empty' <<<"$me" 2>/dev/null || true)"
-if [[ -z $terminal ]]; then
+# `read` fails on the empty answer a silent herdr leaves, which is a case, not
+# an error.
+read -r terminal tab workspace < <(jq -r \
+  '.result.pane | "\(.terminal_id // "") \(.tab_id // "") \(.workspace_id // "")"' <<<"$me" 2>/dev/null || true) ||
+  true
+if [[ -z ${terminal:-} ]]; then
   [[ -z ${HERDR_ENV:-} ]] || die 3 'herdr did not report which pane this is, so no Neovim can be named for it; export NVIM_MCP_SOCKET to pin one'
   exec "$server" --connect auto
 fi
 fits "$terminal" || die 3 "herdr reports terminal '$terminal', which cannot name a socket; export NVIM_MCP_SOCKET instead"
 
+# One headless nvim answers two questions at once: its run dir, and the
+# session half of the name as vim.fn.sha256 computes it, so the hash is the SAME
+# function on both sides and needs no second tool.
+reported="$(bounded nvim --headless --clean \
+  -c 'lua io.write(vim.fn.stdpath("run"), "\n", vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6))' -c 'qa!')"
+run_dir="${reported%%$'\n'*}"
+session="${reported#*$'\n'}"
+[[ $session =~ ^[0-9a-f]{6}$ ]] || die 2 'nvim did not report the session hash, so no socket can be named'
 root="${XDG_RUNTIME_DIR:-}"
 if [[ -z $root ]]; then
-  run_dir="$(bounded nvim --headless --clean -c 'lua io.write(vim.fn.stdpath("run"))' -c 'qa!')"
   [[ $run_dir == /* ]] || die 2 'nvim did not report its run dir (stdpath("run")), so there is no root to look in'
   root="$(dirname "$run_dir")"
 fi
 fault="$(root_fault "$root")"
 [[ -z $fault ]] || die 2 "the run root $root $fault, so no socket there can be trusted"
-session="$(printf '%s' "${HERDR_SOCKET_PATH:-}" | shasum -a 256 | cut -c1-6)"
 
 own="$(pane_socket "$terminal")"
 if [[ -n "$(answers "$own")" ]]; then

@@ -7,7 +7,7 @@
 #
 #   a) a live NVIM_MCP_SOCKET pin wins, and herdr is never asked
 #   b) herdr's terminal for this pane names the socket, under XDG_RUNTIME_DIR,
-#      with no run-dir query and no tab listing
+#      with one nvim query (the session hash) and no tab listing
 #   c) without XDG_RUNTIME_DIR the run root is the PARENT of what nvim reports
 #      as stdpath("run")
 #   d) outside herdr, with herdr answering nothing, nvim-mcp's own
@@ -42,7 +42,8 @@ grep -qxF -- "--connect $RUN/herdr-9a663d-term_65a9c8766b9261.sock" "$CASE/exec"
   fail "own-pane: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
 [[ "$(cat "$CASE/herdr-argv")" == 'pane current --current' ]] ||
   fail "own-pane: herdr was asked more than this pane's identity ($(cat "$CASE/herdr-argv"))"
-[[ ! -e $CASE/queried ]] || fail 'own-pane: nvim was asked for the run dir although XDG_RUNTIME_DIR was set'
+[[ "$(wc -l <"$CASE/queried" | tr -d ' ')" == 1 ]] ||
+  fail "own-pane: nvim was asked more than once ($(cat "$CASE/queried" 2>/dev/null))"
 
 # --- c) the run root is asked from nvim and is the parent of its answer ------
 # stdpath("run") is per process on 0.12 ($TMPDIR/nvim.<user>/<random>), so the
