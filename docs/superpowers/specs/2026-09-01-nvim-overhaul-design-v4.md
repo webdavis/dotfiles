@@ -72,9 +72,10 @@ v4.4 folds the decisions of 2026-09-03
 1. Two pull requests join the LSP lane, PR 29c (LSP polish) and PR 29d (pin refresh) (11).
 1. Two evaluation pull requests join the drops lane, PR 24a (`atlas.nvim` against octo) and PR 24b
    (`review.nvim` against the `herdr-nvim` annotation flow) (5.6, 11).
-1. MCP instance selection is decided by construction: an explicit pin, else a socket NAMED FOR the
-   herdr pane that every Neovim started in a pane listens on, else the server's own `--connect auto`.
-   The five-step registry design (topology match, identity check, picker) that first replaced the
+1. MCP instance selection is decided by construction: an explicit pin, else the socket every Neovim
+   started in a herdr pane listens on, named by herdr's session and terminal identity for that pane,
+   else the same for the panes sharing the agent's tab, else the server's own `--connect auto`. The
+   five-step registry design (topology match, identity check, picker) that first replaced the
    injection sketch was itself replaced on 2026-09-05; PR 9's third criterion is reframed around what
    the injection leaves over, and a server that fails it may still be usable (7.3).
 
@@ -1102,13 +1103,15 @@ PR 10a on the two `nvim-mcp` rows, PR 10b on the crate rows.
 Registration in both harnesses is a requirement of whatever ships, not a criterion: it is ours to
 write, so it cannot fail an evaluation. Claude: a stable entry in `modify_private_dot_claude.json`,
 beside the composio and workspace-mcp entries it already manages, applied by the operator. Codex: one
-`[mcp_servers.nvim]` table in `private_dot_codex/private_config.toml.tmpl`, the full template of
-`~/.codex/config.toml` that is in this worktree today (section 2), beside its ten existing tables.
-That template is untracked here and has no pull request yet; the shipping PR depends on the PR that
-first lands `private_dot_codex/private_config.toml.tmpl` on `main`, and its number is written into
-PR 9's evaluation record and the shipping PR's body the day it merges. The shipping PR never adds a
-`modify_config.toml`: two chezmoi sources for one target is a conflict, not a merge. No project
-`.mcp.json`. Both registrations land together because the 7.5 rule binds both harnesses.
+`[mcp_servers.nvim]` table written whole by `private_dot_codex/modify_private_config.toml`, the
+modify-template that landed as #306 (the `private_config.toml.tmpl` this paragraph first named is
+superseded by it; two chezmoi sources for one target is a conflict, not a merge). That table carries
+`env_vars`, because Codex 0.153.4 clears a stdio server's environment down to a fixed whitelist
+(`HOME`, `LOGNAME`, `PATH`, `SHELL`, `USER`, `LANG`, `LC_ALL`, `TERM`, `TMPDIR`, `TZ` and one Apple
+variable) and would otherwise drop `HERDR_SOCKET_PATH`, `NVIM_MCP_SOCKET` and `XDG_RUNTIME_DIR` before
+the resolver ran: the pin lost, the Linux run root lost, the session half of every socket name hashed
+from an empty string. No project `.mcp.json`. Both registrations land together because the 7.5 rule
+binds both harnesses.
 
 The decision table. Criteria 5 and 6 are evaluated FIRST, because nothing ships without them; then 4;
 then 1 to 3. "Undecided" is a criterion the working day ended without a recorded pass, and it is read
@@ -1230,10 +1233,11 @@ crate row. The cost of choosing is still paid once per session rather than once 
 **The resolver is capped at 150 EXECUTABLE lines of bash with a test on its behavior.** The 80-line
 cap this section first carried was written against the three-step order; the registry design measured
 155 executable lines of 307 and needed the cap amended to executable lines to fit at all. The
-pane-socket resolver measures 49 executable lines of 107, which is what removing the second copy of
-the truth bought. The cap stands, counted over executable lines so that it never pays an author to
-delete the commentary this repository's reviews ask for, and a resolver whose executable logic cannot
-fit is still the signal to take the crate row instead.
+pane-socket resolver measured 49 executable lines of 107 as the bare name, and 108 of 204 once
+herdr's identity, the tab listing, the picker and the run-root check were added, still under the cap
+and measured with `grep -cv '^[[:space:]]*\(#.*\)\?$'`. The cap stands, counted over executable
+lines so that it never pays an author to delete the commentary this repository's reviews ask for, and
+a resolver whose executable logic cannot fit is still the signal to take the crate row instead.
 
 **The trust boundary, stated 2026-09-05.** The resolver probes a socket in one `nvim --remote-expr`
 process and hands its path to a second process, the MCP server, so a process running as the same user
@@ -1796,7 +1800,7 @@ encode:
 - `lua/plugins/harpoon.lua`: PR 22a, 30c4. The xcodebuild spec: PR 3, 14. `lua/config/lazy.lua`:
   PR 4a, 30d.
 - `dot_config/nvim/CLAUDE.md`: PR 2, 4d, then the registering PR (10a or 10b).
-- `private_dot_codex/private_config.toml.tmpl`: the PR that lands it, then the registering PR.
+- `private_dot_codex/modify_private_config.toml`: landed as #306, before the registering PR.
 
 Two rules keep that from being a pipeline gap. First, two PRs that touch the same file are serialized:
 the later one waits for the earlier one to merge before it opens for review, and that edge is in its
