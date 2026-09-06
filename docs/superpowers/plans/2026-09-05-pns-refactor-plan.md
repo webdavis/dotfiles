@@ -284,16 +284,24 @@ does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
 `presence_room.rs` (`Snapshot`, `Full`, `chosen`, `desk_age`) to
-`pns-domain/src/presence/{status,narrowing,room}.rs`. `presence_file.rs` (a state-file line codec) and
-`presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
+`pns-domain/src/presence/{status,narrowing,room}.rs`. `RawPresence` and `Edge` come with them, out of
+`presence_file.rs` and into `status.rs` beside the `classify` that takes them; the codec around them
+stays for PR 10.2 and names them at their new home. `presence_file.rs` itself (a state-file line codec)
+and `presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
 including the presence policy's own. Sizes: three production files under 200; tests under 350.
 Statements: S084 (`idle_secs_from_ns`), S234, S235.
 
-**PR 5.13 the decision record.** Moves from `src/decision_log.rs`: `KEPT`, `Record`, `printable`,
-`IDENTITY_MAX`, `tri`, `count`, `verdicts` (lines 5-66, 202-260) to `pns-domain/src/decision_record.rs`.
-Stays: `line` (the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`,
-`QUOTED_MAX` (the doctor's presentation, PR 15.1). Tests: the `printable` and `Record` tests by name.
-Sizes: ~150 plus tests ~250. Statements: S157 (`printable`).
+**PR 5.13 the decision record.** Moves from `src/decision_log.rs`: `KEPT`, `printable`, `IDENTITY_MAX`,
+`UNPRINTABLE`, `ABSENT`, `tri`, `count`, `verdicts`, `yes_no` to `pns-domain/src/decision_record.rs`, and
+`Delivery` from `channels/mod.rs` to `pns-domain/src/routing.rs`, beside the `Leg` it answers for and the
+`ReportMode` that says whether anyone reads it: `verdicts` takes it, and a destination's outcome is a
+value the policy reads rather than something the domain may reach into the adapters for. `Record` does
+NOT move here: it borrows an `&EventArgs`, whose `help` flag is a fact about the command line, so it
+stays beside `line` until PR 8.1 lands that struct. Stays: `line`, `NO_CLOCK` (the ring's on-disk shape,
+PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the doctor's presentation, PR 15.1).
+Tests: none move; every one drives `line` or `section`, both of which stay, and `decision_log.rs` splits
+at that seam into shared fixtures, line rows and section rows. Sizes: ~110 plus the three test siblings
+under 400. Statements: S157 (`printable`).
 
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
@@ -467,12 +475,15 @@ differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus test
 `event_mode`, `USAGE`, `PULSE_USAGE`, `LIGHTS_USAGE`, `LOOP_USAGE`, `QUIET_USAGE`, `DAEMON_USAGE`,
 `NAG_USAGE`, `Overrides::from_env`, `loop_command`, `quiet_command`, `parse_schedule`, `recap_bounds`,
 `pulse_mode`'s and `quiet_mode`'s argument arms into
-`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. The both-flags refusal stays here with its tested
-wording (decision 0007) and never becomes a domain state. Unpinned first: S007 (a subcommand word
-carrying producer flags), S010 (the exact warning sentence), S015 (last flag wins), S027 (`USAGE` versus
-`PULSE_USAGE`, fixed rather than pinned: backlog B30), S031 (`pns quiet --help`). Tests: the 9 `args.rs`
-tests by name; `tests/dispatch.rs`'s argv rows as acceptance; the argv differential. Sizes: four files of
-100 to 240 plus tests under 300. Statements: S001 to S021, S025, S027, S030, S031, S034 to S046.
+`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. It also carries `Record`, held back by PR 5.13
+because it borrows an `&EventArgs`: this is where that struct's home is settled, so decide there whether
+`Record` follows it to the CLI crate or `EventArgs` splits into a domain event value and a parse result.
+The both-flags refusal stays here with its tested wording (decision 0007) and never becomes a domain
+state. Unpinned first: S007 (a subcommand word carrying producer flags), S010 (the exact warning
+sentence), S015 (last flag wins), S027 (`USAGE` versus `PULSE_USAGE`, fixed rather than pinned: backlog
+B30), S031 (`pns quiet --help`). Tests: the 9 `args.rs` tests by name; `tests/dispatch.rs`'s argv rows as
+acceptance; the argv differential. Sizes: four files of 100 to 240 plus tests under 300. Statements: S001
+to S021, S025, S027, S030, S031, S034 to S046.
 
 **PR 8.2 the harness hook adapters.** Moves `src/hooks.rs` (`HookPayload`, `parse_payload`, `flattened`,
 `one_line`, `tool_request`, `elicitation_request`, `reported_error`, `TOOL_REQUEST_MAX_CHARS`,
@@ -539,9 +550,11 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 
 **PR 10.2 the presence poll adapters.** Pure move. `presence_hue.rs` (the `grouped_motion` read),
 `presence_instant.rs` (the bridge's timestamp grammar), `presence_lock.rs` (the `flock`),
-`presence_file.rs` (the state-file line codec), the presence policy's `presence_journal.rs` (the
-`presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
-`write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
+`presence_file.rs` (the state-file line codec, importing `RawPresence` and `Edge` from the domain, where
+PR 5.12 put them: the codec is the adapter and those two types are its output, so a `classify` in the
+domain that takes them must not reach into this crate for them), the presence policy's
+`presence_journal.rs` (the `presence-decisions` ring codec), and `presence_mode`, `presence_launch`,
+`presence_poll`, `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
 `pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
@@ -714,9 +727,11 @@ are rewritten with a bounded accept so a mutant fails rather than hangs. Sizes: 
 S147.
 
 **PR 14.3 the three destinations, and uu's seam.** Pure move of `src/channels/banner.rs`, `moshi.rs`,
-`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `Event`, `Delivery`,
-`native_first` into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver`
-and `resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. uu's
+`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `Event` and `native_first`
+into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver` and
+`resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. `Delivery` is
+NOT among them: PR 5.13 put it in `pns-domain/src/routing.rs`, because `verdicts` takes it and the domain
+may not reach into this crate for a type. Every destination here imports it from there. uu's
 `Cargo.toml:36` dependency and its three import sites (`src/delivery.rs:11`, `src/delivery.rs:99`,
 `src/cli/run.rs:13`) move to the crate section 8 names in the same PR, and `cargo test --locked
 --manifest-path dot_local/share/uu/Cargo.toml` is run and recorded. Unpinned first: S144 (the exact `pns:

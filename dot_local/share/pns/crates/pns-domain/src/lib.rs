@@ -21,6 +21,7 @@
 
 pub mod count;
 pub mod decision;
+pub mod decision_record;
 pub mod home;
 pub mod jobs;
 pub mod lamps;
