@@ -2263,36 +2263,86 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // ONE probe set for the whole event: the forward decision below and the
     // delivery plan inside run_event are two questions about one moment.
     let probes = system_probes();
-    let forwarded = moshi_subcommand(agent)
+    // WHICH AGENTS FORWARD AT ALL, whether the payload is whole and whether
+    // the operator is reachable are the composition root's three reads; the
+    // ORDER of what follows is the use case's.
+    let subcommand = moshi_subcommand(agent)
         .filter(|_| payload_is_whole(payload_json))
-        .filter(|_| forward_to_moshi(&probes))
-        .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
-    if forwarded.is_some() {
-        // Suppressed here rather than by the plan: the card moshi is raising
-        // is something the surface model cannot know about.
+        .filter(|_| forward_to_moshi(&probes));
+    let approval = ApprovalPath {
+        probes: &probes,
+        payload,
+        child: std::cell::RefCell::new(None),
+    };
+    pns_application::request_approval::RequestApproval {
+        forwarder: &approval,
+        phone: &approval,
+        nag: &approval,
+        notifier: &approval,
+    }
+    .run(
+        &event,
+        &payload.session_id,
+        subcommand.as_deref(),
+        payload_json,
+    )
+}
+
+/// THE COMPOSITION ROOT'S SIDE OF ONE APPROVAL: the spawn, the wait, the
+/// environment variable and the notification, each behind the port the use
+/// case orders them through.
+///
+/// THE CHILD IS HELD HERE rather than crossing the port, because a
+/// `std::process::Child` is exactly what `pns-application` may not name. The
+/// port carries a `Forwarded` marker and this side keeps the process; there is
+/// one per run, so the cell holds at most one.
+struct ApprovalPath<'a> {
+    probes: &'a SystemProbes<SystemCommandRunner>,
+    payload: &'a HookPayload,
+    child: std::cell::RefCell<Option<std::process::Child>>,
+}
+
+impl pns_application::ports::delivery::ApprovalForwarder for ApprovalPath<'_> {
+    fn forward(
+        &self,
+        subcommand: &str,
+        payload_json: &str,
+    ) -> Option<pns_application::ports::delivery::Forwarded> {
+        let child = spawn_moshi_hook(subcommand, payload_json)?;
+        let id = child.id();
+        *self.child.borrow_mut() = Some(child);
+        Some(pns_application::ports::delivery::Forwarded(id))
+    }
+    fn answer(&self, _forwarded: pns_application::ports::delivery::Forwarded) -> i32 {
+        // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
+        // immediately before the wait, as it always was: threading it out of
+        // `run_event` would change that function's signature for one duration,
+        // and a view torn between the two reads costs at most this event.
+        match self.child.borrow_mut().take() {
+            Some(child) => answer_within(child, submit_deadline()),
+            None => 0,
+        }
+    }
+}
+
+impl pns_application::ports::notification::PhoneSuppression for ApprovalPath<'_> {
+    fn suppress(&self) {
+        // SAFETY: this is the hook path before any probe or channel thread
+        // exists, so nothing else can be reading the environment.
         unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
-    // AFTER THE FORWARD IS STARTED AND BEFORE THE NOTIFICATION. The forward is
-    // the operator-facing round trip and nothing may sit in front of its spawn;
-    // arming is a config read, three file operations and a spool write, taken
-    // here so the clock starts at the true prompt time and so a notification
-    // that dies still leaves a timer armed, which is the direction that helps
-    // the operator.
-    //
-    // AND THAT CONFIG READ IS THE THIRD ON THIS PATH, said plainly because the
-    // other two are. `run_event` loads it, the wait below loads it again, and
-    // `arm_nag` loads it here; each is one open and one TOML parse of a file
-    // measured in kilobytes, off local disk, with no network and no subprocess
-    // in any of them. It is named for honesty rather than as a cost worth
-    // routing around: threading one view through would change three signatures
-    // for a value each caller reads at the moment it needs it.
-    arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, payload, Attempt::First);
-    // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
-    // immediately before the wait. Threading it out of `run_event` would
-    // change that function's signature for one duration, and a view torn
-    // between the two reads costs at most this one event's bound.
-    forwarded.map_or(0, |child| answer_within(child, submit_deadline()))
+}
+
+impl pns_application::ports::records::NagSchedule for ApprovalPath<'_> {
+    fn arm(&self, session_id: &str, event: &pns::args::EventArgs) {
+        arm_nag(session_id, event);
+    }
+}
+
+impl pns_application::ports::notification::RaiseNotification for ApprovalPath<'_> {
+    fn raise(&self, event: &pns::args::EventArgs) {
+        run_event(event, self.probes, self.payload, Attempt::First);
+    }
 }
 
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
