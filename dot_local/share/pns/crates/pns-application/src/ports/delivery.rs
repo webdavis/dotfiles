@@ -2,8 +2,9 @@
 
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::notification::Event;
+use pns_domain::notification::EventArgs;
 use pns_domain::presence::narrowing::Snapshot;
-use pns_domain::routing::{Delivery, ReportMode};
+use pns_domain::routing::{Delivery, Leg, ReportMode};
 
 /// One destination a rendered event can reach.
 ///
@@ -73,4 +74,39 @@ pub trait MissedReplay {
 /// channel at all: the lights are not a leg. Statements: S218, S230.
 pub trait LampSignal {
     fn pulse(&self, behaviour: Behaviour, presence: Option<&Snapshot>);
+}
+
+/// The return recap, published where it durably belongs.
+///
+/// IT ANSWERS WHETHER IT POSTED, and the card the operator sees says so. A
+/// recap that failed to publish must not be described as filed somewhere they
+/// can go and read it.
+///
+/// THE WINDOW IS THE ONLY ARGUMENT. Which repositories are read, how the
+/// digest is composed and where it is posted are the adapter's; the use case
+/// decides only that this window is worth publishing.
+///
+/// Checked against `spawn_recap` (`src/main.rs:1421`), whose decision this
+/// takes and whose spawn stays in the root: `pns-application` names no child
+/// process. Statements: S164, S165.
+pub trait RecapPublisher {
+    fn publish(&self, since: u64, until: u64) -> bool;
+}
+
+/// One already-decided notification, delivered over already-decided legs.
+///
+/// THE LEG WALK AND THE RENDER ARE MECHANICS, not decisions, so they stay
+/// behind this port. The use case hands over the event it synthesized and the
+/// legs the plan already chose; which destination each leg names, and how the
+/// event becomes a card, are the dispatcher's.
+///
+/// IT ANSWERS NOTHING, because the replay has no reader for a verdict: it is
+/// already the catch-up for things nobody saw, and a failure to deliver it
+/// leaves the journal exactly as it was.
+///
+/// Checked against `replay_missed`'s closing call into `dispatch_legs`
+/// (`src/main.rs`), which passes the synthesized event, the decision's legs
+/// and `pane_dropped` false. Statements: S106.
+pub trait ReplayDelivery {
+    fn deliver(&self, event: &EventArgs, legs: &[Leg]);
 }

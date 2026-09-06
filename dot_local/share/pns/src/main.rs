@@ -9462,8 +9462,8 @@ impl pns_application::ports::records::ActivityRing for EventRecords<'_> {
             ACTIVITY_READ_MAX,
         );
     }
-    fn read(&self) -> Option<String> {
-        pns::system::readable_state_file(&state_dir().join(ACTIVITY), ACTIVITY_READ_MAX).ok()
+    fn entries_between(&self, since: u64, until: u64) -> Vec<pns::missed_notifications::Entry> {
+        activity_in(since, until)
     }
 }
 

@@ -53,8 +53,8 @@ impl ActivityRing for Recorder {
     fn record(&self, _event: &EventArgs, _now: Option<u64>) {
         self.note("activity");
     }
-    fn read(&self) -> Option<String> {
-        None
+    fn entries_between(&self, _since: u64, _until: u64) -> Vec<pns_domain::missed::Entry> {
+        Vec::new()
     }
 }
 impl BlockedMarker for Recorder {

@@ -49,20 +49,37 @@ pub trait Journal {
     /// `DecisionRing`'s reason: the entry's text is JSON, it is rendered in
     /// the root package until PR 11.2, and a use case cannot compose one.
     fn journal(&self, event: &EventArgs, now: Option<u64>);
+    /// DEFERRED, TYPE-SHAPED: this answers the file rather than parsed
+    /// entries, which its sibling above no longer does. No use case in step 6
+    /// consumes it; the doctor does, in PR 6.11, and that is where this shape
+    /// is re-checked. It expires the moment a use case needs to read what is
+    /// waiting, because the parse it would need is the root's until PR 11.2.
     fn read(&self) -> Option<String>;
 }
 
 /// The activity ring: every event, WHETHER OR NOT anybody perceived it, which
 /// is what makes it a different record from the journal above. The recap reads
 /// this one to say what happened while the operator was away.
+///
+/// `entries_between` ANSWERS PARSED ENTRIES AND NOT THE FILE. The ring's text
+/// is JSON, parsed in the root package until PR 11.2 on a capability the
+/// domain does not have, so a use case handed the file could neither read it
+/// nor window it. The adapter parses; the use case decides what the entries
+/// mean.
+///
+/// THE WINDOW IS HALF-OPEN AT THE START, `since < at <= until`, which is the
+/// arithmetic `activity_in` already performs: the near edge is the last event
+/// the operator was present for, and counting it again would report the moment
+/// they left as something that happened while they were gone.
+///
 /// Checked against `record_activity` (`src/main.rs:983`) and `activity_in`
-/// (`src/main.rs:1263`), which reads the whole file and windows it afterwards,
-/// so the windowing is the domain's and not this port's.
+/// (`src/main.rs:1263`), whose read-then-parse-then-filter this replaces
+/// whole. Statements: S155, S156.
 pub trait ActivityRing {
     /// Takes the EVENT and the clock, as `Journal` does. Its own preview cap
     /// differs from the journal's and is the adapter's to apply.
     fn record(&self, event: &EventArgs, now: Option<u64>);
-    fn read(&self) -> Option<String>;
+    fn entries_between(&self, since: u64, until: u64) -> Vec<Entry>;
 }
 
 /// The near edge of the recap window, and the journal claimed with it.
