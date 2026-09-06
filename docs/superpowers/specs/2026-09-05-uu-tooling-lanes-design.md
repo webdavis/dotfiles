@@ -92,13 +92,12 @@ Failures may also go to a separate webhook. `[records]` gains `failure_webhook`:
 second signed POST for every alarm, signed with the same `key` the record uses and carrying the same
 four-field body (`agent` is `uu`, `state` names the alarm as `failed`, `stale`, `record-lost` or
 `pending`, `project` is the host, `detail` is the sentence pns was handed). All four alarms go there;
-the operator ruled against a subset. Writing the URL alone opts in, and the empty string means off.
+the operator ruled against a subset. Writing the URL alone opts in; an absent key means off.
 
-That makes `failure_webhook` the one key in this schema where an empty string is legal. Everywhere else
-a blank value is refused, because it reads as a setting that was made; here the operator ruled that
-empty means off, and the key ships written out as `failure_webhook = ""` so the option is visible
-without being on. The parser admits `""` and whitespace-only for this key alone and says so in its
-comment.
+`failure_webhook` is an opt-in feature, so it follows the repository's config rule for one: the shipped
+template carries it as a commented line at an example value, and nothing in the schema changes. A key
+that is present but blank is refused by name like every other blank string, because a blank value
+reads as a setting that was made.
 
 ## How uu drives Neovim
 
@@ -499,9 +498,9 @@ for the chezmoi source directory.
 url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
 key = "..."
 # A second signed POST for every alarm uu raises (a failed lane, a stale lane,
-# a lost record, updates pending past the escalation point). The URL alone opts
-# in; the empty string is off, the one key here where empty is not refused.
-failure_webhook = ""
+# a lost record, updates pending past the escalation point). Opt-in: uncomment
+# with the route's URL; absent is off.
+# failure_webhook = "http://127.0.0.1:8644/webhooks/unattended-failures"
 
 # cargo-installed binaries. Registry crates are compared against crates.io;
 # git-pinned entries are skipped by name. With compile = false a crate that is

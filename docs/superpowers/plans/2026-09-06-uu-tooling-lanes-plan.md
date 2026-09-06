@@ -157,15 +157,16 @@ removes the whole lane directory, so the new file needs no pruning of its own. S
 246 becomes about 270; `schema.rs` grows by one entry per lane row.
 
 **PR A4 `failure_webhook`.** Adds `Records.failure_webhook: Option<String>` in `src/config.rs`,
-parsed by a `blank_is_off` helper in `schema.rs` rather than `non_empty`, with the comment naming it
-as the one key where empty is legal, and the `records` row in `TABLE_KEYS`. `delivery.rs::send_alert`
-takes the records block and the `SignedPost` seam and, when the webhook is set, posts
-`record_body(<alarm kind>, host, detail)` signed with `records.key`; its callers in `cli/run.rs`,
-`cli/run/staleness.rs`, `cli/run/escalation.rs` and `deliver_record` pass them, each with its own
-alarm kind (`failed`, `stale`, `pending`, `record-lost`). The template gains
-`failure_webhook = ""` under `[records]`. Tests:
-`a_records_block_with_an_empty_failure_webhook_leaves_alarms_on_pns_alone`,
-`a_failure_webhook_holding_only_whitespace_is_off_not_refused`,
+`None` when the key is absent and parsed by `non_empty` like every other string key when present, and
+the `records` row in `TABLE_KEYS`. `delivery.rs::send_alert` takes the records block and the
+`SignedPost` seam and, when the webhook is set, posts `record_body(<alarm kind>, host, detail)`
+signed with `records.key`; its callers in `cli/run.rs`, `cli/run/staleness.rs`,
+`cli/run/escalation.rs` and `deliver_record` pass them, each with its own alarm kind (`failed`,
+`stale`, `pending`, `record-lost`). The template gains a commented `# failure_webhook = "..."` line
+under `[records]`, the opt-in shape. Tests:
+`a_records_block_without_a_failure_webhook_leaves_alarms_on_pns_alone`,
+`a_blank_failure_webhook_is_refused_by_name_like_every_other_blank_string` (one more row in the two
+blank-string table tests in `schema.rs`),
 `a_failure_webhook_receives_the_alarm_body_signed_with_the_records_key`,
 `every_alarm_kind_reaches_the_failure_webhook` (a spy `SignedPost` sees failed, stale, record-lost
 and pending), `a_failure_webhook_that_refuses_is_stated_and_never_fails_the_run`. Consumer: the
