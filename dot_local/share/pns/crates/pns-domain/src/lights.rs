@@ -5,6 +5,14 @@
 //! far, because the safety predicates beside it read the same names and cannot
 //! move without it; the rest of the lighting policy follows.
 
+pub mod breath;
+pub mod held;
+pub mod looping;
+pub mod mute;
+pub mod phase;
+pub mod streak;
+pub mod unread;
+
 /// The run that owns a WORKING FILE in a marker directory, or None for an
 /// ordinary marker.
 ///
