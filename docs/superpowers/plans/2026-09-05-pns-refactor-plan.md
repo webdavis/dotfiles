@@ -322,10 +322,14 @@ unchanged.
 declares. Declares, test-first, the ports the later use cases need: `Clock`, `NotificationDestination`
 (`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`, `ActivityRing`, `ReturnMoment`,
 `LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from `hue.rs:744-750`), `Router` (from
-`home.rs`), `CommandRunner` (from `system.rs`). Tests: the `engine.rs` probe-count tests
-(`CountingProbes`) by name; new port tests only where a port carries logic (none should). Sizes:
-`ports/*.rs` under 120 each; `environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests
-~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to S091, S124.
+`home.rs`), `CommandRunner` (from `system.rs`). `Event` comes with them, out of `channels/mod.rs` and
+into `pns-domain/src/notification.rs`: `NotificationDestination` hands one to a destination, and a port
+may not name a type the adapters own. Its `to_json` stays where the JSON is, as the free function
+`event_json`, because an inherent impl may only be written in the crate that defines the type. Tests: the
+`engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a port carries logic
+(none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests ~350;
+`selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to
+S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
@@ -727,16 +731,19 @@ are rewritten with a bounded accept so a mutant fails rather than hangs. Sizes: 
 S147.
 
 **PR 14.3 the three destinations, and uu's seam.** Pure move of `src/channels/banner.rs`, `moshi.rs`,
-`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `Event` and `native_first`
-into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver` and
-`resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. `Delivery` is
-NOT among them: PR 5.13 put it in `pns-domain/src/routing.rs`, because `verdicts` takes it and the domain
-may not reach into this crate for a type. Every destination here imports it from there. uu's
-`Cargo.toml:36` dependency and its three import sites (`src/delivery.rs:11`, `src/delivery.rs:99`,
-`src/cli/run.rs:13`) move to the crate section 8 names in the same PR, and `cargo test --locked
---manifest-path dot_local/share/uu/Cargo.toml` is run and recorded. Unpinned first: S144 (the exact `pns:
-posted HTTP 200` line as the weekly helper's contract, asserted through the capture server). Sizes: four
-files of 120 to 260 plus tests under 450. Statements: S126, S128, S131, S133 to S147.
+`hermes.rs` (less the settings reads moved in 13.4) and `channels/mod.rs`'s `native_first` and
+`event_json` into `pns-adapters/src/destinations/{banner,moshi,hermes,executable}.rs` plus `deliver` and
+`resolve_path` (`src/main.rs:4102-4154`, bounded by PR 14.2) as the executable destination. Neither
+`Delivery` nor `Event` is among them. PR 5.13 put `Delivery` in `pns-domain/src/routing.rs` because
+`verdicts` takes it, and PR 6.1 put `Event` in `pns-domain/src/notification.rs` because the
+`NotificationDestination` port hands one to a destination; the domain may not reach into this crate for a
+type, so every destination here imports both from there. `event_json` is a free function rather than a
+method for that reason and stays one. uu's `Cargo.toml:36` dependency and its three import sites
+(`src/delivery.rs:11`, `src/delivery.rs:99`, `src/cli/run.rs:13`) move to the crate section 8 names in
+the same PR, and `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` is run and recorded.
+Unpinned first: S144 (the exact `pns: posted HTTP 200` line as the weekly helper's contract, asserted
+through the capture server). Sizes: four files of 120 to 260 plus tests under 450. Statements: S126,
+S128, S131, S133 to S147.
 
 **PR 14.4 the Focus store reader.** Pure move of `src/focus.rs` (`active_modes`, `mode_names`,
 `silenced`, `same`) and `focus_now`, `FocusReading`, `FOCUS_DB` (`src/main.rs:9480-9549`) to
