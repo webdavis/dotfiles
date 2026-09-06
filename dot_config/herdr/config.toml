@@ -80,61 +80,63 @@ swap_pane_up = "prefix+alt+k"
 swap_pane_right = "prefix+alt+l"
 
 # Workspace quick-jump chords (prefix+ctrl+<letter>), a namespace empty in herdr
-# defaults. Each calls herdr-jump.sh <label> <cwd>: REQUIRED because `herdr
-# workspace create` is not idempotent and `workspace focus` takes an id, not a
-# label, so no built-in create-or-focus exists.
+# defaults. Each invokes an action of the herdr-workspace-jump plugin, which
+# create-or-focuses by label: REQUIRED because `herdr workspace create` is not
+# idempotent and `workspace focus` takes an id, not a label, so no built-in
+# create-or-focus exists. A keybinding passes no arguments, so the label and the
+# working directory live in the plugin manifest, one action per workspace.
 [[keys.command]]
 key = "prefix+ctrl+h"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh homelab $HOME/workspaces/Ivy/webdavis/homelab"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_homelab"
 description = "jump to homelab workspace (auto-start)"
 
 [[keys.command]]
 key = "prefix+ctrl+."
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_dotfiles"
 description = "jump to dotfiles workspace (CSI-u; fallback below)"
 
 [[keys.command]]
 key = "prefix+."
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_dotfiles"
 description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
 
 [[keys.command]]
 key = "prefix+ctrl+c"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh casually-concerned $HOME/workspaces/Ivy/casually-concerned"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_casually_concerned"
 description = "jump to casually-concerned workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+i"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh Ivy $HOME/workspaces/Ivy"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_ivy"
 description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
 
 [[keys.command]]
 key = "prefix+ctrl+j"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh justdavis-ansible $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_justdavis_ansible"
 description = "jump to justdavis-ansible workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+e"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh essential-feed-case-study $HOME/workspaces/Ivy/webdavis/essential-feed-case-study"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_essential_feed_case_study"
 description = "jump to essential-feed-case-study workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+n"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh netpulse $HOME/workspaces/Ivy/webdavis/netpulse"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_netpulse"
 description = "jump to netpulse workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+p"
-type = "shell"
-command = "$HOME/.local/libexec/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_plantpulse"
 description = "jump to plantpulse workspace"
 
 # Workspace-level MRU toggle via the herdr-last-workspace plugin (herdr has no
