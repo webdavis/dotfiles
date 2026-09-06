@@ -61,28 +61,38 @@ make_socket() {
 # The stubs are written ONCE and find their case through NMC_CASE at run time.
 mkdir -p "$work/bin"
 
-# The two things the resolver asks nvim for. `--server <socket> --remote-expr
+# The two things the resolver asks nvim for, and NOTHING else: the stub checks
+# the complete invocation and refuses any other with exit 99, so a resolver that
+# drifts to a different expression or query goes red here rather than being
+# certified by a stub that answered anything. `--server <socket> --remote-expr
 # getpid()` is the liveness probe: the socket is logged BEFORE the answer is
-# looked up, then it hangs if listed in $NMC_CASE/hang (as ONE process, the
-# way a stuck nvim client is: a child holding the pipe would outlive the
-# watchdog's kill), answers a pid with no newline (as the real reply) if listed
-# in $NMC_CASE/live, and otherwise exits 1 the way a refused connection does.
-# Any other invocation is the identity query, logged to $NMC_CASE/queried and
-# answered with two lines: the contents of $NMC_CASE/rundir (production:
-# stdpath("run")) and the session hash (production: vim.fn.sha256 of
-# HERDR_SOCKET_PATH, first six characters; here the fixed SESSION).
+# looked up, then it hangs if listed in $NMC_CASE/hang (as ONE process, the way
+# a stuck nvim client is: a child holding the pipe would outlive the watchdog's
+# kill), answers a pid with no newline (as the real reply) if listed in
+# $NMC_CASE/live, and otherwise exits 1 the way a refused connection does. The
+# identity query is the exact headless start the resolver makes, logged to
+# $NMC_CASE/queried and answered with two lines: the contents of
+# $NMC_CASE/rundir (production: stdpath("run")) and the session hash
+# (production: vim.fn.sha256 of HERDR_SOCKET_PATH, first six characters; here
+# the fixed SESSION).
 cat >"$work/bin/nvim" <<'STUB'
 #!/bin/bash
-if [[ $1 == --server ]]; then
+if [[ $# -eq 4 && $1 == --server && $3 == --remote-expr && $4 == 'getpid()' ]]; then
   printf '%s\n' "$2" >>"$NMC_CASE/probed"
   grep -qxF -- "$2" "$NMC_CASE/hang" && exec sleep 3
   grep -qxF -- "$2" "$NMC_CASE/live" || exit 1
   printf 4242
   exit 0
 fi
-printf '%s\n' "$*" >>"$NMC_CASE/queried"
-cat "$NMC_CASE/rundir"
-printf '\n%s' 9a663d
+query='lua io.write(vim.fn.stdpath("run"), "\n", vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6))'
+if [[ $# -eq 6 && $1 == --headless && $2 == --clean && $3 == -c && $4 == "$query" && $5 == -c && $6 == 'qa!' ]]; then
+  printf '%s\n' "$*" >>"$NMC_CASE/queried"
+  cat "$NMC_CASE/rundir"
+  printf '\n%s' 9a663d
+  exit 0
+fi
+printf 'nvim stub: unexpected argv: %s\n' "$*" >&2
+exit 99
 STUB
 
 # herdr 0.8.2 as the resolver sees it. `pane current --current` answers the

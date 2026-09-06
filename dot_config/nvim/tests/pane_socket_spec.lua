@@ -238,6 +238,32 @@ return {
     end)
   end,
 
+  ["requiring config.autocmds binds nothing; firing its VimEnter autocmd binds the pane socket"] = function()
+    -- auto_reload_spec requires that file in this same runner, whose os.exit
+    -- skips socket cleanup: a bind at require time once left a stale socket
+    -- named for the REAL pane in the operator's real run root after every run.
+    -- And an autocmd that is only counted certifies an empty callback, so the
+    -- event is fired and the socket has to appear.
+    local root = private_root()
+    local expected = root .. "/herdr-" .. SESSION .. "-term_a1.sock"
+    with_env(herdr_env(root, "term_a1"), function()
+      local before = vim.fn.serverlist()
+      package.loaded["config.autocmds"] = nil
+      require("config.autocmds")
+      vim.wait(50)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "require bound " .. vim.inspect(vim.fn.serverlist()))
+      assert(#herdr_calls(root .. "/herdr.log") == 0, "require asked herdr")
+      vim.api.nvim_exec_autocmds("VimEnter", { group = "nvim_config_pane_socket" })
+      assert(
+        vim.wait(2000, function()
+          return serving(expected)
+        end, 10),
+        "VimEnter did not bind " .. expected .. ": " .. vim.inspect(vim.fn.serverlist())
+      )
+      vim.fn.serverstop(expected)
+    end)
+  end,
+
   ["with the name already taken, listen() is silent and the servers are unchanged"] = function()
     local root = private_root()
     local expected = root .. "/herdr-" .. SESSION .. "-term_a1.sock"
