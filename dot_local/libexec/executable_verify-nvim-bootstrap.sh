@@ -3,17 +3,22 @@
 # verify-nvim-bootstrap.sh: does the Neovim state on this machine match what the
 # config declares. Two questions, one per tool:
 #
-#   lazy.nvim   every plugin pinned in lazy-lock.json has a DIRECTORY under the
-#               lazy root
+#   lazy.nvim   every plugin pinned in lazy-lock.json is CHECKED OUT AT the
+#               commit the lock names
 #   mason       every package name in the resolved tool list has a DIRECTORY
 #               under the Mason packages root
 #
 # This is the bootstrap's proof, and it exists because Neovim's exit status is
 # not one. `nvim --headless -c 'Lazy! restore' -c 'qa!'` exits 0 whether the
-# restore cloned every repository or none of them, and `:MasonToolsInstallSync`
-# behaves the same way, so a half-installed editor would otherwise read as a
-# finished apply. A clone that finished left a directory behind, and that is the
-# observable answered here.
+# restore moved every plugin to its pin or none of them, and
+# `:MasonToolsInstallSync` behaves the same way, so a half-installed editor
+# would otherwise read as a finished apply.
+#
+# The lazy question asks for the COMMIT, not merely for a directory. The
+# acceptance rehearsal on 2026-09-05 finished green with 48 of 92 plugins one
+# commit behind their pins: every directory was present and healthy, so an
+# existence check had nothing to say about it. A directory proves a clone
+# happened and never that the clone is where the lock says it should be.
 #
 # Everything is a function of the PATHS the caller passes: nothing reads $HOME,
 # guesses a root, or consults the operator's editor, which is what lets the unit
@@ -26,21 +31,35 @@
 
 usage='usage: verify-nvim-bootstrap.sh <lazy-lock.json> <lazy-dir> <mason-tool-list> <mason-packages-dir>'
 
-# missing_lazy_dirs <lazy-lock.json> <lazy-dir>
+# mispinned_lazy_plugins <lazy-lock.json> <lazy-dir>
 #
-# Prints each plugin pinned in the lock that has no directory under <lazy-dir>,
-# one name per line, in the lock's sorted key order. Returns 2 and prints
-# nothing when the lock cannot be read or parsed.
-missing_lazy_dirs() {
-  local lock="$1" lazy_dir="$2" pinned name
+# Prints every plugin pinned in the lock that is not checked out at the commit
+# the lock names, one per line as `<name> <wanted> <found>`. `<found>` is the
+# checked-out HEAD, or `absent` when there is no directory under <lazy-dir>, or
+# `unknown` when git could not answer, which a half-finished clone cannot.
+# Prints nothing when every pin is met. Returns 2 and prints nothing when the
+# lock cannot be read or parsed.
+mispinned_lazy_plugins() {
+  local lock="$1" lazy_dir="$2" pinned name wanted found
   # jq's status is read BEFORE the loop rather than inside a process
   # substitution, where it is invisible: an unreadable or truncated lock would
-  # then yield zero pins and this function would report nothing missing, which
-  # is a gate that passes on a corrupt input.
-  pinned="$(jq -r 'keys[]' "$lock" 2>/dev/null)" || return 2
-  while IFS= read -r name || [[ -n $name ]]; do
+  # then yield zero pins and this function would report nothing unmet, which is
+  # a gate that passes on a corrupt input.
+  pinned="$(jq -r 'to_entries[] | "\(.key) \(.value.commit)"' "$lock" 2>/dev/null)" || return 2
+  while read -r name wanted || [[ -n $name ]]; do
     [[ -n $name ]] || continue
-    [[ -d "$lazy_dir/$name" ]] || printf '%s\n' "$name"
+    if [[ ! -d "$lazy_dir/$name" ]]; then
+      printf '%s %s absent\n' "$name" "$wanted"
+      continue
+    fi
+    # `env -u`, not a bare `git -C`: GIT_DIR wins over -C, and git exports it
+    # to every hook it runs. This repository's own pre-commit hook runs the
+    # suite that drives this function, so without the scrub every plugin would
+    # report this repository's HEAD.
+    found="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+      git -C "$lazy_dir/$name" rev-parse HEAD 2>/dev/null)" || found=''
+    [[ -n $found ]] || found='unknown'
+    [[ $found == "$wanted" ]] || printf '%s %s %s\n' "$name" "$wanted" "$found"
   done <<<"$pinned"
 }
 
@@ -71,9 +90,9 @@ main() {
   fi
 
   local lock="$1" lazy_dir="$2" tool_list="$3" packages_dir="$4"
-  local lazy_missing mason_missing name status=0
+  local lazy_unmet mason_missing name wanted found status=0
 
-  if ! lazy_missing="$(missing_lazy_dirs "$lock" "$lazy_dir")"; then
+  if ! lazy_unmet="$(mispinned_lazy_plugins "$lock" "$lazy_dir")"; then
     printf 'verify-nvim-bootstrap: cannot read the plugin lock: %s\n' "$lock" >&2
     return 2
   fi
@@ -91,11 +110,11 @@ main() {
     return 2
   fi
 
-  while IFS= read -r name; do
+  while read -r name wanted found; do
     [[ -n $name ]] || continue
-    printf 'missing lazy plugin: %s\n' "$name"
+    printf 'lazy plugin off its pin: %s wants %s, has %s\n' "$name" "$wanted" "$found"
     status=1
-  done <<<"$lazy_missing"
+  done <<<"$lazy_unmet"
 
   while IFS= read -r name; do
     [[ -n $name ]] || continue

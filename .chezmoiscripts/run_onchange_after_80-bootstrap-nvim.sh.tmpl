@@ -71,6 +71,9 @@ test_runner={{ joinPath $nvim "tests/run.lua" | quote }}
 # cannot go red. The source lock is the committed intent, chezmoi deployed it
 # earlier in this same apply, and nothing Neovim runs can reach it.
 source_lock={{ joinPath $nvim "lazy-lock.json" | quote }}
+# How many restore passes are allowed before a machine that is not converging
+# is called out rather than retried forever.
+restore_bound=3
 
 bump_retry_marker() {
   local count=0
@@ -87,6 +90,17 @@ if ! command -v nvim >/dev/null 2>&1; then
   bump_retry_marker
   exit 0
 fi
+
+if [[ ! -r $verify ]]; then
+  report_line "nvim bootstrap: $verify is not deployed; the bootstrap cannot verify itself." >&2
+  exit 1
+fi
+# Sourced for `mispinned_lazy_plugins`, which the restore loop below reads
+# between passes. Sourcing runs nothing: the library keeps its own `main` behind
+# an execution guard, and the final verification step still runs the DEPLOYED
+# script as a process, which is what proves the artifact on this machine works.
+# shellcheck source=/dev/null
+source "$verify"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -158,10 +172,71 @@ out:write(table.concat(names, "\n"), "\n")
 out:close()
 LUA
 
+# Restore until every pin is actually met.
+#
+# WHY THE COMMITTED LOCK IS REINSTALLED BEFORE EVERY PASS. lazy.nvim rewrites
+# the deployed lockfile to whatever it found installed at the end of every
+# install, update and restore run (lua/lazy/manage/lock.lua, `M.update`, called
+# unconditionally from `M.install`, `M.update` and `M.clean`; `M.restore` IS
+# `M.update` with `lockfile = true`). So a plugin that ended up off its pin has
+# its WRONG commit written back in as the pin, and every later `Lazy! restore`
+# reads that file and converges on the wrong commit instead of correcting it.
+# There is no lazy.nvim option that turns the write off.
+#
+# Measured 2026-09-05 in a throwaway home: 48 plugins moved one commit back
+# stayed off their pins through two consecutive restores, because the first
+# startup rewrote all 48 wrong commits into the deployed lock. Reinstalling the
+# committed lock first brought all 48 back in ONE pass, in 2.8 seconds.
+#
+# The loop is the safety net for the case the lock cannot fix: `git.timeout` is
+# 120 seconds (lua/lazy/core/config.lua), so on a cold machine fetching ninety
+# repositories at once a slow clone is killed and genuinely needs another pass.
+# It stops the moment nothing is off pin, and refuses to keep going when a pass
+# stopped making progress, because a set that is not shrinking is a machine
+# that will not converge no matter how many passes it gets.
+#
 # `Lazy!` with the bang WAITS for the operation to finish, which is what makes
 # the headless form usable at all.
-run_step 'Lazy! restore' \
-  nvim --headless -c 'Lazy! restore' -c 'qa!'
+# Larger than any possible unmet count, so the first pass cannot trip the
+# no-progress check.
+previous_unmet=1000000
+pass=1
+while true; do
+  install -m 644 "$source_lock" "$config_dir/lazy-lock.json"
+
+  run_step "Lazy! restore (pass $pass of $restore_bound)" \
+    nvim --headless -c 'Lazy! restore' -c 'qa!'
+
+  if ! unmet="$(mispinned_lazy_plugins "$source_lock" "$data_dir/lazy")"; then
+    report_section 'nvim bootstrap' 'the plugin lock could not be read' >&2
+    printf '%s\n' "$source_lock" >&2
+    exit 1
+  fi
+
+  unmet_count=0
+  [[ -z $unmet ]] || unmet_count="$(printf '%s\n' "$unmet" | wc -l | tr -d ' ')"
+
+  if [[ $unmet_count -eq 0 ]]; then
+    break
+  fi
+
+  if [[ $pass -ge $restore_bound ]]; then
+    report_section 'nvim bootstrap' \
+      "plugins still off their pinned commit after $pass restore passes: $unmet_count" >&2
+    printf '%s\n' "$unmet" >&2
+    exit 1
+  fi
+
+  if [[ $unmet_count -ge $previous_unmet ]]; then
+    report_section 'nvim bootstrap' \
+      "restore pass $pass fixed nothing, plugins still off their pinned commit: $unmet_count" >&2
+    printf '%s\n' "$unmet" >&2
+    exit 1
+  fi
+
+  previous_unmet="$unmet_count"
+  pass=$((pass + 1))
+done
 
 # Valid only because mason-tool-installer sets `run_on_start = false`
 # (dot_config/nvim/lua/plugins/lsp.lua:208): with autostart on, this synchronous

@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # The apply-time PROOF that Neovim's plugin and tool state matches what the
 # config declares: given a lock file, a lazy root, a resolved Mason tool list
-# and a Mason packages root, which declared names have no directory on disk.
+# and a Mason packages root, which declared names are not where they should be.
 #
-# Why a directory and not an exit status. `nvim --headless -c 'Lazy! restore'
-# -c 'qa!'` exits 0 whether the restore cloned every repository or none of
-# them, and `:MasonToolsInstallSync` behaves the same way, so the bootstrap
-# cannot read either one as evidence. A clone that finished left a directory
-# behind; that is the observable these functions answer against, and every case
-# below is one way that observable can lie.
+# Why the CHECKED-OUT COMMIT and not just a directory. `nvim --headless
+# -c 'Lazy! restore' -c 'qa!'` exits 0 whether the restore moved every plugin
+# to its pin or none of them, and the acceptance rehearsal caught exactly that:
+# 48 plugins sat one commit behind their pins and the apply finished green. A
+# directory proves a clone happened, never that the clone is at the commit the
+# lock names, so every case below asks the sharper question.
 #
 # Every input is a PATH the caller supplies, so nothing here reads $HOME, the
 # operator's editor, or the machine's real plugin tree. The fixture is a
-# throwaway tree built once for the whole file.
+# throwaway tree of real one-commit-apart git repositories, built once for the
+# whole file.
 #
 # bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
 # executable bit: both belong to a script that runs on its own, and either one
@@ -21,7 +22,7 @@
 #
 # assert_same, never assert_equals: bashunit's assert_equals normalizes away
 # ANSI and control characters before comparing (measured on 0.50.1), and a
-# plugin name carrying one is a real defect that must not pass.
+# plugin name or a sha carrying one is a real defect that must not pass.
 
 subject_under_test() {
   printf '%s' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/executable_verify-nvim-bootstrap.sh"
@@ -32,13 +33,17 @@ source "$(subject_under_test)"
 
 # --- fixture ----------------------------------------------------------------
 #
-# One lock and one tool list, read against four roots that differ only in what
-# is actually on disk:
+# Four plugins in one lock, each a different way a pin can go unmet:
 #
-#   complete/    every pin is a directory, every package is a directory
-#   one-absent/  `blink.cmp` was never cloned
-#   as-a-file/   `blink.cmp` is a FILE of the right name
-#   no-package/  the `stylua` package directory is absent
+#   on-pin      a real repository checked out at the commit the lock names
+#   off-pin     the same repository, one commit behind
+#   absent      named in the lock, no directory at all
+#   not-a-repo  a directory that is not a git checkout
+#
+# `git` runs through `env -u` here for the same reason the subject does it:
+# this suite runs from the pre-commit hook, and git exports GIT_DIR to every
+# hook, which would silently point `git init` and `rev-parse` at this
+# repository instead of at the fixture.
 
 fixture="$(mktemp -d)"
 
@@ -46,74 +51,119 @@ tear_down_after_script() {
   rm -rf "$fixture"
 }
 
-printf '{"aerial.nvim":{"commit":"aaa"},"blink.cmp":{"commit":"bbb"}}\n' >"$fixture/lock.json"
-printf 'gopls\nstylua\n' >"$fixture/tools"
+fixture_git() {
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+    git -c user.email=fixture@example.invalid -c user.name=fixture \
+    -c init.defaultBranch=main -c commit.gpgsign=false "$@"
+}
+
+make_two_commit_repo() { # <dir>
+  mkdir -p "$1"
+  fixture_git -C "$1" init -q
+  fixture_git -C "$1" commit -q --allow-empty -m first
+  fixture_git -C "$1" commit -q --allow-empty -m second
+}
+
+mkdir -p "$fixture/lazy"
+make_two_commit_repo "$fixture/lazy/on-pin"
+make_two_commit_repo "$fixture/lazy/off-pin"
+mkdir -p "$fixture/lazy/not-a-repo"
+
+on_pin_head="$(fixture_git -C "$fixture/lazy/on-pin" rev-parse HEAD)"
+off_pin_head="$(fixture_git -C "$fixture/lazy/off-pin" rev-parse HEAD)"
+off_pin_previous="$(fixture_git -C "$fixture/lazy/off-pin" rev-parse HEAD~1)"
+fixture_git -C "$fixture/lazy/off-pin" checkout -q --detach "$off_pin_previous"
+
+absent_commit="0000000000000000000000000000000000000000"
+not_a_repo_commit="1111111111111111111111111111111111111111"
+
+jq -n \
+  --arg on_pin "$on_pin_head" \
+  --arg off_pin "$off_pin_head" \
+  --arg absent "$absent_commit" \
+  --arg not_a_repo "$not_a_repo_commit" \
+  '{"on-pin":{"commit":$on_pin},"off-pin":{"commit":$off_pin},
+    "absent":{"commit":$absent},"not-a-repo":{"commit":$not_a_repo}}' \
+  >"$fixture/lock.json"
+
+jq -n --arg on_pin "$on_pin_head" '{"on-pin":{"commit":$on_pin}}' >"$fixture/only-on-pin.json"
+
 printf 'not json at all\n' >"$fixture/broken-lock.json"
+printf 'gopls\nstylua\n' >"$fixture/tools"
 : >"$fixture/empty-tools"
 
-mkdir -p "$fixture/complete/lazy/aerial.nvim" "$fixture/complete/lazy/blink.cmp"
-mkdir -p "$fixture/complete/packages/gopls" "$fixture/complete/packages/stylua"
-
-mkdir -p "$fixture/one-absent/lazy/aerial.nvim"
-
-mkdir -p "$fixture/as-a-file/lazy/aerial.nvim"
-: >"$fixture/as-a-file/lazy/blink.cmp"
-
-mkdir -p "$fixture/no-package/packages/gopls"
+mkdir -p "$fixture/all-packages/gopls" "$fixture/all-packages/stylua"
+mkdir -p "$fixture/no-package/gopls"
 
 # --- lazy.nvim --------------------------------------------------------------
 
-function test_a_lock_whose_every_pin_has_a_directory_reports_nothing() {
-  assert_same "" "$(missing_lazy_dirs "$fixture/lock.json" "$fixture/complete/lazy")"
+function test_a_plugin_checked_out_at_its_pinned_commit_is_not_reported() {
+  assert_same "" "$(mispinned_lazy_plugins "$fixture/only-on-pin.json" "$fixture/lazy")"
 }
 
-function test_a_pin_that_was_never_cloned_is_the_only_name_reported() {
-  assert_same "blink.cmp" "$(missing_lazy_dirs "$fixture/lock.json" "$fixture/one-absent/lazy")"
+function test_a_plugin_one_commit_behind_its_pin_is_reported_with_both_shas() {
+  # The rehearsal defect. The directory is there and the clone is healthy, so
+  # every existence check passes it, and only the commit comparison catches it.
+  assert_same "off-pin $off_pin_head $off_pin_previous" \
+    "$(mispinned_lazy_plugins "$fixture/lock.json" "$fixture/lazy" | grep '^off-pin ')"
 }
 
-function test_a_pin_present_as_a_file_rather_than_a_directory_is_missing() {
-  # A test that only asked "does the path exist" passes the case above and
-  # fails this one: lazy.nvim clones into a directory, so a file of that name
-  # is an interrupted or hand-made stub, never an installed plugin.
-  assert_same "blink.cmp" "$(missing_lazy_dirs "$fixture/lock.json" "$fixture/as-a-file/lazy")"
+function test_a_plugin_that_was_never_cloned_is_reported_as_absent() {
+  assert_same "absent $absent_commit absent" \
+    "$(mispinned_lazy_plugins "$fixture/lock.json" "$fixture/lazy" | grep '^absent ')"
+}
+
+function test_a_directory_that_is_not_a_git_checkout_reads_as_unknown_never_as_satisfied() {
+  # Fail-safe: a half-cloned plugin cannot answer for its own commit, and
+  # silence there would pass exactly the state this gate exists to catch.
+  assert_same "not-a-repo $not_a_repo_commit unknown" \
+    "$(mispinned_lazy_plugins "$fixture/lock.json" "$fixture/lazy" | grep '^not-a-repo ')"
+}
+
+function test_only_the_unmet_pins_are_reported() {
+  assert_same 3 "$(mispinned_lazy_plugins "$fixture/lock.json" "$fixture/lazy" | wc -l | tr -d ' ')"
 }
 
 function test_a_lock_that_cannot_be_parsed_is_refused_rather_than_read_as_empty() {
   # Fail-closed: through a process substitution jq's status is invisible, and a
-  # truncated lock would then yield zero pins and report nothing missing, which
+  # truncated lock would then yield zero pins and report nothing unmet, which
   # is a gate that passes on a corrupt input.
-  missing_lazy_dirs "$fixture/broken-lock.json" "$fixture/complete/lazy" >/dev/null 2>&1
+  mispinned_lazy_plugins "$fixture/broken-lock.json" "$fixture/lazy" >/dev/null 2>&1
   assert_same 2 "$?"
 }
 
 # --- mason ------------------------------------------------------------------
 
 function test_a_tool_list_whose_every_name_has_a_package_directory_reports_nothing() {
-  assert_same "" "$(missing_mason_packages "$fixture/tools" "$fixture/complete/packages")"
+  assert_same "" "$(missing_mason_packages "$fixture/tools" "$fixture/all-packages")"
 }
 
 function test_a_tool_with_no_package_directory_is_the_only_name_reported() {
-  assert_same "stylua" "$(missing_mason_packages "$fixture/tools" "$fixture/no-package/packages")"
+  assert_same "stylua" "$(missing_mason_packages "$fixture/tools" "$fixture/no-package")"
 }
 
 # --- the script's own boundary ----------------------------------------------
 
 function test_a_complete_installation_prints_nothing_and_exits_zero() {
   local output
-  output="$(main "$fixture/lock.json" "$fixture/complete/lazy" "$fixture/tools" "$fixture/complete/packages")"
+  output="$(main "$fixture/only-on-pin.json" "$fixture/lazy" "$fixture/tools" "$fixture/all-packages")"
   assert_same 0 "$?"
   assert_same "" "$output"
 }
 
-function test_every_missing_name_is_printed_with_the_tool_that_owns_it() {
-  local output
-  output="$(main "$fixture/lock.json" "$fixture/one-absent/lazy" "$fixture/tools" "$fixture/no-package/packages")"
-  assert_same "missing lazy plugin: blink.cmp
-missing mason package: stylua" "$output"
+function test_an_unmet_pin_is_printed_with_the_commit_wanted_and_the_commit_found() {
+  assert_same "lazy plugin off its pin: off-pin wants $off_pin_head, has $off_pin_previous" \
+    "$(main "$fixture/lock.json" "$fixture/lazy" "$fixture/tools" "$fixture/all-packages" | grep ' off-pin ')"
 }
 
-function test_anything_missing_exits_one() {
-  main "$fixture/lock.json" "$fixture/one-absent/lazy" "$fixture/tools" "$fixture/complete/packages" >/dev/null
+function test_every_unmet_name_is_printed_with_the_tool_that_owns_it() {
+  local output
+  output="$(main "$fixture/only-on-pin.json" "$fixture/lazy" "$fixture/tools" "$fixture/no-package")"
+  assert_same "missing mason package: stylua" "$output"
+}
+
+function test_anything_unmet_exits_one() {
+  main "$fixture/lock.json" "$fixture/lazy" "$fixture/tools" "$fixture/all-packages" >/dev/null
   assert_same 1 "$?"
 }
 
@@ -121,7 +171,7 @@ function test_an_empty_tool_list_is_refused_rather_than_passing_vacuously() {
   # An empty list is what a failed extraction leaves behind, not evidence that
   # no tool is required. Accepting it would delete the Mason half of this gate
   # without printing a word.
-  main "$fixture/lock.json" "$fixture/complete/lazy" "$fixture/empty-tools" "$fixture/complete/packages" >/dev/null 2>&1
+  main "$fixture/only-on-pin.json" "$fixture/lazy" "$fixture/empty-tools" "$fixture/all-packages" >/dev/null 2>&1
   assert_same 2 "$?"
 }
 
