@@ -12,30 +12,11 @@
 //! while the same word sitting where a flag's value belongs is still just a
 //! value, under the second rule.
 
-/// The parsed event arguments. Every field defaults to empty or false, so a
-/// bare invocation is valid and renders an empty event.
-#[derive(Debug, Default, PartialEq)]
-pub struct EventArgs {
-    pub agent: String,
-    pub state: String,
-    pub project: String,
-    pub branch: String,
-    pub detail: String,
-    pub pane: String,
-    /// The named hermes route this event posts to, resolved through the
-    /// config's `[plugins.hermes]` channels table; empty means the default
-    /// (alert) route. Names, not URLs: the caller says WHERE, the config
-    /// says HOW to get there.
-    pub channel: String,
-    pub local_only: bool,
-    pub remote_only: bool,
-    /// The >=300s tier: the lights signal rides on top of whatever else the
-    /// plan decides.
-    pub long_running: bool,
-    /// Set when `--help`/`-h` reached this parse in FLAG position. `event_mode`
-    /// checks this before touching the config or a probe.
-    pub help: bool,
-}
+/// The parsed event arguments. THE VALUE MOVED to `pns-domain`, beside the
+/// rendered `Event` it becomes, because the use cases in `pns-application`
+/// take one and a use case may not name a type this package owns. The PARSE
+/// below stayed, which is the half that is about a command line.
+pub use pns_domain::notification::EventArgs;
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the

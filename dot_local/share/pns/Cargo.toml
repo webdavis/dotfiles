@@ -81,6 +81,7 @@ hmac = "0.13.0"
 libc = "0.2.189"
 # The domain crate, taken as the policy moves out of this package one behavior
 # at a time. The traffic runs one way: no member ever depends back on `pns`.
+pns-application = { path = "crates/pns-application" }
 pns-domain = { path = "crates/pns-domain" }
 serde_json = "1.0.151"
 sha2 = "0.11.0"
