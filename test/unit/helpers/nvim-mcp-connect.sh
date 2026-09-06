@@ -130,7 +130,9 @@ setup_case() {
   CASE="$work/$1"
   CASE_PATH="$work/bin:/usr/bin:/bin"
   RUN="$CASE/run"
+  # 0700 like the real run root: the resolver refuses anything looser.
   mkdir -p "$RUN"
+  chmod 700 "$RUN"
   : >"$CASE/live"
   : >"$CASE/hang"
   printf '%s/a1b2c3' "$RUN" >"$CASE/rundir"

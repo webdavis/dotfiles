@@ -15,6 +15,7 @@
 #   l) nvim missing from PATH    -> exit 2, the whole diagnostic, nothing touched
 #   m) jq missing from PATH      -> exit 2, the whole diagnostic
 #   n) nvim cannot say where its run dir is -> exit 2
+#   o) a run root other accounts can read -> exit 2 naming owner and mode, nothing probed
 #
 set -euo pipefail
 
@@ -138,4 +139,18 @@ grep -qF 'run dir' "$CASE/err" || fail "no-run-dir: the fault does not say what 
 [[ ! -e $CASE/probed ]] || fail 'no-run-dir: something was probed with no root to look in'
 [[ ! -f $CASE/exec ]] || fail 'no-run-dir: the server was run anyway'
 
-printf 'PASS: %s (10 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- o) a run root that is not this user's private directory ----------------
+# Neovim falls back to <temp>/nvim.<random> when nvim.<user> is mis-owned, and
+# <temp> can be a shared /tmp: a socket there is one any account can pre-create.
+setup_case loose-root
+me term_a
+live "$(sock term_a)"
+chmod 755 "$RUN"
+run_case XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 2 ]] || fail "loose-root: expected exit 2, got $RC ($(cat "$CASE/err"))"
+grep -qF '0700' "$CASE/err" || fail "loose-root: the fault does not name the mode ($(cat "$CASE/err"))"
+grep -qF "$RUN" "$CASE/err" || fail "loose-root: the fault does not name the root ($(cat "$CASE/err"))"
+[[ ! -e $CASE/probed ]] || fail 'loose-root: a socket in an untrusted root was probed'
+[[ ! -f $CASE/exec ]] || fail 'loose-root: it connected anyway'
+
+printf 'PASS: %s (11 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

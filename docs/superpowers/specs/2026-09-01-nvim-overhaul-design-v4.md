@@ -1201,7 +1201,12 @@ listing root `:help serverstart()` documents; with `XDG_RUNTIME_DIR` set (Linux)
 directory itself. The resolver asks Neovim for `stdpath("run")` once (a headless `--clean` start,
 about 20 ms, under the probe's deadline) rather than recomputing it, so TMPDIR handling and the user
 name stay Neovim's. Exported EMPTY, `XDG_RUNTIME_DIR` makes Neovim report an empty run dir and start no
-default server at all; the pane then gets no socket and the resolver exits 2.
+default server at all; the pane then gets no socket and the resolver exits 2. Both sides VERIFY the
+root before using it: a directory this user owns at mode 0700, or the editor listens on no pane socket
+and says so once, and the resolver exits 2 naming the owner and mode it found. The check exists
+because Neovim, finding `nvim.<user>` mis-owned or too open, creates `<temp>/nvim.<random>` instead
+(measured on 0.12.5), whose parent is `<temp>` itself, which on a system without `XDG_RUNTIME_DIR` can
+be a shared `/tmp` where any account may pre-create a pane socket.
 
 **What discovery does not cover, accepted.** A Neovim in ANOTHER tab of the workspace is not a
 candidate: the tab is the unit herdr shows side by side, and widening to the workspace would make

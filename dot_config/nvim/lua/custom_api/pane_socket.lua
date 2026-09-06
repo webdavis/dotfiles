@@ -51,6 +51,17 @@ function M.root()
   return vim.fs.dirname(run)
 end
 
+-- True when `dir` is a directory this user owns at mode 0700, the only shape
+-- the run root may have. Neovim itself falls back to `<temp>/nvim.<random>`
+-- when `nvim.<user>` is mis-owned or too open (measured on 0.12.5), and that
+-- directory's parent is `<temp>` itself, which can be a shared /tmp where any
+-- account may pre-create a pane socket. A supplied XDG_RUNTIME_DIR gets the
+-- same check.
+function M.private(dir)
+  local stat = vim.uv.fs_stat(dir)
+  return stat ~= nil and stat.type == "directory" and stat.uid == vim.uv.getuid() and stat.mode % 512 == 448
+end
+
 -- The session half of the name. nvim-mcp-connect.sh spells the same rule
 -- with `shasum -a 256`.
 function M.session()
@@ -88,14 +99,24 @@ function M.identity(on_done)
   end
 end
 
--- Listen on this pane's socket, silently, if this Neovim runs under herdr and
--- the name is free. Every failure of the bind is swallowed on purpose:
+-- Listen on this pane's socket, silently, if this Neovim runs under herdr, the
+-- run root is private and the name is free. Every failure of the bind is swallowed on purpose:
 -- "address already in use" is an earlier Neovim in the same pane that should
 -- keep the name, and anything else (a path too long) only means this instance
 -- is reached by a pin rather than by pane. A herdr that does not answer is
 -- said once, because that is a pane the agent cannot reach without a pin.
 function M.listen()
   if not vim.env.HERDR_ENV then
+    return
+  end
+  local root = M.root()
+  if not root or not M.private(root) then
+    vim.notify(
+      ("nvim-mcp: not listening for this pane, the run root %s is not a directory this user owns at mode 0700"):format(
+        tostring(root)
+      ),
+      vim.log.levels.WARN
+    )
     return
   end
   M.identity(function(terminal)

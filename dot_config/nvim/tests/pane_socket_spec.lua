@@ -27,11 +27,11 @@ local function with_env(vars, fn)
 end
 
 -- A private run root per case, under Neovim's own per-process temp tree, so
--- the sockets these cases bind never land in the real shared root. Short, and
--- removed when this process exits.
+-- the sockets these cases bind never land in the real shared root. Short,
+-- removed when this process exits, and 0700 like the real one.
 local function private_root()
   local dir = vim.fn.tempname()
-  assert(vim.fn.mkdir(dir, "p") == 1, "could not create " .. dir)
+  assert(vim.fn.mkdir(dir, "p", 448) == 1, "could not create " .. dir)
   return dir
 end
 
@@ -170,6 +170,22 @@ return {
       )
       assert(vim.deep_equal(herdr_calls(root .. "/herdr.log"), { "pane current --current" }))
       vim.fn.serverstop(expected)
+    end)
+  end,
+
+  ["a run root not owned by this user at 0700 starts nothing, says so once, and never asks herdr"] = function()
+    local root = private_root()
+    assert(vim.uv.fs_chmod(root, 493), "could not chmod " .. root) -- 0755: readable by other accounts
+    with_env(herdr_env(root, "term_a1"), function()
+      local before = vim.fn.serverlist()
+      local seen = capturing_notify(function()
+        pane_socket().listen()
+        vim.wait(50)
+      end)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "started " .. vim.inspect(vim.fn.serverlist()))
+      assert(#seen == 1 and seen[1].level == vim.log.levels.WARN, "notifications: " .. vim.inspect(seen))
+      assert(seen[1].message:find("0700", 1, true), "the warning does not name the mode: " .. seen[1].message)
+      assert(#herdr_calls(root .. "/herdr.log") == 0, "herdr was asked although the root is not private")
     end)
   end,
 

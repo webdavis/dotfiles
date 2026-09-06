@@ -45,7 +45,8 @@
 #
 # Exit codes: 3 a refusal (nothing answers where the pin, the pane or its tab
 # points, or herdr cannot name the pane), 4 the picker, 2 an environmental
-# fault (a tool missing, or nvim unable to say where its run dir is). On success
+# fault (a tool missing, nvim unable to say where its run dir is, or a run root
+# that is not this user's private directory). On success
 # this process is REPLACED by nvim-mcp. The pin lasts the server process:
 # nvim-mcp connects once and keeps that client, so a Neovim that exits leaves
 # later tool calls on a stale client until the harness starts a new session
@@ -107,6 +108,23 @@ fits() {
   [[ $1 =~ ^[A-Za-z0-9_-]{1,64}$ ]]
 }
 
+# root_fault <dir> -- why <dir> is not a directory this user owns at mode 0700,
+# empty when it is. Neovim itself falls back to `<temp>/nvim.<random>` when
+# `nvim.<user>` is mis-owned or too open (measured on 0.12.5), and that
+# directory's parent is `<temp>` itself, which can be a shared /tmp where any
+# account may pre-create a pane socket. A supplied XDG_RUNTIME_DIR gets the same
+# check. BSD stat first, GNU second.
+root_fault() {
+  local meta
+  [[ -d $1 ]] || {
+    printf 'is not a directory'
+    return
+  }
+  meta="$(stat -f '%u %Lp' "$1" 2>/dev/null || stat -c '%u %a' "$1" 2>/dev/null || true)"
+  [[ $meta == "$(id -u) 700" ]] ||
+    printf 'is owned by uid %s at mode %s, not by this user at 0700' "${meta% *}" "${meta#* }"
+}
+
 # pane_socket <terminal id> -- its socket path under $root for this session.
 pane_socket() {
   printf '%s/herdr-%s-%s.sock' "$root" "$session" "$1"
@@ -134,6 +152,8 @@ if [[ -z $root ]]; then
   [[ $run_dir == /* ]] || die 2 'nvim did not report its run dir (stdpath("run")), so there is no root to look in'
   root="$(dirname "$run_dir")"
 fi
+fault="$(root_fault "$root")"
+[[ -z $fault ]] || die 2 "the run root $root $fault, so no socket there can be trusted"
 session="$(printf '%s' "${HERDR_SOCKET_PATH:-}" | shasum -a 256 | cut -c1-6)"
 
 own="$(pane_socket "$terminal")"
