@@ -12,5 +12,6 @@ pub mod clock;
 pub mod delivery;
 pub mod devices;
 pub mod environment;
+pub mod harness;
 pub mod process;
 pub mod records;

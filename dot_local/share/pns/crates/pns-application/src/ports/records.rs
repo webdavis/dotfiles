@@ -14,6 +14,7 @@
 //! can act on.
 
 use pns_domain::missed::Entry;
+use pns_domain::notification::EventArgs;
 
 /// The decision log: why a card did or did not fire, newest first.
 ///
@@ -98,4 +99,15 @@ pub trait BlockedMarker {
 /// NO CLOCK IS NO RENEWAL, never a renewal at epoch zero.
 pub trait LoopLease {
     fn renew(&self, pane: &str, now: Option<u64>);
+}
+
+/// This session's nag: the schedule that nudges about a wait nobody answered.
+///
+/// ARMING IS ONE STEP AND NOT THREE. It unlinks the session's answered marker,
+/// publishes the record and re-arms, and a caller that could do two of those
+/// would leave a session armed against a marker that says it is already
+/// answered. Which agents nag at all, and after how long, is the adapter's
+/// read of the config. Statements: S074, S237.
+pub trait NagSchedule {
+    fn arm(&self, session_id: &str, event: &EventArgs);
 }
