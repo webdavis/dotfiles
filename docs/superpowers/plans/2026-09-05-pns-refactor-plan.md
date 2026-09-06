@@ -296,12 +296,13 @@ Statements: S084 (`idle_secs_from_ns`), S234, S235.
 `Delivery` from `channels/mod.rs` to `pns-domain/src/routing.rs`, beside the `Leg` it answers for and the
 `ReportMode` that says whether anyone reads it: `verdicts` takes it, and a destination's outcome is a
 value the policy reads rather than something the domain may reach into the adapters for. `Record` does
-NOT move here: it borrows an `&EventArgs`, whose `help` flag is a fact about the command line, so it
-stays beside `line` until PR 8.1 lands that struct. Stays: `line`, `NO_CLOCK` (the ring's on-disk shape,
-PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the doctor's presentation, PR 15.1).
-Tests: none move; every one drives `line` or `section`, both of which stay, and `decision_log.rs` splits
-at that seam into shared fixtures, line rows and section rows. Sizes: ~110 plus the three test siblings
-under 400. Statements: S157 (`printable`).
+NOT move here: it borrows an `&EventArgs`, which still lives in the root package. THAT REASON EXPIRED AT
+PR 6.1a, which moved `EventArgs` to the domain and left every field of `Record` domain-resident; PR 6.1e
+moved it, and the `DecisionRing` port takes it rather than a rendered line. Stays: `line`, `NO_CLOCK`
+(the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the
+doctor's presentation, PR 15.1). Tests: none move; every one drives `line` or `section`, both of which
+stay, and `decision_log.rs` splits at that seam into shared fixtures, line rows and section rows. Sizes:
+~110 plus the three test siblings under 400. Statements: S157 (`printable`).
 
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
@@ -335,11 +336,12 @@ IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a lo
 catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
 `MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, and THREE OF THE NINE DECLARED
 HERE WERE WRONG and are re-cut in PR 6.1d, which also adds `LightsTick` and annotates every surviving
-port with the consumer it was checked against, so that PR 6.2 moves an ordering over ports that already
-exist. Tests: the `engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a
-port carries logic (none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus
-tests ~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered
-rule), S089 to S091, S124.
+port with the consumer it was checked against, and `DecisionRing` is re-cut again in PR 6.1e to take a
+`Record` rather than a rendered line, so that PR 6.2 moves an ordering over ports that already exist.
+Tests: the `engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a port
+carries logic (none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests
+~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089
+to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
@@ -603,7 +605,9 @@ file names (`DECISIONS`, `MISSED_NOTIFICATIONS`, `ACTIVITY`, `LAST_PRESENT`, `LI
 PR 11.3 lands the SQLite store section 8 settles and PR 12.1 moves the records into it; the port shape is
 the same either way, which is why the ports land first. Tests: the codec tests by name; the ring rows of
 `tests/dispatch.rs` as acceptance. Sizes: six files of 80 to 220 plus tests under 300. Statements: S157,
-S158, S160, S161, S167 to S173, S177, S178.
+S158, S160, S161, S167 to S173, S177, S178. `decision_log::line` is here rather than in PR 5.13 or PR
+6.1e: both left it deliberately, because rendering the ring's text is the file's own shape and belongs
+with the file.
 
 **PR 11.3 the SQLite store.** New infrastructure behind the PR 6.1 ports, settled in section 8. Decision
 record 0012 (the two fail directions) lands first in the same PR, then
