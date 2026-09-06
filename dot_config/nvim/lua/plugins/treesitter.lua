@@ -84,14 +84,19 @@ return {
         map({ mode = { "x", "o" }, lhs = "ac", rhs = function() select.select_textobject("@class.outer", "textobjects") end, desc = "outer class" })
         map({ mode = { "x", "o" }, lhs = "ic", rhs = function() select.select_textobject("@class.inner", "textobjects") end, desc = "inner class" })
 
-        map({ mode = { "x", "o" }, lhs = "am", rhs = function() select.select_textobject("@function.outer", "textobjects") end, desc = "outer function" })
-        map({ mode = { "x", "o" }, lhs = "im", rhs = function() select.select_textobject("@function.inner", "textobjects") end, desc = "inner function" })
-
         map({ mode = { "x", "o" }, lhs = "al", rhs = function() select.select_textobject("@loop.outer", "textobjects") end, desc = "outer loop" })
         map({ mode = { "x", "o" }, lhs = "il", rhs = function() select.select_textobject("@loop.inner", "textobjects") end, desc = "inner loop" })
 
-        map({ mode = { "x", "o" }, lhs = "ak", rhs = function() select.select_textobject("@conditional.outer", "textobjects") end, desc = "outer conditional" })
-        map({ mode = { "x", "o" }, lhs = "ik", rhs = function() select.select_textobject("@conditional.inner", "textobjects") end, desc = "inner conditional" })
+        -- No function textobject on `am`/`im` and no conditional one on `ak`/`ik`.
+        -- nvim-various-textobjs owns all four, for `chainMember` and `key`. The
+        -- declarations that used to sit here were overwritten by it for the whole
+        -- session, but NOT from the first keystroke: this spec is eager and that
+        -- one was `VeryLazy`, so a key pressed in the first tens of milliseconds
+        -- still got the treesitter object. Deleting them alone therefore left a
+        -- window with no mapping at all, which is why `plugins/textobjects.lua`
+        -- now loads nvim-various-textobjs eagerly too. The `[m`／`]m` and `[k`／`]k`
+        -- motions below still navigate by function and by conditional; `af`/`if`
+        -- are free if the textobjects are ever wanted back.
 
         -- You can also use captures from other query groups like `locals.scm`.
         map({ mode = { "x", "o" }, lhs = "as", rhs = function() select.select_textobject("@local.scope", "locals") end, desc = "local scope" })
@@ -238,6 +243,7 @@ return {
           "swift",
           "terraform",
           "toml",
+          "tsx",
           "typescript",
           "typst",
           "vim",
@@ -266,7 +272,10 @@ return {
       callback = function(event)
         local filetype = event.match
 
-        if ignore_filetypes[filetype] then
+        -- atlas.nvim names its own filetypes and ships no grammar, so every atlas window
+        -- otherwise queued a doomed install and polled for it for thirty seconds. The prefix
+        -- test is what catches the dotted ones (`atlas.notes`, `atlas.diff-files`).
+        if ignore_filetypes[filetype] or filetype == "atlas" or vim.startswith(filetype, "atlas.") then
           return
         end
 

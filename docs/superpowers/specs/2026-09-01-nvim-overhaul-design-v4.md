@@ -1357,19 +1357,21 @@ columns are `id, step, severity, summary, disposition, evidence` (verified again
 `setqflist` over `systemlist("awk ...")` with `errorformat = "%f:%l: %m"`, the awk program inline in
 the command. The awk emits one `<file>:<line>: F<n> <severity> <disposition>: <summary>` per row,
 taking `<file>:<line>` from a `path:line` token in the summary when the row carries one and
-otherwise from the ledger file and the row's own line number, and it skips rows whose disposition is
-`FIXED` unless the command was banged. The default file is the newest findings file. A fix round is
-then `:cnext` through the findings.
+otherwise from the ledger file and the row's own line number, and it skips the closed rows unless the
+command was banged. Closed is a PREFIX match on `FIXED`, so `FIXED-NOTEST` is skipped too: the
+register grammar puts a commit sha on every one of those rows, so they are closed findings exactly as
+`FIXED` ones are. The default file is the newest findings file. A fix round is then `:cnext` through
+the findings.
 
 There is no `custom_api` module and no fixture file, and that is the point: one parser, in the only
 place both sides can see it. `~/.claude/pipeline/findings-register.sh` is NOT tracked by this
 repository (verified: `git ls-files private_dot_claude` returns no pipeline entry), so Neovim cannot
 call a `quickfix` subcommand living there, and a second parser in Lua would be a second thing to keep
 in step with the table format. If the pipeline scripts are ever brought into this repository, the awk
-moves there and the command calls it. The check is one headless case that pipes a heredoc of three
-rows (one with a `path:line` token, one without, one `FIXED`) through the same awk with `vim.system`
-and asserts the output lines; `vim.system` is a core API and is available under the `--clean` runner
-(measured 2026-09-03).
+moves there and the command calls it. The check is one headless case that pipes a heredoc of rows
+(one with a `path:line` token, one without, one `FIXED` and one `FIXED-NOTEST`) through the same awk
+with `vim.system` and asserts the output lines; `vim.system` is a core API and is available under the
+`--clean` runner (measured 2026-09-03).
 
 **#3, the line annotator (PR 16).** `<leader>Cx` annotates the current line with what the operator
 would otherwise retype. `compose_text(parts)` builds one string from the cursor position: the
@@ -1388,9 +1390,20 @@ overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec a
 `<leader>A<letter>`. So there is no send path here, and with it go the state gate, the one-slot queue,
 the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
 into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
-composer is a text function over data the editor already holds. Pure and tested: `compose_text(parts)`,
-including that a nil part leaves no blank line. The module name (`custom_api/annotate.lua` proposed)
-follows the rename rule above.
+composer is a text function over data the editor already holds. Pure and tested:
+`compose_text(parts, separator)`, including that a nil part contributes no gap. The module name
+(`custom_api/annotate.lua` proposed) follows the rename rule above.
+
+**The stored text is ONE line, parts joined by ` | `** (space, pipe, space) in that same order. It was
+one part per line until 2026-09-05, when a review measured that herdr-nvim cannot list a multi-line
+comment: `ui.comment_list` builds one buffer line per comment out of the comment's own text
+(`ui.lua:89` and `ui.lua:147` at the installed commit `41c30f5`), so `nvim_buf_set_lines` raises
+`'replacement string' item contains newlines` and every annotation carrying two parts broke
+`<leader>Al` outright. We do not patch third-party plugins, so the separator moved instead of the
+plugin. `compose_text` keeps the newline as its default and takes the separator as an argument, so
+this reverts to one part per line by changing the one constant in `annotate.lua` once herdr-nvim can
+list a multi-line comment. The upstream report is drafted at
+`/tmp/herdr-nvim-multiline-issue.md`.
 
 ## 8. Keymap and which-key design
 
@@ -1608,7 +1621,7 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    timing contract), and a manual check watches that pane by construction. A banner run for the human
    record, if wanted, switches to another workspace before the task ends and says so.
    `:ReviewLedger` on a real findings file fills the quickfix list and `:cnext` lands on the ledger
-   row, and `:ReviewLedger!` additionally lists the `FIXED` rows (PR 15). `<leader>Cx` on a line with
+   row, and `:ReviewLedger!` additionally lists the closed rows (PR 15). `<leader>Cx` on a line with
    a diagnostic adds one `herdr-nvim` annotation carrying the at-mention, the diagnostic, the
    enclosing function and the blame line, decorated in the buffer, and `<leader>As` then pastes it
    into the agent's input unsent (PR 16); nothing is typed into an agent by `<leader>Cx` itself.

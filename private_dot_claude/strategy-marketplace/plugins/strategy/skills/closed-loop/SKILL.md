@@ -1,6 +1,9 @@
 ---
 name: closed-loop
-description: Run a slice that exists because a review found something, where every finding feeds back into the same iteration and nothing is deferred. Use when a task was created by a review, when a task says Strategy-F, or when the user says "/strategy:closed-loop".
+description: >-
+  Run a slice that exists because a review found something, where every finding feeds back into
+  the same iteration and nothing is deferred. Use when a task was created by a review, when a task
+  says Strategy-F, or when the user says "/strategy:closed-loop".
 ---
 
 # Closed-loop
@@ -67,6 +70,28 @@ charter ranked below correctness. Read that skill for those; only the difference
 the same area. Before writing the brief, check each of its claims against current `main`. One task
 asserted three things main had already fixed. Correct the task in place rather than building against it.
 
+## The assumptions ledger, before any question is asked
+
+Re-measuring that task's claims against `main` produces exactly the material a question phase would
+otherwise grind out one at a time. Write it down instead. Before the brief, and before asking anything,
+present a NUMBERED ledger as ONE batch:
+
+```markdown
+## Assumptions ledger
+
+Confirm all, or name the numbers to change. Anything you do not name I treat as confirmed.
+
+1. <assumption>, source: <path:line, the task's own claim, or the PR that already fixed it>
+```
+
+Each claim you re-measured belongs here carrying its verdict: the task said X, `main` now does Y. That is
+where a stale task gets corrected in the open, rather than silently inside the brief's prose.
+
+A REJECTED assumption becomes a question, asked one at a time, naming what it changes about the brief.
+The ledger is presented ONCE, because dripping it out as individual questions is the waste it exists to
+prevent. Despite the name it is not one of the two verifier ledgers, and no script reads it. This ledger
+and the argument log below are both adapted from chaseai-yt/claudex-loop, MIT.
+
 ## Step 6v, and why it exists
 
 Dropping step 7 means the fix would otherwise land with NOTHING checking it. 6v closes that: it confirms
@@ -93,6 +118,24 @@ Two more things carry the weight step 7 used to, and neither is optional here:
   measurement rather than by reading. When a fix REPLACES a check rather than adding to one, enumerate
   what the old check caught that the new one does not and diff the accept sets. If they are not
   identical plus the intended closure, you moved the hole rather than closing it.
+
+## The argument log
+
+Each review round appends to `argument-<slug>.md`, beside the two `F` ledgers in the same directory, in
+the form [open-loop](../open-loop/SKILL.md) sets out: the finding identifiers and the reasoning only,
+pointing at the reviewer's output and the register for the verdict, the disposition and the proof.
+
+**Write at EVERY adjudication, terminal ones included.** Step 2's verdict is adjudicated when it returns,
+so the fresh step 3 implementer gets the reasoning behind its brief rather than the brief alone. Step 5
+writes the 4a, 4a-s, 4b and 4c rounds. 6v writes its own round when it returns, which is the only record
+of a terminal result, since nothing runs after it to write one.
+
+**Read the existing entries before EVERY agent brief and EVERY retry**, meaning before dispatching steps
+3, 4a, 4a-s, 4b, 6 and 6v, and before a reviewer retry after a failed run. 6v needs it most. It is
+terminal and nothing reviews it, so it is the last chance to catch a finding that was argued closed and
+was not, or a rejection that stopped being true once the fix landed.
+
+No script creates the file and no gate reads it. The first append creates it.
 
 ## Scope is what makes the termination argument true
 
@@ -131,6 +174,6 @@ stale; `pipeline-model-allocation.md` in this project's memory directory is the 
   findings may leave the loop as tasks. If the work came from the plan rather than from a review, you
   are in the wrong skill.
 - [orchestrator-loop](../orchestrator-loop/SKILL.md): the orchestrator is inside the loop, writing the
-  failing tests and the seams itself instead of briefing an implementer, and its two reviews run
-  concurrently. It is closed-loop in the findings sense too, so the three names do not sit on one axis.
-  Pick it when the behaviour can be stated as a failing test before it can be stated as a paragraph.
+  failing tests and the seams itself instead of briefing an implementer. It is closed-loop in the
+  findings sense too, so the three names do not sit on one axis. Pick it when the behaviour can be
+  stated as a failing test before it can be stated as a paragraph.

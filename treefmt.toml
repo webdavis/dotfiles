@@ -56,6 +56,9 @@ excludes = [
   "private_dot_claude/pns-marketplace/**",
   "private_dot_claude/strategy-marketplace/**",
   "dot_agents/**",
+  # Same rule one directory over: a vendored skill with YAML frontmatter, kept
+  # byte-identical to its upstream so a comparison against it stays meaningful.
+  "private_dot_hermes/private_skills/**",
   "docs/superpowers/**",
   # The pns behavioral specifications use a three-line Given / When / Then
   # form where the line breaks carry the meaning. mdformat reflows the three
@@ -129,9 +132,17 @@ includes = [
 # behavior holding on a future treefmt version.
 [formatter.stylua]
 command = "stylua"
-includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+includes = [
+  "dot_config/nvim/*.lua",
+  "dot_config/nvim/**/*.lua",
+  "dot_local/share/neotest-bashunit/**/*.lua",
+]
 
 [formatter.luacheck]
 command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
-includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+includes = [
+  "dot_config/nvim/*.lua",
+  "dot_config/nvim/**/*.lua",
+  "dot_local/share/neotest-bashunit/**/*.lua",
+]

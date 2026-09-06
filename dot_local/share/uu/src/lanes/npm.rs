@@ -24,7 +24,8 @@
 //! upgraded, and the record is where that has to show up.
 
 use crate::config::NpmLane;
-use crate::lanes::{CommandRunner, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::record::RunFacts;
 
 /// The shell that composes the child's PATH, at its POSIX path.
 const SHELL: &str = "/bin/sh";
@@ -46,28 +47,30 @@ const SHELL: &str = "/bin/sh";
 const PREPEND_PATH: &str = r#"PATH="$1${PATH:+:$PATH}"; export PATH; shift; exec "$@""#;
 
 /// Upgrade every global npm package, and report what that took.
-pub fn run_npm(name: &str, lane: &NpmLane, runner: &dyn CommandRunner) -> LaneReport {
-    let mut report = LaneReport::new(name);
-    let binary = lane.binary.as_str();
-    match runner.run(
-        SHELL,
-        &[
-            "-c",
-            PREPEND_PATH,
-            "sh",
-            bin_dir(binary),
-            binary,
-            "update",
-            "-g",
-        ],
-    ) {
-        // npm narrates its upgrades on stdout, but a week with nothing to
-        // upgrade prints nothing at all, so this line is what says the lane
-        // ran.
-        Ok(_) => report.noted(format!("{binary} update -g: ok")),
-        Err(why) => report.failed(format!("{binary} update -g FAILED ({why})")),
+impl LaneAdapter for NpmLane {
+    fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
+        let mut report = LaneReport::new(name);
+        let binary = self.binary.as_str();
+        match runner.run(
+            SHELL,
+            &[
+                "-c",
+                PREPEND_PATH,
+                "sh",
+                bin_dir(binary),
+                binary,
+                "update",
+                "-g",
+            ],
+        ) {
+            // npm narrates its upgrades on stdout, but a week with nothing to
+            // upgrade prints nothing at all, so this line is what says the lane
+            // ran.
+            Ok(_) => report.noted(format!("{binary} update -g: ok")),
+            Err(why) => report.failed(format!("{binary} update -g FAILED ({why})")),
+        }
+        report
     }
-    report
 }
 
 /// The directory `binary` sits in, which is what goes first on the child's
@@ -87,6 +90,7 @@ fn bin_dir(binary: &str) -> &str {
 mod tests {
     use super::*;
     use crate::lanes::Ran;
+    use crate::lanes::stubs::stub_facts;
     use std::cell::RefCell;
     use std::time::Duration;
 
@@ -158,7 +162,7 @@ mod tests {
     #[test]
     fn the_lane_upgrades_every_global_package_with_the_npm_it_was_pointed_at() {
         let runner = StubRunner::clean();
-        run_npm("npm", &lane(), &runner);
+        lane().run("npm", &stub_facts(), &runner);
         let call = runner.calls().first().expect("the lane runs npm").clone();
         assert_eq!(call[0], SHELL);
         assert_eq!(&call[call.len() - 3..], [NPM, "update", "-g"]);
@@ -170,7 +174,7 @@ mod tests {
         // that node's prefix. The directory goes in as an argument, so the
         // whole composition is `$1` first, then whatever uu inherited.
         let runner = StubRunner::clean();
-        run_npm("npm", &lane(), &runner);
+        lane().run("npm", &stub_facts(), &runner);
         assert_eq!(
             runner.calls(),
             vec![
@@ -227,7 +231,7 @@ mod tests {
         // THE LANE'S OWN NAME, never the type's: `[lanes.globals]` with
         // `type = "npm"` is recorded and alerted as `globals`, and a report
         // carrying a hardcoded `npm` would name a lane nobody declared.
-        let report = run_npm("globals", &lane(), &StubRunner::clean());
+        let report = lane().run("globals", &stub_facts(), &StubRunner::clean());
         assert_eq!(report.name, "globals");
         assert_eq!(report.failures, 0);
         assert_eq!(report.last_failure, None);
@@ -236,9 +240,9 @@ mod tests {
 
     #[test]
     fn an_upgrade_that_did_not_succeed_is_a_counted_failure_carrying_what_npm_said() {
-        let report = run_npm(
+        let report = lane().run(
             "npm",
-            &lane(),
+            &stub_facts(),
             &StubRunner::refusing("exit 1: npm error code EACCES"),
         );
         assert_eq!(report.failures, 1);
@@ -251,9 +255,9 @@ mod tests {
     fn an_npm_that_is_not_installed_is_a_failure_rather_than_a_quiet_skip() {
         // The bash job's own behavior, deliberately not ported: it printed
         // "npm is not at ...; nothing to upgrade" and returned 0.
-        let report = run_npm(
+        let report = lane().run(
             "npm",
-            &lane(),
+            &stub_facts(),
             &StubRunner::refusing("exit 127: sh: npm: No such file or directory"),
         );
         assert_eq!(report.failures, 1);

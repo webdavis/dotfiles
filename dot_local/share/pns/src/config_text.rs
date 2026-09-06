@@ -198,6 +198,29 @@ pub const LAYOUT: &[Table] = &[
                 sample: Sample::Example("[]"),
             },
             Key {
+                name: "desk_room",
+                prose: "# The room the desk is in, spelled the way the bridge spells it, listed\n\
+                         # in rooms above and not in exclude. While the keyboard still speaks\n\
+                         # for where you are, this is the room the lamps narrow to, and motion\n\
+                         # in it agrees. Newer motion in ANOTHER room is two live readings that\n\
+                         # cannot both be you, and nothing narrows for as long as both stand: a\n\
+                         # keystroke ends it here, the motion going quiet ends it there. Unset,\n\
+                         # the keyboard names no room and motion answers alone, exactly as it\n\
+                         # does once the desk goes stale.\n",
+                sample: Sample::Example("\"\""),
+            },
+            Key {
+                name: "desk_stale_after_secs",
+                prose: "# How long the desk keeps speaking for where you ARE after the last\n\
+                         # keystroke, bounded 1 to 3600. Inside it a warm desk beats motion of\n\
+                         # the same age, so a cat crossing the kitchen cannot move the lamps off\n\
+                         # a keyboard being typed at; past it a keyboard nobody has touched says\n\
+                         # nothing about which room you are standing in, and fresher motion\n\
+                         # wins. The hour ceiling is what keeps a mistyped digit from parking\n\
+                         # the lamps in desk_room for good.\n",
+                sample: Sample::Default("120"),
+            },
+            Key {
                 name: "poll_secs",
                 prose: "# How often the bridge is read, in seconds, bounded 2 to 60.\n",
                 sample: Sample::Default("5"),
@@ -1696,7 +1719,7 @@ mod tests {
             "the written defaults are the ones the reader takes"
         );
         let selected: Vec<&str> = crate::registry::roster()
-            .enabled(&config)
+            .enabled(&config.plugin_switches())
             .expect("hue is written beside it")
             .iter()
             .map(|entry| entry.name)
