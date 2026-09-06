@@ -320,7 +320,12 @@ ports before any consumer existed and three of them were wrong (`LampRecords` de
 nothing performs, `ReturnMoment` dropped an argument its two callers differ in, and `ApprovalForwarder`
 collapsed two steps a caller acts between); the four it MOVED from real code were all correct. PR 6.1d
 re-cut them against `main.rs` line by line. Declare a port no earlier than the call site that will
-consume it, and name that call site in its doc comment.
+consume it, and name that call site in its doc comment. A DEFERRAL NOTE NAMES ITS KIND, for the same
+reason. A capability-shaped reason (this crate takes no `serde_json`, opens no file, spawns no process)
+holds as long as the crate declares no such dependency. A type-shaped reason (X still lives in the root)
+expires the moment that type moves, silently, so every type-shaped note names the PR that moves the type
+and is re-checked when that PR lands. All five blocks in step 6 were type-shaped notes nobody re-read;
+not one capability-shaped note has expired.
 
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
@@ -360,7 +365,11 @@ test per tail item using recording fakes for the ports (the order is the behavio
 S161); the existing `tests/dispatch.rs` rows stay as the acceptance tests. Consumer: every hook and every
 producer. Sizes: `submit_notification.rs` ~280 (the 300 target binds here; the tail becomes a
 `record_tail.rs` of ~200 if it does not fit), `submit_notification/tests.rs` ~400. Statements: S006,
-S017, S021, S072, S080, S106, S117, S218, S230, S231.
+S017, S021, S072, S080, S106, S117, S218, S230, S231. AS BUILT, this moves the tail from the decision
+record onward and leaves `decide`, the presence snapshot and `dispatch_legs` at the composition root,
+because those read the config and the operator's secrets; the ordering contract the fourteen tests pin
+begins at the decision record. `Journal` and `ActivityRing` are re-cut here to take the event and the
+clock rather than a rendered entry, for the reason PR 6.1e re-cut `DecisionRing`.
 
 **PR 6.3 `RequestApproval`.** RE-CUT. The row used to move `answer_within` and `moshi_decision` into
 `pns-application`; both wait on a `std::process::Child`, and that crate spawns no process, so the move
