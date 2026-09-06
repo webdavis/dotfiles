@@ -27,6 +27,7 @@ pub mod lamps;
 pub mod lights;
 pub mod missed;
 pub mod nag;
+pub mod presence;
 pub mod pulse;
 pub mod quiet;
 pub mod recap;
