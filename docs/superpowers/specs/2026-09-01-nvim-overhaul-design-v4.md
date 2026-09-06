@@ -72,11 +72,11 @@ v4.4 folds the decisions of 2026-09-03
 1. Two pull requests join the LSP lane, PR 29c (LSP polish) and PR 29d (pin refresh) (11).
 1. Two evaluation pull requests join the drops lane, PR 24a (`atlas.nvim` against octo) and PR 24b
    (`review.nvim` against the `herdr-nvim` annotation flow) (5.6, 11).
-1. MCP instance selection is redesigned in five steps, injection both ways, a topology match, an
-   IDENTITY check rather than a liveness one, a picker instead of a refusal on more than one
-   candidate, and a refusal only on none, with sticky selection and a registry Neovim keeps correct
-   by construction; PR 9's third criterion is reframed around what the injection leaves over, and a
-   server that fails it may still be usable (7.3).
+1. MCP instance selection is decided by construction: an explicit pin, else a socket NAMED FOR the
+   herdr pane that every Neovim started in a pane listens on, else the server's own `--connect auto`.
+   The five-step registry design (topology match, identity check, picker) that first replaced the
+   injection sketch was itself replaced on 2026-09-05; PR 9's third criterion is reframed around what
+   the injection leaves over, and a server that fails it may still be usable (7.3).
 
 1. `nvim-treesitter` was un-archived on 2026-07-19, so PR 29e brings it current on its own rather
    than inside the 29d pin refresh, because the `main` line is an API surface (5.5, 11).
@@ -1127,69 +1127,61 @@ as-is row needs no pinning, and the resolver row is reachable only after criteri
 every row exactly one PR registers a server (10a or 10b), and it is the PR whose server the operator
 keeps.
 
-**Instance selection, decided 2026-09-03 (this supersedes the symmetric-injection-plus-liveness
-sketch it replaces).** The resolver, `~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh` (it is the
-command the MCP registration runs, so `libexec` per the placement rules), identifies Neovim by pane
-id and by the environment of the pane the agent runs in, never by focus. Five steps, in order:
+**Instance selection, decided 2026-09-03, redesigned 2026-09-05 (this supersedes both the
+symmetric-injection-plus-liveness sketch and the registry design that first replaced it).** The
+resolver, `~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh` (it is the command the MCP registration
+runs, so `libexec` per the placement rules), identifies Neovim by pane id and by the environment of the
+pane the agent runs in, never by focus. The mechanism is a **pane-named socket**: a Neovim started in a
+herdr pane listens on `<run root>/herdr-pane-<pane id>.sock`
+(`dot_config/nvim/lua/custom_api/pane_socket.lua`), so the Neovim an agent means is the one whose pane
+id the agent's own environment carries, and the resolver DERIVES the path rather than looking it up.
+Nothing is recorded anywhere. Three steps, in order:
 
-1. **Injection, both directions.** Whichever side creates the other writes the address down, so the
-   common case is created rather than inferred. A Neovim that spawns an agent pane passes its own
-   socket with `herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>` (7.2; `--env` is verified
-   to exist on 0.8.2), and an agent pane that spawns a Neovim pane sets the variable the other way
-   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). Discovery is only ever the
-   leftover case of two panes neither of which created the other, and that is what criterion 3 is
-   measured against.
-
-   **Amended 2026-09-05: a set variable SELECTS from the verified set, it is not used as-is.** This
-   step originally said an injected socket is used as-is, subject to step 3 alone. A path that
-   reaches step 3 without steps 2 and 4 is a hole: the value can be stale, or written by anything
-   able to set an environment variable, and the resolver would then connect to whatever answers on
-   it, which is any Neovim the caller can open. PR 10a therefore builds the candidate set first
-   (steps 2 and 3) and lets the variable pick one of its members; a socket outside that set is
-   refused with both the socket and the tab named. Two consequences, both accepted: `HERDR_PANE_ID`
-   is required even when a socket is pinned, so the resolver does not run outside herdr at all, and
-   a pin naming a Neovim in ANOTHER tab refuses. Neither costs a real workflow, because both
-   injection directions split the pane inside the caller's own tab.
-1. **Topology match.** The agent's pane is not the Neovim pane, but herdr knows both:
-   `herdr pane layout --pane <id>` gives that pane's tab and its siblings, and one sibling matches
-   the registry. Pass the pane id EXPLICITLY: `herdr pane current` answers the CALLER's pane, never
-   the session's focused one, so a resolver that asks it gets its own pane back and matches nothing.
-1. **Identity, not presence.** A socket that answers proves only that SOMETHING is there, and socket
-   paths are reused, so a stale registry entry can resolve to a DIFFERENT Neovim. After connecting,
-   ask the instance over the remote-procedure-call channel for its own pane id and pid and compare
-   both against the registry entry; only a match makes it a candidate, and a mismatch prunes the
-   entry on the spot. This is recurring bug class 14, identity is not presence, which has cost this
-   repository once already.
-
-   ```bash
-   nvim --server "$sock" --remote-expr \
-     'join([getenv("HERDR_PANE_ID"), getpid()], " ")'
-   ```
-
-   The candidate list is then narrowed to the caller's `$HERDR_WORKSPACE_ID`, which the agent's pane
-   exports like every pane, and to the tab step 2 named.
-1. **Pick, do not stall.** More than one verified candidate is a PICKER, not a refusal, and never a
-   guess, because a guess edits the wrong buffer. What the picker IS differs by row.
-
-   On the CRATE row it is a TOOL RESULT rather than a user interface: the MCP server is something
-   the agent calls, so it returns a payload ENUMERATING the candidates (pane id, cwd, current file,
-   pid) together with the exact argument that disambiguates them, and the agent then asks its own
-   user or applies a rule its caller supplied. No terminal is required anywhere, which is what makes
-   this reachable from a resolver that owns no window.
-
-   **On the RESOLVER row it is a refusal that enumerates, ruled 2026-09-05.** A wrapper that `exec`s
-   the server either becomes that server or exits, and a process that has exited has no tool result
-   to return, so the resolver exits 4 and writes one line per candidate (socket, pane id, pid) to
-   stderr, which both harnesses surface as server-startup text. The agent sees every candidate, and
-   the operator disambiguates with `NVIM_MCP_SOCKET` or by launching the agent from Neovim
-   (`<leader>Cc`). This is accepted rather than worked around for one measured reason: PR 9 could
-   not produce the ambiguous case in normal use, because one Neovim per workspace is the ordinary
-   shape and the tab narrows what is left, so the enumeration fires rarely and costs one command
-   when it does. The structured tool result stays the crate row's behavior and is the upgrade path
-   if the ambiguous case turns out to be common.
-1. **Refuse only when nothing is alive.** Zero verified candidates is a refusal with the reason
-   named and the instruction to launch the agent from Neovim (`<leader>Cc`) or to export
+1. **An explicit pin wins.** `NVIM_MCP_SOCKET` names the socket, and it is used if a Neovim answers on
+   it. Whichever side creates the other writes it down: a Neovim that spawns an agent pane passes its
+   own socket with `herdr pane split --env NVIM_MCP_SOCKET=<vim.v.servername>` (7.2; `--env` is
+   verified to exist on 0.8.2), and an agent pane that spawns a Neovim sets the variable the other way
+   and starts the editor on it (`nvim --listen "$NVIM_MCP_SOCKET"`). A pin nobody answers on is REFUSED
+   (exit 3), never quietly replaced by discovery, because it is the operator's explicit choice.
+1. **Else the pane socket.** `HERDR_PANE_ID` gives the path, and it is used if a Neovim answers on it.
+   The id must match `^[A-Za-z0-9:-]{1,64}$`, and its colon is written as a dot (`wW:p3K` becomes
+   `herdr-pane-wW.p3K.sock`), because `serverstart()` reads any address holding a colon as TCP
+   (`:help serverstart()`). Liveness is one bounded `nvim --server <path> --remote-expr 1`, two
+   seconds by default, and only the exact reply passes. Nothing answering is a refusal (exit 3) that
+   names the pane and both remedies: launch the agent from Neovim (`<leader>Cc`), or export
    `NVIM_MCP_SOCKET`.
+1. **Neither set: nvim-mcp's own `--connect auto`.** Outside herdr there is no pane to derive from, and
+   the server's own heuristic is the best answer available.
+
+**Why a socket name and not a registry.** The registry this replaced (one record per instance in a 0700
+state directory, published by rename, pruned by an identity probe, matched to the agent's tab through
+`herdr pane layout`) was correct by construction on paper and cost five review rounds of hardening in
+practice: a directory-creation race, a symlink planted at the record path, a path validated under one
+name and used under another, whitespace in a recorded pathname, a TCP endpoint in a record, and the
+record of a healthy instance deleted. Every one of those defects existed only because there was a
+second copy of the truth to keep consistent with the socket. The socket IS the registration: Neovim
+binds it at start and removes it at exit; a stale one left by a crash is refused by the probe until
+the next `serverstart()` on that path replaces it (measured on 0.12.5, the replacement answers); and
+there is nothing to prune, canonicalize or race. The first Neovim in a pane owns the name: a nested
+Neovim, or one in a terminal split, inherits the same pane id, finds the name taken, swallows that and
+keeps its default socket, so the outer editor is the one the agent reaches. There is no picker,
+because a pane has one name.
+
+**The run root.** `stdpath("run")` is NOT that root: with `XDG_RUNTIME_DIR` unset (macOS) it is a
+PER-PROCESS directory, `$TMPDIR/nvim.<user>/<random>`, which no other process can compute. Both sides
+use its parent, `$TMPDIR/nvim.<user>`, the 0700 directory Neovim itself creates and checks, and the
+listing root `:help serverstart()` documents; with `XDG_RUNTIME_DIR` set (Linux) the root is that
+directory itself. The resolver asks Neovim for `stdpath("run")` once (a headless `--clean` start,
+about 20 ms, under the probe's deadline) rather than recomputing it, so TMPDIR handling and the user
+name stay Neovim's. Exported EMPTY, `XDG_RUNTIME_DIR` makes Neovim report an empty run dir and start no
+default server at all; the pane then gets no socket and the resolver exits 2.
+
+**What discovery does not cover, accepted.** An agent started by hand in a pane BESIDE the Neovim pane,
+neither created by the other, has a pane id of its own and finds no socket under it; it is refused
+with the two remedies. The old topology step (siblings from `herdr pane layout`) covered that case at
+the price of the registry it needed and a picker for two editors in one tab. If that case turns out to
+be common, the compatible extension is a sibling lookup over the same pane-named sockets, not a
+registry.
 
 **Sticky selection, amended 2026-09-05 for the resolver row.** The promise this section carried was
 that a resolved instance is remembered and step 3's identity check re-runs on EVERY use, a failed
@@ -1202,45 +1194,28 @@ for both harnesses means a new session. Accepted rather than worked around, beca
 reach inside a server it has become: automatic recovery is server lifecycle work and lives on the
 crate row. The cost of choosing is still paid once per session rather than once per call.
 
-**The registry is correct by construction.** Neovim registers `{ pane_id, socket, cwd, pid }` on
-start and DEREGISTERS on `VimLeavePre`, so steps 3 and 5 are a backstop rather than the mechanism.
-The discovery fallback, listing `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0` (the runtime
-root Neovim documents, `:help serverstart()`, `vimfn.txt:8813`; `$TMPDIR` alone is the macOS case and
-misses every Linux socket), is what covers an instance that died without running its autocommand.
+**The resolver is capped at 150 EXECUTABLE lines of bash with a test on its behavior.** The 80-line
+cap this section first carried was written against the three-step order; the registry design measured
+155 executable lines of 307 and needed the cap amended to executable lines to fit at all. The
+pane-socket resolver measures 49 executable lines of 107, which is what removing the second copy of
+the truth bought. The cap stands, counted over executable lines so that it never pays an author to
+delete the commentary this repository's reviews ask for, and a resolver whose executable logic cannot
+fit is still the signal to take the crate row instead.
 
-The resolver is capped at 150 EXECUTABLE lines of bash with a test on its behavior. The 80-line cap
-this section carried was written against the three-step order and does not survive the registry, the
-identity check, the picker and the memo.
+**The trust boundary, stated 2026-09-05.** The resolver probes a socket in one `nvim --remote-expr`
+process and hands its path to a second process, the MCP server, so a process running as the same user
+can rebind that path in between and the instance probed need not be the instance edited. That is
+recorded as a limit rather than closed, because same-user is INSIDE the trust boundary on this machine
+rather than across it: any process running as the operator can already read `~/.claude.json`, edit any
+file in any repository and run the agent itself, so an attacker able to rebind the socket has no need
+to. The only real closure for the same-user case is a server that verifies its peer over the
+connection it then keeps, which no wrapper can do and which is the crate row.
 
-**Amended 2026-09-05: the cap counts EXECUTABLE lines, not the whole file.** PR 10a measured 187
-lines total: 100 executable, 74 comment and 13 blank, and 40 of those comment lines are the header
-the reviews required, carrying the steps it departs from, the exit codes and the limit below.
-Counting comments toward a size cap pays an author to delete the commentary this repository's reviews
-ask for, which is the opposite of what the cap exists to buy. So the cap binds the executable logic,
-PR 10a states its measured composition in the body, and a resolver whose EXECUTABLE logic cannot fit
-is still the signal to take the crate row instead.
-
-**The trust boundary, stated 2026-09-05.** The resolver verifies an instance's pane and pid over one
-`nvim --remote-expr` process and then hands the socket path to a second process, the MCP server, so a
-process running as the same user can rebind that path in between and the instance checked need not be
-the instance edited. That is recorded as a limit rather than closed, because same-user is INSIDE the
-trust boundary on this machine rather than across it: any process running as the operator can already
-read `~/.claude.json`, edit any file in any repository and run the agent itself, so an attacker able
-to rebind the socket has no need to. The only real closure for the same-user case is a server that
-verifies pane and pid over the connection it then keeps, which no wrapper can do and which is the
-crate row.
-
-What the resolver defends against is another ACCOUNT, and the guarantee is narrower than a 0700
-registry alone would suggest. `nvim --listen` accepts a TCP address or any path it is given, and
-Neovim trusts every remote-procedure-call peer it accepts, so an endpoint another account can reach
-is one that account can rebind once the owner dies and then answer the identity probe from, with a
-pane and pid of its choosing, through a record this repository genuinely wrote. A 0700 registry stops
-another account planting a RECORD; it says nothing about where that record points. So the guarantee
-is stated over the ENDPOINT as well: the resolver connects only to a unix socket inside a directory
-the caller owns at mode 0700, which is what Neovim's own default runtime root under
-`stdpath("run")` gives, and it refuses a recorded TCP endpoint or a socket in a looser directory by
-name rather than skipping it. Outside that shape there is no cross-account guarantee, and a
-deployment that moves sockets elsewhere loses it.
+What the design defends against is another ACCOUNT, and it does so by placement rather than by checks.
+The pane socket lives in the run root Neovim itself creates at 0700 and refuses to use when it is not
+its own, the same directory that holds every default socket, so there is no record another account can
+plant and no endpoint outside that directory the resolver will ever derive. A deployment that moves
+sockets elsewhere loses that.
 
 The custom server, if built: a Rust crate under `~/.local/share/nvim-workspace-mcp` (proposed name,
 function-named, no handle; confirm before it is created), built by a `run_onchange_after_59`-style
