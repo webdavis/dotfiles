@@ -2681,11 +2681,17 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
             // bound I configured": a build that ignored the configured value
             // and used one of its own would say so here.
             //
+            // IT NAMES THE SUBMISSION, NOT THE PHONE. What ran out here is the
+            // local daemon acknowledging `moshi-hook`'s registration, the wait
+            // the doc comment above describes; the operator's own answer never
+            // travels this path, so a sentence about the phone not answering
+            // would blame the wrong party.
+            //
             // NO FREE TEXT, in the decision ring's spirit: one integer and
             // fixed words, so nothing of the operator's own content reaches a
             // channel the harness may surface.
             eprintln!(
-                "pns: the phone did not answer within {}ms; the prompt was released",
+                "pns: the moshi submission did not finish within {}ms; the prompt was released",
                 deadline.as_millis()
             );
             return 0;

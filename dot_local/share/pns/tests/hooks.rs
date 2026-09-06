@@ -2205,7 +2205,9 @@ const GATE_SILENT_MOSHI_DEADLINE_MS: &str = "400";
 /// one of its own still fails because the number in the sentence would be its
 /// own.
 fn expiry_line(deadline_ms: &str) -> String {
-    format!("pns: the phone did not answer within {deadline_ms}ms; the prompt was released")
+    format!(
+        "pns: the moshi submission did not finish within {deadline_ms}ms; the prompt was released"
+    )
 }
 
 /// Everything the child wrote to stderr, read to EOF on its own thread for
