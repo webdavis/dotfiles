@@ -13,6 +13,7 @@
 //! diagnostic. A port that returned a result would offer a decision no caller
 //! can act on.
 
+use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
 use pns_domain::notification::EventArgs;
 
@@ -60,11 +61,22 @@ pub struct Claim {
     pub waiting: Vec<Entry>,
 }
 
-/// What the lamps were last told, so a tick that would repeat itself does not
-/// spend a bridge call saying it again.
+/// The lamp records this event writes: what is news, and what is held.
+///
+/// TWO OPERATIONS AND NOT A READ-THEN-WRITE. `news` decides whether this event
+/// is news at all and claims the record in one step, because a caller that
+/// could read the last behaviour and then write a new one would race a second
+/// event through the gap. `clear_held` puts out every lamp the held file
+/// names and works off names alone, so it writes nothing back.
+///
+/// NO CLOCK IS NO RECORD, never a record at epoch zero: the bound that ages a
+/// record out is measured against this number.
+///
+/// Checked against `record_news` (`src/main.rs:6595`) and `clear_held_lamps`
+/// (`src/main.rs:3308`). Statements: S230.
 pub trait LampRecords {
-    fn last_written(&self) -> Option<String>;
-    fn remember(&self, state: &str);
+    fn news(&self, behaviour: Behaviour, now: Option<u64>);
+    fn clear_held(&self);
 }
 
 /// The daemon's spool of scheduled jobs.
