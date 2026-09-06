@@ -2673,6 +2673,21 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
             // holding its slot until pns exits, and the wait is instant on a
             // process already killed.
             let _ = child.wait();
+            // SAID OUT LOUD, AND THE BOUND IS IN THE SENTENCE. An expiry used
+            // to be silent, so an operator whose daemon was wedged saw a
+            // prompt appear late and was told nothing about why. The number is
+            // the deadline THIS wait actually honoured, which is what makes
+            // the sentence answer "how long did it wait, and was that the
+            // bound I configured": a build that ignored the configured value
+            // and used one of its own would say so here.
+            //
+            // NO FREE TEXT, in the decision ring's spirit: one integer and
+            // fixed words, so nothing of the operator's own content reaches a
+            // channel the harness may surface.
+            eprintln!(
+                "pns: the phone did not answer within {}ms; the prompt was released",
+                deadline.as_millis()
+            );
             return 0;
         }
         std::thread::sleep(SUBMISSION_POLL_INTERVAL);
