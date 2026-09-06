@@ -1,6 +1,8 @@
 //! Carrying a signal outward: the destinations, and the approval round trip.
 
+use pns_domain::lamps::config::Behaviour;
 use pns_domain::notification::Event;
+use pns_domain::presence::narrowing::Snapshot;
 use pns_domain::routing::{Delivery, ReportMode};
 
 /// One destination a rendered event can reach.
@@ -29,4 +31,26 @@ pub trait NotificationDestination {
 /// is what owns the child process and the socket.
 pub trait ApprovalForwarder {
     fn ask(&self, event: &Event) -> Option<bool>;
+}
+
+/// The catch-up: whatever the journal is holding, delivered now.
+///
+/// WHETHER TO REPLAY IS THE CALLER'S QUESTION, not this port's. The use case
+/// asks the domain first and only then calls this, so an observation or a
+/// nudge reaches no adapter at all and an ordering test can say so. What the
+/// replay is delivered THROUGH, and which of the operator's channels count as
+/// somewhere they would see it, is bound into the adapter. Statements: S106.
+pub trait MissedReplay {
+    fn replay(&self);
+}
+
+/// The lamps, signalled for this event.
+///
+/// LAST ON THE EVENT PATH, after every channel the operator might be waiting
+/// on. It is part of the plan rather than a second invocation, but it talks to
+/// a bridge over the network under a deadline, and nothing an operator reads
+/// should queue behind decoration. It still fires for a plan that reached no
+/// channel at all: the lights are not a leg. Statements: S218, S230.
+pub trait LampSignal {
+    fn pulse(&self, behaviour: Behaviour, presence: Option<&Snapshot>);
 }

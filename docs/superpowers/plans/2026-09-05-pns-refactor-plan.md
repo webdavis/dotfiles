@@ -325,25 +325,29 @@ declares. Declares, test-first, the ports the later use cases need: `Clock`, `No
 `home.rs`), `CommandRunner` (from `system.rs`). `Event` comes with them, out of `channels/mod.rs` and
 into `pns-domain/src/notification.rs`: `NotificationDestination` hands one to a destination, and a port
 may not name a type the adapters own. Its `to_json` stays where the JSON is, as the free function
-`event_json`, because an inherent impl may only be written in the crate that defines the type. Tests: the
-`engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a port carries logic
-(none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests ~350;
-`selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to
-S091, S124.
+`event_json`, because an inherent impl may only be written in the crate that defines the type. THAT LIST
+IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a loop lease, runs the
+catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
+`MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, so that PR 6.2 moves an
+ordering over ports that already exist. Tests: the `engine.rs` probe-count tests (`CountingProbes`) by
+name; new port tests only where a port carries logic (none should). Sizes: `ports/*.rs` under 130 each;
+`environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the
+read-only-where-idle-answered rule), S089 to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
 `record_activity`, `update_blocked_marker`, `record_news`, `renew_loop_lease`, `mark_present`, the pulse
 gate, `clear_held_lamps`, `register_lights_tick`) into `pns-application/src/submit_notification.rs` as
-one use case over the PR 6.1 ports, keeping today's ordering exactly (decide, snapshot, dispatch,
-decision record, journal, marker, news, lease, activity, replay, edge, pulse, clear, tick). The
-filesystem bodies of those records stay in the root package behind port implementations until step 11.
-Tests written first: one ordering test per tail item using recording fakes for the ports (the order is
-the behavior, S072, S157, S158, S161); the existing `tests/dispatch.rs` rows stay as the acceptance
-tests. Consumer: every hook and every producer. Sizes: `submit_notification.rs` ~280 (the 300 target
-binds here; the tail becomes a `record_tail.rs` of ~200 if it does not fit),
-`submit_notification/tests.rs` ~400. Statements: S006, S017, S021, S072, S080, S106, S117, S218, S230,
-S231.
+one use case over the ports of PR 6.1 and PR 6.1b (`BlockedMarker`, `LoopLease`, `MissedReplay` and
+`LampSignal` are 6.1b's, because the tail writes four records 6.1's list did not name), keeping today's
+ordering exactly (decide, snapshot, dispatch, decision record, journal, marker, news, lease, activity,
+replay, edge, pulse, clear, tick). The filesystem bodies of those records stay in the root package behind
+port implementations until step 11. Tests written first: one ordering test per tail item using recording
+fakes for the ports (the order is the behavior, S072, S157, S158, S161); the existing `tests/dispatch.rs`
+rows stay as the acceptance tests. Consumer: every hook and every producer. Sizes:
+`submit_notification.rs` ~280 (the 300 target binds here; the tail becomes a `record_tail.rs` of ~200 if
+it does not fit), `submit_notification/tests.rs` ~400. Statements: S006, S017, S021, S072, S080, S106,
+S117, S218, S230, S231.
 
 **PR 6.3 `RequestApproval`.** Moves `blocking_event`, `forward_to_moshi`, `answer_within`,
 `moshi_decision`, `submit_deadline`, `configured_submit_deadline`, `SUBMISSION_POLL_INTERVAL`, and

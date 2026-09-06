@@ -78,3 +78,24 @@ pub trait JobSpool {
     fn due(&self, now: u64) -> Vec<String>;
     fn claim(&self, id: &str) -> bool;
 }
+
+/// The marker behind the blocked lamp: one wait, started and cleared.
+///
+/// `lamps_live` IS THE CALLER'S ANSWER AND NOT THIS PORT'S. A start is only
+/// written where a lamp map and a transport are both live, because a marker
+/// written with no lamp to read it is a wait nothing will ever clear; a clear
+/// is written regardless, since a marker left behind by a live evening must
+/// still be cleared when the lamps go away. Statements: S117.
+pub trait BlockedMarker {
+    fn update(&self, session_id: &str, event_state: &str, lamps_live: bool, now: Option<u64>);
+}
+
+/// The loop lease this pane holds, if it holds one.
+///
+/// IT RENEWS AND NEVER CREATES. The renewal is the pane's own ordinary
+/// traffic, which is what makes the lease a liveness signal rather than a
+/// timer; a machine with no lamps pays one failed open and keeps no state.
+/// NO CLOCK IS NO RENEWAL, never a renewal at epoch zero.
+pub trait LoopLease {
+    fn renew(&self, pane: &str, now: Option<u64>);
+}
