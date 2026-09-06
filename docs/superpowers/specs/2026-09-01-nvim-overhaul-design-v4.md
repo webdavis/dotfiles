@@ -1162,10 +1162,16 @@ record of a healthy instance deleted. Every one of those defects existed only be
 second copy of the truth to keep consistent with the socket. The socket IS the registration: Neovim
 binds it at start and removes it at exit; a stale one left by a crash is refused by the probe until
 the next `serverstart()` on that path replaces it (measured on 0.12.5, the replacement answers); and
-there is nothing to prune, canonicalize or race. The first Neovim in a pane owns the name: a nested
-Neovim, or one in a terminal split, inherits the same pane id, finds the name taken, swallows that and
-keeps its default socket, so the outer editor is the one the agent reaches. There is no picker,
-because a pane has one name.
+there is nothing to canonicalize or race. The one piece of housekeeping is a sweep each pane Neovim
+runs before it binds: it lists our `herdr-pane-*.sock` names in the run root (by entry name, never a
+stat pass over the thousands of per-process directories there, and never Neovim's own `nvim.<pid>.0`
+sockets), tries one connect on each, and unlinks the ones that refuse. That is hygiene, not
+correctness: the resolver refuses a dead socket by probing it, and macOS clears `$TMPDIR` itself,
+at boot and daily for items older than three days (`com.apple.bsd.dirhelper`,
+`CLEAN_FILES_OLDER_THAN_DAYS=3`). The first Neovim in a pane owns the name: a nested Neovim, or one
+in a terminal split, inherits the same pane id, finds the name taken, swallows that and keeps its
+default socket, so the outer editor is the one the agent reaches. There is no picker, because a pane
+has one name.
 
 **The run root.** `stdpath("run")` is NOT that root: with `XDG_RUNTIME_DIR` unset (macOS) it is a
 PER-PROCESS directory, `$TMPDIR/nvim.<user>/<random>`, which no other process can compute. Both sides

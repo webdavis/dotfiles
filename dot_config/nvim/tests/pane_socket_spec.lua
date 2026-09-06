@@ -37,6 +37,46 @@ local function serving(path)
   return vim.tbl_contains(vim.fn.serverlist(), path)
 end
 
+-- A second headless Neovim listening on `path`, so a case has a socket owned
+-- by ANOTHER process. Returns its job once the socket exists.
+local function other_neovim(path)
+  -- TMPDIR under this process's own temp tree: a child killed with SIGKILL
+  -- never removes its per-process directory, and the real run root must not
+  -- collect one per test run.
+  local job = vim.fn.jobstart(
+    { "nvim", "--headless", "--clean", "--listen", path },
+    { env = { TMPDIR = vim.fs.dirname(path) .. "/" } }
+  )
+  assert(job > 0, "could not start a second nvim")
+  assert(
+    vim.wait(3000, function()
+      return vim.uv.fs_stat(path) ~= nil
+    end, 5),
+    "no socket appeared at " .. path
+  )
+  return job
+end
+
+-- What a crash leaves behind: the socket file with nobody behind it.
+local function dead_socket(path)
+  local job = other_neovim(path)
+  vim.uv.kill(vim.fn.jobpid(job), "sigkill")
+  vim.fn.jobwait({ job }, 2000)
+  assert(vim.uv.fs_stat(path), "kill -9 removed the socket, which it never does")
+end
+
+local function exists(path)
+  return vim.uv.fs_stat(path) ~= nil
+end
+
+local function answers(path)
+  local ok, channel = pcall(vim.fn.sockconnect, "pipe", path, { rpc = true })
+  if ok then
+    vim.fn.chanclose(channel)
+  end
+  return ok
+end
+
 return {
   ["a pane id becomes a socket path in the run root, with its colon written as a dot"] = function()
     local root = private_root()
@@ -121,6 +161,56 @@ return {
       assert(vim.deep_equal(vim.fn.serverlist(), before), "servers changed: " .. vim.inspect(vim.fn.serverlist()))
       assert(vim.v.servername == servername, "v:servername changed to " .. vim.v.servername)
       vim.fn.serverstop(expected)
+    end)
+  end,
+
+  ["sweep removes a pane socket whose Neovim is gone"] = function()
+    local root = private_root()
+    local dead = root .. "/herdr-pane-w9.p1.sock"
+    dead_socket(dead)
+    pane_socket().sweep(root)
+    assert(not exists(dead), dead .. " survived the sweep")
+  end,
+
+  ["sweep leaves a pane socket that answers alone"] = function()
+    local root = private_root()
+    local live = root .. "/herdr-pane-w9.p2.sock"
+    local job = other_neovim(live)
+    pane_socket().sweep(root)
+    local kept = exists(live) and answers(live)
+    vim.fn.jobstop(job)
+    assert(kept, live .. " was removed although its Neovim was alive")
+  end,
+
+  ["sweep never touches a name that is not ours"] = function()
+    local root = private_root()
+    local foreign = { root .. "/nvim.4242.0", root .. "/notes.sock", root .. "/herdr-pane-w9.p3.socket" }
+    for _, path in ipairs(foreign) do
+      assert(io.open(path, "w"), "could not write " .. path):close()
+    end
+    -- Neovim's own socket name, dead, the exact shape the sweep must skip.
+    dead_socket(root .. "/nvim.99999.0")
+    pane_socket().sweep(root)
+    for _, path in ipairs(foreign) do
+      assert(exists(path), path .. " was removed")
+    end
+    assert(exists(root .. "/nvim.99999.0"), "a dead nvim.<pid>.0 socket was removed")
+  end,
+
+  ["sweep on a root that does not exist is a no-op"] = function()
+    pane_socket().sweep(private_root() .. "/missing")
+  end,
+
+  ["listen() sweeps the root before it binds"] = function()
+    local root = private_root()
+    local dead = root .. "/herdr-pane-w9.p4.sock"
+    local mine = root .. "/herdr-pane-w9.p5.sock"
+    dead_socket(dead)
+    with_env({ XDG_RUNTIME_DIR = root, HERDR_PANE_ID = "w9:p5" }, function()
+      pane_socket().listen()
+      assert(not exists(dead), dead .. " survived listen()")
+      assert(serving(mine), "not serving " .. mine)
+      vim.fn.serverstop(mine)
     end)
   end,
 }
