@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
-# nvim-mcp-connect.sh, the RESOLVING half: every case that ends with an
-# instance chosen, or with the picker that refuses to choose between two. The
-# refusals and the guards live in nvim-mcp-connect-refusals.sh, so that each
-# file stays inside the one-second budget.
+# nvim-mcp-connect.sh, the RESOLVING half: every case that ends with the server
+# exec'd against a socket. The refusals and the guards live in
+# nvim-mcp-connect-refusals.sh, so that each file stays inside the one-second
+# budget.
 #
-#   a) an injected socket that IS a verified in-tab candidate -> it is used
-#   b) an injected socket that is NOT -> refused, naming the socket and the tab
-#   c) a registry record whose identity matches           -> that socket is used
-#   d) an identity MISMATCH  -> only that record is deleted, the next one wins
-#   f) two candidates        -> picker, exit 4, both enumerated
-#   g) two instances sharing ONE pane id -> both survive and both are enumerated
-#   h) a dead-pid socket in the glob -> filtered by kill -0 BEFORE any RPC
-#   q) a successful resolution leaves no probe file behind
-#   t) the runtime root is found whether or not TMPDIR ends in a slash
-#   v) a record naming an ABSENT path is pruned without ever being probed
-#   x) a pin written through a symlink still selects its candidate
-#
-# Cases a and b are one behavior, the injected pin SELECTING from the verified
-# set, so they stay together here rather than splitting across the two files.
+#   a) a live NVIM_MCP_SOCKET pin wins, and the pane socket is never probed
+#   b) HERDR_PANE_ID resolves to the live pane socket, colon written as a dot,
+#      under XDG_RUNTIME_DIR, with no run-dir query
+#   c) without XDG_RUNTIME_DIR the run root is the PARENT of what nvim reports
+#      as stdpath("run")
+#   d) no pane id and no pin falls back to nvim-mcp's own `--connect auto`
 #
 set -euo pipefail
 
@@ -25,196 +17,43 @@ set -euo pipefail
 # shellcheck source=helpers/nvim-mcp-connect.sh
 source "$(dirname "${BASH_SOURCE[0]}")/helpers/nvim-mcp-connect.sh"
 
-# --- a) an injected socket that IS a verified in-tab candidate ---------------
-# Topology runs for the injected case too: the pin selects from the verified
-# set rather than bypassing it.
-setup_case injected-match
-write_layout w1:t1 w1:p1 w1:p2
-record w1:p2 4242 "$CASE/run/n1.sock"
-printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1 NVIM_MCP_SOCKET="$CASE/run/n1.sock"
-[[ $RC -eq 0 ]] || fail "injected-match: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "--connect $CASE/run/n1.sock" "$CASE/exec" ||
-  fail "injected-match: the server was not run against the pinned socket"
-[[ -f $CASE/herdr-argv ]] || fail 'injected-match: topology was skipped for the injected path'
+# --- a) a live pin wins over the pane ----------------------------------------
+# Both are live, so the only thing that can pick the pin is the order.
+setup_case pin-wins
+live "$CASE/run/pinned.sock" "$CASE/run/herdr-pane-w1.p2.sock"
+run_case HERDR_PANE_ID=w1:p2 XDG_RUNTIME_DIR="$CASE/run" NVIM_MCP_SOCKET="$CASE/run/pinned.sock"
+[[ $RC -eq 0 ]] || fail "pin-wins: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $CASE/run/pinned.sock" "$CASE/exec" ||
+  fail "pin-wins: the server was not run against the pin ($(cat "$CASE/exec" 2>/dev/null))"
+grep -qF "herdr-pane" "$CASE/probed" && fail 'pin-wins: the pane socket was probed although a pin was set'
 
-# --- b) an injected socket that is NOT a verified candidate ------------------
-setup_case injected-mismatch
-write_layout w1:t1 w1:p1 w1:p2
-record w1:p2 4242 "$CASE/run/n1.sock"
-{
-  printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock"
-  printf '%s|w1:p9 9999\n' "$CASE/run/elsewhere.sock"
-} >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1 NVIM_MCP_SOCKET="$CASE/run/elsewhere.sock"
-[[ $RC -eq 3 ]] || fail "injected-mismatch: expected exit 3, got $RC ($(cat "$CASE/err"))"
-grep -qF "$CASE/run/elsewhere.sock" "$CASE/err" ||
-  fail "injected-mismatch: the refusal does not name the socket asked for ($(cat "$CASE/err"))"
-grep -qF "w1:t1" "$CASE/err" || fail "injected-mismatch: the refusal does not name the tab"
-[[ ! -f $CASE/exec ]] || fail 'injected-mismatch: it connected anyway'
+# --- b) the pane id names the socket -----------------------------------------
+# w1:p2 must reach herdr-pane-w1.p2.sock: serverstart() reads a colon as a TCP
+# address, so the Neovim side writes it as a dot and the resolver must agree.
+setup_case pane
+live "$CASE/run/herdr-pane-w1.p2.sock"
+run_case HERDR_PANE_ID=w1:p2 XDG_RUNTIME_DIR="$CASE/run"
+[[ $RC -eq 0 ]] || fail "pane: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $CASE/run/herdr-pane-w1.p2.sock" "$CASE/exec" ||
+  fail "pane: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
+[[ ! -e $CASE/queried ]] || fail 'pane: nvim was asked for the run dir although XDG_RUNTIME_DIR was set'
 
-# --- c) a registry record whose identity matches -----------------------------
-setup_case registry-hit
-write_layout w1:t1 w1:p1 w1:p2
-make_socket "$CASE/run/n1.sock"
-record w1:p2 4242 "$CASE/run/n1.sock"
-printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 0 ]] || fail "registry-hit: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "--connect $CASE/run/n1.sock" "$CASE/exec" || fail 'registry-hit: wrong socket'
+# --- c) the run root is asked from nvim and is the parent of its answer ------
+# stdpath("run") is per process on 0.12 ($TMPDIR/nvim.<user>/<random>), so the
+# shared root is its parent. The stub reports $CASE/run/a1b2c3.
+setup_case run-root
+live "$CASE/run/herdr-pane-w1.p2.sock"
+run_case HERDR_PANE_ID=w1:p2
+[[ $RC -eq 0 ]] || fail "run-root: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $CASE/run/herdr-pane-w1.p2.sock" "$CASE/exec" ||
+  fail "run-root: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
+[[ -s $CASE/queried ]] || fail 'run-root: nvim was never asked for the run dir'
 
-# --- d) identity mismatch deletes ONLY that record, the next one wins --------
-# The stale record's socket ANSWERS (a different Neovim reused the path), which
-# is exactly why presence is not identity.
-setup_case identity-mismatch
-write_layout w1:t1 w1:p1 w1:p2 w1:p3
-make_socket "$CASE/run/stale.sock" "$CASE/run/live.sock"
-record w1:p2 4242 "$CASE/run/stale.sock"
-record w1:p3 4343 "$CASE/run/live.sock"
-{
-  printf '%s|w1:p9 9999\n' "$CASE/run/stale.sock"
-  printf '%s|w1:p3 4343\n' "$CASE/run/live.sock"
-} >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 0 ]] || fail "identity-mismatch: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "--connect $CASE/run/live.sock" "$CASE/exec" ||
-  fail 'identity-mismatch: resolved the stale record'
-[[ ! -e $CASE/registry/4242 ]] || fail 'identity-mismatch: the stale record was not deleted'
-[[ -e $CASE/registry/4343 ]] || fail 'identity-mismatch: it deleted the good record too'
+# --- d) nothing to resolve from falls back to auto ---------------------------
+setup_case auto
+run_case
+[[ $RC -eq 0 ]] || fail "auto: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect auto" "$CASE/exec" || fail "auto: wrong argv ($(cat "$CASE/exec" 2>/dev/null))"
+[[ ! -e $CASE/probed && ! -e $CASE/queried ]] || fail 'auto: nvim was consulted with nothing to resolve from'
 
-# --- f) two verified candidates are a picker, not a guess --------------------
-setup_case picker
-write_layout w1:t1 w1:p1 w1:p2 w1:p3
-make_socket "$CASE/run/a.sock" "$CASE/run/b.sock"
-record w1:p2 4242 "$CASE/run/a.sock"
-record w1:p3 4343 "$CASE/run/b.sock"
-{
-  printf '%s|w1:p2 4242\n' "$CASE/run/a.sock"
-  printf '%s|w1:p3 4343\n' "$CASE/run/b.sock"
-} >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 4 ]] || fail "picker: expected exit 4, got $RC ($(cat "$CASE/err"))"
-grep -qF "$CASE/run/a.sock" "$CASE/err" || fail 'picker: candidate a is not enumerated'
-grep -qF "$CASE/run/b.sock" "$CASE/err" || fail 'picker: candidate b is not enumerated'
-[[ ! -f $CASE/exec ]] || fail 'picker: it guessed and ran the server anyway'
-
-# --- g) a nested Neovim shares its parent's pane id and both survive ---------
-# One record file per pid is what makes this two candidates; a single shared
-# file keyed by pane would have kept only the last writer and picked it
-# silently.
-setup_case nested-pane
-write_layout w1:t1 w1:p1 w1:p2
-make_socket "$CASE/run/outer.sock" "$CASE/run/inner.sock"
-record w1:p2 4242 "$CASE/run/outer.sock"
-record w1:p2 4343 "$CASE/run/inner.sock"
-{
-  printf '%s|w1:p2 4242\n' "$CASE/run/outer.sock"
-  printf '%s|w1:p2 4343\n' "$CASE/run/inner.sock"
-} >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 4 ]] || fail "nested-pane: expected exit 4, got $RC ($(cat "$CASE/err"))"
-grep -qF "$CASE/run/outer.sock" "$CASE/err" || fail 'nested-pane: the outer instance is not enumerated'
-grep -qF "$CASE/run/inner.sock" "$CASE/err" || fail 'nested-pane: the inner instance is not enumerated'
-
-# --- h) a dead-pid socket is filtered before any RPC -------------------------
-# No registry record at all, so the runtime-root glob is the source. The
-# evaluation found 383 dead sockets and 0 live ones there.
-setup_case dead-socket
-write_layout w1:t1 w1:p1 w1:p4
-mkdir -p "$CASE/run/aaa" "$CASE/run/bbb"
-chmod 700 "$CASE/run/aaa" "$CASE/run/bbb"
-# shellcheck disable=SC2154  # dead_pid is set by the sourced helper
-dead_sock="$CASE/run/aaa/nvim.$dead_pid.0"
-live_sock="$CASE/run/bbb/nvim.$$.0"
-# BOTH are real sockets in a private directory, which is what the graveyard
-# actually holds: Neovim leaves the socket file behind whenever it does not exit
-# cleanly. So kill -0 on the pid in the filename is the ONLY thing that can tell
-# these two apart before a connection is attempted.
-make_socket "$dead_sock" "$live_sock"
-{
-  printf '%s|w1:p4 %s\n' "$dead_sock" "$dead_pid"
-  printf '%s|w1:p4 %s\n' "$live_sock" "$$"
-} >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 0 ]] || fail "dead-socket: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "--connect $live_sock" "$CASE/exec" || fail 'dead-socket: wrong socket'
-grep -qF "$dead_sock" "$CASE/probed" 2>/dev/null &&
-  fail 'dead-socket: the dead socket was probed over RPC instead of filtered by kill -0'
-
-# --- q) a successful resolution leaves no probe file behind -----------------
-# exec REPLACES this process, so the EXIT trap never runs and the probe file has
-# to be removed by hand first.
-setup_case probe-file-cleanup
-write_layout w1:t1 w1:p1 w1:p2
-record w1:p2 4242 "$CASE/run/n1.sock"
-printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
-# TMPDIR is the case's own directory, so the probe file is the only thing that
-# can be in it.
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 0 ]] || fail "probe-file-cleanup: expected exit 0, got $RC ($(cat "$CASE/err"))"
-left="$(find "$CASE/tmp" -type f | wc -l | tr -d ' ')"
-[[ $left -eq 0 ]] ||
-  fail "probe-file-cleanup: the probe file survived the exec ($left left in the case TMPDIR)"
-
-# --- t) the runtime root, with and without a trailing slash on TMPDIR -------
-# Neovim puts its default socket under $TMPDIR/nvim.<user>/. macOS sets TMPDIR
-# with a trailing slash and most other systems do not, so a resolver that
-# concatenates the two directly searches "<dir>nvim.<user>" on one of them and
-# finds nothing.
-for tmpdir_form in slash bare; do
-  setup_case "root-$tmpdir_form"
-  write_layout w1:t1 w1:p1 w1:p4
-  root="$CASE/tr"
-  socket_dir="$root/nvim.$(id -un)/1"
-  mkdir -p "$socket_dir"
-  chmod 700 "$root/nvim.$(id -un)" "$socket_dir"
-  live_sock="$socket_dir/nvim.$$.0"
-  make_socket "$live_sock"
-  printf '%s|w1:p4 %s\n' "$live_sock" "$$" >"$CASE/identity"
-  if [[ $tmpdir_form == slash ]]; then
-    run_case HERDR_PANE_ID=w1:p1 XDG_RUNTIME_DIR= TMPDIR="$root/"
-  else
-    run_case HERDR_PANE_ID=w1:p1 XDG_RUNTIME_DIR= TMPDIR="$root"
-  fi
-  [[ $RC -eq 0 ]] || fail "root-$tmpdir_form: expected exit 0, got $RC ($(cat "$CASE/err"))"
-  grep -qF -- "--connect $live_sock" "$CASE/exec" ||
-    fail "root-$tmpdir_form: the instance under the runtime root was not found"
-done
-
-# --- v) an absent recorded path is pruned, never probed ---------------------
-# A record whose socket is gone used to skip the endpoint checks and go
-# straight to the probe. Between that existence test and the connection another
-# account can bind the pathname, if it is one they can write, and then answer
-# the identity probe as the instance that is no longer there. Nothing may reach
-# the probe unvalidated, so an absent record is pruned on the spot.
-setup_case absent-record
-write_layout w1:t1 w1:p1 w1:p2
-absent_sock="/tmp/nmc-absent-$$.sock"
-[[ ! -e $absent_sock ]] || fail 'absent-record: the fixture path already exists'
-# Written directly, not through `record`, which would create the socket.
-printf 'w1:p2 4242 %s /repo\n' "$absent_sock" >"$CASE/registry/4242"
-# In the identity map on purpose: if the resolver probes it at all, the stub
-# answers and the case resolves, which is exactly the outcome being refused.
-printf '%s|w1:p2 4242\n' "$absent_sock" >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1
-[[ $RC -eq 3 ]] || fail "absent-record: expected exit 3, got $RC ($(cat "$CASE/err"))"
-[[ ! -s $CASE/probed ]] ||
-  fail "absent-record: the absent path was probed ($(cat "$CASE/probed"))"
-[[ ! -e $CASE/registry/4242 ]] || fail 'absent-record: the dead record was not pruned'
-[[ ! -f $CASE/exec ]] || fail 'absent-record: the server was run against an absent path'
-
-# --- x) a pin naming the same socket by a different path --------------------
-# Candidates are canonical, so a pin has to be canonicalized before it is
-# compared or it never matches anything the operator did not type in resolved
-# form. The record and the pin here name one socket by two paths.
-setup_case pin-alias
-write_layout w1:t1 w1:p1 w1:p2
-record w1:p2 4242 "$CASE/run/n1.sock"
-ln -s "$CASE/run" "$CASE/alias"
-printf '%s|w1:p2 4242\n' "$CASE/run/n1.sock" >"$CASE/identity"
-run_case HERDR_PANE_ID=w1:p1 NVIM_MCP_SOCKET="$CASE/alias/n1.sock"
-[[ $RC -eq 0 ]] || fail "pin-alias: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "--connect $CASE/run/n1.sock" "$CASE/exec" ||
-  fail "pin-alias: the pin did not select its candidate ($(cat "$CASE/exec" 2>/dev/null))"
-
-printf 'PASS: %s (11 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+printf 'PASS: %s (4 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
