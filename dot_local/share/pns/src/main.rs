@@ -821,42 +821,6 @@ fn record_decision(record: &pns::decision_log::Record) {
     );
 }
 
-/// Journal one event the operator could not have perceived, so a replayer can
-/// find it later. A delivered event writes nothing at all.
-///
-/// ITS OWN FUNCTION rather than a second job inside `record_decision`: the two
-/// records have different reasons to change, and this write is conditional
-/// where the decision's is not.
-///
-/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason. An
-/// event path whose stdout a harness hook reads must not gain a line about the
-/// state directory, and a journal entry that did not land costs a replay,
-/// never a card.
-///
-/// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
-/// decided from rather than by a second `SystemTime` call here: two readings
-/// of one moment can disagree.
-fn record_missed(
-    event: &pns::args::EventArgs,
-    decision: &pns::engine::Decision,
-    overrides: &Overrides,
-) {
-    if !pns::missed_notifications::was_missed(decision, overrides) {
-        return;
-    }
-    // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_ring_line(
-        &state_dir().join(MISSED_NOTIFICATIONS),
-        &pns::missed_notifications::entry(
-            event,
-            decision.inputs.now_secs,
-            render::PREVIEW_MAX_CHARS,
-        ),
-        pns::missed_notifications::KEPT,
-        RING_READ_MAX,
-    );
-}
-
 /// Start or end this session's wait on the operator, which is what the blocked
 /// lamp is derived from.
 ///
@@ -951,43 +915,6 @@ fn end_blocked_wait(session_id: &str) {
     if let Some(marker) = pns::lights::blocked_marker(&state_dir(), session_id) {
         let _ = std::fs::remove_file(&marker);
     }
-}
-
-/// Record one event in the activity ring, WHETHER OR NOT anybody perceived it.
-///
-/// THE THIRD FILE, and it exists because the two already here answer other
-/// questions. The decision ring refuses free text by design, since a human
-/// reads it through `pns doctor`; the journal is written only for events the
-/// operator COULD NOT have perceived, which is the opposite of what a return
-/// recap is about. The recap's window is the cards that WERE delivered,
-/// glanced at and forgotten, and neither existing file can see one.
-///
-/// NEVER CLAIMED AND NEVER CONSUMED, unlike the journal. It is a rolling
-/// window pruned by depth alone, which is what lets the detached recap child
-/// re-read it safely and what makes a recap idempotent by WINDOW rather than
-/// by deletion.
-///
-/// ITS OWN CAP AND ITS OWN READ CEILING, both stated on the constants. A recap
-/// line is one of a hundred, so it is capped far shorter than a card, and the
-/// depth that covers an overnight window needs a read ceiling of its own.
-///
-/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason: an
-/// event path whose stdout a harness hook reads must not gain a line about the
-/// state directory, and a missing entry costs one line of one recap.
-///
-/// THE PRIVACY RULE IS THE JOURNAL'S, INHERITED. This file holds the
-/// operator's own text for every event, at 0600 like every other state file,
-/// and nothing prints an entry to a terminal: `pns doctor` deliberately gains
-/// no activity line, and the only reader is the recap that delivers it to the
-/// same channels the live event reached.
-fn record_activity(event: &pns::args::EventArgs, decision: &pns::engine::Decision) {
-    // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_ring_line(
-        &state_dir().join(ACTIVITY),
-        &pns::missed_notifications::entry(event, decision.inputs.now_secs, ACTIVITY_MAX_CHARS),
-        ACTIVITY_KEPT,
-        ACTIVITY_READ_MAX,
-    );
 }
 
 /// Move the recap window's near edge to this event, when this event proves the
@@ -2336,36 +2263,86 @@ fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32
     // ONE probe set for the whole event: the forward decision below and the
     // delivery plan inside run_event are two questions about one moment.
     let probes = system_probes();
-    let forwarded = moshi_subcommand(agent)
+    // WHICH AGENTS FORWARD AT ALL, whether the payload is whole and whether
+    // the operator is reachable are the composition root's three reads; the
+    // ORDER of what follows is the use case's.
+    let subcommand = moshi_subcommand(agent)
         .filter(|_| payload_is_whole(payload_json))
-        .filter(|_| forward_to_moshi(&probes))
-        .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
-    if forwarded.is_some() {
-        // Suppressed here rather than by the plan: the card moshi is raising
-        // is something the surface model cannot know about.
+        .filter(|_| forward_to_moshi(&probes));
+    let approval = ApprovalPath {
+        probes: &probes,
+        payload,
+        child: std::cell::RefCell::new(None),
+    };
+    pns_application::request_approval::RequestApproval {
+        forwarder: &approval,
+        phone: &approval,
+        nag: &approval,
+        notifier: &approval,
+    }
+    .run(
+        &event,
+        &payload.session_id,
+        subcommand.as_deref(),
+        payload_json,
+    )
+}
+
+/// THE COMPOSITION ROOT'S SIDE OF ONE APPROVAL: the spawn, the wait, the
+/// environment variable and the notification, each behind the port the use
+/// case orders them through.
+///
+/// THE CHILD IS HELD HERE rather than crossing the port, because a
+/// `std::process::Child` is exactly what `pns-application` may not name. The
+/// port carries a `Forwarded` marker and this side keeps the process; there is
+/// one per run, so the cell holds at most one.
+struct ApprovalPath<'a> {
+    probes: &'a SystemProbes<SystemCommandRunner>,
+    payload: &'a HookPayload,
+    child: std::cell::RefCell<Option<std::process::Child>>,
+}
+
+impl pns_application::ports::delivery::ApprovalForwarder for ApprovalPath<'_> {
+    fn forward(
+        &self,
+        subcommand: &str,
+        payload_json: &str,
+    ) -> Option<pns_application::ports::delivery::Forwarded> {
+        let child = spawn_moshi_hook(subcommand, payload_json)?;
+        let id = child.id();
+        *self.child.borrow_mut() = Some(child);
+        Some(pns_application::ports::delivery::Forwarded(id))
+    }
+    fn answer(&self, _forwarded: pns_application::ports::delivery::Forwarded) -> i32 {
+        // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
+        // immediately before the wait, as it always was: threading it out of
+        // `run_event` would change that function's signature for one duration,
+        // and a view torn between the two reads costs at most this event.
+        match self.child.borrow_mut().take() {
+            Some(child) => answer_within(child, submit_deadline()),
+            None => 0,
+        }
+    }
+}
+
+impl pns_application::ports::notification::PhoneSuppression for ApprovalPath<'_> {
+    fn suppress(&self) {
+        // SAFETY: this is the hook path before any probe or channel thread
+        // exists, so nothing else can be reading the environment.
         unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
-    // AFTER THE FORWARD IS STARTED AND BEFORE THE NOTIFICATION. The forward is
-    // the operator-facing round trip and nothing may sit in front of its spawn;
-    // arming is a config read, three file operations and a spool write, taken
-    // here so the clock starts at the true prompt time and so a notification
-    // that dies still leaves a timer armed, which is the direction that helps
-    // the operator.
-    //
-    // AND THAT CONFIG READ IS THE THIRD ON THIS PATH, said plainly because the
-    // other two are. `run_event` loads it, the wait below loads it again, and
-    // `arm_nag` loads it here; each is one open and one TOML parse of a file
-    // measured in kilobytes, off local disk, with no network and no subprocess
-    // in any of them. It is named for honesty rather than as a cost worth
-    // routing around: threading one view through would change three signatures
-    // for a value each caller reads at the moment it needs it.
-    arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, payload, Attempt::First);
-    // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
-    // immediately before the wait. Threading it out of `run_event` would
-    // change that function's signature for one duration, and a view torn
-    // between the two reads costs at most this one event's bound.
-    forwarded.map_or(0, |child| answer_within(child, submit_deadline()))
+}
+
+impl pns_application::ports::records::NagSchedule for ApprovalPath<'_> {
+    fn arm(&self, session_id: &str, event: &pns::args::EventArgs) {
+        arm_nag(session_id, event);
+    }
+}
+
+impl pns_application::ports::notification::RaiseNotification for ApprovalPath<'_> {
+    fn raise(&self, event: &pns::args::EventArgs) {
+        run_event(event, self.probes, self.payload, Attempt::First);
+    }
 }
 
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
@@ -3128,168 +3105,51 @@ fn run_event_pulsing(
     //
     // BOTH BRANCHES RECORD. "Nothing fired" is exactly what an operator opens
     // the report to ask about.
-    record_decision(&pns::decision_log::Record {
+    // THE ORDER IS THE USE CASE'S, in `pns-application`. Every step below the
+    // decision line was placed against the ones around it for a reason, and a
+    // reordering that still compiles is a defect no type here can catch.
+    let records = EventRecords {
+        home: &home,
+        hue_table: hue_table.as_ref(),
+        lights: lights.as_deref(),
+        mobile: &mobile,
+        hermes_key: hermes_key.clone(),
+        recap,
+        durable_route,
+        decision: &decision,
+        pulse,
+    };
+    let lamps_live = lights.is_some() && hue_table.is_some();
+    pns_application::submit_notification::SubmitNotification {
+        decisions: &records,
+        journal: &records,
+        blocked: &records,
+        lamp_records: &records,
+        lease: &records,
+        activity: &records,
+        replay: &records,
+        moment: &records,
+        lamps: &records,
+        tick: &records,
+    }
+    .record(&pns_application::submit_notification::Submission {
         event,
         decision: &decision,
         overrides: &overrides,
         legs: &outcomes,
-        nag: attempt == Attempt::Nudge,
+        attempt: match attempt {
+            Attempt::First => pns_application::submit_notification::Attempt::First,
+            Attempt::Nudge => pns_application::submit_notification::Attempt::Nudge,
+            Attempt::Observation => pns_application::submit_notification::Attempt::Observation,
+        },
+        session_id: &payload.session_id,
         permission_mode: &payload.permission_mode,
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,
-    });
-    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
-    // an observation returns here, so it writes no journal entry, no
-    // activity-ring line, never claims the return moment through
-    // `mark_present`, never triggers `replay_missed` and never pulses.
-    //
-    // EACH IS A DEFECT AVOIDED RATHER THAN TIDINESS. The recap counts
-    // activity-ring lines toward `min_events`, so a nudge or an observation
-    // that rang would inflate the operator's own recap with pns's noise;
-    // neither is evidence of presence, so neither must move the last-present
-    // marker; and the pulse falling out here is how "escalation is not a
-    // colour" stays enforced without touching the lights at all.
-    //
-    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately, and AN OBSERVATION
-    // NEVER RENEWS A LEASE OR ARMS A LAMP, for the same reason from the other
-    // side: it is not an occurrence to replay later. Muted, inside a named
-    // Focus, or planned to nothing means the nudge does not happen and is not
-    // journaled for replay: a "still waiting" card replayed hours later, about
-    // a question answered long ago, is worse than silence.
-    if attempt != Attempt::First {
-        return;
-    }
-    // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
-    // rather than restating it: same site, same accepted price, and both
-    // branches reach it, including the empty-plan branch, which is where most
-    // misses live.
-    record_missed(event, &decision, &overrides);
-    // AND THE LAMPS' NEEDS MARKER BESIDE IT, under the same ordering contract
-    // and the same fail-quiet rule: a marker that did not land costs one lamp
-    // its colour and never a card.
-    // THE LAMPS ARE LIVE ONLY WITH BOTH SWITCHES: a map, and the transport
-    // enabled. `[lights]` is policy and `[plugins.hue]` is how it reaches a
-    // bulb, so a table with hue switched off lights nothing, runs no tick, and
-    // must not accumulate markers nothing will ever sweep.
-    let lamps_live = lights.is_some() && hue_table.is_some();
-    update_blocked_marker(
-        &state_dir(),
-        &payload.session_id,
-        &event.state,
         lamps_live,
-        decision.inputs.now_secs,
-    );
-    // AND THE NEWS RECORD BESIDE IT, under the same ordering contract and the
-    // same fail-quiet rule. It is what arms the unread lamp, and it is written
-    // WHATEVER THE DELIVERY DID: a card that was suppressed, muted or dropped is
-    // exactly the news that lamp exists to carry.
-    //
-    // THE PULSE'S OWN MAPPING decides what counts, so the colour a lamp flashes
-    // and the record that arms the unread lamp cannot disagree about one event.
-    //
-    // AND IT IS NOT GATED ON THE LAMP SWITCHES EITHER, which is the difference
-    // between this record and the wait marker beside it. A marker is a file per
-    // session that only the tick ever sweeps, so a machine with no lamps must
-    // not start accumulating them; this is ONE line rewritten in place, it can
-    // never grow, and what it holds is the plain fact that a turn finished or
-    // died. Written only while a map and a transport were both live, an
-    // operator who switched hue off for an evening came back to a lamp with
-    // nothing to say about the evening.
-    record_news(
-        &state_dir(),
-        pns::pulse::state_behaviour(&event.state, true),
-        decision.inputs.now_secs,
-    );
-    // AND THE LOOP LEASE THIS PANE HOLDS, if it holds one. The renewal is the
-    // pane's own ordinary traffic, which is what makes the lease a liveness
-    // signal rather than a timer. It CREATES nothing, so a machine with no lamps
-    // pays one failed open and keeps no state.
-    renew_loop_lease(&state_dir(), &event.pane, decision.inputs.now_secs);
-    // AND THE ACTIVITY RING WITH IT, at the same site and under the same
-    // ordering contract and the same fail-quiet rule. It records
-    // UNCONDITIONALLY, which is the whole difference between it and the
-    // journal above: the recap's window is every event, delivered or not.
-    record_activity(event, &decision);
-
-    // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE PULSE, inheriting
-    // the ordering contract stated above rather than restating it: a slow
-    // replay must not cost either record, and a card the operator may be
-    // waiting on outranks decoration.
-    replay_missed(recap, &decision, &home, &mobile, hermes_key, durable_route);
-    // AND THE MARKER MOVES AFTER IT, never before: the catch-up above is what
-    // READS the window this closes, and moving the edge first would hand it a
-    // window one event wide on every return.
-    mark_present(&decision);
-
-    // THE PULSE GOES LAST, after every channel the operator might be waiting
-    // on. It is part of the PLAN rather than a second invocation (the shell
-    // used to call `pns pulse` alongside the notification, so the tier was
-    // decided twice and could disagree with itself), but it talks to a bridge
-    // over the network under a ten-second deadline, and nothing an operator
-    // reads should queue behind decoration. It still fires for a plan that
-    // reached no channel at all: the lights are not a leg.
-    //
-    // THE LAMPS HAVE A SECOND GATE, beside the plan's rather than inside it.
-    // `plan.pulse` is `long_running` and it is what the decision log records;
-    // widening it would change what every card, banner and log line says about
-    // an event that earned no card. The blocked lamp is not a delivery, it is
-    // a colour on a bulb, so it earns its own condition here: an agent waiting
-    // on the operator holds blocked whether or not it ran long.
-    //
-    // IT NEEDS A `[lights]` TABLE, which is the opt-in, and the opt-in is read
-    // off the BEHAVIOUR rather than tested a second time here: `state_behaviour`
-    // only answers blocked for a mapped machine, so the colour a lamp shows
-    // and the gate that lets it fire cannot come out disagreeing about one
-    // event. Without the map there is no blocked lamp to show, and a long-running
-    // blocked turn keeps the green it has flashed since the bash.
-    //
-    // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
-    // rather than a second copy of it: a muted operator gets no lamp, which is
-    // the shipped rule that the lights are decoration too.
-    //
-    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLOCKED. `pulse_render` answers
-    // `None` for every held behaviour, Blocked included, so this call fires
-    // once, at the moment the wait begins, and does nothing after. The
-    // TICK lights it off the marker `update_blocked_marker` just published,
-    // on its next successful run, scheduled `refresh_secs` after the last
-    // one; a stopped daemon lights nothing. That reading takes `pns lights
-    // quiet` and each room's own dim window, and never this event's own
-    // silence or a macOS Focus: those gate the flash and the cards, not the
-    // sustained breath.
-    let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
-    let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
-    if decision.plan.pulse || blocked_lamp {
-        // THE DECISION'S OWN READINGS, handed down rather than taken again:
-        // this event's plan and the room its lamp narrows to have to describe
-        // one moment. The snapshot was BUILT beside the decision, before any
-        // channel ran, for the reason stated there.
-        pulse(
-            hue_table.clone(),
-            lights.as_deref(),
-            behaviour,
-            presence_at_decision.as_ref(),
-        );
-    }
-    // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.
-    // The steady write is the one body on this path that does not expire, so
-    // something has to put it out, and this is where the condition behind it
-    // stops being true: `is_present` is the same predicate that advances the
-    // return edge the glow is derived from, so the lamp and the marker cannot
-    // disagree about whether the operator came back.
-    //
-    // NO DAEMON IS INVOLVED, which is half of what pays for the steady write.
-    // The held paths were recorded when they were written, so this is one PUT
-    // each with no listing to resolve, and it works on a machine where the
-    // tick has not run for hours.
-    if lamps_live && pns::missed_notifications::is_present(&decision) {
-        clear_held_lamps(hue_table.as_ref());
-    }
-    // AND THE TICK'S LEASE IS REFRESHED LAST, by every event, which is what
-    // makes a stalled loop go dark for free: nothing renews its own lease, so
-    // a machine that stopped producing events stops re-arming its lamps.
-    if lamps_live {
-        register_lights_tick(lights.as_deref(), &decision, &overrides);
-    }
+        lights_declared: lights.is_some(),
+        presence: presence_at_decision.as_ref(),
+    });
 }
 
 /// Put out whatever a steady glow write is still holding, and forget it.
@@ -4091,7 +3951,7 @@ fn deliver_leg(
     }
     deliver(
         &channels_dir.join(format!("{}.sh", leg.name)),
-        &rendered.to_json(leg.mode),
+        &pns::channels::event_json(rendered, leg.mode),
     )
 }
 
@@ -9546,6 +9406,137 @@ fn focus_now(home: &str, silence: &[String]) -> std::io::Result<FocusReading> {
         ),
         catalog: catalog.as_ref().err().map(std::io::Error::kind),
     })
+}
+
+/// THE COMPOSITION ROOT'S SIDE OF THE RECORD TAIL: one adapter per port,
+/// each one this binary's existing function with the values a use case has no
+/// use for bound in.
+///
+/// ONE STRUCT IMPLEMENTING TEN TRAITS rather than ten structs. Every one of
+/// them writes into the same state directory for the same event, and ten
+/// zero-sized types would be ten names for one moment.
+struct EventRecords<'a> {
+    home: &'a str,
+    hue_table: Option<&'a toml::Table>,
+    lights: Option<&'a pns::config::Lights>,
+    mobile: &'a Mobile,
+    hermes_key: Option<String>,
+    recap: pns::config::Recap,
+    durable_route: bool,
+    decision: &'a pns::engine::Decision,
+    /// The pulse seam, carried because the readings it is handed are taken
+    /// hundreds of lines above the call.
+    pulse: PulseSink<'a>,
+}
+
+impl pns_application::ports::records::DecisionRing for EventRecords<'_> {
+    fn record(&self, record: &pns::decision_log::Record) {
+        record_decision(record);
+    }
+    fn read(&self) -> Option<String> {
+        pns::system::readable_state_file(&state_dir().join(DECISIONS), RING_READ_MAX).ok()
+    }
+}
+
+impl pns_application::ports::records::Journal for EventRecords<'_> {
+    fn journal(&self, event: &pns::args::EventArgs, now: Option<u64>) {
+        let _ = append_ring_line(
+            &state_dir().join(MISSED_NOTIFICATIONS),
+            &pns::missed_notifications::entry(event, now, render::PREVIEW_MAX_CHARS),
+            pns::missed_notifications::KEPT,
+            RING_READ_MAX,
+        );
+    }
+    fn read(&self) -> Option<String> {
+        pns::system::readable_state_file(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX)
+            .ok()
+    }
+}
+
+impl pns_application::ports::records::ActivityRing for EventRecords<'_> {
+    fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
+        let _ = append_ring_line(
+            &state_dir().join(ACTIVITY),
+            &pns::missed_notifications::entry(event, now, ACTIVITY_MAX_CHARS),
+            ACTIVITY_KEPT,
+            ACTIVITY_READ_MAX,
+        );
+    }
+    fn read(&self) -> Option<String> {
+        pns::system::readable_state_file(&state_dir().join(ACTIVITY), ACTIVITY_READ_MAX).ok()
+    }
+}
+
+impl pns_application::ports::records::BlockedMarker for EventRecords<'_> {
+    fn update(&self, session_id: &str, event_state: &str, lamps_live: bool, now: Option<u64>) {
+        update_blocked_marker(&state_dir(), session_id, event_state, lamps_live, now);
+    }
+}
+
+impl pns_application::ports::records::LoopLease for EventRecords<'_> {
+    fn renew(&self, pane: &str, now: Option<u64>) {
+        renew_loop_lease(&state_dir(), pane, now);
+    }
+}
+
+impl pns_application::ports::records::LampRecords for EventRecords<'_> {
+    fn news(&self, behaviour: pns::config::Behaviour, now: Option<u64>) {
+        record_news(&state_dir(), behaviour, now);
+    }
+    fn clear_held(&self) {
+        clear_held_lamps(self.hue_table);
+    }
+}
+
+impl pns_application::ports::records::ReturnMoment for EventRecords<'_> {
+    fn claim(
+        &self,
+        now: Option<u64>,
+        take_journal: bool,
+    ) -> Option<pns_application::ports::records::Claim> {
+        // `mark_present` carries the guard that this event is worth claiming
+        // for and the read that a newer edge already holds; both are the
+        // marker file's own business.
+        if take_journal {
+            return match claim_moment(now, true) {
+                Moment::Owned { since, waiting } => {
+                    Some(pns_application::ports::records::Claim { since, waiting })
+                }
+                Moment::Busy => None,
+            };
+        }
+        mark_present(self.decision);
+        None
+    }
+}
+
+impl pns_application::ports::records::LightsTick for EventRecords<'_> {
+    fn register(&self, decision: &pns::engine::Decision, overrides: &pns::engine::Overrides) {
+        register_lights_tick(self.lights, decision, overrides);
+    }
+}
+
+impl pns_application::ports::delivery::LampSignal for EventRecords<'_> {
+    fn pulse(
+        &self,
+        behaviour: pns::config::Behaviour,
+        presence: Option<&pns::presence_policy::Snapshot>,
+    ) {
+        (self.pulse)(self.hue_table.cloned(), self.lights, behaviour, presence);
+    }
+}
+
+impl pns_application::ports::delivery::MissedReplay for EventRecords<'_> {
+    fn replay(&self) {
+        replay_missed(
+            self.recap.clone(),
+            self.decision,
+            self.home,
+            self.mobile,
+            self.hermes_key.clone(),
+            self.durable_route,
+        );
+    }
 }
 
 #[cfg(test)]
