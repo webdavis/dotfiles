@@ -12,6 +12,7 @@
 #      as stdpath("run")
 #   d) outside herdr, with herdr answering nothing, nvim-mcp's own
 #      `--connect auto` is used and nvim is never consulted
+#   x) a run root with a space in its name reaches exec whole
 #
 set -euo pipefail
 
@@ -63,4 +64,19 @@ run_case HERDR_ENV=
 grep -qxF -- "--connect auto" "$CASE/exec" || fail "auto: wrong argv ($(cat "$CASE/exec" 2>/dev/null))"
 [[ ! -e $CASE/probed && ! -e $CASE/queried ]] || fail 'auto: nvim was consulted with nothing to resolve from'
 
-printf 'PASS: %s (4 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- x) a run root with a space in its name reaches exec whole ---------------
+# Candidates are carried in arrays, not one space-delimited string: a socket
+# under "run root" must reach exec whole, never cut at the space.
+setup_case spaced-root-one
+RUN="$CASE/run root"
+mkdir "$RUN"
+chmod 700 "$RUN"
+me term_a
+siblings 'w1:t1|term_a|w1:p1' 'w1:t1|term_b|w1:p2'
+live "$(sock term_b)"
+run_case XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 0 ]] || fail "spaced-root-one: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $RUN/herdr-$SESSION-term_b.sock" "$CASE/exec" ||
+  fail "spaced-root-one: the path reached exec cut ($(cat "$CASE/exec" 2>/dev/null))"
+
+printf 'PASS: %s (5 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

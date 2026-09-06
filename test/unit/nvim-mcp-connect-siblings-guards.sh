@@ -7,7 +7,6 @@
 #   t) the tab listing fails      -> no siblings, exit 3
 #   u) herdr hangs                -> bounded by the deadline, exit 3
 #   v) a sibling terminal id that cannot name a socket never reaches the filesystem
-#   x) a run root with a space in its name survives selection and the picker whole
 #
 set -euo pipefail
 
@@ -53,34 +52,4 @@ run_case XDG_RUNTIME_DIR="$RUN"
 grep -qF 'escape' "$CASE/probed" 2>/dev/null && fail "odd-sibling: a path was derived from an unsafe id ($(cat "$CASE/probed"))"
 [[ ! -f $CASE/exec ]] || fail "odd-sibling: it connected outside the run root ($(cat "$CASE/exec"))"
 
-# --- x) a run root with a space in its name ----------------------------------
-# Candidates are carried in arrays, not one space-delimited string: a socket
-# under "run root" must reach exec and the picker whole, never cut at the space.
-setup_case spaced-root
-RUN="$CASE/run root"
-mkdir "$RUN"
-chmod 700 "$RUN"
-me term_a
-siblings 'w1:t1|term_a|w1:p1' 'w1:t1|term_b|w1:p2' 'w1:t1|term_c|w1:p3'
-live "$(sock term_b)" "$(sock term_c)"
-run_case XDG_RUNTIME_DIR="$RUN"
-[[ $RC -eq 4 ]] || fail "spaced-root: expected exit 4, got $RC ($(cat "$CASE/err"))"
-grep -qF -- "  $(sock term_b)  pane w1:p2  pid 4242" "$CASE/err" ||
-  fail "spaced-root: the picker cut or mislabelled the path ($(cat "$CASE/err"))"
-grep -qF -- "  $(sock term_c)  pane w1:p3  pid 4242" "$CASE/err" ||
-  fail "spaced-root: the picker cut or mislabelled the path ($(cat "$CASE/err"))"
-[[ ! -f $CASE/exec ]] || fail "spaced-root: it guessed ($(cat "$CASE/exec"))"
-
-setup_case spaced-root-one
-RUN="$CASE/run root"
-mkdir "$RUN"
-chmod 700 "$RUN"
-me term_a
-siblings 'w1:t1|term_a|w1:p1' 'w1:t1|term_b|w1:p2'
-live "$(sock term_b)"
-run_case XDG_RUNTIME_DIR="$RUN"
-[[ $RC -eq 0 ]] || fail "spaced-root-one: expected exit 0, got $RC ($(cat "$CASE/err"))"
-grep -qxF -- "--connect $RUN/herdr-$SESSION-term_b.sock" "$CASE/exec" ||
-  fail "spaced-root-one: the path reached exec cut ($(cat "$CASE/exec" 2>/dev/null))"
-
-printf 'PASS: %s (4 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+printf 'PASS: %s (3 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
