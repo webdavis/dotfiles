@@ -25,6 +25,7 @@ pub mod lights;
 pub mod missed;
 pub mod pulse;
 pub mod quiet;
+pub mod recap;
 pub mod registry;
 pub mod render;
 pub mod routing;
