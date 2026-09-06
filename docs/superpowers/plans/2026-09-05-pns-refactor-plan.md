@@ -349,15 +349,20 @@ rows stay as the acceptance tests. Consumer: every hook and every producer. Size
 it does not fit), `submit_notification/tests.rs` ~400. Statements: S006, S017, S021, S072, S080, S106,
 S117, S218, S230, S231.
 
-**PR 6.3 `RequestApproval`.** Moves `blocking_event`, `forward_to_moshi`, `answer_within`,
-`moshi_decision`, `submit_deadline`, `configured_submit_deadline`, `SUBMISSION_POLL_INTERVAL`, and
-`gate_mode`'s body (`src/main.rs:235-247`, `2320-2606`) into `pns-application/src/request_approval.rs`
-over an `ApprovalForwarder` port; `spawn_moshi_hook`, `moshi_hook_bin`, `DEFAULT_MOSHI_HOOK_BIN`
-(2445-2490) become the adapter in PR 14.6 and stay in the root until then. Tests: the `tests/hooks.rs`
-approval section stays as acceptance; a use-case test pins the order (forward, skip-phone only on a real
-spawn, arm, notify, wait). Consumer: `pns hook blocked`, `pns gate`, `pns pi-hook`, proved by the argv
-differential's `gate` and `hook` rows plus the hooks suite. Sizes: ~240 plus tests ~300. Unpinned first:
-S082 (a gate run leaves no marker). Statements: S022, S023, S074 to S083.
+**PR 6.3 `RequestApproval`.** RE-CUT. The row used to move `answer_within` and `moshi_decision` into
+`pns-application`; both wait on a `std::process::Child`, and that crate spawns no process, so the move
+was one the crate boundary forbids. What moves is the ORDERING ALONE: `blocking_event`'s sequence and
+`gate_mode`'s body (`src/main.rs:235-247`, `2320-2606`) into `pns-application/src/request_approval.rs`,
+over the `ApprovalForwarder` port of PR 6.1 and the `NagSchedule` and `HarnessPayload` ports of PR 6.1c.
+What STAYS in the root, as the body of the `ApprovalForwarder` adapter that PR 14.6 formalizes:
+`answer_within`, `moshi_decision`, `SUBMISSION_POLL_INTERVAL`, the child handling, and the
+`submit_deadline` and `configured_submit_deadline` config read, which is a config read and belongs with
+the adapter that uses it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case
+test pins the order (forward, skip-phone only on a real spawn, arm, notify, wait) over recording fakes.
+Consumer: `pns hook blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and
+`hook` rows plus the hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated,
+because the child handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker).
+Statements: S022, S023, S074 to S083.
 
 **PR 6.4 `ReplayMissedNotifications` and `RecordActivity`.** Moves `replay_missed`, `Moment`,
 `claim_moment`, `StrandedWindow`, `stranded_window_claim`, `window_claim_suffix`, `window_claim_is_free`,
@@ -373,11 +378,13 @@ measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245.
 **PR 6.5 `RunNag`.** Moves `nag_mode`, `arm_nag`, `clear_nag`, `record_entries`, `claim_record`,
 `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`, `marker_path`,
 `write_marker`, `nag_after_secs` (`src/main.rs:4622-5188`) into `pns-application/src/run_nag.rs` and
-`arm_nag.rs` over `NagRecords` and `JobSpool` ports. Tests: the nag section of `tests/hooks.rs` as
-acceptance. Unpinned first: S061 (the `stop-failure` clear), S183 (`fire.lock` age-out), S241 (the
-per-record rename; the code says no test can kill it, so this one is written as a two-process test or
-recorded as accepted in the decision record). Sizes: `run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300.
-Statements: S042, S060, S073 (nag half), S182, S236 to S241.
+`arm_nag.rs` over `NagRecords` and `JobSpool` ports. `arm_nag`'s own port, `NagSchedule`, is declared in
+PR 6.1c, because PR 6.3 arms the nag before this row is reached; this row implements it and moves the
+body. Tests: the nag section of `tests/hooks.rs` as acceptance. Unpinned first: S061 (the `stop-failure`
+clear), S183 (`fire.lock` age-out), S241 (the per-record rename; the code says no test can kill it, so
+this one is written as a two-process test or recorded as accepted in the decision record). Sizes:
+`run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300. Statements: S042, S060, S073 (nag half), S182, S236 to
+S241.
 
 **PR 6.6 `BuildReturnRecap`.** Moves `recap_mode`, `read_sources`, `summarized`, `left_of`,
 `recap_bounds`, `wall_clock`, `post_recap`, `deliver_recap`'s decision, `RECAP_ROUTE`, `RECAP_USAGE`,
@@ -759,10 +766,12 @@ name. Sizes: adapter ~150 plus tests ~350; domain ~60. Statements: S105.
 by name. Sizes: two files under 200 plus tests under 400. Statements: S272, S273.
 
 **PR 14.6 the spawned programs.** Pure move of `spawn_moshi_hook`, `moshi_hook_bin`,
-`DEFAULT_MOSHI_HOOK_BIN` (the approval forwarder), `condense`, `condenser_home`, `CONDENSER_DEADLINE`
-(the condenser), `git_branch`, `GIT_DEADLINE`, `merged_pull_requests` and the `GH_*` constants,
-`notes_matching`, `matches_glob`, `within`, `read_note`, `MAX_NOTES`, `NOTE_READ_MAX`, `summarize`,
-`spawn_job` and `spawn_recap`'s spawn, and `Hushed` with `ask_hidden`'s terminal work, to
+`DEFAULT_MOSHI_HOOK_BIN` (the approval forwarder), together with `answer_within`, `moshi_decision` and
+`SUBMISSION_POLL_INTERVAL`, which PR 6.3 left in the root for this row because they wait on a child,
+`condense`, `condenser_home`, `CONDENSER_DEADLINE` (the condenser), `git_branch`, `GIT_DEADLINE`,
+`merged_pull_requests` and the `GH_*` constants, `notes_matching`, `matches_glob`, `within`, `read_note`,
+`MAX_NOTES`, `NOTE_READ_MAX`, `summarize`, `spawn_job` and `spawn_recap`'s spawn, and `Hushed` with
+`ask_hidden`'s terminal work, to
 `pns-adapters/src/{moshi_hook,codex,git,gh,notes,summarizer,job_runner,recap_child,terminal}.rs`.
 Unpinned first: S192 (the condenser home's modes), S254 (the summarizer's inherited environment: recorded
 as accepted or closed with `env_clear` as new behavior, the operator's call inside the PR). Tests: by
