@@ -6,6 +6,13 @@
 -- reach lazy.nvim's own package loader and pull gitsigns off its trigger, which
 -- is exactly what the trigger is for. It reads `package.loaded` instead.
 --
+-- Under `--clean` gitsigns is not on `package.path`, so a `get` that did
+-- `require` it would merely fail to find it and still answer false. The third
+-- case therefore makes both modules loadable through `package.preload`, the
+-- searcher `require` consults right after `package.loaded`, and records any
+-- load: a `get` that loads either module on a run with gitsigns unloaded is the
+-- premature load the trigger exists to prevent.
+--
 -- The toggles are declared inside the spec's `init`, on a `User VeryLazy`
 -- autocommand, against the global `Snacks`. Both are faked here, so these cases
 -- need neither snacks nor gitsigns running.
@@ -91,7 +98,46 @@ local function with_gitsigns_loaded(signcolumn, fn)
   assert(ok, err)
 end
 
+---Run `fn` with gitsigns unloaded but LOADABLE: `package.preload` stand-ins for
+---`gitsigns.config` and `gitsigns` that append their name to `loads` when
+---required. Restores `package.preload` and `package.loaded` afterwards, so a
+---load the stand-ins did record does not leak into the next case.
+---@param fn fun(loads: string[])
+local function with_gitsigns_loadable(fn)
+  local names = { "gitsigns.config", "gitsigns" }
+  local loads, saved_preload, saved_loaded = {}, {}, {}
+  for _, name in ipairs(names) do
+    saved_preload[name], saved_loaded[name] = package.preload[name], package.loaded[name]
+    package.loaded[name] = nil
+    package.preload[name] = function()
+      table.insert(loads, name)
+      return { config = { signcolumn = true }, toggle_signs = function() end }
+    end
+  end
+  local ok, err = pcall(fn, loads)
+  for _, name in ipairs(names) do
+    package.preload[name], package.loaded[name] = saved_preload[name], saved_loaded[name]
+  end
+  assert(ok, err)
+end
+
 return {
+  ["never loads gitsigns to answer while it is unloaded"] = function()
+    local toggle = toggle_named("Git Signs")
+    with_gitsigns_loadable(function(loads)
+      local value = toggle.get()
+      assert(#loads == 0, "get loaded " .. table.concat(loads, ", ") .. " with gitsigns unloaded")
+      assert(value == false, "expected false with gitsigns unloaded, got " .. vim.inspect(value))
+      -- The same getter, once gitsigns is loaded, reads the loaded module and
+      -- still goes through no loader: false can only come from the loaded
+      -- table, since the stand-in answers true.
+      with_gitsigns_loaded(false, function()
+        assert(toggle.get() == false, "expected the loaded module's signcolumn=false")
+      end)
+      assert(#loads == 0, "get loaded " .. table.concat(loads, ", ") .. " with gitsigns loaded")
+    end)
+  end,
+
   ["reports signs off when gitsigns has not loaded"] = function()
     local saved = { package.loaded["gitsigns.config"] }
     package.loaded["gitsigns.config"] = nil
