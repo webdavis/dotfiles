@@ -13,5 +13,6 @@ pub mod delivery;
 pub mod devices;
 pub mod environment;
 pub mod harness;
+pub mod notification;
 pub mod process;
 pub mod records;

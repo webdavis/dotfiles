@@ -17,6 +17,7 @@ use pns_domain::decision::{Decision, Overrides};
 use pns_domain::decision_record::Record;
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
+use pns_domain::nag::Record as NagRecord;
 use pns_domain::notification::EventArgs;
 
 /// The decision log: why a card did or did not fire, newest first.
@@ -170,4 +171,28 @@ pub trait NagSchedule {
 /// S231.
 pub trait LightsTick {
     fn register(&self, decision: &Decision, overrides: &Overrides);
+}
+
+/// The nag's own records: one per session waiting on an approval.
+///
+/// THE FIRE LOCK IS ONE CLAIM AND NOT A FLAG. Only one run may nudge, and on
+/// macOS that has to be a rename rather than a read-then-write, because
+/// concurrent unlink reports success to every racer on APFS.
+///
+/// SESSIONS AND NOT PATHS. Where a record lives, and the rename protocol that
+/// claims it, are the filesystem adapter's business in PR 11.5; a use case
+/// knows only which sessions are due and that it holds each one.
+///
+/// Checked against `claim_fire` (`src/main.rs:4886`), the `record_entries`
+/// and `claim_record` loop (`4479`), `release_fire` (`4956`) and `clear_nag`'s
+/// marker write (`4634`). Statements: S182, S236, S237, S241.
+pub trait NagRecords {
+    /// Take the single fire lock for this run, or answer false when another
+    /// run holds it.
+    fn claim_fire(&self, now: u64) -> bool;
+    /// Every session due a nudge, each claimed by this run.
+    fn claim_due(&self, now: u64) -> Vec<(String, NagRecord)>;
+    fn release_fire(&self);
+    /// Mark this session answered, so the backstop stops nudging about it.
+    fn mark_answered(&self, session_id: &str);
 }
