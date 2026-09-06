@@ -512,9 +512,10 @@ record_missed`, each `let _ = append_ring_line`). A successful exit therefore sa
 tried, not that anything was committed, and a producer that advanced its cursor on it would lose a
 page the moment pns was killed between dispatch and record. `accepted` is sound only when it names a
 committed, retriable obligation for that request id: a ledger row written before dispatch (pns PR
-11.4) and reported as written in the result envelope (pns PR 7.3). That work is a prerequisite of the
-plan's first step, not of its fifth, so posture's `AlertSink` contract is written against a real
-acknowledgement rather than a promised one.
+11.4) and reported as written in the result envelope (pns PR 7.3). That work gates the plan's step 5
+and step 6, the first posture code that submits anything; steps 1 to 4 deliver nothing and run
+beside it as a second lane, and the `AlertSink` port they define is written against the contract
+those pull requests establish, never against pns's exit status.
 
 A pns-keyed route for posture is added on the gateway beside `priority`, so one signer serves every
 pns producer. `priority` keeps its own key and body while any bash producer or queued retry still
@@ -602,10 +603,10 @@ What it costs, and how each cost is met:
   and `pns doctor` reports the ledger. That does not replace probe 4: pns reporting on pns is not
   independent, so the watchdog keeps its own read of the ledger and the daemon, as stated above.
 - Sequencing. The four pns pull requests (7.3, 11.4, the priority-route work and the delivery class)
-  are prerequisites of the plan's step 1, together with the mixed-producer route transition the
-  plan's step 0 settles.
-  Nothing in the ladder starts before the durable acknowledgement exists, because the `AlertSink`
-  contract every use case is written against is that acknowledgement.
+  gate the plan's step 5 and step 6, the delivery adapter and the producer cutovers, and nothing
+  earlier. Steps 1 to 4 deliver nothing, so they run as a second lane beside the pns work from step
+  0, and the two lanes join at step 5. Only the step 0 design items code depends on (the route
+  overlap contract and the three-table queue check) sit ahead of step 1.
 
 ### 5.3 Option (b): posture keeps a signed webhook client behind a port
 
@@ -628,11 +629,12 @@ Ranked by result quality (memory `optimal-over-cheap`, ruling 2026-09-05), optio
 axis the charter names: one delivery engine, one presence gate, one journal, one signer. Option (b)
 wins only on schedule, and the operator has ruled that schedule is not a design input. The
 recommendation is (a), with the priority-route work filed as its own pull request in the pns
-program, sequenced before posture's first step (plan step 0), and with the last-resort banner as the
-one delivery-shaped thing posture keeps. No bash facade survives either way. The 2026-09-06 review
-upheld (a) on the ruling that pns is the one engine, withdrew "better on every axis" as the reason
-(option (a) gives up the failure isolation (b) keeps), and attached the conditions section 5.2 now
-carries: a durable acknowledgement before step 1, independent checks on pns, and the route overlap.
+program, sequenced before posture's first producer code (plan step 5), and with the last-resort
+banner as the one delivery-shaped thing posture keeps. No bash facade survives either way. The
+2026-09-06 review upheld (a) on the ruling that pns is the one engine, withdrew "better on every
+axis" as the reason (option (a) gives up the failure isolation (b) keeps), and attached the
+conditions section 5.2 now carries: a durable acknowledgement before any producer code, independent
+checks on pns, and the route overlap.
 
 ### 5.5 What the priority-route pull request must deliver
 

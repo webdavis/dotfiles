@@ -35,16 +35,17 @@ inputs, all read in full for this plan:
   `test/unit/ssh-hardening-dropin.sh`, which joined the port by operator ruling on 2026-09-06 (spec
   section 8.22, S369 to S399).
 
-Four pull requests in the pns program are prerequisites of step 1: PR 7.3 (`pns submit --json` with
-a result envelope), PR 11.4 (the write-ahead delivery ledger the daemon drains), the priority-route
-pull request the specification's section 5.5 sizes, and the delivery-class pull request that lets a
-security page through the operator's mute (decision 4, step 0.5). They are prerequisites of the
-whole ladder and not only of the producer cutovers because pns today acknowledges nothing durably:
-the channels are dispatched before the record is written and a failed journal write is dropped
-(`dot_local/share/pns/src/main.rs:3101-3122`, `:814-858`; spec section 5.2). The `AlertSink`
-contract every use case in step 3 is written against is that acknowledgement, so writing the use
-cases first would mean writing them against a promise. Step 0 below lists what must be settled
-before PR 1.1 opens.
+Four pull requests in the pns program gate step 5 (the delivery adapter) and step 6 (the producer
+cutovers), and nothing before them: PR 7.3 (`pns submit --json` with a result envelope), PR 11.4
+(the write-ahead delivery ledger the daemon drains), the priority-route pull request the
+specification's section 5.5 sizes, and the delivery-class pull request that lets a security page
+through the operator's mute (decision 4, step 0.5). They gate those two steps because pns today
+acknowledges nothing durably: the channels are dispatched before the record is written and a failed
+journal write is dropped (`dot_local/share/pns/src/main.rs:3101-3122`, `:814-858`; spec section
+5.2), and step 5 is the first posture code that submits anything. Steps 1 to 4 deliver nothing, so
+they run as a second lane beside the pns work, both lanes starting at step 0; only step 0's design
+items (the route overlap contract and the three-table queue check) sit ahead of step 1, because code
+in the ladder depends on them. Section 5 states the two lanes.
 
 ## 2. The target workspace
 
@@ -563,7 +564,10 @@ charter names (converge, which runs `sudo`, goes late; producers wait for the pn
 3. **Adapters and use cases without delivery** (step 3), then the two cutovers that need no
    delivery at all: the enricher, a child process with a two-value exit contract and the smallest
    blast radius in the tree, and the allowlist writer, an operator tool (step 4).
-4. **The delivery adapter**, once pns's route pull request has landed (step 5).
+4. **The delivery adapter**, once the four pns pull requests of step 0 have merged (step 5). Two
+   lanes until step 5: steps 1 to 4 deliver nothing and proceed in parallel with the pns work, both
+   starting at step 0, and step 5 is where the lanes join. Only step 0's design items (the route
+   overlap contract, the three-table queue check) sit ahead of step 1.
 5. **Producers, smallest first**: heartbeat (109 lines, 17 tests, a daily silent message), digest
    (238 lines, 23 tests, daily), then the alerter (the WatchPaths agent, best-tested, largest), then
    the three untested producers (watchdog, poller, funnel monitor) each of which becomes tested for
@@ -585,14 +589,16 @@ which UNPINNED statements get their first test); **Surface** (the deployed refer
 with `wc -l` and splits again if a projection was wrong). A pull request with no **Cutover** row
 deploys source and changes no plist or caller.
 
-### Step 0: what is settled before PR 1.1 opens
+### Step 0: the pns lane, and what is settled before PR 1.1 opens
 
-None of this is a posture pull request, and PR 1.1 does not open until all four are done.
+None of this is a posture pull request. Items 0.1, 0.2 and 0.5 are the pns lane: they run beside
+steps 1 to 4 and gate step 5. Item 0.3 is a design contract code depends on, so it is settled before
+PR 1.1 opens; item 0.4 is settled before step 3.
 
 **0.1 The durable acknowledgement.** pns PR 7.3 (`pns submit --json` and its result envelope) and
-PR 11.4 (the ledger row written before dispatch) have merged, and the envelope reports the committed
-row, so `accepted` means a retriable obligation for that request id (spec section 5.2). Verified by
-the pns program's own tests for the crash window between dispatch and record, which PR 11.4 names.
+PR 11.4 (the ledger row written before dispatch) merge, and the envelope reports the committed row,
+so `accepted` means a retriable obligation for that request id (spec section 5.2). Verified by the
+pns program's own tests for the crash window between dispatch and record, which PR 11.4 names.
 
 **0.2 The priority-route pull request**, sized by the specification's section 5.5, delivering the
 route, the heartbeat and digest preservation (item 2), and the ledger and daemon readable without the
@@ -636,7 +642,8 @@ profile is set and the artifact is measured against the audit's 8 MiB bound (sec
 number goes in the pull request. **Tests**: the build-install test, including the record-refresh-
 install ordering and the refusal to publish an artifact over 8 MiB; a cli test that every subcommand
 word is refused with usage and exit 2 until it exists. **Surface**: the builder, the justfile.
-**Sizes**: `main.rs` under 60; the rest are doc comments. **Order**: first, after step 0. Until PR
+**Sizes**: `main.rs` under 60; the rest are doc comments. **Order**: first, once step 0.3 is
+settled; it does not wait for the pns lane. Until PR
 1.2 lands the binary sits under `~/.local/libexec/` as an untracked neighbour, as `pns` and `uu` do
 today, so nothing pages.
 
@@ -777,14 +784,16 @@ diagnostic alone, never the delivery outcome and never the bare word `accepted`;
 killed at the deadline and reported as not accepted; the banner spawn happens on exactly the
 not-accepted-because-the-engine-failed path (absent, nonzero, timeout, unparseable) and never on a
 clean refusal or a missing diagnostic; the key never appears in argv (there is none). **Order**:
-after step 0. **Sizes**: `pns_producer.rs` ~200 plus tests ~350; `last_resort_banner.rs` ~80 plus
-tests ~120.
+after the four pns pull requests of step 0 have merged; this is where the pns lane joins the
+ladder. **Sizes**: `pns_producer.rs` ~200 plus tests ~350; `last_resort_banner.rs` ~80 plus tests
+~120.
 
 ### Step 6: the producer cutovers
 
 Each pull request lands one subcommand over one use case, repoints one plist, and deletes the bash
 it replaces together with the tests that pinned it (their names appear in the mapping table with
-their Rust successors).
+their Rust successors). None opens before the four pns pull requests of step 0 have merged and PR
+5.1 has landed on them.
 
 **PR 6.1 `posture heartbeat`.** **Statements**: S193 to S206. **Surface**: the heartbeat plist,
 `executable_heartbeat.sh`, `test/integration/osquery-heartbeat.bats`. `canary-freshness.sh` stays
@@ -983,7 +992,8 @@ the fourth is reopened and awaits the operator.
    presence gate, phone, replay or recap (spec section 5.3). Decision: (a), with four conditions.
    The `accepted` bit must mean a committed, retriable obligation for that request id; today pns
    dispatches before it records and drops a failed journal write (`main.rs:3101-3122`, `:814-858`),
-   so PR 7.3 and PR 11.4 are prerequisites of step 1, not of step 5 (step 0.1). Posture keeps
+   so PR 7.3 and PR 11.4 gate step 5 and step 6, the first code that submits, and run as a lane
+   beside steps 1 to 4 (step 0.1). Posture keeps
    independent integrity and health checks on pns (the binary's tuple, the daemon's launchd state,
    the ledger read-only), because (a) gives up the failure isolation (b) had and the engine-down
    banner covers detectable failure only, never a pns that forges `accepted` (spec section 5.2, PR
