@@ -2020,17 +2020,45 @@ fn stdout_eof_within(
     limit: std::time::Duration,
 ) -> Option<std::time::Duration> {
     let started = std::time::Instant::now();
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut stdout = stdout;
-        let mut drained = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut drained);
-        let _ = sender.send(());
-    });
-    receiver
+    drain_to_end(stdout)
         .recv_timeout(limit)
         .ok()
-        .map(|()| started.elapsed())
+        .map(|_| started.elapsed())
+}
+
+/// Everything `reader` yields up to EOF, drained on its own thread FROM THIS
+/// CALL ONWARD and handed back through the receiver once the stream closes.
+///
+/// Draining starts here rather than at the first `recv`, so a child's two
+/// streams are drained together: neither can fill its pipe while the test
+/// waits on the other, and a `recv_timeout` on the receiver is what bounds
+/// the read. A read performed on the test's own thread has no bound at all.
+fn drain_to_end(reader: impl std::io::Read + Send + 'static) -> std::sync::mpsc::Receiver<Vec<u8>> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut reader = reader;
+        let mut drained = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut reader, &mut drained);
+        let _ = sender.send(drained);
+    });
+    receiver
+}
+
+/// What a drained stream held once it closed, or `None` when it stayed open
+/// past `limit`.
+///
+/// THE SAME LIVENESS LIMIT AS THE STDOUT READ. A child that closed stdout and
+/// kept stderr would otherwise park the test thread for as long as it liked
+/// after the stdout bound had already been honoured, and a row that parks is
+/// a row that cannot report the hang it exists to catch.
+fn said_within(
+    drain: std::sync::mpsc::Receiver<Vec<u8>>,
+    limit: std::time::Duration,
+) -> Option<String> {
+    drain
+        .recv_timeout(limit)
+        .ok()
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 #[test]
@@ -2210,15 +2238,6 @@ fn expiry_line(deadline_ms: &str) -> String {
     )
 }
 
-/// Everything the child wrote to stderr, read to EOF on its own thread for
-/// `stdout_eof_within`'s reason: the read is what has to be bounded.
-fn stderr_to_end(stderr: std::process::ChildStderr) -> String {
-    let mut stderr = stderr;
-    let mut drained = Vec::new();
-    let _ = std::io::Read::read_to_end(&mut stderr, &mut drained);
-    String::from_utf8_lossy(&drained).into_owned()
-}
-
 #[test]
 fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // THE DEFECT THIS BOUND EXISTS FOR, on the most safety-critical path pns
@@ -2251,7 +2270,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     stub_silent_moshi(&sandbox, &mut command);
     let mut child = spawn_hook_saying(command, "blocked");
     let stdout = child.stdout.take().expect("stdout");
-    let stderr = child.stderr.take().expect("stderr");
+    let said = drain_to_end(child.stderr.take().expect("stderr"));
     write_payload(
         &mut child,
         br#"{"message":"may I run this","session_id":"s1","cwd":"/a/dotfiles"}"#,
@@ -2261,7 +2280,8 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // whole ten seconds, so `HANG_LIMIT` is what catches a reverted kill.
     stdout_eof_within(stdout, HANG_LIMIT)
         .expect("the harness's own read of this hook has to end at all");
-    let said = stderr_to_end(stderr);
+    let said = said_within(said, HANG_LIMIT)
+        .expect("the hook's stderr has to close inside the same liveness limit");
     assert!(
         said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
         "the wait had to give up on the injected deadline and say so, and said: {said:?}"
@@ -2323,11 +2343,12 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         .spawn()
         .expect("the engine runs");
     let stdout = child.stdout.take().expect("stdout");
-    let stderr = child.stderr.take().expect("stderr");
+    let said = drain_to_end(child.stderr.take().expect("stderr"));
     write_payload(&mut child, b"{\"ask\":1}\n");
     stdout_eof_within(stdout, HANG_LIMIT)
         .expect("the harness's own read of the gate has to end at all");
-    let said = stderr_to_end(stderr);
+    let said = said_within(said, HANG_LIMIT)
+        .expect("the gate's stderr has to close inside the same liveness limit");
     assert!(
         said.contains(&expiry_line(GATE_SILENT_MOSHI_DEADLINE_MS)),
         "the gate had to give up on the injected deadline and say so, and said: {said:?}"
