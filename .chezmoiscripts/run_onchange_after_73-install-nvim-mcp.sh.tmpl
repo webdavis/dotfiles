@@ -1,0 +1,98 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Installs nvim-mcp, the Neovim MCP server both harnesses register through
+# ~/.local/libexec/nvim-mcp/nvim-mcp-connect.sh. It is a third-party crate, so
+# unlike the pns and uu builders beside it there is no source tree in this
+# repository to hash: the REVISION below is the whole trigger, and bumping it is
+# what makes this script re-fire and replace the binary.
+#
+# --locked builds exactly the lock the upstream repository committed, so a
+# transitive dependency cannot move under a pinned revision. --root keeps cargo
+# away from ~/.cargo/bin, which the operator owns; the binary is then installed
+# beside the resolver, because launchd is not what runs this but the harnesses
+# are, and ~/.local/bin is only what the operator types.
+#
+# NOT darwin-gated, unlike the pns and uu builders it copies: those two ship
+# macOS-only tools, while nvim-mcp is a portable Rust binary and the resolver
+# beside it already handles the Linux runtime root. So there is no OS branch
+# here, none in .chezmoiignore and none in either harness registration, and
+# therefore nothing that has to be kept in agreement with another file.
+#
+# Pinned by docs/research/2026-09-nvim-mcp-evaluation.md, which took the
+# resolver row of spec 7.3 against exactly this commit. The FULL 40-hex sha,
+# never the seven-hex prefix cargo also accepts: a prefix is 28 bits, and a
+# force-pushed replacement that collides with it would become the source this
+# compiles and runs. --locked pins the dependencies only AFTER the source is
+# chosen, so it does not help here.
+#   revision: 0b5ace3b0369801c9bcb8eec68864427e6b1599c
+#
+# Retry state, the mechanism the pns and uu builders use: chezmoi records a
+# run_onchange script as done on ANY exit 0, so a skipped install (no toolchain)
+# must change this rendered script to re-fire on the next apply.
+#
+# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
+# file at render time means an unreadable node aborts the apply and a FIFO at
+# that path hangs it forever, before any of this script's own recovery can run.
+#   retry-marker: {{ $rm := printf "%s/.cache/nvim-mcp-build/install.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+revision='0b5ace3b0369801c9bcb8eec68864427e6b1599c'
+repository='https://github.com/linw1995/nvim-mcp'
+install_dir="$HOME/.local/libexec/nvim-mcp"
+cargo_root="$HOME/.cache/nvim-mcp-build/cargo-root"
+retry_marker="$HOME/.cache/nvim-mcp-build/install.retry"
+
+# Deterministic path, never a PATH probe: a fresh machine provisions rustup
+# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
+cargo_bin="$HOME/.cargo/bin/cargo"
+
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+# Clearing the retry marker rewrites the rendered script above, so the NEXT
+# apply fires this one more time with nothing left to do. nvim-mcp bakes its
+# source revision into `--version`, so ask the deployed binary and stay silent
+# when it already carries the pinned one. A version string that stops carrying
+# the sha only costs a redundant reinstall, never a wrong one.
+# The binary prints an ABBREVIATED sha: the evaluation recorded
+# `sha:"0b5ace3b...`, so match that observed prefix rather than the full pin the
+# build takes. A version string that stops carrying it only costs a redundant
+# reinstall, never a wrong one.
+installed_marker='0b5ace3b'
+if [[ -x "$install_dir/nvim-mcp" ]] &&
+  "$install_dir/nvim-mcp" --version 2>/dev/null | grep -qF "$installed_marker"; then
+  rm -f "$retry_marker"
+  exit 0
+fi
+
+if [[ ! -x $cargo_bin ]]; then
+  report_line 'nvim-mcp: cargo not found at ~/.cargo/bin/cargo; install deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+report_section 'nvim-mcp'
+report_line "installing $revision from $repository"
+# An install failure exits non-zero, which chezmoi does not record, so it
+# retries on its own without touching the marker.
+"$cargo_bin" install --quiet --git "$repository" --rev "$revision" --locked \
+  --root "$cargo_root" --force nvim-mcp
+
+mkdir -p "$install_dir"
+# install(1) replaces the target through a temporary file and a rename, so a
+# harness starting the server mid-apply gets either the old binary or the new
+# one and never a half-written file. cp would write in place.
+/usr/bin/install -m 755 "$cargo_root/bin/nvim-mcp" "$install_dir/nvim-mcp"
+report_line "installed $install_dir/nvim-mcp"
+
+rm -f "$retry_marker"
