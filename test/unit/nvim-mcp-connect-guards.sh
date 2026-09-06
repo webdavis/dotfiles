@@ -10,6 +10,7 @@
 #   m) jq missing from PATH      -> exit 2, the whole diagnostic
 #   n) nvim cannot say where its run dir is -> exit 2
 #   o) a run root other accounts can read -> exit 2 naming owner and mode, nothing probed
+#   p) a socket path over the unix limit -> exit 5 naming length and limit, nothing probed
 #
 set -euo pipefail
 
@@ -93,4 +94,22 @@ grep -qF "$RUN" "$CASE/err" || fail "loose-root: the fault does not name the roo
 [[ ! -e $CASE/probed ]] || fail 'loose-root: a socket in an untrusted root was probed'
 [[ ! -f $CASE/exec ]] || fail 'loose-root: it connected anyway'
 
-printf 'PASS: %s (6 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# --- p) a socket path longer than a unix socket allows -----------------------
+# sun_path is 104 bytes on macOS (108 on Linux), NUL included. A root deep
+# enough pushes the name past it; the bind would fail with a bare "invalid
+# argument" on the editor's side and a probe here would find nothing, so the
+# resolver says what happened instead of refusing as if no Neovim existed.
+setup_case long-root
+RUN="$CASE/run/$(printf 'x%.0s' {1..60})"
+mkdir -p "$RUN"
+chmod 700 "$RUN"
+me term_a
+run_case XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 5 ]] || fail "long-root: expected exit 5, got $RC ($(cat "$CASE/err"))"
+grep -qF "$(printf '%s' "$(sock term_a)" | wc -c | tr -d ' ') bytes" "$CASE/err" ||
+  fail "long-root: the message does not name the length ($(cat "$CASE/err"))"
+grep -qF 'allow 103' "$CASE/err" || fail "long-root: the message does not name the limit ($(cat "$CASE/err"))"
+[[ ! -e $CASE/probed ]] || fail 'long-root: a path over the limit was probed'
+[[ ! -f $CASE/exec ]] || fail 'long-root: it connected anyway'
+
+printf 'PASS: %s (7 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

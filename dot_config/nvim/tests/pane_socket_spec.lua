@@ -189,6 +189,34 @@ return {
     end)
   end,
 
+  ["a socket path over the unix limit binds nothing and names the length and the limit once"] = function()
+    -- A root deep enough that the name cannot fit: serverstart() would fail
+    -- with a bare "invalid argument", which is what the check replaces.
+    local root = private_root() .. "/" .. ("x"):rep(60)
+    assert(vim.fn.mkdir(root, "p", 448) == 1, "could not create " .. root)
+    with_env(herdr_env(root, "term_a1"), function()
+      local before = vim.fn.serverlist()
+      local seen = capturing_notify(function()
+        pane_socket().listen()
+        assert(
+          vim.wait(2000, function()
+            return #herdr_calls(root .. "/herdr.log") > 0
+          end, 10),
+          "herdr was never asked"
+        )
+        vim.wait(50)
+      end)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "started " .. vim.inspect(vim.fn.serverlist()))
+      assert(#seen == 1 and seen[1].level == vim.log.levels.WARN, "notifications: " .. vim.inspect(seen))
+      local expected = root .. "/herdr-" .. SESSION .. "-term_a1.sock"
+      assert(
+        seen[1].message:find(tostring(#expected), 1, true),
+        "the warning does not name the length: " .. seen[1].message
+      )
+      assert(seen[1].message:find("103", 1, true), "the warning does not name the limit: " .. seen[1].message)
+    end)
+  end,
+
   ["outside herdr nothing is started and herdr is never asked"] = function()
     local root = private_root()
     with_env(herdr_env(root, "term_1", { HERDR_ENV = false }), function()

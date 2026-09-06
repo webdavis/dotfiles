@@ -30,6 +30,12 @@
 
 local M = {}
 
+-- The longest socket path a unix socket accepts: sun_path is 104 bytes on macOS
+-- and 108 on Linux, NUL included, and the smaller bound applies everywhere so
+-- the same name works on both. Over it, serverstart() fails with a bare
+-- "invalid argument", so the check runs first and says what happened.
+M.MAX_PATH_BYTES = 103
+
 -- The one directory both sides derive the same way, or nil when Neovim has
 -- none. `stdpath("run")` is unusable as that directory: with XDG_RUNTIME_DIR
 -- unset (macOS) it is a PER-PROCESS directory, `$TMPDIR/nvim.<user>/<random>`,
@@ -122,7 +128,16 @@ function M.listen()
   M.identity(function(terminal)
     vim.schedule(function()
       local path = M.path(terminal)
-      if path then
+      if path and #path > M.MAX_PATH_BYTES then
+        vim.notify(
+          ("nvim-mcp: not listening for this pane, the socket path %s is %d bytes and unix sockets allow %d; the agent reaches this Neovim only through NVIM_MCP_SOCKET"):format(
+            path,
+            #path,
+            M.MAX_PATH_BYTES
+          ),
+          vim.log.levels.WARN
+        )
+      elseif path then
         pcall(vim.fn.serverstart, path)
       else
         vim.notify(

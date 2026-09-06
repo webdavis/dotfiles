@@ -44,9 +44,10 @@
 # Neovim's.
 #
 # Exit codes: 3 a refusal (nothing answers where the pin, the pane or its tab
-# points, or herdr cannot name the pane), 4 the picker, 2 an environmental
-# fault (a tool missing, nvim unable to say where its run dir is, or a run root
-# that is not this user's private directory). On success
+# points, or herdr cannot name the pane), 4 the picker, 5 a socket path longer
+# than a unix socket allows, 2 an environmental fault (a tool missing, nvim
+# unable to say where its run dir is, or a run root that is not this user's
+# private directory). On success
 # this process is REPLACED by nvim-mcp. The pin lasts the server process:
 # nvim-mcp connects once and keeps that client, so a Neovim that exits leaves
 # later tool calls on a stale client until the harness starts a new session
@@ -69,6 +70,10 @@ for required in nvim jq; do
 done
 
 server="${NVIM_MCP_BIN:-$HOME/.local/libexec/nvim-mcp/nvim-mcp}"
+# The longest socket path a unix socket accepts: sun_path is 104 bytes on macOS
+# and 108 on Linux, NUL included, and the smaller bound applies everywhere so
+# the same name works on both. pane_socket.lua carries the same number.
+max_path_bytes=103
 # Seconds one nvim or herdr call may take. A knob only so the test can bound
 # itself well inside its own one-second budget.
 deadline="${NVIM_MCP_PROBE_DEADLINE:-2}"
@@ -130,6 +135,11 @@ pane_socket() {
   printf '%s/herdr-%s-%s.sock' "$root" "$session" "$1"
 }
 
+# path_bytes <path> -- its length in BYTES, whatever the locale.
+path_bytes() {
+  LC_ALL=C printf '%s' "${#1}"
+}
+
 if [[ -n ${NVIM_MCP_SOCKET:-} ]]; then
   [[ -n "$(answers "$NVIM_MCP_SOCKET")" ]] ||
     die 3 "NVIM_MCP_SOCKET names $NVIM_MCP_SOCKET, and no Neovim answers there; unset it, or pin a running Neovim"
@@ -165,6 +175,9 @@ fault="$(root_fault "$root")"
 [[ -z $fault ]] || die 2 "the run root $root $fault, so no socket there can be trusted"
 
 own="$(pane_socket "$terminal")"
+own_bytes="$(path_bytes "$own")"
+((own_bytes <= max_path_bytes)) ||
+  die 5 "the socket path $own is $own_bytes bytes and unix sockets allow $max_path_bytes, so no Neovim in this tab can be named; export NVIM_MCP_SOCKET to pin one"
 if [[ -n "$(answers "$own")" ]]; then
   exec "$server" --connect "$own"
 fi

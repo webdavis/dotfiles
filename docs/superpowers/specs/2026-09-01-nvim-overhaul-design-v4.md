@@ -1211,6 +1211,15 @@ because Neovim, finding `nvim.<user>` mis-owned or too open, creates `<temp>/nvi
 (measured on 0.12.5), whose parent is `<temp>` itself, which on a system without `XDG_RUNTIME_DIR` can
 be a shared `/tmp` where any account may pre-create a pane socket.
 
+**The socket path length.** A unix socket path must fit `sun_path`, 104 bytes on macOS and 108 on
+Linux, NUL included, so both sides hold the name to 103 bytes, the smaller bound, and check it before
+touching the filesystem: the editor listens on nothing and says once what the path measures and what
+the limit is, the resolver exits 5 with the same message before any probe. Without the check the bind
+fails with a bare "invalid argument" and the resolver refuses as if no Neovim existed. On this machine
+the name measures 99 bytes (`$TMPDIR/nvim.<user>/herdr-<6 hex>-term_<14 hex>.sock` with a
+seven-character user name), so a user name a handful of characters longer, or a deeper `TMPDIR`, is
+what crosses it; the pin path is unaffected.
+
 **What discovery does not cover, accepted.** A Neovim in ANOTHER tab of the workspace is not a
 candidate: the tab is the unit herdr shows side by side, and widening to the workspace would make
 the picker fire for every second editor in it. A Neovim started outside herdr, or before this
