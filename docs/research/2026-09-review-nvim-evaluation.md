@@ -36,32 +36,39 @@ Second, a comment on a DELETED diff line: review.nvim tags a deleted line `side 
 old-side line number (`core/diff.lua:290,297`), which an extmark structurally cannot do, since a deleted
 line has no line in the working tree to anchor to.
 
-Neither overturns the default. Persistence buys little here because the flow's own design is
-send-then-clear: `clear_after_send` defaults to true (`init.lua:8`) and deletes every comment once it is
-delivered, so a comment's intended life is one review pass, measured in minutes, not across restarts. And
-persistence is the capability least in need of a new plugin, because a persistent local note store landed
-on this machine yesterday: atlas.nvim was adopted 2026-09-05 with `delete_notes = false` and
-`<leader>gtn` (`dot_config/nvim/lua/plugins/atlas.lua:26,50`). The atlas evaluation asked this document
-to re-read it on exactly this point, and the answer it was looking for is that the gap is already closed.
-Adopting review.nvim for persistence would make three annotation stores on one machine, which is a
-sharper version of the cost the plan named when it set the default.
+Neither overturns the default, and the first is a genuine gap that nothing else here fills. The atlas
+evaluation asked this document to check whether atlas's local notes already cover it. They do not.
+`bin/atlas-notes` requires `--target`, a pull request URL or an atlas reference, and its `--line` is the
+"1-based line number in the pull request head" (`bin/atlas-notes:17-19`, enforced at line 84 where the
+target is `required`). An atlas note hangs off a pull request that already exists, so it has nowhere to
+put an annotation on uncommitted work in the current buffer, which is what the annotation flow holds.
+review.nvim's persistence is a real capability the flow lacks.
 
-The deleted-line comment is the more interesting of the two, and it is unmatched as far as this
-evaluation measured: whether an atlas local note can attach to an old-side line was not tested. It still
-does not carry the decision, because it is a question about reviewing a diff rather than about the job
-the annotation flow does. That job, as `annotate.lua:1-8` states it, is writing down what the operator
-would otherwise retype at an agent about a line of live code: its path and number, its diagnostic, its
-enclosing function, its blame. A deleted line has no live code to point at, and the diff is something the
-agent can read for itself.
+The flow's own design limits how much that buys. Delivery is send-then-clear: `clear_after_send` defaults
+to true (`init.lua:8`) and deletes every comment once it goes out, so a comment's intended life is one
+review pass, measured in minutes. Persistence covers a crash or a restart inside that window. Section 5
+is what it would cost, and the short version is that the plugin cannot be taken for its comment store
+alone: the rest of it is a fifth git surface.
 
-**Everything else is a tie or a loss.** Commenting a line or a selection, listing, pasting into the
-agent's input and sending are all covered, and the send path is not merely equivalent but identical:
-review.nvim shells `herdr pane send-text` (`export/markdown.lua:452`) and so does herdr-nvim
-(`dispatch.lua:15`). The submit variant is a loss: `<leader>AS` auto-submits through `herdr agent prompt`
-(`dispatch.lua:9`), and review.nvim has no auto-submit on the herdr path at all, since its `auto_enter`
-option is wired only into the tmux branch (`export/markdown.lua:322-324`). Its comments also carry none
-of the enrichment the annotator composes: zero references to `vim.diagnostic` and zero to blame anywhere
-in its Lua (4.1).
+The deleted-line comment is the second gap, and it is unmatched as far as this evaluation measured. It
+does not carry the decision either, because it is a question about reviewing a diff rather than about the
+job the annotation flow does. That job, as `annotate.lua:1-8` states it, is writing down what the
+operator would otherwise retype at an agent about a line of live code: its path and number, its
+diagnostic, its enclosing function, its blame. A deleted line has no live code to point at, and the diff
+is something the agent can read for itself.
+
+**Everything else is a tie or a loss.** Commenting a line or a selection and listing are ties, and both
+sides store the typed text unchanged (4.1). Pasting into the agent's input runs the same command on both
+sides: review.nvim shells `herdr pane send-text` (`export/markdown.lua:452`) and so does herdr-nvim
+(`dispatch.lua:15`).
+
+Two losses sit on the delivery path. The submit variant has no equivalent: `<leader>AS` auto-submits
+through `herdr agent prompt` (`dispatch.lua:9`), and review.nvim's only auto-submit is wired into its
+tmux branch (`export/markdown.lua:322-324`), which is unreachable on a machine with no tmux. And the
+routing is wider than it should be: herdr-nvim filters candidate agents by `HERDR_WORKSPACE_ID`
+(`agents.lua:14-26`) where review.nvim keeps every pane the daemon reports
+(`export/markdown.lua:365-385`), so with eight project workspaces configured its picker can send one
+repository's comments to an agent working in another (4.3).
 
 **Reconsider when any of these becomes true.** review.nvim re-anchors its quick comments on buffer
 changes, by extmark or an equivalent, which would remove the one disqualifying finding and reopen the
@@ -74,12 +81,16 @@ ______________________________________________________________________
 
 ## 2. How it was tested
 
-review.nvim was cloned into a `mktemp -d` at `/tmp/rv.QTHw` and loaded only in headless Neovim (v0.12.5)
-with all four roots redirected to that directory (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`,
+review.nvim was cloned into a `mktemp -d` and loaded only in headless Neovim (v0.12.5) with all four
+roots redirected into that directory (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`,
 `XDG_CACHE_HOME`). It was never declared through chezmoi, never written into `~/.config/nvim` or
-`~/.local/share/nvim`, and never loaded into the operator's running editor. herdr-nvim was cloned
-separately and checked out at the commit `lazy-lock.json` pins, rather than read out of the live data
-directory, so both sides of every comparison come from a clean checkout at a known commit.
+`~/.local/share/nvim`, and never loaded into the operator's running editor. herdr-nvim and atlas.nvim
+were cloned the same way and checked out at the commits this repository pins, rather than read out of the
+live data directory, so every side of every comparison comes from a clean checkout at a known commit.
+
+The probes ran in two sittings and the pasted output names two scratch roots, `/tmp/rv.QTHw` for the
+first and `/tmp/rv2.miyr` for the second, which added the complete-flow measurement in 4.5 and the atlas
+check in 4.6. Both were trashed (section 6).
 
 Probes run under `nvim --headless --clean -u <probe>.lua`, with the plugins appended to the runtimepath.
 The fixture is a throwaway git repository holding one ten-line file, so the persistence path
@@ -113,6 +124,15 @@ PROBE FAIL: not in the scratch repo, cwd=/Users/stephen/.herdr/worktrees/dotfile
 exit=1
 ```
 
+The complete-flow probe in 4.5 carries the same guard on the annotator, verified the same way:
+
+```
+=== mutation: annotator unreachable ===
+PROBE FAIL: custom_api.annotate not reachable: module 'custom_api.annotate' not found:
+	no field package.preload['custom_api.annotate']
+exit=1
+```
+
 Two behaviours could not be exercised headlessly and are judged from source with a citation instead: the
 full review user interface, which is a tab of floating windows driven by buffer-local keys, and the
 delivery itself, which would have typed into a live agent pane. Adding a comment through `qc.add()` opens
@@ -141,37 +161,52 @@ ______________________________________________________________________
 
 ## 3. Outcome table
 
-- **Comment a line or a selection (`<leader>Ac`): tie on the action, loss on the content.** Both comment
-  a line and both comment a range. review.nvim adds nothing here that `<leader>Ac` does not already do,
-  and it carries less: no diagnostic, no enclosing function, no blame (4.1).
+- **Comment a line or a selection (`<leader>Ac`): tie.** Both comment a line and both comment a range,
+  and both store the typed text unchanged. review.nvim adds comment types and templates, which are
+  conveniences on the text rather than capability. The diagnostic, function and blame enrichment is not
+  part of this row: it belongs to `<leader>Cx` (4.1).
 - **List (`<leader>Al`): tie.** Both open an interactive list with jump, edit and delete on single keys.
   review.nvim's is a persistent side panel, herdr-nvim's is a transient float. Neither can do something
   the other cannot (4.2).
-- **Paste into the agent's input (`<leader>As`): tie, and the same command underneath.** Both shell
-  `herdr pane send-text` with no Enter, both pick the agent with `vim.ui.select` (4.3).
+- **Paste into the agent's input (`<leader>As`): same command, wider routing.** Both shell
+  `herdr pane send-text` with no Enter and pick the agent with `vim.ui.select`. review.nvim offers agents
+  from every workspace where herdr-nvim filters to the current one, so its picker can reach an agent in
+  the wrong repository (4.3).
 - **Send and submit (`<leader>AS`): fail, no equivalent.** herdr-nvim auto-submits through
   `herdr agent prompt`. review.nvim's auto-submit is tmux-only; inside herdr it always leaves the prompt
   unsent (4.4).
 - **Survive an edit above it: fail, and this is the deciding row.** The herdr-nvim comment moved 5 to 8
-  and kept pointing at its line. The review.nvim comment stayed on 5 and now points at different text
-  (4.5).
+  and kept pointing at its line. The review.nvim comment stayed on 5 and now points at different text.
+  The incumbent's win is partial: the extmark moves, but an address baked into the comment text by
+  `<leader>Cx` does not (4.5).
 
 ______________________________________________________________________
 
 ## 4. Row detail
 
-### 4.1 Comment a line or a selection: tie on the action, loss on the content
+### 4.1 Comment a line or a selection: tie
 
-Both sides do the action. `<leader>Ac` is bound in normal and visual mode (`init.lua:22-23`), calling
-`comment_line` or `comment_selection`. review.nvim offers `:Review qc` for the current line and
-`:'<,'>Review qc` for a range, plus `qc.add(42, 50)` and `qc.add_visual()` in its Lua API. review.nvim
-adds comment types (note, fix, question) and eight canned templates on `<C-t>`, which herdr-nvim has no
-equivalent of; both are conveniences on the text, not new capability.
+Both sides do the action, and both store the text the operator typed and nothing more.
 
-The content is where the incumbent is ahead, and the gap is the whole reason `annotate.lua` exists. It
-composes four parts into the stored text: a `@path:line` mention, the language server diagnostic on that
-line, the enclosing function from treesitter, and the blame commit (`annotate.lua:260-265`). review.nvim
-composes none of them. Its Lua contains no reference to diagnostics or blame at all:
+`<leader>Ac` is bound in normal and visual mode (`init.lua:22-23`) onto `comment_line` and
+`comment_selection`. Both funnel into `add_comment`, which opens an input and hands the result straight
+to the store: `ui.input_comment(function(text) comments.add(bufnr, start_line, end_line, text) end)`
+(`init.lua:30-46`). No enrichment happens on this path.
+
+review.nvim reaches the same place through `:Review qc`, which dispatches on the range and calls
+`quick_comments.add(opts.line1, opts.line2)` or `quick_comments.add()` (`commands.lua:51-57`). `M.add`
+resolves the range from the cursor when no argument is given, refuses a buffer with no file name, and
+captures the line content as `context` before opening its input (`quick_comments/init.lua:18-35`). Its
+`submit` closure trims trailing blank lines and stores the text with that context
+(`quick_comments/init.lua:79-99`).
+
+**The enrichment belongs to a different key, and an earlier revision of this document attributed it to
+the wrong one.** The four composed parts, the `@path:line` mention, the diagnostic, the enclosing
+function and the blame commit (`annotate.lua:260-265`), are what `annotate.line()` builds, and
+`annotate.line()` is bound to `<leader>Cx` (`plugins/claudecode.lua:88-95`), not to `<leader>Ac`. So the
+comment-action row is a tie on content as well as on action. The enrichment comparison is a separate
+question, and on it review.nvim has no equivalent of `<leader>Cx` at all: its Lua holds no reference to
+diagnostics or blame anywhere.
 
 ```
 === enrichment sources in review.nvim's comment paths ===
@@ -181,13 +216,18 @@ composes none of them. Its Lua contains no reference to diagnostics or blame at 
 ```
 
 The one treesitter use is syntax highlighting inside its own diff buffers, not an enclosing-function
-lookup. A quick comment stores exactly the text typed, plus the raw line content at creation time.
+lookup.
+
+review.nvim does add comment types (note, fix, question) and eight canned templates on `<C-t>`, which
+herdr-nvim has no equivalent of. Both are conveniences on the text rather than new capability.
 
 ### 4.2 List: tie
 
 `<leader>Al` opens herdr-nvim's `comment_list`, where hover auto-jumps to each comment, `<CR>` edits and
-`d` deletes (`init.lua:69-80`). review.nvim's `:Review qp` toggles a side panel where `<CR>` jumps, `e`
-edits, `d` deletes, `L` previews the full text, `c` copies and `s` sends.
+`d` deletes (`init.lua:69-80`). review.nvim's `:Review qp` calls `quick_comments.toggle_panel()`
+(`commands.lua:58-60`), and the panel binds its keys directly on its own buffer: `q` and `<Esc>` close,
+`<CR>` jumps, `L` previews, `d` deletes, `e` edits, `c` copies and `s` sends
+(`quick_comments/panel.lua:179,183,188,201,253,265,292,305`).
 
 review.nvim's panel is persistent and dockable where herdr-nvim's is a transient float, and it has a
 preview key the float has no need for, since the float shows the text already. Neither reaches a
@@ -202,7 +242,7 @@ anything else:
   (none: every keymaps entry defaults to nil, README Configuration)
 ```
 
-### 4.3 Paste into the agent's input: tie, and the same command underneath
+### 4.3 Paste into the agent's input: the same command, a wider candidate list
 
 This row is not a near-match, it is the same transport. herdr-nvim's non-submit branch runs
 `herdr pane send-text <pane_id> <text>` (`dispatch.lua:15`). review.nvim's herdr branch runs
@@ -210,13 +250,21 @@ This row is not a near-match, it is the same transport. herdr-nvim's non-submit 
 agents with `herdr agent list`, both present them through `vim.ui.select` when the target is ambiguous,
 and both deliberately send no Enter so the operator reads the prompt before submitting it.
 
-The one behavioural difference is which agent gets picked without asking. herdr-nvim resolves silently
-when the target is unambiguous, preferring a single agent in the current tab via `HERDR_TAB_ID`, and only
-then falls back to the picker (`agents.lua:38-49`). review.nvim asks every time on the interactive path:
-its skip-the-picker branch is gated on a `silent` flag, which auto-sends with exactly one agent and
-refuses outright with more (`export/markdown.lua:495-503`), so `:Review qs` opens the picker even when
-one agent is the only possible target. herdr-nvim also warns when the chosen agent is mid-task and sends
-anyway (`init.lua:115-117`), which review.nvim has no notion of.
+**The candidate list is not the same list, and this is a regression rather than a preference.**
+herdr-nvim scopes the agents to the current workspace before anything else: it reads `HERDR_WORKSPACE_ID`
+and keeps an agent only when its `workspace_id` matches, or when the variable is unset
+(`agents.lua:14-26`). review.nvim applies no such filter. `parse_agents` keeps every pane the daemon
+reports that carries a `pane_id` (`export/markdown.lua:365-385`), and the string `workspace` appears
+nowhere in its Lua. On a machine running eight project workspaces, the review.nvim picker offers agents
+from all of them, so the comments from one repository can be sent into an agent working in another.
+herdr-nvim cannot make that mistake.
+
+Two smaller differences on the same path. herdr-nvim resolves silently when the target is unambiguous,
+preferring a single agent in the current tab via `HERDR_TAB_ID` and only then falling back to the picker
+(`agents.lua:38-49`), where review.nvim asks every time on the interactive path: its skip-the-picker
+branch is gated on a `silent` flag that auto-sends with exactly one agent and refuses outright with more
+(`export/markdown.lua:495-503`). And herdr-nvim warns when the chosen agent is mid-task and sends anyway
+(`init.lua:115-117`), which review.nvim has no notion of.
 
 What each one actually sends differs, and is shown under 4.5, because the difference is created by the
 anchoring rather than by the transport.
@@ -233,7 +281,7 @@ if opts.submit then
 ```
 
 review.nvim never calls `herdr agent prompt`. Its only auto-submit is in the tmux branch, gated on a
-config flag:
+config flag. Verbatim grep output, source indentation intact, so the last line runs past the wrap width:
 
 ```
 === auto_enter uses ===
@@ -325,11 +373,42 @@ context is a snapshot frozen at creation (`quick_comments/markdown.lua:35-39`), 
 buffer. herdr-nvim says 8, and pulls its snippet live through the extmark (`comments.lua:75-79`), so the
 two can never drift apart.
 
+**The comparison above is between the two STORES, and the complete flow is worse than its store.** The
+probe added the herdr-nvim comment through `comments.add`, which is what `<leader>Ac` does. The enriched
+annotator does something else: `annotate.line()` formats `@%s:%d` from the file and line and puts it
+inside the comment's own TEXT (`annotate.lua:261`), and text is the one field the extmark cannot touch.
+Running the real `annotate.line()` through the same edit shows both halves at once:
+
+```
+--- the annotation as stored, before the edit ---
+extmark line: 5
+stored text:  @sample.txt:5 | blame 61d8758 seed the fixture
+
+--- after inserting 3 lines above ---
+extmark line: 8  (moved, and points at: line 5)
+stored text:  @sample.txt:5 | blame 61d8758 seed the fixture
+```
+
+So the prompt that reaches the agent carries two addresses for one comment, and after an edit they
+disagree:
+
+```
+1. /private/tmp/rv2.miyr/repo/sample.txt:8-8
+   > line 5
+   Comment: @sample.txt:5 | blame 61d8758 seed the fixture
+```
+
+The header is right and the embedded mention is stale. This does not change the verdict, because the
+store is still the thing being compared and review.nvim's stales in both places while herdr-nvim's stales
+in one. It does mean the honest claim is narrower than "the annotation flow survives an edit above it".
+The extmark survives; an address baked into the comment text does not, and `<leader>Cx` bakes one in.
+`<leader>Ac` stores no address at all, so it has nothing to go stale.
+
 This matters most in the case the flow was built for. `auto_refresh` exists because an agent is writing
 files while the operator reads, and an agent writing above a commented line is the ordinary case, not the
 corner one.
 
-### 4.6 Persistence: real, and already covered
+### 4.6 Persistence: a real gap, and atlas does not close it
 
 Quick comments survive a restart. The file is per repository and inside `.git`, so nothing needs
 gitignoring:
@@ -367,10 +446,17 @@ herdr-nvim has no persistence whatever. Its store is a module-local table (`comm
 recursive search of its Lua for `writefile`, `readfile`, `json_encode`, `json.encode` or `stdpath`
 returns nothing. A restart drops every pending comment.
 
-So the capability is real. It is also the one the machine least needs a new plugin for, for the two
-reasons section 1 gives: `clear_after_send` deletes comments on delivery anyway, and atlas.nvim's local
-notes have been installed since 2026-09-05 with `delete_notes = false`, `<leader>gtn` to list them and a
-`bin/atlas-notes` front end an agent can drive.
+So the capability is real, and the obvious substitute does not cover it. atlas.nvim's local notes have
+been installed since 2026-09-05 with `delete_notes = false` and `<leader>gtn`, and the atlas evaluation
+pointed here on exactly this question, but an atlas note is scoped to a pull request. `bin/atlas-notes`
+documents `--target` as a "Pull request URL or canonical Atlas reference" and `--line` as a "1-based line
+number in the pull request head" (`bin/atlas-notes:17-19`), and `add` calls
+`target(required(options, "target"))` at line 84, so the target is not optional. There is no way to file
+an atlas note against uncommitted work in the current buffer, which is what the annotation flow holds.
+
+`clear_after_send` is what limits the value of that persistence. It deletes every comment on delivery, so
+the window being protected is one review pass rather than a working history. Section 5 is what buying
+that window would cost.
 
 ### 4.7 Project state
 
@@ -402,20 +488,24 @@ a `<leader>` prefix of its own under the section 8.2 rule, plus a group row in
 `lua/plugins/which-key.lua`. Its in-buffer keys are buffer-local to its own floating windows and would
 collide with nothing.
 
-Two decisions an adopt pull request would own. Whether the annotator writes into review.nvim's store
+Three decisions an adopt pull request would own. Whether the annotator writes into review.nvim's store
 instead of herdr-nvim's, which is not a swap of one call for another: `annotate.lua:267-268` adds a
 comment and decorates it by id, where review.nvim's equivalent is a file path and a line number, and the
-annotator would lose the extmark that makes `M.line()` worth calling. And whether `<leader>AS` survives,
+annotator would lose the extmark that makes `M.line()` worth calling. Whether `<leader>AS` survives,
 since review.nvim cannot auto-submit inside herdr (4.4); keeping it would mean either an
 `export.on_export` callback that shells `herdr agent prompt` directly, or accepting that the submit key
-goes away.
+goes away. And how the agent picker gets scoped back to the current workspace (4.3), which
+`export.on_export` could also own, since a callback replaces the built-in herdr path entirely and could
+filter on `HERDR_WORKSPACE_ID` the way `agents.lua` does.
 
 ______________________________________________________________________
 
 ## 6. Cleanup
 
-The scratch tree at `/tmp/rv.QTHw`, holding both clones, the probe scripts, the throwaway git repository
-and the redirected Neovim roots, was trashed at the end of the evaluation. Nothing under `~/.config/nvim`
-or `~/.local/share/nvim` was written to or read at any point: both plugins came from fresh clones, the
-incumbent at the commit `lazy-lock.json` pins. No herdr pane, tab or workspace was created, no agent was
-sent anything, and the operator's running editor was never touched.
+Both scratch trees, `/tmp/rv.QTHw` and `/tmp/rv2.miyr`, holding the three clones, the probe scripts, the
+throwaway git repositories and the redirected Neovim roots, were trashed at the end of their sittings.
+Nothing under `~/.config/nvim` or `~/.local/share/nvim` was written to or read at any point: every plugin
+came from a fresh clone at the commit this repository pins. The one file read out of the working tree was
+the annotation flow's own source, `dot_config/nvim/`, appended to a headless runtimepath so
+`annotate.line()` could be measured; nothing was written back to it. No herdr pane, tab or workspace was
+created, no agent was sent anything, and the operator's running editor was never touched.
