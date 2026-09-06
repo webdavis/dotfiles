@@ -16,96 +16,39 @@ pub mod moshi;
 use crate::routing::ReportMode;
 
 /// One rendered event, the structured form of the channel contract's JSON
-/// object. The pane is the SANITIZED one.
-#[derive(Debug, Default, PartialEq)]
-pub struct Event {
-    pub agent: String,
-    pub state: String,
-    pub project: String,
-    pub branch: String,
-    pub detail: String,
-    pub title: String,
-    pub message: String,
-    pub preview: String,
-    pub pane: String,
-}
+/// object. THE VALUE MOVED to `pns-domain`, where the ports that hand it to a
+/// destination are declared; the wire format below stayed, because it is JSON.
+pub use pns_domain::notification::Event;
 
-impl Event {
-    /// The event as the JSON object the channel contract specifies, for an
-    /// executable channel reading one line on stdin. The delivery mode is the
-    /// one field that is per-LEG rather than per-event, so it arrives as an
-    /// argument instead of living on the struct.
-    pub fn to_json(&self, mode: ReportMode) -> String {
-        serde_json::json!({
-            "agent": self.agent,
-            "state": self.state,
-            "project": self.project,
-            "branch": self.branch,
-            "detail": self.detail,
-            "title": self.title,
-            "message": self.message,
-            "preview": self.preview,
-            "pane": self.pane,
-            "mode": mode.as_str(),
-        })
-        .to_string()
-    }
+/// The event as the JSON object the channel contract specifies, for an
+/// executable channel reading one line on stdin. The delivery mode is the
+/// one field that is per-LEG rather than per-event, so it arrives as an
+/// argument instead of living on the struct.
+///
+/// A FREE FUNCTION RATHER THAN A METHOD, because an inherent impl may only be
+/// written in the crate that defines the type, and `Event` is the domain's now.
+pub fn event_json(event: &Event, mode: ReportMode) -> String {
+    serde_json::json!({
+    "agent": event.agent,
+    "state": event.state,
+    "project": event.project,
+    "branch": event.branch,
+    "detail": event.detail,
+    "title": event.title,
+    "message": event.message,
+    "preview": event.preview,
+    "pane": event.pane,
+    "mode": mode.as_str(),
+    })
+    .to_string()
 }
 
 /// What one delivery has to say for itself.
 ///
-/// A channel decides HOW to deliver and whether it can, never WHETHER it
-/// should fire, and it must never fail the caller. Nothing here is an error
-/// path: this exists so the one caller decides whether a line reaches the
-/// operator, instead of each channel deciding for itself and only one of them
-/// having an opinion.
-///
-/// THE VERDICT IS THE VARIANT, never a word inside the sentence. A caller that
-/// had to find "FAILED" in the text to learn whether a destination received
-/// anything would be a predicate keyed on English, and one of those has already
-/// cost this repo a defect.
-///
-/// THE SENTENCE CARRIES NO `pns: ` PREFIX. It is added by the one place that
-/// prints, so a caller that labels a line with the plugin's name does not have
-/// to unpick a prefix out of the middle of its own.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Delivery {
-    /// Nothing worth saying, which is almost always the case.
-    Silent,
-    /// It arrived, and this is what the destination said about it.
-    Delivered(String),
-    /// It did not, and this is what the destination said about that.
-    Failed(String),
-    /// It was never even LAUNCHED, and this says which channel and why. An
-    /// executable channel that ran and said nothing is `Silent`; a spawn that
-    /// never happened delivered nothing at all, and a caller that cannot tell
-    /// the two apart calls an empty channels directory a set of successful
-    /// sends, which is exactly what a hand-run check did before this variant
-    /// existed.
-    ///
-    /// STILL SILENT ON THE NOTIFICATION PATH, in both report modes: the common
-    /// case is a channel nobody installed, and saying so on every event is the
-    /// noise the silence was for.
-    Unlaunched(String),
-}
-
-impl Delivery {
-    /// The line to print for this leg, or None. REPORT MODE IS THE CALLER'S
-    /// to know: a channel says what happened, never whether anyone hears it.
-    /// BOTH verdicts are printed on a reporting leg, because a failure is
-    /// exactly the outcome the log path exists to make visible.
-    pub fn line_for(self, mode: ReportMode) -> Option<String> {
-        match self {
-            Delivery::Delivered(line) | Delivery::Failed(line)
-                if mode == ReportMode::ReportOutcome =>
-            {
-                Some(line)
-            }
-            // Silent, Unlaunched, and either verdict on a leg nobody reads.
-            _ => None,
-        }
-    }
-}
+/// THE VOCABULARY IS THE ROUTING'S, in `pns-domain` beside the `Leg` it
+/// answers for and the `ReportMode` that says whether anyone reads it, and it
+/// is named here for every destination that produces one.
+pub use pns_domain::routing::Delivery;
 
 /// True when native plugins take precedence for dispatch: only when the
 /// channels directory was NOT explicitly overridden.
@@ -132,7 +75,7 @@ mod tests {
             pane: "wW:p21".to_string(),
         };
         let parsed: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::Silent)).unwrap();
         assert_eq!(parsed["agent"], "claude");
         assert_eq!(parsed["detail"], "a \"quoted\" detail");
         assert_eq!(parsed["pane"], "wW:p21");
@@ -185,10 +128,10 @@ mod tests {
             ..Event::default()
         };
         let sync: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::ReportOutcome)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::ReportOutcome)).unwrap();
         assert_eq!(sync["mode"], "sync");
         let asynchronous: serde_json::Value =
-            serde_json::from_str(&event.to_json(ReportMode::Silent)).unwrap();
+            serde_json::from_str(&super::event_json(&event, ReportMode::Silent)).unwrap();
         assert_eq!(asynchronous["mode"], "async");
     }
 }
