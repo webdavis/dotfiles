@@ -128,3 +128,58 @@ pub fn channel_plan(
         })
         .collect()
 }
+
+/// What one delivery has to say for itself.
+///
+/// A channel decides HOW to deliver and whether it can, never WHETHER it
+/// should fire, and it must never fail the caller. Nothing here is an error
+/// path: this exists so the one caller decides whether a line reaches the
+/// operator, instead of each channel deciding for itself and only one of them
+/// having an opinion.
+///
+/// THE VERDICT IS THE VARIANT, never a word inside the sentence. A caller that
+/// had to find "FAILED" in the text to learn whether a destination received
+/// anything would be a predicate keyed on English, and one of those has already
+/// cost this repo a defect.
+///
+/// THE SENTENCE CARRIES NO `pns: ` PREFIX. It is added by the one place that
+/// prints, so a caller that labels a line with the plugin's name does not have
+/// to unpick a prefix out of the middle of its own.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Delivery {
+    /// Nothing worth saying, which is almost always the case.
+    Silent,
+    /// It arrived, and this is what the destination said about it.
+    Delivered(String),
+    /// It did not, and this is what the destination said about that.
+    Failed(String),
+    /// It was never even LAUNCHED, and this says which channel and why. An
+    /// executable channel that ran and said nothing is `Silent`; a spawn that
+    /// never happened delivered nothing at all, and a caller that cannot tell
+    /// the two apart calls an empty channels directory a set of successful
+    /// sends, which is exactly what a hand-run check did before this variant
+    /// existed.
+    ///
+    /// STILL SILENT ON THE NOTIFICATION PATH, in both report modes: the common
+    /// case is a channel nobody installed, and saying so on every event is the
+    /// noise the silence was for.
+    Unlaunched(String),
+}
+
+impl Delivery {
+    /// The line to print for this leg, or None. REPORT MODE IS THE CALLER'S
+    /// to know: a channel says what happened, never whether anyone hears it.
+    /// BOTH verdicts are printed on a reporting leg, because a failure is
+    /// exactly the outcome the log path exists to make visible.
+    pub fn line_for(self, mode: ReportMode) -> Option<String> {
+        match self {
+            Delivery::Delivered(line) | Delivery::Failed(line)
+                if mode == ReportMode::ReportOutcome =>
+            {
+                Some(line)
+            }
+            // Silent, Unlaunched, and either verdict on a leg nobody reads.
+            _ => None,
+        }
+    }
+}
