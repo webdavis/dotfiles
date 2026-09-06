@@ -103,7 +103,7 @@ return {
     -- (`lazy/core/handler/keys.lua`, `_add`); `_set` never runs for an rhs-less
     -- row, so `config` stays the only place either mapping is defined.
     keys = {
-      { "<leader>gm", desc = "Gitsigns: blame line (full)" },
+      { "<leader>gm", desc = "Gitsigns: blame line (full, global alias)" },
       { "<leader>gM", desc = "Gitsigns: blame file (walk commits)" },
     },
     config = function()
@@ -384,7 +384,7 @@ return {
         rhs = function()
           gitsigns.blame_line({ full = true })
         end,
-        desc = "Gitsigns: blame line (full)",
+        desc = "Gitsigns: blame line (full, global alias)",
       })
 
       -- The `<rev>:<path>` half of a blame name, of which only the path is

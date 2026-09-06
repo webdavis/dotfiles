@@ -419,7 +419,7 @@ return {
             vim.cmd("CustomFormatEnable")
           end
         end,
-        desc = "Format: toggle autoformat-on-save",
+        desc = "Format: toggle autoformat-on-save (alias of <leader>cc)",
         silent = true,
       },
       {
