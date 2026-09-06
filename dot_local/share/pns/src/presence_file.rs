@@ -56,26 +56,11 @@ pub fn room_fits(room: &str) -> bool {
     !room.is_empty() && room.chars().count() <= ROOM_MAX && !room.chars().any(char::is_control)
 }
 
-/// One line of the state file, as SYNTAX ALONE. Nothing here is aged or
-/// matched against the config: `classify` is where a reading becomes a
-/// verdict, so the two are read and tested apart.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawPresence {
-    pub poll_epoch: u64,
-    /// `None` for the poll-only line: the poll ran and no configured room had
-    /// an edge.
-    pub edge: Option<Edge>,
-}
-
-/// The motion edge a poll found, and where.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Edge {
-    pub epoch: u64,
-    /// Whether motion is reported NOW, rather than having been at `epoch`.
-    pub motion: bool,
-    /// The bridge's own room name, verbatim.
-    pub room: String,
-}
+/// One line of the state file, as SYNTAX ALONE, and the motion edge inside
+/// it. THE VALUES ARE THE POLICY'S, not this codec's: `classify` in
+/// `pns-domain` takes them, so they live beside it and are named here for
+/// every caller that reads a line and then judges it.
+pub use pns_domain::presence::status::{Edge, RawPresence};
 
 /// One line of the state file, or `None` when it is not one. A MISSING FILE
 /// AND A MALFORMED LINE ARE ONE ANSWER: nothing a caller could do differs.
