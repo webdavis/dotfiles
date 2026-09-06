@@ -403,10 +403,12 @@ the adapter repository's `M.verified_version` and fixtures have to be re-measure
 the two repositories enforces that.
 
 Local stays Homebrew (`Brewfile.dev`, `.chezmoidata/system_packages_autoinstall.yaml`), because Homebrew
-has no declarative version pin the way `uv`'s `==` does. The cost: a `brew upgrade bashunit` past the pin
-makes `just test-unit` refuse on a machine where nobody touched a test, until the fixtures are
-re-measured and all three pins are updated. That is the stylua trade below, accepted for the same reason:
-a visible failure on an untouched file beats a silent behavior change.
+has no declarative version pin the way `uv`'s `==` does. That used to be survivable: the adapter's own
+suite refused to certify fixtures captured from a different release, so a `brew upgrade bashunit` past
+the pin turned `just test-unit` red on a machine where nobody had touched a test. **That gate left with
+the adapter.** A local upgrade now silently moves the release this repository's whole `*.test.sh` corpus
+runs on, and nothing here says a word; CI is the only place the pinned release is still what runs. That
+is the REVERSE of the stylua trade below, and it was not chosen: it is what moving the adapter out cost.
 
 **stylua is deliberately NOT pinned.** It is also a byte rewriter, same class of risk as mdformat, but
 Homebrew has no declarative version pin the way `uv`'s `==` does. The cost: a newer stylua on a fresh
