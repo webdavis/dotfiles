@@ -976,32 +976,59 @@ the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50
 ### Task 26: PR 14, custom #1, the editor-side pns producer (spec 7.7, 10.9)
 
 Lane: agent, LAST in the lane. Depends on: PR 7f, PR 3 (the xcodebuild spec), PR 19b
-(`overseer.lua`), PR 28b (`neotest.lua`), AND the pns refactor that builds `--elapsed <secs>` (the
-operator froze pns work pending that refactor on 2026-09-03; the requirement is written into
+(`overseer.lua`), PR 28b (`neotest.lua`), AND the pns refactor's PR 8.3, which builds `--elapsed
+<secs>` (`docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`; the operator froze pns work
+pending that refactor on 2026-09-03, and the requirement is written into
 `~/.claude/pipeline/pns-refactor-prompt-v2.md`). Brief: `brief-nvim-pns-producer.md`. Closes custom
-#1. Re-sequenced 2026-09-03: there is no Lua module, because the tier is pns's to decide, and the
-three edges land together here rather than two here and one in the neotest PR.
+#1. Re-sequenced 2026-09-03: the three edges land together here rather than two here and one in the
+neotest PR. Re-shaped 2026-09-05 (operator ruling): this is NOT three bare call sites. It ships as a
+standalone Neovim plugin in its OWN GitHub repository, `webdavis/pns.nvim` (the empty repository
+exists), which any lazy.nvim user installs the ordinary way. Every custom plugin in this overhaul
+ships that way from now on.
 
-**Files:** Modify `lua/plugins/overseer.lua` (an `on_complete` component), `lua/plugins/xcodebuild.lua`
-(the `User` autocmd pair), `lua/plugins/neotest.lua` (the `client.listeners.results` edge). No
-`lua/custom_api/` file and no spec file.
+**Two repositories, in order.** The plugin is built in `webdavis/pns.nvim` FIRST, with its own tests
+and its own release, and this task is the dotfiles PR that installs and wires it. Nothing about the
+plugin's source, its tests or its formatting lands in this repository: no `dir =`, no `treefmt.toml`
+row, no `.chezmoiignore` row, no justfile recipe.
 
-**Interfaces:** each edge runs `vim.system` on `~/.local/libexec/pns/pns` with
-`--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>" --elapsed <secs>
---pane "$HERDR_PANE_ID"`. The editor never applies the 30 and 300 thresholds and never renders a
-duration string: it states the seconds and pns picks the tier. Edge facts, re-verified at the pins:
-`xcodebuild.nvim` fires `User` patterns `XcodebuildBuild{Started,Finished}` and
-`XcodebuildTests{Started,Finished}` (`lua/xcodebuild/broadcasting/events.lua`), duration between the
-pair; neotest's results edge is `lua/neotest/client/events/init.lua`.
+**Files:** Create `dot_config/nvim/lua/plugins/pns.lua`, naming `"webdavis/pns.nvim"` with a
+`commit =` pin and setting `binary = "~/.local/libexec/pns/pns"`. Modify
+`dot_config/nvim/lua/plugins/overseer.lua` (register the `on_complete` component from the plugin) and
+the lazy-lock. No `lua/custom_api/` file and no `dot_config/nvim/tests/` spec.
 
-- [ ] **Step 1:** confirm `pns --help` lists `--elapsed` before writing any edge; if it does not, the
-  pns refactor has not landed and this task does not start. Paste the help line.
-- [ ] **Step 2:** the three edges. No unit test: nothing pure is left in the editor, and a test that
-  asserted the argv would be asserting a tool we did not write is about to reject or accept.
-- [ ] **Step 3, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
+**In `webdavis/pns.nvim`:** standard plugin layout, `lua/pns/` with `init.lua` (`report`) and
+`integrations/{overseer,xcodebuild,neotest}.lua`, `doc/pns.txt`, a README with the lazy.nvim install
+snippet, `:checkhealth pns` reporting whether the pns binary was found and is new enough, and headless
+Lua tests for `report` and each integration. A `binary` option names the executable and defaults to
+`pns` on PATH, so the plugin works on a machine that installed pns some other way.
+
+**Interfaces:** the public surface is one call,
+`require("pns").report({ state = "done"|"failed", detail = "<tool>: <task>", elapsed = <secs>,
+project = <cwd basename> })`, which spawns the pns binary through `vim.system` with
+`--agent nvim --state <state> --project <project> --detail <detail> --elapsed <secs>
+--pane "$HERDR_PANE_ID"`. The plugin carries NO thresholds and renders no duration string: it states
+the seconds and pns picks the tier. The two repositories are coupled by a minimum version handshake:
+the plugin declares the oldest pns it works against, reads `pns --version` once, and fails
+`checkhealth` rather than emitting argv an older binary would reject. Each integration is opt-in by
+the presence of the plugin it hooks and inert without it. The overseer one is registered from the
+overseer spec, because a component has to be registered while overseer sets up; the other two arm
+themselves. Edge facts, re-verified at the pins: `xcodebuild.nvim` fires `User` patterns
+`XcodebuildBuild{Started,Finished}` and `XcodebuildTests{Started,Finished}`
+(`lua/xcodebuild/broadcasting/events.lua`), duration between the pair; neotest's results edge is
+`lua/neotest/client/events/init.lua`.
+
+- [ ] **Step 1:** confirm `pns --help` lists `--elapsed` before writing any code; if it does not, PR
+  8.3 of the pns refactor has not landed and this task does not start. Paste the help line, and the
+  `pns --version` the handshake will be pinned to.
+- [ ] **Step 2, in `webdavis/pns.nvim`:** build and release the plugin there, tests included, to a
+  tagged commit. Paste its test run and the commit sha this task will pin.
+- [ ] **Step 3:** `lua/plugins/pns.lua` with that pin and the `binary` option, the overseer component
+  registered from the overseer spec, and the lazy-lock row. `:checkhealth pns` clean, pasted.
+- [ ] **Step 4, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
   the tool and the task; a 10 s one gives none; the 35 s run's `--elapsed 35` appears in the pasted
   command line. The banner is not asserted (the engine suppresses it for the watched pane).
-- [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): report task completions to pns`.
+- [ ] **Step 5:** Gates G1 to G6; G4 unchanged. Commit:
+  `feat(nvim): report task completions to pns`.
 
 ### Task 27: PR 15, custom #2, the review-ledger quickfix (spec 7.7)
 

@@ -935,7 +935,7 @@ dot_config/nvim/tests/
                        # plan_launch (PR 13)
   ledger_awk_spec.lua  # 7.7 #2: the :ReviewLedger awk, fed a heredoc through vim.system
   annotate_spec.lua    # 7.7 #3: the annotation composer
-                       # 7.7 #1 has no module and no spec file: pns owns the tier
+                       # 7.7 #1 has no file here: it is its own repo, webdavis/pns.nvim
 ```
 
 The runner takes the CONFIG ROOT as an argument, `--config <dir>`, defaulting to its own grandparent
@@ -1268,26 +1268,59 @@ portability becomes a goal.
 
 ### 7.7 Custom plugins #1 to #3, approved
 
-All three shrank on 2026-09-03, and only one is still a module. #1 is two flags and three call
-sites, #2 is one command over one awk program, and #3 is one composer feeding `herdr-nvim`'s own
-annotation store. Where a module survives it lives under `lua/custom_api/`, function-named with no
+All three shrank on 2026-09-03; #1 regained a shape of its own on 2026-09-05, and only one is still
+a `lua/custom_api/` module. #1 is a small plugin in its own repository with one public call, #2 is
+one command over one awk program, and #3 is one composer feeding `herdr-nvim`'s own annotation
+store. Where a `custom_api` module survives it lives under `lua/custom_api/`, function-named with no
 handle so it can be lifted into its own repository later, with a pure core under unit test (6.3) and
 a thin editor edge; its name is a proposal and the rename rule applies (confirm before creating).
 
 **#1, the editor-side pns producer (PR 14).** Overseer, `xcodebuild.nvim` and neotest runs report to
-pns the way the shell notifier does. There is NO Lua module, because the tier is not the editor's to
-decide: pns gains `--elapsed <secs>` in its refactor, and from then on a producer states how long the
-work took and pns applies the one tier rule it already owns for the shell (nothing under 30 s, the
-presence gate from 30 s, the lights from 300 s). The editor edge is therefore three call sites, each
-one `vim.system` on `~/.local/libexec/pns/pns` with
-`--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>" --elapsed <secs>
---pane "$HERDR_PANE_ID"`: an overseer `on_complete` component registered from the overseer spec, the
-`User` autocmd pair `xcodebuild.nvim` fires (`XcodebuildBuild{Started,Finished}` and
+pns the way the shell notifier does, through a small standalone Neovim plugin with its own GitHub
+repository, `webdavis/pns.nvim` (function-named, no handle; the empty repository exists). Operator
+ruling 2026-09-05: every custom Neovim plugin in this overhaul ships that way, installed by any
+lazy.nvim user the ordinary way, so this is neither a `lua/custom_api/` module, nor three bare call
+sites pasted into three plugin specs, nor a directory inside the pns crate.
+
+Standard plugin layout in that repository: `lua/pns/`, `doc/pns.txt`, a README carrying the
+lazy.nvim install snippet, and `:checkhealth pns`, which reports whether the pns binary was found
+and whether it is new enough. A `binary` option names the executable and defaults to `pns` on PATH,
+which is what makes the plugin usable on a machine that installed pns some other way; this
+config's spec sets it to `~/.local/libexec/pns/pns`, where the dotfiles put it. The plugin's own
+repository runs the plugin's own tests, so nothing about them lands here.
+
+The plugin and pns are coupled by a MINIMUM VERSION HANDSHAKE, not by living in one tree. The
+plugin declares the oldest pns it works against, reads `pns --version` once, and refuses with a
+`checkhealth` failure rather than emitting argv an older binary would reject. That is what replaces
+the guarantee a shared tree would have given: two repositories that release on their own schedules,
+with the flag requirement stated rather than assumed.
+
+`lua/plugins/pns.lua` in this config names `"webdavis/pns.nvim"` with a `commit =` pin and a
+lazy-lock row, exactly like every other plugin here.
+
+The public surface is ONE call,
+`require("pns").report({ state = "done"|"failed", detail = "<tool>: <task>", elapsed = <secs>,
+project = <cwd basename> })`, which spawns the pns binary through `vim.system` with
+`--agent nvim --state <state> --project <project> --detail <detail> --elapsed <secs>
+--pane "$HERDR_PANE_ID"`. Three built-in integrations call it, each opt-in by the presence of the
+plugin it hooks and inert without it: an overseer `on_complete` component, registered from the
+overseer spec because a component has to be registered while overseer sets up; the `User` autocmd
+pairs `xcodebuild.nvim` fires (`XcodebuildBuild{Started,Finished}` and
 `XcodebuildTests{Started,Finished}`, `lua/xcodebuild/broadcasting/events.lua`, verified at the pinned
-commit), and neotest's `client.listeners.results` edge. The bashrc notifier's caller-side 30 and 300
-rule collapses into the same flag in the same pns pull request, so one rule lives in one place
-instead of being restated by every producer. Nothing pure is left in the editor to unit test; the
-check is the live one in 10.9.
+commit), which arm themselves; and neotest's `client.listeners.results` edge, likewise.
+
+The tier is still not the editor's to decide, and the plugin therefore carries NO thresholds. pns
+gains `--elapsed <secs>` in its refactor, and from then on a producer states how long the work took
+and pns applies the one tier rule it already owns for the shell (nothing under 30 s, the presence
+gate from 30 s, the lights from 300 s). The bashrc notifier's caller-side 30 and 300 rule collapses
+into the same flag in the same pns pull request, so one rule lives in one place instead of being
+restated by every producer.
+
+Why a plugin and not the three call sites. One public seam is what a fourth and a fifth tool plug
+into later without a fourth copy of the argv. The tests have somewhere to live, in the plugin's
+repository rather than nowhere. And anyone running Neovim with pns installed can use it, which three
+call sites buried in this config's plugin specs could never offer. The live check in 10.9 is
+unchanged.
 
 Two sequencing consequences. PR 14 lands AFTER the pns refactor, which is where `--elapsed` is built
 (the operator froze pns work pending that refactor on 2026-09-03), and after PR 28b, whose neotest
@@ -1615,7 +1648,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 13 | The launch helper `<leader>Cc` over `herdr-nvim`'s lookup, `agent prompt`, `pane split --env`, `agent start`; extends `custom_api/herdr.lua` | PR 12, PR 11 (`custom_api/herdr.lua`) | 77 (launch) |
 | PR 23 | git-blame: rebuild the three keymaps on `custom_api` and gitsigns `on_attach`, then drop the plugin (`git.lua`, `custom_api/git.lua`, `custom_api/github.lua`) | PR 7f, PR 18 | 21, 28 |
 | PR 16 | Custom #3: the line annotator, `compose_text` into `herdr-nvim`'s `comments.add` and `ui.decorate`, `<leader>Cx`; no send path; shares the `<leader>C` keymap file with PR 13 | PR 12, PR 13, PR 23 | custom #3 |
-| PR 14 | Custom #1: the editor-side pns producer, no module: the overseer, `xcodebuild.nvim` and neotest edges each call `pns --elapsed <secs>` (`overseer.lua`, the xcodebuild spec, `neotest.lua`) | PR 7f, PR 3, PR 19b, PR 28b (`neotest.lua`), and the pns refactor that builds `--elapsed` | custom #1 |
+| PR 14 | Custom #1: the editor-side pns producer, its own repository `webdavis/pns.nvim`: install it here with a `commit =` pin and register the overseer component (`lua/plugins/pns.lua`, `overseer.lua`) | PR 7f, PR 3, PR 19b, PR 28b (`neotest.lua`), and the pns refactor that builds `--elapsed` | custom #1 |
 | PR 15 | Custom #2: `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline awk in `keymaps.lua`; no module, no fixture | PR 7f, PR 8 (`keymaps.lua`) | custom #2 |
 | PR 17a | Drop cspell (`lsp.lua`)                                                                                 | PR 5b                 | 23                                          |
 | PR 17b | Drop gitmoji (`blink-cmp.lua`)                                                                          | PR 2                  | 24                                          |
@@ -1868,7 +1901,7 @@ re-gated since its last merge of `main` is not a verdict.
 | F    | neotest, auto-save, xcodebuild in scope       | 5.3         | PR 3, PR 12, PR 28a, PR 28b |
 | G    | own program                                   | 0           | this spec |
 | H    | import unchanged first                        | 3.7         | PR 2      |
-| custom #1 | editor-side pns producer (no module; pns `--elapsed`) | 7.7 | PR 14, after the pns refactor |
+| custom #1 | editor-side pns producer (own repo `webdavis/pns.nvim`; pns `--elapsed`) | 7.7 | PR 14, after the pns refactor |
 | custom #2 | review-ledger quickfix (`:ReviewLedger`, inline awk) | 7.7 | PR 15 |
 | custom #3 | line annotator into `herdr-nvim` comments | 7.7        | PR 16     |
 | custom #4 | Neovim MCP server, evaluate then build   | 7.3         | PR 9 (evaluate), PR 10a (resolver or crate spec), PR 10b (crate build) |
