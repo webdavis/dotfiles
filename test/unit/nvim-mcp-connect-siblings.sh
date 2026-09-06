@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 # nvim-mcp-connect.sh, the SIBLING half: what happens when no Neovim answers
 # for the agent's own pane and the resolver asks herdr which panes share the
-# tab. The pin, own-pane and fallback cases live in
-# nvim-mcp-connect-resolution.sh and nvim-mcp-connect-refusals.sh, so that each
-# file stays inside the one-second budget.
+# tab. The herdr faults on that path are in nvim-mcp-connect-siblings-guards.sh,
+# the pin, own-pane and fallback cases in nvim-mcp-connect-resolution.sh and
+# nvim-mcp-connect-refusals.sh, so that each file stays inside the one-second
+# budget.
 #
 #   o) one live sibling           -> connected to, by its terminal's socket
 #   p) own pane live too          -> own pane wins, the tab is never listed
 #   q) two live siblings          -> picker: exit 4, both enumerated, no guess
 #   r) no live sibling            -> exit 3 after probing the dead one
 #   s) a live Neovim in ANOTHER tab of the workspace is not a candidate
-#   t) the tab listing fails      -> no siblings, exit 3
-#   u) herdr hangs                -> bounded by the deadline, exit 3
-#   v) a sibling terminal id that cannot name a socket never reaches the filesystem
 #   w) a sibling moved between workspaces keeps its terminal, so it is still found
 #
 set -euo pipefail
@@ -75,44 +73,6 @@ run_case XDG_RUNTIME_DIR="$RUN"
 grep -qxF "$(sock term_c)" "$CASE/probed" 2>/dev/null && fail 'other-tab: a Neovim in another tab was probed'
 [[ ! -f $CASE/exec ]] || fail 'other-tab: it connected across tabs'
 
-# --- t) a failing tab listing is no siblings ---------------------------------
-setup_case list-fails
-me term_a
-siblings 'w1:t1|term_a|w1:p1' 'w1:t1|term_b|w1:p2'
-live "$(sock term_b)"
-: >"$CASE/herdr-list-fail"
-run_case XDG_RUNTIME_DIR="$RUN"
-[[ $RC -eq 3 ]] || fail "list-fails: expected exit 3, got $RC ($(cat "$CASE/err"))"
-[[ ! -f $CASE/exec ]] || fail 'list-fails: it connected on a herdr failure'
-
-# --- u) a hanging herdr is bounded --------------------------------------------
-setup_case herdr-hangs
-me term_a
-: >"$CASE/herdr-hang"
-start="$SECONDS"
-CASE_DEADLINE=0.2 run_case XDG_RUNTIME_DIR="$RUN"
-[[ $RC -eq 3 ]] || fail "herdr-hangs: expected exit 3, got $RC ($(cat "$CASE/err"))"
-(($((SECONDS - start)) < 2)) || fail 'herdr-hangs: the herdr call was not bounded'
-[[ ! -f $CASE/exec ]] || fail 'herdr-hangs: it connected anyway'
-
-# --- v) a sibling terminal id that cannot name a socket ----------------------
-# An id carrying a slash would derive a path OUTSIDE the run root
-# (`<root>/herdr-<session>-x/../../escape.sock` is `<case>/escape.sock`), and
-# a Neovim answering there must not be reached through it. The `..` resolves
-# only when a directory of that first name stands in the root, so the case
-# plants one, and the stub answers on the derived spelling too: only the
-# pattern check stands between the id and the socket.
-setup_case odd-sibling
-me term_a
-siblings 'w1:t1|term_a|w1:p1' 'w1:t1|x/../../escape|w1:p2'
-mkdir "$RUN/herdr-$SESSION-x"
-live "$CASE/escape.sock"
-printf '%s\n' "$RUN/herdr-$SESSION-x/../../escape.sock" >>"$CASE/live"
-run_case XDG_RUNTIME_DIR="$RUN"
-[[ $RC -eq 3 ]] || fail "odd-sibling: expected exit 3, got $RC ($(cat "$CASE/err") $(cat "$CASE/exec" 2>/dev/null))"
-grep -qF 'escape' "$CASE/probed" 2>/dev/null && fail "odd-sibling: a path was derived from an unsafe id ($(cat "$CASE/probed"))"
-[[ ! -f $CASE/exec ]] || fail "odd-sibling: it connected outside the run root ($(cat "$CASE/exec"))"
-
 # --- w) a sibling moved between workspaces is still found by its terminal ----
 # herdr renames a pane moved across workspaces (w1:p2 becomes, say, w9:p2) but
 # its terminal id and its socket do not change. The listing names the pane by
@@ -125,4 +85,4 @@ run_case XDG_RUNTIME_DIR="$RUN"
 [[ $RC -eq 0 ]] || fail "moved-sibling: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect $(sock term_b)" "$CASE/exec" || fail "moved-sibling: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
 
-printf 'PASS: %s (9 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+printf 'PASS: %s (6 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

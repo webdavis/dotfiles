@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # Shared fixture for the nvim-mcp-connect.sh tests. SOURCED, never executed:
-# test/unit/nvim-mcp-connect-resolution.sh, nvim-mcp-connect-refusals.sh and
-# nvim-mcp-connect-siblings.sh each source this and then run their own cases.
-# One fixture rather than three that can drift apart.
+# the five test/unit/nvim-mcp-connect-*.sh files each source this and then run
+# their own cases, split by the one-second budget. One fixture rather than five
+# that can drift apart.
 #
 # What it provides:
 #   fail <message>            print and exit non-zero
