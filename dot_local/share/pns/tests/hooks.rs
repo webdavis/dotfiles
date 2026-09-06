@@ -344,8 +344,13 @@ fn a_dead_turn_spawns_no_condenser_and_reads_no_transcript() {
         )
         .as_bytes(),
     );
+    // ITS OWN BOUND, NOT `HANG_LIMIT`. The clock IS the assertion here: the
+    // regression is the re-read loop the two knobs above configure at four
+    // attempts of two seconds, so a build that reads the transcript finishes in
+    // about eight. Thirty seconds would let that build finish and report 0, and
+    // the row would go green on exactly the path it exists to refuse.
     assert_eq!(
-        finished_within(child, HANG_LIMIT),
+        finished_within(child, DEAD_TURN_LIMIT),
         Some(0),
         "a dead turn that sat through eight seconds of sleeps read the transcript"
     );
@@ -1971,10 +1976,27 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
 /// ceiling, and `a_payload_at_the_cap_is_whole_and_is_still_submitted` costs
 /// 2.656 s on an IDLE machine (measured 2026-09-05, twenty runs), so a loaded
 /// one pushed it past all four at once and this was what decided the verdict.
-/// Thirty seconds is better than ten times that worst honest reading. A real
-/// hang is still caught here, and a merely slow run is still caught by the
-/// sandbox guard, which names the test.
+/// Thirty seconds is better than ten times that worst honest reading.
+///
+/// AND THE COST OF THAT IS STATED: a genuine hang now takes the full thirty
+/// seconds to reject, where it used to take five. Nothing shortens it. The
+/// sandbox ceiling runs in `Drop`, so it reports a slow run AFTER the wait and
+/// can never interrupt one.
+///
+/// IT IS THE WRONG BOUND FOR A ROW WHOSE CLOCK IS ITS ASSERTION. See
+/// `DEAD_TURN_LIMIT`: a regression measured in seconds needs a bound under
+/// those seconds, not a hang bound.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The bound for `a_dead_turn_spawns_no_condenser_and_reads_no_transcript`
+/// alone, where the clock is the assertion rather than a give-up.
+///
+/// That row configures the transcript re-read loop at four attempts of two
+/// seconds, so the build it exists to refuse finishes in about eight and the
+/// bound has to sit under them. Five is that, with room: the honest path waits
+/// on nothing at all, so unlike the megabyte row this one is not racing its own
+/// cost, and machine load does not move it.
+const DEAD_TURN_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
