@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env bash
 # route.sh: the base severity matrix (route_severity) and the three-outcome
 # page/digest/log-only gate (route_findings).
 #
@@ -8,23 +8,32 @@
 # UNTRUSTED for a path holding UNTRUSTED and trusted for anything else. No
 # alerter, no osqueryd, no codesign, no clock.
 #
-# The gate passes run ONCE in setup_file and every routing test reads the cached
-# result, because route_findings forks jq per finding: one 27-finding pass costs
-# a fraction of what 28 single-finding passes would. Each test still owns one
-# behavior and fails on its own.
+# The gate passes run ONCE in set_up_before_script and every routing test reads
+# the cached result, because route_findings forks jq per finding: one 27-finding
+# pass costs a fraction of what 28 single-finding passes would. Each test still
+# owns one behavior and fails on its own.
 #
 # Outcome vocabulary, used throughout: a finding's tag surfacing on stdout means
 # PAGE, in the digest spool means DIGEST, in neither means LOG-ONLY.
+#
+# bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
+# executable bit; test/validate-tests.sh pins that shape. A test body runs
+# WITHOUT errexit, so every helper below ends in a real bashunit assertion: a
+# mid-test `return 1` would report nothing. route.sh itself is sourced ONCE at
+# file scope, because bashunit already runs each body in its own subshell.
+#
+# Three shellcheck codes are disabled for the whole file, all for one reason:
+# each gate pass runs inside a `( ... )` subshell on purpose, so every export in
+# it is MEANT to reach that pass and nothing else (SC2030, SC2031), and the
+# collaborator doubles defined beside those exports are called by route_findings
+# rather than by name (SC2329).
+# shellcheck disable=SC2030,SC2031,SC2329
 
-# bats re-sources this file once per test, so whatever setup() does is paid per
-# test: it sources route.sh (function definitions only, no forks) and nothing
-# else. The cached pass output is read on FIRST USE by the assertion helpers
-# rather than for every test.
-setup() {
-  ALERTER="$BATS_TEST_DIRNAME/../../dot_local/libexec/osquery/results-alerter"
-  # shellcheck source=dot_local/libexec/osquery/results-alerter/route.sh
-  source "$ALERTER/route.sh"
-}
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ALERTER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter"
+
+# shellcheck source=dot_local/libexec/osquery/results-alerter/route.sh
+source "$ALERTER/route.sh"
 
 # --- fixtures and the cached gate passes -----------------------------------
 
@@ -45,9 +54,8 @@ sha256_of() {
   printf '%s' "${line%% *}"
 }
 
-setup_file() {
-  ALERTER="$BATS_TEST_DIRNAME/../../dot_local/libexec/osquery/results-alerter"
-  export ALERTER
+set_up_before_script() {
+  FILE_FIXTURE="$(mktemp -d)"
   _build_fixtures
   _run_vouched_pass
   _run_failsafe_pass
@@ -55,12 +63,22 @@ setup_file() {
   _run_emit_passes
 }
 
+tear_down_after_script() { discard_fixture "$FILE_FIXTURE"; }
+
+# discard_fixture <path>: remove one mktemp -d this file created, and nothing
+# else. Plain rm -rf, the convention every other test in this repo uses; the
+# suite also runs on a CI host with no Trash.
+discard_fixture() {
+  [[ -n ${1:-} && -d $1 ]] || return 0
+  rm -rf "$1"
+}
+
 # The vouched regime: a HOME holding two allowlisted LaunchAgents whose plists are
 # pinned by hash, and a manifest that vouches for the allowlist file itself.
 # Without that manifest entry allowlist_verdict refuses to suppress anything, and
 # every suppression assertion below would pass for the wrong reason.
 _build_fixtures() {
-  local home="$BATS_FILE_TMPDIR/home"
+  local home="$FILE_FIXTURE/home"
   mkdir -p "$home/Library/LaunchAgents" "$home/bin" "$home/.config/osquery"
 
   UNTRUSTED_PLIST="$home/Library/LaunchAgents/com.evilUNTRUSTED.plist"
@@ -77,12 +95,12 @@ _build_fixtures() {
   } >"$ALLOWLIST"
   chmod 600 "$ALLOWLIST"
 
-  MANIFEST="$BATS_FILE_TMPDIR/pipeline-known-good.sha256"
+  MANIFEST="$FILE_FIXTURE/pipeline-known-good.sha256"
   printf '%s 0600 %s %s\n' "$(sha256_of "$ALLOWLIST")" "$(id -u)" "$ALLOWLIST" >"$MANIFEST"
 
   # The signing enricher: UNTRUSTED (exit 10) for a path holding UNTRUSTED, a
   # trusted authority otherwise. Deterministic, and never a real codesign call.
-  ENRICHER="$BATS_FILE_TMPDIR/enrich-stub.sh"
+  ENRICHER="$FILE_FIXTURE/enrich-stub.sh"
   cat >"$ENRICHER" <<'STUB'
 #!/bin/sh
 case "$1" in
@@ -92,7 +110,6 @@ esac
 STUB
   chmod +x "$ENRICHER"
   HOME_FIXTURE="$home"
-  export UNTRUSTED_PLIST TRUSTED_PLIST ALLOWLIST MANIFEST ENRICHER HOME_FIXTURE
 }
 
 # The tier table, under a regime where the allowlist and the manifest both exist
@@ -134,7 +151,7 @@ _run_vouched_pass() {
   findings+=("$(finding T28 persistence_launchd added \
     '"label":"com.apple.x","path":"/System/Library/LaunchAgents/com.apple.x.plist","program":"/usr/bin/x"')")
 
-  : >"$BATS_FILE_TMPDIR/main.digest"
+  : >"$FILE_FIXTURE/main.digest"
   (
     export HOME="$home"
     export OSQUERY_LAUNCHD_ALLOWLIST="$ALLOWLIST"
@@ -144,9 +161,9 @@ _run_vouched_pass() {
     source "$ALERTER/route.sh"
     source "$ALERTER/allowlist-verdict.sh"
     source "$ALERTER/pipeline-verdict.sh"
-    digest_append() { printf '%s\n' "$1" >>"$BATS_FILE_TMPDIR/main.digest"; }
+    digest_append() { printf '%s\n' "$1" >>"$FILE_FIXTURE/main.digest"; }
     printf '%s\n' "${findings[@]}" | route_findings
-  ) >"$BATS_FILE_TMPDIR/main.page" 2>"$BATS_FILE_TMPDIR/main.err"
+  ) >"$FILE_FIXTURE/main.page" 2>"$FILE_FIXTURE/main.err"
 }
 
 # The fail-safe regime: no allowlist file and no manifest, so nothing can vouch
@@ -165,19 +182,19 @@ _run_failsafe_pass() {
   findings+=("$(finding S04 persistence_launchd added \
     '"label":"com.s04","path":"/Users/x/Library/LaunchAgents/com.s04.plist","program":"/Users/x/bin/s04"')")
 
-  : >"$BATS_FILE_TMPDIR/safe.digest"
+  : >"$FILE_FIXTURE/safe.digest"
   (
     export HOME=/Users/x
-    export OSQUERY_LAUNCHD_ALLOWLIST="$BATS_FILE_TMPDIR/absent-allowlist.txt"
-    export OSQUERY_PIPELINE_MANIFEST="$BATS_FILE_TMPDIR/absent-manifest.sha256"
+    export OSQUERY_LAUNCHD_ALLOWLIST="$FILE_FIXTURE/absent-allowlist.txt"
+    export OSQUERY_PIPELINE_MANIFEST="$FILE_FIXTURE/absent-manifest.sha256"
     export OSQUERY_PIPELINE_SETTLE_SECONDS=0
-    export OSQUERY_ENRICH_SCRIPT="$BATS_FILE_TMPDIR/absent-enricher.sh"
+    export OSQUERY_ENRICH_SCRIPT="$FILE_FIXTURE/absent-enricher.sh"
     source "$ALERTER/route.sh"
     source "$ALERTER/allowlist-verdict.sh"
     source "$ALERTER/pipeline-verdict.sh"
-    digest_append() { printf '%s\n' "$1" >>"$BATS_FILE_TMPDIR/safe.digest"; }
+    digest_append() { printf '%s\n' "$1" >>"$FILE_FIXTURE/safe.digest"; }
     printf '%s\n' "${findings[@]}" | route_findings
-  ) >"$BATS_FILE_TMPDIR/safe.page" 2>"$BATS_FILE_TMPDIR/safe.err"
+  ) >"$FILE_FIXTURE/safe.page" 2>"$FILE_FIXTURE/safe.err"
 }
 
 # route_findings classifies the whole batch in ONE route_severity pass and reads
@@ -199,9 +216,9 @@ _run_severity_shortfall_passes() {
     status=0
     (
       set -euo pipefail
-      export OSQUERY_ENRICH_SCRIPT="$BATS_FILE_TMPDIR/absent-enricher.sh"
-      export OSQUERY_LAUNCHD_ALLOWLIST="$BATS_FILE_TMPDIR/absent-allowlist.txt"
-      export OSQUERY_PIPELINE_MANIFEST="$BATS_FILE_TMPDIR/absent-manifest.sha256"
+      export OSQUERY_ENRICH_SCRIPT="$FILE_FIXTURE/absent-enricher.sh"
+      export OSQUERY_LAUNCHD_ALLOWLIST="$FILE_FIXTURE/absent-allowlist.txt"
+      export OSQUERY_PIPELINE_MANIFEST="$FILE_FIXTURE/absent-manifest.sha256"
       source "$ALERTER/route.sh"
       source "$ALERTER/allowlist-verdict.sh"
       source "$ALERTER/pipeline-verdict.sh"
@@ -215,8 +232,8 @@ _run_severity_shortfall_passes() {
         }
       fi
       printf '%s\n' "${findings[@]}" | route_findings
-    ) >"$BATS_FILE_TMPDIR/$name.page" 2>"$BATS_FILE_TMPDIR/$name.err" || status=$?
-    printf '%s' "$status" >"$BATS_FILE_TMPDIR/$name.status"
+    ) >"$FILE_FIXTURE/$name.page" 2>"$FILE_FIXTURE/$name.err" || status=$?
+    printf '%s' "$status" >"$FILE_FIXTURE/$name.status"
   done
 }
 
@@ -244,7 +261,7 @@ _run_emit_passes() {
     # the caller's shell options, and every other pass in this file sources
     # route.sh the same way, so a swallowed status would green them all.
     (
-      export OSQUERY_ENRICH_SCRIPT="$BATS_FILE_TMPDIR/absent-enricher.sh"
+      export OSQUERY_ENRICH_SCRIPT="$FILE_FIXTURE/absent-enricher.sh"
       source "$ALERTER/route.sh"
       digest_append() { :; }
       jq() {
@@ -260,8 +277,8 @@ _run_emit_passes() {
         command jq "$@"
       }
       printf '%s\n' "$finding_json" | route_findings
-    ) >"$BATS_FILE_TMPDIR/$name.page" 2>"$BATS_FILE_TMPDIR/$name.err" || status=$?
-    printf '%s' "$status" >"$BATS_FILE_TMPDIR/$name.status"
+    ) >"$FILE_FIXTURE/$name.page" 2>"$FILE_FIXTURE/$name.err" || status=$?
+    printf '%s' "$status" >"$FILE_FIXTURE/$name.status"
   done
 }
 
@@ -280,18 +297,18 @@ assert_routed_failsafe() {
   _assert_routed "$SAFE_PAGE" "$SAFE_DIGEST" "$@"
 }
 
-# _load_pass <main|safe>: read a cached pass once per test process.
+# _load_pass <main|safe>: read a cached pass once per test subshell.
 _load_pass() {
   case "$1" in
     main)
       [[ -n ${MAIN_PAGE+set} ]] && return 0
-      MAIN_PAGE=$(<"$BATS_FILE_TMPDIR/main.page")
-      MAIN_DIGEST=$(<"$BATS_FILE_TMPDIR/main.digest")
+      MAIN_PAGE=$(<"$FILE_FIXTURE/main.page")
+      MAIN_DIGEST=$(<"$FILE_FIXTURE/main.digest")
       ;;
     safe)
       [[ -n ${SAFE_PAGE+set} ]] && return 0
-      SAFE_PAGE=$(<"$BATS_FILE_TMPDIR/safe.page")
-      SAFE_DIGEST=$(<"$BATS_FILE_TMPDIR/safe.digest")
+      SAFE_PAGE=$(<"$FILE_FIXTURE/safe.page")
+      SAFE_DIGEST=$(<"$FILE_FIXTURE/safe.digest")
       ;;
   esac
 }
@@ -302,10 +319,8 @@ _assert_routed() {
   if [[ $digest == *"$tag"* ]]; then
     if [[ $got == page ]]; then got=both; else got=digest; fi
   fi
-  if [[ $got != "$want" ]]; then
-    printf '%s expected %s, got %s (%s)\n' "$3" "$want" "$got" "$why" >&2
-    return 1
-  fi
+  [[ $got == "$want" ]] || printf '%s: %s\n' "$3" "$why" >&2
+  assert_same "$want" "$got"
 }
 
 # assert_severities <expected-newline-list> <finding>...: one route_severity pass,
@@ -314,23 +329,18 @@ assert_severities() {
   local expected="$1" got
   shift
   got=$(printf '%s\n' "$@" | route_severity)
-  if [[ $got != "$expected" ]]; then
-    printf 'route_severity returned\n%s\nexpected\n%s\n' "$got" "$expected" >&2
-    return 1
-  fi
+  assert_same "$expected" "$got"
 }
 
 # assert_holds <haystack> <needle> <why>
 assert_holds() {
-  if [[ $1 != *"$2"* ]]; then
-    printf 'expected %s (%s)\ngot: %s\n' "$2" "$3" "$1" >&2
-    return 1
-  fi
+  [[ $1 == *"$2"* ]] || printf 'why this must be present: %s\n' "$3" >&2
+  assert_contains "$2" "$1"
 }
 
 # --- the base severity matrix ----------------------------------------------
 
-@test "a protection in its unsafe state, a new admin account and a new setuid-root binary are CRIT" {
+function test_a_protection_in_its_unsafe_state_a_new_admin_account_and_a_new_setuid_root_binary_are_crit() {
   assert_severities 'CRIT
 CRIT
 CRIT
@@ -345,7 +355,7 @@ CRIT' \
     "$(finding P6 suid_bin_unexpected added '"path":"/tmp/x"')"
 }
 
-@test "a security-policy row that is not the unsafe state falls to NOTICE, never to INFO" {
+function test_a_security_policy_row_that_is_not_the_unsafe_state_falls_to_notice_never_to_info() {
   assert_severities 'NOTICE
 NOTICE
 NOTICE
@@ -356,7 +366,7 @@ NOTICE' \
     "$(finding P10 remote_access_sharing_state added)"
 }
 
-@test "persistence, extensions, watched files and endpoint-security writes are NOTICE" {
+function test_persistence_extensions_watched_files_and_endpoint_security_writes_are_notice() {
   assert_severities 'NOTICE
 NOTICE
 NOTICE
@@ -371,7 +381,7 @@ NOTICE' \
     "$(finding P16 es_launchd_writes added)"
 }
 
-@test "software drift, listeners, logins and the agent queries are INFO" {
+function test_software_drift_listeners_logins_and_the_agent_queries_are_info() {
   assert_severities 'INFO
 INFO
 INFO
@@ -386,7 +396,7 @@ INFO' \
 
 # --- the gate: which channel each detector reaches -------------------------
 
-@test "the page tier reaches stdout, including the two remote-auth file events" {
+function test_the_page_tier_reaches_stdout_including_the_two_remote_auth_file_events() {
   assert_routed T01 page 'a new administrator account is criterion 1'
   assert_routed T02 page 'a filevault_off differential row is the protection being off, criterion 2'
   assert_routed T04 page 'a change to one of the two real secrets is criterion 3'
@@ -396,20 +406,20 @@ INFO' \
   assert_routed T10 page 'authorized_keys is a remote-auth entry point'
 }
 
-@test "the safe-direction rows and the poller-owned protection reach neither channel" {
+function test_the_safe_direction_rows_and_the_poller_owned_protection_reach_neither_channel() {
   assert_routed T03 logonly 'encryption coming back is not an incident'
   assert_routed T06 logonly 'a removed exposure row is the port being closed, which is good news'
   assert_routed T15 logonly 'the 60s firewall poller pages this already, so routing it here would double-page'
 }
 
-@test "the ambiguous tier digests: a credential file, a new listener, a private key, sudoers" {
+function test_the_ambiguous_tier_digests_a_credential_file_a_new_listener_a_private_key_sudoers() {
   assert_routed T13 digest 'agent_authfile_changed is the three non-secret configs, routine churn'
   assert_routed T14 digest 'a new non-loopback listener is suspicious but ambiguous'
   assert_routed T11 digest 'a ~/.ssh file that is not authorized_keys digests'
   assert_routed T12 digest 'a sudoers change digests'
 }
 
-@test "the extension arms honor the untrusted-signing promotion and the log-only arms ignore it" {
+function test_the_extension_arms_honor_the_untrusted_signing_promotion_and_the_log_only_arms_ignore_it() {
   assert_routed T17 page 'the kext arm honors the enrichment promotion (operator ruling 2026-07-22)'
   assert_routed T18 logonly 'a signed kernel extension stays at its base tier, log-only'
   assert_routed T19 page 'the sysext arm honors the same promotion'
@@ -420,51 +430,39 @@ INFO' \
   assert_routed T22 logonly 'crontab persistence is a low-noise legacy vector kept log-only'
 }
 
-@test "an untrusted program behind a fully allowlisted label still pages, and the trusted one is suppressed" {
+function test_an_untrusted_program_behind_a_fully_allowlisted_label_still_pages_and_the_trusted_one_is_suppressed() {
   assert_routed T23 page 'the security invariant: a promoted CRIT is never suppressed by the allowlist'
   assert_routed T24 logonly 'a fully allowlisted agent whose program is trusted is suppressed'
 }
 
-@test "default-deny: a reused label, an unknown agent and a LaunchDaemon page, an Apple item is skipped" {
+function test_default_deny_a_reused_label_an_unknown_agent_and_a_launchdaemon_page_an_apple_item_is_skipped() {
   assert_routed T25 page 'the label is allowlisted but the program diverges, so this is not the vouched identity'
   assert_routed T26 page 'an unallowlisted user LaunchAgent pages (operator ruling 2026-07-22)'
   assert_routed T27 page 'a root LaunchDaemon runs at boot, so the path decides without the allowlist'
   assert_routed T28 logonly "Apple's own launchd items are log-only"
 }
 
-@test "the signing verdict is attached to a paged finding, trusted or not" {
+function test_the_signing_verdict_is_attached_to_a_paged_finding_trusted_or_not() {
   local signings
   _load_pass main
   signings=$(jq -sr 'map(select(.cols.tag == "T07" or .cols.tag == "T08"))
     | sort_by(.cols.tag) | map(.signing // "absent") | join(",")' <<<"$MAIN_PAGE")
-  [[ $signings == 'signed: Apple,UNSIGNED' ]] || {
-    printf 'expected the trusted then the untrusted authority, got %s\n' "$signings" >&2
-    return 1
-  }
+  assert_same 'signed: Apple,UNSIGNED' "$signings"
 }
 
-@test "every finding reaches exactly one channel and every page is stamped CRIT" {
+function test_every_finding_reaches_exactly_one_channel_and_every_page_is_stamped_crit() {
   local -a pages digests
   _load_pass main
   mapfile -t pages <<<"$MAIN_PAGE"
   mapfile -t digests <<<"$MAIN_DIGEST"
-  [[ ${#pages[@]} -eq 14 ]] || {
-    printf 'expected 14 page-candidates, got %s\n%s\n' "${#pages[@]}" "$MAIN_PAGE" >&2
-    return 1
-  }
-  [[ ${#digests[@]} -eq 5 ]] || {
-    printf 'expected 5 digested findings, got %s\n%s\n' "${#digests[@]}" "$MAIN_DIGEST" >&2
-    return 1
-  }
-  [[ "$(jq -s 'all(.[]; .sev == "CRIT")' <<<"$MAIN_PAGE")" == true ]] || {
-    printf 'every page-candidate must carry .sev == CRIT\n%s\n' "$MAIN_PAGE" >&2
-    return 1
-  }
+  assert_same 14 "${#pages[@]}"
+  assert_same 5 "${#digests[@]}"
+  assert_same true "$(jq -s 'all(.[]; .sev == "CRIT")' <<<"$MAIN_PAGE")"
 }
 
 # --- the gate with nothing to vouch for anything ---------------------------
 
-@test "with nothing able to vouch, tracked edits and an unknown agent page while a neighbour stays silent" {
+function test_with_nothing_able_to_vouch_tracked_edits_and_an_unknown_agent_page_while_a_neighbour_stays_silent() {
   assert_routed_failsafe S01 page 'no manifest means the change cannot be confirmed, which is fail-safe, not benign'
   assert_routed_failsafe S02 page 'the allowlist decides whether an unknown agent pages, so an unvouched edit is a tamper of the deciding component'
   assert_routed_failsafe S04 page 'a missing allowlist is not an empty one: default-deny still applies'
@@ -476,76 +474,62 @@ INFO' \
 
 # --- a severity batch that comes back short --------------------------------
 
-@test "a finding whose severity never arrived pages, the batch completes, and the shortfall is announced" {
+function test_a_finding_whose_severity_never_arrived_pages_the_batch_completes_and_the_shortfall_is_announced() {
   local page status err
-  page=$(<"$BATS_FILE_TMPDIR/short.page")
-  status=$(<"$BATS_FILE_TMPDIR/short.status")
-  err=$(<"$BATS_FILE_TMPDIR/short.err")
+  page=$(<"$FILE_FIXTURE/short.page")
+  status=$(<"$FILE_FIXTURE/short.status")
+  err=$(<"$FILE_FIXTURE/short.err")
   assert_holds "$page" X_A 'the finding the truncated batch did classify must still page'
   assert_holds "$page" X_B 'filevault_off lost its severity and must page, not be dropped'
   assert_holds "$page" X_C 'suid_bin_unexpected lost its severity and must page, not be dropped'
-  [[ $status -eq 0 ]] || {
-    printf 'the pass must complete rather than abort mid-batch, exited %s (%s)\n' "$status" "$err" >&2
-    return 1
-  }
+  [[ $status -eq 0 ]] ||
+    printf 'the pass must complete rather than abort mid-batch (%s)\n' "$err" >&2
+  assert_same 0 "$status"
   assert_holds "$err" severity 'the degradation must be human-visible in the launchd log, not inferred from an over-page'
   assert_holds "$err" 'route_severity exit 5' \
     'reporting the real status proves it was captured, not thrown away by a process substitution'
 }
 
-@test "a healthy severity batch routes normally and warns about nothing" {
+function test_a_healthy_severity_batch_routes_normally_and_warns_about_nothing() {
   local page status err
-  page=$(<"$BATS_FILE_TMPDIR/healthy.page")
-  status=$(<"$BATS_FILE_TMPDIR/healthy.status")
-  err=$(<"$BATS_FILE_TMPDIR/healthy.err")
-  [[ $status -eq 0 ]] || {
-    printf 'the healthy pass must exit 0, exited %s (%s)\n' "$status" "$err" >&2
-    return 1
-  }
+  page=$(<"$FILE_FIXTURE/healthy.page")
+  status=$(<"$FILE_FIXTURE/healthy.status")
+  err=$(<"$FILE_FIXTURE/healthy.err")
+  [[ $status -eq 0 ]] || printf 'the healthy pass must exit 0 (%s)\n' "$err" >&2
+  assert_same 0 "$status"
   assert_holds "$page" X_A 'a new admin account pages on a healthy batch'
   assert_holds "$page" X_B 'filevault_off pages on a healthy batch'
   assert_holds "$page" X_C 'a new setuid binary pages on a healthy batch'
-  if [[ $page == *X_D* ]]; then
-    printf 'homebrew drift is INFO and must stay log-only, so the fail-safe cannot be a blanket page\n%s\n' "$page" >&2
-    return 1
-  fi
-  [[ -z $err ]] || {
-    printf 'a healthy batch must not warn: %s\n' "$err" >&2
-    return 1
-  }
+  [[ $page != *X_D* ]] ||
+    printf 'homebrew drift is INFO and must stay log-only, so the fail-safe cannot be a blanket page\n' >&2
+  assert_not_contains X_D "$page"
+  [[ -z $err ]] || printf 'a healthy batch must not warn\n' >&2
+  assert_empty "$err"
 }
 
 # --- the page emit ----------------------------------------------------------
 
-@test "a failed page emit reports nonzero instead of a clean nothing-to-page" {
+function test_a_failed_page_emit_reports_nonzero_instead_of_a_clean_nothing_to_page() {
   local status
-  status=$(<"$BATS_FILE_TMPDIR/emit-armed.status")
-  [[ $status -ne 0 ]] || {
+  status=$(<"$FILE_FIXTURE/emit-armed.status")
+  [[ $status -ne 0 ]] ||
     printf 'a lost page emit reported success, so the entry would checkpoint past findings that were never written\n' >&2
-    return 1
-  }
+  assert_not_same 0 "$status"
 }
 
-@test "a healthy emit writes the candidate and a batch with nothing to page emits nothing, both exiting 0" {
+function test_a_healthy_emit_writes_the_candidate_and_a_batch_with_nothing_to_page_emits_nothing_both_exiting_zero() {
   local status page
-  status=$(<"$BATS_FILE_TMPDIR/emit-healthy.status")
-  page=$(<"$BATS_FILE_TMPDIR/emit-healthy.page")
-  [[ $status -eq 0 ]] || {
+  status=$(<"$FILE_FIXTURE/emit-healthy.status")
+  page=$(<"$FILE_FIXTURE/emit-healthy.page")
+  [[ $status -eq 0 ]] ||
     printf 'the fix cannot be a blanket nonzero return: a healthy emit exited %s\n' "$status" >&2
-    return 1
-  }
+  assert_same 0 "$status"
   assert_holds "$page" EMIT_PAGE 'a healthy emit still writes the page-candidate'
 
   # The armed double is inert here, because a batch with no page-candidates never
   # reaches the emit at all.
-  status=$(<"$BATS_FILE_TMPDIR/emit-nothing.status")
-  page=$(<"$BATS_FILE_TMPDIR/emit-nothing.page")
-  [[ $status -eq 0 ]] || {
-    printf 'a batch with nothing to page exited %s\n' "$status" >&2
-    return 1
-  }
-  [[ -z $page ]] || {
-    printf 'a batch with no page-candidates must emit nothing, got: %s\n' "$page" >&2
-    return 1
-  }
+  status=$(<"$FILE_FIXTURE/emit-nothing.status")
+  page=$(<"$FILE_FIXTURE/emit-nothing.page")
+  assert_same 0 "$status"
+  assert_empty "$page"
 }
