@@ -1,6 +1,191 @@
+local overseer_title = { title = "Overseer" }
+local overseer_watch_run_desc = "Overseer: watch-run"
+
+local function toggle_runner(window)
+  local overseer = require("overseer")
+  if vim.bo.buftype == "terminal" then
+    vim.cmd("close")
+    return
+  end
+
+  -- Check for Overseer window.
+  local task_list = require("overseer.task_list")
+  local tasks = overseer.list_tasks({
+    status = {
+      overseer.STATUS.RUNNING,
+      overseer.STATUS.SUCCESS,
+      overseer.STATUS.FAILURE,
+      overseer.STATUS.CANCELED,
+    },
+    sort = task_list.sort_finished_recently,
+  })
+
+  if vim.tbl_isempty(tasks) then
+    vim.notify("No tasks found", vim.log.levels.WARN, overseer_title)
+  else
+    local most_recent = tasks[1]
+    overseer.run_action(most_recent, "open " .. window)
+  end
+end
+
+-- A window that always shows the newest task's output, rather than one task's
+-- output frozen at the moment it was opened. Overseer builds it from any window;
+-- this opens a split and hands that window over, and the view then follows every
+-- task started afterwards.
+local function output_view()
+  local overseer = require("overseer")
+  vim.cmd("botright split")
+  overseer.create_task_output_view(vim.api.nvim_get_current_win(), {
+    list_task_opts = {
+      filter = function(task)
+        return task.time_start ~= nil
+      end,
+    },
+    -- The newest task, always. Overseer keeps whichever task the cursor was last
+    -- over in the sidebar, and preferring that pinned the view to it: hover an
+    -- older task, close the sidebar, and every task started afterwards was
+    -- ignored while the view sat on the old one.
+    select = function(_, tasks)
+      -- By start sequence, not `time_start`: that is `os.time()`, so two starts
+      -- in one second compare equal and the earlier task stayed displayed.
+      -- time_start is only the tiebreak for a task carrying no sequence, which
+      -- means it was started with components of its own.
+      table.sort(tasks, function(a, b)
+        local sa = a.metadata and a.metadata.start_sequence or 0
+        local sb = b.metadata and b.metadata.start_sequence or 0
+        if sa ~= sb then
+          return sa > sb
+        end
+        return (a.time_start or 0) > (b.time_start or 0)
+      end)
+      return tasks[1]
+    end,
+  })
+end
+
+-- The other half of the template preload in `config`. A provider's cache_key
+-- invalidates on its own file, so this is for the cases that miss: a recipe added
+-- to a justfile further up the tree, or a template edited in this config.
+local function refresh_templates()
+  local overseer = require("overseer")
+  local dir = vim.uv.cwd()
+  overseer.clear_task_cache({ dir = dir })
+  overseer.preload_task_cache({ dir = dir }, function()
+    vim.notify("Task templates refreshed", vim.log.levels.INFO, overseer_title)
+  end)
+end
+
+local function view(window)
+  return function()
+    toggle_runner(window)
+  end
+end
+
 return {
   "stevearc/overseer.nvim",
   opts = {},
+  -- Every command overseer registers itself (overseer/init.lua `commands`) plus
+  -- the five this file's `config` creates, minus `OverseerShell`, which gets the
+  -- loader below instead. A command defined only inside `config` cannot trigger
+  -- the load unless its name is here, so it would simply not exist until
+  -- something else loaded the plugin.
+  --
+  -- Every name left here survives a placeholder. lazy's placeholder is
+  -- `nargs="*"` and replays the command from `event.fargs`, EXCEPT when the real
+  -- command's `nargs` contains `1` or `?`, where it replays the raw `event.args`
+  -- untouched (lazy/core/handler/cmd.lua). So the `nargs="?"` five
+  -- (`OverseerDeleteBundle`, `OverseerLoadBundle`, `OverseerOpen`,
+  -- `OverseerSaveBundle`, `OverseerToggle`) and the `nargs=0` four
+  -- (`OverseerClose`, `OverseerRestartLast`, `OverseerTaskAction`,
+  -- `OverseerWatchRun`) are all safe. `OverseerRun` is `nargs="*"`, but
+  -- `commands._run_template` reads only `fargs`, which is the one thing the
+  -- placeholder reproduces faithfully.
+  cmd = {
+    "OverseerClose",
+    "OverseerDeleteBundle",
+    "OverseerLoadBundle",
+    "OverseerOpen",
+    "OverseerRestartLast",
+    "OverseerRun",
+    "OverseerSaveBundle",
+    "OverseerTaskAction",
+    "OverseerToggle",
+    "OverseerWatchRun",
+  },
+  -- `OverseerShell` is the one command here that reads the RAW argument string:
+  -- `commands._run_shell` takes `params.args` and makes it the task's `cmd`. A
+  -- placeholder hands `event.fargs` to `nvim_cmd` as a LIST, and that API keeps
+  -- each element as one argument while rebuilding the `args` STRING by joining
+  -- them with a single space. So `fargs` arrives intact and `args` does not,
+  -- which is why `OverseerRun` needs no loader and this does: the FIRST
+  -- `:OverseerShell! ls a\ b` reached overseer as `ls a b` and turned one
+  -- filename into two, and repeated spaces collapsed the same way. Once overseer
+  -- had loaded the real command took over and every later call was right, which
+  -- is what made it easy to miss.
+  --
+  -- So this declares what overseer declares and replays the untouched
+  -- `event.args`. Deleting the proxy BEFORE the load is what makes the replay
+  -- safe: overseer's `create_commands` would overwrite the name anyway, but if
+  -- the load ever failed to define it, re-dispatching into this same callback
+  -- would recurse instead of failing with E492.
+  init = function()
+    vim.api.nvim_create_user_command("OverseerShell", function(event)
+      vim.api.nvim_del_user_command("OverseerShell")
+      require("lazy").load({ plugins = { "overseer.nvim" } })
+      vim.cmd({
+        cmd = "OverseerShell",
+        -- A bare `:OverseerShell` prompts for the command instead, and `nvim_cmd`
+        -- rejects an empty string as an argument ("expected non-whitespace"), so
+        -- the no-argument call has to pass no argument rather than one empty one.
+        args = event.args ~= "" and { event.args } or {},
+        bang = event.bang or nil,
+        mods = event.smods,
+      })
+    end, {
+      -- Overseer's own declaration at the pin, copied field for field. It takes
+      -- no range and no count, so neither is forwarded.
+      bang = true,
+      nargs = "*",
+      -- A built-in completion type, so the command line completes here without
+      -- loading overseer at all. The placeholder had to load the plugin to
+      -- answer the first `<Tab>`.
+      complete = "shellcmdline",
+      desc = "Run a shell command as an overseer task. With `!` the task is created but not started",
+    })
+  end,
+  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
+  -- same rhs when the plugin loads, so there is no second copy in `config`. The
+  -- four `:`-prefixed rows leave the cmdline open for an argument, so they carry
+  -- no `silent`.
+  keys = {
+    {
+      "<leader>or",
+      "<cmd>OverseerOpen!<cr><cmd>OverseerRun<cr>",
+      desc = "Overseer: run (and open list)",
+      silent = true,
+    },
+    { "<leader>oR", "<cmd>OverseerRun<cr>", desc = "Overseer: run", silent = true },
+    { "<leader>ol", "<cmd>OverseerRestartLast<cr>", desc = "Overseer: run last task", silent = true },
+    { "<leader>oo", "<cmd>OverseerOpen<cr>", desc = "Overseer: open (and focus)", silent = true },
+    { "<leader>oO", "<cmd>OverseerOpen!<cr>", desc = "Overseer: open (without focus)", silent = true },
+    { "<leader>oc", "<cmd>OverseerClose<cr>", desc = "Overseer: close", silent = true },
+    { "<leader>ot", "<cmd>OverseerToggle<cr>", desc = "Overseer: toggle (and focus)", silent = true },
+    { "<leader>oT", "<cmd>OverseerToggle!<cr>", desc = "Overseer: toggle (without focus)", silent = true },
+    { "<leader>ov", output_view, desc = "Overseer: open a live view of the newest task's output" },
+    { "<M-'>", output_view, desc = "Overseer: open a live view of the newest task's output" },
+    { "<leader>oC", refresh_templates, desc = "Overseer: refresh the task templates", silent = true },
+    { "<leader>ob", ":OverseerSaveBundle ", desc = "Overseer: save the task list as a bundle" },
+    { "<leader>oB", ":OverseerLoadBundle ", desc = "Overseer: load a task bundle" },
+    { "<leader>oX", ":OverseerDeleteBundle ", desc = "Overseer: delete a task bundle" },
+    { "<leader>os", ":OverseerShell ", desc = "Overseer: run a shell command as a task" },
+    { "<leader>oa", "<cmd>OverseerTaskAction<cr>", desc = "Overseer: run an action on a task", silent = true },
+    { '<leader>o"', view("hsplit"), desc = "Overseer: open task in hsplit" },
+    { "<M-7>", view("hsplit"), desc = "Overseer: open task in hsplit" },
+    { "<leader>o%", view("vsplit"), desc = "Overseer: open task in vsplit" },
+    { "<M-8>", view("vsplit"), desc = "Overseer: open task in vsplit" },
+    { "<M-;>", view("float"), desc = "Overseer: open task in floating window" },
+    { "<M-[>", "<cmd>OverseerWatchRun<cr>", desc = overseer_watch_run_desc },
+  },
   config = function()
     local overseer = require("overseer")
 
@@ -259,8 +444,6 @@ return {
       },
     })
 
-    local overseer_title = { title = "Overseer" }
-
     -- The generic errorformat is a task DEFAULT, not a component parameter.
     -- `on_output_quickfix.errorformat` carries `default_from_task`, which fills
     -- in only when the component does not set it, so pinning it in the alias
@@ -342,7 +525,6 @@ return {
       end
     end, {})
 
-    local overseer_watch_run_desc = "Overseer: watch-run"
     -- Task bundles.
     --
     -- Overseer shipped OverseerSaveBundle and OverseerLoadBundle until they were
@@ -488,260 +670,5 @@ return {
         end
       end)
     end, { desc = overseer_watch_run_desc })
-
-    local function toggle_runner(window)
-      if vim.bo.buftype == "terminal" then
-        vim.cmd("close")
-        return
-      end
-
-      -- Check for Overseer window.
-      local task_list = require("overseer.task_list")
-      local tasks = overseer.list_tasks({
-        status = {
-          overseer.STATUS.RUNNING,
-          overseer.STATUS.SUCCESS,
-          overseer.STATUS.FAILURE,
-          overseer.STATUS.CANCELED,
-        },
-        sort = task_list.sort_finished_recently,
-      })
-
-      if vim.tbl_isempty(tasks) then
-        vim.notify("No tasks found", vim.log.levels.WARN, overseer_title)
-      else
-        local most_recent = tasks[1]
-        overseer.run_action(most_recent, "open " .. window)
-      end
-    end
-
-    map({
-      mode = "n",
-      lhs = "<leader>or",
-      rhs = function()
-        vim.cmd("OverseerOpen!")
-        vim.cmd("OverseerRun")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: run (and open list)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oR",
-      rhs = function()
-        vim.cmd("OverseerRun")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: run",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>ol",
-      rhs = "OverseerRestartLast",
-      remap = false,
-      silent = true,
-      desc = "Overseer: run last task",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oo",
-      rhs = function()
-        vim.cmd("OverseerOpen")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: open (and focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oO",
-      rhs = function()
-        vim.cmd("OverseerOpen!")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: open (without focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oc",
-      rhs = function()
-        vim.cmd("OverseerClose")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: close",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>ot",
-      rhs = function()
-        vim.cmd("OverseerToggle")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: toggle (and focus)",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oT",
-      rhs = function()
-        vim.cmd("OverseerToggle!")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: toggle (without focus)",
-    })
-
-    -- A window that always shows the newest task's output, rather than one task's
-    -- output frozen at the moment it was opened. Overseer builds it from any
-    -- window; this opens a split and hands that window over, and the view then
-    -- follows every task started afterwards.
-    map({
-      mode = "n",
-      lhs = { "<leader>ov", "<M-'>" },
-      rhs = function()
-        vim.cmd("botright split")
-        overseer.create_task_output_view(vim.api.nvim_get_current_win(), {
-          list_task_opts = {
-            filter = function(task)
-              return task.time_start ~= nil
-            end,
-          },
-          -- The newest task, always. Overseer keeps whichever task the cursor was
-          -- last over in the sidebar, and preferring that pinned the view to it:
-          -- hover an older task, close the sidebar, and every task started
-          -- afterwards was ignored while the view sat on the old one.
-          select = function(_, tasks)
-            -- By start sequence, not `time_start`: that is `os.time()`, so two
-            -- starts in one second compare equal and the earlier task stayed
-            -- displayed. time_start is only the tiebreak for a task carrying no
-            -- sequence, which means it was started with components of its own.
-            table.sort(tasks, function(a, b)
-              local sa = a.metadata and a.metadata.start_sequence or 0
-              local sb = b.metadata and b.metadata.start_sequence or 0
-              if sa ~= sb then
-                return sa > sb
-              end
-              return (a.time_start or 0) > (b.time_start or 0)
-            end)
-            return tasks[1]
-          end,
-        })
-      end,
-      desc = "Overseer: open a live view of the newest task's output",
-    })
-
-    -- The other half of the preload above. A provider's cache_key invalidates on
-    -- its own file, so this is for the cases that miss: a recipe added to a
-    -- justfile further up the tree, or a template edited in this config.
-    map({
-      mode = "n",
-      lhs = "<leader>oC",
-      rhs = function()
-        local dir = vim.uv.cwd()
-        overseer.clear_task_cache({ dir = dir })
-        overseer.preload_task_cache({ dir = dir }, function()
-          vim.notify("Task templates refreshed", vim.log.levels.INFO, overseer_title)
-        end)
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: refresh the task templates",
-    })
-
-    -- The three bundle commands take an optional name and complete over the
-    -- bundles already on disk, so these leave the cmdline open the same way
-    -- `<leader>os` does.
-    map({
-      mode = "n",
-      lhs = "<leader>ob",
-      rhs = ":OverseerSaveBundle ",
-      desc = "Overseer: save the task list as a bundle",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oB",
-      rhs = ":OverseerLoadBundle ",
-      desc = "Overseer: load a task bundle",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<leader>oX",
-      rhs = ":OverseerDeleteBundle ",
-      desc = "Overseer: delete a task bundle",
-    })
-
-    -- OverseerShell takes the command as its argument, so this leaves the
-    -- cmdline open rather than running anything. `map()` keeps a `:`-prefixed
-    -- rhs non-silent and unwrapped, which is what makes that work. The command
-    -- completes with `shellcmdline`, and a `!` creates the task without starting it.
-    map({
-      mode = "n",
-      lhs = "<leader>os",
-      rhs = ":OverseerShell ",
-      desc = "Overseer: run a shell command as a task",
-    })
-
-    -- The only route to the actions with no key of their own in the task list:
-    -- retain, ensure, set quickfix diagnostics, set loclist diagnostics, stop,
-    -- and the rest of the seventeen.
-    map({
-      mode = "n",
-      lhs = "<leader>oa",
-      rhs = function()
-        vim.cmd("OverseerTaskAction")
-      end,
-      remap = false,
-      silent = true,
-      desc = "Overseer: run an action on a task",
-    })
-
-    map({
-      mode = "n",
-      lhs = { '<leader>o"', "<M-7>" },
-      rhs = function()
-        toggle_runner("hsplit")
-      end,
-      desc = "Overseer: open task in hsplit",
-    })
-
-    map({
-      mode = "n",
-      lhs = { "<leader>o%", "<M-8>" },
-      rhs = function()
-        toggle_runner("vsplit")
-      end,
-      desc = "Overseer: open task in vsplit",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<M-;>",
-      rhs = function()
-        toggle_runner("float")
-      end,
-      desc = "Overseer: open task in floating window",
-    })
-
-    map({
-      mode = "n",
-      lhs = "<M-[>",
-      rhs = function()
-        vim.cmd("OverseerWatchRun")
-      end,
-      desc = overseer_watch_run_desc,
-    })
   end,
 }

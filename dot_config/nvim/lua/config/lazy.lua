@@ -36,9 +36,15 @@ require("lazy").setup({
     { import = "plugins" },
   },
   defaults = {
-    -- By default, only LazyVim plugins will be lazy-loaded. Your custom plugins will load during startup.
-    -- If you know what you're doing, you can set this to `true` to have all your custom plugins lazy-loaded by default.
-    lazy = false,
+    -- Lazy by default: a spec with no trigger of its own loads on demand rather
+    -- than at startup. lazy.nvim resolves a spec that declares no `lazy` of its own
+    -- as `plugin._.dep or defaults.lazy or event or keys or ft or cmd`
+    -- (`lazy/core/plugin.lua:233-241` at the pinned version), so an explicit
+    -- `lazy = false` is the only thing that keeps a spec eager, and an explicit
+    -- `lazy` OVERRIDES a trigger. Write `lazy = false` only onto a spec that has no
+    -- `event`, `keys`, `ft` or `cmd` and must be present at startup; writing it onto
+    -- a triggered spec makes that plugin eager again.
+    lazy = true,
     -- It's recommended to leave version=false for now, since a lot the plugin that support versioning,
     -- have outdated releases, which may break your Neovim install.
     version = false, -- always use the latest git commit

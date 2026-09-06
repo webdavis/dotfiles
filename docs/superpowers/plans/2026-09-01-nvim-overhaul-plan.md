@@ -1517,9 +1517,15 @@ Lane: last. Depends on: PR 1 to 29e. Brief: `brief-nvim-trigger-treesj.md`. Clos
 Lane: last. Depends on: PR 1 to 29e; PR 24 (`autosave.lua`). Brief: `brief-nvim-trigger-autosave.md`.
 Closes 48 (part).
 
-- [ ] **Step 1:** `autosave.lua` gains `event = { "InsertLeave", "TextChanged" }` and the `<leader>uv`
-  toggle in `keys`. Commit: `perf(nvim): lazy-load auto-save`.
+- [ ] **Step 1:** `autosave.lua` gains the `<leader>uv` toggle in `keys`, and that key is the whole
+  trigger. Commit: `perf(nvim): lazy-load auto-save`. The `event = { "InsertLeave", "TextChanged" }`
+  this step called for until 2026-09-05 is NOT added (operator ruling): the spec ships
+  `enabled = false`, so auto-save writes nothing until `<leader>uv` turns it on, and that key loads
+  the plugin itself. The event would buy no behavior and cost a load on the first edit of every
+  session.
 - [ ] **Step 2:** the shared gates above; an edit still auto-saves and `<leader>uv` still toggles.
+  An edit before the first press writes nothing and leaves the plugin unloaded, which is what the
+  disabled default already did.
 
 ### Task 54: PR 30b (2 of 4), startup trigger for overseer (spec 9)
 
