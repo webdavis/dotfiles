@@ -325,7 +325,11 @@ reason. A capability-shaped reason (this crate takes no `serde_json`, opens no f
 holds as long as the crate declares no such dependency. A type-shaped reason (X still lives in the root)
 expires the moment that type moves, silently, so every type-shaped note names the PR that moves the type
 and is re-checked when that PR lands. All five blocks in step 6 were type-shaped notes nobody re-read;
-not one capability-shaped note has expired.
+not one capability-shaped note has expired. AND A PORT IS CHECKED AGAINST WHAT ITS CONSUMER CAN DO WITH
+THE ANSWER, not only against the call site's shape. PR 6.1d's audit kept `ActivityRing::read` because a
+read existed at the call site, and PR 6.1g had to re-cut it anyway: it answered the file, the parse it
+would need is `serde_json` in the root, and a use case holding that string could neither read it nor
+window it. A port whose answer its consumer cannot use is a port that does not exist yet.
 
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
@@ -343,12 +347,12 @@ IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a lo
 catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
 `MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, and THREE OF THE NINE DECLARED
 HERE WERE WRONG and are re-cut in PR 6.1d, which also adds `LightsTick` and annotates every surviving
-port with the consumer it was checked against, and `DecisionRing` is re-cut again in PR 6.1e to take a
-`Record` rather than a rendered line, so that PR 6.2 moves an ordering over ports that already exist.
-Tests: the `engine.rs` probe-count tests (`CountingProbes`) by name; new port tests only where a port
-carries logic (none should). Sizes: `ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests
-~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089
-to S091, S124.
+port with the consumer it was checked against, and `ActivityRing` is re-cut again in PR 6.1g, and
+`DecisionRing` is re-cut again in PR 6.1e to take a `Record` rather than a rendered line, so that PR 6.2
+moves an ordering over ports that already exist. Tests: the `engine.rs` probe-count tests
+(`CountingProbes`) by name; new port tests only where a port carries logic (none should). Sizes:
+`ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests
+~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
@@ -402,7 +406,11 @@ process is exactly what `pns-application` may not name.
 rename protocol itself becomes the filesystem adapter in PR 11.5. Tests: the replay rows in
 `tests/dispatch.rs` stay as acceptance; use-case tests pin `Moment` arbitration over a fake. Unpinned
 first: S163 (the 300 s window-claim age test). Sizes: ~280 plus tests ~350; the claim protocol adapter is
-measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245.
+measured in PR 11.5. Statements: S155, S156, S161 to S165, S242 to S245. Its ports are `ReturnMoment`,
+`Journal` and `ActivityRing` from PR 6.1 as re-cut by PR 6.1d and PR 6.1g, plus `RecapPublisher` and
+`ReplayDelivery`, both declared in PR 6.1g: the first takes `spawn_recap`'s decision and leaves its spawn
+in the root, and the second takes the closing `dispatch_legs` call, because the leg walk and the render
+are dispatch mechanics rather than decisions.
 
 **PR 6.5 `RunNag`.** Moves `nag_mode`, `arm_nag`, `clear_nag`, `record_entries`, `claim_record`,
 `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`, `marker_path`,
