@@ -144,8 +144,8 @@ lives.
 **L010. `lights scene <name>` activates a scene by name in the target room.** Preserves bash:481.
 
 **L011. `next` and `previous` cycle a configured rotation.** Ships as `Dimmed`, `Read`, `Energize`,
-`Concentrate`. Preserves bash:224. What the list holds is an open operator decision; see the end of this
-document.
+`Concentrate`. Preserves bash:224. The two scenes F4 and F7 set are deliberately not in the list, so
+cycling away from either of them hits the L013 fallback.
 
 **L012. Both directions wrap.** `next` from the last entry lands on the first; `previous` from the first
 lands on the last. Preserves bash:240-247.
@@ -274,11 +274,11 @@ studio activate a scene in the bedroom.
 The process uses one HTTP agent for both calls, so the TLS handshake is paid once rather than per call.
 The call timeout is short on purpose, because a human is holding a key down.
 
-**One thing here is unmeasured.** `GET /clip/v2/resource` returns every resource the bridge knows, and
-nobody has timed it against this bridge. If it measures slower than roughly 150 milliseconds, the
-fallback is two targeted listings, `GET .../room` and `GET .../scene`, which costs a second round trip on
-the scene paths and keeps the same trait. The first live smoke run measures it, and the answer goes in a
-decision record inside the crate.
+**The shape is settled and one number behind it is not yet measured.** `GET /clip/v2/resource` returns
+every resource the bridge knows, and nobody has timed it against this bridge. The first live smoke run
+times it as a named step. At or under 150 milliseconds this design stands; over it, the fallback is two
+targeted listings, `GET .../room` and `GET .../scene`, which costs a second round trip on the scene paths
+and keeps the same trait. Either way the number goes in a decision record inside the crate.
 
 ## The command line
 
@@ -340,7 +340,8 @@ bedroom = "3F - Master Bedroom"
 kitchen = "2F - Kitchen"
 
 # The scenes `next` and `previous` cycle through, in order. A room sitting on a
-# scene this list does not name starts the cycle at `fallback`.
+# scene this list does not name starts the cycle at `fallback`. The one-shot
+# mood scenes are deliberately absent: this is the working-light cycle.
 [scenes]
 rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
 fallback = "Read"
@@ -380,36 +381,34 @@ Settled. Each is written into the design above; this is the record of what was c
 1. **Install to `~/.local/libexec/lights`.** The repository rule puts everything a keybinding, launchd, a
    hook or a `just` recipe invokes under `libexec`, and pns already lives there even though the operator
    types `pns doctor` by hand. The aerospace keys are the dominant caller.
+
 1. **Brightness up and down send `dimming_delta`.** The bridge applies it to whatever the level is when
    it arrives, so a held key composes instead of losing presses to a read-modify-write race, and the
    clamp is the bridge's own documented clipping. Absolute `lights brightness <n>` keeps a domain clamp.
+
 1. **One bulk `GET /clip/v2/resource`, memoized per process.** It gives a uniform budget of one read and
    one write for any action. The bound is 150 milliseconds: the first live smoke times this call as a
    named step, and if it comes in slower the fallback is two targeted listings, `GET .../room` and
    `GET .../scene`, which costs a second round trip on the scene paths and changes no trait.
+
 1. **The brightness floor is 1, and it is reported as 1.** See L022. The bridge rewrites a written 0 to
    its lowest level, so the old `0%` report was never true.
+
 1. **The bridge credential is the existing `OpenHue :: API Key (hue-bridge-pro)` entry.** It already
    holds the address in its username field and the key in its password field, and the pns config template
    already reads the same two. One bridge credential in two places would be a rotation hazard.
+
 1. **The `openhue` formula stays declared** in `.chezmoidata/system_packages_autoinstall.yaml`. After the
    cutover nothing in the tree calls it, but removal in this repository is manual by standing rule, and
    the cutover is not the moment to also uninstall the fallback.
 
-### OPERATOR DECISION PENDING (recommended: add both Halo scenes)
+1. **The rotation stays at four scenes, and the two Halo scenes stay out of it.** F4 and F7 remain
+   one-shot keys, so `CC Halo Daylight` and `CC Halo Amber` are reachable only by pressing their own key,
+   and cycling from either of them lands on the L013 fallback rather than advancing.
 
-**What `next` and `previous` cycle through.** Today the rotation is `Dimmed`, `Read`, `Energize`,
-`Concentrate`, while F4 and F7 set `CC Halo Daylight` and `CC Halo Amber`, which are not in it. So
-pressing F4 and then F6 does not advance from Daylight; it hits L013 and jumps to `Read`.
-
-- **Add both Halo scenes to the rotation.** Six entries, and every scene reachable by a key is also
-  reachable by cycling. The cost is that a full cycle now takes six presses instead of four.
-- **Leave the rotation at four.** The Halo scenes stay as direct keys only, and the jump to `Read` after
-  pressing one of them stays the behavior.
-
-Recommended: add both. The current arrangement means two of the seven keys put the room into a state the
-other two cannot cycle out of, which reads as a bug every time it happens.
-
-This is a product behavior change and it is the operator's call. **Nothing in the plan depends on the
-answer:** the rotation is a list in `~/.config/lights/config.toml`, so settling it edits one line of the
-config template and no code, in any pull request or after all four.
+Adding both Halo scenes was considered and rejected. The argument for it was that F4 and F7 currently put
+the room into a state F5 and F6 cannot cycle out of, which can read as a bug. The operator's answer is
+that this is the intended shape: the four-scene rotation is the working-light cycle, and the two Halo
+scenes are a separate one-shot mood the cycle is not meant to walk through. A six-entry rotation would
+also make a full cycle six presses instead of four. Recorded here so a future reader knows the
+alternative was weighed rather than missed.

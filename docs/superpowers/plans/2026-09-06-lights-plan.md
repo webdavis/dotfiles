@@ -192,10 +192,6 @@ The `openhue` formula stays declared in `.chezmoidata/system_packages_autoinstal
 the cutover nothing in the tree calls it, but removal here is manual by standing rule, and the cutover is
 not the moment to also uninstall the fallback.
 
-The scene rotation is the one open operator decision, and no pull request waits on it. The rotation is a
-list in the config template, so whichever way it settles the change is one line, landable in any pull
-request or after all four.
-
 ## The test plan
 
 Everything below runs in under a second and touches no bridge.
