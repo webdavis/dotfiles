@@ -3,10 +3,10 @@
 //! the file outgrew the size rule.
 
 pub(super) use crate::home::{
-    Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, Router,
-    RouterSettings, SetupFailure, device_identity, enabled_router_table, episode_id, first_site_id,
-    home_reading, is_new_staleness, parse_clients, read_home, report, router_api_key,
-    router_settings, setup_report, stale_alert_channel, stale_identifiers, stale_warning,
+    Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, Router, SetupFailure,
+    device_identity, enabled_router_table, episode_id, first_site_id, home_reading,
+    is_new_staleness, parse_clients, read_home, report, router_api_key, router_settings,
+    setup_report, stale_identifiers, stale_warning,
 };
 
 /// The live capture of 2026-08-20 from the UDR's

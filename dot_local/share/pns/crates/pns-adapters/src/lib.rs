@@ -13,4 +13,23 @@
 //! what a delivery did; what that means is decided in pns-domain, and which
 //! order it happens in is decided in pns-application.
 //!
-//! Nothing has moved in yet.
+//! Configuration parsing, backend settings and rendering live here.
+
+mod config;
+pub use config::{
+    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, LoadOutcome,
+    MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, Recap, TABLE_KEYS,
+    TOP_LEVEL, armed_mobile, config_path, identity_placeholder, load_config, mobile_backend,
+    moshi_secret, parse_config, parse_presence, render, strip_chezmoi_actions, submit_deadline,
+};
+
+pub use config::{ROOM_MAX, room_fits};
+
+pub use config::{
+    RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
+    router_settings, stale_alert_channel,
+};
+
+pub use config::hermes_secret;
+
+pub use config::select_plugins;

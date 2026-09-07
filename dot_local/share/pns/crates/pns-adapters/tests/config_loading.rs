@@ -1,4 +1,4 @@
-use pns::config::{ConfigError, LoadOutcome, load_config};
+use pns_adapters::{ConfigError, LoadOutcome, load_config};
 use std::os::unix::fs::{FileTypeExt, symlink};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
