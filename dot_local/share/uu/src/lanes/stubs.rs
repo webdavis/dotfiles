@@ -148,7 +148,7 @@ impl CommandRunner for ScriptedRunner {
 }
 
 /// The one fixed `RunFacts` every test here that does not care about its
-/// contents can share; `record.rs` owns the tests that pin `lane_event`
+/// contents can share; `uu-protocol` owns the tests that pin `lane_event`
 /// itself against varied facts.
 const STUB_MARKER: Marker = Marker::NeverRecorded;
 

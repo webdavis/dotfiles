@@ -10,8 +10,9 @@
 use crate::config::CommandLane;
 use crate::lanes::text::stdout_lines;
 use crate::lanes::{CommandRunner, LaneAdapter, Verdict};
-use crate::record::{RunFacts, lane_event};
+use crate::record::RunFacts;
 use uu_domain::LaneReport;
+use uu_protocol::lane_event;
 
 /// STDOUT IS KEPT EVEN ON A NON-CLEAN EXIT. `run_with_input`'s `Ran::verdict`
 /// already carries the reason (the exit description and the stderr tail);
@@ -31,7 +32,7 @@ impl LaneAdapter for CommandLane {
         let mut report = LaneReport::new(name);
         let program = self.run[0].as_str();
         let args: Vec<&str> = self.run[1..].iter().map(String::as_str).collect();
-        let event = lane_event(name, facts);
+        let event = lane_event(name, &facts.into());
         match runner.run_with_input(program, &args, &event) {
             Ok(ran) => {
                 for line in stdout_lines(&ran.stdout) {

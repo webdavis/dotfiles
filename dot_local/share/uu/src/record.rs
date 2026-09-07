@@ -2,20 +2,17 @@
 //! gateway.
 //!
 //! THREE QUESTIONS, three files. This one composes THE ENTRY: what the run
-//! amounted to, the detail a human reads, and the body the gateway receives.
+//! amounted to and the detail a human reads. The protocol crate encodes its body.
 //! `marker` owns the last-successful-run timestamp and the gap sentence every
-//! entry opens with; `event` owns the JSON a command lane's child is handed.
+//! entry opens with; `event` maps the run facts into the child protocol.
 
 mod event;
 mod marker;
 
-pub use event::{RunFacts, lane_event};
+pub use event::RunFacts;
 pub use marker::{Marker, elapsed, gap_line, marker_contents, parse_marker};
 
 use uu_domain::LaneReport;
-
-/// The agent name every uu record and alert carries.
-pub const AGENT: &str = "uu";
 
 /// The record's `state` field: what the whole run amounted to.
 ///
@@ -70,22 +67,6 @@ pub fn record_detail(host: &str, now_iso: &str, gap: &str, lanes: &[LaneReport])
         "\n=== done, {failures} failure(s), {deferred} deferred ===\n"
     ));
     out
-}
-
-/// uu's own gateway body. The four field NAMES are the hermes webhook's
-/// contract; what goes in them is uu's.
-///
-/// BUILT BY THE JSON WRITER, never by interpolation. Every value in here is
-/// text a third party wrote (a plugin name, a herdr error), and a quote in one
-/// of them would otherwise end the field early.
-pub fn record_body(state: &str, host: &str, detail: &str) -> String {
-    serde_json::json!({
-        "agent": AGENT,
-        "state": state,
-        "project": host,
-        "detail": detail,
-    })
-    .to_string()
 }
 
 #[cfg(test)]
@@ -229,25 +210,5 @@ mod tests {
                 .ends_with("=== done, 2 failure(s), 2 deferred ==="),
             "{detail}"
         );
-    }
-
-    // --- the body -------------------------------------------------------------
-
-    #[test]
-    fn the_body_carries_uus_own_four_fields_and_nothing_else() {
-        let body = record_body("completed", "dresden", "the whole record");
-        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(parsed["agent"], "uu");
-        assert_eq!(parsed["state"], "completed");
-        assert_eq!(parsed["project"], "dresden");
-        assert_eq!(parsed["detail"], "the whole record");
-        assert_eq!(parsed.as_object().unwrap().len(), 4);
-    }
-
-    #[test]
-    fn a_detail_holding_json_syntax_is_encoded_rather_than_glued_into_the_body() {
-        let body = record_body("failed", "dresden", "plugin \"a\": {broken}\nnext");
-        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(parsed["detail"], "plugin \"a\": {broken}\nnext");
     }
 }
