@@ -4,6 +4,8 @@
 //! are every planned subcommand from the specification's section 1 table, the
 //! help spellings, and a word that will never exist.
 
+use std::os::fd::OwnedFd;
+use std::os::unix::net::UnixStream;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
@@ -35,6 +37,10 @@ const WORDS: &[&[&str]] = &[
 ];
 
 fn run(args: &[&str], deadline: Instant) -> Output {
+    run_with_stderr(args, deadline, Stdio::piped())
+}
+
+fn run_with_stderr(args: &[&str], deadline: Instant, stderr: Stdio) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_posture"))
         .env_clear()
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
@@ -42,7 +48,7 @@ fn run(args: &[&str], deadline: Instant) -> Output {
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(stderr)
         .spawn()
         .expect("the posture binary runs");
     loop {
@@ -112,4 +118,17 @@ fn the_usage_names_every_planned_subcommand() {
             "usage must carry `{phrase}`, got: {stderr}"
         );
     }
+}
+
+#[test]
+fn a_closed_stderr_reader_preserves_the_refusal_exit_code() {
+    let (reader, writer) = UnixStream::pair().expect("the fixture socket pair opens");
+    drop(reader);
+    let output = run_with_stderr(
+        &["alert"],
+        Instant::now() + Duration::from_millis(500),
+        Stdio::from(OwnedFd::from(writer)),
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
 }

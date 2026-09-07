@@ -6,6 +6,7 @@
 //! caller repointed here early fails loudly rather than silently doing
 //! nothing.
 
+use std::io::{self, Write};
 use std::process::ExitCode;
 
 const USAGE: &str = "usage: posture <subcommand> [args]
@@ -17,6 +18,8 @@ no subcommand is implemented yet; every word exits 2
 ";
 
 fn main() -> ExitCode {
-    eprint!("{USAGE}");
+    if io::stderr().lock().write_all(USAGE.as_bytes()).is_err() {
+        return ExitCode::from(2);
+    }
     ExitCode::from(2)
 }
