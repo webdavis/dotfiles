@@ -1,5 +1,6 @@
 return {
   "unblevable/quick-scope",
+  lazy = false,
   dependencies = {
     "folke/snacks.nvim",
   },

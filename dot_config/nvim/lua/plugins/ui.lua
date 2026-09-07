@@ -1,6 +1,7 @@
 return {
   {
     "catppuccin/nvim",
+    lazy = false,
     dependencies = {
       "folke/snacks.nvim",
     },
@@ -103,6 +104,7 @@ return {
   },
   {
     "akinsho/bufferline.nvim",
+    lazy = false,
     version = "*",
     dependencies = "nvim-tree/nvim-web-devicons",
     -- optional = true,
@@ -154,6 +156,7 @@ return {
   },
   {
     "Bekaboo/deadcolumn.nvim",
+    lazy = false,
     config = function()
       require("deadcolumn").setup({
         scope = "buffer",

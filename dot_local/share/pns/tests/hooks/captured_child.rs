@@ -63,11 +63,11 @@ impl Drop for CapturedChild {
         if !self.reaped {
             // The unreaped child's ID still owns this private group. Kill the
             // inherited pipe holders before joining readers blocked on EOF.
-            if let Ok(pid) = libc::pid_t::try_from(self.child.id()) {
-                if pid > 1 {
-                    // SAFETY: spawn created this group; the child is unreaped.
-                    unsafe { libc::kill(-pid, libc::SIGKILL) };
-                }
+            if let Ok(pid) = libc::pid_t::try_from(self.child.id())
+                && pid > 1
+            {
+                // SAFETY: spawn created this group; the child is unreaped.
+                unsafe { libc::kill(-pid, libc::SIGKILL) };
             }
             let _ = self.child.kill();
             let _ = self.child.wait();
