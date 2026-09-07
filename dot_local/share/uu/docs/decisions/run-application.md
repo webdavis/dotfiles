@@ -7,18 +7,20 @@ deadlines, constructs adapters and maps the typed result to the existing exit be
 
 ## Dependency direction
 
-| Package               | Responsibility and direct dependencies                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `uu-domain`           | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                   |
-| `uu-application`      | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                  |
-| `uu-protocol`         | Existing child-event and record encodings; independent of domain and application.                                                                      |
-| `unattended-upgrades` | Transitional command and concrete adapters; depends on those three packages, `pns` and its existing infrastructure libraries. Its binary remains `uu`. |
+| Package          | Responsibility and direct dependencies                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uu-domain`      | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                                |
+| `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                               |
+| `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                   |
+| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns` and the existing infrastructure libraries.                   |
+| `uu-cli`         | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
 
 `Marker` and `RunFacts` belong to the domain because they describe the previous successful run and the
-facts supplied to a lane, without prescribing an encoding. `src/record/event.rs::event_for` maps them
-into protocol types at the existing adapter boundary. No serializer or free-form configuration enters the
-application. The child event, record payload and command arguments keep their existing formats; this row
-introduces no protocol version or compatibility facade.
+facts supplied to a lane, without prescribing an encoding.
+`crates/uu-adapters/src/record/event.rs::event_for` maps them into protocol types at the existing adapter
+boundary. No serializer or free-form configuration enters the application. The child event, record
+payload and command arguments keep their existing formats; this row introduces no protocol version or
+compatibility facade.
 
 ## Ports and their current adapters
 
@@ -71,10 +73,10 @@ output in a run.
   existing stuck-spawn and escaped-process limitations. The application neither claims those processes
   are gone nor introduces a second cleanup path.
 
-Concrete adapters and command parsing still live in the root package. Row 0.4 owns their destination
-crates and the external shipped-template fixture boundary. Row 0.5 owns lane registrations and removal of
-the central technology-name switches. Row 0.6 closes remaining visibility, size and verification
-obligations. This row does not claim those later boundaries are complete.
+Row 0.4 moves concrete adapters and command parsing into their own crates and leaves a virtual workspace
+at the root. Parser fixtures belong to the adapter package; the outer repository verifies its actual
+configuration template separately. Row 0.5 owns lane registrations and removal of the central
+technology-name switches. Row 0.6 closes remaining visibility, size and verification obligations.
 
 ## Test ownership and evidence
 

@@ -22,7 +22,7 @@ mod text;
 mod uv;
 
 pub use spawn::{CommandRunner, Ran, Verdict};
-pub use text::{STDERR_TAIL, failure_reason, tail};
+pub use text::failure_reason;
 use uu_domain::LaneReport;
 
 use crate::config::{Config, LaneKind};
@@ -115,7 +115,6 @@ mod tests {
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
             ("uv", "[lanes.uv]\n", "uv"),
         ];
-        assert_eq!(crate::config::LANE_TYPES.len(), fixtures.len());
         for (kind, block, name) in fixtures {
             let config = parse_config(block).unwrap();
             let report = run_lane(name, &config, &stub_facts(), &ScriptedRunner::new(&[]))

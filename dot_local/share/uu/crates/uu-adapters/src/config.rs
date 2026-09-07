@@ -25,12 +25,9 @@ use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
 
-pub use lanes::{
-    BrewLane, CommandLane, DEFAULT_BREW, DEFAULT_HERDR_BINARY, DEFAULT_MAS, DEFAULT_TAILSCALED,
-    DEFAULT_UV_BINARY, HerdrLane, LANE_TYPES, Lane, LaneKind, Lanes, NpmLane, Plugin, UvLane,
-};
-pub use schedule::{Schedule, WEEKDAY_NAMES};
-pub use schema::{TABLE_KEYS, TOP_LEVEL};
+pub use lanes::{BrewLane, CommandLane, HerdrLane, LANE_TYPES, LaneKind, Lanes, NpmLane, UvLane};
+pub use schedule::Schedule;
+use schema::TOP_LEVEL;
 
 /// Where the config lives for a given home directory. Pure, so the path rule
 /// is testable without an environment.
@@ -198,6 +195,9 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     }
     Ok(Alerts { binary })
 }
+
+#[cfg(test)]
+pub(crate) use lanes::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED, Plugin};
 
 #[cfg(test)]
 mod probes;

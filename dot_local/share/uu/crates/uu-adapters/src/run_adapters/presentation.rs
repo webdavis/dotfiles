@@ -1,4 +1,4 @@
-use unattended_upgrades::record::{gap_line, record_detail};
+use crate::record::{gap_line, record_detail};
 use uu_application::{MarkerSnapshot, Notice, RunHeader, RunPresentation};
 use uu_domain::LaneReport;
 

@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use unattended_upgrades::record::{marker_contents, parse_marker};
+use crate::record::{marker_contents, parse_marker};
 use uu_domain::Marker;
 
 use crate::system::iso;

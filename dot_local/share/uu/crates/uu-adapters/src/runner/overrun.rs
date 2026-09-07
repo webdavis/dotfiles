@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use unattended_upgrades::lanes::failure_reason;
+use crate::lanes::failure_reason;
 
 use crate::watchdog::Ended;
 

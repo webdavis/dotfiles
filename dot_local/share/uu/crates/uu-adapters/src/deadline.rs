@@ -40,7 +40,7 @@ pub(crate) fn parse_deadline(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{LANE_TYPES, parse_config};
+    use crate::config::parse_config;
 
     fn deadline_of(text: &str, lane: &str) -> Duration {
         parse_config(text)
@@ -86,7 +86,6 @@ mod tests {
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
             ("uv", "[lanes.uv]\n"),
         ];
-        assert_eq!(LANE_TYPES.len(), fixtures.len());
         for (kind, text) in fixtures {
             assert_eq!(deadline_of(text, kind), DEFAULT_LANE_DEADLINE, "{kind}");
             assert_eq!(

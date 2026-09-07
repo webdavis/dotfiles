@@ -1,25 +1,17 @@
 //! The uu binary: the composition root, and the only place with a main.
 //!
 //! ARGUMENT PARSING AND DISPATCH, and nothing else. `cli` holds the three
-//! things uu does, `state` its bookkeeping under `~/.local/state/uu`,
-//! `delivery` the two outbound boundaries, `runner` and `watchdog` the one
-//! place a lane subject is spawned, and `system` the questions only the
-//! running machine can answer.
+//! things uu does. `uu-adapters` owns bookkeeping, outbound boundaries,
+//! process execution and the questions only the running machine can answer.
 //!
 //! EXIT CODES SAY WHO FAILED. A lane that failed does not fail the run (0),
 //! because the record is what reports it and the next attempt is a week away.
 //! A config uu could not read, or a lane the operator asked for and did not
 //! get, is uu failing (1). An argument uu does not serve is usage (2).
 
-use unattended_upgrades::config::LANE_TYPES;
+use uu_adapters::LANE_TYPES;
 
 mod cli;
-mod delivery;
-mod run_adapters;
-mod runner;
-mod state;
-mod system;
-mod watchdog;
 
 fn main() {
     // Die on a closed pipe the way every other unix tool does. Rust ignores

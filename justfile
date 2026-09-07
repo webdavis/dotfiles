@@ -154,10 +154,10 @@ test-e2e: validate-tests
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# pns and uu keep root packages beside their workspace members. Their commands
-# select --workspace (--all for cargo fmt), or they silently skip those members.
-# posture has a virtual workspace whose default member is the cli crate alone;
-# the same selectors reach all its members.
+# pns keeps a root package beside its workspace members. Its commands select
+# --workspace (--all for cargo fmt), or they silently skip those members.
+# uu and posture have virtual workspaces; posture defaults to the cli crate alone.
+# The same selectors reach every member of both workspaces.
 #
 # The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
