@@ -182,3 +182,10 @@ auto_commit = false
 repo = "{{ .chezmoi.sourceDir }}"
 escalate_after_runs = 3
 deadline_secs = 21600
+
+# Update Mason's configured tools. Language servers remain an operator action in :Mason.
+[lanes.nvim-mason]
+type = "nvim-mason"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+deadline_secs = 21600

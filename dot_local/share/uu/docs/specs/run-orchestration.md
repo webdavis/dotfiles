@@ -156,3 +156,15 @@ for these retained limits.
   runtime root, **then** count other process identifiers once, excluding our own, and print
   `N Neovim instance(s) were running during this update; restart them to load the new versions`. With no
   other socket, print no notice.
+
+## Mason tools
+
+- **Given** a `nvim-mason` lane, **when** it runs, **then** invoke its required absolute config's
+  `lua/uu/mason.lua` through the shared headless host, retaining its own lane name and child failure.
+- **Given** the tool roster, **when** updating, **then** refresh the registry first and subscribe to each
+  package's success and failure events before `MasonToolsUpdateSync`. Treat the completion event only as
+  completion. Any failed package fails the lane with its reason, including when the command subsequently
+  throws. Report updated and current tools and the language-server sentence on every run.
+- **Given** either generated job, **when** an installer launches an interpreter, **then** search the
+  home's managed Node directory before system tools, and include the home's Cargo binary directory.
+  Preserve existing home and property-list escaping.

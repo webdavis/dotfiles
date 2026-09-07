@@ -100,6 +100,11 @@ mod tests {
             ("brew", "[lanes.brew]\n", "brew"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
             (
+                "nvim-mason",
+                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+                "nvim-mason",
+            ),
+            (
                 "nvim-plugins",
                 "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
                 "nvim-plugins",

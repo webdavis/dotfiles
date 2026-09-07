@@ -9,12 +9,12 @@
     <string>{{ .chezmoi.homeDir }}/.local/libexec/uu/uu</string>
     <string>run</string>
   </array>
-  <!-- ~/.local/bin carries herdr, which the lane drives by absolute path
-       anyway; the rest is what a lane's own child processes expect to find. -->
+  <!-- Mason needs the managed Node runtime for npm packages such as prettierd
+       and Cargo binaries for packages such as nil. Node precedes system tools. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin:{{ .chezmoi.homeDir }}/.cargo/bin:{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key>
     <string>{{ .chezmoi.homeDir }}</string>
   </dict>

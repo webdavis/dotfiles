@@ -111,4 +111,21 @@ function M.commit_allowed(porcelain, symbolic_ref)
   return true
 end
 
+function M.mason_lines(events)
+  local lines, failed = {}, false
+  for _, package in ipairs(events.packages) do
+    if package.event == "install:failed" then
+      failed = true
+      lines[#lines + 1] = package.name .. ": " .. package.reason
+    elseif package.event == "install:success" then
+      lines[#lines + 1] = package.name .. ": updated"
+    elseif package.event == "current" then
+      lines[#lines + 1] = package.name .. ": current"
+    end
+  end
+  table.sort(lines)
+  lines[#lines + 1] = "Language servers are managed by Mason; update them through :Mason."
+  return lines, failed and M.FAILED or M.OK
+end
+
 return M

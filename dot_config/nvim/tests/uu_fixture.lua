@@ -82,4 +82,16 @@ function M.staged_other(fixture)
   return M.git(fixture.repo, "rev-parse", ":unrelated.txt")
 end
 
+function M.module(module, init)
+  local root = vim.fn.tempname()
+  local report = require("uu.report")
+  local source = debug.getinfo(report.plugin_lines, "S").source:sub(2)
+  local config = vim.fn.fnamemodify(source, ":h:h:h")
+  local path = root .. "/init.lua"
+  M.write(path, string.format("package.path = %q .. package.path\n", config .. "/lua/?.lua;") .. init)
+  return vim
+    .system({ vim.v.progpath, "--headless", "-u", path, "-l", config .. "/lua/uu/" .. module .. ".lua" }, { text = true })
+    :wait()
+end
+
 return M

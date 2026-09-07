@@ -127,3 +127,5 @@ fn a_plugins_lane_with_auto_commit_off_passes_no_commit_flag() {
             .any(|arg| arg == "--auto-commit" || arg == "--repo")
     );
 }
+
+mod mason;
