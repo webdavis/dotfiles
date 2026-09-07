@@ -47,9 +47,9 @@ if [[ -n $used_pct ]]; then
   context_info=" ctx:${used_int}%"
 fi
 
-# Usage windows (5-hour session and weekly), rendered the way the Claude.ai
-# usage page does: a ten-cell bar of the share USED, the percent, and when the
-# window resets. The session window shows a countdown; the weekly window shows
+# Usage windows (5-hour session and weekly) on a second row, rendered the way
+# the Claude.ai usage page does: a ten-cell bar of the share USED, the percent,
+# and when the window resets. The session window shows a countdown; the weekly window shows
 # the weekday and clock time. The stdin JSON only carries rate_limits for
 # Claude.ai subscribers, or behind a gateway, and only after the first API
 # response, so both segments are omitted when the fields are absent. resets_at
@@ -88,9 +88,9 @@ usage_window() {
   local bar
   bar=$(usage_bar "$pct")
   if [[ -n $when ]]; then
-    printf '%s %s %s%% used, %s' "$label" "$bar" "$pct" "$when"
+    printf '%s %s %s%% %s' "$label" "$bar" "$pct" "$when"
   else
-    printf '%s %s %s%% used' "$label" "$bar" "$pct"
+    printf '%s %s %s%%' "$label" "$bar" "$pct"
   fi
 }
 
@@ -104,9 +104,9 @@ fi
 
 rate_info=""
 if [[ ${#rate_segments[@]} -eq 2 ]]; then
-  rate_info=" ${rate_segments[0]}  ${rate_segments[1]}"
+  rate_info="${rate_segments[0]}   ${rate_segments[1]}"
 elif [[ ${#rate_segments[@]} -eq 1 ]]; then
-  rate_info=" ${rate_segments[0]}"
+  rate_info="${rate_segments[0]}"
 fi
 
 # Build status line with ANSI colors matching Tokyo Night palette
@@ -130,8 +130,10 @@ if [[ -n $context_info ]]; then
   printf ' \033[38;2;160;169;203m%s\033[0m' "$context_info" # context: #a0a9cb
 fi
 
+# The usage windows take a second status line row of their own (Claude Code
+# renders each printed line as a row), so the main row stays short.
 if [[ -n $rate_info ]]; then
-  printf ' \033[38;2;97;104;126m%s\033[0m' "$rate_info" # rate limits: #61687e
+  printf '\n\033[38;2;97;104;126m%s\033[0m' "$rate_info" # rate limits: #61687e
 fi
 
 printf '\n'
