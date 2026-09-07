@@ -116,6 +116,9 @@ fn an_unreadable_clock_ages_no_phone_signal_rather_than_treating_it_as_fresh() {
         false,
         false,
     );
+    assert_eq!(decision.inputs.phone_input_age, None);
+    assert_eq!(decision.inputs.marker_age, None);
+    assert_eq!(decision.inputs.surface, Surface::Away);
     assert!(
         names(&decision).contains(&"mobile"),
         "away still cards; neither phone signal decided it"
@@ -142,6 +145,9 @@ fn an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh() {
         false,
         false,
     );
+    assert_eq!(decision.inputs.phone_input_age, None);
+    assert_eq!(decision.inputs.marker_age, None);
+    assert_eq!(decision.inputs.surface, Surface::Away);
     assert!(
         names(&decision).contains(&"mobile"),
         "away still cards; the tap simply did not decide it"
