@@ -42,6 +42,7 @@ impl Recorder {
 }
 
 impl ReturnMoment for Recorder {
+    fn complete(&self) {}
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
         self.note(&format!("claim(journal={take_journal})"));
         self.claims.borrow_mut().push((now, take_journal));

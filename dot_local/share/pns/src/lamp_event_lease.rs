@@ -93,7 +93,7 @@ pub(crate) fn register_lights_tick(
     let (Some(lights), Some(now)) = (lights, decision.inputs.now_secs) else {
         return;
     };
-    let lease = if pns::missed_notifications::was_missed(decision, overrides) {
+    let lease = if pns_domain::missed::was_missed(decision, overrides) {
         JOURNALLED_LEASE_SECS
     } else {
         ORDINARY_LEASE_SECS
@@ -120,15 +120,17 @@ pub(crate) fn schedule_lights_tick(
     now: u64,
     lease_secs: u64,
 ) {
-    let pending =
-        match pns::daemon::peek(&pns::daemon::spool_dir(state).join(LIGHTS_JOB), LIGHTS_JOB) {
-            pns::daemon::Peeked::Job(job) => Some(job.due),
-            _ => None,
-        };
+    let pending = match pns_adapters::job_spool::peek(
+        &pns_adapters::job_spool::spool_dir(state).join(LIGHTS_JOB),
+        LIGHTS_JOB,
+    ) {
+        pns_adapters::job_spool::Peeked::Job(job) => Some(job.due),
+        _ => None,
+    };
     let due = pending
         .filter(|due| *due > now)
         .unwrap_or_else(|| now.saturating_add(lights.refresh_secs));
-    let job = pns::daemon::Job {
+    let job = pns_domain::jobs::Job {
         id: LIGHTS_JOB.to_string(),
         due,
         // AT LEAST AS FAR AS THE DUE SECOND, because a lease that ended before
@@ -142,5 +144,5 @@ pub(crate) fn schedule_lights_tick(
         args: vec!["lights".to_string(), "tick".to_string()],
     };
     // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = pns::daemon::schedule(state, &job, now);
+    let _ = pns_adapters::job_spool::schedule(state, &job, now);
 }

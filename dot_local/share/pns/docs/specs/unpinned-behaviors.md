@@ -83,7 +83,6 @@ Write the test against the code where it lives today, then move.
 | `legacy-producer-flags.md` | 17. `--channel <route>` names a hermes route, never a URL | no test drives `--channel` from argv through to the wire. `tests/native.rs:the_stale_alert_posts_to_the_hermes_route_the_config_named` pins the CONFIG-named route (`stale_alert_channel`) on the wire, not the flag, and its own doc comment records that the assignment of a route onto a URL was once unpinned. The ... |
 | `missed-notifications.md` | 9. A stranded window claim is live, abandoned, or absent | no test in this tree exercises `STALE_WINDOW_CLAIM_SECS`. The two window-claim tests plant `last-present.claim.<owner>` with no epoch segment (`tests/dispatch.rs:plant_window_claim`), so both take the pid-only path. What happens when the age test frees a claim whose owner is genuinely still inside its critical ... |
 | `missed-notifications.md` | (spec preamble or a table row) | no test exercises `STALE_WINDOW_CLAIM_SECS`. `tests/dispatch.rs:plant_window_claim` writes `last-present.claim.<owner>` with no epoch segment, so both window-claim tests take the pid-only path in `src/main.rs:window_claim_is_free`. The behavior of the age test against a claim whose owner is genuinely still alive at ... |
-| `missed-notifications.md` | (spec preamble or a table row) | `src/main.rs:claim_by_rename` states outright that its own pid guard "IS NOT PINNED BY A TEST, and cannot be: no test can plant a claim named for a process id the engine has not been given yet." |
 | `missed-notifications.md` | (spec preamble or a table row) | the interleaved-claim arm of `src/main.rs:republish_after` (an append whose read-back returns `NotFound` because a claim renamed the file away mid-append) is described as "a race no test in this tree can stage deterministically; what is pinned here is the decision, and the race itself belongs to the out-of-tree probe." |
 | `missed-notifications.md` | (spec preamble or a table row) | `src/main.rs:claim_journal` names one accepted race with no test behind it: "an append that opened the journal path before the rename writes into the claimed inode, and is replayed or lost depending on which side of the read it lands." |
 | `nagging.md` | (spec preamble or a table row) | no explicit mode is set on this directory anywhere, and no test asserts one) \| `arm_nag` by way of `publish_state_line`, and `nag_mode` before it takes the fire lock \| `record_entries`, `claim_fire` \| Not applicable, `create_dir_all` is idempotent and both writers tolerate an existing directory (`let _ = ... |
@@ -164,3 +163,14 @@ Settle the question first. Several are answered by reading a third-party tool's 
 | `setup-and-publication.md` | 16. The terminal's echo is restored on every exit path the guard can reach | as an assertion: the read-failure path in `tests/setup.rs:a_non_utf8_paste_is_reported_as_a_read_failure_rather_than_the_answers_ending` exercises a guard dropping on an `Err` return but does not assert the echo state afterwards; the restoration on that path rests on `Drop` semantics and on the two tests above. |
 | `setup-and-publication.md` | 21. A first config is published through a pending file and a hard link, and leaves nothing behind | durability. Nothing calls `fsync`, `sync_all` or `sync_data` anywhere in `src/main.rs`, so what survives a power loss between the write and the link is not settled by the code. |
 | `setup-and-publication.md` | 27. What happens to a typed secret, exhaustively | whether the terminal driver's own input queue can retain a hidden answer after the read. `TCSAFLUSH` discards what is QUEUED at the moment the attributes change, on both the arm and the restore (`src/main.rs:Hushed`), but nothing in the crate scrubs the line already consumed. |
+
+## File-protocol pins added during extraction
+
+The existing journal-claim guard is now covered by
+`an_existing_claim_for_this_process_preserves_both_waiting_batches` in
+`crates/pns-adapters/src/protocols/journal_claims/take/tests.rs`.
+The independent nag-record ownership obligation is covered by
+`two_record_claimers_have_one_owner_even_without_the_fire_lock` and
+`a_record_claim_never_overwrites_a_batch_that_owner_already_holds` in
+`crates/pns-adapters/src/protocols/nag/claims/tests.rs`. These close the claim-guard and per-record
+arbitration gaps without claiming that the unrelated fire-lock age and abandoned-claim gaps are closed.

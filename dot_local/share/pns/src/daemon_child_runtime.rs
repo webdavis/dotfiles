@@ -31,7 +31,7 @@ pub(crate) struct Bounded {
 /// STDOUT STAYS NULL, because that is where a job's ORDINARY output goes and
 /// the ordinary case here is a tick that ran three times a minute and has
 /// nothing to report. Only what could not be said anywhere else crosses.
-pub(crate) fn spawn_job(job: &pns::daemon::Job) -> std::io::Result<std::process::Child> {
+pub(crate) fn spawn_job(job: &pns_domain::jobs::Job) -> std::io::Result<std::process::Child> {
     let mut child = Command::new(std::env::current_exe()?);
     child
         .args(&job.args)

@@ -1,4 +1,3 @@
-use crate::event_records::{ACTIVITY, ACTIVITY_KEPT, ACTIVITY_MAX_CHARS, ACTIVITY_READ_MAX};
 use crate::*;
 
 /// Put the journal in front of an operator who is here to see it, riding the
@@ -8,7 +7,10 @@ use crate::*;
 /// event path whose stdout a harness hook reads must not gain a line about the
 /// state directory, and nothing here is worth a word to the operator anyway.
 ///
-/// A LOSS ON A FAILED DELIVERY IS THE DESIGN, not an oversight. The engine's
+/// A completed failed attempt still consumes its batch. A crash or unwind
+/// before completion leaves its held files for later adoption. This keeps the
+/// legacy fire-and-forget policy without deleting before the attempt runs.
+/// The accepted failure policy remains: The engine's
 /// contract is fire-and-forget for every producer; every journaled event
 /// already reached the durable log in full, so nothing is lost that a human
 /// cannot recover; re-journaling against a wedged channel is an unbounded
@@ -51,6 +53,7 @@ pub(crate) fn replay_missed(
     // this side's. `[recap]`'s other fields (the summarizer, its deadline, the
     // repositories, the threading) never cross: they are the publisher's.
     let catch_up = CatchUp {
+        moment: pns_adapters::return_window::FileReturnMoment::new(state_dir()),
         recap: &recap,
         home,
         mobile,
@@ -69,6 +72,7 @@ pub(crate) fn replay_missed(
 }
 /// THE COMPOSITION ROOT'S SIDE OF ONE CATCH-UP.
 struct CatchUp<'a> {
+    moment: pns_adapters::return_window::FileReturnMoment,
     recap: &'a pns::config::Recap,
     home: &'a str,
     mobile: &'a Mobile,
@@ -78,24 +82,27 @@ struct CatchUp<'a> {
 
 impl pns_application::ReturnMoment for CatchUp<'_> {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<pns_application::Claim> {
-        match claim_moment(now, take_journal) {
-            Moment::Owned { since, waiting } => Some(pns_application::Claim { since, waiting }),
-            Moment::Busy => None,
-        }
+        pns_application::ReturnMoment::claim(&self.moment, now, take_journal)
+    }
+    fn complete(&self) {
+        pns_application::ReturnMoment::complete(&self.moment);
     }
 }
 
 impl pns_application::ActivityRing for CatchUp<'_> {
     fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        let _ = append_ring_line(
-            &state_dir().join(ACTIVITY),
-            &pns::missed_notifications::entry(event, now, ACTIVITY_MAX_CHARS),
-            ACTIVITY_KEPT,
-            ACTIVITY_READ_MAX,
+        pns_application::ActivityRing::record(
+            &pns_adapters::FileRecords::new(state_dir()),
+            event,
+            now,
         );
     }
-    fn entries_between(&self, since: u64, until: u64) -> Vec<pns::missed_notifications::Entry> {
-        activity_in(since, until)
+    fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
+        pns_application::ActivityRing::entries_between(
+            &pns_adapters::FileRecords::new(state_dir()),
+            since,
+            until,
+        )
     }
 }
 

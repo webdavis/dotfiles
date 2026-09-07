@@ -42,7 +42,7 @@ fn daemon_schedule() -> i32 {
         return 1;
     };
     let due = now.saturating_add(request.in_secs);
-    let job = pns::daemon::Job {
+    let job = pns_domain::jobs::Job {
         id: request.id,
         due,
         until: match request.until {
@@ -57,7 +57,7 @@ fn daemon_schedule() -> i32 {
         unless_marker: request.marker,
         args: request.args,
     };
-    match pns::daemon::schedule(&state_dir(), &job, now) {
+    match pns_adapters::job_spool::schedule(&state_dir(), &job, now) {
         Ok(()) => 0,
         Err(refusal) => {
             eprintln!("pns daemon: {refusal}");
@@ -146,7 +146,7 @@ fn daemon_cancel() -> i32 {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     }
-    match pns::daemon::cancel(&state_dir(), id) {
+    match pns_adapters::job_spool::cancel(&state_dir(), id) {
         Ok(true) => {
             println!("pns daemon: cancelled `{id}`");
             0

@@ -172,21 +172,21 @@ pub(crate) fn ensure_presence_poll(
     let Some(presence) = presence else {
         // The failure is dropped for `record_decision`'s reason: a cancel that
         // did not land costs one more poll, and the lease ends it regardless.
-        let _ = pns::daemon::cancel(state, PRESENCE_JOB);
+        let _ = pns_adapters::job_spool::cancel(state, PRESENCE_JOB);
         return;
     };
-    let pending = match pns::daemon::peek(
-        &pns::daemon::spool_dir(state).join(PRESENCE_JOB),
+    let pending = match pns_adapters::job_spool::peek(
+        &pns_adapters::job_spool::spool_dir(state).join(PRESENCE_JOB),
         PRESENCE_JOB,
     ) {
-        pns::daemon::Peeked::Job(job) => Some(job.due),
+        pns_adapters::job_spool::Peeked::Job(job) => Some(job.due),
         _ => None,
     };
     // DUE NOW when nothing is pending, so the first sweep after the switch
     // goes on is followed by a reading on the next tick rather than one
     // interval later.
     let due = pending.filter(|due| *due > now).unwrap_or(now);
-    let job = pns::daemon::Job {
+    let job = pns_domain::jobs::Job {
         id: PRESENCE_JOB.to_string(),
         due,
         until: due.max(now.saturating_add(PRESENCE_LEASE_SECS)),
@@ -201,7 +201,7 @@ pub(crate) fn ensure_presence_poll(
     // The failure is DROPPED here for `schedule_lights_tick`'s reason: a
     // registration that did not land must never cost the daemon a line a
     // second, and the next sweep tries again.
-    let _ = pns::daemon::schedule(state, &job, now);
+    let _ = pns_adapters::job_spool::schedule(state, &job, now);
 }
 
 #[cfg(test)]

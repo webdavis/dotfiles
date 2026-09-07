@@ -12,6 +12,10 @@ use crate::*;
 /// the empty-value config this wizard exists to avoid.
 pub(crate) fn walk() -> Result<pns::setup::Answers, String> {
     println!("{SETUP_PREAMBLE}");
+    println!(
+        "A chezmoi-managed config will be replaced on the next apply; update its source instead.
+Config diffs can expose the secrets entered here."
+    );
     let mut answers = pns::setup::Answers {
         mobile_token: ask_hidden(
             "The phone card is on. Paste moshi's webhook secret to complete it, \

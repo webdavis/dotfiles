@@ -2,6 +2,7 @@ mod tests {
     use super::super::*;
     use crate::runtime_test_support::*;
     use std::cell::RefCell;
+    use std::os::unix::fs::PermissionsExt;
 
     /// Restores an environment variable when the test that set it ends, so a
     /// panicking assertion cannot leave a scratch `HOME` behind for the rest

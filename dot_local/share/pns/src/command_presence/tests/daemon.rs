@@ -66,9 +66,10 @@ mod tests {
 
         ensure_presence_poll(&state, Some(&presence), 1000);
 
-        let record = std::fs::read_to_string(pns::daemon::spool_dir(&state).join("presence"))
-            .expect("the registered job");
-        let job = pns::daemon::parse(record.trim()).expect("a job record");
+        let record =
+            std::fs::read_to_string(pns_adapters::job_spool::spool_dir(&state).join("presence"))
+                .expect("the registered job");
+        let job = pns_adapters::job_spool::parse(record.trim()).expect("a job record");
         assert_eq!(job.id, "presence");
         // THE FLAG THE DAEMON ALONE PASSES, so the poll it launches knows
         // nobody is reading its stderr.
@@ -102,7 +103,7 @@ mod tests {
             stale_after_secs: 15,
         };
         ensure_presence_poll(&state, Some(&presence), 1000);
-        let record = pns::daemon::spool_dir(&state).join("presence");
+        let record = pns_adapters::job_spool::spool_dir(&state).join("presence");
         assert!(record.exists(), "the fixture never registered anything");
 
         ensure_presence_poll(&state, None, 1030);
@@ -126,21 +127,25 @@ mod tests {
         };
         ensure_presence_poll(&state, Some(&presence), 1000);
         // As the daemon leaves it after firing once: due again five seconds on.
-        let record = pns::daemon::spool_dir(&state).join("presence");
-        let fired = pns::daemon::Job {
+        let record = pns_adapters::job_spool::spool_dir(&state).join("presence");
+        let fired = pns_domain::jobs::Job {
             due: 1005,
-            ..pns::daemon::parse(
+            ..pns_adapters::job_spool::parse(
                 std::fs::read_to_string(&record)
                     .expect("the registered job")
                     .trim(),
             )
             .expect("a job record")
         };
-        std::fs::write(&record, format!("{}\n", pns::daemon::render(&fired))).expect("the rearm");
+        std::fs::write(
+            &record,
+            format!("{}\n", pns_adapters::job_spool::render(&fired)),
+        )
+        .expect("the rearm");
 
         ensure_presence_poll(&state, Some(&presence), 1002);
 
-        let job = pns::daemon::parse(
+        let job = pns_adapters::job_spool::parse(
             std::fs::read_to_string(&record)
                 .expect("the registered job")
                 .trim(),

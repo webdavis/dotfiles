@@ -24,7 +24,7 @@ pub(crate) fn daemon_run() -> i32 {
         return 0;
     }
     let state = state_dir();
-    let spool = pns::daemon::spool_dir(&state);
+    let spool = pns_adapters::job_spool::spool_dir(&state);
     // EXIT 0 ON A REFUSAL RETRYING CANNOT FIX. Both of them (a spool path that
     // is not a directory, a state directory that will not take one) are
     // permanent, and `KeepAlive { SuccessfulExit = false }` relaunches a
@@ -32,7 +32,9 @@ pub(crate) fn daemon_run() -> i32 {
     // copies of this line a day, which is behavior 15's chatter arriving
     // through the restart door. A clean exit keeps the job DOWN and the
     // doctor's line is what tells the operator.
-    if let pns::daemon::Startup::Refused(refusal) = pns::daemon::prepare_spool(&state) {
+    if let pns_adapters::job_spool::Startup::Refused(refusal) =
+        pns_adapters::job_spool::prepare_spool(&state)
+    {
         eprintln!("pns daemon: {refusal}");
         return 0;
     }
@@ -101,9 +103,9 @@ fn daemon_pass(
     // FAIL-QUIET, in `remember_staleness`'s style: a heartbeat that did not
     // land costs one doctor line, and complaining about it every tick is
     // the chatter this daemon must never produce.
-    let _ = pns::daemon::publish_heartbeat(
+    let _ = pns_adapters::job_spool::publish_heartbeat(
         state,
-        &pns::daemon::Heartbeat {
+        &pns_domain::jobs::Heartbeat {
             pid: std::process::id(),
             at: now,
         },

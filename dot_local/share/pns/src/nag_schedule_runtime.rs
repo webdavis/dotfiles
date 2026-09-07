@@ -36,8 +36,8 @@ use crate::*;
 pub(crate) fn clear_nag(session_id: &str) {
     let state = state_dir();
     let (Some(record), Some(marker)) = (
-        pns::nag::record_path(&state, session_id),
-        pns::nag::marker_name(session_id),
+        pns_adapters::nag_records::record_path(&state, session_id),
+        pns_domain::nag::marker_name(session_id),
     ) else {
         return;
     };
@@ -96,9 +96,9 @@ pub(crate) fn arm_nag(session_id: &str, event: &pns::args::EventArgs) {
     }
     let state = state_dir();
     let (Some(record), Some(marker), Some(id)) = (
-        pns::nag::record_path(&state, session_id),
-        pns::nag::marker_name(session_id),
-        pns::nag::job_id(session_id),
+        pns_adapters::nag_records::record_path(&state, session_id),
+        pns_domain::nag::marker_name(session_id),
+        pns_domain::nag::job_id(session_id),
     ) else {
         return;
     };
@@ -132,7 +132,7 @@ pub(crate) fn arm_nag(session_id: &str, event: &pns::args::EventArgs) {
     }
     let written = publish_state_line(
         &record,
-        &pns::nag::render(&pns::nag::Record {
+        &pns_adapters::nag_records::render(&pns_domain::nag::Record {
             agent: event.agent.clone(),
             project: event.project.clone(),
             branch: event.branch.clone(),
@@ -148,7 +148,7 @@ pub(crate) fn arm_nag(session_id: &str, event: &pns::args::EventArgs) {
         return;
     }
     let due = now.saturating_add(after_secs);
-    let job = pns::daemon::Job {
+    let job = pns_domain::jobs::Job {
         id,
         due,
         // THE LEASE IS ONE MORE SCHEDULE PAST THE DUE SECOND, which resolves to
@@ -165,7 +165,7 @@ pub(crate) fn arm_nag(session_id: &str, event: &pns::args::EventArgs) {
         // question, so it lives in the record and `pns nag` takes no argument.
         args: vec![NAG_MODE_WORD.to_string()],
     };
-    if let Err(refusal) = pns::daemon::schedule(&state, &job, now) {
+    if let Err(refusal) = pns_adapters::job_spool::schedule(&state, &job, now) {
         // AND THE RECORD GOES WITH IT, which is what makes the sentence true. A
         // record with no job wakes no fire of its own, but it stays ENUMERABLE:
         // a sibling approval's fire, or the operator running `pns nag` by hand,
@@ -192,30 +192,6 @@ pub(crate) const BLOCKED_STATE: &str = "blocked";
 /// The schedule that means the nag is off, in the composition root's own
 /// spelling of `config`'s default.
 pub(crate) const NAG_OFF: u64 = 0;
-/// Where one answered marker lives. The daemon owns the directory and resolves
-/// the NAME inside it; this is the same resolution for the two writers that are
-/// not the daemon.
-pub(crate) fn marker_path(state: &Path, marker: &str) -> std::path::PathBuf {
-    pns::daemon::marker_dir(state).join(marker)
-}
-
-/// One answered marker written: empty, 0600, and present is the whole message.
-pub(crate) fn write_marker(state: &Path, marker: &str) -> std::io::Result<()> {
-    let path = marker_path(state, marker);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(STATE_FILE_MODE)
-        .open(&path)?;
-    // AND AGAIN AFTER THE OPEN, for `publish_state_line`'s reason: `mode`
-    // applies only when the open CREATES the file, and a marker left by an
-    // earlier arm in this session is reused rather than made.
-    file.set_permissions(std::fs::Permissions::from_mode(STATE_FILE_MODE))
-}
 
 /// How long an unanswered approval waits before it is carded again, or
 /// `NAG_OFF`.

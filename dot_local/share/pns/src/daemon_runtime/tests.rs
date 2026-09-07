@@ -10,9 +10,9 @@ mod tests {
         // child is gone: `decide` is told whether one is, and it is told the
         // truth only because the reap happens first.
         let state = scratch("daemon-pass-one-child");
-        let spool = pns::daemon::spool_dir(&state);
+        let spool = pns_adapters::job_spool::spool_dir(&state);
         std::fs::create_dir_all(&spool).expect("the spool");
-        let job = pns::daemon::Job {
+        let job = pns_domain::jobs::Job {
             id: "lights".to_string(),
             due: 100,
             until: 100_000,
@@ -23,7 +23,7 @@ mod tests {
             // tests exits at once with nothing on either stream.
             args: vec!["--list".to_string()],
         };
-        pns::daemon::hand_back(&spool, &job).expect("the record lands");
+        pns_adapters::job_spool::hand_back(&spool, &job).expect("the record lands");
         let record = spool.join("lights");
         let armed = std::fs::read_to_string(&record).expect("the record is readable");
         // THE RECORD'S IDENTITY, not just its bytes. A wait must never CLAIM,

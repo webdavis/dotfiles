@@ -12,9 +12,10 @@ mod tests {
         // or every event from every pane would take one.
         const TIMEOUT: u64 = 3_900;
         let state = scratch("loop-lease");
-        let marker =
-            pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id names a lease");
-        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+        let marker = pns_adapters::marker_files::lease_marker(&state, "wW:p21")
+            .expect("herdr's own id names a lease");
+        std::fs::create_dir_all(pns_adapters::marker_files::lease_dir(&state))
+            .expect("the lease directory");
 
         renew_loop_lease(&state, "wW:p21", Some(1_000));
         assert!(
@@ -62,8 +63,10 @@ mod tests {
         // THE INODE IS WHAT PROVES IT, and it is the only observable difference:
         // a publish-by-rename leaves a different file at the same path.
         let state = scratch("lease-renew-in-place");
-        let marker = pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id");
-        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+        let marker =
+            pns_adapters::marker_files::lease_marker(&state, "wW:p21").expect("herdr's own id");
+        std::fs::create_dir_all(pns_adapters::marker_files::lease_dir(&state))
+            .expect("the lease directory");
         std::fs::write(&marker, "1000\n").expect("a lease taken by hand");
         let before = std::fs::metadata(&marker).expect("the lease").ino();
 
@@ -93,13 +96,15 @@ mod tests {
         // so it goes on breathing for the whole timeout with nothing behind it,
         // and they have been told the opposite.
         let state = scratch("lease-end-refused");
-        std::fs::create_dir_all(pns::lights::lease_dir(&state)).expect("the lease directory");
+        std::fs::create_dir_all(pns_adapters::marker_files::lease_dir(&state))
+            .expect("the lease directory");
         assert_eq!(
             end_lease(&state, "wW:p21"),
             Ok(()),
             "a machine that never began is a removal of a file that is not there"
         );
-        let marker = pns::lights::lease_marker(&state, "wW:p21").expect("herdr's own id");
+        let marker =
+            pns_adapters::marker_files::lease_marker(&state, "wW:p21").expect("herdr's own id");
         std::fs::write(&marker, "1000\n").expect("a lease taken by hand");
         assert_eq!(end_lease(&state, "wW:p21"), Ok(()));
         assert!(!marker.exists(), "and the lease is really gone");

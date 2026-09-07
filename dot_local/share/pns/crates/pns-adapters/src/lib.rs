@@ -34,6 +34,38 @@ pub use config::hermes_secret;
 
 pub use config::select_plugins;
 
+mod persistence;
+pub use persistence::lights_codec;
+pub use persistence::{
+    ACTIVITY, ACTIVITY_KEPT, ACTIVITY_MAX_CHARS, ACTIVITY_READ_MAX, DECISIONS, FileRecords,
+    MISSED_NOTIFICATIONS,
+};
+pub use persistence::{
+    HeldLock, RING_READ_MAX, STATE_FILE_MODE, append_ring_line, claim_lock, decision_codec,
+    journal_codec, now_secs, presence_journal, publish_state_line, readable_state_file, state_dir,
+};
+pub use persistence::{QUIET_UNTIL, read_quiet_expiry};
+pub use persistence::{remember_staleness, remembered_staleness};
+
+mod protocols;
+pub use persistence::{
+    LIGHTS_HELD, held_lamps, read_held, read_news, record_news, remember_held, say_lights_once,
+};
+pub use protocols::markers as marker_files;
+pub use protocols::{nag as nag_records, spool as job_spool};
+
+pub use persistence::LIGHTS_SAID;
+pub use protocols::return_window;
+pub use protocols::turn_markers;
+
+pub use protocols::config_publication;
+
+pub use persistence::{
+    LIGHTS_QUIET, LIGHTS_QUIET_SAID, advance_streak, muted_state, publish_muted,
+};
+
+pub use persistence::record_policy_settings_change;
+
 mod hue;
 pub use hue::{
     BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, HuePulse, HueSettings, Reading as HueReading,
@@ -51,9 +83,6 @@ pub use presence::{
 
 mod macos;
 pub use macos::{FocusReading, focus_now};
-
-mod persistence;
-pub use persistence::{RING_READ_MAX, STATE_FILE_MODE, readable_state_file};
 
 mod herdr;
 mod probes;
@@ -85,4 +114,5 @@ pub use herdr::workspace_agent_statuses;
 
 pub use presence::BridgePresencePoll;
 
-pub use persistence::publish_state_line;
+#[cfg(test)]
+mod state_fixtures;

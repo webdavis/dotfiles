@@ -1,5 +1,4 @@
 use super::*;
-use crate::event_records::{ACTIVITY, ACTIVITY_KEPT, ACTIVITY_MAX_CHARS, ACTIVITY_READ_MAX};
 
 /// THE COMPOSITION ROOT'S SIDE OF THE RECORD TAIL: one adapter per port,
 /// each one this binary's existing function with the values a use case has no
@@ -9,6 +8,7 @@ use crate::event_records::{ACTIVITY, ACTIVITY_KEPT, ACTIVITY_MAX_CHARS, ACTIVITY
 /// them writes into the same state directory for the same event, and ten
 /// zero-sized types would be ten names for one moment.
 pub(super) struct EventRecords<'a> {
+    pub(super) moment: pns_adapters::return_window::FileReturnMoment,
     pub(super) home: &'a str,
     pub(super) hue_table: Option<&'a toml::Table>,
     pub(super) lights: Option<&'a pns::config::Lights>,
@@ -23,54 +23,34 @@ pub(super) struct EventRecords<'a> {
 
 impl pns_application::DecisionRing for EventRecords<'_> {
     fn record(&self, record: &pns::decision_log::Record) {
-        record_decision(record);
+        pns_application::DecisionRing::record(&pns_adapters::FileRecords::new(state_dir()), record);
     }
     fn read(&self) -> Result<Option<String>, String> {
-        pns::system::readable_state_file(&state_dir().join(DECISIONS), RING_READ_MAX)
-            .map(Some)
-            .or_else(|error| {
-                if error.kind() == std::io::ErrorKind::NotFound {
-                    Ok(None)
-                } else {
-                    Err(format!("{:?}: {error}", error.kind()))
-                }
-            })
+        pns_application::DecisionRing::read(&pns_adapters::FileRecords::new(state_dir()))
     }
 }
-
 impl pns_application::Journal for EventRecords<'_> {
     fn journal(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        let _ = append_ring_line(
-            &state_dir().join(MISSED_NOTIFICATIONS),
-            &pns::missed_notifications::entry(event, now, render::PREVIEW_MAX_CHARS),
-            pns::missed_notifications::KEPT,
-            RING_READ_MAX,
-        );
+        pns_application::Journal::journal(&pns_adapters::FileRecords::new(state_dir()), event, now);
     }
     fn read(&self) -> Result<Option<String>, String> {
-        pns::system::readable_state_file(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX)
-            .map(Some)
-            .or_else(|error| {
-                if error.kind() == std::io::ErrorKind::NotFound {
-                    Ok(None)
-                } else {
-                    Err(format!("{:?}: {error}", error.kind()))
-                }
-            })
+        pns_application::Journal::read(&pns_adapters::FileRecords::new(state_dir()))
     }
 }
-
 impl pns_application::ActivityRing for EventRecords<'_> {
     fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        let _ = append_ring_line(
-            &state_dir().join(ACTIVITY),
-            &pns::missed_notifications::entry(event, now, ACTIVITY_MAX_CHARS),
-            ACTIVITY_KEPT,
-            ACTIVITY_READ_MAX,
+        pns_application::ActivityRing::record(
+            &pns_adapters::FileRecords::new(state_dir()),
+            event,
+            now,
         );
     }
-    fn entries_between(&self, since: u64, until: u64) -> Vec<pns::missed_notifications::Entry> {
-        activity_in(since, until)
+    fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
+        pns_application::ActivityRing::entries_between(
+            &pns_adapters::FileRecords::new(state_dir()),
+            since,
+            until,
+        )
     }
 }
 
@@ -96,14 +76,14 @@ impl pns_application::LampRecords for EventRecords<'_> {
 }
 
 impl pns_application::ReturnMoment for EventRecords<'_> {
+    fn complete(&self) {
+        pns_application::ReturnMoment::complete(&self.moment);
+    }
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<pns_application::Claim> {
         // SubmitNotification already checked presence. The file adapter
         // retains the absent-clock and newer-edge checks for this exact now.
         if take_journal {
-            return match claim_moment(now, true) {
-                Moment::Owned { since, waiting } => Some(pns_application::Claim { since, waiting }),
-                Moment::Busy => None,
-            };
+            return pns_application::ReturnMoment::claim(&self.moment, now, true);
         }
         mark_present(now);
         None

@@ -1,4 +1,5 @@
-use super::{KEPT, NO_CLOCK};
+use super::KEPT;
+const NO_CLOCK: &str = "-";
 
 /// The decision log as the doctor's own section: a heading and one rendered
 /// entry per line, newest first, capped at `KEPT`.

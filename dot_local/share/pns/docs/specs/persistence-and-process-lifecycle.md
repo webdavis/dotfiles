@@ -737,13 +737,15 @@ When the event claims it
 
 Then the journal is renamed to `missed-notifications.claim.<pid>`, verified AFTER the rename to be a
 regular file, renamed again to `missed-notifications.held.<pid>.<seq>` (a name outside the prefix the
-adoption scan matches), READ, and only then removed.
+adoption scan matches), and read. The hold remains through the replay dispatch.
+`ReturnMoment::complete` removes only this run's holds after the attempt returns, including a failed
+attempt. An unwind or process exit before completion leaves the hold for later adoption.
 
 `src/main.rs:claim_by_rename`: "VERIFIED AFTER THE RENAME AND NOT BEFORE. A check taken first is a check
 of a path something else is still free to change between the look and the move."
-`src/main.rs:take_claim`: "THE READ STILL COMES BEFORE THE REMOVE ... Removing first, or removing
-whatever the read answered, throws away a batch nobody has seen the moment the read fails: MEASURED as a
-journal with one undecodable byte in it coming back empty, with the file already gone."
+`crates/pns-adapters/src/protocols/journal_claims/take.rs:take_claim` preserves a failed read on
+disk. `crates/pns-adapters/src/protocols/return_window/mod.rs:FileReturnMoment` owns successful
+holds until the application calls `complete`; it deliberately has no destructor that consumes them.
 
 - Success: `tests/dispatch.rs:the_claim_never_survives_the_run_whether_the_replay_delivered_or_not`;
   `tests/dispatch.rs:a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed`;
@@ -760,8 +762,9 @@ journal with one undecodable byte in it coming back empty, with the file already
   (`tests/dispatch.rs:an_unreadable_old_claim_cannot_starve_the_good_batch_behind_it`).
 - Forbidden side effects: a rename must never land on top of an existing claim or hold, because a rename
   overwrites and "a batch this run has not delivered must never be what it lands on".
-- Timeout and cancellation: not applicable.
-- Idempotency and duplicates: only one rename can win, so only one process can deliver a batch.
+- Timeout and cancellation: an attempt that returns is completed, even on delivery failure. An unwind
+  or process death before that return leaves an adoptable hold. No retry policy is added here.
+- Idempotency and duplicates: one live holder reads a batch; adoption still waits for its owner to exit.
 - Privacy: the batch is the operator's own text and is never printed by the claim path.
 - Process ownership and cleanup: a run killed inside the hold leaves the held file, which the adoption in
   behavior 15 recovers.
@@ -861,7 +864,7 @@ Given a Stop hook measuring the turn that just finished
 
 When it reads the start marker
 
-Then the marker is renamed to `session-<id>.start.claim.<pid>` FIRST, read from the claim, and the claim
+Then the marker is renamed to `session-<id>.claim.<pid>` FIRST, read from the claim, and the claim
 removed; the value is validated before it reaches arithmetic.
 
 `src/main.rs:consume_turn_marker`: "The claim is a rename, which is atomic: two Stops racing the same
@@ -883,8 +886,8 @@ is still condensing."
   and it would earn the watch card and the pulse."
 - Thresholds: `src/safety.rs:session_id_is_safe` is the filename gate: non-empty, no `..`, ASCII
   alphanumerics plus `.`, `_`, `-`, and nothing that `working_owner` would read as a working file.
-- Required side effects: the marker is written only when absent, so "a second prompt inside one turn must
-  not restart the clock".
+- Required side effects: the marker is created exclusively with mode `0600`, so a later prompt keeps
+  the first marker's bytes and a dangling symlink never becomes an open of its target.
 - Forbidden side effects: the approval path leaves the turn marker alone
   (`tests/hooks.rs:an_approval_leaves_the_turn_marker_alone`,
   `tests/hooks.rs:a_refused_tool_call_leaves_the_turn_marker_alone`).
@@ -894,8 +897,21 @@ is still condensing."
 - Process ownership and cleanup: the claim carries the pid; a run killed between the rename and the
   remove leaves a claim that `stranded_claims` deliberately does NOT match, because its prefix is the
   journal's.
-- Compatibility contract: one file per session, never swept, accumulation accepted and named in
-  `src/main.rs:clear_nag`.
+- Compatibility contract: the name and one-epoch contents stay unchanged. The approved retention repair
+  sweeps only `session-<id>.start` files whose readable epoch is strictly more than seven days old.
+  Exactly 604800 seconds, future epochs, and an unavailable current clock do not expire a marker.
+  The tick takes an exclusive sweep claim, rereads its owned file, and removes only an expired claim.
+  A fresh or unreadable claim is restored by an exclusive hard link; a later prompt is never replaced.
+  A failed restoration retains the claim. Links, directories, unsafe names and claims another run
+  already owns are left alone. This does not add collection of answered or stranded Stop claims.
+- Additional pins: `the_first_turn_marker_is_private_and_a_later_prompt_keeps_its_bytes`,
+  `a_dangling_turn_marker_never_writes_its_symlink_target`,
+  `the_turn_sweep_removes_only_markers_strictly_older_than_seven_days`,
+  `unreadable_clocks_and_unowned_names_do_not_expire_turn_markers`,
+  `an_expired_claim_is_removed_without_consuming_a_later_prompt`,
+  `a_claim_that_became_fresh_is_restored_without_replacing_an_arrival`,
+  `a_sweep_claim_already_owned_by_another_invocation_is_untouched`, and
+  `the_sweep_preserves_links_and_directories_and_restores_torn_claims`.
 
 ### 18. A marker directory is swept by the tick, by rename, never by unlink
 

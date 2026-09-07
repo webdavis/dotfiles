@@ -1,19 +1,6 @@
 use crate::*;
+pub(crate) use pns_adapters::{now_secs, state_dir};
 
-/// Where this binary keeps what it has to remember between runs.
-pub(crate) fn state_dir() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_default();
-    resolve_path(
-        std::env::var("PNS_STATE_DIR").ok().as_deref(),
-        &format!("{home}/.local/state/pns"),
-    )
-}
-pub(crate) fn now_secs() -> Option<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|since_epoch| since_epoch.as_secs())
-}
 /// A deadline override in milliseconds, for tests that must prove expiry
 /// without waiting out the production window.
 pub(crate) fn env_deadline(variable: &str) -> Option<Duration> {
