@@ -675,8 +675,9 @@ Order: after 9.1.
 `HuePulse`, `signal_fixtures`, `UNMAPPED_SIGNAL_DURATION_MS`, `DEFAULT_ROOMS`, `UreqBridge`,
 `BRIDGE_DEADLINE`, `TYPED_COMMAND_DEADLINE` (`src/channels/hue.rs`, the remainder after PR 5.8) to
 `pns-adapters/src/hue/{inventory,bodies,pulse,bridge}.rs`. Unpinned first: S232 (the real transport:
-certificate handling, redirect refusal, the timeout; written against a local TLS listener, or recorded as
-accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400. Statements: S219, S220
+certificate handling, no redirect follow and the timeout). The four private TLS transport cases now
+pin these, the key header and exact PUT bytes; certificate verification remains disabled as before.
+The separate B1 certificate-pinning behavior remains outside this move. Sizes: four files of 100 to 260 plus tests under 400. Statements: S219, S220
 (bodies), S222 (`inventory`), S229, S232.
 
 **PR 10.2 the presence poll adapters.** Pure move. `presence_hue.rs` (the `grouped_motion` read),
@@ -1029,14 +1030,13 @@ rings, the delivery ledger, `last-present` (its window claim becomes a row claim
 transaction), `quiet-until`, `home-staleness`, `lights-quiet`, `lights-said`, `lights-quiet-said`
 and `lights-news`. The ports of PR 6.1 are the same either way, which is why they land first.
 
-**Decision: a sixth crate for the signed-POST client that uu shares.** uu imports six items from
-`pns::channels::hermes` today (`src/delivery.rs:11`, `src/delivery.rs:99`, `src/cli/run.rs:13`).
-After PR 14.3 they live in `pns-adapters`, and a path dependency on `pns-adapters` drags the Hue,
-UniFi, macOS, process and persistence adapters into uu's build. Recommendation: add
-`crates/pns-hermes` (the `SignedPost` trait, `UreqSignedPost`, `sign`, `PostOutcome`, `delivered`,
-`outcome_line`, `skipped_line`, `channel_url`, `remote_deadline`, no workspace dependencies), have
-`pns-adapters` depend on it, and point uu at it in PR 14.3. The alternative, uu depending on
-`pns-adapters` whole, needs no new crate name but couples uu's build to every adapter pns ever grows.
+**Decision: a sixth crate for the signed-POST client that uu shares.** Accepted and implemented in
+PR 14.3: `crates/pns-hermes` owns `SignedPost`, `UreqSignedPost`, `sign`, `PostOutcome`, `delivered`,
+`outcome_line` and `skipped_line`, with no workspace dependencies. Both `pns-adapters` and
+`uu-adapters` depend on it, so uu does not compile the unrelated Hue, UniFi, macOS, process or
+persistence adapters. `channel_url` and `remote_deadline` remain at the pns destination boundary:
+they consume domain validation and uu uses neither. Their existing validators are not duplicated
+in the shared client.
 
 One standing rule is stated rather than decided: the 300/500 ceiling binds `tests/*.rs` as much as
 `src/*.rs`, because the ruling says "unit tests INCLUDED, no waiver" and the charter mandates the

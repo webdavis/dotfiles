@@ -440,12 +440,12 @@ newline, waits for the child, and answers `Delivery::Silent`. A spawn that faile
   `tests/dispatch.rs:an_absent_channel_is_simply_not_installed` and
   `tests/dispatch.rs:a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`.
 - **Thresholds:** `src/channel_dispatch.rs:deliver` gives input and direct-child wait one five-second
-  budget through `system::finish_bounded`, the probe runner's completion path. Output remains inherited
+  budget through `pns_adapters::finish_bounded`, the probe runner's completion path. Output remains inherited
   without a byte ceiling. There is no aggregate deadline across the legs.
 - **Required side effects:** Exactly one write of the event JSON plus `\n` to the child's stdin.
 - **Forbidden side effects:** The exit status must not become a caller-visible failure.
 - **Timeout and cancellation:** At the deadline the direct child is killed and reaped, still returning
-  `Delivery::Silent`. The private `channel_dispatch::tests` cases cover a hanging child and a child that
+  `Delivery::Silent`. The private `destinations::executable::tests` cases cover a hanging child and a child that
   never reads a pipe-filling event. Their test deadlines are shorter than the production budget.
 - **Idempotency and duplicates:** One spawn per leg per dispatch.
 - **Privacy:** The event JSON reaches the child's stdin, which is the process's own pipe rather than argv
@@ -926,7 +926,7 @@ ______________________________________________________________________
 
 Recorded here as well as inline, so they can be closed deliberately.
 
-- S147's direct-child deadline is pinned by `channel_dispatch::tests`. Output has no byte ceiling;
+- S147's direct-child deadline is pinned by `destinations::executable::tests`. Output has no byte ceiling;
   descendant cleanup after producer death remains a separate prerequisite for lights slice 10.
 - `NOT ESTABLISHED:` no test observes an executable channel writing to the event's stdout or stderr.
   `src/main.rs:deliver` configures neither, so both are inherited; every stub channel in

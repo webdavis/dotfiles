@@ -36,17 +36,6 @@ pub(crate) fn overrides_from_env() -> Overrides {
             .collect::<BTreeMap<_, _>>(),
     )
 }
-/// A path from the environment, defaulting like bash's `${VAR:-default}`:
-/// EMPTY means the default as much as unset does, because joining a filename
-/// to an empty path resolves into the current directory and quietly delivers
-/// nothing.
-pub(crate) fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(
-        candidate
-            .filter(|value| !value.is_empty())
-            .unwrap_or(default),
-    )
-}
 /// The first executable of that name on PATH, absolute, or None. The click
 /// string bakes it in because the click runs in a bare launchd context whose
 /// PATH cannot find `~/.local/bin`.
@@ -60,6 +49,8 @@ pub(crate) fn executable_in_path(name: &str) -> Option<String> {
         })
         .map(|path| path.to_string_lossy().into_owned())
 }
+
+pub(crate) use pns_adapters::resolve_path;
 
 #[cfg(test)]
 #[path = "runtime_environment/tests.rs"]

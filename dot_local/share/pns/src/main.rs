@@ -119,7 +119,7 @@ pub(crate) use daemon_spool_runtime::drain_spool;
 pub(crate) use doctor_reports::{daemon_line, decision_section, missed_line, read_pairing};
 pub(crate) use event_flow::{Attempt, run_event};
 pub(crate) use event_records::{DECISIONS, MISSED_NOTIFICATIONS, activity_in, record_decision};
-pub(crate) use focus_runtime::{focus_line, focus_now};
+pub(crate) use focus_runtime::focus_line;
 pub(crate) use home_staleness_memory::{remember_staleness, remembered_staleness};
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
@@ -148,6 +148,7 @@ pub(crate) use moshi_submission::{blocking_event, gate_mode, moshi_hook_bin};
 pub(crate) use nag_schedule_runtime::{
     BLOCKED_STATE, NAG_OFF, arm_nag, clear_nag, marker_path, nag_after_secs, write_marker,
 };
+use pns_adapters::focus_now;
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, narrow_to_presence, presence_snapshot, presence_status,
     system_probes,

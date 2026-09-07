@@ -3,7 +3,7 @@
 # deployed pns binary for alerts. Nothing else. Records do not spawn anything
 # at all: they are one signed POST made in process.
 #
-# pns IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
+# pns-hermes IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
 # transport and POST seam already live there; a second copy of an HMAC
 # (hash-based message authentication code) signer is a second thing to get wrong.
 # The record BODY is uu's own; only the plumbing is shared. The relative path
@@ -24,7 +24,7 @@ uu-protocol = { path = "../uu-protocol" }
 # (`gethostname`) nor "which UTC calendar day is this second" (`gmtime_r`), and
 # both are on every record. It is already compiled in this tree behind pns.
 libc = "0.2.189"
-pns = { path = "../../../pns" }
+pns-hermes = { path = "../../../pns/crates/pns-hermes" }
 serde_json = "1.0.151"
 # Parse only, matching pns: nothing here ever writes TOML back out.
 toml = { version = "1.1.4", default-features = false, features = [

@@ -33,3 +33,56 @@ pub use config::{
 pub use config::hermes_secret;
 
 pub use config::select_plugins;
+
+mod hue;
+pub use hue::{
+    BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, HuePulse, HueSettings, Reading as HueReading,
+    TYPED_COMMAND_DEADLINE, UreqBridge, breath_arm_body, clear_body, clear_held, fade_body,
+    fixture_path, grouped_light_ids_for_rooms, held_render, hue_settings, inventory, pulse_body,
+    pulse_render, quiet_window, resolve_on_bridge, signal_fixtures,
+};
+
+mod presence;
+pub use presence::{
+    PRESENCE_LOCK_FILE, PRESENCE_READ_MAX, PRESENCE_STATE_FILE, PresenceClaim, claim_presence_poll,
+    instant_from_utc, parse_presence_line, poll_bridge_presence, read_bridge_presence,
+    render_presence_line,
+};
+
+mod macos;
+pub use macos::{FocusReading, focus_now};
+
+mod persistence;
+pub use persistence::{RING_READ_MAX, STATE_FILE_MODE, readable_state_file};
+
+mod herdr;
+mod probes;
+mod process;
+pub use macos::{local_minutes_since_midnight, utc_timestamp};
+pub use probes::SystemProbes;
+pub use process::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};
+
+pub use destinations::banner::{
+    BannerChannel, DEFAULT_TERMINAL_BUNDLE_ID, click_command, notifier_args, verbatim_argument,
+};
+
+pub use destinations::hermes::{
+    DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, remote_deadline,
+};
+
+pub use destinations::moshi::{
+    DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, POST_DEADLINE, UreqPost, herdr_link,
+    refused_backend_line, webhook_body,
+};
+
+mod destinations;
+pub use destinations::{deliver_executable, event_json, native_first, resolve_path};
+
+mod unifi;
+pub use unifi::{UniFiRouter, first_site_id, parse_clients, read_home};
+
+pub use herdr::workspace_agent_statuses;
+
+pub use presence::BridgePresencePoll;
+
+pub use persistence::publish_state_line;

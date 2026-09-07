@@ -200,48 +200,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
-name = "pns"
+name = "pns-hermes"
 version = "0.1.0"
 dependencies = [
  "hmac",
- "libc",
- "pns-adapters",
- "pns-application",
- "pns-domain",
- "serde_json",
  "sha2",
- "toml",
  "ureq",
-]
-
-[[package]]
-name = "pns-adapters"
-version = "0.1.0"
-dependencies = [
- "libc",
- "pns-application",
- "pns-domain",
- "pns-protocol",
- "toml",
-]
-
-[[package]]
-name = "pns-application"
-version = "0.1.0"
-dependencies = [
- "pns-domain",
-]
-
-[[package]]
-name = "pns-domain"
-version = "0.1.0"
-
-[[package]]
-name = "pns-protocol"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -318,7 +282,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
- "serde_derive",
 ]
 
 [[package]]
@@ -493,7 +456,7 @@ name = "uu-adapters"
 version = "0.1.0"
 dependencies = [
  "libc",
- "pns",
+ "pns-hermes",
  "serde_json",
  "toml",
  "uu-application",

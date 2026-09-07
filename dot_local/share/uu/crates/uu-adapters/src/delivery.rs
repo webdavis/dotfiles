@@ -5,7 +5,7 @@ use crate::config::Records;
 use crate::record::record_state;
 use crate::system::host;
 mod alarm;
-use pns::channels::hermes::{
+use pns_hermes::{
     PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign,
 };
 use std::process::Command;

@@ -11,10 +11,9 @@ mod tests {
         // nobody is reading, from a process launchd will neither restart nor
         // alert about. The same stand-down typed by hand is the one case
         // somebody is waiting on an answer for.
-        assert_eq!(Polled::Busy.reported(Launch::Daemon), (0, None));
-        assert_eq!(Polled::Busy.reported(Launch::Operator).0, 1);
-        let complaint = Polled::Busy
-            .reported(Launch::Operator)
+        assert_eq!(reported(Polled::Busy, Launch::Daemon), (0, None));
+        assert_eq!(reported(Polled::Busy, Launch::Operator).0, 1);
+        let complaint = reported(Polled::Busy, Launch::Operator)
             .1
             .expect("a typed poll that stood down was told nothing");
         assert!(
@@ -24,8 +23,8 @@ mod tests {
         // AND NOTHING ELSE CHANGES WITH WHO LAUNCHED IT: publishing and the
         // ordinary refusals are silent and zero either way.
         for launch in [Launch::Daemon, Launch::Operator] {
-            assert_eq!(Polled::Published.reported(launch), (0, None));
-            assert_eq!(Polled::Nothing.reported(launch), (0, None));
+            assert_eq!(reported(Polled::Published, launch), (0, None));
+            assert_eq!(reported(Polled::Nothing, launch), (0, None));
         }
     }
 

@@ -12,6 +12,7 @@ edition = "2024"
 [dependencies]
 pns-application = { path = "../pns-application" }
 pns-domain = { path = "../pns-domain" }
+pns-hermes = { path = "../pns-hermes" }
 pns-protocol = { path = "../pns-protocol" }
 
 libc = "0.2.189"
@@ -21,5 +22,12 @@ toml = { version = "1.1.4", default-features = false, features = [
   "std",
 ] }
 
-[dev-dependencies]
 serde_json = "1.0.151"
+ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+rustls = { version = "0.23.43", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
