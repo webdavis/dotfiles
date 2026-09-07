@@ -1,0 +1,16 @@
+# posture-application: one use case per entry point, and the ports they own.
+#
+# Depends on posture-domain and on nothing else in the workspace. A use case
+# names the external capability it needs (a results log, a cursor store, a
+# lock, a manifest, an alert sink, a clock) as a trait it declares itself, and
+# an adapter implements that trait from the outside. Pointing this crate at
+# posture-adapters would invert that, so the edge does not exist and the
+# compiler is what says so.
+
+[package]
+name = "posture-application"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+posture-domain = { path = "../posture-domain" }

@@ -1,0 +1,6 @@
+# The existing cross-process digest record contract. PR 2.4 adds its codec
+# and serialization dependency; the foundation declares its owner only.
+[package]
+name = "posture-protocol"
+version = "0.1.0"
+edition = "2024"

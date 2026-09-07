@@ -1,0 +1,24 @@
+# posture-cli: the composition root, and the `posture` binary.
+#
+# Depends on domain, application and adapters to compose the tool. It decodes
+# argv, constructs adapters, invokes the named use case and translates its
+# outcome to stderr and an exit code. Wire codecs stay behind the adapters;
+# this crate depends on neither posture-protocol nor pns-protocol.
+#
+# The binary target keeps the tool's name because every caller (seven
+# LaunchAgent plists, the osquery setup runner, uu's brew lane and the
+# operator) invokes it by that one name.
+
+[package]
+name = "posture-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "posture"
+path = "src/main.rs"
+
+[dependencies]
+posture-adapters = { path = "../posture-adapters" }
+posture-application = { path = "../posture-application" }
+posture-domain = { path = "../posture-domain" }
