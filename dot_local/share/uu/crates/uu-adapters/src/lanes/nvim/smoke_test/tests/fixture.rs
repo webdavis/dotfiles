@@ -7,7 +7,10 @@ pub(super) struct Fixture {
 }
 impl Fixture {
     pub fn new(tag: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("uu-smoke-{tag}-{}", std::process::id()));
+        let root = std::env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join(format!("uu-smoke-{tag}-{}", std::process::id()));
         let config = root.join("config");
         let cache = root.join("k");
         let data = root.join("d");
