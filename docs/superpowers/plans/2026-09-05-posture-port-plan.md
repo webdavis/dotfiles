@@ -1,23 +1,23 @@
 # posture: the plan for the Rust port
 
-Written 2026-09-05 against `origin/main` at `b5412089`. It moves the 368 behaviors inventoried in
-`docs/superpowers/specs/2026-09-05-posture-behavioral-specification.md` out of the twenty-one shell
-files under `dot_local/libexec/osquery/` and into one Rust workspace, one reviewable pull request at a
-time, with every bash script running until its replacement is verified live and its plist repointed.
-It follows the shape of `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md` and the standing
-rules of the pns charter (the engineering priorities, the Rust-native SOLID rules, the 300-line target
-and 500-line cap for every `.rs` file with tests included), which this plan does not restate. It
-names, per step, which statements move, which tests carry them or are written first, which deployed
-surface changes, what the operator alone must do, and what every resulting file is projected to
-measure. Every crate, module, subcommand, path and file name below is proposed, confirm before
-creating.
+Written 2026-09-05 against `origin/main` at `b5412089`, with the SSH scope added on 2026-09-06. It moves
+the 399 behaviors inventoried in `docs/superpowers/specs/2026-09-05-posture-behavioral-specification.md`
+out of the twenty-one shell files under `dot_local/libexec/osquery/` and into one Rust workspace, one
+reviewable pull request at a time, with every bash script running until its replacement is verified live
+and its plist repointed. It follows the shape of `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`
+and the standing rules of the pns charter (the engineering priorities, the Rust-native SOLID rules, the
+300-line target and 500-line cap for every `.rs` file with tests included), which this plan does not
+restate. It names, per step, which statements move, which tests carry them or are written first, which
+deployed surface changes, what the operator alone must do, and what every resulting file is projected to
+measure. Every crate, module, subcommand, path and file name below is proposed, confirm before creating.
 
 ## 1. Where the ladder starts
 
-Nothing of posture exists. There is no crate, no binary, no workspace and no test baseline. The
-inputs, all read in full for this plan:
+At the source baseline, posture had no crate, binary, workspace or test baseline. The inputs read for
+this plan:
 
-- the specification and its 368 statements, 169 pinned and 199 UNPINNED;
+- the specification's original 368-statement pipeline inventory and 31 SSH additions; after review,
+  167 statements are fully pinned, three partially pinned and 229 UNPINNED;
 - the twenty-one shell files (7,263 lines, 3,326 of code, 3,622 of comment), the two chezmoi
   runners (`run_after_05`, 386 lines, and `run_after_50`, 58), the seven plists and their seven
   loaders, and the 62 inline jq programs and 7 SQL statement groups a port replaces (about 3,800
@@ -47,6 +47,11 @@ they run as a second lane beside the pns work, both lanes starting at step 0; on
 items (the route overlap contract and the three-table queue check) sit ahead of step 1, because code
 in the ladder depends on them. Section 5 states the two lanes.
 
+Every Rust brief, implementation and review follows both
+`/Users/stephen/.agents/skills/clean-code/SKILL.md` and
+`/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`. The Rust binding wins
+all numeric and mechanism conflicts.
+
 ## 2. The target workspace
 
 ### 2.1 Location and crates
@@ -61,20 +66,31 @@ dot_local/share/posture/Cargo.toml` resolves from day one:
 ```
 crates/posture-domain        pure policy, no dependencies
 crates/posture-application   use cases and the ports they own
+crates/posture-protocol      the existing cross-process digest record codec
 crates/posture-adapters      everything concrete, by capability
 crates/posture-cli           argv decoding, composition, exit codes; the `posture` binary
 ```
 
-The dependency direction, declared in the member manifests and nowhere else so the compiler
-enforces it: `posture-application` depends on `posture-domain`; `posture-adapters` on both plus
-`pns-protocol`; `posture-cli` on all of them. No member depends outward.
+The five roles are five crates in this workspace, as the paired Rust standard requires. The member
+manifests enforce dependency direction: `posture-application` depends on `posture-domain`;
+`posture-protocol` owns serialization and depends on `serde_json`, with no application or adapter
+dependency; `posture-adapters` depends on domain, application, posture-protocol and the sibling
+`pns-protocol`; `posture-cli` composes the domain, application and adapters. Domain and application
+import no wire crate, JSON value or concrete adapter. The adapter maps records to typed domain values.
 
-There is no `posture-protocol` crate, deliberately. Posture defines no wire contract of its own: it
-CONSUMES osquery's result log, chezmoi's manifest runner output, uu's upgrade record and the
-controls file rendered from `.chezmoidata/macos_posture_controls.yaml`, and it PRODUCES to pns
-through pns's own protocol crate. Each consumed format is a codec inside `posture-adapters`, next to
-the reader that needs it. The one file two posture processes share, the digest spool, is an internal
-protocol, not an external one.
+`posture-protocol` owns the persisted six-field digest record shared by the separate `posture alert` and
+`posture digest` processes. This is an existing contract: `results-alerter/digest-store.sh:42-52` writes
+it and `executable_digest.sh:108-144` consumes it (spec section 3.5, S117 to S121 and S280 to S296). The
+codec keeps the current field names, coercions, torn-line handling and unversioned wire shape. There is
+no new queue or version field. Append, claim, restore and filesystem permissions stay in adapters;
+derivation, grouping, sanitization and caps stay pure domain policy. PR 1.1 declares the staged protocol
+responsibility; PR 2.4 implements and tests the codec against the Bash fixtures.
+
+Pns owns its request/result envelopes, versioning and compatibility tests in the sibling `pns-protocol`.
+Only `posture-adapters` consumes that external crate; posture-protocol neither copies nor forwards its
+envelopes. Osquery results, chezmoi manifests, uu upgrade records and the controls file are consumed
+formats, whose readers retain their adapter codecs. This preserves each owner's contract without an empty
+fifth-crate facade.
 
 ### 2.2 `posture-domain`
 
@@ -91,17 +107,18 @@ Each module below is a stage or verdict the bash already isolates, which is the
 - `allowlist`: `Entry`, the label grammar, the `~/` expansion, and
   `Verdict {Suppress, NotAllowlisted, ReusedLabel}` over an already-read file and an already-answered
   vouch (S069 to S077, S301 to S306).
-- `known_good`: the four-column `Tuple`, the line grammar, `TrackedSet` (the four patterns and the
-  bin arm's inverted fail-safe), `manifest_for`, the tuple match with its empty-column rule (S085 to
-  S096, S234).
+- `known_good`: the four-column `Tuple`, the line grammar, `TrackedSet` (the four patterns and the bin
+  arm's inverted fail-safe), `manifest_for`, the tuple match with its empty-column rule (S085 to S096,
+  S234), plus PR 1.2's explicit unbuilt variant, which can never vouch for content.
 - `integrity`: the page-or-silent decision over a `DeployedState` reading (kind, hash, mode, uid)
   and a manifest answer, the DELETED rule, the atomic-rename shape (S079 to S084, S097).
 - `triage`: the correlation facts from a manifest answer, an on-disk reading and a parsed upgrade
   record; the record grammar and its window, row and count caps (S102 to S115).
 - `page`: the header, field, next-step and cap vocabulary, the sanitize chokepoint, the eight-block
   and 1900-character caps, the shell quoting of paths (S124 to S133).
-- `digest`: the spool line's six derived fields, the grouper, the four caps, the codepoint cap, the
-  torn-line coercion (S117, S120, S286 to S294).
+- `digest`: the six derived digest facts as typed values, the grouper, sanitization and the four caps
+  (S117, S120, S286 to S294). Record encoding, JSON shape coercion and torn-line decoding live in
+  posture-protocol; the domain receives parsed values and depends on no codec.
 - `canary`: `newest_canary_timestamp` over parsed rows, the range bound, two-sided freshness, the
   three unhealthy cases and their wording (S193 to S204, S211).
 - `watchdog`: the five probes' decisions over readings, the crash-loop streak, the fingerprint
@@ -148,7 +165,10 @@ today, over ports the use case declares. Names are proposed.
   `AlertSink`.
 - `Heartbeat` replaces `heartbeat.sh`'s `main` over `SnapshotsLog`, `Clock` and `AlertSink`.
 - `Watchdog` replaces `uptime-watchdog.sh` over `SnapshotsLog`, `Clock`, `ProcessTable`,
-  `LaunchdState`, `GatewayHealth`, `KnownGood`, `DeployedState`, `StateFile` and `AlertSink`.
+  `LaunchdState`, `GatewayHealth`, `KnownGood`, `DeployedState`, `StateFile`, `PnsLedger`,
+  `IndependentAlarm` and `AlertSink`. The application owns both new ports. Pns integrity and health
+  findings call `IndependentAlarm` directly before any optional `AlertSink` submission; a valid
+  acknowledgement from that sink cannot suppress the independent attempt.
 - `Poll` replaces `firewall-gatekeeper-monitor.sh` over `Osqueryi`, `ProbeRunner`, `ControlsFile`,
   `StateFile`, `GapMarker` and `AlertSink`.
 - `Funnel` replaces `tailscale-monitor.sh` over `TailscaleStatus`, `StateFile`, `GapMarker` and
@@ -215,9 +235,15 @@ let a test double honour one and not the others.
 - `pns_producer`: `AlertSink`, spawning the deployed `pns` binary with `submit --json`, encoding the
   request with `pns-protocol`, decoding the result, mapping the durable bit, with the child bounded.
   Replaces `alert-dispatch.sh` (spec section 5).
-- `last_resort_banner`: the one `osascript` spawn posture keeps, raised only when the engine could
-  not take the event in a way posture can see (absent, nonzero, timed out, unparseable). Replaces
-  the alarm role of `_osquery_notify_local_durable`. It is not a tamper defence (spec section 5.2).
+- `last_resort_banner`: `IndependentAlarm`, the one bounded `osascript` spawn posture keeps. It
+  reports detectable submission failure (absent, nonzero, timed out, unparseable), and watchdog
+  findings about pns integrity and delivery health directly, independently of any pns result. It
+  replaces the alarm role of `_osquery_notify_local_durable`; its local-attempt limits are spec
+  section 5.2.
+- `pns_ledger`: `PnsLedger`, a synchronous `rusqlite` reader opened read-only without create or
+  `immutable=1`, so it includes committed rows in the write-ahead log. A bounded busy timeout
+  turns contention, corruption, missing files or incompatible schema into an unreadable result.
+  Pns owns the schema and migration; this adapter neither writes nor repairs it.
 - `privileged`: `PrivilegedInstall` (`/usr/bin/sudo -n /usr/bin/install -o root -g wheel -m ...` out
   of the private copy) and `Osqueryctl` (resolved and trust-checked; `config-check`, `stop`,
   `start`). Replaces the converge's privileged calls.
@@ -275,8 +301,8 @@ standard-library temporary file and a Rust sleep replace them.
 
 ### 2.7 What stays a file, and why
 
-Classified by the readers and writers outside one process, as the pns plan's section 8 does. Every
-file keeps its current path and shape, so a cutover replays nothing and pages nothing new:
+Classified by the readers and writers outside one process, as the pns plan's section 8 does. Existing
+state files keep their paths and shapes. The explicit manifest extension is listed below:
 
 - The cursor, the watchdog state, the poller baseline, the funnel baseline and the two gap markers
   are single-record files published by rename and read whole. They stay files under their current
@@ -288,20 +314,22 @@ file keeps its current path and shape, so a cutover replays nothing and pages no
 - The two lock files stay, because `flock` on the same path is what serializes a bash run still in
   flight against the first Rust run at cutover.
 - The SQLite queue has no successor in posture (spec section 6, D1 to D4).
-- The manifests, the controls file, the allowlist and the desired tree are external contracts and
-  stay exactly as they are.
+- The controls file, the allowlist and the desired tree keep their existing data contracts. The
+  manifests retain ordinary tuples and gain the explicit unbuilt record described in section 3.2;
+  its writer and both consumers change in the same pull request.
 - The sshd drop-in `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, its dot-prefixed staging and
   saved copies, and the legacy `50-no-password-auth.conf` it moves aside are sshd's contract and
   keep their names, content and modes byte for byte (S370, S383).
 
-No SQLite dependency enters posture. Under the recommended delivery every multi-record store belongs
-to pns.
+Every writable multi-record store belongs to pns. Posture depends on SQLite only for the independent
+read-only ledger health check, so this check continues to work when the daemon cannot answer.
 
 ### 2.8 Dependencies
 
 `serde_json` (the result log, the controls file, the allowlist, the funnel status, the spool),
 `sha2` (file hashes and the fingerprint), `ureq` with rustls (the one GET), `libc` (`flock`,
-`gethostname`, `gmtime_r`, `kill`, `O_NOFOLLOW`), and `pns-protocol` by path. No `toml`: posture has
+`gethostname`, `gmtime_r`, `kill`, `O_NOFOLLOW`), `rusqlite` (read-only pns ledger health,
+`posture-adapters` only), and `pns-protocol` by path. No `toml`: posture has
 no configuration file today, every path is derived from `$HOME`, and the port keeps that. No `hmac`:
 posture signs nothing.
 
@@ -336,27 +364,33 @@ Its trigger header hashes more than its own tree. Besides every `*.rs`, `build.r
 and the lock under `dot_local/share/posture/`, it globs the sibling path dependency
 `dot_local/share/pns/crates/pns-protocol/**` the same way, because a change there changes the bytes
 this installs and the pns builder's header would fire only the pns build. The compiler is a build
-input too: the header carries the active toolchain's identity, read at render time the way the retry
-marker is (`stat` on the active toolchain's `rustc` under `~/.rustup/toolchains`, its modification
-time and never its contents; the exact probe is proposed), so a `rustup update` re-fires the build
-and the record and the tuple move with the bytes in the same run. Without it a toolchain change
-would ride into the deployed binary on the next unrelated source edit, unreviewed as a change of
-its own. The record also carries `rustc --version --verbose` so the pull request and the audit trail
+input too: the header records the modification time of every installed toolchain's `rustc` under
+`~/.rustup/toolchains`, never its contents, so a `rustup update` re-fires the build. This avoids
+reading rustup's settings at render time. Updating an inactive toolchain may trigger an identical
+build, which changes neither installed bytes nor their record. The record also carries `rustc --version
+--verbose` so the pull request and the audit trail
 can say which compiler produced the vouched bytes.
 
-It publishes the known-good tuple for the binary it installs, in this order, all in one script run:
-build; write the BUILD RECORD (`~/.local/state/posture-build-record`, proposed: the sha256 and byte
-size of the artifact it is about to install and the compiler identity, mode 600, published by rename
-over the previous record, which is kept beside it until the run ends); refresh the manifests by
-invoking `run_after_05` by its source-relative path the way the allowlist writer does (S307,
-`executable_allowlist.sh:34`), so the pipeline manifest now carries the new tuple; then install the
-binary. A failed manifest refresh restores the previous record and leaves the old binary and the old
-tuple in force (the runner installs nothing on a refusal, S352, S358), and a failed install leaves a
-manifest that vouches for bytes not yet deployed, so the old binary pages, which is the safe
-direction; in both cases the builder exits nonzero so chezmoi retries the run. The tuple always
-precedes the bytes, so the alerter never sees a change the manifest predates and needs no settle, and
-the watchdog's audit can observe a mismatch only during the install itself, one `install(1)` rename
-wide. Section 3.2 states the rules the manifest runner follows when it reads the record.
+The builder coordinates publication in this order: build a nonempty artifact no larger than 8 MiB;
+publish its mode-600 BUILD RECORD (`~/.local/state/posture-build-record`, sha256, byte size and
+`rustc --version --verbose`) by rename while retaining the previous record; invoke the repository's
+`run_after_05` by source-relative path with `--pipeline-only`; install the binary atomically. If
+both artifact and full record are identical, it skips publication. PR 1.1 includes the minimal
+coupled change to that runner: its default invocation still refreshes both manifests, while the
+builder's new option selects only the pipeline manifest and its inputs. This moved from PR 1.2
+because the old runner could publish the new pipeline tuple and then fail on managed-bin, after
+which restoring only the build record would leave an inconsistent prior tuple.
+
+A refusal before pipeline publication restores the previous build record (or removes the first
+failed record) and preserves the prior binary and pipeline tuple. The scoped runner has no second
+publication that can fail after the pipeline succeeds. A failed install retains the new record and
+tuple, leaving the old binary as detectable drift and the run eligible for retry. An interruption
+after manifest publication has the same detectable mismatch; there is no cross-file atomicity or
+rollback guarantee across interruption. The mismatch interval begins when the manifest publishes
+and ends at successful binary installation. It includes process startup and scheduling and has no
+fixed time bound; it is not one rename wide. A watchdog tick during that interval can page. The
+builder never suppresses that check or hashes live bytes to make it quiet. Section 3.2 defines the
+record reader added in PR 1.2; until then the scoped refresh preserves existing pipeline behavior.
 
 The release artifact is measured. The manifest audit refuses to hash a manifested file over
 `OSQUERY_PIPELINE_AUDIT_MAX_BYTES` (8 MiB, `executable_pipeline-audit.sh:91`) and reports it
@@ -367,7 +401,8 @@ profile (`strip = true`, `lto = true`, `codegen-units = 1`, `panic = "abort"`, p
 description, and a build that crosses 8 MiB fails the builder rather than publishing a tuple the
 audit will page on every tick.
 
-A companion test, `test/unit/posture-build-install.sh`, mirrors `test/unit/pns-engine-build-install.sh`
+Companion tests, `test/unit/posture-build-install.test.sh` and
+`test/unit/posture-manifest-refresh.test.sh`, mirror `test/unit/pns-engine-build-install.sh`
 (render the script, stub cargo, assert the install path, the record, the refresh call, the ordering
 and the marker behavior).
 
@@ -406,28 +441,29 @@ section 8 settles this with four rules the manifest runner follows, replacing th
    protected tree (`run_after_05:62-91`). The record is user-writable state, like the chezmoi source
    it derives from, and SI-14's claim covers it: an attacker who can rewrite the record can rewrite
    the source, and neither is defended at this layer.
-2. When no build ran, the trusted tuple is RETAINED, not recomputed. The record changes only when the
-   builder installed new bytes, so an apply that rebuilt nothing re-emits the same tuple, and a
+2. When no build ran, the trusted tuple is RETAINED, not recomputed. The record changes only through the
+   authorized builder publication, so an apply that rebuilt nothing re-emits the same tuple, and a
    `cargo build` run by hand, or a binary copied into place by hand, is drift the audit never adopts:
    it pages until an authorized build republishes the record, and a build that produced byte-identical
    output leaves the tuple as it was.
-3. An absent artifact still gets a tuple. When no record exists (a fresh machine whose build was
-   deferred, S368's shape), the runner writes a tuple for the deployed path whose digest is the
-   sha256 of the empty input, which no binary can match, so the path is enumerated by the manifest
-   audit (S227 to S240) and reported `missing` or `content` until the build lands. Omitting the
-   tuple would drop the path from the one check that enumerates the manifest rather than the
-   filesystem, and a binary planted at that path would then be judged only as an untracked
-   neighbour.
-4. Installation and publication are coordinated by the builder, not by slot order: record, refresh,
-   install, in that sequence and in one script (section 3.1), so the audit never observes a tuple
-   without its bytes for longer than one `install(1)` rename. Slot order alone cannot provide this,
-   because `05` runs once per apply and a build that finishes after it would otherwise wait a whole
-   apply for its tuple.
+3. No build record means explicit UNBUILT state, never a hash of empty input. The runner emits
+   `unbuilt 0755 <uid> <absolute-binary-path>`. The manifest codec gains a typed `Unbuilt` variant
+   beside an ordinary digest tuple; this is an intentional extension of S234's current grammar.
+   PR 1.2 updates the Bash audit and tuple lookup together with the writer. The audit enumerates
+   the path and reports `missing` if absent or `content` if a regular file exists, including an
+   empty file with matching mode and owner. Existing irregular-file refusals remain. The lookup
+   never treats `unbuilt` as a digest, including when a supplied event hash is that literal word.
+   No bytes can satisfy this record. Malformed build records still refuse the manifest as a whole.
+4. The builder orders record, scoped pipeline refresh, then install, as section 3.1 states. Normal
+   pre-publication refusal restores the previous record, binary and tuple; after publication an
+   install failure or interruption leaves detectable mismatch until a successful retry. Slot order
+   alone cannot coordinate this because `05` ran before the build. The mismatch interval is not
+   bounded to an install rename, and no audit grace or suppression is introduced.
 
-A compiler or dependency bump changes the bytes and, through the builder, the record and the tuple
-in the same run, so it does not page. Editing the desired osquery config also pages a CRIT until the
-full apply lands, which is the known property of manifesting intent that CLAUDE.md records for every
-templated target.
+A compiler or dependency change is authorized through the builder's record and tuple. Successful
+installation converges the tuple and bytes; an audit during publication can still page. Editing the
+desired osquery config also pages until the full apply lands, the existing source-intent behavior
+CLAUDE.md records for templated targets.
 
 ### 3.3 The data files move
 
@@ -461,7 +497,9 @@ would touch the allowlist seed, the manifest's plist arm, the verdict's plist ar
 basename regex (`render-page.sh:75`, `:147`), the watchdog's six-agent list and the plist filenames,
 which is a separate migration.
 
-`run_after_50-setup-osquery.sh:46` changes its path to `posture converge`. uu's brew lane runs the
+`run_after_50-setup-osquery.sh:46` changes its path and argv to `posture converge`, and its source
+file is renamed to `run_after_59-setup-osquery.sh` in PR 7.1. Slot 59 follows builder 58, so the
+apply installs the version that implements the new subcommand before invoking it. uu's brew lane runs the
 converge as a program with no arguments (`dot_local/share/uu/src/lanes/brew/repairs.rs:75`,
 `runner.run(&lane.osquery_converge, &[])`), so its `osquery_converge` key must carry argv rather
 than one path; the proposed shape is a TOML array, `["<home>/.local/libexec/posture/posture",
@@ -510,12 +548,13 @@ converge's seam gate, and the exact list is proposed.
    request carries a mapping table from the retired test to its successor (pns keeps that table in
    `dot_local/share/pns/docs/test-baseline.md`; posture keeps
    `dot_local/share/posture/docs/test-baseline.tsv` with the 186 case names recorded in step 1).
-   For an UNPINNED statement the pull request first records a BASH-DERIVED ACCEPTANCE EXAMPLE: the
+   For every UNPINNED statement or uncovered clause of a partial pin, the pull request first records
+   a BASH-DERIVED ACCEPTANCE EXAMPLE: the
    exact input handed to the running bash function or script (sourced into a sandbox `HOME`, the way
    the bats harnesses do) and the output, exit status and files it produced, captured before any
    Rust for that statement is written and committed under
    `dot_local/share/posture/docs/acceptance/<statement>.md` (proposed) with the command that produced
-   it. The Rust test then asserts that example, not the statement's prose, because the 368 statements
+   it. The Rust test then asserts that example, not the statement's prose, because the 399 statements
    are an inventory and not proof of parity: a test written from the prose alone checks the porter's
    reading of the bash, and the bash is what the machine has been running. Where the orphan fixture
    under `test/fixtures/` asserted the same behavior, the example cites it. The test fails for the
@@ -526,7 +565,10 @@ converge's seam gate, and the exact list is proposed.
    pull request opens (a topic branch with no open pull request runs the suite nowhere), and
    `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` on the two pull requests that
    touch uu.
-3. **File size.** Every `.rs` file, tests included, targets 300 lines and never exceeds 500. Unit
+3. **File size.** The paired Rust standard targets 200 implementation lines and 300 total; 250
+   implementation or 400 total normally requires decomposition, and no handwritten `.rs` file
+   exceeds 500 total, tests included. `main.rs` must remain below 150. Proposed sizes below that
+   cross a decomposition threshold must be split before implementation is complete. Unit
    tests live in a sibling `<module>/tests.rs`, split by behavior when they pass the cap. The
    rationale that makes the bash 1.09 lines of comment per line of code moves into
    `dot_local/share/posture/docs/decisions/` records; production keeps a one-line invariant and a
@@ -546,10 +588,11 @@ converge's seam gate, and the exact list is proposed.
    trashing of retired files. Agents propose; the operator applies.
 7. **Repository rules.** Conventional Commits, no trailers, no em-dashes, `trash` never `rm` for
    operator files, never `chezmoi apply`, never a force push, at most two open posture branches.
-8. **Clean code.** Every posture pull request follows `~/.claude/skills/clean-code/SKILL.md` (the
-   layered modules, the boundary and seam rules, the SOLID and test-quality standards, the file-size
-   rule) paired with the Rust language skill, as the operator restated on 2026-09-06; a reviewer
-   checks against it by name, and a brief that omits the citation is incomplete.
+8. **Clean code.** Every Rust brief, pull request and review names both
+   `/Users/stephen/.agents/skills/clean-code/SKILL.md` and
+   `/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`. The Rust binding wins all numbers and
+   mechanisms, including dependency boundaries, file sizes, test placement and gates. A brief
+   omitting either absolute path is incomplete.
 
 ## 5. The migration order, and why
 
@@ -559,7 +602,7 @@ charter names (converge, which runs `sudo`, goes late; producers wait for the pn
 1. **Deployment prerequisites first**, so every later file lands already covered by the
    file-integrity arm (step 1).
 2. **The whole domain next**, because it is where the port's correctness lives and none of it can
-   page, restart or write anything. It is also where 199 UNPINNED statements get their first tests,
+   page, restart or write anything. It is also where unpinned behavior gets its first tests,
    against pure functions, which is the cheapest place to write them (step 2).
 3. **Adapters and use cases without delivery** (step 3), then the two cutovers that need no
    delivery at all: the enricher, a child process with a two-value exit contract and the smallest
@@ -614,12 +657,19 @@ retires with its key file only in PR 6.7, after the queue is confirmed empty. Th
 all three tables, not the two the counters read (S176): `pending_alerts` and `dead_letter_alerts`
 through the two library functions, and `pending_local_notifications` through a `sqlite3 -readonly`
 count, because a banner still queued for redelivery (S181, S184) is a page the operator has not seen
-and the counters do not report it.
+and the counters do not report it. Dead letters never drain: the operator must inspect each row,
+record its delivery outcome or explicitly acknowledge it as undelivered, and preserve a reviewed
+export before authorizing removal of exactly those rows. That removal requires fresh scoped
+confirmation; the port adds no automatic purge. Pending remote and local notifications must drain
+under the old route. Until the three independent counts are zero, the old route, key, drainer and
+queue remain in service, and PR 6.7 is blocked.
 
 **0.4 The independent pns checks are designed**, as spec section 5.2 requires: the tuple for the
 deployed `pns` binary under decision 2's authorized-build rule (the pns builder writes the same kind
 of record posture's does), the launchd read of `com.webdavis.pns-daemon`, and the read-only ledger
-probe. Designed here, built in PR 6.4, because PR 6.4 is where probe 4 is re-expressed and the design
+probe and its direct `IndependentAlarm` path (the existing bounded local banner, independent of
+`AlertSink` acknowledgements). Designed here, built in PR 6.4, because PR 6.4 is where probe 4 is
+re-expressed and the design
 must exist before the use case it feeds is written in step 3.
 
 **0.5 The delivery class.** The pns pull request that adds a class to `pns submit --json` and a
@@ -631,42 +681,51 @@ security `NeedsAttention` and never for the heartbeat or the digest, and PR 5.1 
 
 ### Step 1: the workspace and the deployment prerequisites
 
-**PR 1.1 the workspace and the builder.** Creates `dot_local/share/posture/` with the four member
-crates (each `lib.rs` a doc comment naming its responsibility), `Cargo.lock`, the `posture` binary
-printing usage and exiting 2 on every word (S298, S341), `docs/README.md`, and
-`docs/test-baseline.tsv` holding the 186 bats and bashunit case names plus the one plain-script
-ssh-hardening test as the set to map from. Adds
-`run_onchange_after_58-build-posture.sh.tmpl` (slot proposed, section 3.1) with its build record and
-manifest refresh, `test/unit/posture-build-install.sh`, and the three `test-rust` lines. The release
-profile is set and the artifact is measured against the audit's 8 MiB bound (section 3.1); the
-number goes in the pull request. **Tests**: the build-install test, including the record-refresh-
-install ordering and the refusal to publish an artifact over 8 MiB; a cli test that every subcommand
-word is refused with usage and exit 2 until it exists. **Surface**: the builder, the justfile.
-**Sizes**: `main.rs` under 60; the rest are doc comments. **Order**: first, once step 0.3 is
-settled; it does not wait for the pns lane. Until PR
-1.2 lands the binary sits under `~/.local/libexec/` as an untracked neighbour, as `pns` and `uu` do
-today, so nothing pages.
+**PR 1.1 the workspace and the builder.** Creates `dot_local/share/posture/` with the five member crates
+(each `lib.rs` a doc comment naming its responsibility), `Cargo.lock`, the `posture` binary printing
+usage and exiting 2 on every word (S298, S341), `docs/README.md`, and `docs/test-baseline.tsv` holding
+the 186 bats and bashunit case names plus the one plain-script ssh-hardening test as the set to map from.
+Adds `run_onchange_after_58-build-posture.sh.tmpl` (slot proposed, section 3.1) with its build record and
+scoped pipeline refresh, `test/unit/posture-build-install.test.sh`,
+`test/unit/posture-manifest-refresh.test.sh`, and the three `test-rust` lines. The minimal coupled
+`--pipeline-only` option in `run_after_05` belongs here because it makes the builder's rollback contract
+true while preserving all existing default callers (section 3.1). The release profile is set and the
+artifact is measured against the audit's 8 MiB bound (section 3.1); the number goes in the pull request.
+**Tests**: the build-install test, including the record-refresh- install ordering, refusal to publish
+empty or oversized artifacts, prior record/binary/tuple preservation on refresh refusal, install-failure
+retry, and default versus pipeline-only runner behavior; a cli test that every subcommand word is refused
+with usage and exit 2 until it exists. **Surface**: the builder, the justfile. **Sizes**: `main.rs` under
+60; the rest are doc comments. **Order**: first, once step 0.3 is settled; it does not wait for the pns
+lane. Until PR 1.2 lands the binary sits under `~/.local/libexec/` as an untracked neighbour, as `pns`
+and `uu` do today, so nothing pages.
 
 **PR 1.2 file-integrity coverage of `~/.local/libexec/posture/`.** The five edits of section 3.2
 (membership, classification, `_pipeline_manifest_for`, both watch arrays) plus the build-record arm
 of decision 2 in `run_after_05`, with its four rules: digest from the record only, tuple retained when
-no build ran, the empty-input digest for a missing record, publication coordinated by the builder.
+no build ran, explicit unbuilt state for a missing record, and publication coordinated by the
+builder. The Bash audit and tuple lookup learn the unbuilt record in this same pull request; later
+Rust codecs inherit that contract.
 **Tests**: none of the tracked-set copies is in test scope (the 2026-08-05 ruling); the pull request
 records the five diffs side by side. The record arm IS in scope, because it is logic this repository
 wrote: `test/unit/posture-manifest-record.sh` (proposed) drives the runner over a sandbox record and
 asserts the tuple for each of the four rules, including that a record whose digest is not 64 hex
-refuses the whole manifest the way S356 refuses an implausible hash. **Cutover**: the operator
+refuses the whole manifest the way S356 refuses an implausible hash. Test an absent binary, a
+zero-byte regular file with the expected mode and owner, and a forged `unbuilt` event digest: none
+may become known-good. Mutation-check both consumer refusals and the runner publication rules.
+**Cutover**: the operator
 applies; the manifest gains the binary tuple from the record PR 1.1's builder wrote on the earlier
 apply; nothing pages, because the deployed binary is the one the record describes. If the earlier
-build was deferred (no cargo yet), the empty-input tuple is written and the audit pages `missing` on
+build was deferred (no cargo yet), the explicit unbuilt record is written and the audit pages `missing`
+on
 every tick until the build lands, which is stated here as the expected cost on a fresh machine. The
 desired `osquery.conf` change restarts osqueryd through the converge on that apply.
 
 ### Step 2: the domain, red first
 
-Every pull request here is pure Rust in `posture-domain` with no adapter, no I/O and no cutover.
-Each carries its unit tests in a sibling `tests.rs`; each UNPINNED statement it covers gets its first
-test here.
+These pull requests implement pure policy in `posture-domain`, with no I/O or cutover. PR 2.4 also
+implements the existing digest record codec in `posture-protocol`; serialization stays outside the
+domain. Each carries sibling unit tests; every unpinned statement or clause gets a Bash-derived
+acceptance example before its first test.
 
 **PR 2.1 findings.** `finding.rs`: the `Detector` enum (S025, S360), pack stripping (S023, S024),
 the action default (S030), the churn rule (S027), the baseline discard and exemptions (S028, S029),
@@ -692,12 +751,20 @@ S072, S074, S081 to S084, S086 to S091, S093 to S097 gain tests, drawn from what
 `test/fixtures/osquery-allowlist-lib.bash` and `osquery-manifest-lib.bash` asserted. **Sizes**:
 three files of 150 to 240 plus tests under 400 each.
 
-**PR 2.4 the page, the spool line and the digest.** `page.rs` (S124 to S133), `digest.rs` (S117,
-S120, S286 to S294). The apostrophe rule (SI-13) is a test over every string constant in `page.rs`
-and `digest.rs`, because the Discord body is still built by hand. **Tests**: the eleven
-`osquery-render.bats` cases, the eight digest-store cases and the eleven grouping and cap cases of
-`osquery-digest-builder.bats` by name. **Sizes**: `page.rs` ~280 plus tests split into `headers.rs`,
-`fields.rs`, `caps.rs`; `digest.rs` ~200 plus tests ~350.
+**PR 2.4 the page, the digest record and the digest.** Domain `page.rs` (S124 to S133) and `digest.rs`
+hold derived facts, grouping, sanitization and caps (S117, S120, S286 to S294).
+`posture-protocol/src/digest_record.rs` owns the existing six-field record encoding and decoding,
+including wrong-shape coercion and malformed/torn-line behavior. Domain and application acquire no JSON
+or protocol dependency; adapters map the wire values when the spool reader and writer land. The current
+unversioned shape stays compatible with existing Bash writers, readers and on-disk spools. **Tests**: the
+eleven `osquery-render.bats` cases, eight digest-store cases and eleven grouping and cap cases of
+`osquery-digest-builder.bats` map by name to domain or protocol tests according to the behavior. Capture
+Bash-produced record bytes and Bash reader outcomes before Rust; assert both directions of wire
+compatibility and mutation-check a dropped field and changed decoding rule. No test merely round-trips
+the new codec against itself. The apostrophe rule (SI-13) remains on output strings. **Sizes**: `page.rs`
+decomposes its projected 280 implementation lines into page parts before completion, with tests split by
+headers, fields and caps; domain `digest.rs` and protocol `digest_record.rs` each target 200
+implementation and 300 total lines, with private sibling test files where needed.
 
 **PR 2.5 the canary and the heartbeat's wording.** `canary.rs`: S193 to S204, S211's freshness
 rule. **Tests**: the seventeen `osquery-heartbeat.bats` cases by name. **Sizes**: ~150 plus tests
@@ -757,9 +824,13 @@ before any read root performs, S332). **Sizes**: `enrich.rs` ~120, `curate_allow
 ### Step 4: the two cutovers that need no delivery
 
 **PR 4.1 `posture enrich`.** The cli subcommand over `Enrich`. **Statements**: S134 to S141.
-**Surface**: `route.sh:115`'s `OSQUERY_ENRICH_SCRIPT` default becomes the posture binary with the
-`enrich` word; the bash router passes the path as the second argument, so the call site changes by
-one string. `executable_enrich-finding.sh` is deleted. **Cutover**: the operator applies, then runs
+**Surface**: `route.sh:115`'s `OSQUERY_ENRICH_SCRIPT` default becomes the posture executable
+path alone. Its `-x` check continues to test a filename; invocation at `:155` changes to
+`"$enrich_script" enrich "$ep"`. Update every injected script double to the same argv contract in
+this pull request. **Tests**: a recording executable sees exactly `enrich` and the unsplit path;
+exit 10 still promotes NOTICE to CRIT, while exit 0 preserves NOTICE. These tests drive the real
+Bash call site with a fake executable, including a path containing spaces. `executable_enrich-finding.sh`
+is deleted. **Cutover**: the operator applies, then runs
 `~/.local/libexec/posture/posture enrich /Applications/Safari.app` and one unsigned script by hand,
 reads the two exit codes (0 and 10) and the fact lines, and trashes the retired script (one expected
 CRIT page, rule 5). **Sizes**: cli `enrich.rs` under 60.
@@ -777,11 +848,13 @@ byte (S306), run the targeted apply and the manifest runner (sudo prompt), and e
 **PR 5.1 the pns producer and the last-resort banner.** `pns_producer.rs` over `pns-protocol`'s
 request and result envelopes, and `last_resort_banner.rs`. **Statements**: the successors of S142 to
 S149 (the request id from the occurrence identity, CRIT-only submission, the durable bit), S180 (the
-backslash-first literal) and S183 (the fixed loud sound, raised only on the engine-down path).
+backslash-first literal) and S183 (the fixed loud sound). The same banner implements the
+application-owned `IndependentAlarm` port for watchdog pns integrity/health findings in PR 6.4.
 **Tests**: a scripted `pns` stub answering `accepted` with the committed-row diagnostic, `accepted`
 WITHOUT it, `degraded`, a refusal, garbage and nothing; the durable bit follows the committed-row
 diagnostic alone, never the delivery outcome and never the bare word `accepted`; a stub that hangs is
-killed at the deadline and reported as not accepted; the banner spawn happens on exactly the
+killed at the deadline and reported as not accepted; in the producer path the banner spawn happens on
+exactly the
 not-accepted-because-the-engine-failed path (absent, nonzero, timeout, unparseable) and never on a
 clean refusal or a missing diagnostic; the key never appears in argv (there is none). **Order**:
 after the four pns pull requests of step 0 have merged; this is where the pns lane joins the
@@ -812,7 +885,9 @@ trashes the script. **Sizes**: `build_digest.rs` ~180 plus tests ~300.
 **PR 6.3 `posture alert`.** The largest cutover. **Statements**: S001 to S068 (the entry and its
 four stages), S069 to S133 (the verdicts, triage, spool line and render, now called from the use
 case), S360, S363 to S366 as routing facts. **Surface**: the results-alerter plist;
-`executable_results-alerter.sh` and the whole `results-alerter/` directory (seven files);
+`executable_results-alerter.sh` and six private files in `results-alerter/`; keep
+`results-alerter/pipeline-verdict.sh` deployed because Bash `pipeline-audit.sh` still sources it
+and otherwise refuses BOTH manifest scans as unavailable. That last helper retires in PR 6.4;
 `test/e2e/osquery-alerter-criteria.bats`, `osquery-alerter-hostile-columns.bats`,
 `osquery-alerter-concurrency.bats`, `test/unit/osquery-route.bats`, `osquery-render.bats`,
 `osquery-normalize-and-digest-store.bats`; the comment at
@@ -822,22 +897,30 @@ in a sandbox. **Cutover**: the operator applies with the results log quiet, watc
 `posture alert` under the WatchPaths trigger by touching nothing and reading the agent log, then
 plants one known finding (a new user LaunchAgent that is not allowlisted) and confirms the page
 arrives through pns and the cursor advanced by exactly one record, then removes the plant and
-trashes the eight retired files. **Sizes**: `judge_results.rs` ~280 plus `judge_results/tail.rs`
+trashes the seven retired files, retaining the directory and `pipeline-verdict.sh` until PR 6.4.
+**Sizes**: `judge_results.rs` ~280 plus `judge_results/tail.rs`
 ~120 (the checkpoint and delivery tail), tests split by stage into four files under 400.
 
 **PR 6.4 `posture watchdog`.** **Statements**: S207 to S240. **Surface**: the watchdog plist,
 `executable_uptime-watchdog.sh`, `executable_pipeline-audit.sh`, `executable_canary-freshness.sh`,
+`results-alerter/pipeline-verdict.sh` (its last Bash consumer retires here),
 `test/fixtures/osquery-watchdog-lib.bash`, `osquery-manifest-lib.bash`. Probe 4 (S216) is
 re-expressed against pns (spec D4 and section 5.2), designed in step 0.4, and none of it asks pns:
 the deployed `~/.local/libexec/pns/pns` is judged against its known-good tuple through the same
 `KnownGood` and `DeployedState` ports the manifest audit uses; `LaunchdState` reads
 `com.webdavis.pns-daemon` and pages it unloaded or not running, exactly as probe 2 reads the six
-agents (S212); and a `PnsLedger` port (proposed, in `posture-adapters`) opens the ledger read-only,
-never creating it (S178's rule), and pages an unreadable ledger, any dead-lettered row, and an
+agents (S212); and the application-owned `PnsLedger` port is implemented by the
+`posture-adapters` read-only `rusqlite` reader from section 2.4, with a bounded busy timeout, no
+create and no immutable mode (S178's rule), and pages an unreadable ledger, any dead-lettered row, and an
 undelivered backlog that grew across two consecutive ticks (S216's own shape, over the new store).
 Executable presence is asserted by none of these and is not a probe. **Tests**: first tests for each
-of the three, over the scripted runner and a sandbox ledger, including that a ledger the process
-cannot open pages rather than reading zero. **Cutover**: apply; the operator reads one healthy
+of the three, over the scripted runner and a sandbox ledger, including missing, corrupt, locked
+and incompatible ledgers returning unreadable instead of zero, and committed rows still in the
+write-ahead log contributing to the count. Each integrity or health finding must invoke the
+independent banner even when a fake engine returns a valid `Accepted` while delivering nothing.
+Mutate the direct alarm call and show that test fails; a failed independent attempt must retain
+retry eligibility and cannot be overwritten by the engine result. **Cutover**: apply; the operator reads
+one healthy
 tick's silence in the agent log, then stops the digest agent by hand (`launchctl bootout`) for one
 tick, confirms the "not loaded" page, bootstraps it back, and trashes the retired files. **Sizes**:
 `watchdog.rs` (application) ~260 plus tests ~350.
@@ -865,7 +948,11 @@ plist and its loader, `executable_drain-undelivered-alerts.sh`, `executable_aler
 apply, the operator confirms all THREE tables are empty, not the two the counters read: `pending_alerts`
 and `dead_letter_alerts` through the two library functions sourced into a shell, and
 `pending_local_notifications` through `sqlite3 -readonly` over that table, because a banner queued for
-redelivery (S181) is a page the operator has not seen and no counter reports it (step 0.3). Only then
+redelivery (S181) is a page the operator has not seen and no counter reports it (step 0.3).
+Dead letters require the step 0.3 operator review, preserved export and fresh confirmation of
+exact-row removal; the existing drain never empties that table. Re-read all three counts after
+that disposition. An unresolved row blocks retirement, with the route, key, drainer and queue
+retained. Only then
 does the operator retire the old `priority` route and its key in the hermes config, apply, and trash
 the retired files, the queue's three files, `osquery-spool/`, `osquery-tailscale-funnel` (the two
 leftovers of spec section 3.10) and `~/.config/osquery/webhook-secret`. **Order**: after PR 6.1 to
@@ -880,12 +967,18 @@ the last queued retry.
 directory with a stub `sudo` and stub `osqueryctl` exactly as the bats harness does today, plus the
 restart-evidence cases over a fake `ProcessTable` and fake `Clock` with no sleeps. The test seam gate
 (S330, S331) becomes the one environment variable posture reads, kept because a harness that set only
-some of the seams would otherwise converge the live machine. **Surface**: `run_after_50:46`; uu's
+some of the seams would otherwise converge the live machine. **Surface**: rename
+`run_after_50-setup-osquery.sh` to `run_after_59-setup-osquery.sh` and change
+its invocation at `:46`; uu's
 `osquery_converge` key per section 3.4 (its schema, template, template test, and `repairs.rs:75`);
 `executable_osquery-converge.sh`, `osquery-converge/drift-verdict.sh`,
 `test/unit/osquery-converge.bats`, `test/unit/osquery-converge-drift-verdict.test.sh`. The desired
 tree stays where PR 1.2 or decision 3 put it. **Cutover**: the operator applies; the apply itself
-runs `posture converge` through `run_after_50` and, with nothing drifted, prints nothing. The
+runs builder 58 before `posture converge` through `run_after_59` and, with nothing drifted,
+prints nothing. A sandbox composition test starts with the prior binary refusing `converge`, runs
+the rendered builder with fake cargo, then runs the repointed caller against the newly installed
+fake binary and verifies the invocation succeeds. This tests the scripts' behavior without a live
+apply. The
 operator then edits nothing and instead confirms the quiet no-op in the apply output, runs
 `sudo /usr/bin/install -m 0666 /var/osquery/osquery.flags /var/osquery/osquery.flags` to plant a
 mode drift by hand, re-runs the apply, reads the one repair line and the daemon restart, and confirms
@@ -907,26 +1000,33 @@ every other statement gets its first test, and the tokenizer's cases are the mea
 comments record (`executable_ssh-hardening.sh:658-683`, `:809-812`, `:831-835`, `:844-850`,
 `:874-876`, `:931-944`, `:963-968`, `:979-982`, `:994-997`, `:1036-1045`, `:1058-1061`), each captured
 as a bash-derived acceptance example by running `parse_config_line` and `resolve_include_paths` in a
-sandbox before the Rust test is written (rule 1). **Sizes**: four files of 150 to 250 plus tests
+sandbox before the Rust test is written (rule 1). Include S377's malformed trailing argument
+example: `PasswordAuthentication yes "unterminated` retains `[yes]` and returns 0; do not
+silently change it to a dropped line. **Sizes**: four files of 150 to 250 plus tests
 under 400 each.
 
 **PR 8.2 the bounded runner and the ssh adapters.** `bounded.rs`, `sshd.rs`, `keyscan.rs`,
-`sshd_tree.rs`, `privileged_fs.rs` and the `Launchctl` print and kickstart calls in
-`posture-adapters`. **Statements**: S381, S382 (the child verify becomes an in-process call over the
-same bounded `Sshd`, since one binary needs no re-exec to get a fresh `set -e`), S383's five
-privileged operations, S395's observation. **Tests**, and this is the pin the bash lost: a stub
-child that ignores TERM (`trap '' TERM; sleep 600`) and has started a grandchild is stopped at a
-short deadline, the whole group is gone afterwards (the grandchild's pid answers ESRCH), the outcome
-is `Timeout` and the caller sees 124 where the bash exposed it, and the runner returns inside the
-deadline plus the 2 s grace plus a tolerance; a healthy child's status passes through unchanged; the
-child reads EOF on stdin; an observation refuses a path with a newline or the unit-separator byte, a
-non-regular file at read time, and a tree past the byte or visit bound, and follows a symlinked
-include for its attributes. **Sizes**: `bounded.rs` ~180 plus tests ~300; the four adapters 80 to
-200 each plus tests.
+`sshd_tree.rs`, `privileged_fs.rs` and the `Launchctl` print and kickstart calls in `posture-adapters`.
+**Statements**: S381, S382 (the child verify becomes an in-process call over the same bounded `Sshd`,
+since one binary needs no re-exec to get a fresh `set -e`), S383's five privileged operations, S395's
+observation. **Deliberate corrections**: every direct verify call uses the bounded adapter (Bash leaves
+two unbounded), and enumeration preserves newline-bearing paths until they can be refused (Bash can omit
+them). Capture those Bash counterexamples before writing the new expectations; they are section 6.1
+changes, not parity claims. **Tests**, and this is the pin the bash lost: a stub child that ignores TERM
+(`trap '' TERM; sleep 600`) and has started a grandchild is stopped at a short deadline, the whole group
+is gone afterwards (the grandchild's pid answers ESRCH), the outcome is `Timeout` and the caller sees 124
+where the bash exposed it, and the runner returns inside the deadline plus the 2 s grace plus a
+tolerance. The process-adapter test uses injected short deadline and grace durations to finish within the
+one-second gate; a fake-clock test checks the production two-second grace decision. A healthy child's
+status passes through unchanged; the child reads EOF on stdin; an observation refuses a path with a
+newline or the unit-separator byte, a non-regular file at read time, and a tree past the byte or visit
+bound, and follows a symlinked include for its attributes. **Sizes**: `bounded.rs` ~180 plus tests ~300;
+the four adapters 80 to 200 each plus tests.
 
 **PR 8.3 `posture ssh` and the cutover.** The six use cases over the ports of PR 8.2, the cli
 `ssh.rs`, and the install's signal handling (S385) as the use case's own concern. **Statements**:
-S369 to S399, with D15. **Surface**: `dot_local/bin/executable_ssh-hardening.sh`,
+S369 to S399, with D15 and section 6.1's explicit universal-bounds and newline-refusal corrections.
+**Surface**: `dot_local/bin/executable_ssh-hardening.sh`,
 `test/unit/ssh-hardening-dropin.sh` and `test/fixtures/ssh-hardening-lib.bash` are deleted; CLAUDE.md's
 "exactly one file in `bin`" sentence and its "SSH hardening" section, and the quickstart runbook's
 reload and lockout-recovery procedure, are rewritten to name `posture ssh` (section 3.7); the
@@ -976,7 +1076,8 @@ Every one of these is the operator's and never an agent's:
 - Trashing each retired deployed file after its apply (chezmoi deletes nothing), and reading the one
   expected CRIT page per trashed file.
 - Confirming all three queue tables are empty before PR 6.7's apply (the two counters plus a
-  read-only count of `pending_local_notifications`).
+  read-only count of `pending_local_notifications`), with reviewed dead-letter export and
+  disposition requiring fresh confirmation before exact-row removal. No automatic purge.
 - TCC: no posture subcommand needs a grant the bash did not already have. `osqueryd` itself keeps
   Full Disk Access as today; `posture poll` reads the same world-readable files the poller reads.
 
@@ -987,7 +1088,8 @@ the fourth is reopened and awaits the operator.
 
 1. **How posture delivers.** (a) Posture is a pns producer through `pns submit --json`; pns owns the
    ledger, the retries, the presence gate, the phone and the replay; posture keeps one last-resort
-   banner for the engine-down case (spec section 5.2). (b) Posture ports the dispatch library as its
+   banner for engine-down and independent pns integrity/health findings (spec section 5.2). (b) Posture
+   ports the dispatch library as its
    own `AlertSink`: a second SQLite queue, drainer, dead-letter policy and signer key, with no
    presence gate, phone, replay or recap (spec section 5.3). Decision: (a), with four conditions.
    The `accepted` bit must mean a committed, retriable obligation for that request id; today pns
@@ -996,8 +1098,9 @@ the fourth is reopened and awaits the operator.
    beside steps 1 to 4 (step 0.1). Posture keeps
    independent integrity and health checks on pns (the binary's tuple, the daemon's launchd state,
    the ledger read-only), because (a) gives up the failure isolation (b) had and the engine-down
-   banner covers detectable failure only, never a pns that forges `accepted` (spec section 5.2, PR
-   6.4). The route transition runs both routes in parallel until the queue is drained (step 0.3).
+   submit-failure branch covers detectable failure only. Independently detected pns integrity and
+   health findings raise the same banner directly, regardless of a forged `accepted` (spec section
+   5.2, PR 6.4). The route transition runs both routes in parallel until the queue is drained (step 0.3).
    And every security page carries the delivery class of decision 4, whose pns pull request is the
    fourth prerequisite (step 0.5). "Better on every axis" is withdrawn as the reason: (a) is chosen
    because pns is the one notification engine by ruling, and the lost isolation is paid for by the
@@ -1009,7 +1112,8 @@ the fourth is reopened and awaits the operator.
    with the mechanism of the first draft replaced. The digest comes from an authorized build's record,
    never from `target/release/posture`, which an out-of-band build can change while the onchange
    builder skips the install; the tuple is retained, not recomputed, when no build ran; an absent
-   artifact still gets a tuple so the manifest-enumerating audit sees the path; installation and
+   artifact gets an explicit unbuilt record so the manifest-enumerating audit sees the path without
+   vouching for empty bytes; installation and
    publication are coordinated inside the builder (record, refresh, install), because slot order
    cannot do it; the build does not move to `03`, because a compile ahead of `05` would hold every
    other manifest past the verdict's 5 s settle budget and page false CRITs (section 3.1, section
@@ -1056,7 +1160,7 @@ the fourth is reopened and awaits the operator.
    dangerous rather than only wrong is that the first draft's `Observation` (durable log and nothing
    else) would have removed the heartbeat and digest Discord messages that `send_alert` sends today
    for every `CRIT` regardless of sound (`executable_alert-dispatch.sh:1186-1193`), and that was
-   never approved. The 368 statements are an inventory, not proof of parity; rule 1 of section 4 now
+   never approved. The 399 statements are an inventory, not proof of parity; rule 1 of section 4 now
    requires a bash-derived acceptance example for every UNPINNED statement before its Rust test.
 
 Two matters are recorded as settled rather than asked. The LaunchAgent labels keep the
