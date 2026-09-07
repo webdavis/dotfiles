@@ -805,13 +805,17 @@ verified against a scratch project in a real pane by the pull request that adds 
 | Rust     | `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add neotest-rust)        | now      | the nearest test runs in a scratch cargo crate  |
 | Python   | `nvim-neotest/neotest-python`                                                                     | now      | pytest in a scratch virtual environment         |
 | Go       | `fredrikaverpil/neotest-golang`                                                                   | now      | `go test` in a scratch module                   |
-| Bash     | OUR OWN `neotest-bashunit` over bashunit (operator ruling 2026-09-03: the whole test corpus moves from bats to bashunit). Parses `--report-json`, reported to carry `file`, `name`, `status`, `duration_ms`, `retries` and `message` per test and NO line number, so mapping a failure to a line is the adapter's own problem (T2 verifies the field list against `src/reports/json.sh` at the pin before designing that mapping); one bashunit process per file, `--filter` for a single test; handles the two bugs the upstream adapter has | now, after the bashunit program's T1 and T2 | a `.test.sh` file runs per test from `<leader>tt`, with output and a jump to the failing line |
+| Bash | `webdavis/neotest-bashunit` (11, T2) | now, after T1/T2 | per-test run below |
 | JS/TS    | `marilari88/neotest-vitest` and `nvim-neotest/neotest-jest`; `AkisArou/neotest-nodejs` for node:test | ft-lazy | a vitest and a jest scratch project             |
 | Lua      | `MisanthropicBit/neotest-busted`                                                                  | ft-lazy  | one busted spec                                 |
 | Java     | `rcasia/neotest-java` (live, 2026-08-31)                                                          | ft-lazy  | a JUnit 5 scratch project                       |
 | Elixir   | `jfpedroza/neotest-elixir` (2025-01, the only option)                                             | ft-lazy  | `mix test` in a scratch app                     |
 | Swift    | `mmllr/neotest-swift-testing` FROM CODEBERG (the GitHub repository is an archived redirect since 2026-04-28); Swift Testing only, XCTest stays on `xcodebuild.nvim` | ft-lazy | one Swift Testing target |
 | Zig      | `nvim-neotest/neotest-vim-test` over vim-test's `zigtest` runner (v3.3.1, updated 2026-05-07); `lawrence-laz/neotest-zig` is rejected, pinned to Zig 0.14 with issue #41 open ten months and no maintained fork | now, shared adapter | a scratch `zig build test` project runs per test |
+
+The Bash adapter is already released; T2 below records its repository and existing tests. Its
+configuration acceptance remains a `.test.sh` file run per test from `<leader>tt`, with output
+and a jump to the failing line. That check does not repeat the adapter design or extraction.
 
 PR 28a takes every `now` row: the core, Rust, Python, Go, Bash, and the shared
 `nvim-neotest/neotest-vim-test` adapter configured for Zig. PR 28b takes the ft-lazy rows. The
