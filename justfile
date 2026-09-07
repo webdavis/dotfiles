@@ -162,13 +162,12 @@ test-e2e: validate-tests
 # workspace whose default member is the cli crate alone, so the words are what
 # reach its other three members.
 #
-# The three herdr plugins' own build cost is cheap enough to sit in the default
+# The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
 # second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
 # developer pays the build once.
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
-  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml

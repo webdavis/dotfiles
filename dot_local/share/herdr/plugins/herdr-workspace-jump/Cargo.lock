@@ -26,6 +26,7 @@ dependencies = [
  "herdr-workspace-jump-adapters",
  "herdr-workspace-jump-application",
  "herdr-workspace-jump-domain",
+ "herdr-workspace-jump-protocol",
  "serde_json",
 ]
 

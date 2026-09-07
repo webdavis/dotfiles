@@ -139,12 +139,13 @@ type = "plugin_action"
 command = "herdr-workspace-jump.jump_plantpulse"
 description = "jump to plantpulse workspace"
 
-# Workspace-level MRU toggle via the herdr-last-workspace plugin (herdr has no
-# builtin; the plugin tracks workspace.focused so mouse/picker switches count).
+# Workspace-level MRU toggle, the same plugin that owns the quick-jump chords
+# (herdr has no builtin; the plugin tracks workspace.focused so mouse and picker
+# switches count too).
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
-command = "herdr-last-workspace.last_workspace"
+command = "herdr-workspace-jump.last_workspace"
 description = "last workspace (MRU toggle, via plugin)"
 
 # Raw ctrl-h/j/k/l navigate Neovim splits AND herdr panes as one space:
