@@ -60,18 +60,17 @@ seed_cursor() { printf '%s 0\n' "$(log_inode)" >"$OSQUERY_RESULTS_OFFSET"; }
 cursor_offset() { awk '{print $2}' "$OSQUERY_RESULTS_OFFSET"; }
 call_count() { grep -c '^CALL' "$SEND_ALERT_SPY" 2>/dev/null || true; }
 
-# A send_alert stub that records the call and holds the delivery window open long
-# enough that a second concurrent run overlaps a first one still delivering. Half a
-# second, against a measured 106ms for a whole uncontended run of this entry: five
-# times the window the overlap needs, and the test still lands under the one-second
-# bar every test in this repo is held to.
-write_slow_dispatch() {
+# Hold the first delivery until the other entry has returned. A timeout or an
+# early first exit fails the case; elapsed time alone never establishes overlap.
+write_held_dispatch() {
   cat >"$HOME/.local/libexec/osquery/alert-dispatch.sh" <<'STUB'
 # shellcheck shell=bash
 send_alert() {
+  local release
   printf 'CALL\t%s\n' "$2" >>"$SEND_ALERT_SPY"
-  sleep "${SEND_ALERT_DELAY:-0.5}"
-  return 0
+  printf 'ready\n' >&"$SEND_ALERT_READY_FD"
+  IFS= read -r release <&"$SEND_ALERT_RELEASE_FD"
+  [[ $release == release ]]
 }
 STUB
 }
@@ -79,24 +78,53 @@ STUB
 function test_two_parallel_runs_deliver_a_batch_exactly_once() {
   bashunit::skip_unless '[[ -x /usr/bin/lockf ]]' \
     "no /usr/bin/lockf; the single-instance lock is a darwin-only guarantee"
-  write_slow_dispatch
+  write_held_dispatch
   seed_cursor
   printf '%s\n' "$ADMIN_ROW" >>"$OSQUERY_RESULTS_LOG"
 
-  SEND_ALERT_DELAY=0.5 bash "$ENTRY" &
-  local p1=$!
-  SEND_ALERT_DELAY=0.5 bash "$ENTRY" &
-  local p2=$!
-  local s1=0 s2=0
-  wait "$p1" || s1=$?
-  wait "$p2" || s2=$?
+  local ready_fd release_fd done_fd
+  mkfifo "$HOME/ready" "$HOME/release" "$HOME/done"
+  exec {ready_fd}<>"$HOME/ready"
+  exec {release_fd}<>"$HOME/release"
+  exec {done_fd}<>"$HOME/done"
+  export SEND_ALERT_READY_FD="$ready_fd" SEND_ALERT_RELEASE_FD="$release_fd"
 
-  # Both runs exit 0 (the loser is a clean no-op).
+  # The process deadline also bounds a broken subject that never signals or exits.
+  timeout --kill-after=0.05 0.6 bash "$ENTRY" &
+  local p1=$! p2="" ready="" second_status="" cursor_before=""
+  local ready_status=0 done_status=1 first_alive=1 s1=0 s2=0
+  IFS= read -r -t 0.25 -u "$ready_fd" ready || ready_status=$?
+  if [[ $ready_status == 0 && $ready == ready ]]; then
+    # shellcheck disable=SC2016 # Positional arguments expand in the child shell.
+    timeout --kill-after=0.05 0.4 bash -c '
+      bash "$1"
+      printf "%s\n" "$?" >&"$2"
+    ' _ "$ENTRY" "$done_fd" &
+    p2=$!
+    IFS= read -r -t 0.3 -u "$done_fd" second_status && done_status=0
+    first_alive=0
+    kill -0 "$p1" 2>/dev/null || first_alive=$?
+    cursor_before="$(cursor_offset)"
+  fi
+
+  # Release both possible readers, even with locking broken, before assertions.
+  printf 'release\nrelease\n' >&"$release_fd"
+  wait "$p1" || s1=$?
+  if [[ -n $p2 ]]; then wait "$p2" || s2=$?; fi
+  exec {ready_fd}>&-
+  exec {release_fd}>&-
+  exec {done_fd}>&-
+  unset SEND_ALERT_READY_FD SEND_ALERT_RELEASE_FD
+
+  assert_exit_code 0 "" "$ready_status"
+  assert_same ready "$ready"
+  assert_exit_code 0 "" "$done_status"
+  assert_same 0 "$second_status"
+  assert_exit_code 0 "" "$first_alive"
+  assert_same 0 "$cursor_before"
   assert_exit_code 0 "" "$s1"
   assert_exit_code 0 "" "$s2"
-  # Exactly ONE send_alert / ONE banner, no double-send.
   assert_same 1 "$(call_count)"
-  # The cursor advanced once.
   assert_same "$(log_size)" "$(cursor_offset)"
 }
 
