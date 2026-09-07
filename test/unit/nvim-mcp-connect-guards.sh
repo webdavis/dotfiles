@@ -112,4 +112,51 @@ grep -qF 'allow 103' "$CASE/err" || fail "long-root: the message does not name t
 [[ ! -e $CASE/probed ]] || fail 'long-root: a path over the limit was probed'
 [[ ! -f $CASE/exec ]] || fail 'long-root: it connected anyway'
 
-printf 'PASS: %s (7 cases)\n' "$(basename "${BASH_SOURCE[0]}")"
+# A partial caller identity cannot safely ask --current: herdr falls back to
+# the focused pane when HERDR_PANE_ID is absent. Each field is required before
+# any query or socket probe, even if a focused editor would answer.
+for missing in HERDR_ENV HERDR_PANE_ID HERDR_SOCKET_PATH; do
+  setup_case "missing-$missing"
+  me term_focused
+  live "$(sock term_focused)"
+  run_case XDG_RUNTIME_DIR="$RUN" "$missing="
+  [[ $RC -eq 3 ]] || fail "missing-$missing: expected exit 3, got $RC ($(cat "$CASE/err"))"
+  grep -qF 'NVIM_MCP_SOCKET' "$CASE/err" || fail "missing-$missing: no pin guidance"
+  [[ ! -e $CASE/herdr-argv && ! -e $CASE/probed && ! -e $CASE/queried ]] || fail "missing-$missing: queried with incomplete identity"
+  [[ ! -f $CASE/exec ]] || fail "missing-$missing: connected by focus"
+done
+
+# A failed stat attempt may write stdout before returning nonzero. Only the
+# successful fallback's metadata can establish this owned private root.
+setup_case noisy-stat
+me term_a
+live "$(sock term_a)"
+mkdir "$CASE/statbin"
+cat >"$CASE/statbin/stat" <<'STUB'
+#!/bin/bash
+if [[ $# -eq 3 && $1 == -f ]]; then
+  printf 'File: unrelated filesystem metadata\n'
+  exit 1
+fi
+[[ $# -eq 3 && $1 == -c && $2 == '%u %a' && $3 == "$NMC_CASE/run" ]] || exit 99
+printf '%s 700\n' "$(id -u)"
+STUB
+chmod +x "$CASE/statbin/stat"
+CASE_PATH="$CASE/statbin:$CASE_PATH"
+run_case XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 0 ]] || fail "noisy-stat: expected exit 0, got $RC ($(cat "$CASE/err"))"
+grep -qxF -- "--connect $(sock term_a)" "$CASE/exec" || fail 'noisy-stat: valid root did not connect'
+
+# UTF-8 characters consume more bytes than Bash's character count. The path
+# fits by characters but exceeds sun_path in bytes, and must be refused first.
+setup_case utf8-root
+RUN="$CASE/run/$(printf 'é%.0s' {1..35})"
+mkdir -p "$RUN"
+chmod 700 "$RUN"
+me term_a
+run_case LC_ALL=en_US.UTF-8 XDG_RUNTIME_DIR="$RUN"
+[[ $RC -eq 5 ]] || fail "utf8-root: expected exit 5, got $RC ($(cat "$CASE/err"))"
+grep -qF "$(printf '%s' "$(sock term_a)" | wc -c | tr -d ' ') bytes" "$CASE/err" || fail 'utf8-root: wrong byte count'
+[[ ! -e $CASE/probed && ! -f $CASE/exec ]] || fail 'utf8-root: overlong path was used'
+
+printf 'PASS: %s (12 cases)\n' "$(basename "${BASH_SOURCE[0]}")"

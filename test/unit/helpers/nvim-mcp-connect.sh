@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Shared fixture for the nvim-mcp-connect.sh tests. SOURCED, never executed:
-# the five test/unit/nvim-mcp-connect-*.sh files each source this and then run
+# the test/unit/nvim-mcp-connect-*.sh files each source this and then run
 # their own cases, split by the one-second budget. One fixture rather than five
 # that can drift apart.
 #
@@ -95,7 +95,7 @@ printf 'nvim stub: unexpected argv: %s\n' "$*" >&2
 exit 99
 STUB
 
-# herdr 0.8.2 as the resolver sees it. `pane current --current` answers the
+# herdr 0.8.2 as the resolver sees it. `pane current --pane <caller id>` answers the
 # document in $NMC_CASE/me.json, or exits 1 with nothing when there is none;
 # `pane list --workspace <the workspace me.json named>` answers
 # $NMC_CASE/list.json. Every call is logged; anything else is refused loudly.
@@ -106,11 +106,11 @@ cat >"$work/bin/herdr" <<'STUB'
 printf '%s\n' "$*" >>"$NMC_CASE/herdr-argv"
 [[ -e $NMC_CASE/herdr-hang ]] && exec sleep 3
 [[ -e $NMC_CASE/herdr-fail ]] && exit 1
-if [[ "$*" == "pane current --current" ]]; then
+if [[ $# -eq 4 && $1 == pane && $2 == current && $3 == --pane && $4 == "$HERDR_PANE_ID" ]]; then
   [[ -f $NMC_CASE/me.json ]] || exit 1
   exec cat "$NMC_CASE/me.json"
 fi
-if [[ -f $NMC_CASE/ws && "$*" == "pane list --workspace $(cat "$NMC_CASE/ws")" ]]; then
+if [[ $# -eq 4 && $1 == pane && $2 == list && $3 == --workspace && -f $NMC_CASE/ws && $4 == "$(cat "$NMC_CASE/ws")" ]]; then
   [[ -e $NMC_CASE/herdr-list-fail ]] && exit 1
   exec cat "$NMC_CASE/list.json"
 fi
@@ -140,6 +140,7 @@ chmod +x "$work/bin/nvim" "$work/bin/herdr" "$work/bin/nvim-mcp"
 #   $CASE/exec         the argv the nvim-mcp stub was execed with
 setup_case() {
   CASE="$work/$1"
+  CASE_OPTION=""
   CASE_PATH="$work/bin:/usr/bin:/bin"
   RUN="$CASE/run"
   # 0700 like the real run root: the resolver refuses anything looser.
@@ -192,7 +193,7 @@ private_path() {
 # run_case <env assignments...> -- runs the resolver in the current CASE, on
 # CASE_PATH, under `env -i` so nothing of this shell's own herdr or pin leaks
 # in. The case is inside herdr by default (HERDR_ENV, a fixed
-# HERDR_SOCKET_PATH); a case outside herdr passes HERDR_ENV= to unset it.
+# HERDR_PANE_ID and HERDR_SOCKET_PATH); an outside case clears all three.
 # XDG_RUNTIME_DIR is the caller's to set: most cases point it at $RUN, and the
 # one that leaves it unset is testing the run-dir query. The deadline defaults
 # to production's two seconds; only the cases that WANT it to expire shorten
@@ -210,7 +211,8 @@ run_case() {
     NMC_CASE="$CASE" \
     NVIM_MCP_PROBE_DEADLINE="${CASE_DEADLINE:-2}" \
     HERDR_ENV=1 \
+    HERDR_PANE_ID=w1:p1 \
     HERDR_SOCKET_PATH=/s/a.sock \
     "$@" \
-    bash "$SCRIPT" >"$CASE/out" 2>"$CASE/err" || RC=$?
+    bash "$SCRIPT" ${CASE_OPTION:+"$CASE_OPTION"} >"$CASE/out" 2>"$CASE/err" || RC=$?
 }

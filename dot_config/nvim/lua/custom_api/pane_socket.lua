@@ -8,8 +8,9 @@
 -- and refused by the resolver's probe until then. There is no sweep: a
 -- probe-then-unlink of another pane's stale socket races that pane's next
 -- start (its replacement can bind and answer between the two steps and be
--- unlinked), and macOS clears $TMPDIR at boot and daily for items idle three
--- days anyway (com.apple.bsd.dirhelper, CLEAN_FILES_OLDER_THAN_DAYS=3).
+-- unlinked). macOS boot cleanup removes these sockets from its managed temp
+-- tree, but its age-based cleanup skips sockets. Abandoned pane names can
+-- accumulate for the uptime; a custom run root has its own cleanup policy.
 --
 -- The NAME is herdr's own identity for the pane, asked from herdr rather than
 -- read from the environment, for two measured reasons. A pane id (`wW:p3K`)
@@ -20,8 +21,9 @@
 -- pane is moved to another workspace while the launch-time HERDR_PANE_ID does
 -- not, so a socket named for it would be invisible to its new siblings; the
 -- terminal id herdr reports (`term_65a9c8766b9261`) survives the move, and
--- `herdr pane current --current` answers for the CALLER's terminal even from
--- a process whose environment was cleared (measured on 0.8.2).
+-- `herdr pane current --pane "$HERDR_PANE_ID"` resolves that launch-time id or
+-- its retained alias to the terminal. All three context variables are required
+-- before querying, so a missing caller id never falls back to the focused pane.
 --
 -- The first Neovim in a pane owns the name, by design. A nested Neovim, or one
 -- in a terminal split, shares the terminal and finds the name taken; `listen`
@@ -69,7 +71,7 @@ function M.private(dir)
 end
 
 -- The session half of the name. nvim-mcp-connect.sh spells the same rule
--- with `shasum -a 256`.
+-- with the same `vim.fn.sha256` call in a clean headless Neovim.
 function M.session()
   return vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6)
 end
@@ -92,7 +94,7 @@ end
 function M.identity(on_done)
   local ok = pcall(
     vim.system,
-    { "herdr", "pane", "current", "--current" },
+    { "herdr", "pane", "current", "--pane", vim.env.HERDR_PANE_ID },
     { text = true, timeout = 2000 },
     function(result)
       local decoded_ok, decoded = pcall(vim.json.decode, result.stdout or "")
@@ -112,7 +114,14 @@ end
 -- is reached by a pin rather than by pane. A herdr that does not answer is
 -- said once, because that is a pane the agent cannot reach without a pin.
 function M.listen()
-  if not vim.env.HERDR_ENV then
+  if not vim.env.HERDR_ENV and not vim.env.HERDR_PANE_ID and not vim.env.HERDR_SOCKET_PATH then
+    return
+  end
+  if not vim.env.HERDR_ENV or not vim.env.HERDR_PANE_ID or not vim.env.HERDR_SOCKET_PATH then
+    vim.notify(
+      "nvim-mcp: not listening for this pane, incomplete herdr context (HERDR_ENV, HERDR_PANE_ID, HERDR_SOCKET_PATH); use NVIM_MCP_SOCKET to pin this Neovim",
+      vim.log.levels.WARN
+    )
     return
   end
   local root = M.root()

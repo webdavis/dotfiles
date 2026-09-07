@@ -45,7 +45,7 @@ do
   handle:write(table.concat({
     "#!/bin/bash",
     'printf \'%s\\n\' "$*" >>"$HERDR_STUB_LOG"',
-    '[[ "$*" == "pane current --current" ]] || { printf \'unexpected herdr argv: %s\\n\' "$*" >&2; exit 99; }',
+    '[[ $# -eq 4 && $1 == pane && $2 == current && $3 == --pane && $4 == "$HERDR_PANE_ID" ]] || { printf \'unexpected herdr argv: %s\\n\' "$*" >&2; exit 99; }',
     "[[ -z ${HERDR_STUB_FAIL:-} ]] || exit 1",
     "printf '%s' \"$HERDR_STUB_JSON\"",
     "",
@@ -77,6 +77,7 @@ end
 local function herdr_env(root, terminal, extra)
   local env = {
     HERDR_ENV = "1",
+    HERDR_PANE_ID = "w1:p2",
     HERDR_SOCKET_PATH = "/s/a.sock",
     XDG_RUNTIME_DIR = root,
     PATH = stub_dir .. ":" .. vim.env.PATH,
@@ -168,7 +169,7 @@ return {
         end, 10),
         "not serving " .. expected .. ": " .. vim.inspect(vim.fn.serverlist())
       )
-      assert(vim.deep_equal(herdr_calls(root .. "/herdr.log"), { "pane current --current" }))
+      assert(vim.deep_equal(herdr_calls(root .. "/herdr.log"), { "pane current --pane w1:p2" }))
       vim.fn.serverstop(expected)
     end)
   end,
@@ -219,12 +220,60 @@ return {
 
   ["outside herdr nothing is started and herdr is never asked"] = function()
     local root = private_root()
-    with_env(herdr_env(root, "term_1", { HERDR_ENV = false }), function()
+    with_env(
+      herdr_env(root, "term_1", { HERDR_ENV = false, HERDR_PANE_ID = false, HERDR_SOCKET_PATH = false }),
+      function()
+        local before = vim.fn.serverlist()
+        local seen = capturing_notify(function()
+          pane_socket().listen()
+          vim.wait(20)
+        end)
+        assert(#seen == 0, "outside herdr emitted " .. vim.inspect(seen))
+        assert(vim.deep_equal(vim.fn.serverlist(), before), "started " .. vim.inspect(vim.fn.serverlist()))
+        assert(#herdr_calls(root .. "/herdr.log") == 0, "herdr was asked outside herdr")
+      end
+    )
+  end,
+
+  ["missing HERDR_ENV in a partial herdr context refuses before querying"] = function()
+    local root = private_root()
+    with_env(herdr_env(root, "term_focused", { HERDR_ENV = false }), function()
       local before = vim.fn.serverlist()
-      pane_socket().listen()
-      vim.wait(20)
-      assert(vim.deep_equal(vim.fn.serverlist(), before), "started " .. vim.inspect(vim.fn.serverlist()))
-      assert(#herdr_calls(root .. "/herdr.log") == 0, "herdr was asked outside herdr")
+      local seen = capturing_notify(function()
+        pane_socket().listen()
+        vim.wait(50)
+      end)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "bound a socket without caller context")
+      assert(#herdr_calls(root .. "/herdr.log") == 0, "asked herdr without caller context")
+      assert(#seen == 1 and seen[1].message:find("NVIM_MCP_SOCKET", 1, true), "missing pin guidance")
+    end)
+  end,
+
+  ["missing HERDR_PANE_ID in a partial herdr context refuses before querying"] = function()
+    local root = private_root()
+    with_env(herdr_env(root, "term_focused", { HERDR_PANE_ID = false }), function()
+      local before = vim.fn.serverlist()
+      local seen = capturing_notify(function()
+        pane_socket().listen()
+        vim.wait(50)
+      end)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "bound a socket without caller context")
+      assert(#herdr_calls(root .. "/herdr.log") == 0, "asked herdr without caller context")
+      assert(#seen == 1 and seen[1].message:find("NVIM_MCP_SOCKET", 1, true), "missing pin guidance")
+    end)
+  end,
+
+  ["missing HERDR_SOCKET_PATH in a partial herdr context refuses before querying"] = function()
+    local root = private_root()
+    with_env(herdr_env(root, "term_focused", { HERDR_SOCKET_PATH = false }), function()
+      local before = vim.fn.serverlist()
+      local seen = capturing_notify(function()
+        pane_socket().listen()
+        vim.wait(50)
+      end)
+      assert(vim.deep_equal(vim.fn.serverlist(), before), "bound a socket without caller context")
+      assert(#herdr_calls(root .. "/herdr.log") == 0, "asked herdr without caller context")
+      assert(#seen == 1 and seen[1].message:find("NVIM_MCP_SOCKET", 1, true), "missing pin guidance")
     end)
   end,
 

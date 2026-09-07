@@ -10,8 +10,8 @@
 #      with one nvim query (the session hash) and no tab listing
 #   c) without XDG_RUNTIME_DIR the run root is the PARENT of what nvim reports
 #      as stdpath("run")
-#   d) outside herdr, with herdr answering nothing, nvim-mcp's own
-#      `--connect auto` is used and nvim is never consulted
+#   d) outside herdr, nvim-mcp's own `--connect auto` is used without asking
+#      herdr or nvim, even when herdr could report a focused pane
 #   x) a run root with a space in its name reaches exec whole
 #
 set -euo pipefail
@@ -24,7 +24,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/helpers/nvim-mcp-connect.sh"
 setup_case pin-wins
 me term_a
 live "$RUN/pinned.sock" "$(sock term_a)"
-run_case XDG_RUNTIME_DIR="$RUN" NVIM_MCP_SOCKET="$RUN/pinned.sock"
+run_case XDG_RUNTIME_DIR="$RUN" NVIM_MCP_SOCKET="$RUN/pinned.sock" HERDR_PANE_ID=
 [[ $RC -eq 0 ]] || fail "pin-wins: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect $RUN/pinned.sock" "$CASE/exec" ||
   fail "pin-wins: the server was not run against the pin ($(cat "$CASE/exec" 2>/dev/null))"
@@ -41,7 +41,7 @@ run_case XDG_RUNTIME_DIR="$RUN"
 [[ $RC -eq 0 ]] || fail "own-pane: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect $RUN/herdr-9a663d-term_65a9c8766b9261.sock" "$CASE/exec" ||
   fail "own-pane: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
-[[ "$(cat "$CASE/herdr-argv")" == 'pane current --current' ]] ||
+[[ "$(cat "$CASE/herdr-argv")" == 'pane current --pane w1:p1' ]] ||
   fail "own-pane: herdr was asked more than this pane's identity ($(cat "$CASE/herdr-argv"))"
 [[ "$(wc -l <"$CASE/queried" | tr -d ' ')" == 1 ]] ||
   fail "own-pane: nvim was asked more than once ($(cat "$CASE/queried" 2>/dev/null))"
@@ -59,9 +59,12 @@ grep -qxF -- "--connect $(sock term_a)" "$CASE/exec" || fail "run-root: wrong so
 
 # --- d) outside herdr, nothing to resolve from falls back to auto ------------
 setup_case auto
-run_case HERDR_ENV=
+me term_focused
+live "$(sock term_focused)"
+run_case HERDR_ENV= HERDR_PANE_ID= HERDR_SOCKET_PATH=
 [[ $RC -eq 0 ]] || fail "auto: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect auto" "$CASE/exec" || fail "auto: wrong argv ($(cat "$CASE/exec" 2>/dev/null))"
+[[ ! -e $CASE/herdr-argv ]] || fail 'auto: herdr was asked outside herdr'
 [[ ! -e $CASE/probed && ! -e $CASE/queried ]] || fail 'auto: nvim was consulted with nothing to resolve from'
 
 # --- x) a run root with a space in its name reaches exec whole ---------------

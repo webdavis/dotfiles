@@ -28,7 +28,7 @@ live "$(sock term_b)"
 run_case XDG_RUNTIME_DIR="$RUN"
 [[ $RC -eq 0 ]] || fail "one-sibling: expected exit 0, got $RC ($(cat "$CASE/err"))"
 grep -qxF -- "--connect $(sock term_b)" "$CASE/exec" || fail "one-sibling: wrong socket ($(cat "$CASE/exec" 2>/dev/null))"
-[[ "$(cat "$CASE/herdr-argv")" == $'pane current --current\npane list --workspace w1' ]] ||
+[[ "$(cat "$CASE/herdr-argv")" == $'pane current --pane w1:p1\npane list --workspace w1' ]] ||
   fail "one-sibling: herdr was not asked this pane's identity, then its workspace ($(cat "$CASE/herdr-argv"))"
 
 # --- p) own pane wins, the tab is never listed -------------------------------
