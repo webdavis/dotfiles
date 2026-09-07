@@ -51,8 +51,7 @@ pub(crate) fn track_pending(
                     host,
                     AlertTarget::Lane(&report.name),
                     &format!(
-                        "updates have remained pending for {} consecutive attempt(s); operator action is needed",
-                        threshold
+                        "updates have remained pending for {threshold} consecutive attempt(s); operator action is needed"
                     )
                 ),
                 AlertOutcome::Failed(_)
