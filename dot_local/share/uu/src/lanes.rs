@@ -26,7 +26,7 @@ pub use text::{STDERR_TAIL, failure_reason, tail};
 use uu_domain::LaneReport;
 
 use crate::config::{Config, LaneKind};
-use crate::record::RunFacts;
+use uu_domain::RunFacts;
 
 /// What running ONE KIND of lane does. Implemented once per `LaneKind`
 /// variant, beside the config struct that variant carries.

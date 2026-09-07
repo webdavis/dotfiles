@@ -25,8 +25,8 @@
 
 use crate::config::NpmLane;
 use crate::lanes::{CommandRunner, LaneAdapter};
-use crate::record::RunFacts;
 use uu_domain::LaneReport;
+use uu_domain::RunFacts;
 
 /// The shell that composes the child's PATH, at its POSIX path.
 const SHELL: &str = "/bin/sh";

@@ -1,19 +1,16 @@
-//! The two outbound boundaries: an alert through the pns engine, and the
-//! weekly record posted to the hermes gateway.
-//!
-//! BOTH ARRIVE AS TRAITS, never the concrete client: a refused delivery can
-//! only be exercised through a real socket failure otherwise, and the alert it
-//! fires is invisible to anything but a real engine.
-
-use std::process::Command;
-use std::time::Duration;
-
-use pns::channels::hermes::{SignedPost, delivered, outcome_line, sign};
-use unattended_upgrades::alert::{Alerter, alert_argv};
-use unattended_upgrades::config::Records;
-use uu_protocol::AGENT;
+//! Process and signed-post adapters for the run application's delivery ports.
 
 use crate::system::host;
+use pns::channels::hermes::{PostOutcome, SignedPost, delivered, outcome_line, sign};
+use std::process::Command;
+use std::time::Duration;
+use unattended_upgrades::alert::{Alerter, alert_argv};
+use unattended_upgrades::config::Records;
+use unattended_upgrades::record::record_state;
+use uu_application::{
+    AlertOutcome, AlertTarget, RecordFailure, RecordOutcome, RunDelivery, RunRecord,
+};
+use uu_protocol::record_body;
 
 /// How long one signed record POST may take. Nobody is waiting on the answer,
 /// so this only bounds how long the job lingers on a gateway that stopped
@@ -33,146 +30,84 @@ impl Alerter for PnsAlerter {
     }
 }
 
-/// One alert, FAIL OPEN at every rung: no `[alerts]` block, an engine that is
-/// not there, and an engine that refused are each stated here and none of them
-/// ends the run.
-///
-/// ANSWERS WHETHER THE ALERT IS OWED ANY LONGER, which is not the same as
-/// whether an engine ran. With no `[alerts]` block nothing was owed and the
-/// log line IS the delivery, so that is `true`; only a configured engine that
-/// refused leaves something still to say. The per-run failure alert ignores
-/// this, because it fires again next run either way; the staleness alert
-/// fires once per streak and has to know.
-pub fn send_alert(alerter: &dyn Alerter, engine: Option<&str>, lane: &str, summary: &str) -> bool {
-    let Some(binary) = engine else {
-        println!("uu: no [alerts] block; `{lane}: {summary}` was logged and nothing else");
-        return true;
-    };
-    let argv = alert_argv(&host(), lane, summary);
-    if let Err(why) = alerter.alert(binary, &argv) {
-        println!("uu: the alert for `{lane}` was NOT delivered ({why}); it is logged here instead");
-        return false;
-    }
-    true
+pub struct EngineRunDelivery<'a, P, A> {
+    pub post: P,
+    pub alerter: A,
+    pub records: Option<&'a Records>,
+    pub engine: Option<&'a str>,
 }
 
-/// The record, posted in process, ANSWERING WHETHER IT LANDED. The caller
-/// needs that verdict: an entry the gateway never received is a failed run,
-/// whatever the lanes did.
-///
-/// FAIL LOUD: a refused delivery is printed AND alerted, because a silent
-/// record channel is indistinguishable from a machine whose jobs stopped
-/// running, which is the one failure the record cannot report about itself.
-pub fn deliver_record(
-    post: &dyn SignedPost,
-    alerter: &dyn Alerter,
-    records: &Records,
-    body: String,
-    engine: Option<&str>,
-) -> bool {
-    let Some(signature) = sign(&records.key, &body) else {
-        println!("uu: the [records] key is empty, so nothing could be signed or posted");
-        return false;
-    };
-    let outcome = post.post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
-    println!("uu: {}", outcome_line(outcome));
-    if delivered(outcome) {
-        return true;
+impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
+    fn alert(&self, target: AlertTarget<'_>, summary: &str) -> AlertOutcome {
+        let Some(binary) = self.engine else {
+            return AlertOutcome::NotConfigured;
+        };
+        let argv = alert_argv(&host(), target_name(target), summary);
+        match self.alerter.alert(binary, &argv) {
+            Ok(()) => AlertOutcome::Delivered,
+            Err(why) => AlertOutcome::Failed(why),
+        }
     }
-    send_alert(
-        alerter,
-        engine,
-        AGENT,
-        &format!(
-            "the weekly record could NOT be delivered to {} ({}); until this is fixed that \
-             channel is silent for a reason that has nothing to do with the jobs it reports on",
-            records.url,
-            outcome_line(outcome)
-        ),
-    );
-    false
+
+    fn record(&self, record: RunRecord<'_>) -> RecordOutcome {
+        let Some(records) = self.records else {
+            return RecordOutcome::NotConfigured;
+        };
+        let body = records_body(record.failures, record.deferred, record.detail);
+        let Some(signature) = sign(&records.key, &body) else {
+            return RecordOutcome::SigningFailed;
+        };
+        let outcome = self
+            .post
+            .post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
+        let description = outcome_line(outcome);
+        if delivered(outcome) {
+            return RecordOutcome::Delivered { description };
+        }
+        let cause = match outcome {
+            PostOutcome::Status(status) => RecordFailure::Status(status),
+            PostOutcome::NoResponse => RecordFailure::NoResponse,
+            PostOutcome::NoStatus => RecordFailure::NoStatus,
+        };
+        RecordOutcome::Rejected {
+            url: records.url.clone(),
+            cause,
+            description,
+        }
+    }
+}
+
+pub(crate) fn target_name(target: AlertTarget<'_>) -> &str {
+    match target {
+        AlertTarget::Run => uu_protocol::AGENT,
+        AlertTarget::Lane(lane) => lane,
+    }
+}
+
+fn records_body(failures: usize, deferred: usize, detail: &str) -> String {
+    record_body(record_state(failures, deferred), &host(), detail)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pns::channels::hermes::PostOutcome;
-    use std::cell::RefCell;
 
-    /// A `SignedPost` stub that always answers the same fixed outcome. It
-    /// never touches a socket, so both directions below run in well under a
-    /// second and neither depends on a real gateway being up or down.
-    struct AnswerWith(PostOutcome);
-
-    impl SignedPost for AnswerWith {
-        fn post(
-            &self,
-            _url: &str,
-            _body: &str,
-            _signature_hex: &str,
-            _deadline: Option<Duration>,
-        ) -> PostOutcome {
-            self.0
-        }
-    }
-
-    /// An `Alerter` that records every call instead of spawning anything, so
-    /// a test can assert whether the alert path fired at all.
-    #[derive(Default)]
-    struct SpyAlerter {
-        calls: RefCell<Vec<(String, Vec<String>)>>,
-    }
-
-    impl Alerter for SpyAlerter {
-        fn alert(&self, binary: &str, args: &[String]) -> Result<(), String> {
-            self.calls
-                .borrow_mut()
-                .push((binary.to_string(), args.to_vec()));
-            Ok(())
-        }
-    }
-
-    fn stub_records() -> Records {
-        Records {
-            url: "http://127.0.0.1:0/wherever".to_string(),
-            key: "k".to_string(),
-        }
+    #[test]
+    fn a_deferred_only_run_posts_a_body_stated_deferred_not_completed() {
+        // record_state itself is pinned directly in record.rs; this instead
+        // guards the CALL SITE here in `records_body`, where a mutant
+        // passing `record_state(failures, 0)` would post every deferred-only
+        // run as "completed" while leaving every `record_state` unit test
+        // green.
+        let body = records_body(0, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "deferred");
     }
 
     #[test]
-    fn a_refused_post_reports_failure_and_alerts_through_the_given_alerter() {
-        let spy = SpyAlerter::default();
-        let delivered = deliver_record(
-            &AnswerWith(PostOutcome::NoResponse),
-            &spy,
-            &stub_records(),
-            "body".to_string(),
-            Some("engine"),
-        );
-        assert!(!delivered);
-        let calls = spy.calls.borrow();
-        assert_eq!(calls.len(), 1, "{calls:?}");
-        assert_eq!(calls[0].0, "engine", "{calls:?}");
-        assert!(
-            calls[0]
-                .1
-                .iter()
-                .any(|arg| arg.contains(&stub_records().url)),
-            "{calls:?}"
-        );
-    }
-
-    #[test]
-    fn a_delivered_post_reports_success_and_never_touches_the_alerter() {
-        let spy = SpyAlerter::default();
-        let delivered = deliver_record(
-            &AnswerWith(PostOutcome::Status(200)),
-            &spy,
-            &stub_records(),
-            "body".to_string(),
-            Some("engine"),
-        );
-        assert!(delivered);
-        assert!(spy.calls.borrow().is_empty(), "{:?}", spy.calls.borrow());
+    fn a_mixed_run_posts_a_body_stated_failed_not_deferred() {
+        let body = records_body(1, 1, "detail");
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["state"], "failed");
     }
 }

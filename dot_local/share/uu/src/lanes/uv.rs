@@ -12,8 +12,8 @@
 
 use crate::config::UvLane;
 use crate::lanes::{CommandRunner, LaneAdapter};
-use crate::record::RunFacts;
 use uu_domain::LaneReport;
+use uu_domain::RunFacts;
 
 /// The arguments the lane always runs `uv` with.
 const UPGRADE: [&str; 3] = ["tool", "upgrade", "--all"];

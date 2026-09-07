@@ -1,44 +1,51 @@
 //! The per-lane staleness bookkeeping one run leaves behind.
 //!
 //! ITS OWN FILE BECAUSE IT ANSWERS A DIFFERENT QUESTION from the run around
-//! it. `run_mode` orders one run's work; this counts ACROSS runs, and its
+//! it. `Run::execute` orders one run's work; this counts ACROSS runs, and its
 //! whole reason to exist is the lane whose every week is silent by design.
-//! `staleness` decides the next count and when it trips; this reads and
+//! `uu_domain::next_streak` decides the next count and when it trips; this reads and
 //! publishes it, and alerts on a trip.
 
 use uu_domain::{LaneReport, STALE_AFTER_RUNS, next_streak};
 
-use crate::delivery::{PnsAlerter, send_alert};
-use crate::state::streak::{self, Streak};
+use crate::delivery::send_alert;
+use crate::ports::{
+    AlertOutcome, AlertTarget, Notice, RunDelivery, RunPresentation, RunState, Streak,
+};
 
 /// THE STALENESS BOUND: a lane deferring or failing every week is silent by
 /// design (a deferral never alerts on its own, and even a failure's alert says
 /// nothing about HOW LONG this has been going on), so nothing else says a lane
 /// has gone quiet for good. Tracked PER LANE, across runs, independent of
 /// whatever else this run's own verdict says.
-pub fn track_staleness(home: &str, reports: &[LaneReport], engine: Option<&str>) {
+pub(crate) fn track_staleness(
+    state: &impl RunState,
+    delivery: &impl RunDelivery,
+    presentation: &impl RunPresentation,
+    reports: &[LaneReport],
+) {
     for report in reports {
         let succeeded = !report.deferred && report.failures == 0;
-        let path = streak::path(home, &report.name);
+        let snapshot = state.streak(&report.name);
         // A STREAK THIS RUN COULD NOT TRUST is never read as zero: zero would
         // silently forgive whatever history the file held, which is the
         // opposite of what a mechanism built to notice a lane going quiet
         // may ever do. Treated as one short of the threshold instead, so a
         // non-success run still gets its chance to trip rather than starting
         // a fresh count nobody asked for.
-        let previous = match streak::read(&path) {
+        let previous = match snapshot.value {
             Streak::Absent => 0,
             Streak::Value(value) => value,
             Streak::Unreadable(why) => {
                 send_alert(
-                    &PnsAlerter,
-                    engine,
-                    &report.name,
+                    delivery,
+                    presentation,
+                    AlertTarget::Lane(&report.name),
                     &format!(
                         "this lane's non-success streak at {} could not be trusted ({why}); \
                          treating it as already close to stale rather than silently starting \
                          over",
-                        path.display()
+                        snapshot.location
                     ),
                 );
                 STALE_AFTER_RUNS - 1
@@ -53,19 +60,22 @@ pub fn track_staleness(home: &str, reports: &[LaneReport], engine: Option<&str>)
         // The count is read by nothing but this trip, so a run spent short of
         // its true value costs no reader anything.
         let recorded = if tripped
-            && !send_alert(
-                &PnsAlerter,
-                engine,
-                &report.name,
-                &format!(
-                    "no successful run in {STALE_AFTER_RUNS} consecutive attempt(s); the last \
+            && matches!(
+                send_alert(
+                    delivery,
+                    presentation,
+                    AlertTarget::Lane(&report.name),
+                    &format!(
+                        "no successful run in {STALE_AFTER_RUNS} consecutive attempt(s); the last \
                      one {}",
-                    if report.deferred {
-                        "deferred"
-                    } else {
-                        "failed"
-                    }
+                        if report.deferred {
+                            "deferred"
+                        } else {
+                            "failed"
+                        }
+                    ),
                 ),
+                AlertOutcome::Failed(_)
             ) {
             STALE_AFTER_RUNS - 1
         } else {
@@ -75,20 +85,20 @@ pub fn track_staleness(home: &str, reports: &[LaneReport], engine: Option<&str>)
         // headless launchd job: this file IS the mechanism, so losing it
         // silently would be exactly the fail-open this whole capability
         // exists to refuse.
-        if let Err(why) = streak::write(&path, recorded) {
-            eprintln!(
-                "uu: could not record lane `{}`'s non-success streak at {}: {why}",
-                report.name,
-                path.display()
-            );
+        if let Err(failure) = state.write_streak(&report.name, recorded) {
+            let why = &failure.cause;
+            presentation.notice(Notice::StreakWriteFailed {
+                lane: &report.name,
+                failure: &failure,
+            });
             send_alert(
-                &PnsAlerter,
-                engine,
-                &report.name,
+                delivery,
+                presentation,
+                AlertTarget::Lane(&report.name),
                 &format!(
                     "this lane's non-success streak at {} could not be recorded ({why}); \
                      staleness tracking for it is unreliable until this is fixed",
-                    path.display()
+                    failure.location
                 ),
             );
         }

@@ -24,18 +24,7 @@
 //! clock that moved backwards each produce their own stated sentence, because
 //! a quiet fallback reads downstream as a healthy week.
 
-/// What the last-successful-run marker says.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Marker {
-    /// No marker at all: this machine has never recorded a successful run.
-    NeverRecorded,
-    /// A marker that is there and says nothing usable.
-    Unreadable,
-    Recorded {
-        epoch: i64,
-        iso: String,
-    },
-}
+use uu_domain::Marker;
 
 /// The marker file's one line: `<epoch-seconds> <iso-8601-utc>`.
 ///
