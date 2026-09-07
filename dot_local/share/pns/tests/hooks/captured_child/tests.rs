@@ -55,6 +55,7 @@ fn failure_waits_for_reader_before_returning(held: usize) {
                 let _ = err.recv();
             }),
         ],
+        writer: None,
         reaped: false,
     };
     let releases = [release_out, release_err];
@@ -82,4 +83,39 @@ fn failure_joins_stdout_reader_before_returning() {
 #[test]
 fn failure_joins_stderr_reader_before_returning() {
     failure_waits_for_reader_before_returning(1);
+}
+
+fn blocked_input_is_bounded(closed_output: &str) {
+    let mut command = Command::new("/bin/sh");
+    // The fixture never reads stdin. Its own finite lifetime also releases a
+    // synchronous-writer mutant, without a watchdog signalling a stale PID.
+    command.args(["-c", &format!("{closed_output}exec /bin/sleep 0.3")]);
+    let capture = CapturedChild::spawn(&mut command).expect("fixture runs");
+    let pid = libc::pid_t::try_from(capture.child.id()).expect("child ID");
+    let started = Instant::now();
+    let result = capture.input_output_within(&vec![b'x'; 1024 * 1024], Duration::from_millis(100));
+    let mut status = 0;
+    // SAFETY: this only queries the child spawned above and a valid pointer.
+    let waited = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+    assert_eq!(waited, -1, "the capture owner must reap before returning");
+    assert_eq!(
+        io::Error::last_os_error().raw_os_error(),
+        Some(libc::ECHILD)
+    );
+    assert_eq!(
+        result.expect_err("blocked stdin times out").kind(),
+        io::ErrorKind::TimedOut,
+        "the capture deadline must bound the input writer",
+    );
+    assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[test]
+fn a_child_that_never_reads_stdin_is_bounded_and_reaped() {
+    blocked_input_is_bounded("");
+}
+
+#[test]
+fn closed_output_does_not_leave_the_input_writer_running() {
+    blocked_input_is_bounded("exec 1>&- 2>&-; ");
 }
