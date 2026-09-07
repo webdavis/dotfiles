@@ -123,3 +123,70 @@ ten-second deadline. No new cancellation mechanism or stronger cleanup guarantee
 spawns is introduced. The new pending file uses the existing count encoding and atomic writer; no store
 migration or deduplication is introduced. See [the ownership decision](../decisions/run-application.md)
 for these retained limits.
+
+## Neovim plugin pins
+
+- **Given** a `nvim-plugins` lane, **when** resolving configuration, **then** require an absolute
+  `config` directory and default its executable to `nvim`. Run it headless with that directory's
+  `init.lua` and `lua/uu/plugins.lua`, preserving paths containing spaces. Retain child output for
+  completed, pending and failed results. Exit 100 is pending; every other nonzero exit is failed.
+- **Given** report-only mode, **when** checking plugins, **then** wait for Lazy's check, list each
+  pending or failed plugin by name and count current plugins without listing them. Any plugin error makes
+  the report failed; otherwise updates make it pending. Exit through Neovim so the completed headless
+  instance releases its server socket.
+- **Given** `auto_commit = true`, **when** resolving configuration, **then** require an absolute `repo`.
+  Its default is false; a non-boolean value is refused with the key and written value.
+- **Given** an enabled writeback with no open recovery, **when** its branch or lock preflight is refused,
+  **then** report the reason and check only. Require a branch, a clean source lock, equality of
+  committed, indexed and deployed lock bytes, and installed lock-managed revisions matching the lock.
+  Local plugins are outside lock management.
+- **Given** an allowed writeback, **when** updating, **then** durably save the repository, config,
+  branch, starting commit and old lock before any update. Save the candidate lock after the update,
+  including a failed update. Immediately before copying, recheck branch, commit, source and index lock
+  bytes. Preserve intervening edits and retain recovery on any refusal.
+- **Given** changed plugin pins, **when** committing, **then** copy and commit only
+  `dot_config/nvim/lazy-lock.json` with ordinary hooks, preserving unrelated staged paths. Report
+  completion only after committed, deployed and installed pins agree. An unchanged candidate closes
+  recovery without an empty commit. Update, copy, hook and commit failures remain failed and retain both
+  old and candidate lock bytes.
+- **Given** open recovery, **when** the lane runs again, **then** refuse checks and updates until the
+  operator's clean committed, deployed and installed pins agree, even if auto-commit is now off. After
+  that agreement, archive the recovery record and resume the requested mode.
+- **Given** a successful changed update, **when** other Neovim sockets are present under the per-user
+  runtime root, **then** count other process identifiers once, excluding our own, and print
+  `N Neovim instance(s) were running during this update; restart them to load the new versions`. With no
+  other socket, print no notice.
+
+## Mason tools
+
+- **Given** a `nvim-mason` lane, **when** it runs, **then** invoke its required absolute config's
+  `lua/uu/mason.lua` through the shared headless host, retaining its own lane name and child failure.
+- **Given** the tool roster, **when** updating, **then** refresh the registry first and subscribe to each
+  package's success and failure events before `MasonToolsUpdateSync`. Treat the completion event only as
+  completion. Any failed package fails the lane with its reason, including when the command subsequently
+  throws. Report updated and current tools and the language-server sentence on every run.
+- **Given** either generated job, **when** an installer launches an interpreter, **then** search the
+  home's managed Node directory before system tools, and include the home's Cargo binary directory.
+  Preserve existing home and property-list escaping.
+
+## Parser reconciliation
+
+- **Given** a `nvim-parsers` lane, **when** it runs, **then** invoke its required absolute config's
+  `lua/uu/parsers.lua` through the shared headless host, retaining its own lane name and child failure.
+- **Given** installed parsers, **when** reconciling the locked installer revisions, **then** call
+  `update(nil, { summary = true }):wait()`. A false result or exception fails the lane. Name updated and
+  current parsers and retain each failed compiler's output tail.
+- **Given** either lane changed installed tools or parsers, **when** reporting, **then** append the
+  existing restart notice if another Neovim instance's socket is present.
+
+## Candidate startup verification
+
+- **Given** an enabled `nvim-smoke-test` lane, **when** it runs, **then** require an absolute cache, copy
+  config and Mason, and run prepare then a fresh verifier with private config, data, state, cache, HOME
+  and Claude discovery roots. A failed prepare never reaches verification.
+- **Given** a candidate, **when** verification ends, **then** require this run's completion and exact
+  lock, actual VimEnter, no startup diagnostics and no stderr, with child failure and timeout counted.
+  Retain raw diagnostics and report paths. Health error and warning counts do not change startup status.
+- **Given** a completed keymap capture, **when** recording, **then** write mode, left-hand side and
+  right-hand side or description as three tab-separated fields, and compare additions and removals by
+  mode and left-hand side. A first dump explicitly has no previous comparison.

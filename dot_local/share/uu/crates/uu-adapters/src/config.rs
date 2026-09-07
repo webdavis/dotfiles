@@ -29,9 +29,14 @@ use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
 
-pub use lanes::{BrewLane, CommandLane, HerdrLane, Lanes, NpmLane, UvLane};
+pub(crate) use lanes::NvimHost;
+pub use lanes::{
+    BrewLane, CommandLane, HerdrLane, Lanes, NpmLane, NvimMasonLane, NvimParsersLane,
+    NvimPluginsLane, NvimSmokeTestLane, UvLane,
+};
 pub(crate) use lanes::{
-    parse_brew_lane, parse_command_lane, parse_herdr_lane, parse_npm_lane, parse_uv_lane,
+    parse_brew_lane, parse_command_lane, parse_herdr_lane, parse_npm_lane, parse_nvim_mason_lane,
+    parse_nvim_parsers_lane, parse_nvim_plugins_lane, parse_uv_lane,
 };
 pub use schedule::Schedule;
 use schema::TOP_LEVEL;

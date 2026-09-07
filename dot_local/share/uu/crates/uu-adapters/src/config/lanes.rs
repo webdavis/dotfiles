@@ -15,6 +15,7 @@ mod brew;
 mod command;
 mod herdr;
 mod npm;
+mod nvim;
 mod uv;
 
 use std::collections::BTreeMap;
@@ -30,6 +31,8 @@ pub use brew::BrewLane;
 pub use command::CommandLane;
 pub use herdr::HerdrLane;
 pub use npm::NpmLane;
+pub(crate) use nvim::NvimHost;
+pub use nvim::{NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane};
 pub use uv::UvLane;
 
 /// The lane REGISTRY: every declared `[lanes.<name>]` block, keyed by the name
@@ -156,6 +159,7 @@ pub(crate) use brew::parse_brew_lane;
 pub(crate) use command::parse_command_lane;
 pub(crate) use herdr::parse_herdr_lane;
 pub(crate) use npm::parse_npm_lane;
+pub(crate) use nvim::{parse_nvim_mason_lane, parse_nvim_parsers_lane, parse_nvim_plugins_lane};
 pub(crate) use uv::parse_uv_lane;
 
 #[cfg(test)]
@@ -226,6 +230,22 @@ mod tests {
         // advertise a lane nobody can turn on.
         let fixtures: &[(&str, &str)] = &[
             ("brew", "[lanes.brew]\n"),
+            (
+                "nvim-mason",
+                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-parsers",
+                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-plugins",
+                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-smoke-test",
+                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+            ),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),

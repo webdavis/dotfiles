@@ -151,7 +151,7 @@ mod tests {
              ]\n",
         );
         let Some(herdr) = typed::<HerdrLane>(config, "herdr") else {
-            panic!("expected a herdr lane, got {:?}", config);
+            panic!("expected a herdr lane, got {config:?}");
         };
         assert_eq!(
             herdr.plugins,

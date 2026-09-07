@@ -170,3 +170,40 @@ deadline_secs = 21600
 # run = ["/usr/local/bin/my-updater", "--yes"]
 # deadline_secs = 21600
 # escalate_after_runs = 3
+
+# Check the committed Neovim plugin pins without changing them. Enabling
+# auto_commit also requires clean, matching source, deployed and installed pins.
+# Failed write-back retains recovery state until those pins are reconciled.
+[lanes.nvim-plugins]
+type = "nvim-plugins"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+auto_commit = false
+repo = "{{ .chezmoi.sourceDir }}"
+escalate_after_runs = 3
+deadline_secs = 21600
+
+# Update Mason's configured tools. Language servers remain an operator action in :Mason.
+[lanes.nvim-mason]
+type = "nvim-mason"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+deadline_secs = 21600
+
+# Reconcile installed parsers to the revisions pinned by the Treesitter plugin.
+[lanes.nvim-parsers]
+type = "nvim-parsers"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+deadline_secs = 21600
+
+# Opt-in: prepare candidate plugins in a private config and data tree, then
+# verify startup in a fresh Neovim process. The retained plugin and copied Mason
+# trees cost roughly 2.5 gigabytes (2026-09-06 measurement). Health and keymap
+# reports stay under cache. Uncomment to enable; trash that cache to reclaim space.
+# [lanes.nvim-smoke-test]
+# type = "nvim-smoke-test"
+# nvim = "/opt/homebrew/bin/nvim"
+# config = "{{ .chezmoi.homeDir }}/.config/nvim"
+# cache = "{{ .chezmoi.homeDir }}/.cache/uu/nvim-smoke-test"
+# deadline_secs = 21600

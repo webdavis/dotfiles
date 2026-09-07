@@ -13,6 +13,7 @@ use std::time::Duration;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ran {
     pub stdout: String,
+    pub stderr: String,
     pub verdict: Verdict,
 }
 

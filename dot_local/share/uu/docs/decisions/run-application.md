@@ -13,7 +13,7 @@ existing exit behavior.
 | `uu-domain`      | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                                |
 | `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                               |
 | `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                   |
-| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns` and the existing infrastructure libraries.                   |
+| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns-hermes` and the existing infrastructure libraries.            |
 | `uu-cli`         | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
 
 `uu-cli` also takes `uu-domain` as a test dependency for the value types in the existing application
@@ -86,11 +86,11 @@ samples the host for the outbound weekly record; this is not one host lookup for
 
 Concrete adapters and command parsing belong to their own crates; the root is a virtual workspace. Parser
 fixtures belong to the adapter package, and the outer repository verifies its actual configuration
-template separately. The command's registration list binds the five existing type names to their typed
-parsers, execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a
-registration while retaining the operator's declared name, resolved deadline and pending threshold.
-Execution and doctor use that selected adapter, so neither repeats a technology-name switch. Domain and
-application retain their existing dependency direction and know no concrete lane technology.
+template separately. The command's registration list binds nine type names to their typed parsers,
+execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a registration
+while retaining the operator's declared name, resolved deadline and pending threshold. Execution and
+doctor use that selected adapter, so neither repeats a technology-name switch. Domain and application
+retain their existing dependency direction and know no concrete lane technology.
 
 Module trees are private, with deliberate exports at their package roots. Large unit-test modules live in
 private child files. `config.rs` owns the shared file boundary and top-level configuration;
@@ -133,8 +133,65 @@ diagnostic must distinguish those two durations and its recorded process group m
 pure policy tests retain own-deadline and run-budget expiry directions. These controls avoid a wall-clock
 wait without changing the configuration's whole-second units or the production clock.
 
-The current evidence combines the workspace library, command composition and integration batches with the
-focused delivery check that added the actual pending-count adapter case. All 336 cases passed below one
-second; the maximum was 0.650372375 seconds. Each of the 32 added cases failed its intended assertion
-under a real source fault, across 35 independently compiled fault arms. The signed predecessor and final
-release also matched on all 21 argument vectors, while the retained faulty executable differed on 16.
+The pending and alarm evidence combines the workspace library, command composition and integration
+batches with the focused delivery check that added the actual pending-count adapter case. All 336 cases
+passed below one second; the maximum was 0.650372375 seconds. Each of the 32 added cases failed its
+intended assertion under a real source fault, across 35 independently compiled fault arms. The signed
+predecessor and final release also matched on all 21 argument vectors, while the retained faulty
+executable differed on 16.
+
+## Neovim consumer and lock recovery
+
+The `nvim-plugins` registration owns its typed executable, config and optional writeback settings. The
+existing command runner preserves the child exit and stdout; the adapter maps Neovim's nonzero exits to
+pending or failure. The outer Neovim configuration owns Lazy calls and Git writeback, so the Rust package
+contains no dependency on a deployed Lua path. The required absolute config names both its initializer
+and the entry script. Pure report decisions stay separate from plugin, Git and filesystem operations.
+
+Writeback is off by default. The shipped template enables the report lane and records the source
+repository explicitly. Recovery lives at `stdpath("state")/uu/plugins-<config hash>.json`. Each record is
+a versioned JSON (JavaScript Object Notation) file with restrictive permissions, file and
+parent-directory synchronization and atomic replacement. This filesystem protocol belongs beside the lock
+bytes it protects. No database migration or new Rust dependency is involved.
+
+A failed writeback leaves the active recovery file, its old lock and candidate lock for inspection. The
+operator chooses the desired pins and reconciles the source commit, deployed lock and installed
+lock-managed plugins. A later invocation verifies that agreement before renaming the record to its
+`.closed` archive. Disabling auto-commit cannot skip an open recovery. Successful commits use Git's
+ordinary hooks and the exact owned lock path, with only the already approved message-generation and
+graph-refresh environment settings. The lane never pushes or resets the index.
+
+The native fixture uses the current copied Neovim configuration and candidate modules, with a private
+initializer selecting copied Lazy code and one owned local plugin repository. It proves actual checks,
+updates, accepting and rejecting hooks, recovery and one owned competing editor instance. The fixture
+never reads live editor sockets or changes installed third-party source. The native exit regression also
+proves that a completed plugin report closes its own socket. Socket discovery reports present socket
+paths; it does not connect to editors or verify that an unrelated stale socket has a live owner.
+
+## Mason tools and parser reconciliation
+
+Mason and parser lanes reuse the typed Neovim host and command boundary. Their Lua entries own the
+installer calls; pure report functions own status and output. Mason refreshes its registry before
+subscribing to package outcomes and running the synchronous tool installer. Completion names do not
+establish success. A package failure retains its reason even when the surrounding command throws.
+Language servers remain an operator action through `:Mason`.
+
+Parser reconciliation waits for the installer and treats its normal false result as failure. Installer
+log contexts identify updated and failed parsers; failed compiler output retains its tail. Both update
+lanes reuse the existing restart notice. The six-hour deadline remains: the native owned grammar fixture
+proves the wait and failure boundary, but cannot establish a bound for the operator's parser fleet.
+
+The tracked job and standalone renderer put the managed Node directory first, followed by Cargo's
+binaries. Execution evidence uses owned interpreter scripts through each rendered path, including
+missing-directory and system-precedence faults. Native installer evidence uses copied plugin code, a
+supported local Mason registry, inert owned artifacts and a locally compiled owned grammar. Installed
+plugin trees and live editor sockets are outside those fixtures.
+
+## Candidate startup verification
+
+The opt-in smoke lane copies config and Mason into its cache, isolates both children with private HOME
+and Claude discovery roots, prepares updates, and verifies the resulting lock in a fresh VimEnter
+process. Completion is tied to this run and the exact lock bytes. Startup errors, unreadable loaded
+notifier history, stderr, timeout and failed child exits fail the lane. Health severity remains a
+separate report. Keymap rows use three tab-separated fields: mode, left-hand side, and right-hand side or
+callback description; changes compare mode and left-hand side with the previous dump.

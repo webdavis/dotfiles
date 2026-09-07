@@ -155,10 +155,12 @@ fn a_failed_install_is_retried_exactly_once_and_a_second_attempt_that_works_is_a
         ) -> Result<Ran, String> {
             match self.run(program, args) {
                 Ok(stdout) => Ok(Ran {
+                    stderr: String::new(),
                     stdout,
                     verdict: Verdict::Clean,
                 }),
                 Err(failure) => Ok(Ran {
+                    stderr: String::new(),
                     stdout: String::new(),
                     verdict: Verdict::Failed(failure),
                 }),

@@ -81,6 +81,22 @@ mod tests {
         // construction, not by its author remembering to carry the field.
         let fixtures: &[(&str, &str)] = &[
             ("brew", "[lanes.brew]\n"),
+            (
+                "nvim-mason",
+                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-parsers",
+                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-plugins",
+                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-smoke-test",
+                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+            ),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
