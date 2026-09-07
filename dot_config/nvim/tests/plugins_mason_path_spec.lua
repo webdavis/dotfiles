@@ -97,4 +97,22 @@ return {
       "the directory should move to the front with the rest of PATH in order, got " .. path
     )
   end,
+
+  ["keeps an empty component, which means the working directory, in place"] = function()
+    -- `/usr/bin::/bin` deliberately looks in `.` between the two. An earlier `init` dropped
+    -- it, and an executable in the working directory stopped resolving for every child
+    -- process Neovim spawned.
+    local path = path_after("/usr/bin::/bin")
+    assert(path == mason_bin .. ":/usr/bin::/bin", "the empty component was dropped or moved: " .. path)
+  end,
+
+  ["keeps a leading empty component"] = function()
+    local path = path_after(":/usr/bin")
+    assert(path == mason_bin .. "::/usr/bin", "the leading empty component was dropped: " .. path)
+  end,
+
+  ["keeps a trailing empty component"] = function()
+    local path = path_after("/usr/bin:")
+    assert(path == mason_bin .. ":/usr/bin:", "the trailing empty component was dropped: " .. path)
+  end,
 }
