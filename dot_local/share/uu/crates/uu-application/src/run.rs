@@ -6,13 +6,18 @@ use uu_domain::{LaneReport, RunFacts, lane_budget};
 
 use crate::delivery::{deliver_record, send_alert};
 use crate::ports::{
-    AlertTarget, LaneExecution, LaneExecutor, LockFailure, Notice, RunClock, RunDelivery,
-    RunPresentation, RunRecord, RunState,
+    AlarmKind, AlertTarget, LaneExecution, LaneExecutor, LockFailure, Notice, RunClock,
+    RunDelivery, RunPresentation, RunRecord, RunState,
 };
 use crate::staleness::track_staleness;
 
+pub struct LaneSettings {
+    pub deadline: Duration,
+    pub escalate_after_runs: std::num::NonZeroU32,
+}
+
 pub struct RunRequest<'a> {
-    pub lanes: &'a BTreeMap<String, Duration>,
+    pub lanes: &'a BTreeMap<String, LaneSettings>,
     pub only: Option<&'a str>,
 }
 
@@ -61,21 +66,46 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             return RunOutcome::UndeclaredLane;
         }
 
-        let failures = reports.iter().map(|report| report.failures).sum();
-        let deferred = reports.iter().filter(|report| report.deferred).count();
+        let failures = reports.iter().map(|report| report.failures()).sum();
+        let deferred = reports
+            .iter()
+            .filter(|report| report.verdict() == uu_domain::LaneVerdict::Deferred)
+            .count();
+        let pending = reports
+            .iter()
+            .filter(|report| report.verdict() == uu_domain::LaneVerdict::Pending)
+            .count();
         let detail = self.presentation.write_record(&header, &reports);
-        for report in reports.iter().filter(|report| report.failures > 0) {
+        for report in reports.iter().filter(|report| report.failures() > 0) {
             send_alert(
                 &self.delivery,
                 &self.presentation,
+                AlarmKind::Failed,
+                &header.host,
                 AlertTarget::Lane(&report.name),
                 &uu_domain::alert_summary(report),
             );
         }
-        track_staleness(&self.state, &self.delivery, &self.presentation, &reports);
+        track_staleness(
+            &self.state,
+            &self.delivery,
+            &self.presentation,
+            &header.host,
+            &reports,
+        );
+        crate::pending::track_pending(
+            &self.state,
+            &self.delivery,
+            &self.presentation,
+            &header.host,
+            request.lanes,
+            &reports,
+        );
         let record = RunRecord {
+            host: &header.host,
             failures,
             deferred,
+            pending,
             detail: &detail,
         };
         let record_lost = !deliver_record(&self.delivery, &self.presentation, record);
@@ -106,13 +136,13 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
         // is independent of configuration order, and a failed lane never stops
         // the next one. Each runner receives only the run's remaining budget.
         let run_started = self.clock.start();
-        for (name, deadline) in request.lanes {
+        for (name, settings) in request.lanes {
             if request.only.is_some_and(|wanted| wanted != name) {
                 continue;
             }
-            let budget = lane_budget(*deadline, self.clock.elapsed(&run_started));
+            let budget = lane_budget(settings.deadline, self.clock.elapsed(&run_started));
             if let LaneExecution::Reported(report) =
-                self.lanes.execute(name, budget, *deadline, facts)
+                self.lanes.execute(name, budget, settings.deadline, facts)
             {
                 reports.push(report);
             }

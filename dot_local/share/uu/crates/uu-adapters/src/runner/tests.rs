@@ -200,3 +200,31 @@ fn a_deadline_that_did_not_stop_the_group_never_claims_that_it_did() {
     let stopped = runner.overrun(&Ended::Stopped, b"");
     assert!(stopped.contains("process group was killed"), "{stopped}");
 }
+
+#[test]
+fn run_with_input_preserves_pending_stdout_and_stderr_while_neighboring_statuses_fail() {
+    for code in [99, 100, 101] {
+        let runner = SystemRunner::for_lane(
+            "pending",
+            Duration::from_millis(200),
+            Duration::from_millis(200),
+        );
+        let ran = runner.run_with_input("/bin/sh", &["-c", &format!("printf 'waiting\\n'; cat >/dev/null; printf 'approval needed\\n' >&2; exit {code}")], "event\n").unwrap();
+        assert_eq!(ran.stdout, "waiting\n");
+        if code == 100 {
+            let Verdict::Pending(reason) = ran.verdict else {
+                panic!("{:?}", ran.verdict)
+            };
+            assert!(
+                reason.contains("exit 100") && reason.contains("approval needed"),
+                "{reason}"
+            );
+        } else {
+            assert!(
+                matches!(ran.verdict, Verdict::Failed(_)),
+                "{code}: {:?}",
+                ran.verdict
+            );
+        }
+    }
+}

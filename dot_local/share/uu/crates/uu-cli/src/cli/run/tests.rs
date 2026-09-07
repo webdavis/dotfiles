@@ -1,3 +1,4 @@
+mod pending;
 mod support;
 
 use super::execute;
@@ -30,7 +31,7 @@ fn an_alternate_registration_reaches_execution_and_doctor_with_distinct_names() 
     assert_eq!(reports.len(), 1);
     let report = &reports[0];
     assert_eq!(report.name, "chosen");
-    assert_eq!(report.failures, 0, "{report:?}");
+    assert_eq!(report.failures(), 0, "{report:?}");
     assert_eq!(&report.lines[..2], ["first", "second argument"]);
     let event = report.lines[2..].join("\n");
     assert!(event.contains("\"lane\":\"chosen\""), "{event}");
@@ -132,7 +133,7 @@ fn a_lane_that_outlives_its_deadline_fails_instead_of_holding_the_run_open() {
     );
     let reports = observed.reports.borrow();
     assert_eq!(reports.len(), 1);
-    assert_eq!(reports[0].failures, 1, "{reports:?}");
+    assert_eq!(reports[0].failures(), 1, "{reports:?}");
     let said = reports[0].lines.join("\n");
     assert!(said.contains("lane `herdr` was stopped at 80ms"), "{said}");
     assert!(said.contains("its own deadline_secs is 7s"), "{said}");
@@ -179,5 +180,5 @@ fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
     assert_eq!(*observed.epochs.borrow(), [1_000]);
     let marker = std::fs::read_to_string(fixture.marker()).expect("successful marker");
     assert_eq!(marker.split_whitespace().next(), Some("2000"), "{marker}");
-    assert_eq!(observed.reports.borrow()[0].failures, 0);
+    assert_eq!(observed.reports.borrow()[0].failures(), 0);
 }

@@ -48,6 +48,12 @@ pub struct StateWriteFailure {
     pub cause: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StreakKind {
+    NonSuccess,
+    Pending,
+}
+
 pub trait RunState {
     type Guard;
 
@@ -55,6 +61,11 @@ pub trait RunState {
     fn prune_removed_lanes(&self, declared: &[&str]);
     fn marker(&self) -> MarkerSnapshot;
     fn write_marker(&self, epoch: i64) -> Result<(), StateWriteFailure>;
-    fn streak(&self, lane: &str) -> StreakSnapshot;
-    fn write_streak(&self, lane: &str, value: u32) -> Result<(), StateWriteFailure>;
+    fn streak(&self, lane: &str, kind: StreakKind) -> StreakSnapshot;
+    fn write_streak(
+        &self,
+        lane: &str,
+        kind: StreakKind,
+        value: u32,
+    ) -> Result<(), StateWriteFailure>;
 }

@@ -57,7 +57,7 @@ fn no_configured_record_channel_allows_a_clean_run_to_advance_the_marker() {
     assert_eq!(
         &events[events.len() - 5..],
         [
-            Event::Record(0, 0, "fixture record body".into()),
+            Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("no records".into()),
             Event::Epoch(Some(200)),
             Event::MarkerWrite(200),
@@ -79,9 +79,9 @@ fn a_failed_record_keeps_the_marker_even_when_its_alert_is_delivered() {
     assert_eq!(
         &events[events.len() - 4..],
         [
-            Event::Record(0, 0, "fixture record body".into()),
+            Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("no response".into()),
-            Event::Alert("run".into()),
+            Event::Alert(AlarmKind::RecordLost, "run".into()),
             Event::Release
         ]
     );
@@ -101,7 +101,7 @@ fn a_record_that_cannot_be_signed_keeps_the_marker_without_claiming_delivery() {
     assert_eq!(
         &events[events.len() - 3..],
         [
-            Event::Record(0, 0, "fixture record body".into()),
+            Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("signing failed".into()),
             Event::Release
         ]

@@ -22,6 +22,7 @@ pub(crate) struct ScriptedRunner {
     /// of its own, which a call keyed only by `deferring` cannot, since
     /// every one of those already answers the identical "exit 75".
     deferring_because: Vec<(Vec<String>, String)>,
+    pending: Vec<(Vec<String>, String)>,
     unrunnable: Vec<Vec<String>>,
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
@@ -40,6 +41,7 @@ impl ScriptedRunner {
                 .collect(),
             deferring: Vec::new(),
             deferring_because: Vec::new(),
+            pending: Vec::new(),
             unrunnable: Vec::new(),
             stdout: String::new(),
             calls: RefCell::new(Vec::new()),
@@ -77,6 +79,14 @@ impl ScriptedRunner {
     pub(crate) fn unable_to_run(mut self, call: &[&str]) -> Self {
         self.unrunnable
             .push(call.iter().map(|word| word.to_string()).collect());
+        self
+    }
+
+    pub(crate) fn pending_because(mut self, call: &[&str], reason: &str) -> Self {
+        self.pending.push((
+            call.iter().map(|word| word.to_string()).collect(),
+            reason.to_string(),
+        ));
         self
     }
 
@@ -133,6 +143,8 @@ impl CommandRunner for ScriptedRunner {
             self.deferring_because.iter().find(|(key, _)| key == &call)
         {
             Verdict::Deferred(reason.clone())
+        } else if let Some((_, reason)) = self.pending.iter().find(|(key, _)| key == &call) {
+            Verdict::Pending(reason.clone())
         } else if self.deferring.contains(&call) {
             Verdict::Deferred("exit 75".to_string())
         } else if self.failing.contains(&call) {

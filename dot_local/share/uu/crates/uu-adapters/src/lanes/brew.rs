@@ -187,7 +187,7 @@ pub(crate) mod tests {
         // every second between the wipe and the repair is a monitoring gap.
         let runner = ScriptedRunner::new(&[]);
         let report = lane().run("brew", &facts(), &runner);
-        assert_eq!(report.failures, 0, "{report:?}");
+        assert_eq!(report.failures(), 0, "{report:?}");
         assert_eq!(
             runner.calls(),
             vec![
@@ -246,7 +246,7 @@ pub(crate) mod tests {
         // problem throws away every subject it had not reached.
         let runner = ScriptedRunner::new(&[&["/b/brew", "upgrade"]]);
         let report = lane().run("brew", &facts(), &runner);
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert!(said(&report, "brew upgrade: exit 1"), "{report:?}");
         assert!(
             runner
@@ -286,6 +286,6 @@ pub(crate) mod tests {
         assert!(said(&report, "mas list"), "{report:?}");
         // The reading is not a STEP: the upgrade is the work, and a failed
         // reading costs the comparison rather than the run.
-        assert_eq!(report.failures, 0, "{report:?}");
+        assert_eq!(report.failures(), 0, "{report:?}");
     }
 }

@@ -24,6 +24,7 @@ pub struct Ran {
 pub enum Verdict {
     Clean,
     Deferred(String),
+    Pending(String),
     Failed(String),
 }
 

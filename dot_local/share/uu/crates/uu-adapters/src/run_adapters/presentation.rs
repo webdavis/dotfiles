@@ -31,7 +31,7 @@ impl RunPresentation for ConsoleRunPresentation {
             Notice::AlertFailed { target, cause } => {
                 let lane = target_name(target);
                 println!(
-                    "uu: the alert for `{lane}` was NOT delivered ({cause}); it is logged here instead"
+                    "uu: the alert for `{lane}` did NOT reach every configured destination ({cause}); it is logged here"
                 );
             }
             Notice::NoRecords => {
@@ -51,9 +51,18 @@ impl RunPresentation for ConsoleRunPresentation {
                  will report a stale or absent gap",
                 failure.location, failure.cause
             ),
-            Notice::StreakWriteFailed { lane, failure } => eprintln!(
-                "uu: could not record lane `{lane}`'s non-success streak at {}: {}",
-                failure.location, failure.cause
+            Notice::StreakWriteFailed {
+                kind,
+                lane,
+                failure,
+            } => eprintln!(
+                "uu: could not record lane `{lane}`'s {} streak at {}: {}",
+                match kind {
+                    uu_application::StreakKind::NonSuccess => "non-success",
+                    uu_application::StreakKind::Pending => "pending",
+                },
+                failure.location,
+                failure.cause
             ),
         }
     }

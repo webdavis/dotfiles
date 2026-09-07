@@ -10,7 +10,8 @@ use uu_domain::{LaneReport, STALE_AFTER_RUNS, next_streak};
 
 use crate::delivery::send_alert;
 use crate::ports::{
-    AlertOutcome, AlertTarget, Notice, RunDelivery, RunPresentation, RunState, Streak,
+    AlarmKind, AlertOutcome, AlertTarget, Notice, RunDelivery, RunPresentation, RunState, Streak,
+    StreakKind,
 };
 
 /// THE STALENESS BOUND: a lane deferring or failing every week is silent by
@@ -22,11 +23,12 @@ pub(crate) fn track_staleness(
     state: &impl RunState,
     delivery: &impl RunDelivery,
     presentation: &impl RunPresentation,
+    host: &str,
     reports: &[LaneReport],
 ) {
     for report in reports {
-        let succeeded = !report.deferred && report.failures == 0;
-        let snapshot = state.streak(&report.name);
+        let succeeded = report.succeeded();
+        let snapshot = state.streak(&report.name, StreakKind::NonSuccess);
         // A STREAK THIS RUN COULD NOT TRUST is never read as zero: zero would
         // silently forgive whatever history the file held, which is the
         // opposite of what a mechanism built to notice a lane going quiet
@@ -40,6 +42,8 @@ pub(crate) fn track_staleness(
                 send_alert(
                     delivery,
                     presentation,
+                    AlarmKind::Stale,
+                    host,
                     AlertTarget::Lane(&report.name),
                     &format!(
                         "this lane's non-success streak at {} could not be trusted ({why}); \
@@ -64,11 +68,13 @@ pub(crate) fn track_staleness(
                 send_alert(
                     delivery,
                     presentation,
+                    AlarmKind::Stale,
+                    host,
                     AlertTarget::Lane(&report.name),
                     &format!(
                         "no successful run in {STALE_AFTER_RUNS} consecutive attempt(s); the last \
                      one {}",
-                        if report.deferred {
+                        if report.verdict() == uu_domain::LaneVerdict::Deferred {
                             "deferred"
                         } else {
                             "failed"
@@ -85,15 +91,18 @@ pub(crate) fn track_staleness(
         // headless launchd job: this file IS the mechanism, so losing it
         // silently would be exactly the fail-open this whole capability
         // exists to refuse.
-        if let Err(failure) = state.write_streak(&report.name, recorded) {
+        if let Err(failure) = state.write_streak(&report.name, StreakKind::NonSuccess, recorded) {
             let why = &failure.cause;
             presentation.notice(Notice::StreakWriteFailed {
+                kind: StreakKind::NonSuccess,
                 lane: &report.name,
                 failure: &failure,
             });
             send_alert(
                 delivery,
                 presentation,
+                AlarmKind::Stale,
+                host,
                 AlertTarget::Lane(&report.name),
                 &format!(
                     "this lane's non-success streak at {} could not be recorded ({why}); \

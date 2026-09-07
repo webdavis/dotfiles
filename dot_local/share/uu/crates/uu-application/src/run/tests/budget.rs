@@ -79,7 +79,7 @@ fn name_order_remaining_budget_and_later_lanes_survive_an_earlier_failure() {
     assert!(
         fixture
             .events()
-            .contains(&Event::Record(3, 0, "fixture record body".into()))
+            .contains(&Event::Record(3, 0, 0, "fixture record body".into()))
     );
 }
 

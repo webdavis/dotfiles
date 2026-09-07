@@ -1,11 +1,12 @@
 mod delivery;
+mod pending;
 mod ports;
 mod run;
 mod staleness;
 
 pub use ports::{
-    AlertOutcome, AlertTarget, ClockFailure, LaneExecution, LaneExecutor, LockFailure,
+    AlarmKind, AlertOutcome, AlertTarget, ClockFailure, LaneExecution, LaneExecutor, LockFailure,
     MarkerSnapshot, Notice, RecordFailure, RecordOutcome, RunClock, RunDelivery, RunHeader,
-    RunPresentation, RunRecord, RunState, StateWriteFailure, Streak, StreakSnapshot,
+    RunPresentation, RunRecord, RunState, StateWriteFailure, Streak, StreakKind, StreakSnapshot,
 };
-pub use run::{Run, RunOutcome, RunRequest};
+pub use run::{LaneSettings, Run, RunOutcome, RunRequest};

@@ -132,8 +132,8 @@ mod tests {
         // carrying a hardcoded `uv` would name a lane nobody declared.
         let report = lane().run("tools", &stub_facts(), &StubRunner::clean());
         assert_eq!(report.name, "tools");
-        assert_eq!(report.failures, 0);
-        assert_eq!(report.last_failure, None);
+        assert_eq!(report.failures(), 0);
+        assert_eq!(report.last_failure(), None);
         assert_eq!(
             report.lines,
             vec!["/opt/homebrew/bin/uv tool upgrade --all: ok"]
@@ -147,8 +147,8 @@ mod tests {
             &stub_facts(),
             &StubRunner::refusing("exit 2: error: no such option `--all`"),
         );
-        assert_eq!(report.failures, 1);
-        let line = report.last_failure.expect("a failure names itself");
+        assert_eq!(report.failures(), 1);
+        let line = report.last_failure().expect("a failure names itself");
         assert!(line.contains("exit 2: error: no such option"), "{line}");
         assert_eq!(report.lines, vec![line]);
     }
@@ -162,10 +162,10 @@ mod tests {
             &stub_facts(),
             &StubRunner::refusing("could not run /opt/homebrew/bin/uv: No such file or directory"),
         );
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert!(
             report
-                .last_failure
+                .last_failure()
                 .is_some_and(|line| line.contains("No such file or directory")),
             "an absent uv must name itself in the record"
         );

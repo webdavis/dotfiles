@@ -94,8 +94,13 @@ fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>
 }
 
 impl HerdrLane {
-    pub(crate) const KEYS: &'static [&'static str] =
-        &["binary", "deadline_secs", "plugins", "type"];
+    pub(crate) const KEYS: &'static [&'static str] = &[
+        "binary",
+        "deadline_secs",
+        "escalate_after_runs",
+        "plugins",
+        "type",
+    ];
 }
 
 #[cfg(test)]

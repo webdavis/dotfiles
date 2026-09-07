@@ -35,7 +35,8 @@ pub(crate) fn parse_uv_lane(table_label: &str, table: toml::Table) -> Result<UvL
 }
 
 impl UvLane {
-    pub(crate) const KEYS: &'static [&'static str] = &["binary", "deadline_secs", "type"];
+    pub(crate) const KEYS: &'static [&'static str] =
+        &["binary", "deadline_secs", "escalate_after_runs", "type"];
 }
 
 #[cfg(test)]

@@ -13,7 +13,7 @@ use super::ConfigError;
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (TOP_LEVEL, &["alerts", "lanes", "records", "schedule"]),
     ("schedule", &["day", "time"]),
-    ("records", &["key", "url"]),
+    ("records", &["failure_webhook", "key", "url"]),
     ("alerts", &["binary"]),
 ];
 
@@ -130,7 +130,7 @@ mod tests {
                 "[lanes.herdr]\nplugin = []\n",
                 "lanes.herdr",
                 "plugin",
-                "binary, deadline_secs, plugins, type",
+                "binary, deadline_secs, escalate_after_runs, plugins, type",
             ),
         ] {
             let detail = refusal(text);

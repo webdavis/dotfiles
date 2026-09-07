@@ -1,6 +1,6 @@
 # uu's lane selection. THE FILE SELECTS: a lane runs only when its
 # [lanes.<name>] block exists, records post only when [records] exists, and
-# alerts leave the machine only when [alerts] exists. With no file at all a
+# alarms leave the machine only through configured destinations. With no file at all a
 # bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
 # that lane by name and is refused with exit 1.
 #
@@ -28,6 +28,10 @@ time = "12:00"
 [records]
 url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
 key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+# Optional second destination for failed, stale, pending and record-lost alarms.
+# Signed with the same key. Each configured destination is attempted once;
+# a refusal stays retryable for one-shot alarms without changing the run verdict.
+# failure_webhook = "http://127.0.0.1:8644/webhooks/unattended-upgrades-failures"
 
 # Where a failed lane is reported. uu is a client here and takes no delivery
 # decision: pns owns presence and escalation. An engine that is not there leaves
@@ -143,12 +147,20 @@ deadline_secs = 21600
 # silence. The lane's own program may still alert on its own account, a
 # record the gateway never received alerts regardless of what any lane did,
 # and three straight non-successes (deferred, failed, or a mix) still fire
-# uu's own staleness alert below. Any other non-zero exit is a real failure.
+# uu's own staleness alert below. Exit 100 means pending; every other non-zero
+# exit is a real failure.
 # THE COLLISION: 75 is also the exit code hermes's own gateway process uses
 # to ask its service manager for a planned restart, so a program that IS
 # hermes, or that forwards hermes's own exit code unchanged, could exit 75
 # for a reason that has nothing to do with deferral; write your own exit
 # code rather than passing one through.
+#
+# EXIT 100 MEANS PENDING: the check succeeded, but updates need operator action.
+# It keeps stdout and the stderr reason, counts as neither failure nor deferral,
+# and allows the last-success marker to advance after the record is delivered.
+# `escalate_after_runs` defaults to 3 for every lane. Consecutive pending runs
+# trigger one alarm at that count; any non-pending verdict resets the count.
+# A refused alarm stays eligible on the next pending run.
 #
 # A lane that goes three straight runs without a real success (deferred,
 # failed, or both) fires one staleness alert of its own, whatever each
@@ -157,3 +169,4 @@ deadline_secs = 21600
 # type = "command"
 # run = ["/usr/local/bin/my-updater", "--yes"]
 # deadline_secs = 21600
+# escalate_after_runs = 3

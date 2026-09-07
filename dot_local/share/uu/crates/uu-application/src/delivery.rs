@@ -1,16 +1,19 @@
 use crate::ports::{
-    AlertOutcome, AlertTarget, Notice, RecordOutcome, RunDelivery, RunPresentation, RunRecord,
+    AlarmKind, AlertOutcome, AlertTarget, Notice, RecordOutcome, RunDelivery, RunPresentation,
+    RunRecord,
 };
 
-/// No configured engine means nothing is owed. A configured failure stays owed
+/// No configured alarm destination means nothing is owed. A configured failure stays owed
 /// so a one-shot staleness alert can retry on the next run.
 pub(crate) fn send_alert(
     delivery: &impl RunDelivery,
     presentation: &impl RunPresentation,
+    kind: AlarmKind,
+    host: &str,
     target: AlertTarget<'_>,
     summary: &str,
 ) -> AlertOutcome {
-    let outcome = delivery.alert(target, summary);
+    let outcome = delivery.alert(kind, host, target, summary);
     match &outcome {
         AlertOutcome::NotConfigured => presentation.notice(Notice::NoAlerts { target, summary }),
         AlertOutcome::Failed(cause) => presentation.notice(Notice::AlertFailed { target, cause }),
@@ -26,6 +29,7 @@ pub(crate) fn deliver_record(
     presentation: &impl RunPresentation,
     record: RunRecord<'_>,
 ) -> bool {
+    let host = record.host;
     match delivery.record(record) {
         RecordOutcome::NotConfigured => {
             presentation.notice(Notice::NoRecords);
@@ -46,6 +50,8 @@ pub(crate) fn deliver_record(
             send_alert(
                 delivery,
                 presentation,
+                AlarmKind::RecordLost,
+                host,
                 AlertTarget::Run,
                 &format!(
                     "the weekly record could NOT be delivered to {url} ({description}); until this is fixed that \

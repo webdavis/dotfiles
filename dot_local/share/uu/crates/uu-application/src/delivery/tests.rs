@@ -9,7 +9,15 @@ struct SpyDelivery {
 }
 
 impl RunDelivery for SpyDelivery {
-    fn alert(&self, target: AlertTarget<'_>, summary: &str) -> AlertOutcome {
+    fn alert(
+        &self,
+        kind: AlarmKind,
+        host: &str,
+        target: AlertTarget<'_>,
+        summary: &str,
+    ) -> AlertOutcome {
+        assert_eq!(kind, AlarmKind::RecordLost);
+        assert_eq!(host, "delivery-host");
         self.alerts
             .borrow_mut()
             .push((target == AlertTarget::Run, summary.to_string()));
@@ -45,8 +53,10 @@ impl RunPresentation for SpyPresentation {
 
 fn record() -> RunRecord<'static> {
     RunRecord {
+        host: "delivery-host",
         failures: 0,
         deferred: 0,
+        pending: 0,
         detail: "body",
     }
 }

@@ -1,4 +1,4 @@
-use super::{AlertTarget, MarkerSnapshot, StateWriteFailure};
+use super::{AlertTarget, MarkerSnapshot, StateWriteFailure, StreakKind};
 use uu_domain::LaneReport;
 
 pub struct RunHeader {
@@ -22,6 +22,7 @@ pub enum Notice<'a> {
     MarkerClockFailed(&'a str),
     MarkerWriteFailed(&'a StateWriteFailure),
     StreakWriteFailed {
+        kind: StreakKind,
         lane: &'a str,
         failure: &'a StateWriteFailure,
     },

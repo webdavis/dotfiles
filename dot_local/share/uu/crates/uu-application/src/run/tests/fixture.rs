@@ -15,10 +15,10 @@ pub(super) enum Event {
     Elapsed(Duration),
     Lane(String, Duration, Duration, i64, String, Marker),
     Render(Vec<LaneReport>),
-    StreakRead(String),
-    StreakWrite(String, u32),
-    Alert(String),
-    Record(usize, usize, String),
+    StreakRead(StreakKind, String),
+    StreakWrite(StreakKind, String, u32),
+    Alert(AlarmKind, String),
+    Record(usize, usize, usize, String),
     Notice(String),
     MarkerWrite(i64),
 }
@@ -31,6 +31,10 @@ pub(super) struct Data {
     pub elapsed: VecDeque<Duration>,
     pub reports: BTreeMap<String, LaneReport>,
     pub streaks: BTreeMap<String, u32>,
+    pub pending: BTreeMap<String, u32>,
+    pub unreadable_pending: bool,
+    pub fail_pending_write: bool,
+    pub summaries: Vec<String>,
     pub fail_alerts: bool,
     pub record: Option<RecordOutcome>,
 }
@@ -51,6 +55,10 @@ impl Fixture {
                 .map(|report| (report.name.clone(), report))
                 .collect(),
             streaks: BTreeMap::new(),
+            pending: BTreeMap::new(),
+            unreadable_pending: false,
+            fail_pending_write: false,
+            summaries: Vec::new(),
             fail_alerts: false,
             record: Some(RecordOutcome::Delivered {
                 description: "posted".into(),
@@ -59,9 +67,26 @@ impl Fixture {
     }
 
     pub fn run(&self, lanes: &[(&str, u64)], only: Option<&str>) -> RunOutcome {
+        self.run_with_threshold(lanes, only, uu_domain::DEFAULT_ESCALATE_AFTER_RUNS)
+    }
+
+    pub fn run_with_threshold(
+        &self,
+        lanes: &[(&str, u64)],
+        only: Option<&str>,
+        threshold: std::num::NonZeroU32,
+    ) -> RunOutcome {
         let lanes = lanes
             .iter()
-            .map(|(name, secs)| (name.to_string(), Duration::from_secs(*secs)))
+            .map(|(name, secs)| {
+                (
+                    name.to_string(),
+                    LaneSettings {
+                        deadline: Duration::from_secs(*secs),
+                        escalate_after_runs: threshold,
+                    },
+                )
+            })
             .collect();
         Run {
             state: self.clone(),
@@ -87,64 +112,7 @@ impl Fixture {
     }
 }
 
-pub(super) struct Guard(Fixture);
-impl Drop for Guard {
-    fn drop(&mut self) {
-        self.0.event(Event::Release);
-        self.0.0.borrow_mut().held = false;
-    }
-}
-
-impl RunState for Fixture {
-    type Guard = Guard;
-    fn acquire(&self) -> Result<Guard, LockFailure> {
-        let mut data = self.0.borrow_mut();
-        assert!(!data.held);
-        data.events.push(Event::Acquire);
-        if let Some(failure) = data.lock_failure.take() {
-            return Err(failure);
-        }
-        data.held = true;
-        Ok(Guard(self.clone()))
-    }
-    fn prune_removed_lanes(&self, declared: &[&str]) {
-        self.event(Event::Prune(
-            declared.iter().map(|name| name.to_string()).collect(),
-        ));
-    }
-    fn marker(&self) -> MarkerSnapshot {
-        self.event(Event::MarkerRead);
-        MarkerSnapshot {
-            value: Marker::Recorded {
-                epoch: 7,
-                iso: "previous".into(),
-            },
-            location: "/fixture/marker".into(),
-        }
-    }
-    fn write_marker(&self, epoch: i64) -> Result<(), StateWriteFailure> {
-        self.event(Event::MarkerWrite(epoch));
-        Ok(())
-    }
-    fn streak(&self, lane: &str) -> StreakSnapshot {
-        self.event(Event::StreakRead(lane.into()));
-        StreakSnapshot {
-            value: self
-                .0
-                .borrow()
-                .streaks
-                .get(lane)
-                .copied()
-                .map_or(Streak::Absent, Streak::Value),
-            location: format!("/fixture/{lane}/streak"),
-        }
-    }
-    fn write_streak(&self, lane: &str, value: u32) -> Result<(), StateWriteFailure> {
-        self.event(Event::StreakWrite(lane.into(), value));
-        self.0.borrow_mut().streaks.insert(lane.into(), value);
-        Ok(())
-    }
-}
+mod state;
 
 impl RunClock for Fixture {
     type Tick = u8;
@@ -204,11 +172,22 @@ impl LaneExecutor for Fixture {
 }
 
 impl RunDelivery for Fixture {
-    fn alert(&self, target: AlertTarget<'_>, _summary: &str) -> AlertOutcome {
-        self.event(Event::Alert(match target {
-            AlertTarget::Run => "run".into(),
-            AlertTarget::Lane(name) => name.into(),
-        }));
+    fn alert(
+        &self,
+        kind: AlarmKind,
+        host: &str,
+        target: AlertTarget<'_>,
+        summary: &str,
+    ) -> AlertOutcome {
+        assert_eq!(host, "fixture-host");
+        self.0.borrow_mut().summaries.push(summary.into());
+        self.event(Event::Alert(
+            kind,
+            match target {
+                AlertTarget::Run => "run".into(),
+                AlertTarget::Lane(name) => name.into(),
+            },
+        ));
         if self.0.borrow().fail_alerts {
             AlertOutcome::Failed("fixture transport failure".into())
         } else {
@@ -216,9 +195,11 @@ impl RunDelivery for Fixture {
         }
     }
     fn record(&self, record: RunRecord<'_>) -> RecordOutcome {
+        assert_eq!(record.host, "fixture-host");
         self.event(Event::Record(
             record.failures,
             record.deferred,
+            record.pending,
             record.detail.into(),
         ));
         self.0.borrow_mut().record.take().expect("only one record")
@@ -249,7 +230,9 @@ impl RunPresentation for Fixture {
             Notice::RecordPosted(description) => description.into(),
             Notice::MarkerClockFailed(path) => format!("clock failed: {path}"),
             Notice::MarkerWriteFailed(_) => panic!("fixture marker writes succeed"),
-            Notice::StreakWriteFailed { .. } => panic!("fixture streak writes succeed"),
+            Notice::StreakWriteFailed { kind, failure, .. } => {
+                format!("{kind:?} streak write failed: {}", failure.cause)
+            }
         };
         self.event(Event::Notice(text));
     }
