@@ -65,7 +65,7 @@ function M.keymap_rows(maps_by_mode)
   local rows = {}
   for mode, maps in pairs(maps_by_mode) do
     for _, map in ipairs(maps) do
-      rows[#rows + 1] = table.concat({ cell(mode), cell(map.lhs), cell(map.rhs), cell(map.desc) }, "\t")
+      rows[#rows + 1] = table.concat({ cell(mode), cell(map.lhs), cell(map.rhs ~= "" and map.rhs or map.desc) }, "\t")
     end
   end
   table.sort(rows)
@@ -99,6 +99,14 @@ function M.keymap_diff(before, after)
   table.sort(added)
   table.sort(removed)
   return added, removed
+end
+
+function M.keymap_summary(before, after)
+  if before == nil then
+    return ("keymaps: %d mappings; first dump, no previous comparison"):format(#after)
+  end
+  local added, removed = M.keymap_diff(before, after)
+  return ("keymaps: %d mappings; %d added, %d removed"):format(#after, #added, #removed)
 end
 
 function M.commit_allowed(porcelain, symbolic_ref)

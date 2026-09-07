@@ -3,6 +3,24 @@ local function report()
 end
 
 return {
+  ["a later keymap dump reports additions and removals by mode and lhs"] = function()
+    local line = report().keymap_summary({ "n\tx\told", "n\tgone\told" }, { "n\tx\tnew", "i\tx\tnew" })
+    assert(line == "keymaps: 2 mappings; 1 added, 1 removed", line)
+  end,
+
+  ["mapping rows use a right hand side or a description in one TSV cell"] = function()
+    local rows = report().keymap_rows({
+      n = { { lhs = "a", rhs = "execute", desc = "ignored" }, { lhs = "b", desc = "callback\tname\nnext" } },
+    })
+    assert(vim.deep_equal(rows, { "n\ta\texecute", "n\tb\tcallback name next" }), vim.inspect(rows))
+  end,
+  ["the first dump has nothing to diff against and says so"] = function()
+    local ok, line = pcall(function()
+      return report().keymap_summary(nil, { "n\tx\tx" })
+    end)
+    assert(ok and line == "keymaps: 1 mappings; first dump, no previous comparison", tostring(line))
+  end,
+
   ["a plugin with updates is listed by name and the run is pending"] = function()
     local lines, status = report().plugin_lines({ { name = "finder", updates = true } })
     assert(
@@ -41,7 +59,7 @@ return {
       n = { { lhs = "x", rhs = "new", desc = "new description" }, { lhs = "new", rhs = "new" } },
     })
     local added, removed = report().keymap_diff(before, after)
-    assert(vim.deep_equal(added, { "n\tnew\tnew\t" }) and vim.deep_equal(removed, { "n\tgone\told\t" }))
+    assert(vim.deep_equal(added, { "n\tnew\tnew" }) and vim.deep_equal(removed, { "n\tgone\told" }))
   end,
   ["a health report's ERROR and WARNING lines are counted by severity"] = function()
     local errors, warnings = report().health_counts({

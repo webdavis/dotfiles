@@ -187,3 +187,6 @@ for these retained limits.
 - **Given** a candidate, **when** verification ends, **then** require this run's completion and exact
   lock, actual VimEnter, no startup diagnostics and no stderr, with child failure and timeout counted.
   Retain raw diagnostics and report paths. Health error and warning counts do not change startup status.
+- **Given** a completed keymap capture, **when** recording, **then** write mode, left-hand side and
+  right-hand side or description as three tab-separated fields, and compare additions and removals by
+  mode and left-hand side. A first dump explicitly has no previous comparison.

@@ -193,4 +193,5 @@ The opt-in smoke lane copies config and Mason into its cache, isolates both chil
 and Claude discovery roots, prepares updates, and verifies the resulting lock in a fresh VimEnter
 process. Completion is tied to this run and the exact lock bytes. Startup errors, unreadable loaded
 notifier history, stderr, timeout and failed child exits fail the lane. Health severity remains a
-separate report.
+separate report. Keymap rows use three tab-separated fields: mode, left-hand side, and right-hand side or
+callback description; changes compare mode and left-hand side with the previous dump.

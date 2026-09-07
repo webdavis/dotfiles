@@ -75,6 +75,21 @@ else
     local health = vim.api.nvim_buf_get_lines(0, 0, -1, false)
     write(root .. "/checkhealth.txt", table.concat(health, "\n") .. "\n")
     result.health_errors, result.health_warnings = report.health_counts(health)
+    local maps = {}
+    for _, mode in ipairs({ "n", "v", "x", "s", "o", "i", "l", "c", "t" }) do
+      maps[mode] = vim.api.nvim_get_keymap(mode)
+    end
+    local rows, before = report.keymap_rows(maps), nil
+    local old = io.open(root .. "/keymaps.tsv", "rb")
+    if old then
+      before = {}
+      for line in old:lines() do
+        before[#before + 1] = line
+      end
+      assert(old:close())
+    end
+    write(root .. "/keymaps.tsv", table.concat(rows, "\n") .. "\n")
+    io.write(report.keymap_summary(before, rows), "; ", root .. "/keymaps.tsv\n")
     write(root .. "/completion.json", vim.json.encode(result) .. "\n")
     io.write("candidate lock sha256: ", vim.fn.sha256(result.lock), "; run: ", request.run, "\n")
     for _, why in ipairs(result.errors) do
