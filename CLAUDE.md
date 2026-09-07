@@ -75,7 +75,7 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 ```
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
-slow one is deleted rather than tolerated. Every bash test runs under **bashunit** (operator ruling
+slow one is deleted rather than tolerated. Every former Bats test runs under **bashunit** (operator ruling
 2026-09-03; the migration finished and bats-core left the toolchain in the same change): a bashunit file
 is `test/<suite>/<name>.test.sh`, non-executable, one behavior per `function test_*`, run as one of the
 two lanes of `test/run-test-suite.sh`. Nothing runs bats any more, and `just validate-tests` rejects a

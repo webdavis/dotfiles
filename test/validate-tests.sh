@@ -4,8 +4,8 @@
 # argument so the test-system suite can point it at scratch trees. It fails when
 # a test file cannot be seen by, or could escape, the gate:
 #
-#   - ANY *.bats, anywhere below test/. bats-core left the toolchain once every
-#     bash test moved to bashunit, so no runner discovers or executes a bats
+#   - ANY *.bats, anywhere below test/. All former Bats tests moved to bashunit,
+#     so no runner discovers or executes a bats
 #     file: one below test/ is a test that would silently never run;
 #   - a *.sh not sitting DIRECTLY in a recognized suite
 #     (test/unit, test/integration, test/e2e, test/test-system); a suite's
@@ -72,9 +72,8 @@ check_placement() { # <root> <workdir>
       *.bats)
         bad+="$file (bats-core is retired; port it to a bashunit <name>.test.sh in a suite)"$'\n'
         ;;
-      # fixtures/ holds data and sourced libs. A <name>.test.sh there would be
-      # run from outside any suite, since `just test-bashunit` scans the whole
-      # tree.
+      # fixtures/ holds data and sourced libs. A <name>.test.sh there is outside
+      # every test suite and would never run.
       "$root"/fixtures/*.test.sh)
         bad+="$file (tests never belong in fixtures/; move it into a suite)"$'\n'
         ;;
