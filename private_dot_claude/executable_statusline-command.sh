@@ -86,7 +86,7 @@ usage_window() {
       elif ((secs < 3600)); then
         when="resets in $((secs / 60))m"
       else
-        when="resets in $((secs / 3600))h $(((secs % 3600) / 60))m"
+        when="resets in $((secs / 3600))h$(((secs % 3600) / 60))m"
       fi
     else
       when="resets $(date -r "$epoch" +'%a %H:%M' 2>/dev/null || true)"
