@@ -18,3 +18,9 @@
 //! termination, through one command runner with a scripted double, so no
 //! adapter test runs a real `sudo`, `osqueryctl`, `osqueryi`, `codesign`,
 //! `tailscale` or `pns`. Nothing has moved in yet.
+
+mod codesign;
+mod command;
+mod metadata;
+pub use codesign::SystemInspection;
+pub use command::{CommandRunner, SystemRunner};

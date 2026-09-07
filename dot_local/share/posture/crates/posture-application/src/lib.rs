@@ -17,3 +17,6 @@
 //! It is responsible for no concrete I/O and no policy: policy lives in
 //! `posture-domain`, and every trait here is implemented from the outside by
 //! `posture-adapters`. Nothing has moved in yet.
+
+mod enrich;
+pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};

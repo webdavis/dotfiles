@@ -48,3 +48,6 @@ pub use known_good::{
     KnownGood, KnownGoodTuple, Manifest, ManifestAuthority, ManifestDigest, ManifestKind,
     manifest_for, manifest_trustworthy,
 };
+
+mod enrich;
+pub use enrich::{CodeTrust, Enrichment, classify_signing, is_interpreter};

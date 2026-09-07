@@ -1,8 +1,9 @@
 # posture
 
 `posture` ports the osquery security tools and ssh-hardening to Rust. The five crates establish the
-boundaries for that work. Every command currently prints usage to stderr and exits 2; existing shell
-entry points continue running.
+boundaries for that work. `posture enrich <path>` now supplies signing and file facts to the existing
+Bash router. Other commands print usage to stderr and exit 2 while their shell entry points continue
+running.
 
 | Crate                 | Responsibility                                    |
 | --------------------- | ------------------------------------------------- |

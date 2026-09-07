@@ -1,4 +1,4 @@
-//! Until a subcommand lands, the binary refuses EVERY word: usage on stderr,
+//! Every remaining unimplemented subcommand is refused: usage on stderr,
 //! nothing on stdout, exit 2 (spec S298 and S341: an unknown argument is an
 //! error with usage and exit 2, never a silent fallthrough). The words below
 //! are every planned subcommand from the specification's section 1 table, the
@@ -22,7 +22,6 @@ const WORDS: &[&[&str]] = &[
     &["allowlist", "add", "com.example.agent"],
     &["allowlist", "deny", "com.example.agent"],
     &["allowlist", "list"],
-    &["enrich", "/Applications/Safari.app"],
     &["ssh"],
     &["ssh", "install"],
     &["ssh", "verify"],
@@ -74,7 +73,7 @@ fn run_with_stderr(args: &[&str], deadline: Instant, stderr: Stdio) -> Output {
 }
 
 #[test]
-fn every_word_is_refused_with_usage_on_stderr_and_exit_2() {
+fn every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2() {
     let deadline = Instant::now() + Duration::from_millis(500);
     for args in WORDS {
         let output = run(args, deadline);
@@ -131,4 +130,42 @@ fn a_closed_stderr_reader_preserves_the_refusal_exit_code() {
     );
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn enrich_with_an_absent_or_empty_path_is_successful_and_silent() {
+    for args in [
+        vec!["enrich"],
+        vec!["enrich", ""],
+        vec!["enrich", "", "ignored.app"],
+    ] {
+        let output = run(&args, Instant::now() + Duration::from_millis(500));
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
+    let directory =
+        std::env::temp_dir().join(format!("posture-cli-metadata-{}", std::process::id()));
+    std::fs::create_dir(&directory).expect("private fixture directory");
+    let path = directory.join("file with spaces");
+    std::fs::write(&path, b"inert non-code fixture").expect("fixture contents");
+    let output = run(
+        &[
+            "enrich",
+            path.to_str().expect("fixture path"),
+            "ignored.app",
+        ],
+        Instant::now() + Duration::from_millis(500),
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let text = String::from_utf8(output.stdout).expect("ASCII metadata");
+    assert!(text.starts_with("owner "), "{text}");
+    assert!(text.contains(", mode -rw"), "{text}");
+    assert!(text.contains(", modified "), "{text}");
+    assert!(text.ends_with('Z'), "no added newline: {text}");
 }

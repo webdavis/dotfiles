@@ -21,3 +21,4 @@ pns-protocol = { path = "../../../pns/crates/pns-protocol" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
 posture-protocol = { path = "../posture-protocol" }
+libc = "0.2.189"

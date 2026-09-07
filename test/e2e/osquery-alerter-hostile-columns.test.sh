@@ -45,6 +45,8 @@ STUB
   # come from default-deny, not from enrichment).
   cat >"$HOME/enrich-stub.sh" <<'STUB'
 #!/usr/bin/env bash
+set -euo pipefail
+[[ $# -eq 2 && $1 == enrich ]] || exit 98
 printf %s "signed: Apple"
 exit 0
 STUB

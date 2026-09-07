@@ -102,7 +102,10 @@ _build_fixtures() {
   # trusted authority otherwise. Deterministic, and never a real codesign call.
   ENRICHER="$FILE_FIXTURE/enrich-stub.sh"
   cat >"$ENRICHER" <<'STUB'
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -eq 2 && $1 == enrich ]] || exit 98
+shift
 case "$1" in
   *UNTRUSTED*) printf 'UNSIGNED'; exit 10 ;;
   *) printf 'signed: Apple'; exit 0 ;;
