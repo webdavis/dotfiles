@@ -12,7 +12,7 @@ The statements in section 8 (S001 to S368) were inventoried the same day against
 `aef04428` and re-checked here by sampling ten citations against `b5412089`; the six pipeline files
 that changed between the two commits changed in comments only, and every sampled line number still
 lands on the symbol it names. The plan at `docs/superpowers/plans/2026-09-05-posture-port-plan.md`
-moves code against these statements one pull request at a time.
+moves code against these statements one PR (pull request) at a time.
 
 ## How to read it
 
@@ -233,9 +233,10 @@ the pipeline.
 
 ### 3.3 The alert queue as it stands today
 
-`~/.local/state/osquery-undelivered-alerts.sqlite3`, mode 600 in a mode-700 parent, WAL with a
-5000 ms busy timeout and a five-attempt retry on `database is locked` (`alert-dispatch.sh:146-176`,
-S157). Each table is bootstrapped lazily inside the same transaction as its first insert (S159):
+`~/.local/state/osquery-undelivered-alerts.sqlite3`, mode 600 in a mode-700 parent, write-ahead logging
+with a 5000 ms busy timeout and a five-attempt retry on `database is locked`
+(`alert-dispatch.sh:146-176`, S157). Each table is bootstrapped lazily inside the same transaction as its
+first insert (S159):
 
 ```sql
 pending_alerts(sequence_number INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT UNIQUE NOT NULL,
@@ -267,7 +268,9 @@ Built once by `_build_webhook_body` (`alert-dispatch.sh:1124-1128`, S150):
  "alert":{"title":"<title>","detail":"<detail>"}}
 ```
 
-POSTed to `http://127.0.0.1:8644/webhooks/priority` with `Content-Type: application/json`,
+The signature is a HMAC (hash-based message authentication code) using SHA-256 (Secure Hash Algorithm,
+256-bit). The body is POSTed over HTTP (Hypertext Transfer Protocol) to
+`http://127.0.0.1:8644/webhooks/priority` with `Content-Type: application/json`,
 `X-Webhook-Signature: <lowercase hex HMAC-SHA256 of the body>` and `X-Request-ID: <request_id>`, at a
 5 second `--max-time` (`alert-dispatch.sh:1052-1059`, S154). The request id is `osquery-<first 32
 hex of sha256(seed)>`, the seed being the caller's occurrence identity when threaded and a per-call
@@ -290,9 +293,11 @@ on stdin so neither key nor body reaches `ps` (`alert-dispatch.sh:75-109`, S155)
 
 ### 3.5 The digest spool
 
-NDJSON at `~/.local/state/osquery-digest-spool/digest.ndjson`, directory 700 and file 600. One line
-per non-paging finding, six DERIVED fields only, never the whole columns object
-(`digest-store.sh:42-52`, S117, S119):
+Newline-delimited JSON (JavaScript Object Notation) at
+`~/.local/state/osquery-digest-spool/digest.ndjson`, directory 700 and file 600. One line per non-paging
+finding, six DERIVED fields only, never the whole columns object (`digest-store.sh:42-52`, S117, S119).
+The timestamp uses UTC (Coordinated Universal Time) in ISO (International Organization for
+Standardization) 8601 format:
 
 ```json
 {"timestamp":"<UTC ISO 8601>","detector":"<q>","category":"<cols.category>",
@@ -318,8 +323,9 @@ and the watchdog (S200, S211).
 
 ### 3.7 The page-launchd allowlist
 
-`~/.config/osquery/page-launchd-allowlist.txt`, NDJSON, one `{"label","path","program","sha256"}`
-object per line, with comment and blank lines preserved. `path` and `program` store a leading `$HOME`
+`~/.config/osquery/page-launchd-allowlist.txt`, newline-delimited JSON, one
+`{"label","path","program","sha256"}` object per line, with comment and blank lines preserved.
+`path` and `program` store a leading `$HOME`
 as `~/`, and the verdict re-expands it (S071, S305). An EMPTY `sha256` is the own-agent convention:
 the writer never produces one (`allowlist.sh:249-252`, S304), and an unpinned entry is vouched for by
 the manifest instead (`allowlist-verdict.sh:116-126`, S075). The source is
@@ -450,7 +456,8 @@ weakens one names it in its description.
   `run_after_05:105-114`, the allowlist design's "What this does not defend against"). Posture
   inherits the same honest claim and adds no stronger one.
 - **SI-15** Single-host scope. The target is this machine alone, provisioned from this repository;
-  no fleet framing and no per-host URL work (memory `osquery-security-project.md`).
+  no fleet framing and no per-host URL (Uniform Resource Locator) work (memory
+  `osquery-security-project.md`).
 - **SI-16** Target correction: every sshd call is bounded. The Bash install and reload bound their
   verification child, but direct `--verify` has unbounded calls (S381). PR 8.2 closes that gap
   deliberately (section 6.1). In the port a call into `sshd` runs in a process group of its own under
@@ -460,8 +467,8 @@ weakens one names it in its description.
   S382).
 - **SI-17** No sshd restart claims success without a banner. Install never restarts the service and
   only `--reload` does, after a bounded syntax check, the full verify, port resolution and a drift
-  guard, and it claims success only after a real SSH banner exchange on a resolved port and an
-  unchanged tree afterwards; a confirmed-absent service is the one exit-0 no-op, and nothing is
+  guard, and it claims success only after a real SSH (Secure Shell) banner exchange on a resolved port
+  and an unchanged tree afterwards; a confirmed-absent service is the one exit-0 no-op, and nothing is
   rolled back automatically after a restart (S386, S388, S391, S393, S394).
 
 ## 5. Delivery: how posture reaches the operator
@@ -473,8 +480,10 @@ The pipeline does not call pns in any form. A repository-wide grep for `pns` und
 Delivery is `alert-dispatch.sh` end to end: `alerter` or `osascript` for the local banner, a
 hand-rolled HMAC plus `curl` for the Discord page, a SQLite write-ahead queue, a drain with backoff
 and dead-lettering, and a durable retry of the local banner (S142 to S187). Forty-six statements
-describe it; five have at least a partial pin covering the two counters, the SQL quoting and the
-drain's skip-and-continue. S178's read-only and write-ahead-log clauses remain UNPINNED. The write-ahead
+describe it; five have at least a partial pin covering the two counters, the SQL (Structured Query
+Language) quoting and the drain's skip-and-continue. S178's read-only and write-ahead-log clauses remain
+UNPINNED.
+The write-ahead
 path, the HMAC, the banner confirmation and the dead-letter
 thresholds have no direct test.
 
@@ -615,7 +624,11 @@ What it costs, and how each cost is met:
   durable log and nothing else would drop the daily Discord line and the silent banner, and that is
   not approved; section 5.5 states the requirement the pns route work must meet.
 - The queue counters, the drainer and the watchdog's probe 4 (S173, S176 to S178, S188 to S192,
-  S216). The drainer and the counters over the SQLite queue retire with the queue. The plan names
+  S216). PR 6.4 adds pns monitoring alongside the legacy queue probe. The legacy unreadable-store,
+  existing-dead-letter and two-consecutive-growth checks remain until PR 6.7 retires the queue,
+  with each store's growth history kept separate. That same retirement removes the drainer's
+  label from the watchdog's monitored roster. The drainer only alarms on rows dead-lettered in its
+  current pass, so it cannot replace those checks during the overlap. The plan names
   the pns-side requirements: the daemon dead-letters a row after the same bounded attempts and age,
   raises its own loud alert when it does or when the undelivered backlog grows across two passes,
   and `pns doctor` reports the ledger. That does not replace probe 4: pns reporting on pns is not
@@ -707,9 +720,10 @@ behavior lives afterwards.
   original time (pns S155 to S165); a late banner with a subtitle is the weaker version of that. This
   is a deliberate delivery change (section 6.1), not parity.
 - **D4** The two read-only queue counters over the SQLite store and the watchdog's queue probe as
-  written (S176 to S178, S216). The watchdog does not lose the probe; it re-reads it against pns's
-  ledger and daemon without asking pns (section 5.2), so the independence of the check is kept and
-  only its subject changes. A deliberate change (section 6.1).
+  written (S176 to S178, S216). PR 6.4 keeps the legacy probe and adds independent pns ledger and
+  daemon checks (section 5.2). PR 6.7 removes the legacy probe and the drainer's monitored label
+  only at queue retirement, after the three-table empty check. Pns checks continue independently.
+  A deliberate change (section 6.1).
 - **D5** The hand-rolled HMAC, the webhook POST site, the retry-with-backoff attempt loop and the
   localhost-only check on stored URLs (S152 to S156, S167). pns signs and posts; posture never
   stores a URL, so there is none to check.
@@ -763,7 +777,9 @@ and a difference found there is a regression.
   pns's presence replay, which fires on the next qualifying event after the operator returns and
   delivers a catch-up card. Observable: a banner missed while away is not re-shown as a banner.
 - D4: the watchdog's two SQLite counters are replaced by an independent read of pns's ledger and
-  daemon state. Observable: the page wording names pns's ledger; the check stays posture's own.
+  daemon state. Both stores are monitored from PR 6.4 until PR 6.7 retires the old queue and removes
+  the drainer from the monitored roster. Observable: the remaining page wording names pns's ledger;
+  the check stays posture's own.
 - D5 and D6: the hand-rolled HMAC, the POST site, the retry loop, and the `tier`, `event_type`,
   `host` and `ts` body fields are replaced by pns's signer and body. Observable: the Discord line is
   rendered by the pns route's prompt rather than the `priority` route's, and the page title and full
@@ -821,9 +837,10 @@ Names come from the code, and where the code and this list disagree the code win
 - **manifest** and **tuple**: the four-column known-good line; **tracked set**: the paths the
   verdict judges; **vouch**: a manifest tuple matching the current file; **settle**: the bounded
   wait for a manifest that predates a change (S098).
-- **triage**: the three correlation facts attached to a page (S102); **upgrade record**: uu's TSV.
-- **spool** and **claim**: the digest's NDJSON and its rename (S282); **group**, **bullet**,
-  **roll-up**, **cap** (S286 to S289).
+- **triage**: the three correlation facts attached to a page (S102); **upgrade record**: uu's
+  tab-separated values.
+- **spool** and **claim**: the digest's newline-delimited JSON and its rename (S282); **group**,
+  **bullet**, **roll-up**, **cap** (S286 to S289).
 - **canary**, **freshness**, **MISSING**, **STALE**, **IMPLAUSIBLE** (S193, S203).
 - **probe** (the watchdog's five, the poller's per-control read), **streak**, **fingerprint**,
   **page-once**, **gap**, **baseline**, **prior**, **first observation**, **degraded** (S213, S221,
@@ -871,8 +888,9 @@ S005. An absent results log is exit 0 with no cursor write.
       Source: `executable_results-alerter.sh:110 main`.
       Pin: UNPINNED. Every suite seeds the log before running the entry.
 
-S006. Size and inode are read with portable tools (`wc -c`, `ls -i` plus `awk`), never BSD `stat -f`,
-      and the inode is what notices a rotated or recreated log at the same path.
+S006. Size and inode are read with portable tools (`wc -c`, `ls -i` plus `awk`), never BSD (Berkeley
+      Software Distribution) `stat -f`, and the inode is what notices a rotated or recreated log at
+      the same path.
       Source: `executable_results-alerter.sh:113-118 main`.
       Pin: UNPINNED. No test rotates the log.
 
@@ -1114,8 +1132,8 @@ S046. `firewall_state` and `gatekeeper_state` are LOG-ONLY here, overriding the 
       Pin: `the safe-direction rows and the poller-owned protection reach neither channel`
            at test/unit/osquery-route.bats:399
 
-S047. `sip_state` is LOG-ONLY, because SIP is deliberately off on this host so an on-to-off
-      transition cannot occur; the poller does not cover it either.
+S047. `sip_state` is LOG-ONLY, because System Integrity Protection is deliberately off on this host so an
+      on-to-off transition cannot occur; the poller does not cover it either.
       Source: `results-alerter/route.sh:164-171`.
       Pin: `the safe-direction rows and the poller-owned protection reach neither channel`
            at test/unit/osquery-route.bats:399
@@ -1219,7 +1237,9 @@ S062. The `sshd_config` category pages; the `sudoers` category digests; any othe
       Source: `results-alerter/route.sh:272, :350-354`.
       Pin: `the page tier reaches stdout, including the two remote-auth file events`
            at test/unit/osquery-route.bats:389 (the `sshd_config` page branch only).
-      UNPINNED: the `sudoers` digest branch and the other-category log-only branch.
+      also `the ambiguous tier digests: a credential file, a new listener, a private key, sudoers`
+           at test/unit/osquery-route.bats:405 (the `sudoers` digest branch).
+      UNPINNED: the other-category log-only branch.
 
 S063. Five categories consult `pipeline_verdict` instead: `pipeline_integrity`, `managed_bin`,
       `launch_agents`, `launch_daemons` and `allowlist_file`. It answers page or silent, never digest.
@@ -1486,8 +1506,8 @@ S107. The manifest CHOICE is reused from the verdict by name (`_pipeline_manifes
       Source: `results-alerter/file-integrity-triage.sh:146-152`.
       Pin: UNPINNED.
 
-S108. The upgrade record is accepted only when it is a READABLE REGULAR FILE, because a readable FIFO
-      would block `read` forever while the alerter holds its single-instance lock. Symlinks are
+S108. The upgrade record is accepted only when it is a READABLE REGULAR FILE, because a readable named
+      pipe would block `read` forever while the alerter holds its single-instance lock. Symlinks are
       followed deliberately (`-f` judges the final target).
       Source: `results-alerter/file-integrity-triage.sh:236-250`.
       Pin: UNPINNED.
@@ -1508,7 +1528,7 @@ S111. A record older than `OSQUERY_UPGRADE_RECORD_WINDOW_DAYS` (3), or dated in 
       Source: `results-alerter/file-integrity-triage.sh:286-294`.
       Pin: UNPINNED.
 
-S112. Package rows are decoded BY EXPANSION, never by `IFS=$'\t' read`, because a tab is IFS
+S112. Package rows are decoded BY EXPANSION, never by `IFS=$'\t' read`, because a tab is `IFS`
       whitespace and a run of tabs would collapse the empty column an add or a remove writes, which
       rendered an added package as a removed one.
       Source: `results-alerter/file-integrity-triage.sh:296-314`.
@@ -1537,8 +1557,9 @@ S116. No string in this file contains an apostrophe, because every value reaches
 
 ### 8.7 digest-store.sh
 
-S117. `digest_append <finding-json>` appends exactly one NDJSON line of six DERIVED fields and never
-      copies the whole columns object, so a raw sha256 or a secret column never reaches the spool.
+S117. `digest_append <finding-json>` appends exactly one newline-delimited JSON record of six DERIVED
+      fields and never copies the whole columns object, so a raw sha256 or a secret column never reaches
+      the spool.
       Source: `results-alerter/digest-store.sh:28-56 digest_append`.
       Pin: `one append records a single line of derived triage fields and nothing else`
            at test/unit/osquery-normalize-and-digest-store.bats:171
@@ -1777,8 +1798,8 @@ S155. The HMAC is built by hand from SHA-256 using `openssl dgst` (not the OpenS
       test no longer exists.
 
 S156. The signing key is the environment override, else the FIRST LINE of
-      `~/.config/osquery/webhook-secret` with carriage returns stripped, so a CRLF file cannot corrupt
-      it. An absent key prints nothing and the caller decides.
+      `~/.config/osquery/webhook-secret` with carriage returns stripped, so Windows line endings cannot
+      corrupt it. An absent key prints nothing and the caller decides.
       Source: `executable_alert-dispatch.sh:1039-1046 _read_webhook_secret`.
       Pin: UNPINNED.
 
@@ -1917,8 +1938,8 @@ S177. A counter reads 0 for the two legitimately empty cases (an absent database
            at test/unit/osquery-alert-dispatch.bats:108
 
 S178. The counter opens the database `-readonly` and never creates it, and deliberately does NOT use
-      `immutable=1`, because that would skip the WAL and undercount committed rows a checkpoint has
-      not folded back.
+      `immutable=1`, because that would skip the write-ahead log and undercount committed rows a
+      checkpoint has not folded back.
       Source: `executable_alert-dispatch.sh:465-474, :487`.
       Pin: `a count probe never creates the database it reads`
            at test/unit/osquery-alert-dispatch.bats:85 (absent-file behavior only).
@@ -2066,11 +2087,12 @@ S200. HEALTHY requires a canary within `OSQUERY_CANARY_MAX_AGE` (default 1800, v
       Pin: `B1: a fresh canary sends exactly one CRIT message that reads healthy`
            at test/integration/osquery-heartbeat.bats:140
 
-S201. A within-window future skew clamps the rendered age to 0 so the message reads "just now", never
+S201. A within-window future skew clamps the rendered age to 0 so the message reads "0s ago", never
       a negative age.
-      Source: `executable_heartbeat.sh:64-67`.
-      Pin: `clock-skew: a future-dated canary reads healthy with a non-negative rendered age`
-           at test/integration/osquery-heartbeat.bats:295
+      Source: `executable_heartbeat.sh:64-69`.
+      Pin: UNPINNED. `clock-skew: a future-dated canary reads healthy with a non-negative rendered age`
+      at test/integration/osquery-heartbeat.bats:295 rejects `(-`, which the message never uses.
+      Removing the clamp renders `canary -120s ago` and still passes all seventeen heartbeat tests.
 
 S202. The healthy message states a recent OBSERVATION, not a present-tense claim, and says the
       watchdog owns real-time liveness.
@@ -2370,8 +2392,9 @@ S251. The guard is fail-closed on key PRESENCE: only the ABSENCE of `currentProf
       Pin: UNPINNED.
 
 S252. `lulu_rule_in_archive` is EXISTENCE-ONLY: it converts the rules archive to stdout with
-      `plutil -convert xml1 -o -` (never writing the file), matches the exact XML-escaped `<string>`
-      element, and a zero-exit conversion that printed nothing stays indeterminate rather than absent.
+      `plutil -convert xml1 -o -` (never writing the file), matches the exact `<string>` element escaped
+      for XML (Extensible Markup Language), and a zero-exit conversion that printed nothing stays
+      indeterminate rather than absent.
       Source: `executable_firewall-gatekeeper-monitor.sh:262-291`.
       Pin: UNPINNED.
 
@@ -3148,9 +3171,9 @@ S366. `agent_binary_changed` is LOG-ONLY and makes no promise of content-change 
       Pin: `the extension arms honor the untrusted-signing promotion and the log-only arms ignore it`
            at test/unit/osquery-route.bats:412
 
-S367. `osquery.flags` carries the CLI-only flags: `--disable_extensions=true` removes the
+S367. `osquery.flags` carries the command-line-only flags: `--disable_extensions=true` removes the
       extension-autoload surface, the endpoint-security pair is enabled with four muted path prefixes,
-      and the `logger_rotate` trio caps the filesystem logger at five files of 10 MB, which is what
+      and the `logger_rotate` trio caps the filesystem logger at five files of 10 megabytes, which
       bounds the alerter's full-replay path.
       Source: `osquery-converge/desired/osquery.flags:1-12`,
       `executable_results-alerter.sh:129-134`.
@@ -3228,8 +3251,9 @@ S376. `ChallengeResponseAuthentication` and `SkeyAuthentication` fold onto
       Pin: UNPINNED.
 
 S377. The line tokenizer mirrors sshd's two tokenizers, every rule measured against OpenSSH 10.0p2:
-      trailing space, tab, CR and FF are trimmed off the line; the keyword ends at space, tab, CR or
-      one `=`, a double-quoted segment anywhere in it appends and ENDS it at the closing quote, ONE
+      trailing space, tab, carriage return and form feed are trimmed off the line; the keyword ends at
+      space, tab, carriage return or one `=`, a double-quoted segment anywhere in it appends and ENDS it
+      at the closing quote, ONE
       empty first token is discarded and the next token becomes the keyword, and a `#` opening the
       keyword after that discard is a comment; arguments split on space and tab only, single- and
       double-quoted segments concatenate, a backslash escapes either quote, a backslash and an
@@ -3426,25 +3450,28 @@ S399. `nocasematch` is ON at file scope so keyword and yes/no matching mirror ss
 
 Recomputed on 2026-09-06 over the 399 numbered statement blocks. A `Pin: UNPINNED` statement has no cited
 behavioral pin. S015, S062 and S178 cite a test for only some clauses and count as partially pinned;
-their uncovered clauses are explicitly UNPINNED. The review correction removes S175 from the pinned
-count. The 31 SSH statements include two pinned by the plain-script unit test and 29 UNPINNED.
+their uncovered clauses are explicitly UNPINNED. S175 and S201 have no behavioral pin: the cited
+counter test never drains, and removing the age clamp leaves every heartbeat test green. The 31 SSH
+statements include two pinned by the plain-script unit test and 29 UNPINNED.
 
 | Count                                             | Value |
 | ------------------------------------------------- | ----- |
 | Statements                                        | 399   |
-| Fully pinned                                      | 167   |
+| Fully pinned                                      | 166   |
 | Partially pinned                                  | 3     |
-| UNPINNED                                          | 229   |
-| Distinct tests referenced                         | 185   |
+| UNPINNED                                          | 230   |
+| Distinct test cases cited as pins                  | 183   |
 | Test cases in the corpus that cover this pipeline | 187   |
 | Statements the port drops (section 6)             | 46    |
 
-Only two of the 186 cases go uncited, both in `test/e2e/osquery-alerter-criteria.bats`: the pair that
-asserts the retired flat `launch-allowlist.txt` is not consulted and that the unified
-`OSQUERY_LAUNCHD_ALLOWLIST` variable is what the entry reads (`:178`, `:189`).
+Four of the 187 test cases have no effective pin citation: the retired flat `launch-allowlist.txt`
+and unified `OSQUERY_LAUNCHD_ALLOWLIST` cases in `test/e2e/osquery-alerter-criteria.bats:178, :189`,
+the counter case at `test/unit/osquery-alert-dispatch.bats:91` rejected as a drain pin in S175, and
+the clock-skew case at `test/integration/osquery-heartbeat.bats:295` rejected in S201. The two assertion
+ranges in `test/unit/ssh-hardening-dropin.sh` count as one test case.
 
 The 399 statements are an inventory of what the bash does, not proof that a port matches it. A
-statement is checkable only where a test covers its behavior; 229 have no pin and three have
+statement is checkable only where a test covers its behavior; 230 have no pin and three have
 uncovered clauses; for those, a Rust test written
 from the statement's prose checks the porter's reading of the bash, not the bash. The plan's section
 4, rule 1, therefore requires a bash-derived acceptance example (the exact input and the output the
