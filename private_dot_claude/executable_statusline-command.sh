@@ -47,32 +47,51 @@ if [[ -n $used_pct ]]; then
   context_info=" ctx:${used_int}%"
 fi
 
-# Rate-limit remaining (5-hour and weekly windows). Claude Code's stdin JSON
-# only carries rate_limits for Claude.ai subscribers, or behind a gateway
-# spend limit; when a session's input has neither window, this segment is
-# skipped rather than faked.
-rate_limit_remaining() {
-  local used="$1" reset="$2" label="$3"
-  local remaining
-  remaining=$(jq -n --argjson used "$used" '(100 - $used) | floor')
+# Usage windows (5-hour session and weekly), rendered the way the Claude.ai
+# usage page does: percent USED and when the window resets. The session window
+# shows a countdown; the weekly window shows the weekday and clock time. The
+# stdin JSON only carries rate_limits for Claude.ai subscribers, or behind a
+# gateway, and only after the first API response, so both segments are omitted
+# when the fields are absent. resets_at is Unix epoch seconds (documented).
+usage_window() {
+  local used="$1" reset="$2" label="$3" style="$4"
+  local pct when=""
+  pct=$(jq -n --argjson used "$used" '$used | floor')
   if [[ -n $reset ]]; then
-    printf '%s %s%%@%s' "$label" "$remaining" "$(date -r "${reset%.*}" +%H:%M 2>/dev/null)"
+    local epoch="${reset%.*}"
+    if [[ $style == countdown ]]; then
+      local now secs
+      now=$(date +%s)
+      secs=$((epoch - now))
+      if ((secs <= 0)); then
+        when="resets now"
+      elif ((secs < 3600)); then
+        when="resets in $((secs / 60))m"
+      else
+        when="resets in $((secs / 3600))h $(((secs % 3600) / 60))m"
+      fi
+    else
+      when="resets $(date -r "$epoch" +'%a %H:%M' 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -n $when ]]; then
+    printf '%s %s%% used, %s' "$label" "$pct" "$when"
   else
-    printf '%s %s%%' "$label" "$remaining"
+    printf '%s %s%% used' "$label" "$pct"
   fi
 }
 
 rate_segments=()
 if [[ -n $five_hour_used ]]; then
-  rate_segments+=("$(rate_limit_remaining "$five_hour_used" "$five_hour_reset" "5h")")
+  rate_segments+=("$(usage_window "$five_hour_used" "$five_hour_reset" "5h" countdown)")
 fi
 if [[ -n $seven_day_used ]]; then
-  rate_segments+=("$(rate_limit_remaining "$seven_day_used" "$seven_day_reset" "wk")")
+  rate_segments+=("$(usage_window "$seven_day_used" "$seven_day_reset" "week" clock)")
 fi
 
 rate_info=""
 if [[ ${#rate_segments[@]} -eq 2 ]]; then
-  rate_info=" ${rate_segments[0]} · ${rate_segments[1]}"
+  rate_info=" ${rate_segments[0]}  ${rate_segments[1]}"
 elif [[ ${#rate_segments[@]} -eq 1 ]]; then
   rate_info=" ${rate_segments[0]}"
 fi
