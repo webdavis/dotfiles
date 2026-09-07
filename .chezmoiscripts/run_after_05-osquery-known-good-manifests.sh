@@ -11,6 +11,7 @@
 # containing spaces is still read whole by `read -r hash mode uid path`:
 #
 #   <sha256> <mode> <uid> <path>
+#   unbuilt 0755 <uid> <required-binary-path>
 #
 # mode is exactly four octal digits (0755); uid is decimal.
 #
@@ -85,7 +86,9 @@
 #     chown-ed a covered file cannot influence it. (If an operator ever applied as
 #     root, the files really would be root-owned and the manifest would record that,
 #     so the derivation stays self-consistent.)
-# Nothing here reads or executes a user-writable DEPLOYED file.
+# The compiled posture binary instead uses its authorized builder's record.
+# A missing record enumerates it as unbuilt; no live or target-directory bytes
+# are adopted. The record has the same user-writable trust boundary as source.
 # (`chezmoi status`/`verify` are not usable for this: nested inside an apply they
 # fail with "timeout obtaining persistent state lock". `managed` and `cat` read the
 # source state without that lock and work nested; this was verified empirically.)
@@ -201,7 +204,7 @@ pipeline_paths=()
 managed_bin_paths=()
 while IFS= read -r target; do
   case "$target" in
-    "$home"/.local/libexec/osquery/*) pipeline_paths+=("$target") ;;
+    "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) pipeline_paths+=("$target") ;;
     "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
     # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
     # rather than by its directory. It decides whether an unknown user LaunchAgent
@@ -310,6 +313,26 @@ if [[ ! $owner_uid =~ ^[0-9]{1,10}$ ]]; then
   exit 1
 fi
 
+# The builder publishes this record before its scoped refresh and installation.
+# Reading only that record retains the tuple on applies that ran no build.
+posture_record_hash() {
+  local record="$home/.local/state/posture-build-record" digest bytes compiler
+  if [[ ! -e $record && ! -L $record ]]; then
+    printf unbuilt
+    return 0
+  fi
+  if [[ -f $record && ! -L $record ]] && {
+    IFS= read -r digest && IFS= read -r bytes && IFS= read -r compiler
+  } <"$record" &&
+    [[ $digest =~ ^sha256\ [0-9a-f]{64}$ && $bytes =~ ^bytes\ [1-9][0-9]{0,6}$ && $compiler == 'rustc '?* ]] &&
+    ((${bytes#bytes } <= 8388608)); then
+    printf '%s' "${digest#sha256 }"
+    return 0
+  fi
+  printf 'osquery known-good manifests: malformed posture build record, refusing to rewrite the pipeline manifest\n' >&2
+  return 1
+}
+
 # refresh_manifest <label> <manifest-path> <paths-array-name>
 #
 # Build this arm's manifest from the shared intent and install it when it differs
@@ -366,6 +389,12 @@ refresh_manifest() {
     printf -v refresh_manifest_mode '%04o' "$((10#$refresh_manifest_perm))"
     printf '%s %s %s %s\n' "$refresh_manifest_hash" "$refresh_manifest_mode" "$owner_uid" "$refresh_manifest_target" >>"$fresh"
   done
+
+  # This binary is built, not chezmoi-managed, so it has no cat/dump entry.
+  if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
+    refresh_manifest_hash="$(posture_record_hash)" || return 1
+    printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.local/libexec/posture/posture" >>"$fresh"
+  fi
 
   # Never let an empty render overwrite a good manifest.
   if [[ ! -s $fresh ]]; then
