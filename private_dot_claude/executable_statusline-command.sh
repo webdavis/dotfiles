@@ -12,6 +12,7 @@ git_worktree=$(echo "$input" | jq -r '.workspace.git_worktree // empty')
 fast_mode=$(echo "$input" | jq -r '.fast_mode // false')
 thinking_on=$(echo "$input" | jq -r '.thinking.enabled // false')
 over_200k=$(echo "$input" | jq -r '.exceeds_200k_tokens // false')
+window_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
 cache_present=$(echo "$input" | jq -r 'if .prompt_cache == null then "no" else "yes" end')
 cache_warm=$(echo "$input" | jq -r '.prompt_cache.warm // false')
 cache_expires=$(echo "$input" | jq -r '.prompt_cache.expires_at // empty')
@@ -60,13 +61,25 @@ context_color='160;169;203' # #a0a9cb, calm
 if [[ -n $used_pct ]]; then
   used_int=${used_pct%.*}
   context_info=" ctx:${used_int}%"
+  # Name the window so the percent has a denominator: 200k, 1M, or the raw
+  # count when it is neither.
+  if [[ -n $window_size ]]; then
+    case "$window_size" in
+      1000000) context_info+="/1M" ;;
+      200000) context_info+="/200k" ;;
+      *) context_info+="/$((window_size / 1000))k" ;;
+    esac
+  fi
   if ((used_int >= 80)); then
     context_color='247;118;142' # #f7768e, red: compaction is close
   elif ((used_int >= 60)); then
     context_color='224;175;104' # #e0af68, yellow
   fi
 fi
-if [[ $over_200k == true ]]; then
+# The 200k flag is a fixed line Claude Code draws regardless of window size; it
+# only says something on a window larger than 200k (on a 200k window the red
+# gauge already says it), so it is shown only then.
+if [[ $over_200k == true && -n $window_size && $window_size -gt 200000 ]]; then
   context_info+=" ⚠200k"
   context_color='247;118;142'
 fi
