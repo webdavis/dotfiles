@@ -95,6 +95,9 @@ end
 return {
   {
     "lewis6991/gitsigns.nvim",
+    -- Eager only because it has no trigger. Its work starts at a real buffer, so
+    -- it belongs on `event = { "BufReadPre", "BufNewFile" }`.
+    lazy = false,
     config = function()
       local gitsigns = require("gitsigns")
 
