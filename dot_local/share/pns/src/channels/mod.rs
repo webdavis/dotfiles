@@ -57,6 +57,9 @@ pub fn native_first(channels_dir_overridden: bool) -> bool {
 }
 
 #[cfg(test)]
+mod post_fixture;
+
+#[cfg(test)]
 mod tests {
     use super::{Delivery, Event};
     use crate::routing::ReportMode;

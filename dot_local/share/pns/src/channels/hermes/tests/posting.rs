@@ -21,69 +21,24 @@ fn a_closed_port_is_no_response() {
 
 #[test]
 fn a_redirecting_gateway_is_the_final_answer_and_the_signed_body_stays_home() {
-    use std::io::{Read, Write};
+    use super::super::super::post_fixture::{DEADLINE, serve};
     let decoy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let decoy_addr = decoy.local_addr().unwrap();
     decoy.set_nonblocking(true).unwrap();
     let redirector = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/hook", redirector.local_addr().unwrap());
-    let server = std::thread::spawn(move || {
-        if let Ok((mut stream, _)) = redirector.accept() {
-            // Consume the WHOLE request (headers plus Content-Length body)
-            // before answering: responding after one read can reset the
-            // socket under a client still writing, which turns the
-            // outcome into NoResponse on a slow runner.
-            let mut raw = Vec::new();
-            let mut chunk = [0u8; 2048];
-            let header_end = loop {
-                let read = stream.read(&mut chunk).unwrap_or(0);
-                if read == 0 {
-                    break raw.len();
-                }
-                raw.extend_from_slice(&chunk[..read]);
-                if let Some(position) = raw.windows(4).position(|window| window == b"\r\n\r\n") {
-                    break position + 4;
-                }
-            };
-            let content_length = String::from_utf8_lossy(&raw[..header_end])
-                .lines()
-                .find_map(|line| {
-                    let (name, value) = line.split_once(':')?;
-                    name.eq_ignore_ascii_case("content-length")
-                        .then(|| value.trim().parse::<usize>().ok())?
-                })
-                .unwrap_or(0);
-            while raw.len() < header_end + content_length {
-                let read = stream.read(&mut chunk).unwrap_or(0);
-                if read == 0 {
-                    break;
-                }
-                raw.extend_from_slice(&chunk[..read]);
-            }
-            let _ = stream.write_all(
-                    format!(
-                        "HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{decoy_addr}/\r\nContent-Length: 0\r\n\r\n"
-                    )
-                    .as_bytes(),
-                );
-            let _ = stream.flush();
-            // HOLD the socket until the client hangs up: closing it
-            // right after the write can reset the response out from
-            // under a reader on a slow runner, which turns a written
-            // status into no response at all.
-            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-            let mut drain = [0u8; 256];
-            while matches!(stream.read(&mut drain), Ok(read) if read > 0) {}
-        }
-    });
-    let outcome = UreqSignedPost.post(
-        &url,
-        "{\"signed\":true}",
-        "sig",
-        Some(Duration::from_secs(2)),
+    let response = format!(
+        "HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{decoy_addr}/\r\nContent-Length: 0\r\n\r\n"
     );
-    server.join().unwrap();
-    std::thread::sleep(Duration::from_millis(100));
+    let outcome = std::thread::scope(|scope| {
+        let server = scope.spawn(|| serve(redirector, &response, br#"{"signed":true}"#));
+        let outcome = UreqSignedPost.post(&url, r#"{"signed":true}"#, "sig", Some(DEADLINE));
+        server
+            .join()
+            .unwrap()
+            .expect("the signed request must arrive");
+        outcome
+    });
     assert!(decoy.accept().is_err(), "the signed body must stay home");
     assert_eq!(outcome, PostOutcome::Status(307));
 }
