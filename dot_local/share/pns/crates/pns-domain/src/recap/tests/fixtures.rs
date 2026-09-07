@@ -1,7 +1,5 @@
 //! What the recap tests build from: one entry, one clock, one window.
 
-#![allow(unused_imports)]
-
 use crate::missed::Entry;
 
 /// A fixed clock, so the fixtures state a time rather than reading one.

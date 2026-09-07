@@ -1,20 +1,10 @@
 //! The recap, pinned: external.
 
-#![allow(unused_imports)]
-
 use super::fixtures::*;
-use crate::missed::Entry;
-use crate::recap::budget::{MAX_CHARS, MAX_LINES, Trim, fit};
 use crate::recap::external::{
-    EXTERNAL_MAX_CHARS, EXTERNAL_TEXT_CHARS, External, Externals, Found, Sourced, merged, noted,
+    EXTERNAL_TEXT_CHARS, External, Externals, Found, Sourced, merged, noted,
 };
-use crate::recap::prompt::{
-    INSTRUCTION, MAX_ANSWER_BYTES, SUMMARIZED_MAX_CHARS, SUMMARIZER_SILENT, answer, note_prompt,
-    prompt,
-};
-use crate::recap::sanitize::is_invisible;
-use crate::recap::sections::Section;
-use crate::recap::sections::{Timeline, body, sections};
+use crate::recap::sections::{Timeline, body};
 
 // --- the two sections whose source is not pns ----------------------------
 
