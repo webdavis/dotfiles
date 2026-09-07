@@ -1,19 +1,24 @@
 {{- /*
 Shared core for the herdr plugin build chezmoiscripts (consumed via
-includeTemplate with (dict "id" "<plugin-id>")). Hashes every plugin build input
+includeTemplate with (dict "id" "<plugin-id>" "sourceDir" .chezmoi.sourceDir)). Hashes every plugin build input
 so the calling run_onchange_ script re-runs on change, compiles the binary, and
 registers it with herdr; build and registration are SEPARATE phases, each with
 its own failure envelope. Each caller keeps only its plugin-specific pre/postamble.
 */ -}}
 # --- shared plugin build core: .chezmoitemplates/herdr-plugin-build.sh.tmpl ---
 #
-# Plugin source (hashed so this script re-runs on change). EVERY build input is
-# hashed (a change to any one forces a rebuild), so Cargo.toml (the manifest:
-# deps, edition, package) is hashed alongside Cargo.lock, not omitted:
-#   {{ include (printf "dot_local/share/herdr/plugins/%s/src/main.rs" .id) | sha256sum }}
-#   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.lock" .id) | sha256sum }}
-#   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.toml" .id) | sha256sum }}
-#   {{ include (printf "dot_local/share/herdr/plugins/%s/herdr-plugin.toml" .id) | sha256sum }}
+# Plugin source and workspace members define the build trigger. Include paths
+# as well as bytes so adding or moving a module changes the trigger. Restrict
+# source globs to source directories so target-generated Rust never feeds back.
+{{ $source := joinPath .sourceDir (printf "dot_local/share/herdr/plugins/%s" .id) -}}
+{{ range $pattern := list "src/**/*.rs" "crates/*/src/**/*.rs" "build.rs" "crates/*/build.rs" "crates/*/Cargo.toml" -}}
+{{ range (glob (joinPath $source $pattern)) }}
+#   {{ trimPrefix (printf "%s/" $source) . }} {{ include . | sha256sum }}
+{{- end }}
+{{- end }}
+#   Cargo.lock {{ include (joinPath $source "Cargo.lock") | sha256sum }}
+#   Cargo.toml {{ include (joinPath $source "Cargo.toml") | sha256sum }}
+#   herdr-plugin.toml {{ include (joinPath $source "herdr-plugin.toml") | sha256sum }}
 #
 # Retry state (embedded so a retryable non-success re-fires this run_onchange).
 # A missing toolchain or an unverified registration must NOT consume the trigger:
