@@ -1,56 +1,15 @@
-//! The herdr wire format, shared by both directories.
-//!
-//! herdr speaks newline-delimited JSON over its local socket: one request per
-//! line, one response line carrying the same `id`. The CLI prints that same
-//! envelope on stdout, so the response half is shared by the socket directory
-//! and the CLI fallback rather than written twice.
-
-use std::fmt;
-
 use serde_json::{Value, json};
 
-/// A workspace, reduced to the two fields a jump needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Workspace {
+pub struct WireWorkspace {
     pub workspace_id: String,
     pub label: String,
 }
 
-/// Why a jump could not be completed.
-///
-/// These are distinguished rather than collapsed into one string because the
-/// composition root routes on them: `Unreachable` and `Transport` mean the
-/// socket never produced an answer, which is what the CLI fallback is for.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JumpError {
-    /// herdr could not be reached at all: no socket, or no CLI binary.
-    Unreachable(String),
-    /// A read or write failed after connecting, or the deadline expired.
-    Transport(String),
-    /// herdr answered with something this plugin cannot read.
+pub enum ProtocolError {
     Malformed(String),
-    /// herdr answered with an error envelope.
     Server { code: String, message: String },
-    /// Both the socket and the CLI fallback failed. Rendered rather than
-    /// nested, so the combined message keeps one prefix instead of stacking
-    /// the wrapper's on top of the wrapped one's.
-    BothPathsFailed { cli: String, socket: String },
-}
-
-impl fmt::Display for JumpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unreachable(detail) => write!(f, "herdr unreachable: {detail}"),
-            Self::Transport(detail) => write!(f, "herdr transport failed: {detail}"),
-            Self::Malformed(detail) => write!(f, "unreadable herdr response: {detail}"),
-            Self::Server { code, message } => {
-                write!(f, "herdr refused the request: {code}: {message}")
-            }
-            Self::BothPathsFailed { cli, socket } => {
-                write!(f, "{cli} (the socket was tried first: {socket})")
-            }
-        }
-    }
 }
 
 /// Encode one `workspace.list` request line.
@@ -83,25 +42,18 @@ fn request_line(request_id: &str, method: &str, params: Value) -> String {
 }
 
 /// Unwrap a response envelope into its `result` object.
-///
-/// An empty body is accepted as success with an empty result: `herdr workspace
-/// focus` prints nothing on some paths, and the caller only needs the result
-/// for `workspace.list`.
-pub fn result_of(body: &str) -> Result<Value, JumpError> {
-    if body.trim().is_empty() {
-        return Ok(json!({}));
-    }
+pub fn result_of(body: &str) -> Result<Value, ProtocolError> {
     let envelope: Value = serde_json::from_str(body.trim())
-        .map_err(|error| JumpError::Malformed(format!("not JSON: {error}")))?;
+        .map_err(|error| ProtocolError::Malformed(format!("not JSON: {error}")))?;
     if let Some(failure) = envelope.get("error") {
-        return Err(JumpError::Server {
+        return Err(ProtocolError::Server {
             code: string_at(failure, "code").unwrap_or_else(|| "unknown".to_string()),
             message: string_at(failure, "message").unwrap_or_else(|| body.trim().to_string()),
         });
     }
     match envelope.get("result") {
         Some(result) => Ok(result.clone()),
-        None => Err(JumpError::Malformed(
+        None => Err(ProtocolError::Malformed(
             "envelope has neither result nor error".to_string(),
         )),
     }
@@ -112,18 +64,18 @@ pub fn result_of(body: &str) -> Result<Value, JumpError> {
 /// A record with no label keeps an empty one rather than being dropped: an
 /// empty label can never equal a chord's label, so it falls out of the match on
 /// its own, and dropping it would hide a malformed record instead.
-pub fn workspaces_of(result: &Value) -> Result<Vec<Workspace>, JumpError> {
+pub fn workspaces_of(result: &Value) -> Result<Vec<WireWorkspace>, ProtocolError> {
     let records = result
         .get("workspaces")
         .and_then(Value::as_array)
-        .ok_or_else(|| JumpError::Malformed("result has no workspaces array".to_string()))?;
+        .ok_or_else(|| ProtocolError::Malformed("result has no workspaces array".to_string()))?;
     records
         .iter()
         .map(|record| {
             let workspace_id = string_at(record, "workspace_id").ok_or_else(|| {
-                JumpError::Malformed("a workspace record has no workspace_id".to_string())
+                ProtocolError::Malformed("a workspace record has no workspace_id".to_string())
             })?;
-            Ok(Workspace {
+            Ok(WireWorkspace {
                 workspace_id,
                 label: string_at(record, "label").unwrap_or_default(),
             })
@@ -196,9 +148,12 @@ mod tests {
     }
 
     #[test]
-    fn result_of_treats_an_empty_body_as_an_empty_success() {
-        assert_eq!(result_of(""), Ok(json!({})));
-        assert_eq!(result_of("  \n "), Ok(json!({})));
+    fn result_of_rejects_an_empty_socket_body() {
+        assert!(matches!(result_of(""), Err(ProtocolError::Malformed(_))));
+        assert!(matches!(
+            result_of("  \n "),
+            Err(ProtocolError::Malformed(_))
+        ));
     }
 
     #[test]
@@ -207,7 +162,7 @@ mod tests {
             result_of(r#"{"id":"1","error":{"code":"not_found","message":"no such workspace"}}"#);
         assert_eq!(
             failure,
-            Err(JumpError::Server {
+            Err(ProtocolError::Server {
                 code: "not_found".to_string(),
                 message: "no such workspace".to_string(),
             })
@@ -218,11 +173,11 @@ mod tests {
     fn result_of_rejects_non_json_and_an_envelope_with_neither_arm() {
         assert!(matches!(
             result_of("not json"),
-            Err(JumpError::Malformed(_))
+            Err(ProtocolError::Malformed(_))
         ));
         assert!(matches!(
             result_of(r#"{"id":"1"}"#),
-            Err(JumpError::Malformed(_))
+            Err(ProtocolError::Malformed(_))
         ));
     }
 
@@ -235,11 +190,11 @@ mod tests {
         assert_eq!(
             workspaces_of(&result),
             Ok(vec![
-                Workspace {
+                WireWorkspace {
                     workspace_id: "wW".to_string(),
                     label: "dotfiles modernization".to_string(),
                 },
-                Workspace {
+                WireWorkspace {
                     workspace_id: "w11".to_string(),
                     label: "dotfiles".to_string(),
                 },
@@ -253,7 +208,7 @@ mod tests {
             json!({"workspaces": [{"workspace_id": "wA"}, {"workspace_id": "wB", "label": null}]});
         let workspaces = match workspaces_of(&result) {
             Ok(workspaces) => workspaces,
-            Err(error) => panic!("expected the records to parse: {error}"),
+            Err(error) => panic!("expected the records to parse: {error:?}"),
         };
         assert_eq!(workspaces.len(), 2);
         assert!(
@@ -267,32 +222,11 @@ mod tests {
     fn workspaces_of_rejects_a_missing_array_or_a_record_without_an_id() {
         assert!(matches!(
             workspaces_of(&json!({})),
-            Err(JumpError::Malformed(_))
+            Err(ProtocolError::Malformed(_))
         ));
         assert!(matches!(
             workspaces_of(&json!({"workspaces": [{"label": "x"}]})),
-            Err(JumpError::Malformed(_))
+            Err(ProtocolError::Malformed(_))
         ));
-    }
-
-    #[test]
-    fn every_error_renders_on_one_line() {
-        for error in [
-            JumpError::Unreachable("no such file".to_string()),
-            JumpError::Transport("timed out".to_string()),
-            JumpError::Malformed("not JSON".to_string()),
-            JumpError::Server {
-                code: "not_found".to_string(),
-                message: "gone".to_string(),
-            },
-            JumpError::BothPathsFailed {
-                cli: "herdr unreachable: no binary".to_string(),
-                socket: "herdr unreachable: no socket".to_string(),
-            },
-        ] {
-            let rendered = error.to_string();
-            assert!(!rendered.contains('\n'), "multi-line: {rendered}");
-            assert!(!rendered.is_empty());
-        }
     }
 }

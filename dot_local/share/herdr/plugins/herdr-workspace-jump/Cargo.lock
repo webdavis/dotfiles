@@ -3,7 +3,38 @@
 version = 4
 
 [[package]]
-name = "herdr-workspace-jump"
+name = "herdr-workspace-jump-adapters"
+version = "0.1.0"
+dependencies = [
+ "herdr-workspace-jump-application",
+ "herdr-workspace-jump-domain",
+ "herdr-workspace-jump-protocol",
+ "serde_json",
+]
+
+[[package]]
+name = "herdr-workspace-jump-application"
+version = "0.1.0"
+dependencies = [
+ "herdr-workspace-jump-domain",
+]
+
+[[package]]
+name = "herdr-workspace-jump-cli"
+version = "0.1.0"
+dependencies = [
+ "herdr-workspace-jump-adapters",
+ "herdr-workspace-jump-application",
+ "herdr-workspace-jump-domain",
+ "serde_json",
+]
+
+[[package]]
+name = "herdr-workspace-jump-domain"
+version = "0.1.0"
+
+[[package]]
+name = "herdr-workspace-jump-protocol"
 version = "0.1.0"
 dependencies = [
  "serde_json",
