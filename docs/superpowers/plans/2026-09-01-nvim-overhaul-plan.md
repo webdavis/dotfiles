@@ -939,16 +939,22 @@ Lane: agent. Depends on: PR 12, PR 13 (`claudecode.lua`), PR 23 (`blame_sha`). B
 state gate, the one-slot queue, the detached `herdr agent wait`, the recheck and the state machine
 are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`.
 
-**This task is superseded in place, not rewritten.** It SHIPPED as the local module below, and the
-own-repository ruling landed after it (2026-09-05: every custom Neovim plugin is its own public
-repository, spec 7.7). Under that ruling custom #3 becomes
-`webdavis/herdr-nvim-annotate-extension.nvim`, which the operator has created, and the composer, its
-spec and the `<leader>Cx` edge move there. Extracting it is FOLLOW-UP work with its own task; the
-file list below is the record of what PR 16 built, not an instruction to build it locally again.
+**PR 16 shipped the local module.** The own-repository ruling followed on 2026-09-05 (spec 7.7), and
+this extraction now installs `webdavis/herdr-nvim-annotate-extension.nvim` at its published v0.1.1
+release. The composer and its tests live in that repository; this configuration owns the dependency
+pin and `<leader>Cx` binding. The original task is not an instruction to rebuild the local module.
 
-**Files:** Create `lua/custom_api/annotate.lua`, `tests/annotate_spec.lua`. Modify
-`lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
-blame"`).
+**Files:** In THIS repository, create only `lua/plugins/herdr-nvim-annotate-extension.lua` and
+modify `lua/plugins/claudecode.lua` (`<leader>Cx` leaves it). The annotator's code, tests, vimdoc and
+health check live in a separate repository, `webdavis/herdr-nvim-annotate-extension.nvim`.
+
+**Amended 2026-09-05 (operator ruling):** the annotator ships as a published plugin declaring
+`ChmaraX/herdr-nvim` as a dependency, rather than as a `custom_api` module. The coupling is to
+herdr-nvim and to nothing in this config, so it is declared rather than hidden, and the plugin
+requires no `custom_api` module: it carries its own git edge and its own `trim`, which `custom_api`
+keeps for its other consumers. `<leader>Cx` is the spec's own `keys` row, unchanged in key, mode and
+description, and it calls `line()` through `custom_api.try` rather than the plugin's shipped
+`:HerdrAnnotateLine`, so a refusal reports through this config's error boundary.
 
 **Interfaces:** `annotate.compose_text(parts, separator)` (pure) with
 `parts = { mention, diagnostic, func, blame }` (any but `mention` may be nil) returns one string, the
