@@ -18,77 +18,6 @@ pub(crate) fn record_decision(record: &pns::decision_log::Record) {
         RING_READ_MAX,
     );
 }
-/// Journal one event the operator could not have perceived, so a replayer can
-/// find it later. A delivered event writes nothing at all.
-///
-/// ITS OWN FUNCTION rather than a second job inside `record_decision`: the two
-/// records have different reasons to change, and this write is conditional
-/// where the decision's is not.
-///
-/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason. An
-/// event path whose stdout a harness hook reads must not gain a line about the
-/// state directory, and a journal entry that did not land costs a replay,
-/// never a card.
-///
-/// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
-/// decided from rather than by a second `SystemTime` call here: two readings
-/// of one moment can disagree.
-pub(crate) fn record_missed(
-    event: &pns::args::EventArgs,
-    decision: &pns::engine::Decision,
-    overrides: &Overrides,
-) {
-    if !pns::missed_notifications::was_missed(decision, overrides) {
-        return;
-    }
-    // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_ring_line(
-        &state_dir().join(MISSED_NOTIFICATIONS),
-        &pns::missed_notifications::entry(
-            event,
-            decision.inputs.now_secs,
-            render::PREVIEW_MAX_CHARS,
-        ),
-        pns::missed_notifications::KEPT,
-        RING_READ_MAX,
-    );
-}
-/// Record one event in the activity ring, WHETHER OR NOT anybody perceived it.
-///
-/// THE THIRD FILE, and it exists because the two already here answer other
-/// questions. The decision ring refuses free text by design, since a human
-/// reads it through `pns doctor`; the journal is written only for events the
-/// operator COULD NOT have perceived, which is the opposite of what a return
-/// recap is about. The recap's window is the cards that WERE delivered,
-/// glanced at and forgotten, and neither existing file can see one.
-///
-/// NEVER CLAIMED AND NEVER CONSUMED, unlike the journal. It is a rolling
-/// window pruned by depth alone, which is what lets the detached recap child
-/// re-read it safely and what makes a recap idempotent by WINDOW rather than
-/// by deletion.
-///
-/// ITS OWN CAP AND ITS OWN READ CEILING, both stated on the constants. A recap
-/// line is one of a hundred, so it is capped far shorter than a card, and the
-/// depth that covers an overnight window needs a read ceiling of its own.
-///
-/// FAIL-QUIET, in `record_missed`'s exact style and for its exact reason: an
-/// event path whose stdout a harness hook reads must not gain a line about the
-/// state directory, and a missing entry costs one line of one recap.
-///
-/// THE PRIVACY RULE IS THE JOURNAL'S, INHERITED. This file holds the
-/// operator's own text for every event, at 0600 like every other state file,
-/// and nothing prints an entry to a terminal: `pns doctor` deliberately gains
-/// no activity line, and the only reader is the recap that delivers it to the
-/// same channels the live event reached.
-pub(crate) fn record_activity(event: &pns::args::EventArgs, decision: &pns::engine::Decision) {
-    // The failure is DROPPED here and nowhere else: see the doc comment.
-    let _ = append_ring_line(
-        &state_dir().join(ACTIVITY),
-        &pns::missed_notifications::entry(event, decision.inputs.now_secs, ACTIVITY_MAX_CHARS),
-        ACTIVITY_KEPT,
-        ACTIVITY_READ_MAX,
-    );
-}
 /// Every activity entry inside a window, oldest first, which is the order the
 /// append leaves the ring in.
 ///
@@ -131,7 +60,7 @@ pub(crate) fn activity_in(since: u64, until: u64) -> Vec<pns::missed_notificatio
 /// MEASURES 552,000 bytes, which is 53% of this ceiling. Raising the depth or
 /// the field cap means raising this in the same change, because a ring that
 /// cannot be read back cannot be pruned and collapses to one line.
-const ACTIVITY_READ_MAX: u64 = 1024 * 1024;
+pub(super) const ACTIVITY_READ_MAX: u64 = 1024 * 1024;
 /// The decision ring: one line per event, `KEPT` deep, beside `quiet-until`
 /// and `home-staleness`. NOT a log stream and not rotate-logs' business: it is
 /// bounded state that prunes itself.
@@ -144,7 +73,7 @@ pub(crate) const MISSED_NOTIFICATIONS: &str = "missed-notifications";
 /// The activity ring: EVERY event, one JSON object per line in the journal's
 /// own shape, oldest first, `ACTIVITY_KEPT` deep. Bounded state that prunes
 /// itself, never claimed and never consumed.
-const ACTIVITY: &str = "activity";
+pub(super) const ACTIVITY: &str = "activity";
 /// How many events the activity ring keeps.
 ///
 /// A HUNDRED AND FIFTY covers an overnight window at the observed working rate
@@ -153,10 +82,10 @@ const ACTIVITY: &str = "activity";
 /// end exactly as the journal's prune does, which is why the recap's header
 /// counts the entries it READ rather than claiming a total it cannot back.
 /// Raising it means raising `ACTIVITY_READ_MAX` in the same change.
-const ACTIVITY_KEPT: usize = 150;
+pub(super) const ACTIVITY_KEPT: usize = 150;
 /// How much of each text field one activity entry holds.
 ///
 /// A TIMELINE LINE, NOT A CARD, which is why it is far under the card's own
 /// 260: the recap renders one line per event among a hundred, and the full text
 /// of every event already reached the durable log the recap's tail points at.
-const ACTIVITY_MAX_CHARS: usize = 120;
+pub(super) const ACTIVITY_MAX_CHARS: usize = 120;

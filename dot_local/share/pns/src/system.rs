@@ -17,10 +17,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Runs a command and returns its stdout, or `None` when it cannot be run or
-/// exits non-zero. The seam every probe reads the world through.
-pub trait CommandRunner {
-    fn run(&self, program: &str, args: &[&str]) -> Option<String>;
-}
+/// exits non-zero. The seam every probe reads the world through, DECLARED in
+/// `pns-application` and named here for the runner that implements it.
+pub use pns_application::CommandRunner;
 
 /// The production runner: spawns the command under a deadline and keeps its
 /// stdout.
@@ -716,7 +715,7 @@ impl<R: CommandRunner> crate::probes::SessionViewProbe for SystemProbes<R> {
     /// rather than as "not visible".
     ///
     /// NO CELL, UNLIKE THE OTHER FOUR PROBES ON THIS STRUCT: this has exactly
-    /// one production reader (`engine::operator_visibility`), so "one probe
+    /// one production reader (`pns_application::decide`), so "one probe
     /// set is one reading" already holds by call site alone, with nothing to
     /// memoize against. A second production reader would need the same
     /// `OnceCell` the other four carry, to keep that property true once it is
@@ -749,10 +748,10 @@ impl<R: CommandRunner + Send + Sync + 'static> crate::probes::ProbeStart for Sys
     /// each: see the module doc on `SystemProbes` and `join_desk`/`join_phone`
     /// below. NEITHER OVERRIDE IS CONSULTED HERE; the caller already answered
     /// that in `wants`, which is the one spelling of the override rule this
-    /// and the read guards in `engine::surface_reading` share.
+    /// and the read guards in `environment_reading::read_surface` share.
     ///
     /// EVERY THREAD STARTED HERE IS JOINED BY A READ ON THE SAME PATH before
-    /// anything calls `std::env::set_var`: the guards in `surface_reading`
+    /// anything calls `std::env::set_var`: the guards in `environment_reading::read_surface`
     /// read exactly what they asked to start, so no probe thread outlives
     /// that function, and the one `set_var` in this crate (main's blocked
     /// path) runs after it returns. `set_var` is `unsafe` because libc

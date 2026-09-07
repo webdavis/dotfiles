@@ -195,7 +195,7 @@ fn deliver_leg(
     }
     deliver(
         &channels_dir.join(format!("{}.sh", leg.name)),
-        &rendered.to_json(leg.mode),
+        &pns::channels::event_json(rendered, leg.mode),
     )
 }
 /// Hand one channel its event on stdin. A channel that is missing, is not

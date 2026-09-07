@@ -1,11 +1,10 @@
 //! The decision, pinned: plan.
 
-use super::fixtures::{CountingProbes, decide_with, elsewhere, names, three_selection, watching};
-use super::{Decision, Overrides, decide};
+use super::fixtures::{decide, decide_with, elsewhere, names, three_selection, watching};
 use crate::surface::SessionView;
+use crate::{Decision, EnvironmentSnapshot, Overrides};
 
 // --- the plan drives the legs -------------------------------------------
-
 #[test]
 fn every_surface_and_visibility_pair_dispatches_the_legs_its_row_planned() {
     // The engine's half of the matrix: the model decides banner and card,
@@ -52,10 +51,10 @@ fn every_surface_and_visibility_pair_dispatches_the_legs_its_row_planned() {
         ),
     ];
     for (label, idle, view, expected) in matrix {
-        let probes = CountingProbes {
+        let probes = EnvironmentSnapshot {
             idle,
             view,
-            ..CountingProbes::default()
+            ..EnvironmentSnapshot::default()
         };
         assert_eq!(
             names(&decide_with(&probes, &Overrides::default(), "wW:p1")),
@@ -70,11 +69,11 @@ fn a_phone_used_more_recently_than_the_desk_never_gets_a_banner() {
     // The property the matrix rests on: terminal-notifier is a desk
     // surface, and mobile is not the desk. The desk was touched 90s ago
     // and the phone 5s ago, which is drill D5's own scenario.
-    let probes = CountingProbes {
+    let probes = EnvironmentSnapshot {
         idle: Some(90),
         phone_atime: Some(999_995),
         view: Some(elsewhere("wW:p1")),
-        ..CountingProbes::default()
+        ..EnvironmentSnapshot::default()
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
@@ -105,12 +104,12 @@ fn what_put_the_operator_on_mobile_decides_whether_the_watched_pane_suppresses()
         ),
     ];
     for (label, marker_mtime, phone_atime, expected) in matrix {
-        let probes = CountingProbes {
+        let probes = EnvironmentSnapshot {
             idle: Some(9_000),
             marker_mtime,
             phone_atime,
             view: Some(watching("wW:p1")),
-            ..CountingProbes::default()
+            ..EnvironmentSnapshot::default()
         };
         assert_eq!(
             names(&decide_with(&probes, &Overrides::default(), "wW:p1")),
@@ -124,11 +123,11 @@ fn what_put_the_operator_on_mobile_decides_whether_the_watched_pane_suppresses()
 fn a_tap_with_moshi_closed_cards_even_when_the_session_view_cannot_be_read() {
     // The other half of the D6 row: an unreadable view already never
     // suppressed, and the tap must not turn that into a new way to.
-    let probes = CountingProbes {
+    let probes = EnvironmentSnapshot {
         idle: Some(9_000),
         marker_mtime: Some(999_990),
         view: None,
-        ..CountingProbes::default()
+        ..EnvironmentSnapshot::default()
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
@@ -138,10 +137,10 @@ fn a_tap_with_moshi_closed_cards_even_when_the_session_view_cannot_be_read() {
 
 #[test]
 fn the_long_running_tier_pulses_and_says_so_in_the_decision() {
-    let probes = CountingProbes {
+    let probes = EnvironmentSnapshot {
         idle: Some(2),
         view: Some(watching("wW:p1")),
-        ..CountingProbes::default()
+        ..EnvironmentSnapshot::default()
     };
     let decision = decide(
         &probes,
@@ -167,11 +166,11 @@ fn the_long_running_tier_pulses_and_says_so_in_the_decision() {
 
 #[test]
 fn the_mobile_watch_card_toggle_adds_the_card_only_when_it_is_on() {
-    let on_the_phone = || CountingProbes {
+    let on_the_phone = || EnvironmentSnapshot {
         idle: Some(9_000),
         phone_atime: Some(999_990),
         view: Some(watching("wW:p1")),
-        ..CountingProbes::default()
+        ..EnvironmentSnapshot::default()
     };
     let with_toggle = |on: bool| {
         let probes = on_the_phone();

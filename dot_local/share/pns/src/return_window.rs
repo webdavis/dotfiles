@@ -32,11 +32,9 @@ use crate::*;
 /// THE EPOCH IS THE DECISION'S OWN CLOCK READ, taken off the readings it
 /// decided from rather than by a second `SystemTime` call, for the reason
 /// `record_missed` states: two readings of one moment can disagree.
-pub(crate) fn mark_present(decision: &pns::engine::Decision) {
-    if !pns::missed_notifications::is_present(decision) {
-        return;
-    }
-    let Some(now) = decision.inputs.now_secs else {
+/// The calling use case checks presence before requesting this write.
+pub(crate) fn mark_present(now: Option<u64>) {
+    let Some(now) = now else {
         return;
     };
     if read_epoch(&state_dir().join(LAST_PRESENT)).is_some_and(|held| held >= now) {

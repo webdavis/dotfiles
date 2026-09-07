@@ -1,15 +1,10 @@
-//! What every decision test builds from: the module's own items, the counting
-//! probe set and the recorded readings. One copy, because these rows were one
-//! test module before the file outgrew the size rule.
-
-use super::{Decision, Overrides, decide};
-use crate::config::parse_config;
-use crate::probes::{
+use crate::ports::environment::{
     IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
     Wants,
 };
-use crate::registry::Selection;
-use crate::surface::SessionView;
+use pns_domain::registry::Selection;
+use pns_domain::surface::SessionView;
+use pns_domain::{Decision, DecisionRequest, Overrides};
 use std::cell::Cell;
 
 /// Recording probes: every reading is counted, so a test can pin that a
@@ -83,30 +78,46 @@ pub(super) fn watching(origin: &str) -> SessionView {
     }
 }
 
-/// A view in which the origin pane's tab is not the one on screen.
-pub(super) fn elsewhere(_origin: &str) -> SessionView {
-    SessionView {
-        origin_tab: "t1".to_string(),
-        focused_tab: "t2".to_string(),
-        focused_pane: "t2:p9".to_string(),
-        zoomed: false,
-    }
-}
-
 pub(super) fn three_selection() -> Selection {
-    crate::registry::roster()
-        .enabled(
-            &parse_config(
-                "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
-            )
-            .unwrap()
-            .plugin_switches(),
-        )
+    pns_domain::registry::roster()
+        .enabled(&std::collections::BTreeMap::from([
+            ("mobile".to_string(), true),
+            ("hermes".to_string(), true),
+            ("macos-banner".to_string(), true),
+        ]))
         .unwrap()
 }
 
 pub(super) fn names(decision: &Decision) -> Vec<&str> {
     decision.legs.iter().map(|leg| leg.name).collect()
+}
+
+// Retain the existing case call shape so the behavioral bodies stay unchanged.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn decide(
+    probes: &CountingProbes,
+    selection: &Selection,
+    overrides: &Overrides,
+    local_only: bool,
+    remote_only: bool,
+    pane: &str,
+    now_secs: Option<u64>,
+    long_running: bool,
+    mobile_watch_card: bool,
+) -> Decision {
+    crate::environment_reading::decide(
+        probes,
+        selection,
+        overrides,
+        DecisionRequest {
+            local_only,
+            remote_only,
+            pane,
+            now_secs,
+            long_running,
+            mobile_watch_card,
+        },
+    )
 }
 
 /// One event through the whole engine, with the readings a test cares

@@ -205,6 +205,7 @@ version = "0.1.0"
 dependencies = [
  "hmac",
  "libc",
+ "pns-application",
  "pns-domain",
  "serde_json",
  "sha2",

@@ -1,5 +1,8 @@
 use crate::*;
 
+mod records;
+use records::EventRecords;
+
 /// Whether this is the event's FIRST delivery, a NUDGE about one already
 /// recorded, or an OBSERVATION.
 ///
@@ -248,168 +251,38 @@ fn run_event_pulsing(
     //
     // BOTH BRANCHES RECORD. "Nothing fired" is exactly what an operator opens
     // the report to ask about.
-    record_decision(&pns::decision_log::Record {
+    // THE ORDER IS THE USE CASE'S, in `pns-application`. Every step below the
+    // decision line was placed against the ones around it for a reason, and a
+    // reordering that still compiles is a defect no type here can catch.
+    let records = EventRecords {
+        home: &home,
+        hue_table: hue_table.as_ref(),
+        lights: lights.as_deref(),
+        mobile: &mobile,
+        hermes_key: hermes_key.clone(),
+        recap,
+        durable_route,
+        pulse,
+    };
+    let lamps_live = lights.is_some() && hue_table.is_some();
+    pns_application::SubmitNotification { ports: &records }.record(&pns_application::Submission {
         event,
         decision: &decision,
         overrides: &overrides,
         legs: &outcomes,
-        nag: attempt == Attempt::Nudge,
+        attempt: match attempt {
+            Attempt::First => pns_application::Attempt::First,
+            Attempt::Nudge => pns_application::Attempt::Nudge,
+            Attempt::Observation => pns_application::Attempt::Observation,
+        },
+        session_id: &payload.session_id,
         permission_mode: &payload.permission_mode,
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,
-    });
-    // AND THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
-    // an observation returns here, so it writes no journal entry, no
-    // activity-ring line, never claims the return moment through
-    // `mark_present`, never triggers `replay_missed` and never pulses.
-    //
-    // EACH IS A DEFECT AVOIDED RATHER THAN TIDINESS. The recap counts
-    // activity-ring lines toward `min_events`, so a nudge or an observation
-    // that rang would inflate the operator's own recap with pns's noise;
-    // neither is evidence of presence, so neither must move the last-present
-    // marker; and the pulse falling out here is how "escalation is not a
-    // colour" stays enforced without touching the lights at all.
-    //
-    // A SUPPRESSED NUDGE IS THEREFORE LOST, deliberately, and AN OBSERVATION
-    // NEVER RENEWS A LEASE OR ARMS A LAMP, for the same reason from the other
-    // side: it is not an occurrence to replay later. Muted, inside a named
-    // Focus, or planned to nothing means the nudge does not happen and is not
-    // journaled for replay: a "still waiting" card replayed hours later, about
-    // a question answered long ago, is worse than silence.
-    if attempt != Attempt::First {
-        return;
-    }
-    // THE JOURNAL GOES WITH IT, inheriting the ordering contract stated above
-    // rather than restating it: same site, same accepted price, and both
-    // branches reach it, including the empty-plan branch, which is where most
-    // misses live.
-    record_missed(event, &decision, &overrides);
-    // AND THE LAMPS' NEEDS MARKER BESIDE IT, under the same ordering contract
-    // and the same fail-quiet rule: a marker that did not land costs one lamp
-    // its colour and never a card.
-    // THE LAMPS ARE LIVE ONLY WITH BOTH SWITCHES: a map, and the transport
-    // enabled. `[lights]` is policy and `[plugins.hue]` is how it reaches a
-    // bulb, so a table with hue switched off lights nothing, runs no tick, and
-    // must not accumulate markers nothing will ever sweep.
-    let lamps_live = lights.is_some() && hue_table.is_some();
-    update_blocked_marker(
-        &state_dir(),
-        &payload.session_id,
-        &event.state,
         lamps_live,
-        decision.inputs.now_secs,
-    );
-    // AND THE NEWS RECORD BESIDE IT, under the same ordering contract and the
-    // same fail-quiet rule. It is what arms the unread lamp, and it is written
-    // WHATEVER THE DELIVERY DID: a card that was suppressed, muted or dropped is
-    // exactly the news that lamp exists to carry.
-    //
-    // THE PULSE'S OWN MAPPING decides what counts, so the colour a lamp flashes
-    // and the record that arms the unread lamp cannot disagree about one event.
-    //
-    // AND IT IS NOT GATED ON THE LAMP SWITCHES EITHER, which is the difference
-    // between this record and the wait marker beside it. A marker is a file per
-    // session that only the tick ever sweeps, so a machine with no lamps must
-    // not start accumulating them; this is ONE line rewritten in place, it can
-    // never grow, and what it holds is the plain fact that a turn finished or
-    // died. Written only while a map and a transport were both live, an
-    // operator who switched hue off for an evening came back to a lamp with
-    // nothing to say about the evening.
-    record_news(
-        &state_dir(),
-        pns::pulse::state_behaviour(&event.state, true),
-        decision.inputs.now_secs,
-    );
-    // AND THE LOOP LEASE THIS PANE HOLDS, if it holds one. The renewal is the
-    // pane's own ordinary traffic, which is what makes the lease a liveness
-    // signal rather than a timer. It CREATES nothing, so a machine with no lamps
-    // pays one failed open and keeps no state.
-    renew_loop_lease(&state_dir(), &event.pane, decision.inputs.now_secs);
-    // AND THE ACTIVITY RING WITH IT, at the same site and under the same
-    // ordering contract and the same fail-quiet rule. It records
-    // UNCONDITIONALLY, which is the whole difference between it and the
-    // journal above: the recap's window is every event, delivered or not.
-    record_activity(event, &decision);
-
-    // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE PULSE, inheriting
-    // the ordering contract stated above rather than restating it: a slow
-    // replay must not cost either record, and a card the operator may be
-    // waiting on outranks decoration.
-    replay_missed(recap, &decision, &home, &mobile, hermes_key, durable_route);
-    // AND THE MARKER MOVES AFTER IT, never before: the catch-up above is what
-    // READS the window this closes, and moving the edge first would hand it a
-    // window one event wide on every return.
-    mark_present(&decision);
-
-    // THE PULSE GOES LAST, after every channel the operator might be waiting
-    // on. It is part of the PLAN rather than a second invocation (the shell
-    // used to call `pns pulse` alongside the notification, so the tier was
-    // decided twice and could disagree with itself), but it talks to a bridge
-    // over the network under a ten-second deadline, and nothing an operator
-    // reads should queue behind decoration. It still fires for a plan that
-    // reached no channel at all: the lights are not a leg.
-    //
-    // THE LAMPS HAVE A SECOND GATE, beside the plan's rather than inside it.
-    // `plan.pulse` is `long_running` and it is what the decision log records;
-    // widening it would change what every card, banner and log line says about
-    // an event that earned no card. The blocked lamp is not a delivery, it is
-    // a colour on a bulb, so it earns its own condition here: an agent waiting
-    // on the operator holds blocked whether or not it ran long.
-    //
-    // IT NEEDS A `[lights]` TABLE, which is the opt-in, and the opt-in is read
-    // off the BEHAVIOUR rather than tested a second time here: `state_behaviour`
-    // only answers blocked for a mapped machine, so the colour a lamp shows
-    // and the gate that lets it fire cannot come out disagreeing about one
-    // event. Without the map there is no blocked lamp to show, and a long-running
-    // blocked turn keeps the green it has flashed since the bash.
-    //
-    // AND IT RESPECTS THE SILENCE, through the same predicate arbitration uses
-    // rather than a second copy of it: a muted operator gets no lamp, which is
-    // the shipped rule that the lights are decoration too.
-    //
-    // THIS FLASH IS NOT WHAT HOLDS THE LAMP BLOCKED. `pulse_render` answers
-    // `None` for every held behaviour, Blocked included, so this call fires
-    // once, at the moment the wait begins, and does nothing after. The
-    // TICK lights it off the marker `update_blocked_marker` just published,
-    // on its next successful run, scheduled `refresh_secs` after the last
-    // one; a stopped daemon lights nothing. That reading takes `pns lights
-    // quiet` and each room's own dim window, and never this event's own
-    // silence or a macOS Focus: those gate the flash and the cards, not the
-    // sustained breath.
-    let behaviour = pns::pulse::state_behaviour(&event.state, lights.is_some());
-    let blocked_lamp = behaviour == pns::config::Behaviour::Blocked && !overrides.silenced();
-    if decision.plan.pulse || blocked_lamp {
-        // THE DECISION'S OWN READINGS, handed down rather than taken again:
-        // this event's plan and the room its lamp narrows to have to describe
-        // one moment. The snapshot was BUILT beside the decision, before any
-        // channel ran, for the reason stated there.
-        pulse(
-            hue_table.clone(),
-            lights.as_deref(),
-            behaviour,
-            presence_at_decision.as_ref(),
-        );
-    }
-    // AND THE OPERATOR'S RETURN PUTS OUT WHATEVER A GLOW IS STILL HOLDING.
-    // The steady write is the one body on this path that does not expire, so
-    // something has to put it out, and this is where the condition behind it
-    // stops being true: `is_present` is the same predicate that advances the
-    // return edge the glow is derived from, so the lamp and the marker cannot
-    // disagree about whether the operator came back.
-    //
-    // NO DAEMON IS INVOLVED, which is half of what pays for the steady write.
-    // The held paths were recorded when they were written, so this is one PUT
-    // each with no listing to resolve, and it works on a machine where the
-    // tick has not run for hours.
-    if lamps_live && pns::missed_notifications::is_present(&decision) {
-        clear_held_lamps(hue_table.as_ref());
-    }
-    // AND THE TICK'S LEASE IS REFRESHED LAST, by every event, which is what
-    // makes a stalled loop go dark for free: nothing renews its own lease, so
-    // a machine that stopped producing events stops re-arming its lamps.
-    if lamps_live {
-        register_lights_tick(lights.as_deref(), &decision, &overrides);
-    }
+        lights_declared: lights.is_some(),
+        presence: presence_at_decision.as_ref(),
+    });
 }
 
 #[cfg(test)]

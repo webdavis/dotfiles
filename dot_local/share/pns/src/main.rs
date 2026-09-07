@@ -118,9 +118,7 @@ pub(crate) use daemon_runtime::daemon_run;
 pub(crate) use daemon_spool_runtime::drain_spool;
 pub(crate) use doctor_reports::{daemon_line, decision_section, missed_line, read_pairing};
 pub(crate) use event_flow::{Attempt, run_event};
-pub(crate) use event_records::{
-    DECISIONS, MISSED_NOTIFICATIONS, activity_in, record_activity, record_decision, record_missed,
-};
+pub(crate) use event_records::{DECISIONS, MISSED_NOTIFICATIONS, activity_in, record_decision};
 pub(crate) use focus_runtime::{focus_line, focus_now};
 pub(crate) use home_staleness_memory::{remember_staleness, remembered_staleness};
 pub(crate) use hook_dispatch::hook_mode;

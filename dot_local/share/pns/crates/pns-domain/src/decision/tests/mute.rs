@@ -1,12 +1,11 @@
 //! The decision, pinned: mute.
 
-use super::fixtures::{CountingProbes, decide_with, elsewhere, names, three_selection, watching};
-use super::{Overrides, decide};
+use super::fixtures::{decide, decide_with, elsewhere, names, three_selection, watching};
 use crate::routing::{Leg, ReportMode};
 use crate::surface::SessionView;
+use crate::{EnvironmentSnapshot, Overrides};
 
 // --- the operator's mute ------------------------------------------------
-
 #[test]
 fn a_muted_decision_keeps_the_durable_log_and_drops_every_decorative_leg() {
     // THE MUTE IS DECORATION ONLY. hermes is not a field of the delivery
@@ -22,10 +21,10 @@ fn a_muted_decision_keeps_the_durable_log_and_drops_every_decorative_leg() {
         ("at the desk: the banner", Some(2)),
         ("away: the card", Some(9_000)),
     ] {
-        let probes = CountingProbes {
+        let probes = EnvironmentSnapshot {
             idle,
             view: Some(elsewhere("wW:p1")),
-            ..CountingProbes::default()
+            ..EnvironmentSnapshot::default()
         };
         assert_eq!(
             names(&decide_with(&probes, &Overrides::default(), "wW:p1")).len(),
@@ -48,10 +47,10 @@ fn a_muted_decision_plans_no_pulse_even_for_a_long_running_event() {
     // is never consulted here: a muted event plans no pulse at all.
     let long_event = |overrides: &Overrides| {
         decide(
-            &CountingProbes {
+            &EnvironmentSnapshot {
                 idle: Some(2),
                 view: Some(elsewhere("wW:p1")),
-                ..CountingProbes::default()
+                ..EnvironmentSnapshot::default()
             },
             &three_selection(),
             overrides,
@@ -78,10 +77,10 @@ fn the_mute_beats_a_forced_phone_card_because_a_producer_cannot_overrule_the_ope
     // skip-beats-force arbitration. Applying it before hands force the win
     // silently, which a plausible tidy would do, and `PNS_FORCE_PHONE` is
     // set by every producer that thinks its event is important.
-    let probes = || CountingProbes {
+    let probes = || EnvironmentSnapshot {
         idle: Some(1),
         view: Some(watching("wW:p1")),
-        ..CountingProbes::default()
+        ..EnvironmentSnapshot::default()
     };
     let forced = Overrides {
         force_phone: true,
@@ -100,97 +99,6 @@ fn the_mute_beats_a_forced_phone_card_because_a_producer_cannot_overrule_the_ope
         names(&decide_with(&probes(), &forced_and_muted, "wW:p1")),
         vec!["hermes"],
         "a mute a producer can override is not a mute"
-    );
-}
-
-#[test]
-fn a_focus_the_config_named_suppresses_the_mutes_three_decorations_and_beats_a_forced_phone() {
-    // THE OPERATING SYSTEM'S MUTE takes the operator's own mute's seat, so
-    // it suppresses the same three decorations, applies at the same point
-    // (after the skip-beats-force arbitration) and leaves the durable log
-    // alone for the same structural reason.
-    //
-    // A WORLD THAT PLANS ALL THREE: at the desk with the origin pane out
-    // of sight earns the banner, `force_phone` earns the card, and a long
-    // running event earns the pulse. Anything less and a passing assertion
-    // would be a plan that was empty to begin with.
-    let world = |overrides: &Overrides| {
-        decide(
-            &CountingProbes {
-                idle: Some(2),
-                view: Some(elsewhere("wW:p1")),
-                ..CountingProbes::default()
-            },
-            &three_selection(),
-            overrides,
-            false,
-            false,
-            "wW:p1",
-            Some(1_000_000),
-            true,
-            false,
-        )
-        .plan
-    };
-    let forced = Overrides {
-        force_phone: true,
-        ..Overrides::default()
-    };
-    assert_eq!(
-        world(&forced),
-        crate::surface::DeliveryPlan {
-            banner: true,
-            phone_card: true,
-            pulse: true,
-        },
-        "control: unfocused and unmuted, all three decorations fire"
-    );
-    assert_eq!(
-        world(&Overrides {
-            focus_active: true,
-            muted: false,
-            force_phone: true,
-            ..Overrides::default()
-        }),
-        crate::surface::DeliveryPlan {
-            banner: false,
-            phone_card: false,
-            pulse: false,
-        },
-        "a Focus a producer can override is not a Focus"
-    );
-    // THE RECORD SURVIVES, structurally: hermes is not a field of the
-    // delivery plan, so the durable log is exempt and a Focus is lossless.
-    assert_eq!(
-        names(&decide_with(
-            &CountingProbes {
-                idle: Some(2),
-                view: Some(elsewhere("wW:p1")),
-                ..CountingProbes::default()
-            },
-            &Overrides {
-                focus_active: true,
-                ..Overrides::default()
-            },
-            "wW:p1"
-        )),
-        vec!["hermes"]
-    );
-    // AND THE MUTE STILL WORKS ALONE, which is what stops the new clause
-    // being written as a replacement for the old one rather than beside it.
-    assert_eq!(
-        world(&Overrides {
-            focus_active: false,
-            muted: true,
-            force_phone: true,
-            ..Overrides::default()
-        }),
-        crate::surface::DeliveryPlan {
-            banner: false,
-            phone_card: false,
-            pulse: false,
-        },
-        "the operator's own typed mute is untouched by the Focus clause"
     );
 }
 
@@ -262,10 +170,10 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
         ),
     ];
     for (label, idle, view, long_running, legs, pulse) in matrix {
-        let probes = CountingProbes {
+        let probes = EnvironmentSnapshot {
             idle,
             view,
-            ..CountingProbes::default()
+            ..EnvironmentSnapshot::default()
         };
         let unmuted = Overrides {
             muted: false,

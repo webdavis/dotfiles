@@ -1,5 +1,40 @@
 use super::*;
 
+#[test]
+fn a_forwarded_gate_leaves_the_state_markers_untouched() {
+    for (name, argv) in [
+        ("gate-markers-bare", vec!["pi-hook"]),
+        ("gate-markers-explicit", vec!["gate", "pi-hook"]),
+    ] {
+        let sandbox = Sandbox::new(name);
+        std::fs::create_dir_all(sandbox.state()).expect("private state");
+        let existing = marker(&sandbox, "existing");
+        std::fs::write(&existing, b"1700000000\n").expect("existing marker");
+        let mut command = sandbox.pns_stateful();
+        command.args(argv).env("PNS_IDLE_SECS", "99999");
+        sandbox.stub_moshi(&mut command, 7);
+        let mut child = captured_child::CapturedChild::spawn(&mut command).expect("gate runs");
+        write_payload(&mut child.child, b"{\"session_id\":\"new-session\"}\n");
+        let output = child
+            .output_within(std::time::Duration::from_millis(800))
+            .expect("gate and pipe holders finish inside the bound");
+        assert_eq!(output.status.code(), Some(7));
+        assert_eq!(submissions(&sandbox), ["pi-hook"]);
+        assert_eq!(
+            std::fs::read(&existing).expect("existing marker survives"),
+            b"1700000000\n"
+        );
+        let entries: Vec<_> = std::fs::read_dir(sandbox.state())
+            .expect("state remains readable")
+            .map(|entry| entry.expect("state entry").path())
+            .collect();
+        assert_eq!(entries, [existing], "a gate creates no state marker");
+        for channel in ["mobile", "hermes", "macos-banner"] {
+            assert!(!sandbox.fired(channel), "a gate raised {channel}");
+        }
+    }
+}
+
 // --- the gate, as a real process --------------------------------------------
 
 /// The gate is reached by the BARE harness word, because moshi's generated

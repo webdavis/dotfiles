@@ -20,8 +20,10 @@ pub(crate) fn gate_mode(subcommand: &str) -> i32 {
     // BOUNDED AT THE SHARED SEAM, not here: pi and omp reach this entry point
     // with no pns hook in front of it, and a guard at the other caller alone
     // would leave this one hanging.
-    spawn_moshi_hook(subcommand, &payload)
-        .map_or(0, |child| answer_within(child, submit_deadline()))
+    pns_application::RequestApproval {
+        ports: &MoshiApprovalForwarder,
+    }
+    .forward_only(subcommand, &payload)
 }
 /// A blocking event: the round trip started, then the notification, then the
 /// operator's decision.
@@ -52,37 +54,89 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
     // ONE probe set for the whole event: the forward decision below and the
     // delivery plan inside run_event are two questions about one moment.
     let probes = system_probes();
-    let forwarded = moshi_subcommand(agent)
+    // WHICH AGENTS FORWARD AT ALL, whether the payload is whole and whether
+    // the operator is reachable are the composition root's three reads; the
+    // ORDER of what follows is the use case's.
+    let subcommand = moshi_subcommand(agent)
         .filter(|_| payload_is_whole(payload_json))
-        .filter(|_| forward_to_moshi(&probes))
-        .and_then(|subcommand| spawn_moshi_hook(&subcommand, payload_json));
-    if forwarded.is_some() {
-        // Suppressed here rather than by the plan: the card moshi is raising
-        // is something the surface model cannot know about.
+        .filter(|_| forward_to_moshi(&probes));
+    let approval = MoshiRaiseNotification {
+        probes: &probes,
+        payload,
+    };
+    pns_application::RequestApproval { ports: &approval }.run(
+        &event,
+        &payload.session_id,
+        subcommand.as_deref(),
+        payload_json,
+    )
+}
+/// THE COMPOSITION ROOT'S SIDE OF ONE APPROVAL: the spawn, the wait, the
+/// environment variable and the notification, each behind the port the use
+/// case orders them through.
+///
+/// THE ASSOCIATED HANDLE IS THE OWNED CHILD. Application code transfers it
+/// without naming a process type; completion consumes it once at this adapter.
+struct MoshiRaiseNotification<'a> {
+    probes: &'a SystemProbes<SystemCommandRunner>,
+    payload: &'a HookPayload,
+}
+
+struct MoshiApprovalForwarder;
+
+impl pns_application::ApprovalForwarder for MoshiApprovalForwarder {
+    type Forwarded = std::process::Child;
+
+    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Self::Forwarded> {
+        spawn_moshi_hook(subcommand, payload_json)
+    }
+    fn answer(&self, child: Self::Forwarded) -> i32 {
+        // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
+        // immediately before the wait, as it always was: threading it out of
+        // `run_event` would change that function's signature for one duration,
+        // and a view torn between the two reads costs at most this event.
+        answer_within(child, submit_deadline())
+    }
+}
+
+impl pns_application::ApprovalForwarder for MoshiRaiseNotification<'_> {
+    type Forwarded = std::process::Child;
+
+    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Self::Forwarded> {
+        pns_application::ApprovalForwarder::forward(
+            &MoshiApprovalForwarder,
+            subcommand,
+            payload_json,
+        )
+    }
+
+    fn answer(&self, child: Self::Forwarded) -> i32 {
+        pns_application::ApprovalForwarder::answer(&MoshiApprovalForwarder, child)
+    }
+}
+
+impl pns_application::PhoneSuppression for MoshiRaiseNotification<'_> {
+    fn suppress(&self) {
+        // SAFETY: the surface read joined every probe it started. Remaining
+        // command-pipe workers and the moshi payload writer use only captured
+        // pipes and owned buffers; they read no environment and spawn nothing.
+        // Notification channel threads have not started yet.
         unsafe { std::env::set_var("PNS_SKIP_PHONE", "1") };
     }
-    // AFTER THE FORWARD IS STARTED AND BEFORE THE NOTIFICATION. The forward is
-    // the operator-facing round trip and nothing may sit in front of its spawn;
-    // arming is a config read, three file operations and a spool write, taken
-    // here so the clock starts at the true prompt time and so a notification
-    // that dies still leaves a timer armed, which is the direction that helps
-    // the operator.
-    //
-    // AND THAT CONFIG READ IS THE THIRD ON THIS PATH, said plainly because the
-    // other two are. `run_event` loads it, the wait below loads it again, and
-    // `arm_nag` loads it here; each is one open and one TOML parse of a file
-    // measured in kilobytes, off local disk, with no network and no subprocess
-    // in any of them. It is named for honesty rather than as a cost worth
-    // routing around: threading one view through would change three signatures
-    // for a value each caller reads at the moment it needs it.
-    arm_nag(&payload.session_id, &event);
-    run_event(&event, &probes, payload, Attempt::First);
-    // THE CONFIG IS READ A SECOND TIME HERE, after the notification and
-    // immediately before the wait. Threading it out of `run_event` would
-    // change that function's signature for one duration, and a view torn
-    // between the two reads costs at most this one event's bound.
-    forwarded.map_or(0, |child| answer_within(child, submit_deadline()))
 }
+
+impl pns_application::NagSchedule for MoshiRaiseNotification<'_> {
+    fn arm(&self, session_id: &str, event: &pns::args::EventArgs) {
+        arm_nag(session_id, event);
+    }
+}
+
+impl pns_application::RaiseNotification for MoshiRaiseNotification<'_> {
+    fn raise(&self, event: &pns::args::EventArgs) {
+        run_event(event, self.probes, self.payload, Attempt::First);
+    }
+}
+
 /// Whether the operator can answer from the phone at all. THE SURFACE decides:
 /// on mobile or away the card is the only way to reach them, and at the desk
 /// the harness prompt in front of them already is one.
