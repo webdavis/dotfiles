@@ -92,6 +92,11 @@ local function in_committed_file(bytes, modifiers, fn)
   -- strip the carriage returns and hide what a CRLF case sends, and only the
   -- repository's own setting outranks it.
   git_command("config", "core.autocrlf", "false")
+  -- Same reason, and the fixture repository is a throwaway under the temp
+  -- directory: the blame would start an fsmonitor daemon that outlives it, so
+  -- the repository's own setting keeps this spec off the daemon whatever the
+  -- global config says.
+  git_command("config", "core.fsmonitor", "false")
   git_command("config", "user.name", "Spec Fixture")
   git_command("config", "user.email", "spec@example.invalid")
 

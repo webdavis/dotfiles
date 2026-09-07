@@ -106,6 +106,9 @@ return {
       "sources.default",
     },
     dependencies = {
+      -- Renders this menu's labels, and is used from `draw.components` below, so
+      -- its own `config` has to have run by the time the menu first draws.
+      "xzbdmw/colorful-menu.nvim",
       "folke/lazydev.nvim",
       "rafamadriz/friendly-snippets",
       "bydlw98/blink-cmp-env",
