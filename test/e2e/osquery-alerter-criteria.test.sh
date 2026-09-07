@@ -58,6 +58,9 @@ STUB
   # UNTRUSTED, else a trusted authority (exit 0).
   cat >"$HOME/enrich-stub.sh" <<'STUB'
 #!/usr/bin/env bash
+set -euo pipefail
+[[ $# -eq 2 && $1 == enrich ]] || exit 98
+shift
 case "$1" in
   *UNTRUSTED*) printf 'UNSIGNED'; exit 10 ;;
   *) printf 'signed: Apple'; exit 0 ;;
