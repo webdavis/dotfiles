@@ -19,7 +19,7 @@ At the source baseline, posture had no crate, binary, workspace or test baseline
 this plan:
 
 - the specification's original 368-statement pipeline inventory and 31 SSH additions; after review,
-  163 statements are fully pinned, three partially pinned and 233 UNPINNED;
+  145 statements are fully pinned, twelve partially pinned and 242 UNPINNED;
 - the twenty-one shell files (7,263 lines, 3,326 of code, 3,622 of comment), the two chezmoi
   runners (`run_after_05`, 386 lines, and `run_after_50`, 58), the seven plists and their seven
   loaders, and the 62 inline jq programs and 7 SQL (Structured Query Language) statement groups a port
@@ -101,7 +101,7 @@ Total functions of their arguments: no filesystem, clock, JSON, environment, pro
 Each module below is a stage or verdict the bash already isolates, which is the
 "guide, not a rule" the S9 decomposition design left for this port. Module names are proposed.
 
-- `finding`: `Finding {query, action, columns, enrich_path}`, the 25-name `Detector` enum, pack
+- `finding`: `Finding {query, action, columns, enrich_path}`, the 26-name `Detector` enum, pack
   stripping, the baseline discard and its three exemptions, the enrich-path rule, the renameio churn
   rule (S023 to S034, S360).
 - `severity`: `Severity`, `route_severity`, `protection_off` (S035 to S040).
@@ -117,8 +117,8 @@ Each module below is a stage or verdict the bash already isolates, which is the
   and a manifest answer, the DELETED rule, the atomic-rename shape (S079 to S084, S097).
 - `triage`: the correlation facts from a manifest answer, an on-disk reading and a parsed upgrade
   record; the record grammar and its window, row and count caps (S102 to S115).
-- `page`: the header, field, next-step and cap vocabulary, the sanitize chokepoint, the eight-block
-  and 1900-character caps, the shell quoting of paths (S124 to S133).
+- `page`: the header, field, next-step and cap vocabulary, field-specific escaping (including S125's
+  exceptions), eight-block and 1900-character caps, and shell quoting of paths (S124 to S133).
 - `digest`: the six derived digest facts as typed values, the grouper, sanitization and the four caps
   (S117, S120, S286 to S294). Record encoding, JSON shape coercion and torn-line decoding live in
   posture-protocol; the domain receives parsed values and depends on no codec.
@@ -758,7 +758,10 @@ acceptance example before its first test.
 **PR 2.1 findings.** `finding.rs`: the `Detector` enum (S025, S360), pack stripping (S023, S024),
 the action default (S030), the churn rule (S027), the baseline discard and exemptions (S028, S029),
 the enrich path (S032, S033), the emitted shape (S034). **Tests**: the twelve
-`osquery-normalize-and-digest-store.bats` normalizer cases by name; S022 and S031 gain tests.
+`osquery-normalize-and-digest-store.bats` normalizer cases by name; S022 and S031 gain tests. Capture
+Bash admission for all 26 detector names separately from the scheduled query inventory (S025, S360);
+the old unknown-name case does not enumerate the admitted set. Configuration declarations remain
+subject to source review, not third-party query-engine tests.
 **Sizes**: `finding.rs` ~180, `finding/tests.rs` ~260.
 
 **PR 2.2 severity and the gate.** `severity.rs` and `gate.rs`: the matrix (S035 to S040), the
@@ -768,14 +771,17 @@ severity read (S042), one outcome per finding (S067). Enrichment and triage are 
 seventeen `osquery-route.bats` cases by name, the seven `osquery-alerter-criteria.bats` cases that
 pin routing (C1 to C4d), and the four hostile-column cases, re-expressed over typed columns (the
 argv-boundary property of S059 becomes "a column is a value, never a separator", which the type
-makes trivially true and the test states). **Sizes**: `severity.rs` ~90 plus tests ~120;
+makes trivially true and the test states). Capture the uncovered System Integrity Protection log-only
+and removed-setuid branches (S047, S055), plus nonempty stdout from an enricher that exits 5 (S044).
+**Sizes**:
+`severity.rs` ~90 plus tests ~120;
 `gate.rs` ~260 plus `gate/tests.rs` split into `page.rs`, `digest.rs`, `log_only.rs` at ~200 each.
 
 **PR 2.3 the allowlist and known-good verdicts.** `allowlist.rs` (S069 to S077, the writer's grammar
 S301 to S303, S305, S306), `known_good.rs` (S085 to S096, S234), `integrity.rs` (S079 to S084,
 S097). The manifest vouch is a function argument, so S078 and S107 (the `declare -F` reuse) are
 compile-time facts (spec D10). **Tests**: `C4a` to `C4d` and the route suite's vouch cases by name;
-S072, S074, S081 to S084, S086 to S091, S093 to S097 gain tests, drawn from what
+S072, S074, S076, S081 to S084, S086 to S091, S093 to S097 gain tests, drawn from what
 `test/fixtures/osquery-allowlist-lib.bash` and `osquery-manifest-lib.bash` asserted. **Sizes**:
 three files of 150 to 240 plus tests under 400 each.
 
@@ -789,13 +795,16 @@ eleven `osquery-render.bats` cases, eight digest-store cases and eleven grouping
 `osquery-digest-builder.bats` map by name to domain or protocol tests according to the behavior. Capture
 Bash-produced record bytes and Bash reader outcomes before Rust; assert both directions of wire
 compatibility and mutation-check a dropped field and changed decoding rule. No test merely round-trips
-the new codec against itself. The apostrophe rule (SI-13) remains on output strings. **Sizes**: `page.rs`
+the new codec against itself. Capture a 300-character file-event action and Signing text (S125),
+retaining their existing field-specific handling. The apostrophe rule (SI-13) remains on output strings.
+**Sizes**: `page.rs`
 decomposes its projected 280 implementation lines into page parts before completion, with tests split by
 headers, fields and caps; domain `digest.rs` and protocol `digest_record.rs` each target 200
 implementation and 300 total lines, with private sibling test files where needed.
 
 **PR 2.5 the canary and the heartbeat's wording.** `canary.rs`: S193 to S204, S211's freshness
-rule. **Tests**: the seventeen `osquery-heartbeat.bats` cases by name. **Sizes**: ~150 plus tests
+rule. **Tests**: the seventeen `osquery-heartbeat.bats` cases by name. Add a torn JSON line beside a
+valid canary row (S195); the old invalid-timestamp case uses valid JSON. **Sizes**: ~150 plus tests
 ~300.
 
 **PR 2.6 the watchdog's decisions and the audit.** `watchdog.rs` (S207 to S215, S217 to S226 over
@@ -810,12 +819,14 @@ split by probe into five files; `audit.rs` ~220 plus tests ~380.
 **PR 2.7 the controls and the poller's policy.** `controls.rs` (S254 to S256), `poll.rs` (S246 to
 S249, S251, S257 to S264, S266, S267). **Tests**: all first tests, drawn from the 26 functions of
 `test/fixtures/osquery-poller-lib.bash`. The eleven controls validations each get a one-step-either-
-side test. **Sizes**: `controls.rs` ~200 plus tests ~300; `poll.rs` ~290 plus tests split into
-`classify.rs`, `baseline.rs`, `gap.rs`, `transitions.rs`.
+side test. Capture missing controls plus first-observed firewall-off: one monitoring-gap page and
+one combined exposure page in the same tick (S267). **Sizes**: `controls.rs` ~200 plus tests ~300;
+`poll.rs` ~290 plus tests split into `classify.rs`, `baseline.rs`, `gap.rs`, `transitions.rs`.
 
 **PR 2.8 the funnel policy.** `funnel.rs`: S268, S269, S272, S273, S275, S276. **Tests**: first
-tests from the 29 functions of `test/fixtures/osquery-tailscale-lib.bash`. **Sizes**: ~140 plus
-tests ~250.
+tests from the 29 functions of `test/fixtures/osquery-tailscale-lib.bash`. Capture `AllowFunnel` false,
+null, numeric 42 and a true map entry: inactive, inactive, gap and active respectively (S269).
+**Sizes**: ~140 plus tests ~250.
 
 **PR 2.9 the converge's decision core.** `drift.rs` (S311 to S318, S320) and `converge_policy.rs`
 (S326, S333, S334, S336, S345 to S347). **Tests**: the eighteen
@@ -837,7 +848,9 @@ not cover it. **Sizes**: three files of 120 to 220 plus tests under 350.
 (S011), the rotated-log inode (S006, S008), the rename claim under two processes (S282), the whole-
 file JSON refusal with a trailing `{}` (S209), the trust check on a mode (S091), the symlink refusal
 before hashing (S097), the named-pipe refusal on the upgrade record (S108), the `flock` contention with a
-second process (S001, S002, S299). **Sizes**: nine files of 80 to 220 plus tests under 400 each.
+second process (S001, S002, S299). Capture a digest producer that emits a fragment then fails; the
+spool writer preserves the partial append and reports it as Bash does (S123). **Sizes**: nine files of
+80 to 220 plus tests under 400 each.
 
 **PR 3.2 the process adapters.** `probes.rs`, `osqueryi.rs`, `launchd.rs`, `tailscale.rs`,
 `codesign.rs`, `process.rs`, `gateway.rs`, and the `CommandRunner` with its deadline and process-
@@ -871,8 +884,11 @@ CRIT page, rule 5). **Sizes**: cli `enrich.rs` under 60.
 S310. **Surface**: `executable_allowlist.sh` and `test/fixtures/osquery-allowlist-lib.bash` are
 deleted. **Cutover**: the operator runs `posture allowlist list` against the deployed file and
 compares it with `allowlist.sh -l` BEFORE the apply that deletes the script; after the apply, one
-`posture allowlist add <own label>` on an already-listed own agent must reproduce the source byte for
-byte (S306), run the targeted apply and the manifest runner (sudo prompt), and exit 0. **Sizes**: cli
+`posture allowlist add <own label>` on an already-listed own agent refreshes that tuple at the end,
+preserving other lines (S306), runs the targeted apply and the manifest runner (sudo prompt), and
+exits 0. Capture unchanged A in A,B and B,A before writing the tests: the first reorders to B,A; the
+second preserves bytes, and both invoke publication. Preserve ignored trailing operands for a selected
+action (S298); record `-l extra` before mapping it to the new `list` spelling. **Sizes**: cli
 `allowlist.rs` under 100.
 
 ### Step 5: the delivery adapter
@@ -1073,6 +1089,8 @@ the four adapters 80 to 200 each plus tests.
 **PR 8.3 `posture ssh` and the cutover.** The six use cases over the ports of PR 8.2, the cli
 `ssh.rs`, and the install's signal handling (S385) as the use case's own concern. **Statements**:
 S369 to S399, with D15 and section 6.1's explicit universal-bounds and newline-refusal corrections.
+Capture failed saved-copy cleanup after successful verification: installation stays in place and
+warns, with rollback already disarmed (S383).
 **Surface**: `dot_local/bin/executable_ssh-hardening.sh`,
 `test/unit/ssh-hardening-dropin.sh` and `test/fixtures/ssh-hardening-lib.bash` are deleted; CLAUDE.md's
 "exactly one file in `bin`" sentence and its "SSH hardening" section, and the quickstart runbook's
