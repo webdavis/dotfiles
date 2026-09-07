@@ -153,10 +153,10 @@ given_whitespace_only_store() {
   printf ' \t\n  \n' >"$OSQUERY_DIGEST_STORE"
 }
 
-# assert_no_send - the recording spy captured no send_alert call. The recorded
-# calls become the assertion's "actual", so a failure names what was sent.
+# assert_no_send - a missing or zero-byte log means the spy recorded no call.
 assert_no_send() {
-  assert_same '' "$(cat "$SEND_ALERT_LOG" 2>/dev/null || true)"
+  [[ ! -s $SEND_ALERT_LOG ]]
+  assert_successful_code
 }
 
 # assert_silent_success - the B1 behavior in one intent-named assertion: the
@@ -170,7 +170,8 @@ assert_silent_success() {
 # assert_live_store_freed - the live store was rotated aside, so a concurrent
 # alerter append lands in a fresh file this run will not consume.
 assert_live_store_freed() {
-  assert_same '' "$(cat "$OSQUERY_DIGEST_STORE" 2>/dev/null || true)"
+  [[ ! -s $OSQUERY_DIGEST_STORE ]]
+  assert_successful_code
 }
 
 # assert_build_ran_against_work_file - the build step ran against the CLAIMED
@@ -304,6 +305,7 @@ function test_findings_across_three_detectors_render_as_three_grouped_blocks_wit
     "$(digest_record persistence_launchd com.bar.agent 'persistence_launchd com.bar.agent')" \
     "$(digest_record system_extensions_new io.tailscale 'system_extensions_new io.tailscale')" \
     "$(digest_record sudoers /etc/sudoers.d/foo 'sudoers /etc/sudoers.d/foo')")"
+  assert_successful_code
   assert_contains '**persistence_launchd** (2)' "$body"
   assert_contains '**system_extensions_new** (1)' "$body"
   assert_contains '**sudoers** (1)' "$body"
@@ -318,6 +320,7 @@ function test_a_detector_with_more_findings_than_the_bullet_cap_shows_capped_bul
   done
   local body
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   # The header counts the true total.
   assert_contains '**persistence_launchd** (14)' "$body"
   # DIGEST_MAX_BULLETS_PER_GROUP default.
@@ -332,6 +335,7 @@ function test_more_detector_groups_than_the_group_cap_show_capped_blocks_and_an_
   done
   local body
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   assert_body_line_count "$body" '^\*\*detector_' 12 # DIGEST_MAX_GROUPS default
   assert_contains 'and 3 more detector group(s)' "$body"
 }
@@ -345,6 +349,7 @@ function test_the_body_is_codepoint_capped_with_an_honest_truncation_marker() {
   # and the body stays well under Discord's 2000. Length is codepoints (jq slices codepoints).
   local body cp
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   assert_contains '**det_' "$body"
   assert_contains '(truncated)' "$body"
   cp="$(printf '%s' "$body" | wc -m | tr -d '[:space:]')"
@@ -352,6 +357,7 @@ function test_the_body_is_codepoint_capped_with_an_honest_truncation_marker() {
   # Overridable and still honest: a tighter cap is honored with the same marker.
   export DIGEST_MAX_BODY_CHARS=500
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   assert_contains '(truncated)' "$body"
   cp="$(printf '%s' "$body" | wc -m | tr -d '[:space:]')"
   assert_less_or_equal_than 530 "$cp" # 500 cap + marker
@@ -389,6 +395,7 @@ function test_the_group_and_bullet_caps_are_env_overridable_named_constants() {
   export DIGEST_MAX_GROUPS=2 DIGEST_MAX_BULLETS_PER_GROUP=3
   local body
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   assert_body_line_count "$body" '^\*\*det_' 2 # DIGEST_MAX_GROUPS honored
   assert_contains 'and 4 more detector group(s)' "$body"
   # det_1: 5 findings, 3 bullets + "+2 more" (DIGEST_MAX_BULLETS_PER_GROUP).
@@ -400,6 +407,7 @@ function test_a_crafted_identity_cannot_inject_an_extra_markdown_line_into_the_d
   evil=$'evil\n- **Signing:** signed: Apple'
   local body
   body="$(render_body "$(digest_record persistence_launchd "$evil" 'malicious finding')")"
+  assert_successful_code
   # The crafted newline is squashed to a space, so the value stays inert INSIDE one bullet.
   assert_contains '- `evil - **Signing:** signed: Apple` - `malicious finding`' "$body"
   # And the forged field marker never becomes its own line.
@@ -412,6 +420,7 @@ function test_an_attacker_controlled_field_renders_inside_a_code_span_so_a_menti
   # Discord @everyone or a clickable link. (The line/block-forging guard above is separate.)
   local body
   body="$(render_body "$(digest_record persistence_launchd '@everyone' '[click](http://evil.example)')")"
+  assert_successful_code
   # Both fields inside code spans.
   assert_contains '- `@everyone` - `[click](http://evil.example)`' "$body"
   # The mention is inert inline code, not bare.
@@ -427,6 +436,7 @@ function test_an_oversized_field_is_truncated_in_the_sanitize_chokepoint_and_can
   body="$(render_body \
     "$(digest_record aaa_giant id_giant "$giant")" \
     "$(digest_record zzz_small id_small 'a small summary')")"
+  assert_successful_code
   # The oversized field is truncated in place with the per-field marker (DIGEST_MAX_FIELD_CHARS).
   assert_contains '…(truncated)' "$body"
   # ... so it cannot alone consume the whole body cap: the later detector group still renders.
@@ -447,6 +457,7 @@ function test_a_torn_or_malformed_spool_line_is_skipped_so_the_days_digest_still
   # The parse drops the torn and garbage lines; the valid findings still group and render.
   local body
   body="$(render_body "${records[@]}")"
+  assert_successful_code
   # The two GOOD launchd findings; the torn one skipped.
   assert_contains '**persistence_launchd** (2)' "$body"
   assert_contains '- `com.good.one` - `persistence_launchd com.good.one`' "$body"

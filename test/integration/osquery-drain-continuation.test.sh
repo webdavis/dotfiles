@@ -61,6 +61,7 @@ function test_a_permanent_poison_row_in_the_middle_does_not_starve_the_rows_behi
   set_curl_codes 200 403 200 # front delivers, poison is refused, back delivers
 
   retry_undelivered_alerts
+  assert_successful_code
 
   # The row BEHIND the poison was delivered in the SAME pass.
   assert_file_contains "$CURL_LOG" 'X-Request-ID: osquery-back'
@@ -83,6 +84,7 @@ function test_an_undecodable_poison_row_in_the_middle_is_skipped_and_the_rows_be
   set_curl_codes 200 200 # only a and b POST; corrupt is skipped before any POST
 
   retry_undelivered_alerts
+  assert_successful_code
 
   # Behind the poison, still delivered.
   assert_file_contains "$CURL_LOG" 'X-Request-ID: osquery-b'
@@ -116,6 +118,7 @@ function test_a_mixed_batch_drains_completely_in_one_pass_each_row_handled_by_cl
   set_curl_codes 200 503 403 200
 
   retry_undelivered_alerts
+  assert_successful_code
 
   # Both deliverables delivered, including the LAST row sitting behind every failure.
   assert_file_contains "$CURL_LOG" 'X-Request-ID: osquery-deliver-1'
