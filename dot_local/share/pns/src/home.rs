@@ -51,14 +51,7 @@ pub use pns_domain::home::{
     stale_warning,
 };
 
-/// The router sensor's settings, validated.
-#[derive(Debug, PartialEq)]
-pub struct RouterSettings {
-    /// Where the router answers, e.g. `https://192.168.1.1`.
-    pub router_url: String,
-    /// The device to look for in the router's client list.
-    pub device: DeviceIdentity,
-}
+pub use pns_adapters::RouterSettings;
 
 /// The seam one probe reads the router through. DECLARED in
 /// `pns-application`, beside the home-probe use case that consumes it;
@@ -240,6 +233,7 @@ mod fixtures;
 mod reading_tests;
 
 #[cfg(test)]
+#[path = "home/tests/settings.rs"]
 mod settings_tests;
 
 #[cfg(test)]

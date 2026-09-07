@@ -2,7 +2,7 @@
 #
 # Depends inward only: on the ports in pns-application, the policy types in
 # pns-domain, and the wire contracts in pns-protocol. Nothing depends on this
-# crate except pns-cli, which composes it.
+# crate except pns-cli and the transitional engine package, which compose it.
 
 [package]
 name = "pns-adapters"
@@ -13,3 +13,13 @@ edition = "2024"
 pns-application = { path = "../pns-application" }
 pns-domain = { path = "../pns-domain" }
 pns-protocol = { path = "../pns-protocol" }
+
+libc = "0.2.189"
+toml = { version = "1.1.4", default-features = false, features = [
+  "parse",
+  "serde",
+  "std",
+] }
+
+[dev-dependencies]
+serde_json = "1.0.151"
