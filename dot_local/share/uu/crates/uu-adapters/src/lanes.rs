@@ -1,17 +1,9 @@
-//! Running the lanes a config declared. The registry itself (`Lanes`,
-//! `LaneKind`, and their parsing) lives in `config`; this module selects the
-//! adapter for a kind and each adapter module does the work.
+//! Execute the adapter selected by configuration and composition.
 //!
-//! ONE ADAPTER PER KIND, behind one trait. `run_lane` below only SELECTS: the
-//! behavior lives with the lane type it belongs to, so adding a kind is an
-//! `impl LaneAdapter` beside its config struct plus one arm here, and no
-//! central function grows a branch.
-//!
-//! CONTINUE ON FAILURE, at both levels. A plugin that will not reinstall does
-//! not stop the next plugin, and a lane that failed does not stop the next
-//! lane: the run completes, the record says what failed, and the exit status
-//! stays 0. The scheduler's retry is a whole week away, so a run that aborts
-//! at its first problem throws away every subject it had not reached yet.
+//! Continue on failure: one failed step does not stop later subjects, and one
+//! failed lane does not stop later lanes. The next attempt is a week away,
+//! so aborting at the first failure would discard the other subjects' work.
+//! The record reports each outcome.
 
 mod brew;
 mod command;
@@ -25,18 +17,20 @@ pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::failure_reason;
 use uu_domain::LaneReport;
 
-use crate::config::{Config, LaneKind};
+use crate::config::Config;
 use uu_domain::RunFacts;
 
-/// What running ONE KIND of lane does. Implemented once per `LaneKind`
-/// variant, beside the config struct that variant carries.
-///
-/// ONE SIGNATURE FOR EVERY KIND, run facts included, even though the herdr,
-/// npm and uv lanes have no use for them: a uniform contract is what lets the
-/// dispatch below be pure selection, and a lane that later needs the facts
-/// gains them without changing this trait or any other adapter.
-pub(crate) trait LaneAdapter {
+pub trait LaneAdapter: std::fmt::Debug {
+    fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError>
+    where
+        Self: Sized;
+    fn keys() -> &'static [&'static str]
+    where
+        Self: Sized;
     fn run(&self, name: &str, facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport;
+    fn diagnostic_program(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// Run one named lane, or `None` when this config declares none by that name.
@@ -48,14 +42,7 @@ pub fn run_lane(
     facts: &RunFacts,
     runner: &dyn CommandRunner,
 ) -> Option<LaneReport> {
-    let adapter: &dyn LaneAdapter = match &config.lanes.get(name)?.kind {
-        LaneKind::Brew(lane) => lane,
-        LaneKind::Command(lane) => lane,
-        LaneKind::Herdr(lane) => lane,
-        LaneKind::Npm(lane) => lane,
-        LaneKind::Uv(lane) => lane,
-    };
-    Some(adapter.run(name, facts, runner))
+    Some(config.lanes.get(name)?.adapter.run(name, facts, runner))
 }
 
 #[cfg(test)]
@@ -64,7 +51,7 @@ pub(crate) mod stubs;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::parse_config;
+    use crate::config::parse_test_config as parse_config;
     use crate::lanes::stubs::{ScriptedRunner, stub_facts};
 
     /// The declared lanes, in the order a run reaches them.
@@ -104,7 +91,7 @@ mod tests {
     #[test]
     fn every_built_in_lane_type_can_be_selected_and_run_and_keeps_its_own_name() {
         // One minimal block per BUILT-IN TYPE (the WEEKDAY_NAMES pattern): a
-        // type in `LANE_TYPES` that dispatches to nothing, or that loses the
+        // registered type that dispatches to nothing, or that loses the
         // lane's own name along the way, would accept a lane it never truly
         // runs. `command` needs a `run` to be valid at all, so the block is
         // spelled out per fixture rather than derived from the name alone.

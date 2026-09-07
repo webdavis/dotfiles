@@ -8,11 +8,11 @@
 //! That window is a monitoring gap, so it is kept as short as the ordering
 //! allows.
 
-pub mod changes;
-pub mod repairs;
-pub mod sections;
-pub mod steps;
-pub mod upgrade_record;
+mod changes;
+mod repairs;
+mod sections;
+mod steps;
+mod upgrade_record;
 
 use std::time::Duration;
 
@@ -39,6 +39,14 @@ const BREW_CAVEAT: &str = "Versions are what brew list --versions reports; a for
 const MAS_CAVEAT: &str = "Versions are what mas list reports, keyed by app name.";
 
 impl LaneAdapter for BrewLane {
+    fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError> {
+        crate::config::parse_brew_lane(label, fields)
+    }
+
+    fn keys() -> &'static [&'static str] {
+        Self::KEYS
+    }
+
     fn run(&self, name: &str, facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
         let mut report = LaneReport::new(name);
 

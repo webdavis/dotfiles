@@ -5,11 +5,11 @@
 //! point of the producer API.
 
 use crate::config::ConfigError;
-use crate::config::schema::admits;
+use crate::config::schema::admits_lane;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandLane {
-    pub run: Vec<String>,
+    pub(crate) run: Vec<String>,
 }
 
 /// `run` is required; everything else `admits` already refused.
@@ -19,13 +19,13 @@ pub struct CommandLane {
 /// (`[lanes.mine]\ntype = "command"\nbogus = 1`) is refused for the key it
 /// misspelled, not for the run it never got to declare: the operator fixes
 /// one problem at a time, and "unknown key" is the more specific diagnosis.
-pub(super) fn parse_command_lane(
+pub(crate) fn parse_command_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<CommandLane, ConfigError> {
     let mut run = None;
     for (name, setting) in table {
-        admits(table_label, "lanes.command", &name)?;
+        admits_lane(table_label, "command", CommandLane::KEYS, &name)?;
         match name.as_str() {
             "run" => run = Some(parse_run(table_label, &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
@@ -73,11 +73,14 @@ fn parse_run(table_label: &str, setting: &toml::Value) -> Result<Vec<String>, Co
         .collect()
 }
 
+impl CommandLane {
+    pub(crate) const KEYS: &'static [&'static str] = &["deadline_secs", "run", "type"];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::LaneKind;
-    use crate::config::probes::{kind, parsed, refusal};
+    use crate::config::probes::{checked_text, refusal, typed};
 
     #[test]
     fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
@@ -110,12 +113,13 @@ mod tests {
 
     #[test]
     fn a_command_lane_reads_run_as_the_program_and_its_arguments() {
-        let config = parsed("[lanes.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
+        let config =
+            checked_text("[lanes.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
         assert_eq!(
-            kind(&config, "mine"),
-            Some(&LaneKind::Command(CommandLane {
+            typed::<CommandLane>(config, "mine"),
+            Some(CommandLane {
                 run: vec!["/bin/x".to_string(), "--yes".to_string()],
-            }))
+            })
         );
         // A second way `type` could be ignored: a herdr-only key on a command
         // block must still be refused.

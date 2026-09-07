@@ -23,6 +23,7 @@ use std::time::Duration;
 use super::ConfigError;
 use super::schema::{non_empty, table_of};
 use crate::deadline::parse_deadline;
+use crate::{LaneRegistration, lanes::LaneAdapter};
 use uu_domain::DEFAULT_LANE_DEADLINE;
 
 pub use brew::BrewLane;
@@ -31,14 +32,6 @@ pub use herdr::HerdrLane;
 pub use npm::NpmLane;
 pub use uv::UvLane;
 
-/// The lane TYPES this build knows how to run: the roster of BUILT-IN
-/// adapters, never the roster of names an operator may declare. A lane's NAME
-/// is the operator's own choice (a producer-API lane names itself whatever it
-/// likes); this is the roster its `type` is judged against, so the refusal
-/// that names an unknown type and the listing of what this build serves both
-/// read the one table.
-pub const LANE_TYPES: &[&str] = &["brew", "command", "herdr", "npm", "uv"];
-
 /// The lane REGISTRY: every declared `[lanes.<name>]` block, keyed by the name
 /// the operator chose. A `BTreeMap` orders lanes by NAME regardless of the
 /// file's own order (`toml::Table` is itself a `BTreeMap`, and neither this
@@ -46,41 +39,20 @@ pub const LANE_TYPES: &[&str] = &["brew", "command", "herdr", "npm", "uv"];
 /// run's sequence never depends on where a block happens to sit in the file).
 pub type Lanes = BTreeMap<String, Lane>;
 
-/// One declared `[lanes.<name>]` block: the adapter that runs it, and the
-/// deadline that bounds it.
-///
-/// THE DEADLINE SITS BESIDE THE KIND RATHER THAN INSIDE IT, so a lane type
-/// added later is bounded by construction instead of by its author
-/// remembering to carry the field. The run lock is held across lane
-/// execution, so a lane with no bound is a lock nothing ever gets back.
-#[derive(Debug, Clone, PartialEq)]
+/// A declared name keeps its configured deadline beside the selected adapter.
+#[derive(Debug)]
 pub struct Lane {
-    pub kind: LaneKind,
     pub deadline: Duration,
+    pub(crate) adapter: Box<dyn LaneAdapter>,
+    type_name: &'static str,
 }
 
-/// One lane's ADAPTER, selected by its `type` key (the house rule: `type`
-/// selects backends everywhere). The kind carries the lane's own parsed
-/// settings; behavior lives in each kind's `LaneAdapter` impl, never here.
-#[derive(Debug, Clone, PartialEq)]
-pub enum LaneKind {
-    Brew(BrewLane),
-    Command(CommandLane),
-    Herdr(HerdrLane),
-    Npm(NpmLane),
-    Uv(UvLane),
-}
-
-impl LaneKind {
-    /// The `type` value this variant was parsed from.
+impl Lane {
     pub fn type_name(&self) -> &'static str {
-        match self {
-            LaneKind::Brew(_) => "brew",
-            LaneKind::Command(_) => "command",
-            LaneKind::Herdr(_) => "herdr",
-            LaneKind::Npm(_) => "npm",
-            LaneKind::Uv(_) => "uv",
-        }
+        self.type_name
+    }
+    pub fn diagnostic_program(&self) -> Option<&str> {
+        self.adapter.diagnostic_program()
     }
 }
 
@@ -96,7 +68,10 @@ fn is_plain_path_segment(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && name != "." && name != ".."
 }
 
-pub(super) fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
+pub(super) fn parse_lanes(
+    value: toml::Value,
+    registrations: &[LaneRegistration],
+) -> Result<Lanes, ConfigError> {
     let table = table_of("lanes", value)?;
     let mut lanes = Lanes::new();
     for (name, block) in table {
@@ -116,16 +91,16 @@ pub(super) fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
             Some(stated) => parse_deadline(&table_label, &stated)?,
             None => DEFAULT_LANE_DEADLINE,
         };
-        let kind = match lane_type(&name, &table_label, &fields)?.as_str() {
-            "brew" => LaneKind::Brew(brew::parse_brew_lane(&table_label, fields)?),
-            "command" => LaneKind::Command(command::parse_command_lane(&table_label, fields)?),
-            "herdr" => LaneKind::Herdr(herdr::parse_herdr_lane(&table_label, fields)?),
-            "npm" => LaneKind::Npm(npm::parse_npm_lane(&table_label, fields)?),
-            "uv" => LaneKind::Uv(uv::parse_uv_lane(&table_label, fields)?),
-            // `lane_type` never returns anything outside `LANE_TYPES`.
-            _ => unreachable!("lane_type only answers a member of LANE_TYPES"),
-        };
-        lanes.insert(name, Lane { kind, deadline });
+        let registration = lane_type(&name, &table_label, &fields, registrations)?;
+        let adapter = registration.parse(&table_label, fields)?;
+        lanes.insert(
+            name,
+            Lane {
+                adapter,
+                deadline,
+                type_name: registration.type_name(),
+            },
+        );
     }
     Ok(lanes)
 }
@@ -138,27 +113,44 @@ pub(super) fn parse_lanes(value: toml::Value) -> Result<Lanes, ConfigError> {
 /// producer API (a bare `[lanes.herdr]`, no `type`) working unchanged. A name
 /// that is not a built-in type and states no `type` names nothing to dispatch
 /// on, so it is refused rather than guessed.
-fn lane_type(name: &str, table_label: &str, table: &toml::Table) -> Result<String, ConfigError> {
+fn lane_type<'a>(
+    name: &str,
+    table_label: &str,
+    table: &toml::Table,
+    registrations: &'a [LaneRegistration],
+) -> Result<&'a LaneRegistration, ConfigError> {
+    let served = || {
+        registrations
+            .iter()
+            .map(LaneRegistration::type_name)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     match table.get("type") {
         Some(value) => {
             let stated = non_empty(table_label, "type", value)?;
-            if LANE_TYPES.contains(&stated.as_str()) {
-                Ok(stated)
-            } else {
-                Err(ConfigError::Invalid(format!(
-                    "lane `{name}` has type `{stated}`, which is no lane type; this build serves \
-                     {}",
-                    LANE_TYPES.join(", ")
+            registrations.iter().find(|entry| entry.type_name() == stated).ok_or_else(||
+                ConfigError::Invalid(format!(
+                    "lane `{name}` has type `{stated}`, which is no lane type; this build serves {}", served()
                 )))
-            }
         }
-        None if LANE_TYPES.contains(&name) => Ok(name.to_string()),
-        None => Err(ConfigError::Invalid(format!(
-            "lane `{name}` names no `type`; this build serves {}",
-            LANE_TYPES.join(", ")
-        ))),
+        None => registrations
+            .iter()
+            .find(|entry| entry.type_name() == name)
+            .ok_or_else(|| {
+                ConfigError::Invalid(format!(
+                    "lane `{name}` names no `type`; this build serves {}",
+                    served()
+                ))
+            }),
     }
 }
+
+pub(crate) use brew::parse_brew_lane;
+pub(crate) use command::parse_command_lane;
+pub(crate) use herdr::parse_herdr_lane;
+pub(crate) use npm::parse_npm_lane;
+pub(crate) use uv::parse_uv_lane;
 
 #[cfg(test)]
 pub(crate) use brew::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
@@ -168,8 +160,8 @@ pub(crate) use herdr::Plugin;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::parse_config;
-    use crate::config::probes::{kind, parsed, refusal};
+    use crate::config::probes::parse_config;
+    use crate::config::probes::{checked_text, refusal, typed};
 
     #[test]
     fn a_lane_named_after_no_built_in_type_and_naming_no_type_is_refused_by_name() {
@@ -210,14 +202,14 @@ mod tests {
     fn a_block_named_for_one_type_that_states_another_is_the_stated_type() {
         // The stated `type` wins over a name that happens to be a type of its
         // own: the name is the operator's label, the type is the contract.
+        let text = "[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n";
+        let config = parse_config(text).unwrap();
+        assert_eq!(config.lanes["herdr"].type_name(), "command");
         assert_eq!(
-            kind(
-                &parsed("[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n"),
-                "herdr"
-            ),
-            Some(&LaneKind::Command(CommandLane {
-                run: vec!["x".to_string()],
-            }))
+            typed::<CommandLane>(checked_text(text), "herdr"),
+            Some(CommandLane {
+                run: vec!["x".to_string()]
+            })
         );
     }
 
@@ -245,7 +237,24 @@ mod tests {
                 .lanes
                 .get(*lane_type)
                 .expect("each fixture names its lane after its type");
-            assert_eq!(lane.kind.type_name(), *lane_type);
+            assert_eq!(lane.type_name(), *lane_type);
         }
+    }
+}
+
+#[cfg(test)]
+mod registration_contract {
+    #[test]
+    fn a_registered_command_alias_accepts_a_distinct_declared_lane_name() {
+        let config = crate::config::parse_config(
+            "[lanes.chosen]\ntype = \"fixture-command\"\nrun = [\"/fixture/updater\", \"--yes\"]\n",
+            &[crate::LaneRegistration::new::<crate::CommandLane>(
+                "fixture-command",
+            )],
+        );
+        assert!(
+            config.is_ok(),
+            "typed command registration must accept its distinct alias: {config:?}"
+        );
     }
 }

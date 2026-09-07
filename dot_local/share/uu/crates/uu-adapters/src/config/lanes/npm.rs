@@ -12,20 +12,20 @@
 //! than run.
 
 use crate::config::ConfigError;
-use crate::config::schema::{absolute, admits};
+use crate::config::schema::{absolute, admits_lane};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NpmLane {
-    pub binary: String,
+    pub(crate) binary: String,
 }
 
-pub(super) fn parse_npm_lane(
+pub(crate) fn parse_npm_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<NpmLane, ConfigError> {
     let mut binary = None;
     for (name, setting) in table {
-        admits(table_label, "lanes.npm", &name)?;
+        admits_lane(table_label, "npm", NpmLane::KEYS, &name)?;
         match name.as_str() {
             "binary" => binary = Some(absolute(table_label, &name, &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
@@ -44,22 +44,25 @@ pub(super) fn parse_npm_lane(
     Ok(NpmLane { binary })
 }
 
+impl NpmLane {
+    pub(crate) const KEYS: &'static [&'static str] = &["binary", "deadline_secs", "type"];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::LaneKind;
-    use crate::config::probes::{kind, parsed, refusal};
+    use crate::config::probes::{checked_text, refusal, typed};
 
     #[test]
     fn an_npm_lane_runs_the_npm_it_was_pointed_at_under_any_name() {
         assert_eq!(
-            kind(
-                &parsed("[lanes.globals]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\n"),
+            typed::<NpmLane>(
+                checked_text("[lanes.globals]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\n"),
                 "globals"
             ),
-            Some(&LaneKind::Npm(NpmLane {
+            Some(NpmLane {
                 binary: "/fnm/bin/npm".to_string(),
-            }))
+            })
         );
     }
 

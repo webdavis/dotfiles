@@ -1,7 +1,7 @@
 //! Load run configuration and compose the application with concrete adapters.
 
-use uu_adapters::config_path;
-use uu_application::{LockFailure, Run, RunOutcome, RunRequest};
+use uu_adapters::{Config, config_path};
+use uu_application::{LockFailure, Run, RunClock, RunOutcome, RunPresentation, RunRequest};
 
 use uu_adapters::home;
 use uu_adapters::{
@@ -36,25 +36,7 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         Err(code) => return code,
     };
 
-    let lanes = config
-        .lanes
-        .iter()
-        .map(|(name, lane)| (name.clone(), lane.deadline))
-        .collect();
-    let run = Run {
-        state: FileRunState(&home),
-        clock: SystemRunClock,
-        lanes: ConfiguredLaneExecutor(&config),
-        delivery: EngineRunDelivery::new(
-            config.records.as_ref(),
-            config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
-        ),
-        presentation: ConsoleRunPresentation,
-    };
-    match run.execute(RunRequest {
-        lanes: &lanes,
-        only,
-    }) {
+    match execute(&home, &config, only, SystemRunClock, ConsoleRunPresentation) {
         RunOutcome::Completed => 0,
         RunOutcome::UndeclaredLane => {
             if let Some(lane) = only {
@@ -75,3 +57,34 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         }
     }
 }
+
+fn execute(
+    home: &str,
+    config: &Config,
+    only: Option<&str>,
+    clock: impl RunClock,
+    presentation: impl RunPresentation,
+) -> RunOutcome {
+    let lanes = config
+        .lanes
+        .iter()
+        .map(|(name, lane)| (name.clone(), lane.deadline))
+        .collect();
+    let run = Run {
+        state: FileRunState(home),
+        clock,
+        lanes: ConfiguredLaneExecutor(config),
+        delivery: EngineRunDelivery::new(
+            config.records.as_ref(),
+            config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
+        ),
+        presentation,
+    };
+    run.execute(RunRequest {
+        lanes: &lanes,
+        only,
+    })
+}
+
+#[cfg(test)]
+mod tests;

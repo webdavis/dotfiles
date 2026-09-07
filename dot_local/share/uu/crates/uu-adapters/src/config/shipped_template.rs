@@ -2,7 +2,7 @@
 //! Historical leaf names remain so the test-successor map stays intact.
 
 use super::*;
-use crate::config::probes::{kind, parsed};
+use crate::config::probes::{checked_text, parse_config, typed};
 
 const CONFIG: &str = include_str!("fixtures/config.toml");
 const COMMAND: &str = include_str!("fixtures/command.toml");
@@ -14,33 +14,33 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
     assert!(config.records.is_some());
     assert!(config.alerts.is_some());
     assert_eq!(
-        kind(&config, "herdr"),
-        Some(&LaneKind::Herdr(HerdrLane {
+        typed::<HerdrLane>(CONFIG, "herdr"),
+        Some(HerdrLane {
             binary: "/stand-in/.local/bin/herdr".to_string(),
             plugins: vec![Plugin {
                 id: "stand-in".to_string(),
                 repo: "stand-in".to_string(),
             }],
-        }))
+        })
     );
     // THE LANE THE FILE TURNS ON, not only that the file loads. A block
     // dropped from the template leaves a machine whose global packages
     // quietly stop being upgraded, and a parse that still succeeds is
     // exactly what makes that invisible.
     assert_eq!(
-        kind(&config, "npm"),
-        Some(&LaneKind::Npm(NpmLane {
+        typed::<NpmLane>(CONFIG, "npm"),
+        Some(NpmLane {
             binary: "/stand-in/.local/share/fnm/aliases/default/bin/npm".to_string(),
-        }))
+        })
     );
     // AND THE SAME FOR THE OTHER LANE: a block dropped from the template
     // leaves a machine whose uv tools quietly stop being upgraded, and a
     // parse that still succeeds is exactly what makes that invisible.
     assert_eq!(
-        kind(&config, "uv"),
-        Some(&LaneKind::Uv(UvLane {
+        typed::<UvLane>(CONFIG, "uv"),
+        Some(UvLane {
             binary: "/opt/homebrew/bin/uv".to_string(),
-        }))
+        })
     );
     // AND THE LANE THAT CARRIES THE REPAIRS. Dropping this block costs
     // more than upgrades: the osquery converge and the upgrade record the
@@ -50,8 +50,8 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
     // ASSERTED, because a key silently missing from the block is how one
     // step turns into a stated skip nobody reads.
     assert_eq!(
-        kind(&config, "brew"),
-        Some(&LaneKind::Brew(BrewLane {
+        typed::<BrewLane>(CONFIG, "brew"),
+        Some(BrewLane {
             brew: DEFAULT_BREW.to_string(),
             mas: DEFAULT_MAS.to_string(),
             tailscaled: DEFAULT_TAILSCALED.to_string(),
@@ -60,17 +60,17 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
             upgrade_record:
                 "/stand-in/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
                     .to_string(),
-        }))
+        })
     );
 }
 
 #[test]
 fn the_templates_command_example_still_loads_once_uncommented() {
-    let config = parsed(COMMAND);
+    checked_text(COMMAND);
     assert_eq!(
-        kind(&config, "example"),
-        Some(&LaneKind::Command(CommandLane {
+        typed::<CommandLane>(COMMAND, "example"),
+        Some(CommandLane {
             run: vec!["/usr/local/bin/my-updater".to_string(), "--yes".to_string()],
-        }))
+        })
     );
 }

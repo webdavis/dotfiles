@@ -20,6 +20,14 @@ const UPGRADE: [&str; 3] = ["tool", "upgrade", "--all"];
 
 /// Upgrade every uv tool, and report what that took.
 impl LaneAdapter for UvLane {
+    fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError> {
+        crate::config::parse_uv_lane(label, fields)
+    }
+
+    fn keys() -> &'static [&'static str] {
+        Self::KEYS
+    }
+
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
         let mut report = LaneReport::new(name);
         let binary = self.binary.as_str();

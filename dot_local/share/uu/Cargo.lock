@@ -486,6 +486,7 @@ dependencies = [
  "libc",
  "uu-adapters",
  "uu-application",
+ "uu-domain",
 ]
 
 [[package]]

@@ -40,7 +40,7 @@ pub(crate) fn parse_deadline(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::parse_config;
+    use crate::config::parse_test_config as parse_config;
 
     fn deadline_of(text: &str, lane: &str) -> Duration {
         parse_config(text)

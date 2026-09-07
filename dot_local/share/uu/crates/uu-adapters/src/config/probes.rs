@@ -1,9 +1,17 @@
-//! The three questions every config test puts to the parser: what this text
-//! parsed into, why it was refused, and which adapter a lane got.
-//!
-//! `#[cfg(test)]` at the parent, so none of this enters a production build.
+use super::{Config, ConfigError};
+use crate::{BrewLane, CommandLane, HerdrLane, LaneAdapter, LaneRegistration, NpmLane, UvLane};
 
-use super::{Config, LaneKind, parse_config};
+pub(crate) const REGISTRATIONS: &[LaneRegistration] = &[
+    LaneRegistration::new::<BrewLane>("brew"),
+    LaneRegistration::new::<CommandLane>("command"),
+    LaneRegistration::new::<HerdrLane>("herdr"),
+    LaneRegistration::new::<NpmLane>("npm"),
+    LaneRegistration::new::<UvLane>("uv"),
+];
+
+pub(crate) fn parse_config(text: &str) -> Result<Config, ConfigError> {
+    super::parse_config(text, REGISTRATIONS)
+}
 
 pub(crate) fn parsed(text: &str) -> Config {
     parse_config(text).expect("this config is valid")
@@ -16,8 +24,20 @@ pub(crate) fn refusal(text: &str) -> String {
     }
 }
 
-/// One lane's ADAPTER. Every assertion that uses this is about what a block
-/// parsed into, never about the deadline beside it, which `deadline.rs` owns.
-pub(crate) fn kind<'a>(config: &'a Config, name: &str) -> Option<&'a LaneKind> {
-    config.lanes.get(name).map(|lane| &lane.kind)
+pub(crate) fn checked_text(text: &str) -> &str {
+    parsed(text);
+    text
+}
+
+// Assert typed fields through their owning parser after the shared load path accepts the block.
+// Registration execution tests separately prove which typed parser composition selects.
+pub(crate) fn typed<T: LaneAdapter>(text: &str, name: &str) -> Option<T> {
+    let document: toml::Table = text.parse().expect("fixture document");
+    let fields = document
+        .get("lanes")?
+        .as_table()?
+        .get(name)?
+        .as_table()?
+        .clone();
+    Some(T::parse(&format!("lanes.{name}"), fields).expect("typed parser fixture"))
 }

@@ -11,3 +11,6 @@ path = "src/main.rs"
 uu-adapters = { path = "../uu-adapters" }
 uu-application = { path = "../uu-application" }
 libc = "0.2.189"
+
+[dev-dependencies]
+uu-domain = { path = "../uu-domain" }

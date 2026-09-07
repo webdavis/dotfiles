@@ -8,16 +8,16 @@
 //! into a stated skip rather than a guess.
 
 use crate::config::ConfigError;
-use crate::config::schema::{admits, non_empty};
+use crate::config::schema::{admits_lane, non_empty};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrewLane {
-    pub brew: String,
-    pub mas: String,
-    pub tailscaled: String,
-    pub osquery_converge: String,
-    pub mas_manifest: String,
-    pub upgrade_record: String,
+    pub(crate) brew: String,
+    pub(crate) mas: String,
+    pub(crate) tailscaled: String,
+    pub(crate) osquery_converge: String,
+    pub(crate) mas_manifest: String,
+    pub(crate) upgrade_record: String,
 }
 
 /// The Homebrew commands when no key states them.
@@ -40,13 +40,13 @@ impl Default for BrewLane {
     }
 }
 
-pub(super) fn parse_brew_lane(
+pub(crate) fn parse_brew_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<BrewLane, ConfigError> {
     let mut lane = BrewLane::default();
     for (name, setting) in table {
-        admits(table_label, "lanes.brew", &name)?;
+        admits_lane(table_label, "brew", BrewLane::KEYS, &name)?;
         match name.as_str() {
             "brew" => lane.brew = non_empty(table_label, &name, &setting)?,
             "mas" => lane.mas = non_empty(table_label, &name, &setting)?,
@@ -64,16 +64,28 @@ pub(super) fn parse_brew_lane(
     Ok(lane)
 }
 
+impl BrewLane {
+    pub(crate) const KEYS: &'static [&'static str] = &[
+        "brew",
+        "deadline_secs",
+        "mas",
+        "mas_manifest",
+        "osquery_converge",
+        "tailscaled",
+        "type",
+        "upgrade_record",
+    ];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::LaneKind;
-    use crate::config::probes::{kind, parsed};
+    use crate::config::probes::{checked_text, typed};
 
     #[test]
     fn a_brew_lane_that_states_no_path_runs_at_the_defaults_the_template_ships() {
-        let config = parsed("[lanes.brew]\n");
-        let Some(LaneKind::Brew(lane)) = kind(&config, "brew") else {
+        let config = checked_text("[lanes.brew]\n");
+        let Some(lane) = typed::<BrewLane>(config, "brew") else {
             panic!("expected a brew lane");
         };
         assert_eq!(lane.brew, DEFAULT_BREW);
@@ -87,11 +99,11 @@ mod tests {
 
     #[test]
     fn every_brew_path_the_block_states_is_the_one_the_lane_carries() {
-        let config = parsed(
+        let config = checked_text(
             "[lanes.brew]\nbrew = \"/b\"\nmas = \"/m\"\ntailscaled = \"/t\"\n\
              osquery_converge = \"/c\"\nmas_manifest = \"/f\"\nupgrade_record = \"/r\"\n",
         );
-        let Some(LaneKind::Brew(lane)) = kind(&config, "brew") else {
+        let Some(lane) = typed::<BrewLane>(config, "brew") else {
             panic!("expected a brew lane");
         };
         assert_eq!(
