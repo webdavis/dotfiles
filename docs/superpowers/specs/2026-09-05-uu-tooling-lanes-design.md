@@ -133,11 +133,14 @@ sibling directories of `vim.fn.stdpath("run")` (Neovim keeps one per instance un
 `$TMPDIR/nvim.<user>/`, each holding its `nvim.<pid>.0` socket) and, when there are any, adds
 `N Neovim instance(s) were running during this update; restart them to load the new versions`.
 
-Two consequences for the LaunchAgent. Mason installs its npm-based packages with whatever `npm` PATH
-answers with and its cargo-based ones with `cargo`, so `com.webdavis.uu.plist` gains
-`~/.local/share/fnm/aliases/default/bin` and `~/.cargo/bin` on its PATH; the fnm path is the
-version-free one this repository already keeps for LaunchAgents. And lanes run in NAME order, so the
-four Neovim lanes are named to run mason, parsers, plugins, smoke test: `nvim-mason`, `nvim-parsers`,
+Mason installs its npm-based packages with whatever `npm` PATH answers with and its cargo-based ones
+with `cargo`. Both the tracked `com.webdavis.uu.plist` and the standalone `uu schedule render` output
+must put `~/.local/share/fnm/aliases/default/bin` first and include `~/.cargo/bin` on PATH, ahead of
+the system directories. The renderer expands these paths from its supplied home. The fnm path is the
+version-free one this repository already keeps for LaunchAgents. PR C5 updates both producers and
+proves executable discovery through the rendered environment, with owned executables present only
+in those two directories. Lanes run in NAME order, so the four Neovim lanes are named to run mason,
+parsers, plugins, smoke test: `nvim-mason`, `nvim-parsers`,
 `nvim-plugins`, `nvim-smoke-test`. Parsers before plugins is fine even with `auto_commit` on, because
 lazy.nvim runs `:TSUpdate` as nvim-treesitter's own build step (`build = ":TSUpdate"`,
 `lua/plugins/treesitter.lua`), so a plugin bump recompiles its parsers as part of the bump.

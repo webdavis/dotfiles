@@ -388,9 +388,15 @@ line. Sizes: about 30 lines of Lua.
 `MasonToolsUpdateCompleted` only as the finish signal, the servers sentence on every run, the restart
 notice, exit 1 on any failed package); `NvimMasonLane { host }` in `config/lanes/nvim.rs` and
 `src/lanes/nvim/mason.rs`; the registry touch points, the template block and its rendered parse evidence.
-The
-uu plist's PATH gains `~/.local/share/fnm/aliases/default/bin` and `~/.cargo/bin`, with the plist
-comment saying which Mason packages need them. Tests: Rust
+Update both the tracked uu plist and the standalone `uu schedule render` producer, currently
+`src/schedule.rs::search_path`, to put the supplied home's `.local/share/fnm/aliases/default/bin`
+first and include its `.cargo/bin` ahead of system directories. Keep the renderer's escaping and
+existing home semantics; the plist comment names the Mason packages needing those paths. Tests
+execute owned scripts using the actual rendered environment, with their interpreters available only
+under the fixture home's two runtime directories. Each missing-directory mutation must independently
+fail its corresponding execution; a shadow system-directory executable must expose incorrect fnm
+precedence. Restore the renderer and require successful discovery again. These exercise our renderer
+and child execution, without loading launchd jobs or running real package managers. Tests: Rust
 `the_mason_lane_runs_the_mason_module_headless_under_the_lanes_own_name`,
 `a_mason_child_exiting_non_zero_is_a_counted_failure`; Lua, in `uu_mason_spec.lua` over a pure
 `mason_lines(events)`: "a package that fired install:failed is a failure although the completion list
