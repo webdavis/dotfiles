@@ -609,7 +609,9 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 `presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
 `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
-`pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
+`pns-application/src/poll_presence.rs`. The state-file codec imports `RawPresence` and `Edge` from the
+curated `pns_domain` exports; step 5.12 already owns these pure values in
+`pns-domain/src/presence/status.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
 Statements: S045, S187, S188, S233.
 
