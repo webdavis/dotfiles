@@ -189,3 +189,7 @@ impl Bridge for UreqBridge {
             .send(body);
     }
 }
+
+#[cfg(test)]
+#[path = "transport_tests.rs"]
+mod transport_tests;
