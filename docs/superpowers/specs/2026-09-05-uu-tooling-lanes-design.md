@@ -438,6 +438,15 @@ Full candidate validation also rejects surplus npx lock keys, preventing later r
 skills. Additive bootstrap preserves existing generation names, lock entries and store entries and
 does not prune delisted content; the next full weekly publication owns that removal.
 
+Both weekly and additive bootstrap create missing Hermes profile skills directories before planting
+links, including when a healthy bootstrap publishes nothing. First refuse a symlink at either the
+profile parent or its `skills` child. For the default profile those paths are `~/.hermes` and
+`~/.hermes/skills`; named profiles use `~/.hermes/profiles/<name>` and its `skills` child. Visit both
+mapped profiles and existing destinations, so a profile removed from the mapping loses stale managed
+links on the next weekly run. Full convergence repairs or removes owned delivery links; additive
+bootstrap creates only missing links and leaves existing entries alone. Both preserve foreign links
+and real destination entries. Empty mappings and collision names receive no store links.
+
 What changes. The exchange primitive is `renameatx_np` with `RENAME_SWAP`, through libc, which is
 the macOS system call Coreutils `mv --exchange` wraps; uu is already macOS-only, so resolving it at run
 time and probing it with a swap goes away. The `--dry-run` mode goes away; nothing in this repository

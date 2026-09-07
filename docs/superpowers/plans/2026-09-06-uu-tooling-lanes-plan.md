@@ -635,7 +635,8 @@ and full-run pruning based on E6's outgoing ownership evidence. Remove an exact 
 its name is delisted; quarantine a delisted real directory only when its name belonged to the outgoing
 generation. Preserve foreign real directories, foreign/app-owned symlinks and still-tracked names.
 For tracked real directories, preserve reconciliation's separate rule: replace one only after recovery
-has absorbed its content into the published generation; report an unseen competing writer and leave it.
+records it and the candidate absorbs its content into the published generation. Report an unseen
+competing writer and leave it.
 Both fresh and reused weekly candidates reconcile and prune before E11 computes delivery sets.
 Interrupted publication replays pruning with the retained outgoing names before releasing their
 evidence to the sweep. Additive publication never prunes or replaces an existing store entry. Tests:
@@ -657,7 +658,14 @@ return. Sizes: about 180 implementation plus private tests about 280, split by b
 **PR E11 the fan-out.** Adds `src/lanes/skills/fanout.rs`: Claude gets every surviving store skill
 except a `claudeDelivery` `"none"` row; hermes gets exactly the profiles each `hermesProfiles` row names
 (`default` is `~/.hermes/skills`, any other name `~/.hermes/profiles/<name>/skills`), the two
-collision names never, and a profile `skills` directory that is a symlink or missing is refused.
+collision names never. Both weekly and additive fan-out create a missing destination with its parents
+before creating links. Check the profile parent and its `skills` child independently for symlinks
+before creating directories or touching links; refuse either symlink without traversing it. For default,
+check `~/.hermes` and `~/.hermes/skills`; for named profiles, check `~/.hermes/profiles/<name>` and its
+`skills` child. Visit mapped profiles plus existing destination directories, including demapped
+profiles. Full convergence repairs incorrect owned links and removes stale owned links, including in a
+demapped profile; additive convergence leaves existing entries alone. Both preserve foreign links and
+real destination entries.
 Derive eligibility from the post-prune store, not just the tracked roster: a preserved foreign real
 skill directory can still reach Claude and, when mapped and non-colliding, Hermes. A removed owned
 delisted directory reaches neither, and full convergence removes its stale managed delivery links.
@@ -665,7 +673,19 @@ Tests: `every_store_skill_reaches_claude_unless_delivery_is_none`,
 `a_hermes_profile_row_plants_exactly_the_listed_profiles_and_an_empty_row_plants_none`,
 `a_collision_name_is_never_fanned_out_to_hermes`,
 `owned_delisted_content_leaves_both_delivery_sets_while_foreign_content_remains_eligible`,
-`a_profile_skills_dir_that_is_a_symlink_is_refused`. Sizes: about 180 plus tests about 220.
+`missing_hermes_profile_and_skills_directories_are_created_before_link_delivery`,
+`a_profile_parent_that_is_a_symlink_is_refused`,
+`a_profile_skills_dir_that_is_a_symlink_is_refused`,
+`weekly_fanout_repairs_owned_links_and_prunes_them_in_demapped_profiles`,
+`foreign_links_and_real_destination_entries_survive_both_fanout_modes`.
+In `converge_dir`, replace only `mkdir -p "$dir"` with a missing-directory early return for the
+creation mutant. In `__update_skills_hermes_dir_safe`, remove only the parent guard, then only the
+child guard in a separate mutant. Each symlink control leaves the other path ordinary, exercises both
+default and named profiles, and asserts an outside sentinel and link set remain untouched. Creation
+controls assert real directories and resolving links, not just success. For demapped cleanup, remove
+only existing destinations from `__update_skills_hermes_profile_universe`; a mapping-only walk must
+fail the stale-link control. Sizes: about 180 implementation plus private tests about 280; split by
+behavior at the thresholds.
 
 **PR E12 the hermes registry phase.** Adds `src/lanes/skills/hermes.rs`: `hermes -p <profile>
 skills update <lockKey>` per `hermesRegistry` entry and profile, `held` respected, `Blocked` in the
@@ -698,6 +718,8 @@ live phases still run against the unchanged generation and their failures aggreg
 `a_flat_store_is_migrated_and_recovered_before_weekly_candidate_build`,
 `a_failed_candidate_leaves_publication_untouched_but_still_runs_live_followup_phases`,
 `weekly_before_and_after_fingerprints_produce_the_skills_change_section`.
+`weekly_skills_execution_creates_missing_hermes_destinations` exercises the complete path through E11.
+Its mutant omits only the weekly `converge_hermes_skills` call; missing links must fail the control.
 Use fake effects to remove each phase in turn and prove the whole-run behavior test fails. Add separate
 fresh-build and reused-candidate controls:
 `fresh_weekly_publication_prunes_owned_delisted_content_before_delivery`,
@@ -706,16 +728,18 @@ Each starts with owned and foreign real directories plus stale managed delivery 
 store contents and both harnesses' resulting links. Remove each of `__gen_weekly_attempt`'s two
 `__gen_prune_delisted_store_links` calls independently; skipping either must fail its matching control.
 Registration waits for E16. Order: after E5 through E14. Sizes: orchestration about 150 implementation,
-private tests
-about 250; migration about 150 implementation, private tests about 200; split at the stated thresholds.
+private tests about 250; migration about 150 implementation, private tests about 200; split at the stated
+thresholds.
 
 **PR E15 skills bootstrap.** Adds `src/lanes/skills/bootstrap.rs`: per roster skill
 the health reading (`absent`, `link`, `skillmd`, `lock`, `overlay`), a forced reinstall for the first
 four, a rebuild for the fifth, additive publish, a fan-out that creates missing links only, live overlay
 checks and routing. Bootstrap stays additive and never migrates a flat store or refreshes healthy
-skills. It retains delisted generation names and npx lock keys, never prunes the store, and leaves
-existing delivery entries alone; E9's exact lock-key rule applies only to full candidates. It propagates
-required phase failures and remains unregistered until E16.
+skills. A healthy store skips publication only: additive fan-out still creates missing Hermes profile
+and skills directories under E11's parent/child safety checks, then fills absent links. The same fan-out
+runs after an additive publish. It retains delisted generation names and npx lock keys, never prunes
+the store, and leaves existing delivery entries alone; E9's exact lock-key rule applies only to full
+candidates. It propagates required phase failures and remains unregistered until E16.
 Tests:
 `a_healthy_store_bootstraps_as_a_no_op_that_publishes_nothing`,
 `an_absent_roster_skill_is_installed_and_published`,
@@ -723,9 +747,16 @@ Tests:
 `bootstrap_never_updates_a_present_and_healthy_skill`,
 `bootstrap_never_migrates_a_flat_store`,
 `bootstrap_preserves_delisted_generation_lock_store_and_delivery_entries`,
+`healthy_bootstrap_creates_missing_hermes_destinations_without_publishing`,
+`additive_publish_creates_missing_hermes_destinations_without_replacing_existing_links`,
 `bootstrap_returns_failure_when_a_required_post_publish_check_fails`.
 Source controls come from `__gen_build_candidate`'s additive copy and `converge_dir`'s
-`INSTALL_ONLY` branch; filter that copy to tracked names and remove that branch independently.
+`INSTALL_ONLY` guards; filter that copy to tracked names, remove the wrong-target guard, and remove
+the stale-link guard as separate mutants. For missing destinations, omit only the install-only
+`converge_hermes_skills` call. Separately change only `return 0` to `exit 0` in
+`__gen_install_only_attempt`'s `needs_work == 0` branch, skipping outer fan-out on a healthy store.
+Each must fail the healthy-bootstrap control. Repeat E11's independent parent and child symlink
+controls through bootstrap, including when publication is skipped.
 Order: after E1 and E15a. Sizes: bootstrap about 180 implementation plus private tests about 220.
 Re-decompose by responsibility at the thresholds.
 
