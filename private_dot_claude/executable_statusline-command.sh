@@ -12,7 +12,7 @@ used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 # reasoning effort; otherwise fall back to the configured default in
 # settings.json (chezmoi-enforced, so always present there).
 effort_level=$(echo "$input" | jq -r '.effort.level // empty')
-if [[ -z "$effort_level" && -r "$HOME/.claude/settings.json" ]]; then
+if [[ -z $effort_level && -r "$HOME/.claude/settings.json" ]]; then
   effort_level=$(jq -r '.effortLevel // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
 fi
 five_hour_used=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
@@ -26,7 +26,7 @@ host=$(hostname -s)
 # Directory: project name (basename of the project root, falling back to the
 # working directory's own basename when project_dir is absent), with the
 # actual working directory in parens, shortened with ~ for $HOME.
-if [[ -n "$project_dir" ]]; then
+if [[ -n $project_dir ]]; then
   project=$(basename "$project_dir")
 else
   project=$(basename "$cwd")
@@ -42,7 +42,7 @@ fi
 
 # Context usage bar
 context_info=""
-if [[ -n "$used_pct" ]]; then
+if [[ -n $used_pct ]]; then
   used_int=${used_pct%.*}
   context_info=" ctx:${used_int}%"
 fi
@@ -55,7 +55,7 @@ rate_limit_remaining() {
   local used="$1" reset="$2" label="$3"
   local remaining
   remaining=$(jq -n --argjson used "$used" '(100 - $used) | floor')
-  if [[ -n "$reset" ]]; then
+  if [[ -n $reset ]]; then
     printf '%s %s%%@%s' "$label" "$remaining" "$(date -r "${reset%.*}" +%H:%M 2>/dev/null)"
   else
     printf '%s %s%%' "$label" "$remaining"
@@ -63,10 +63,10 @@ rate_limit_remaining() {
 }
 
 rate_segments=()
-if [[ -n "$five_hour_used" ]]; then
+if [[ -n $five_hour_used ]]; then
   rate_segments+=("$(rate_limit_remaining "$five_hour_used" "$five_hour_reset" "5h")")
 fi
-if [[ -n "$seven_day_used" ]]; then
+if [[ -n $seven_day_used ]]; then
   rate_segments+=("$(rate_limit_remaining "$seven_day_used" "$seven_day_reset" "wk")")
 fi
 
@@ -82,23 +82,23 @@ fi
 printf '\033[38;2;163;174;210m%s\033[0m' "$host" # hostname: #a3aed2
 printf ' \033[38;2;72;127;235m%s\033[0m' "$dir"  # directory: #487feb
 
-if [[ -n "$git_branch" ]]; then
+if [[ -n $git_branch ]]; then
   printf ' \033[38;2;118;159;240m%s\033[0m' " $git_branch" # git branch: #769ff0
 fi
 
-if [[ -n "$model" ]]; then
+if [[ -n $model ]]; then
   model_tag="$model"
-  if [[ -n "$effort_level" ]]; then
+  if [[ -n $effort_level ]]; then
     model_tag="$model $effort_level"
   fi
   printf ' \033[38;2;97;104;126m%s\033[0m' "[$model_tag]" # model: #61687e
 fi
 
-if [[ -n "$context_info" ]]; then
+if [[ -n $context_info ]]; then
   printf ' \033[38;2;160;169;203m%s\033[0m' "$context_info" # context: #a0a9cb
 fi
 
-if [[ -n "$rate_info" ]]; then
+if [[ -n $rate_info ]]; then
   printf ' \033[38;2;97;104;126m%s\033[0m' "$rate_info" # rate limits: #61687e
 fi
 
