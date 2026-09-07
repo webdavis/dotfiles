@@ -286,14 +286,18 @@ of 120 to 260; tests of 150 to 420. Statements: S246 (budgets), S247, S250 (`ans
 S252.
 
 **PR 5.10 the home-probe policy.** Moves from `src/home.rs`: `DeviceKey`, `DeviceIdentity`,
-`HomePresence`, `Client`, `KeyReading`, `KeyOutcome`, `home_reading`, `client_carries`, `first_match`,
+`HomePresence`, `HomeReading`, `Client`, `KeyReading`, `KeyOutcome`, `home_reading`, `client_carries`,
+`first_match`,
 `client_label`, `normalized_mac`, `Staleness`, `stale_identifiers`, `episode_id`, `is_new_staleness`,
 `stale_warning`, `UNIFI_TYPE` to `pns-domain/src/home/{identity,reading,staleness}.rs`. Stays:
 `parse_clients`, `first_site_id`, `Router`, `UniFiRouter`, `read_home`, `ROUTER_*` (PR 14.5);
 `router_settings`, `device_identity`, `router_api_key`, `stale_alert_channel`, `enabled_router_table`,
 `SetupFailure`, `setup_report`, `report` (config reading and presentation, PRs 13.4 and 15.1). Tests: 52
-by name, split. Sizes: three production files of 120 to 260, tests of 200 to 420. Statements: S168
-(`episode_id`), S273 (`home_reading`), S274 (`stale_identifiers`).
+by name, split. Four domain tests also pin the public identity constructor: private fields preserve
+S271's non-empty identifier and normalized MAC invariants at the crate boundary. Configuration type
+checks and diagnostic wording remain in `device_identity`. Sizes: three production files of 120 to
+260, tests of 200 to 420. Statements: S168 (`episode_id`), S271 (identity construction), S273
+(`home_reading`), S274 (`stale_identifiers`).
 
 **PR 5.11 the decision.** Moves from `src/engine.rs`: `DEFAULT_DESK_IDLE_SECS`, `Overrides` (the struct
 and `silenced`, `reads_desk`, `reads_phone`), `Decision`, `GateInputs`, `SurfaceReading`, `decide` (lines
