@@ -1337,8 +1337,8 @@ rather than an overseer template.
   shown working is removed from this PR rather than shipped unproven, and the body says which and
   why.
 - [ ] **Step 3:** Gates G1 to G6; G4 shows the six maps and the group row. No unit test here: the
-  third-party adapters are not ours, and `neotest-bashunit`'s own headless Lua tests live with the
-  adapter (T2), not in this PR. Commit: `feat(nvim): add neotest with the Rust, Python, Go, Bash and
+  third-party adapters are not ours, and `neotest-bashunit`'s own headless Lua tests live in its own
+  repository, not in this one. Commit: `feat(nvim): add neotest with the Rust, Python, Go, Bash and
   Zig adapters`.
 - [ ] **Step 4:** if T1 and T2 of the bashunit program have not merged when this PR opens, the Bash
   row ships in a later PR of its own and the body says so; the other four rows do not wait.
