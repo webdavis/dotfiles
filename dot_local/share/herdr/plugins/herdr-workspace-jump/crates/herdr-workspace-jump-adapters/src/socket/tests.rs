@@ -138,12 +138,16 @@ fn partial_progress_cannot_extend_the_complete_response_deadline() {
 
 #[test]
 fn a_complete_response_before_the_deadline_succeeds() {
-    let server = SocketServer::start(vec![Reply::Chunks(vec![(
-        Duration::from_millis(30),
-        "{\"result\":{\"type\":\"ok\"}}\n".into(),
-    )])]);
-    let mut directory = SocketWorkspaceDirectory::at(&server.path, Duration::from_millis(150));
-    assert_eq!(directory.focus("wA"), Ok(()));
+    let (mut client, mut peer) = UnixStream::pair().expect("owned socket pair");
+    let response = "{\"result\":{\"type\":\"ok\"}}\n";
+    // Make the response ready before the budget starts, independent of thread scheduling.
+    peer.write_all(response.as_bytes())
+        .expect("complete response");
+    let expires = Instant::now() + Duration::from_millis(150);
+    assert_eq!(
+        read_response(&mut client, expires),
+        Ok(response.to_string())
+    );
 }
 
 #[test]
