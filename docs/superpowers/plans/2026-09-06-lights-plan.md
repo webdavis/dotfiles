@@ -123,8 +123,24 @@ with no success output or notification. Error text excludes credentials and raw 
 The proposed certificate-verification exception needs source verification as stated in the design;
 keep its rationale at the adapter call site, without claiming secure verification is impossible.
 
-**`PnsNotifier`** implements `Notifier`. It renders an `Action` into a detail string and spawns
-`~/.local/libexec/pns/pns` detached with both streams discarded. A missing binary is silence.
+**`PnsNotifier`** implements `Notifier`. It renders an `Action` into a detail string and invokes the
+installed `gtimeout --foreground --signal=KILL 2s` with the pns executable and producer arguments,
+without a shell. Coreutils is already declared; no package or Rust dependency is added for this.
+The adapter owns and reaps the monitor synchronously; the monitor owns the direct pns child, kills it
+at the deadline and reaps it before returning. Null stdin, stdout and stderr prevent inherited input
+or output pipes from extending that lifetime. There is no detached waiter, custom watchdog or retry.
+
+Match the spawn/wait result and every status explicitly as specified by L021. Notification success,
+nonzero/signal status, timeout, unavailable executable and monitor failure all preserve the already
+accepted `Action`, its output and exit 0. Failures are silent. Missing `gtimeout` never selects an
+unbounded fallback. The two-second production bound is fixed; adapter tests supply a shorter private
+duration, without adding a public setting or reading an environment override.
+
+The monitor owns only the direct child. It does not contain descendants; pns must own their cleanup
+independently of the producer's survival. At `5cb969d0`, `dot_local/share/pns/src/main.rs`'s `deliver`
+waits without a deadline, and its daemon's `kill_group` rationale records that killing a producer can
+leave delivery alive. PR 10 therefore requires pns-owned evidence of bounded delivery cleanup first.
+Keep notification unwired if that prerequisite is unmet; do not expand this plan into pns implementation.
 
 **The settings parser** is a free function rather than a type. `settings::parse` reads a
 TOML (Tom's Obvious Minimal Language) string. It refuses an unknown key by name, a `[controller]` table
@@ -442,12 +458,32 @@ Control: turn a failed lookup into absence or apply the request floor to a readi
 ### PR 10: optional notification
 
 Add `Notifier` and `PnsNotifier`, `--notify` and default-off config, composed with the existing actions.
-Use a recorded process runner, never real pns, for adapter and command tests.
+First verify the pns-owned delivery cleanup prerequisite described above, including producer death;
+record its exact source head and named passing cases. No live pns execution satisfies this prerequisite.
+Use a recorded process runner for argv/status policy and a disposable local child for lifecycle tests,
+never real pns. Exercise the real `PnsNotifier` through command composition with those substitutions.
 
 Named tests: `notification_follows_validated_write_once`, `write_errors_never_notify`,
 `successful_status_with_errors_never_notifies`, `status_never_notifies_even_when_requested`,
-`notify_defaults_off`, `pns_arguments_are_local_only`, `missing_pns_does_not_fail_action`.
-Control: notify before envelope validation or drop `--local-only`; the corresponding case must fail.
+`notify_defaults_off`, `pns_arguments_are_local_only`, `missing_pns_does_not_fail_action`,
+`missing_timeout_monitor_does_not_spawn_pns`, `notification_status_never_changes_success`,
+`pns_child_hang_is_killed_and_reaped_without_failing_action`.
+The status case covers zero, 125, 126, 127, 137, another nonzero, signal termination and spawn/wait
+errors, asserting unchanged action output and exit 0 with no notification diagnostic or retry.
+
+The hanging-child case owns its synthetic executable and process records inside `lights-adapters`;
+unit checks stay in private `#[cfg(test)]` modules. The assembled command check belongs to
+`lights-cli/tests/` with its own fixtures. Launch a child that records its process identifier and
+ignores the ordinary termination signal (`SIGTERM`), then wait for its ready record instead of sleeping.
+Use a short adapter deadline and an independent harness deadline below one second. Require the
+monitor and direct child to be absent, with their wait results consumed, before the command returns
+the same successful light action. A runner fake alone cannot prove this lifecycle case.
+
+Controls: notify before envelope validation; drop `--local-only`; remove the monitor deadline; return
+without waiting for the monitor; propagate status 137 into the light exit. Each corresponding case
+must fail against its green control. The hang mutant must fail at the harness deadline, whose cleanup
+kills and reaps every test-owned child even on failure. These tests cover lights' ownership and
+composition; do not add a test of coreutils internals or claim that they prove pns descendant cleanup.
 
 ### PR 11: installation readiness
 

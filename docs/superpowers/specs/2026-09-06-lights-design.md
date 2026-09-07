@@ -94,8 +94,8 @@ pub trait Notifier {
 | Production | `PnsNotifier`       |
 | Test       | `RecordingNotifier` |
 
-`announce` returns nothing. A notification that fails must never fail the light change, so there is no
-outcome for a caller to mishandle.
+`announce` returns nothing. The adapter handles notification status and process cleanup internally;
+notification failure never changes the successful light action returned to the caller.
 
 ### Reading the config is not a boundary
 
@@ -225,8 +225,32 @@ The event is the producer argv the shell notifier already uses:
   --detail "<action line>" --local-only
 ```
 
-It is spawned detached with both streams discarded and its exit status ignored. A notification that fails
-must never fail the light change, and a machine with no pns installed is silence, not an error.
+`PnsNotifier::announce` runs synchronously and owns the monitor process until it exits and is reaped.
+The monitor is the installed coreutils `gtimeout`, invoked without a shell:
+
+```
+gtimeout --foreground --signal=KILL 2s <pns-path> <producer-argv...>
+```
+
+`gtimeout` owns the direct pns child: it waits for completion, sends the uncatchable kill signal after
+two seconds if necessary, and reaps that child before returning. Foreground mode keeps the monitor
+outside a separate timeout process group so the kill does not kill the monitor itself. All three
+streams are null. `PnsNotifier` waits for and reaps the monitor, then returns control to the use case,
+which returns the original successful action unchanged. No detached waiter is left for lights to forget.
+
+Handle every outcome explicitly inside the adapter: zero means the invocation finished; 137 may mean
+timeout, a kill or that same pns exit code, and never proves delivery. Treat 125 as monitor failure and
+126/127 as unable to run, without claiming those codes cannot come from pns. Other nonzero or signal
+exits, and spawn or wait errors, are notification failure.
+All leave light-action output and exit 0 unchanged, with no notification diagnostic or retry. If
+`gtimeout` or pns is unavailable, skip notification; never fall back to an unbounded direct spawn.
+
+This deadline covers the direct producer child. Foreground `gtimeout` does not kill pns descendants.
+pns owns delivery-process cleanup, including after its producer exits or is killed; PR 10 must verify
+that separate lifecycle contract before wiring notification. The current Bash-channel delivery path
+has an unbounded child wait, so its cleanup is a pns prerequisite, not a guarantee made by this monitor.
+The lights plan does not add a delivery supervisor or change pns. Notification remains default-off.
+
 `--local-only` is deliberate: you are standing in the room with your hand on the key, so there is nothing
 for the phone to tell you.
 
