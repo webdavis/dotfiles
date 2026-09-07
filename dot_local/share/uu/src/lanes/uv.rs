@@ -11,8 +11,9 @@
 //! either way is how that goes unnoticed for months.
 
 use crate::config::UvLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter};
 use crate::record::RunFacts;
+use uu_domain::LaneReport;
 
 /// The arguments the lane always runs `uv` with.
 const UPGRADE: [&str; 3] = ["tool", "upgrade", "--all"];

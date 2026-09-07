@@ -1,8 +1,10 @@
 mod cli;
+mod history;
 mod response;
 mod socket;
 
 pub use cli::CliWorkspaceDirectory;
+pub use history::{FileWorkspaceHistory, state_file};
 pub use socket::{DEADLINE, SocketWorkspaceDirectory};
 
 #[cfg(test)]

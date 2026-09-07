@@ -9,8 +9,9 @@
 
 use crate::config::CommandLane;
 use crate::lanes::text::stdout_lines;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport, Verdict};
+use crate::lanes::{CommandRunner, LaneAdapter, Verdict};
 use crate::record::{RunFacts, lane_event};
+use uu_domain::LaneReport;
 
 /// STDOUT IS KEPT EVEN ON A NON-CLEAN EXIT. `run_with_input`'s `Ran::verdict`
 /// already carries the reason (the exit description and the stderr tail);
