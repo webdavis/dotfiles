@@ -15,6 +15,9 @@ struct Recorder {
     entries: Vec<Entry>,
     posted: bool,
     delivered: RefCell<Vec<String>>,
+    claims: RefCell<Vec<(Option<u64>, bool)>>,
+    publications: RefCell<Vec<(u64, u64)>>,
+    delivery_legs: RefCell<Vec<Vec<Leg>>>,
 }
 
 impl Recorder {
@@ -25,6 +28,9 @@ impl Recorder {
             entries: Vec::new(),
             posted: true,
             delivered: RefCell::new(Vec::new()),
+            claims: RefCell::new(Vec::new()),
+            publications: RefCell::new(Vec::new()),
+            delivery_legs: RefCell::new(Vec::new()),
         }
     }
     fn note(&self, step: &str) {
@@ -36,8 +42,9 @@ impl Recorder {
 }
 
 impl ReturnMoment for Recorder {
-    fn claim(&self, _now: Option<u64>, take_journal: bool) -> Option<Claim> {
+    fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
         self.note(&format!("claim(journal={take_journal})"));
+        self.claims.borrow_mut().push((now, take_journal));
         self.claim.as_ref().map(|held| Claim {
             since: held.since,
             waiting: held.waiting.clone(),
@@ -54,13 +61,15 @@ impl ActivityRing for Recorder {
 impl RecapPublisher for Recorder {
     fn publish(&self, since: u64, until: u64) -> bool {
         self.note(&format!("publish({since},{until})"));
+        self.publications.borrow_mut().push((since, until));
         self.posted
     }
 }
 impl ReplayDelivery for Recorder {
-    fn deliver(&self, event: &EventArgs, _legs: &[Leg]) {
+    fn deliver(&self, event: &EventArgs, legs: &[Leg]) {
         self.note("deliver");
         self.delivered.borrow_mut().push(event.detail.clone());
+        self.delivery_legs.borrow_mut().push(legs.to_vec());
     }
 }
 
@@ -137,7 +146,17 @@ fn claim_of(since: Option<u64>, waiting: Vec<Entry>) -> Claim {
 fn a_return_claims_the_moment_counts_the_window_publishes_then_delivers() {
     let mut recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
     recorder.entries = vec![entry(1_100), entry(1_200)];
-    ports(&recorder).run(&returning(vec![leg(true)]), policy(), true);
+    let legs = vec![
+        leg(true),
+        Leg {
+            mode: ReportMode::ReportOutcome,
+            ..leg(false)
+        },
+    ];
+    ports(&recorder).run(&returning(legs.clone()), policy(), true);
+    assert_eq!(*recorder.claims.borrow(), [(Some(2_000), true)]);
+    assert_eq!(*recorder.publications.borrow(), [(1_000, 2_000)]);
+    assert_eq!(*recorder.delivery_legs.borrow(), [legs]);
     assert_eq!(
         recorder.steps(),
         [
@@ -250,14 +269,20 @@ fn a_return_with_no_digest_and_nothing_waiting_says_nothing_at_all() {
 
 #[test]
 fn entries_waiting_with_no_digest_are_summarized_rather_than_dropped() {
-    let recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
+    let mut recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
+    // A loud window would publish if the digest switch were ignored.
+    recorder.entries = vec![entry(1_100), entry(1_200)];
     let quiet = RecapPolicy {
         digest: false,
         ..policy()
     };
     ports(&recorder).run(&returning(vec![leg(true)]), quiet, true);
     assert!(recorder.steps().contains(&"deliver".to_string()));
-    assert!(!recorder.delivered.borrow()[0].is_empty());
+    assert!(recorder.publications.borrow().is_empty());
+    assert_eq!(
+        *recorder.delivered.borrow(),
+        ["1 missed notification. claude · stop: did a thing"]
+    );
 }
 
 #[test]
@@ -303,7 +328,7 @@ fn the_card_is_composed_from_the_journal_and_not_from_the_decision() {
     };
     ports(&recorder).run(&returning(vec![leg(true)]), quiet, true);
     let card = recorder.delivered.borrow()[0].clone();
-    assert!(card.contains("claude"), "{card}");
+    assert_eq!(card, "1 missed notification. claude · stop: did a thing");
 }
 
 #[test]
@@ -321,9 +346,6 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
     ports(&failed).run(&returning(vec![leg(true)]), policy(), true);
 
     assert!(failed.steps().contains(&"deliver".to_string()));
-    assert_ne!(
-        posted.delivered.borrow()[0],
-        failed.delivered.borrow()[0],
-        "the card reads the same whether or not the digest was published"
-    );
+    assert_eq!(*posted.delivered.borrow(), ["2 events. recap in #pns"]);
+    assert_eq!(*failed.delivered.borrow(), ["2 events"]);
 }
