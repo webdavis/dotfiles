@@ -95,9 +95,17 @@ end
 return {
   {
     "lewis6991/gitsigns.nvim",
-    -- Eager only because it has no trigger. Its work starts at a real buffer, so
-    -- it belongs on `event = { "BufReadPre", "BufNewFile" }`.
-    lazy = false,
+    event = { "BufReadPre", "BufNewFile", "BufFilePost", "BufWritePost" },
+    -- The two global blame maps below are declared in `config`, so they would be
+    -- absent from which-key until the first buffer read. These rows carry no
+    -- `rhs`, so lazy.nvim installs a placeholder that keeps the label, loads the
+    -- plugin on the first press and re-feeds the key to the real mapping
+    -- (`lazy/core/handler/keys.lua`, `_add`); `_set` never runs for an rhs-less
+    -- row, so `config` stays the only place either mapping is defined.
+    keys = {
+      { "<leader>gm", desc = "Gitsigns: blame line (full)" },
+      { "<leader>gM", desc = "Gitsigns: blame file (walk commits)" },
+    },
     config = function()
       local gitsigns = require("gitsigns")
 
