@@ -182,23 +182,28 @@
 [include]
   path = ~/.config/delta/themes.gitconfig
 
-# Never start an fsmonitor daemon for a throwaway repository under the temp
-# directories. Neovim spec fixtures and agent scratch dirs create repositories
-# there constantly, and a killed process leaves its directory gone while the
-# daemon it started lives on: git ships no idle exit on macOS and no lifetime
-# setting, so the orphans accumulate until someone kills them by hand.
+# Disable fsmonitor when the administrative Git directory is under a macOS
+# temp tree. A stopped fixture process can leave its repository and daemon
+# behind. Persistent repositories keep the core.fsmonitor default above.
 #
-# Only the /private spellings match. Git resolves the discovered git dir to its
-# real path before testing it, so /var/folders/ and /tmp/ never match: those are
-# the symlinks, and the real paths are what git compares.
+# Match the canonical /private prefixes used by normal discovery. Git can also
+# match symlink spellings; /i handles case variations. The trailing slash makes
+# Git append **, so these conditions cover directories below each prefix.
 #
-# The trailing slash is load-bearing. Git appends ** to a gitdir pattern that
-# ends in a slash, which is what makes it match every repository BELOW the
-# directory; without it the pattern matches only that one exact path.
-[includeIf "gitdir:/private/var/folders/"]
+# A linked checkout's .git FILE may point outside the temp trees. These
+# conditions inspect that final Git directory, not the checkout's location.
+# Such a temporary worktree needs an explicit worktree-only override:
+#   git -C <repo> config extensions.worktreeConfig true
+#   git -C <temp-worktree> config --worktree core.fsmonitor false
+# Before enabling the extension, follow git help config's worktreeConfig rules:
+# move core.worktree and core.bare=true, if present, from the common config to
+# the main worktree's config.worktree. Never use --local for the second command,
+# which would change every worktree. Use git -c core.fsmonitor=false for
+# worktree creation and setup until the worktree-only override is installed.
+[includeIf "gitdir/i:/private/var/folders/"]
   path = ~/.config/git/no-fsmonitor.gitconfig
 
-[includeIf "gitdir:/private/tmp/"]
+[includeIf "gitdir/i:/private/tmp/"]
   path = ~/.config/git/no-fsmonitor.gitconfig
 
 [interactive]
