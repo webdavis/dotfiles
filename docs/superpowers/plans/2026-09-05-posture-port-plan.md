@@ -19,7 +19,7 @@ At the source baseline, posture had no crate, binary, workspace or test baseline
 this plan:
 
 - the specification's original 368-statement pipeline inventory and 31 SSH additions; after review,
-  166 statements are fully pinned, three partially pinned and 230 UNPINNED;
+  163 statements are fully pinned, three partially pinned and 233 UNPINNED;
 - the twenty-one shell files (7,263 lines, 3,326 of code, 3,622 of comment), the two chezmoi
   runners (`run_after_05`, 386 lines, and `run_after_50`, 58), the seven plists and their seven
   loaders, and the 62 inline jq programs and 7 SQL (Structured Query Language) statement groups a port
@@ -801,7 +801,10 @@ rule. **Tests**: the seventeen `osquery-heartbeat.bats` cases by name. **Sizes**
 **PR 2.6 the watchdog's decisions and the audit.** `watchdog.rs` (S207 to S215, S217 to S226 over
 readings), `audit.rs` (S227 to S240 over manifest lines and per-path readings). **Tests**: all of
 them are first tests; the 41 functions of `test/fixtures/osquery-watchdog-lib.bash` and the 17 of
-`osquery-manifest-lib.bash` are the source of the cases. **Sizes**: `watchdog.rs` ~280 plus tests
+`osquery-manifest-lib.bash` are the source of the cases. Capture a finding followed by a refusal in
+both the same and second manifest: Bash retains the earlier output, and the watchdog classifies the
+mixed report as `unknown` before its normal two-tick alarm decision (S227, S230). Preserve that
+behavior rather than adding buffering. **Sizes**: `watchdog.rs` ~280 plus tests
 split by probe into five files; `audit.rs` ~220 plus tests ~380.
 
 **PR 2.7 the controls and the poller's policy.** `controls.rs` (S254 to S256), `poll.rs` (S246 to
@@ -822,8 +825,9 @@ refusal and restart-evidence cases restated over readings; S347 gains its first 
 
 **PR 2.10 the cursor, the enricher's classification and the triage.** `cursor.rs` (S007 to S011,
 S013, S014, S016), `enrich.rs` (S134 to S141), `triage.rs` (S102 to S106, S110 to S115). **Tests**:
-all first tests except the render-side pins of S102 and S130. **Sizes**: three files of 120 to 220
-plus tests under 350.
+all first tests except S130's render-side pin. S102 requires a Bash-derived example from the actual
+triage producer, including its three string members and quoting; an injected rendering fixture does
+not cover it. **Sizes**: three files of 120 to 220 plus tests under 350.
 
 ### Step 3: adapters and use cases, without delivery
 
