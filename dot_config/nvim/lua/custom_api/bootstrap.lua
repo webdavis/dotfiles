@@ -67,14 +67,14 @@ local function install_core_parsers(plugin)
   local function missing()
     local installed = { parsers = treesitter.get_installed("parsers"), queries = treesitter.get_installed("queries") }
     return vim.tbl_filter(function(language)
-      local kind = parsers[language].install_info and "parsers" or "queries"
-      return not vim.list_contains(installed[kind], language)
+      return not vim.list_contains(installed.queries, language)
+        or (parsers[language].install_info and not vim.list_contains(installed.parsers, language))
     end, required)
   end
   local absent = missing()
   if #absent > 0 then
-    -- Ordinary install treats a leftover query directory as an installed
-    -- language. Force only missing artifacts so a partial install can recover.
+    -- Ordinary install accepts either artifact. Force only incomplete
+    -- languages so a leftover parser or query directory can recover.
     assert(treesitter.install(absent, { force = true }):wait(), "core parser installation failed")
   end
   absent = missing()

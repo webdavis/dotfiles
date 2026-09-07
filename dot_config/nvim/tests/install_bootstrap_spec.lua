@@ -281,7 +281,7 @@ return {
     end)
   end,
   ["awaits the original LazyDone task and preserves its delayed failure"] = function()
-    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "lua", "ecma" } })
     modules["lazy.core.config"].plugins["nvim-treesitter"]._ = {
       core_parser_install = {
         wait = function()
@@ -306,7 +306,7 @@ return {
     end)
   end,
   ["waits for core parsers and query dependencies to finish successfully"] = function()
-    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "lua", "ecma" } })
     with_modules(modules, function(subject)
       subject.build_plugins()
       assert(state.finished, "returned while core installation was pending")
@@ -322,14 +322,45 @@ return {
     end)
   end,
   ["a joined install cannot omit a required query-only language"] = function()
-    local modules = parser_modules(true, { parsers = { "lua" }, queries = {} })
+    local modules = parser_modules(true, { parsers = { "lua" }, queries = { "lua" } })
     with_modules(modules, function(subject)
       local ok, err = pcall(subject.build_plugins)
       assert(not ok and tostring(err):find("missing core parsers: ecma", 1, true), tostring(err))
     end)
   end,
-  ["already installed core languages need no forced installation"] = function()
+  ["recovers queries missing beside an already compiled core parser"] = function()
+    local artifacts = { parsers = { "lua" }, queries = { "ecma" } }
+    local modules, state = parser_modules(true, artifacts)
+    state.finished = true
+    local install = modules["nvim-treesitter"].install
+    modules["nvim-treesitter"].install = function(languages, options)
+      local pending = install(languages, options)
+      state.finished = false
+      return {
+        wait = function()
+          local ok = pending:wait()
+          artifacts.queries = { "lua", "ecma" }
+          return ok
+        end,
+      }
+    end
+    with_modules(modules, function(subject)
+      subject.build_plugins()
+      assert(vim.deep_equal(state.requested, { "lua" }), vim.inspect(state.requested))
+      assert(state.force, "ordinary installation skips an already compiled parser")
+      assert(state.finished and vim.list_contains(artifacts.queries, "lua"), "returned before query recovery")
+    end)
+  end,
+  ["a successful recovery still requires queries for compiled core languages"] = function()
     local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    state.finished = true
+    with_modules(modules, function(subject)
+      local ok, err = pcall(subject.build_plugins)
+      assert(not ok and tostring(err):find("missing core parsers: lua", 1, true), tostring(err))
+    end)
+  end,
+  ["already installed core languages need no forced installation"] = function()
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "lua", "ecma" } })
     state.finished = true
     with_modules(modules, function(subject)
       subject.build_plugins()
