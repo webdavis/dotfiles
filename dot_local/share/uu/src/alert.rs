@@ -18,7 +18,7 @@
 pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
     [
         "--agent",
-        crate::record::AGENT,
+        uu_protocol::AGENT,
         "--state",
         "failed",
         "--project",
@@ -38,7 +38,7 @@ pub trait Alerter {
 
 /// What one failed lane's alert says: the count, and the last thing that went
 /// wrong.
-pub fn alert_summary(lane: &crate::lanes::LaneReport) -> String {
+pub fn alert_summary(lane: &uu_domain::LaneReport) -> String {
     // THE LAST FAILURE, not the last line. The card is read on a phone and has
     // room for one sentence, and a lane KEEPS GOING after a failure: its final
     // line is routinely a later success, so `1 failure(s); plugin a:
@@ -53,7 +53,7 @@ pub fn alert_summary(lane: &crate::lanes::LaneReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lanes::LaneReport;
+    use uu_domain::LaneReport;
 
     #[test]
     fn an_alert_names_uu_the_failure_the_host_and_the_lane() {

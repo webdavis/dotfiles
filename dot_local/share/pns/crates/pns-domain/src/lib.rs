@@ -20,13 +20,29 @@
 //! step removes the re-exports.
 
 pub mod count;
+mod decision;
+mod decision_record;
+pub mod home;
+pub mod jobs;
 pub mod lamps;
 pub mod lights;
 pub mod missed;
+pub mod nag;
+mod presence;
 pub mod pulse;
 pub mod quiet;
+pub mod recap;
 pub mod registry;
 pub mod render;
 pub mod routing;
 pub mod safety;
 pub mod surface;
+
+pub use decision::{DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading};
+pub use presence::{
+    Edge, Full, Narrowing, PresenceStatus, RawPresence, Snapshot, Unreadable, chosen, classify,
+    idle_secs_from_ns, narrow, unreadable_said,
+};
+
+pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no};
+pub use routing::Delivery;

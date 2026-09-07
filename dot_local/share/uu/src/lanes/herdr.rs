@@ -12,8 +12,9 @@
 //! argv alone.
 
 use crate::config::HerdrLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter};
 use crate::record::RunFacts;
+use uu_domain::LaneReport;
 
 impl LaneAdapter for HerdrLane {
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
