@@ -251,7 +251,8 @@ dead_letter_alerts(<every pending_alerts column>, dead_lettered_at INTEGER NOT N
                last_http_status TEXT NOT NULL, reason TEXT NOT NULL)
 ```
 
-Drain order is `ORDER BY occurrence_ts, sequence_number` (S164). Thresholds, all env-overridable:
+Drain order is `ORDER BY occurrence_ts, sequence_number`: sequence breaks equal-time ties; a backward
+clock step can reorder insertions (S164). Thresholds, all env-overridable:
 `OSQUERY_DRAIN_MAX_ATTEMPTS` 20, `OSQUERY_DRAIN_MAX_AGE_SECONDS` 604800,
 `OSQUERY_DRAIN_RETRY_BASE_SECONDS` 60, `OSQUERY_DRAIN_RETRY_RANDOM_SECONDS` defaulting to the base,
 `OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS` 86400 (S166, S170, S185). Under the delivery recommended in
@@ -290,7 +291,8 @@ The signing key is the first line of `~/.config/osquery/webhook-secret` with car
 stripped, or `OSQUERY_WEBHOOK_SECRET` (`alert-dispatch.sh:1039-1046`, S156). That file is a runtime
 file, mode 600, tracked by nothing in this repository (`alert-dispatch.sh:26-29`; no chezmoi source
 names it). The HMAC is built by hand from SHA-256 with `openssl dgst`, and every hash takes its bytes
-on stdin so neither key nor body reaches `ps` (`alert-dispatch.sh:75-109`, S155).
+on stdin. The key stays out of child arguments, but transport passes the body via `curl --data`
+(`alert-dispatch.sh:75-109, :1052-1059`, S155).
 
 ### 3.5 The digest spool
 
@@ -440,11 +442,11 @@ weakens one names it in its description.
   suppression is decided against the file's current content, re-read at decision time, against the
   exact four-column tuple, from a manifest that is root-owned and derived from chezmoi intent
   (S084, S091, S093, S097; section 3.1). A `DELETED` verb on a tracked path always pages (S081).
-- **SI-11** Attacker-influenced text never becomes structure. Every column crosses into a body
-  through one sanitize chokepoint (backticks stripped, `\r\n\t` squashed, capped, wrapped in a code
-  span); paths in next-step commands are shell-quoted; AppleScript literals escape the backslash
-  first; hostile separators cannot shift field boundaries (S059, S125, S131, S180, S266, S276,
-  S291).
+- **SI-11** Preserve the existing field boundaries and escaping. Code-wrapped page fields strip
+  backticks, squash `\r\n\t` and apply a field cap. File-event action and Signing use the narrower
+  handling in S125, so this is not a universal guarantee against injected Markdown structure. Paths
+  in next-step commands are shell-quoted; AppleScript literals escape the backslash first; hostile
+  separators cannot shift field boundaries (S059, S125, S131, S180, S266, S276, S291).
 - **SI-12** Secrets stay out of readable files. Credential pages render the basename only; the
   digest spool carries derived fields only; the two true secrets are watched by metadata, never by
   hash; the signing key never reaches argv or a log line (S117, S128, S155, S187, S365).
@@ -997,11 +999,12 @@ S024. Only the pack segment is stripped, so a hyphenated pack name leaves the qu
       Pin: `only the pack segment is stripped, so a hyphenated pack name leaves the query's own
       underscores alone` at test/unit/osquery-normalize-and-digest-store.bats:51
 
-S025. A STRICT allowlist of 25 known query names admits a row; anything else is dropped before it can
+S025. A STRICT allowlist of 26 known query names admits a row; anything else is dropped before it can
       become an alert, whether it arrived packed or top-level.
       Source: `results-alerter/normalize.sh:53-60, :67`.
       Pin: `an unrecognized query name never becomes a finding, whether it arrives packed or
       top-level` at test/unit/osquery-normalize-and-digest-store.bats:79
+      UNPINNED: the complete admitted-name inventory; the case supplies only three known names.
 
 S026. `heartbeat_canary` is excluded from that allowlist defensively, so a stray liveness row can
       never generate noise.
@@ -1115,12 +1118,13 @@ S043. Enrichment runs BEFORE the per-detector case, only for a finding with a no
       Pin: `the signing verdict is attached to a paged finding, trusted or not`
            at test/unit/osquery-route.bats:435
 
-S044. An enricher exit of 10 promotes a NOTICE to CRIT; the promotion is one-directional, never
-      quieting, and a missing or erroring enricher leaves the finding surfaced without a Signing
-      field (fail-open).
-      Source: `results-alerter/route.sh:155-157`.
+S044. An enricher exit of 10 promotes a NOTICE to CRIT; promotion is one-directional, never quieting.
+      Missing enrichment or an error exit does not suppress the finding. Nonempty captured stdout is
+      attached as Signing even on an error exit; only empty stdout leaves that field absent.
+      Source: `results-alerter/route.sh:152-158`.
       Pin: `the extension arms honor the untrusted-signing promotion and the log-only arms ignore it`
-           at test/unit/osquery-route.bats:412
+           at test/unit/osquery-route.bats:412 (promotion only).
+      UNPINNED: missing enrichment and stdout retained after an error exit.
 
 S045. A non-empty enricher verdict is attached to the finding as `.signing` for the renderer.
       Source: `results-alerter/route.sh:158`.
@@ -1136,8 +1140,8 @@ S046. `firewall_state` and `gatekeeper_state` are LOG-ONLY here, overriding the 
 S047. `sip_state` is LOG-ONLY, because System Integrity Protection is deliberately off on this host so an
       on-to-off transition cannot occur; the poller does not cover it either.
       Source: `results-alerter/route.sh:164-171`.
-      Pin: `the safe-direction rows and the poller-owned protection reach neither channel`
-           at test/unit/osquery-route.bats:399
+      Pin: UNPINNED. `test/unit/osquery-route.bats:399` supplies no `sip_state` row; changing
+      this arm to page leaves the route suite green.
 
 S048. `persistence_startup_items_crontab`, `es_launchd_writes` and `agent_binary_changed` are
       LOG-ONLY regardless of the enrichment verdict.
@@ -1184,8 +1188,8 @@ S054. `agent_exposure_changed` and `remote_access_sharing_state` page only their
 
 S055. `suid_bin_unexpected` pages only its `added` direction.
       Source: `results-alerter/route.sh:218-221`.
-      Pin: `the safe-direction rows and the poller-owned protection reach neither channel`
-           at test/unit/osquery-route.bats:399
+      Pin: UNPINNED. `test/unit/osquery-route.bats:399` supplies no removed setuid row;
+      paging both directions leaves the route suite green.
 
 S056. `persistence_launchd` considers only `added` rows; a `/System/Library/*` path is log-only, and
       any `*/LaunchDaemons/*` path pages by path alone without consulting the allowlist.
@@ -1332,8 +1336,8 @@ S075. An UNPINNED entry instead requires the root-owned manifest to vouch for th
 S076. The LAST gate, and only on the suppress path, is that the manifest must also vouch for the
       ALLOWLIST FILE itself; an unvouched allowlist suppresses nothing.
       Source: `results-alerter/allowlist-verdict.sh:127-137`.
-      Pin: `with nothing able to vouch, tracked edits and an unknown agent page while a neighbour
-      stays silent` at test/unit/osquery-route.bats:467
+      Pin: UNPINNED. `test/unit/osquery-route.bats:467` fails earlier vouch gates; removing
+      the final allowlist-file gate leaves the route suite green.
 
 S077. That gate is placed last on purpose: a reused label and a miss already page, so gating them
       would spend a hash and a stat to reach an answer that was never in doubt.
@@ -1594,10 +1598,13 @@ S122. A failed append says so on stderr naming ONLY the spool path (never the fi
       Pin: `a failed append says so on stderr, naming the spool it could not write`
            at test/unit/osquery-normalize-and-digest-store.bats:225
 
-S123. A failed append leaves no partial line behind.
-      Source: `results-alerter/digest-store.sh:42-52` (one jq write).
+S123. A producer failure before output appends no bytes. If jq writes a fragment before
+      failing, that fragment remains: the direct append is not atomic. A diagnostic is printed, and
+      the final best-effort chmod still makes `digest_append` return 0.
+      Source: `results-alerter/digest-store.sh:42-56`.
       Pin: `a failed append leaves no partial line behind`
-           at test/unit/osquery-normalize-and-digest-store.bats:236
+           at test/unit/osquery-normalize-and-digest-store.bats:236 (failure before output only).
+      UNPINNED: fragment retention after partial output.
 
 ### 8.8 render-page.sh
 
@@ -1607,16 +1614,19 @@ S124. `render_page` slurps the enriched findings, selects the CRIT ones, and pri
       Pin: `a CRIT finding renders a plain-English header, its decision fields and a next step`
            at test/unit/osquery-render.bats:172
 
-S125. Every rendered value passes through ONE sanitize chokepoint: backticks stripped, `\r`, `\n` and
-      tab squashed to spaces, truncated at 240 characters with an explicit marker, then wrapped in a
-      Discord inline-code span.
-      Source: `results-alerter/render-page.sh:35-42 code`.
+S125. Fields passed through `code` have backticks stripped, `\r`, `\n` and tab squashed to spaces,
+      a 240-character limit with a truncation marker, and a Discord inline-code wrapper. File-event
+      action only squashes those whitespace characters: it is neither code-wrapped nor field-capped.
+      Signing separately strips backticks and asterisks and squashes whitespace, without the field
+      cap or code wrapper. The final whole-page cap still applies to both exceptions.
+      Source: `results-alerter/render-page.sh:35-42, :93-98, :117, :172-174`.
       Pin: `a field value over 240 characters is truncated behind a marker`
            at test/unit/osquery-render.bats:193
       also `an embedded newline in any rendered column stays on one line, so no signing line can be
       forged` at test/unit/osquery-render.bats:267
       also `an embedded carriage return is squashed the same way a newline is`
-           at test/unit/osquery-render.bats:282
+           at test/unit/osquery-render.bats:282 (these cases exercise code-wrapped fields).
+      UNPINNED: the file-event action and Signing exceptions.
 
 S126. Each detector has a plain-English header; a protection query renders "<name> turned OFF" at
       CRIT and "<name> changed" otherwise, and an unmapped query renders its name with underscores
@@ -1790,12 +1800,14 @@ S154. There is exactly ONE POST site, carrying `-X POST`, `Content-Type: applica
       Source: `executable_alert-dispatch.sh:1052-1059 _post_alert_to_webhook`.
       Pin: UNPINNED.
 
-S155. The HMAC is built by hand from SHA-256 using `openssl dgst` (not the OpenSSL-3-only `mac`), and
-      the key is a function argument that never reaches a child argv while the bytes to hash arrive
-      only on stdin, so neither key nor body can appear in `ps`.
-      Source: `executable_alert-dispatch.sh:70-109 _sha256_hex_of_stdin, _hmac_sha256_hex`.
-      Pin: UNPINNED. The comment says a test pins it byte-identical to `openssl dgst -hmac`; that
-      test no longer exists.
+S155. The HMAC is built by hand from SHA-256 using `openssl dgst` (not the OpenSSL-3-only `mac`).
+      The key stays a shell function argument, and hashing takes its input on stdin. That protects
+      hash inputs from the hashing child's arguments; the later transport passes the body as
+      `curl --data`, so the body can appear in the transport process's argument list.
+      Source: `executable_alert-dispatch.sh:70-109 _sha256_hex_of_stdin, _hmac_sha256_hex`,
+      `:1052-1059 _post_alert_to_webhook`.
+      Pin: UNPINNED. The comment says a test pins the hash byte-identical to `openssl dgst -hmac`;
+      that test no longer exists.
 
 S156. The signing key is the environment override, else the FIRST LINE of
       `~/.config/osquery/webhook-secret` with carriage returns stripped, so Windows line endings cannot
@@ -1807,8 +1819,9 @@ S157. Every SQL statement runs through one executor that prepends `.bail on`, `b
       `journal_mode=WAL`, buffers query rows and prints them only after a fully successful run, and
       retries a `database is locked` failure up to five times with a 0.1 s pause.
       Source: `executable_alert-dispatch.sh:146-176 _osquery_alerts_db_exec`.
-      Pin: `the counters report how many pages are queued and how many the drain gave up on`
-           at test/unit/osquery-alert-dispatch.bats:97
+      Pin: UNPINNED. `test/unit/osquery-alert-dispatch.bats:97` reads counters on a healthy
+      store. Replacing the executor with one unbuffered SQLite call, without the prelude or retry,
+      leaves that case green.
 
 S158. Every text value interpolated into SQL has its single quotes doubled through a `$single_quote`
       helper variable, because the inline spellings go wrong under bash 3.2.
@@ -1849,11 +1862,14 @@ S163. Re-storing the same occurrence is idempotent (`ON CONFLICT(request_id) DO 
       Source: `executable_alert-dispatch.sh:240-244, :297-300`.
       Pin: UNPINNED.
 
-S164. Due rows are selected by `next_attempt_after <= now` and ordered `occurrence_ts,
-      sequence_number`, so equal timestamps or a backward clock step still drain in insert order.
+S164. Due rows satisfy `next_attempt_after <= now` and are ordered by `occurrence_ts`, then
+      `sequence_number`. Equal occurrence timestamps keep insertion order. A backward clock step can
+      put a later insertion first: timestamps 2000 then 1000 drain the second row before the first.
       Source: `executable_alert-dispatch.sh:535-542 _osquery_pending_alert_rows`.
       Pin: `T-DRAIN-mixed-batch-full-drain: a mixed batch drains completely in one pass, each row
       handled by class, none starved` at test/integration/osquery-drain-continuation.bats:71
+      (increasing timestamps and visitation only).
+      UNPINNED: equal-timestamp ties, backward-clock ordering and the due-time predicate.
 
 S165. `_deliver_pending_alert_row` gives up BEFORE any send on a row past a threshold, moving it to
       `dead_letter_alerts` and returning nonzero so the pass can count it.
@@ -1865,7 +1881,10 @@ S166. A row is over threshold when `attempts >= OSQUERY_DRAIN_MAX_ATTEMPTS` (20)
       `OSQUERY_DRAIN_MAX_AGE_SECONDS` (604800); attempts is checked first so a maxed-out row names
       attempts, and a zero or future `created_at` is never aged out blind.
       Source: `executable_alert-dispatch.sh:425-450 _osquery_row_over_threshold_reason`.
-      Pin: UNPINNED. The drain suite drives the permanent-status path, not the thresholds.
+      Pin: `T-DRAIN-mixed-batch-full-drain: a mixed batch drains completely in one pass, each row
+      handled by class, none starved` at test/integration/osquery-drain-continuation.bats:71
+      (attempts above the limit give up before sending; removing that guard fails the case).
+      UNPINNED: the exact limit boundary, age limit, reason precedence, and zero/future timestamps.
 
 S167. A stored row whose URL is not under `http://127.0.0.1:8644/` is SKIPPED, never sent off-box.
       Source: `executable_alert-dispatch.sh:571-574`, `:1064` (the localhost-only rule).
@@ -1884,6 +1903,10 @@ S169. Any other non-2xx is transient: attempts goes up by one and `next_attempt_
       Source: `executable_alert-dispatch.sh:335-366 _osquery_record_retry_failure`.
       Pin: `T-DRAIN-mixed-batch-full-drain: a mixed batch drains completely in one pass, each row
       handled by class, none starved` at test/integration/osquery-drain-continuation.bats:71
+      (retention and attempts increment for a 503 response only).
+      UNPINNED: the other transient statuses, delay formula and concurrent update semantics. Changing
+      the multiplier from
+      `attempts + 1` to `attempts + 9` leaves that case green.
 
 S170. The randomized offset is drawn once per call from `$RANDOM % (max + 1)`, defaults to a full
       base-width spread, only ever DELAYS a retry, and is disabled by setting it to 0.
@@ -1906,8 +1929,11 @@ S173. The drain PRINTS the number of rows this pass dead-lettered, as the only t
       `retry_undelivered_alerts` fires exactly ONE durable loud local CRIT banner when that count is
       positive, never one per record. A zero count stays silent.
       Source: `executable_alert-dispatch.sh:613-647`, `:1079-1095`.
-      Pin: `T-DRAIN-continue-past-permanent: a permanent poison row in the middle does not starve the
-      rows behind it` at test/integration/osquery-drain-continuation.bats:26
+      Pin: `T-DRAIN-mixed-batch-full-drain: a mixed batch drains completely in one pass, each row
+      handled by class, none starved` at test/integration/osquery-drain-continuation.bats:71
+      (one summary for two dead letters).
+      UNPINNED: exact drain stdout, silence for zero dead letters, and the summary's durability and
+      sound. Inflating the drain's count by one leaves the cited case green.
 
 S174. `retry_undelivered_alerts` sweeps the LOCAL notification queue FIRST, before the secret gate, so
       a fresh local row the alert drain persists mid-pass waits for the next tick rather than being
@@ -2050,8 +2076,9 @@ S194. Matching on the PARSED name is whitespace-tolerant, so the read does not c
 
 S195. `fromjson?` drops a torn or non-JSON line instead of aborting.
       Source: `executable_canary-freshness.sh:42`.
-      Pin: `B7: a malformed canary timestamp is rejected, unhealthy, and cannot inject`
-           at test/integration/osquery-heartbeat.bats:217
+      Pin: UNPINNED. `test/integration/osquery-heartbeat.bats:217` supplies valid JSON with an
+      invalid timestamp string, not malformed JSON. Replacing parse-error omission with a synthetic
+      canary timestamp leaves that case green.
 
 S196. The value is range-bound to `^(0|[1-9][0-9]{0,9})$`, which rejects a leading zero (bash would
       read it as octal and error) and caps at ten digits so an over-range epoch cannot overflow and
@@ -2477,9 +2504,13 @@ S266. Every value read from the system crosses into a notification body ONLY thr
       Source: `executable_firewall-gatekeeper-monitor.sh:60-88`.
       Pin: UNPINNED.
 
-S267. One page per tick even when several protections deviated together, titled `🔴 **CRITICAL**`
-      plus ` · N` above one block, and the baseline advances only after the send succeeds.
-      Source: `executable_firewall-gatekeeper-monitor.sh:843-863 page_crit_and_persist`, `:996-998`.
+S267. Exposure deviations are combined into one page per tick, titled `🔴 **CRITICAL**`, with ` · N`
+      added for multiple blocks. Separate monitoring-gap or persistence-gap pages can also occur
+      in that tick:
+      missing controls followed by a first-observed firewall-off sends a gap page, then an exposure
+      page. The baseline advances only after the exposure send succeeds.
+      Source: `executable_firewall-gatekeeper-monitor.sh:588-625 page_gap_once`,
+      `:843-863 page_crit_and_persist`, `:996-998`.
       Pin: UNPINNED.
 
 ### 8.16 tailscale-monitor.sh
@@ -2492,8 +2523,10 @@ S268. A PUBLIC funnel is active exactly when an `AllowFunnel` entry is boolean t
       Source: `executable_tailscale-monitor.sh:11-19, :241-249`.
       Pin: UNPINNED.
 
-S269. An `AllowFunnel` that is not a map, or an entry value that is not a boolean, is an UNEXPECTED
-      shape and resolves to a gap, never a silent inactive.
+S269. The classifier omits absent, null or false `AllowFunnel` values through `// empty`; without
+      another active or invalid value these resolve silently to inactive. Other non-map values, or
+      a map entry that is not boolean, resolve to a monitoring gap. Thus numeric `42` gaps, but
+      `false` and `null` do not.
       Source: `executable_tailscale-monitor.sh:241-259`.
       Pin: UNPINNED.
 
@@ -2686,8 +2719,9 @@ S297. Cadence is owned entirely by the LaunchAgent: there is no internal time ga
 Nothing in `test/` runs this file. The orphan harness is `test/fixtures/osquery-allowlist-lib.bash`
 (198 lines, 14 functions). Every statement below is UNPINNED.
 
-S298. The interface is exactly `-a <label>`, `-d <label>` and `-l`; anything else prints usage to
-      stderr and exits 2.
+S298. `getopts` recognizes `-a <label>`, `-d <label>` and `-l`; the last parsed action wins. A
+      missing option argument, an unknown parsed option, or no action prints usage to stderr and
+      exits 2. Remaining operands are ignored, so `-l extra` lists entries and exits 0.
       Source: `executable_allowlist.sh:36-39 usage`, `:325-359`.
       Pin: UNPINNED.
 
@@ -2728,9 +2762,10 @@ S305. A leading `$HOME` is relativized to `~/` so the committed file stays user-
       Source: `executable_allowlist.sh:253-255`.
       Pin: UNPINNED.
 
-S306. `-a` refreshes in place: it drops any existing tuple for the label and appends the freshly
-      captured one, so re-adding updates the identity and never duplicates it, and an unchanged
-      identity reproduces the source byte for byte (a true no-op).
+S306. `-a` drops every existing tuple for the label and appends the freshly captured tuple, preserving
+      other lines in order. It refreshes identity without duplicates but can reorder an unchanged
+      entry: A,B becomes B,A when A is re-added. Bytes can stay identical when the tuple is already
+      last and its serialized bytes are unchanged. Publication is invoked in either case.
       Source: `executable_allowlist.sh:256-277`.
       Pin: UNPINNED.
 
@@ -3123,19 +3158,19 @@ S359. The path array arrives by NAME through a nameref and every local is prefix
       Pin: UNPINNED. The test that pinned that failure mode
       (`test/test-system/nameref-guards.sh`, cited at `:313`) no longer exists.
 
-S360. The scheduled detection set is 25 query names across four packs plus two top-level queries, and
-      the normalizer's allowlist is the second, independent copy of that list.
+S360. The scheduled detection set has 26 admitted names: 23 queries across four packs and three
+      top-level detectors (`file_events_recent`, `es_launchd_writes`, `new_admin_user`). The separate
+      top-level `heartbeat_canary` is excluded. The normalizer independently repeats the detector list.
       Source: `osquery-converge/desired/osquery.conf.tmpl:8-38`, the four `packs/*.conf`,
       `results-alerter/normalize.sh:53-60`.
-      Pin: `an unrecognized query name never becomes a finding, whether it arrives packed or
-      top-level` at test/unit/osquery-normalize-and-digest-store.bats:79 (pins the allowlist, not its
-      agreement with the config)
+      Pin: UNPINNED. `test/unit/osquery-normalize-and-digest-store.bats:79` supplies log rows and
+      exercises admission, without reading the scheduled configuration or enumerating all names.
 
 S361. `heartbeat_canary` is the only snapshot query, at 600 s, and it lands in
       `osqueryd.snapshots.log` which the alerter never reads.
       Source: `osquery-converge/desired/osquery.conf.tmpl:26-31`.
-      Pin: `B1: a fresh canary sends exactly one CRIT message that reads healthy`
-           at test/integration/osquery-heartbeat.bats:140
+      Pin: UNPINNED. `test/integration/osquery-heartbeat.bats:140` seeds a snapshot fixture;
+      it does not read the query's snapshot flag or interval.
 
 S362. Eight `file_paths` categories are watched (`ssh`, `allowlist_file`, `pipeline_integrity`,
       `managed_bin`, `launch_agents`, `launch_daemons`, `sudoers`, `sshd_config`) and four of them are
@@ -3148,23 +3183,23 @@ S362. Eight `file_paths` categories are watched (`ssh`, `allowlist_file`, `pipel
 S363. `filevault_off` is DIFFERENTIAL, not snapshot, because a snapshot result lands in a log the
       alerter does not read and therefore never paged.
       Source: `packs/security-policy-regression.conf:33-38`.
-      Pin: `C2: differential filevault_off added (not snapshot) fires a CRIT page`
-           at test/e2e/osquery-alerter-criteria.bats:128
+      Pin: UNPINNED. `test/e2e/osquery-alerter-criteria.bats:128` feeds a differential row;
+      it does not read the pack's query configuration.
 
 S364. `agent_exposure_changed` is PATTERN-based, not a fixed port list: any process whose cmdline
       matches `mcp`, or a listener on 5432, 6767 or 8644, or a path matching `hermes`, bound off
       loopback. Only real loopback and the port-0 placeholder are excluded; IPv6 link-local stays
       included because it is reachable on the same link.
       Source: `packs/agent-attack-surface.conf.tmpl:3-8`.
-      Pin: `C3a: agent_exposure_changed added pages`
-           at test/e2e/osquery-alerter-criteria.bats:135
+      Pin: UNPINNED. `test/e2e/osquery-alerter-criteria.bats:135` feeds a prepared exposure row;
+      it does not execute or inspect the configured query.
 
 S365. `agent_secretfile_changed` watches the two TRUE secrets by file METADATA (size, mtime, ctime,
       inode), never a content hash, because `results.log` is group-readable and a secret's digest must
       never be written there. `agent_authfile_changed` watches the three non-secret configs by hash.
       Source: `packs/agent-attack-surface.conf.tmpl:9-19`.
-      Pin: `C7: a paged agent_secretfile_changed body shows the basename only, never the path or
-      sha256` at test/e2e/osquery-alerter-criteria.bats:211
+      Pin: UNPINNED. `test/e2e/osquery-alerter-criteria.bats:211` checks the rendered page;
+      it does not read the query or the columns selected into the log.
 
 S366. `agent_binary_changed` is LOG-ONLY and makes no promise of content-change detection: codex
       exceeds osquery's `read_max` so its sha256 is always empty, and paseo is unsigned so its only
@@ -3314,13 +3349,14 @@ S382. The install and the reload verify through a CHILD bash running this script
       Source: `executable_ssh-hardening.sh:531-549 verify_child_command, run_verify_child`.
       Pin: UNPINNED.
 
-S383. Install is a transaction: refuse when the drop-in directory is missing; clear the dot-prefixed
-      working files; stage through `tee` into `.000-ssh-hardening.conf.staging`; `chmod 0644`
-      explicitly; copy an existing target aside with `cp -Rp` into `.000-ssh-hardening.conf.saved`;
-      publish with one `mv -f`; move the legacy `50-no-password-auth.conf` aside to
-      `.50-no-password-auth.conf.saved`; run the child verify; then remove the saved copies. Every
-      failing step rolls back and dies. The dot prefix keeps every working file out of sshd's Include
-      glob.
+S383. Install refuses a missing drop-in directory and clears dot-prefixed working files before
+      starting. It stages through `tee` into `.000-ssh-hardening.conf.staging`, sets mode 0644,
+      saves any existing target with `cp -Rp` into `.000-ssh-hardening.conf.saved`, publishes with
+      `mv -f`, moves legacy `50-no-password-auth.conf` to `.50-no-password-auth.conf.saved`, and
+      verifies in a child. Failures from staging through verification attempt rollback and die.
+      Successful verification disarms rollback before saved-copy removal; cleanup failure only warns
+      and leaves the verified installation in place with inert saved copies. The dot prefix keeps
+      working files out of sshd's Include glob.
       Source: `executable_ssh-hardening.sh:1599-1708 install_dropin`, `:136-137`, `:1504-1507`.
       Pin: UNPINNED.
 
@@ -3447,36 +3483,40 @@ S399. `nocasematch` is ON at file scope so keyword and yes/no matching mirror ss
       Source: `executable_ssh-hardening.sh:79`, `:2086`, `:2143`, `:2802`, `:2810`.
       Pin: UNPINNED.
 
-
 ## 9. Counts
 
-Recomputed on 2026-09-06 over the 399 numbered statement blocks. A `Pin: UNPINNED` statement has no cited
-behavioral pin. S015, S062 and S178 cite a test for only some clauses and count as partially pinned;
-their uncovered clauses are explicitly UNPINNED. S175 and S201 have no behavioral pin: the cited
-counter test never drains, and removing the age clamp leaves every heartbeat test green. S064 and S102
-are also unpinned: the rendering fixture bypasses both router validation and the triage producer.
-S101's cited case exercises converge's separate mode reader. Independent source mutations confirm
-all three gaps. The 31 SSH statements include two pinned by the plain-script unit test and 29 UNPINNED.
+Recomputed on 2026-09-06 over the 399 numbered statement blocks. A `Pin: UNPINNED` statement has no
+cited behavioral pin. A statement with a cited pin and an explicitly UNPINNED clause is partially
+pinned. The partial statements are S015, S025, S044, S062, S123, S125, S143, S164, S166, S169, S173
+and S178. No classification depends on a hard-coded subset of identifiers.
+
+The ineffective routing, producer, mode-reader, executor and configuration citations are explained
+beside their statements. Independent source mutants survive those cited tests. S166's attempts guard
+is different: removing it fails the existing mixed-drain case, but its remaining threshold clauses
+are still uncovered. S195's citation supplies malformed timestamp content inside valid JSON; it does
+not exercise torn-line handling. The 31 SSH statements retain two pins and 29 UNPINNED statements.
 
 | Count                                             | Value |
 | ------------------------------------------------- | ----- |
 | Statements                                        | 399   |
-| Fully pinned                                      | 163   |
-| Partially pinned                                  | 3     |
-| UNPINNED                                          | 233   |
-| Distinct test cases cited as pins                  | 183   |
+| Fully pinned                                      | 145   |
+| Partially pinned                                  | 12    |
+| UNPINNED                                          | 242   |
+| Distinct test cases cited as pins                  | 182   |
 | Test cases in the corpus that cover this pipeline | 187   |
 | Statements the port drops (section 6)             | 46    |
 
-Four of the 187 test cases have no effective pin citation: the retired flat `launch-allowlist.txt`
+Five of the 187 test cases have no effective pin citation: the retired flat `launch-allowlist.txt`
 and unified `OSQUERY_LAUNCHD_ALLOWLIST` cases in `test/e2e/osquery-alerter-criteria.bats:178, :189`,
-the counter case at `test/unit/osquery-alert-dispatch.bats:91` rejected as a drain pin in S175, and
-the clock-skew case at `test/integration/osquery-heartbeat.bats:295` rejected in S201. The two assertion
-ranges in `test/unit/ssh-hardening-dropin.sh` count as one test case. Reclassifying S064, S101 and
-S102 changes no distinct-case total: their cited cases still pin renderer and converge behaviors.
+the counter case at `test/unit/osquery-alert-dispatch.bats:91` rejected as a drain pin in S175,
+the clock-skew case at `test/integration/osquery-heartbeat.bats:295` rejected in S201, and the
+invalid-timestamp case at `:217` rejected as a torn-line pin in S195. The two assertion ranges in
+`test/unit/ssh-hardening-dropin.sh` count as one test case. The S195 correction removes one distinct
+case from the pin register; the other reclassified citations still pin statements about their actual
+subjects. The 182 cited cases account for 183 distinct assertion targets.
 
 The 399 statements are an inventory of what the bash does, not proof that a port matches it. A
-statement is checkable only where a test covers its behavior; 233 have no pin and three have
+statement is checkable only where a test covers its behavior; 242 have no pin and twelve have
 uncovered clauses; for those, a Rust test written
 from the statement's prose checks the porter's reading of the bash, not the bash. The plan's section
 4, rule 1, therefore requires a bash-derived acceptance example (the exact input and the output the
