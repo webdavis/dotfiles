@@ -17,6 +17,8 @@
 //! state, never as an empty string, so each fail-safe direction is an enum
 //! arm rather than an emptiness check.
 //!
-//! Nothing has moved in yet. Each module lands red first, one pull request per
-//! group of statements, and every retired bash test is mapped by name in
-//! `docs/test-baseline.tsv`.
+//! Finding normalization policy lives here; wire values remain in adapters.
+
+mod finding;
+
+pub use finding::{Detector, EnrichmentPaths};
