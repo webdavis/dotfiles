@@ -1,3 +1,4 @@
+mod allowlist;
 use posture_adapters::{SystemInspection, SystemRunner};
 use posture_application::{EnrichmentInspection, enrich};
 use std::ffi::OsString;
@@ -10,10 +11,13 @@ const USAGE: &str = "usage: posture <subcommand> [args]
   allowlist add <label> | allowlist deny <label> | allowlist list
   enrich <path>
   ssh install|verify|reload|rollback|print-config|print-path
-only enrich is implemented; other subcommands exit 2
+only enrich and allowlist are implemented; other subcommands exit 2
 ";
 
 pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> u8 {
+    if args.first().is_some_and(|word| word == "allowlist") {
+        return allowlist::run(&args[1..], stdout, stderr);
+    }
     // One budget covers every spawned inspection for a finding, including plist fallback.
     let mut inspection = SystemInspection::new(SystemRunner::new(Duration::from_secs(10)));
     let status = execute(args, &mut inspection, stdout, stderr);

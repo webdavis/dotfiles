@@ -18,8 +18,9 @@
 #
 # WHAT THIS BINARY IS ALLOWED TO SPAWN is a closed roster, stated in the plan's
 # section 2.6 and enforced adapter by adapter as each one lands. Today the
-# binary implements enrich with codesign, plutil, xattr and file behind one deadline.
-# Other subcommands still print usage and exit 2.
+# binary implements enrich and allowlist curation. Inspection uses codesign, plutil,
+# xattr, file and osqueryi; publication invokes chezmoi and the owned manifest runner
+# through bash. Every child has an explicit deadline. Other subcommands exit 2.
 #
 # The release profile is what the builder installs and what the manifest audit
 # hashes. The audit refuses a file over 8 MiB, so the profile is tuned for size

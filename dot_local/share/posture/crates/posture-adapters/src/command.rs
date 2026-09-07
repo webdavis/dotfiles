@@ -4,15 +4,25 @@ use std::io::{self, Read};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, Stdio};
+mod child;
+mod terminal;
+use child::OwnedChild;
 use std::time::{Duration, Instant};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandIo {
+    Inspection { merge_stderr: bool },
+    CaptureStdout,
+    InheritAll,
+}
 
 pub trait CommandRunner {
     fn run(
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        merge_stderr: bool,
+        io: CommandIo,
     ) -> Result<Vec<u8>, InspectionFailure>;
 }
 
@@ -27,91 +37,50 @@ impl SystemRunner {
     }
 }
 
-struct OwnedChild(Option<Child>);
-impl OwnedChild {
-    fn exited(&self) -> Result<bool, InspectionFailure> {
-        let Some(child) = self.0.as_ref() else {
-            return Err(InspectionFailure::Failed);
-        };
-        // A zeroed siginfo_t is valid input; waitid fills it when this owned child exits.
-        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-        // WNOWAIT retains the child's pid until group termination, preventing pid reuse.
-        let result = unsafe {
-            libc::waitid(
-                libc::P_PID,
-                child.id(),
-                &mut info,
-                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
-            )
-        };
-        if result == -1 {
-            return if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
-                Ok(false)
-            } else {
-                Err(InspectionFailure::Failed)
-            };
-        }
-        // waitid succeeded and initialized the pid member (zero means no exited child).
-        Ok(unsafe { info.si_pid() } != 0)
-    }
-    fn finish(&mut self) -> Result<ExitStatus, InspectionFailure> {
-        let Some(mut child) = self.0.take() else {
-            return Err(InspectionFailure::Failed);
-        };
-        terminate_group(&child);
-        child.wait().map_err(|_| InspectionFailure::Failed)
-    }
-}
-impl Drop for OwnedChild {
-    fn drop(&mut self) {
-        if let Some(mut child) = self.0.take() {
-            terminate_group(&child);
-            let _ = child.wait();
-        }
-    }
-}
-fn terminate_group(child: &Child) {
-    // The unreaped child still owns this pid and the process group created at spawn.
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGKILL);
-    }
-}
-
 impl CommandRunner for SystemRunner {
     fn run(
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        merge_stderr: bool,
+        io: CommandIo,
     ) -> Result<Vec<u8>, InspectionFailure> {
         if Instant::now() >= self.expires {
             return Err(InspectionFailure::TimedOut);
         }
-        let (mut reader, writer) = io::pipe().map_err(|_| InspectionFailure::Unavailable)?;
-        // The read descriptor is owned here; changing its flags cannot affect the writer.
-        let flags = unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_GETFL) };
-        if flags == -1
-            || unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
-                == -1
-        {
-            return Err(InspectionFailure::Unavailable);
-        }
-        let stderr = if merge_stderr {
-            Stdio::from(
-                writer
-                    .try_clone()
-                    .map_err(|_| InspectionFailure::Unavailable)?,
-            )
+        let interactive = !matches!(io, CommandIo::Inspection { .. });
+        let mut command = Command::new(program);
+        command.args(args).process_group(0);
+        command.stdin(if interactive {
+            Stdio::inherit()
         } else {
             Stdio::null()
+        });
+        let mut reader = if io == CommandIo::InheritAll {
+            command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+            None
+        } else {
+            let (reader, writer) = io::pipe().map_err(|_| InspectionFailure::Unavailable)?;
+            // The read descriptor is owned here; its flags cannot affect the writer.
+            let flags = unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_GETFL) };
+            if flags == -1
+                || unsafe {
+                    libc::fcntl(reader.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK)
+                } == -1
+            {
+                return Err(InspectionFailure::Unavailable);
+            }
+            let stderr = match io {
+                CommandIo::Inspection { merge_stderr: true } => Stdio::from(
+                    writer
+                        .try_clone()
+                        .map_err(|_| InspectionFailure::Unavailable)?,
+                ),
+                CommandIo::CaptureStdout => Stdio::inherit(),
+                _ => Stdio::null(),
+            };
+            command.stdout(Stdio::from(writer)).stderr(stderr);
+            Some(reader)
         };
-        let mut command = Command::new(program);
-        command
-            .args(args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(writer))
-            .stderr(stderr)
-            .process_group(0);
         let mut child = OwnedChild(Some(
             command
                 .spawn()
@@ -119,14 +88,21 @@ impl CommandRunner for SystemRunner {
         ));
         // Command retains parent copies of the writers until dropped; EOF depends on this.
         drop(command);
+        let mut foreground = if interactive {
+            terminal::Foreground::take(
+                child.0.as_ref().ok_or(InspectionFailure::Failed)?.id() as libc::pid_t
+            )?
+        } else {
+            None
+        };
         let mut output = Vec::new();
-        let mut eof = false;
+        let mut eof = reader.is_none();
         loop {
             if Instant::now() >= self.expires {
                 return Err(InspectionFailure::TimedOut);
             }
             let mut bytes = [0_u8; 4096];
-            if !eof {
+            if let Some(reader) = reader.as_mut().filter(|_| !eof) {
                 match reader.read(&mut bytes) {
                     Ok(0) => eof = true,
                     Ok(count) => output.extend_from_slice(&bytes[..count]),
@@ -137,6 +113,9 @@ impl CommandRunner for SystemRunner {
             }
             if eof && child.exited()? {
                 let status = child.finish()?;
+                if let Some(foreground) = &mut foreground {
+                    foreground.restore()?;
+                }
                 return if status.success() {
                     Ok(output)
                 } else {

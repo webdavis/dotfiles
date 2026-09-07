@@ -9,7 +9,7 @@ fn stdout_and_stderr_share_the_original_write_order() {
             OsStr::new("-c"),
             OsStr::new("printf first; printf second >&2; printf third"),
         ],
-        true,
+        CommandIo::Inspection { merge_stderr: true },
     );
     assert_eq!(output, Ok(b"firstsecondthird".to_vec()));
 }
@@ -23,7 +23,9 @@ fn separate_stderr_is_discarded_and_trailing_newlines_are_retained_by_runner() {
             OsStr::new("-c"),
             OsStr::new("printf 'facts\\n\\n'; printf diagnostic >&2"),
         ],
-        false,
+        CommandIo::Inspection {
+            merge_stderr: false,
+        },
     );
     assert_eq!(output, Ok(b"facts\n\n".to_vec()));
 }
@@ -35,7 +37,9 @@ fn a_failed_child_does_not_supply_a_successful_reading() {
         runner.run(
             Path::new("/bin/sh"),
             &[OsStr::new("-c"), OsStr::new("printf misleading; exit 5")],
-            false
+            CommandIo::Inspection {
+                merge_stderr: false
+            }
         ),
         Err(InspectionFailure::Failed)
     );
@@ -45,7 +49,13 @@ fn a_failed_child_does_not_supply_a_successful_reading() {
 fn a_missing_executable_is_unavailable() {
     let mut runner = SystemRunner::new(Duration::from_millis(300));
     assert_eq!(
-        runner.run(Path::new("/fixture/absent-enricher-probe"), &[], false),
+        runner.run(
+            Path::new("/fixture/absent-enricher-probe"),
+            &[],
+            CommandIo::Inspection {
+                merge_stderr: false
+            }
+        ),
         Err(InspectionFailure::Unavailable)
     );
 }
@@ -54,9 +64,17 @@ fn a_missing_executable_is_unavailable() {
 fn an_exhausted_budget_never_starts_another_probe() {
     let mut runner = SystemRunner::new(Duration::ZERO);
     assert_eq!(
-        runner.run(Path::new("/fixture/absent-enricher-probe"), &[], false),
+        runner.run(
+            Path::new("/fixture/absent-enricher-probe"),
+            &[],
+            CommandIo::Inspection {
+                merge_stderr: false
+            }
+        ),
         Err(InspectionFailure::TimedOut)
     );
 }
 
 mod lifecycle;
+
+mod terminal;
