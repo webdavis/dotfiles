@@ -81,11 +81,15 @@ fn read_response(stream: &mut UnixStream, expires: Instant) -> Result<String, Ju
     let mut response = Vec::new();
     let mut bytes = [0; 1024];
     loop {
-        stream
-            .set_read_timeout(Some(remaining(expires)?))
-            .map_err(|error| {
-                JumpError::Transport(format!("could not set read deadline: {error}"))
+        if let Err(deadline_error) = stream.set_read_timeout(Some(remaining(expires)?)) {
+            // Darwin can refuse timeout changes after the peer closes. Read only
+            // already-buffered bytes when a bounded blocking read is unavailable.
+            stream.set_nonblocking(true).map_err(|error| {
+                JumpError::Transport(format!(
+                    "could not set read deadline: {deadline_error}; could not make buffered read nonblocking: {error}"
+                ))
             })?;
+        }
         let count = match stream.read(&mut bytes) {
             Ok(0) => {
                 return Err(JumpError::Transport(
