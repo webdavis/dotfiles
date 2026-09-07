@@ -560,12 +560,12 @@ The jump itself is a herdr **plugin** (`dot_local/share/herdr/plugins/herdr-work
 binary), bound via nine `type = "plugin_action"` keybindings. herdr has no built-in create-or-focus:
 `workspace create` is not idempotent and `workspace focus` takes an id rather than a label, so the label
 is resolved against the live list first, exact match and first hit (labels are NOT unique on this
-machine). It sends two newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening
-a fresh connection for each request. Every socket failure falls back to the `herdr` CLI through
-`HERDR_BIN_PATH`. A keybinding passes NO arguments, so the label and the working directory
-are baked into each action's argv in the manifest, one action per workspace; herdr does not run an action
-through a shell, so the manifest's `~` is expanded by the plugin. Built and linked by
-`run_onchange_after_56`, mirroring the other two plugins.
+machine). It sends two newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a
+fresh connection for each request. Every socket failure falls back to the `herdr` CLI through
+`HERDR_BIN_PATH`. A keybinding passes NO arguments, so the label and the working directory are baked into
+each action's argv in the manifest, one action per workspace; herdr does not run an action through a
+shell, so the manifest's `~` is expanded by the plugin. Built and linked by `run_onchange_after_56`,
+mirroring the other two plugins.
 
 On every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
 last-focused workspace (homelab in practice, once visited, since the session persists); herdr has no
