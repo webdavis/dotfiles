@@ -81,7 +81,6 @@ fi
 # gauge already says it), so it is shown only then.
 if [[ $over_200k == true && -n $window_size && $window_size -gt 200000 ]]; then
   context_info+=" ⚠200k"
-  context_color='247;118;142'
 fi
 
 # Prompt cache: a warm cache makes the next turn cheap; show how long it stays
