@@ -97,9 +97,6 @@ mod turn_condenser;
 mod turn_lifecycle;
 mod turn_text;
 
-#[cfg(test)]
-mod runtime_test_support;
-
 pub(crate) use blocked_wait_markers::{end_blocked_wait, update_blocked_marker};
 pub(crate) use channel_dispatch::dispatch_legs;
 pub(crate) use channel_settings::{
@@ -175,13 +172,6 @@ pub(crate) use state_rings::{
 pub(crate) use turn_condenser::condense;
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;
-
-#[cfg(test)]
-pub(crate) use command_presence::{Polled, write_presence_reading};
-#[cfg(test)]
-pub(crate) use lights_state_runtime::LIGHTS_HELD;
-#[cfg(test)]
-pub(crate) use lights_tick_runtime::LIGHTS_SAID;
 
 fn main() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
@@ -297,3 +287,13 @@ fn main() {
     }
     event_mode(&argv);
 }
+
+#[cfg(test)]
+mod runtime_test_support;
+
+#[cfg(test)]
+pub(crate) use command_presence::{Polled, write_presence_reading};
+#[cfg(test)]
+pub(crate) use lights_state_runtime::LIGHTS_HELD;
+#[cfg(test)]
+pub(crate) use lights_tick_runtime::LIGHTS_SAID;
