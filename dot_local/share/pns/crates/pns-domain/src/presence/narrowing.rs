@@ -8,8 +8,8 @@
 //! WHICH ROOM THE READINGS NAME IS `presence_room`'s QUESTION, not this one.
 //! That module weighs the desk clock against the bridge's motion edge and
 //! answers a room; this one takes that room to a lamp map. Its vocabulary,
-//! `Snapshot` and `Full`, is re-exported here so a caller that only ever wants
-//! the narrowing has one module to name.
+//! `Snapshot` and `Full`, is shared with the room arbitration and exported
+//! with the presence policy for callers that only need narrowing.
 //!
 //! POLICY ONLY. Every function here is a total function of its arguments: no
 //! bridge, no clock, no config file and no printing. The composition root
@@ -19,10 +19,8 @@
 //! exactly as it was, and so does a narrowing that would leave no lamp at all:
 //! silence is the one outcome this feature must never produce.
 
-use crate::lamps::resolve::Routing;
-use crate::presence::room::chosen;
-
-pub use crate::presence::room::{Full, Snapshot};
+use crate::lamps::Routing;
+use crate::presence::room::{Full, Snapshot, chosen};
 
 /// What the narrowing did.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +55,7 @@ pub fn narrow(mut routing: Routing, snapshot: &Snapshot) -> (Routing, Narrowing)
 /// instead would be a guess about a naming convention, and `resolve`'s own
 /// rule is that the bridge's current membership is the truth: a lamp moved
 /// between rooms answers its new room the moment the listing does.
-fn holds(routed: &crate::lamps::resolve::Routed, room: &str) -> bool {
+fn holds(routed: &crate::lamps::Routed, room: &str) -> bool {
     routed.lamp.room.as_deref() == Some(room)
 }
 

@@ -1,6 +1,5 @@
 use super::{Full, Snapshot, chosen};
-use crate::home::identity::DeviceKey;
-use crate::home::reading::HomePresence;
+use crate::home::{DeviceKey, HomePresence};
 use crate::presence::status::{PresenceStatus, Unreadable};
 
 /// The operator's own snapshot, with the desk cold and the phone home.

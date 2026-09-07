@@ -1,9 +1,7 @@
-//! The bridge seam and the bodies put over it: what a signal, a breath arm, a
-//! fade and a clear look like on the wire, and the two renderers that decide
-//! which of them one tick sends.
+//! The bridge transport and the writes addressed to its fixtures.
 
-use super::{grouped_light_ids_for_rooms, inventory};
-use crate::channels::hue::{Fixture, Muting, Routing, Showing, resolve};
+use super::{clear_body, grouped_light_ids_for_rooms, inventory};
+use crate::channels::hue::{Fixture, Muting, Routing, resolve};
 use std::time::Duration;
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
@@ -13,6 +11,19 @@ pub trait Bridge {
     /// refuses tells no one. Returning a result would be a seam with no
     /// consumer.
     fn put(&self, path: &str, body: &str);
+}
+
+/// The CLIP resource path this fixture is written to.
+///
+/// WHICH IS THE WHOLE POINT OF THE DISTINCTION. Addressing either as the
+/// other is a PUT to a resource id of the wrong type, which the bridge
+/// answers by doing nothing and telling no one, because `put` is fire and
+/// forget.
+pub fn fixture_path(fixture: &Fixture) -> String {
+    match fixture {
+        Fixture::Grouped(id) => format!("grouped_light/{id}"),
+        Fixture::Light(id) => format!("light/{id}"),
+    }
 }
 
 /// The three listings the routing is resolved from.
@@ -28,90 +39,6 @@ pub fn resolve_on_bridge<B: Bridge>(bridge: &B, lights: &crate::config::Lights) 
     Some(resolve(&inventory(&rooms, &lamps, &zones), lights))
 }
 
-/// The brightness a body that states one runs at, as the bridge takes it.
-fn dimming(percent: u8) -> serde_json::Value {
-    serde_json::json!({"brightness": f64::from(percent)})
-}
-
-/// The PULSE body: a timed signal the BRIDGE runs and ends by itself.
-///
-/// THE BRIDGE OWNS THE WHOLE EFFECT. It flashes the colour for the duration and
-/// then puts the lamp back exactly as it was, with no snapshot, no restore
-/// writes and no choreography from us, which is why this channel is one PUT.
-/// MEASURED ON 2026-09-01, on a real lamp, in both directions: a full state read
-/// before and after a signal came back byte-identical with the lamp on and with
-/// it off.
-///
-/// IT ALWAYS STATES A BRIGHTNESS, and that is the price of a config that can
-/// dim: a `dimming` written beside a signal PERSISTS after the signal ends
-/// (drill D4, 2026-08-30), so a body that said nothing would inherit whatever
-/// the last dim write left. The `[plugins.hue] rooms` path below states none,
-/// and the lamp comes back byte-identical, because nothing on that path can
-/// ever write a floor.
-pub fn pulse_body(
-    pulse: &crate::config::Pulse,
-    color: crate::pulse::PulseColor,
-    brightness: u8,
-) -> String {
-    serde_json::json!({
-        "signaling": {
-            "signal": "on_off_color",
-            "duration": pulse.duration_ms,
-            "colors": [{"xy": {"x": color.x, "y": color.y}}],
-        },
-        "dimming": dimming(brightness),
-    })
-    .to_string()
-}
-
-/// The body that ARMS a breath: the colour, the lamp on, and the first fade all
-/// in one write.
-///
-/// ONE WRITE RATHER THAN TWO, because a colour write followed by a fade is a
-/// visible jump: the lamp would land at whatever brightness it was already at,
-/// in the new colour, before starting to move. Stating the first fade's target
-/// here means the first move begins from wherever the lamp is, toward
-/// whichever end the tick's `Resume` picked, which is the seamless join
-/// between two ticks. THIS RUNS ON EVERY TICK, resumed or not: an externally
-/// switched-off lamp comes back on with its first fade whichever end the
-/// held record names.
-pub fn breath_arm_body(color: crate::pulse::PulseColor, fade: &crate::lights::Fade) -> String {
-    serde_json::json!({
-        "on": {"on": true},
-        "color": {"xy": {"x": color.x, "y": color.y}},
-        "dimming": dimming(fade.brightness),
-        "dynamics": {"duration": fade.duration_ms},
-    })
-    .to_string()
-}
-
-/// Every fade after the first: brightness and how long to take getting there,
-/// and nothing else. THE DURATION IS THE FADE'S OWN, so the accent at the peak
-/// of the loop's motion is issued at its own short duration rather than at the
-/// duration of the fades around it.
-///
-/// NO COLOUR AND NO `on`. The arm already stated both, and repeating them would
-/// be two more fields the bridge has to reconcile mid-transition on every fade
-/// of every breath.
-pub fn fade_body(fade: &crate::lights::Fade) -> String {
-    serde_json::json!({
-        "dimming": dimming(fade.brightness),
-        "dynamics": {"duration": fade.duration_ms},
-    })
-    .to_string()
-}
-
-/// What puts a held lamp out.
-///
-/// OFF, AND NOT A RESTORE. Nothing snapshotted what the lamp was doing before
-/// the breath took it, and a grouped_light GET carries no colour at all, so
-/// there is nothing honest to put back. Dark is what "the state is over" means
-/// everywhere else on this path, and the operator's own ruling is that pns
-/// animates in-use lamps.
-pub fn clear_body() -> String {
-    serde_json::json!({"on": {"on": false}}).to_string()
-}
-
 /// Put out every lamp a held write is still holding.
 ///
 /// OFF THE HELD PATHS ALONE, with no listing resolved: the paths were recorded
@@ -122,73 +49,6 @@ pub fn clear_held<B: Bridge>(bridge: &B, held: &[String]) {
     let body = clear_body();
     for path in held {
         bridge.put(path, &body);
-    }
-}
-
-/// The colour and the CYCLE one held state runs at, dim form or full.
-///
-/// THE ONE MAPPING from a state to what it looks like, read by the tick and by
-/// nothing else. Its two halves travel together because a dim breath in a full
-/// colour, or the reverse, is a lamp saying half of one thing.
-///
-/// THE SHAPE IS SETTLED HERE AND NOWHERE ELSE. This is the only place that
-/// knows the loop runs a three-leg motion while everything else runs a two-leg
-/// breath; the driver below schedules whichever cycle it is handed. That is
-/// also why the accent is a property of the RENDER rather than of the
-/// behaviour: a loop lamp inside its dim window runs the shared dim breath, so
-/// the same state has an accent at full and none dimmed.
-pub fn held_render(
-    held: crate::lights::Held,
-    lights: &crate::config::Lights,
-    showing: Showing,
-) -> (crate::pulse::PulseColor, Vec<crate::lights::Leg>) {
-    let (color, cycle) = match held {
-        crate::lights::Held::Blocked => (
-            crate::pulse::BLOCKED_COLOR,
-            crate::lights::breath_cycle(&lights.blocked.breath),
-        ),
-        crate::lights::Held::Looping => (
-            crate::pulse::LOOP_COLOR,
-            crate::lights::breathe_then_flare_cycle(&lights.looping.breathe_then_flare),
-        ),
-        crate::lights::Held::UnreadFailure => (
-            crate::pulse::FAILURE_COLOR,
-            crate::lights::breath_cycle(&lights.unread.breath),
-        ),
-        crate::lights::Held::UnreadSuccess => (
-            crate::pulse::UNREAD_SUCCESS_COLOR,
-            crate::lights::breath_cycle(&lights.unread.breath),
-        ),
-    };
-    // THE DIM FORM IS ONE SHAPE FOR EVERY BEHAVIOUR, which is what the operator
-    // locked: the colour still says which state it is, and the shape says the
-    // house is asleep.
-    match showing {
-        Showing::Dimmed => (color, crate::lights::breath_cycle(&lights.dim)),
-        Showing::Dark | Showing::Full => (color, cycle),
-    }
-}
-
-/// The colour and brightness one pulse fires at.
-pub fn pulse_render(
-    behaviour: crate::config::Behaviour,
-    lights: &crate::config::Lights,
-    showing: Showing,
-) -> Option<(crate::pulse::PulseColor, crate::config::Pulse, u8)> {
-    let (color, pulse) = match behaviour {
-        crate::config::Behaviour::Done => (crate::pulse::SUCCESS_COLOR, lights.done),
-        crate::config::Behaviour::Failed => (crate::pulse::FAILURE_COLOR, lights.failed),
-        // A HELD STATE IS NOT A PULSE, and there is no nearest shape to fall
-        // back to: a lamp asked to flash a state it holds would be armed with
-        // something nobody measured.
-        _ => return None,
-    };
-    // A DIMMED PULSE IS THE SAME BLINK AT THE DIM FLOOR, which is the faintest
-    // the hardware goes; there is no low end for a blink to fade to.
-    match showing {
-        Showing::Dark => None,
-        Showing::Full => Some((color, pulse, pulse.brightness)),
-        Showing::Dimmed => Some((color, pulse, lights.dim.low)),
     }
 }
 
@@ -257,7 +117,7 @@ pub fn signal_fixtures<B: Bridge>(
     })
     .to_string();
     for fixture in fixtures {
-        bridge.put(&fixture.path(), &body);
+        bridge.put(&fixture_path(fixture), &body);
     }
     fixtures.len()
 }

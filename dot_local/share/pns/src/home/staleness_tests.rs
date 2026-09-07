@@ -10,8 +10,8 @@ fn a_staleness_is_a_home_verdict_with_a_key_pointing_somewhere_else() {
     // and the address found nobody. Both of those disagree with the
     // winner, which is the whole state this detects.
     let disagreeing = r#"{"data":[
-        {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
-        {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#;
+            {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
+            {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#;
     let staleness = stale_identifiers(&home_reading(parse_clients(disagreeing), &full_identity()))
         .expect("two keys point away from the client the MAC named");
     assert_eq!(staleness.winner, DeviceKey::Mac);
@@ -77,8 +77,8 @@ fn an_episode_identity_spells_the_state_and_never_the_values_that_moved() {
     assert_eq!(
         episode(
             r#"{"data":[
-                {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
-                {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#,
+                    {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
+                    {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#,
             "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
              device_hostname = \"mister\"\n\
              device_ipv4 = \"192.168.1.169\"\n",
@@ -92,8 +92,8 @@ fn an_episode_identity_spells_the_state_and_never_the_values_that_moved() {
     assert_eq!(
         episode(
             r#"{"data":[
-                {"name":"kite","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.9.9"},
-                {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#,
+                    {"name":"kite","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.9.9"},
+                    {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#,
             "device_mac = \"2e:11:ab:6d:b0:4f\"\n\
              device_hostname = \"kite\"\n\
              device_ipv4 = \"10.0.0.5\"\n",
@@ -108,8 +108,8 @@ fn a_changed_stale_set_outcome_or_winner_each_spell_a_different_identity() {
     // the name both point at "mouse" in the first case, so only the
     // address disagrees.
     let listing = r#"{"data":[
-        {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
-        {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#;
+            {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
+            {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"}]}"#;
     let mut identities = vec![
         episode(
             listing,
@@ -295,7 +295,7 @@ fn the_evidence_under_the_verdict_says_what_each_key_found_escaping_the_label() 
     // string on these lines nobody here typed, so it reaches a terminal
     // as its escape exactly as the matched value does.
     let listing = r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-        {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.8"}]}"#;
+            {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.8"}]}"#;
     let reading = home_reading(
         parse_clients(listing),
         &identity(

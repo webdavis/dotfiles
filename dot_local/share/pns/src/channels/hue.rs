@@ -23,13 +23,11 @@
 // THE LAMP RESOLUTION POLICY moved to `pns-domain`, one file per question it
 // answers. What stays here parses: the `[plugins.hue]` settings, the quiet
 // window off a config string, and the bridge's own JSON listing.
-pub use pns_domain::lamps::dim::{DimWindow, Showing, dim_showing};
-pub use pns_domain::lamps::inventory::{
-    Fixture, Inventory, Lamp, Missing, Unresolved, missing_sentence,
+pub use pns_domain::lamps::{
+    DimWindow, Fixture, Inventory, LEVELS, Lamp, Missing, Muting, QuietWindow, Routed, Routing,
+    Showing, Unresolved, dim_showing, missing_sentence, mutable_names, muted_now, parse_window,
+    quiet_now, remember, resolve,
 };
-pub use pns_domain::lamps::mute::{Muting, mutable_names, muted_now};
-pub use pns_domain::lamps::resolve::{LEVELS, Routed, Routing, remember, resolve};
-pub use pns_domain::lamps::window::{QuietWindow, parse_window, quiet_now};
 
 /// The rooms the bash pulsed when `HUE_PULSE_ROOMS` said nothing.
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
@@ -218,9 +216,16 @@ fn children_of(entry: &serde_json::Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
+mod bodies;
 mod bridge;
+mod render;
 
-pub use bridge::*;
+pub use bodies::{breath_arm_body, clear_body, fade_body, pulse_body};
+pub use bridge::{
+    BRIDGE_DEADLINE, Bridge, HuePulse, Reading, TYPED_COMMAND_DEADLINE, UreqBridge, clear_held,
+    fixture_path, resolve_on_bridge, signal_fixtures,
+};
+pub use render::{held_render, pulse_render};
 
 #[cfg(test)]
 mod fixtures;

@@ -3,8 +3,8 @@
 /// The hours the lights stay dark, in minutes since local midnight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuietWindow {
-    pub start: u16,
-    pub end: u16,
+    start: u16,
+    end: u16,
 }
 impl QuietWindow {
     /// The minute of the local day this window ends at, which is the one thing

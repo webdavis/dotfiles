@@ -1,9 +1,7 @@
 use super::{Full, Narrowing, Snapshot, narrow};
-use crate::home::identity::DeviceKey;
-use crate::home::reading::HomePresence;
+use crate::home::{DeviceKey, HomePresence};
 use crate::lamps::config::Behaviour;
-use crate::lamps::inventory::Lamp;
-use crate::lamps::resolve::{Routed, Routing};
+use crate::lamps::{Lamp, Routed, Routing};
 use crate::presence::status::{PresenceStatus, Unreadable};
 
 /// One lamp as the bridge places it, routed for one behaviour.

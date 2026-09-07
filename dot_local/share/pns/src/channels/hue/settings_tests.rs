@@ -49,9 +49,9 @@ fn the_settings_rooms_array_beats_the_defaults() {
 #[test]
 fn a_room_without_a_grouped_light_is_skipped_whole() {
     const NO_GROUP: &str = r#"{"data":[
-      {"id":"room-1","type":"room","metadata":{"name":"Groupless"},
-       "children":[{"rid":"dev-a","rtype":"device"}],"services":[]}
-    ]}"#;
+          {"id":"room-1","type":"room","metadata":{"name":"Groupless"},
+           "children":[{"rid":"dev-a","rtype":"device"}],"services":[]}
+        ]}"#;
     assert!(grouped_light_ids_for_rooms(NO_GROUP, &wanted(&["Groupless"])).is_empty());
 }
 

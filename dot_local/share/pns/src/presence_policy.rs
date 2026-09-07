@@ -2,7 +2,7 @@
 //! the operator is in, or left alone with a reason.
 //!
 //! THE NARROWING MOVED to `pns-domain`. What is left here is the path this
-//! package's callers already name, including the `Snapshot` and `Full`
-//! vocabulary the narrowing re-exports from the room arbitration beside it.
+//! package's callers already name. `Snapshot` and `Full` remain shared with
+//! the room arbitration beside the narrowing.
 
-pub use pns_domain::presence::narrowing::{Full, Narrowing, Snapshot, narrow};
+pub use pns_domain::{Full, Narrowing, Snapshot, narrow};

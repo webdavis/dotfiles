@@ -60,12 +60,14 @@ pub fn home_reading(clients: Option<Vec<Client>>, device: &DeviceIdentity) -> Ho
     // that matches nothing is skipped and never a failure. This statement
     // order is the whole precedence rule.
     let configured: Vec<(DeviceKey, String)> = [
-        device.mac.clone().map(|mac| (DeviceKey::Mac, mac)),
+        device.mac().clone().map(|mac| (DeviceKey::Mac, mac)),
         device
-            .hostname
+            .hostname()
             .clone()
             .map(|hostname| (DeviceKey::Hostname, hostname)),
-        device.ipv4.map(|ipv4| (DeviceKey::Ipv4, ipv4.to_string())),
+        device
+            .ipv4()
+            .map(|ipv4| (DeviceKey::Ipv4, ipv4.to_string())),
     ]
     .into_iter()
     .flatten()

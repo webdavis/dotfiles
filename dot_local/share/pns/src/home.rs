@@ -45,14 +45,10 @@
 
 // THE HOME-PROBE POLICY moved to `pns-domain`, one file per question it
 // answers. What stays here reads the router, the config and the terminal.
-pub use pns_domain::home::identity::{
-    Client, DeviceIdentity, DeviceKey, UNIFI_TYPE, normalized_mac,
-};
-pub use pns_domain::home::reading::{
-    HomePresence, HomeReading, KeyOutcome, KeyReading, home_reading,
-};
-pub use pns_domain::home::staleness::{
-    Staleness, episode_id, is_new_staleness, stale_identifiers, stale_warning,
+pub use pns_domain::home::{
+    Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, KeyReading,
+    Staleness, UNIFI_TYPE, episode_id, home_reading, is_new_staleness, stale_identifiers,
+    stale_warning,
 };
 
 /// The router sensor's settings, validated.

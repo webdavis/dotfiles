@@ -13,20 +13,6 @@ pub enum Fixture {
     Grouped(String),
     Light(String),
 }
-impl Fixture {
-    /// The CLIP resource path this fixture is written to.
-    ///
-    /// WHICH IS THE WHOLE POINT OF THE DISTINCTION. Addressing either as the
-    /// other is a PUT to a resource id of the wrong type, which the bridge
-    /// answers by doing nothing and telling no one, because `put` is fire and
-    /// forget.
-    pub fn path(&self) -> String {
-        match self {
-            Fixture::Grouped(id) => format!("grouped_light/{id}"),
-            Fixture::Light(id) => format!("light/{id}"),
-        }
-    }
-}
 /// A declaration that answered no lamp, and which level wrote it.
 ///
 /// REPORTED, NEVER DROPPED. `grouped_light_ids_for_rooms` drops a missing room

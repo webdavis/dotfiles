@@ -22,7 +22,7 @@
 //! bridge, no clock, no config file and no printing. The composition root
 //! takes ONE snapshot of the world and hands it in.
 
-use crate::home::reading::HomePresence;
+use crate::home::HomePresence;
 use crate::presence::status::{PresenceStatus, Unreadable};
 
 /// Everything the narrowing is a function of, taken at ONE moment.

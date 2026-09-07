@@ -2,9 +2,7 @@
 //! router answers. One copy, because these rows were one test module before
 //! the file outgrew the size rule.
 
-#![allow(unused_imports)]
-
-pub use crate::home::{
+pub(super) use crate::home::{
     Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, Router,
     RouterSettings, SetupFailure, device_identity, enabled_router_table, episode_id, first_site_id,
     home_reading, is_new_staleness, parse_clients, read_home, report, router_api_key,
