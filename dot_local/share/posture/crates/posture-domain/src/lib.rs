@@ -22,3 +22,12 @@
 mod finding;
 
 pub use finding::{Detector, EnrichmentPaths};
+
+mod gate;
+mod severity;
+
+pub use gate::{
+    FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
+    LaunchdIdentity, Signing, Triage, gate,
+};
+pub use severity::{Action, ProtectionState, Severity, severity};
