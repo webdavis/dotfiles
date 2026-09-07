@@ -7,7 +7,7 @@ pub mod schedule;
 
 use std::path::Path;
 
-use unattended_upgrades::config::{Config, ConfigError, LoadOutcome, load_config};
+use uu_adapters::{Config, ConfigError, LoadOutcome, load_config};
 
 /// The config, or `None` for a machine that has not written one. A refusal is
 /// printed here and returned as an exit code, because every mode answers it

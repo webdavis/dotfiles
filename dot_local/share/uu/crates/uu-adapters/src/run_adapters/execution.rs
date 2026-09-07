@@ -1,5 +1,5 @@
+use crate::{config::Config, lanes::run_lane};
 use std::time::Duration;
-use unattended_upgrades::{config::Config, lanes::run_lane};
 use uu_application::{LaneExecution, LaneExecutor};
 use uu_domain::RunFacts;
 

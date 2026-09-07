@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use unattended_upgrades::lanes::CommandRunner;
+use crate::lanes::CommandRunner;
 
 use super::SystemRunner;
 
@@ -44,8 +44,8 @@ pub fn run_step(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lanes::Verdict;
     use crate::watchdog::tests::within;
-    use unattended_upgrades::lanes::Verdict;
 
     /// A runner whose budget no honest test child comes near, so what
     /// expires is the STEP's own bound and nothing else.

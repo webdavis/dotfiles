@@ -1,10 +1,8 @@
 //! `uu doctor`: what this config turns on, and what it cannot reach.
 
-use unattended_upgrades::config::{Config, LaneKind, config_path};
-use unattended_upgrades::record::gap_line;
-
-use crate::state::marker;
-use crate::system::{home, now_epoch, resolve};
+use uu_adapters::{
+    Config, LaneKind, config_path, gap_line, home, marker_path, now_epoch, read_marker, resolve,
+};
 
 pub fn doctor_mode() -> i32 {
     let Some(home) = home() else {
@@ -51,11 +49,11 @@ pub fn doctor_mode() -> i32 {
         "uu: schedule: weekday {} at {:02}:{:02} (this feeds `uu schedule render` only)",
         schedule.weekday, schedule.hour, schedule.minute
     );
-    let marker_path = marker::path(&home);
+    let marker_path = marker_path(&home);
     println!(
         "uu: {}",
         gap_line(
-            &marker::read(&marker_path),
+            &read_marker(&marker_path),
             &marker_path.display().to_string(),
             now_epoch().unwrap_or(0)
         )

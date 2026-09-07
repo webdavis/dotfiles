@@ -1,12 +1,14 @@
 //! Process and signed-post adapters for the run application's delivery ports.
 
+use crate::alert::{Alerter, alert_argv};
+use crate::config::Records;
+use crate::record::record_state;
 use crate::system::host;
-use pns::channels::hermes::{PostOutcome, SignedPost, delivered, outcome_line, sign};
+use pns::channels::hermes::{
+    PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign,
+};
 use std::process::Command;
 use std::time::Duration;
-use unattended_upgrades::alert::{Alerter, alert_argv};
-use unattended_upgrades::config::Records;
-use unattended_upgrades::record::record_state;
 use uu_application::{
     AlertOutcome, AlertTarget, RecordFailure, RecordOutcome, RunDelivery, RunRecord,
 };
@@ -35,6 +37,17 @@ pub struct EngineRunDelivery<'a, P, A> {
     pub alerter: A,
     pub records: Option<&'a Records>,
     pub engine: Option<&'a str>,
+}
+
+impl<'a> EngineRunDelivery<'a, UreqSignedPost, PnsAlerter> {
+    pub fn new(records: Option<&'a Records>, engine: Option<&'a str>) -> Self {
+        Self {
+            post: UreqSignedPost,
+            alerter: PnsAlerter,
+            records,
+            engine,
+        }
+    }
 }
 
 impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {

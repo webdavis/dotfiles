@@ -1,0 +1,4 @@
+[lanes.example]
+type = "command"
+run = ["/usr/local/bin/my-updater", "--yes"]
+deadline_secs = 21600

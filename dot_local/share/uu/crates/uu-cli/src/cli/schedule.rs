@@ -1,9 +1,8 @@
 //! `uu schedule render`: the launchd job for the configured day and time.
 
-use unattended_upgrades::config::{Config, config_path};
-use unattended_upgrades::schedule::{DEFAULT_LABEL, render_plist};
+use uu_adapters::{Config, DEFAULT_LABEL, config_path, render_plist};
 
-use crate::system::home;
+use uu_adapters::home;
 
 pub fn schedule_mode() -> i32 {
     let Some(home) = home() else {

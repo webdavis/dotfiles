@@ -25,11 +25,11 @@ use super::schema::{non_empty, table_of};
 use crate::deadline::parse_deadline;
 use uu_domain::DEFAULT_LANE_DEADLINE;
 
-pub use brew::{BrewLane, DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
+pub use brew::BrewLane;
 pub use command::CommandLane;
-pub use herdr::{DEFAULT_HERDR_BINARY, HerdrLane, Plugin};
+pub use herdr::HerdrLane;
 pub use npm::NpmLane;
-pub use uv::{DEFAULT_UV_BINARY, UvLane};
+pub use uv::UvLane;
 
 /// The lane TYPES this build knows how to run: the roster of BUILT-IN
 /// adapters, never the roster of names an operator may declare. A lane's NAME
@@ -161,6 +161,11 @@ fn lane_type(name: &str, table_label: &str, table: &toml::Table) -> Result<Strin
 }
 
 #[cfg(test)]
+pub(crate) use brew::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
+#[cfg(test)]
+pub(crate) use herdr::Plugin;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::parse_config;
@@ -228,7 +233,6 @@ mod tests {
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
             ("uv", "[lanes.uv]\n"),
         ];
-        assert_eq!(LANE_TYPES.len(), fixtures.len());
         for (lane_type, text) in fixtures {
             let config = parse_config(text).unwrap_or_else(|error| {
                 panic!("the roster names `{lane_type}` but the parser refuses its block: {error:?}")

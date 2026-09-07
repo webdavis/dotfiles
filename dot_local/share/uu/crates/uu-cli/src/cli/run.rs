@@ -1,14 +1,12 @@
 //! Load run configuration and compose the application with concrete adapters.
 
-use pns::channels::hermes::UreqSignedPost;
-use unattended_upgrades::config::config_path;
+use uu_adapters::config_path;
 use uu_application::{LockFailure, Run, RunOutcome, RunRequest};
 
-use crate::delivery::{EngineRunDelivery, PnsAlerter};
-use crate::run_adapters::{
-    ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock,
+use uu_adapters::home;
+use uu_adapters::{
+    ConfiguredLaneExecutor, ConsoleRunPresentation, EngineRunDelivery, FileRunState, SystemRunClock,
 };
-use crate::system::home;
 
 pub fn run_mode(only: Option<&str>) -> i32 {
     let Some(home) = home() else {
@@ -47,12 +45,10 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         state: FileRunState(&home),
         clock: SystemRunClock,
         lanes: ConfiguredLaneExecutor(&config),
-        delivery: EngineRunDelivery {
-            post: UreqSignedPost,
-            alerter: PnsAlerter,
-            records: config.records.as_ref(),
-            engine: config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
-        },
+        delivery: EngineRunDelivery::new(
+            config.records.as_ref(),
+            config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
+        ),
         presentation: ConsoleRunPresentation,
     };
     match run.execute(RunRequest {

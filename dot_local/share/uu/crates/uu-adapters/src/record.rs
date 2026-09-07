@@ -10,7 +10,7 @@ mod event;
 mod marker;
 
 pub use event::event_for;
-pub use marker::{elapsed, gap_line, marker_contents, parse_marker};
+pub use marker::{gap_line, marker_contents, parse_marker};
 
 use uu_domain::LaneReport;
 
