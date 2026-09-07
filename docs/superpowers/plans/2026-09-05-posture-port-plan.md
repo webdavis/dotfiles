@@ -1,14 +1,16 @@
 # posture: the plan for the Rust port
 
-Written 2026-09-05 against `origin/main` at `b5412089`, with the SSH scope added on 2026-09-06. It moves
-the 399 behaviors inventoried in `docs/superpowers/specs/2026-09-05-posture-behavioral-specification.md`
+Written 2026-09-05 against `origin/main` at `b5412089`, with the SSH (Secure Shell) scope added on
+2026-09-06. It moves the 399 behaviors inventoried in
+`docs/superpowers/specs/2026-09-05-posture-behavioral-specification.md`
 out of the twenty-one shell files under `dot_local/libexec/osquery/` and into one Rust workspace, one
-reviewable pull request at a time, with every bash script running until its replacement is verified live
-and its plist repointed. It follows the shape of `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`
-and the standing rules of the pns charter (the engineering priorities, the Rust-native SOLID rules, the
-300-line target and 500-line cap for every `.rs` file with tests included), which this plan does not
-restate. It names, per step, which statements move, which tests carry them or are written first, which
-deployed surface changes, what the operator alone must do, and what every resulting file is projected to
+reviewable PR (pull request) at a time. Each bash script runs until its replacement is verified live and
+its plist repointed. It follows the shape of `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`
+and the standing rules of the pns charter: the engineering priorities and SOLID (single responsibility,
+open/closed, Liskov substitution, interface segregation and dependency inversion) principles in Rust.
+The paired Rust standard sets the file-size targets and caps in section 4. This plan names, per step,
+which statements move, which tests carry them or are written first, which deployed surface changes,
+what the operator alone must do, and what every resulting file is projected to
 measure. Every crate, module, subcommand, path and file name below is proposed, confirm before creating.
 
 ## 1. Where the ladder starts
@@ -17,11 +19,11 @@ At the source baseline, posture had no crate, binary, workspace or test baseline
 this plan:
 
 - the specification's original 368-statement pipeline inventory and 31 SSH additions; after review,
-  167 statements are fully pinned, three partially pinned and 229 UNPINNED;
+  166 statements are fully pinned, three partially pinned and 230 UNPINNED;
 - the twenty-one shell files (7,263 lines, 3,326 of code, 3,622 of comment), the two chezmoi
   runners (`run_after_05`, 386 lines, and `run_after_50`, 58), the seven plists and their seven
-  loaders, and the 62 inline jq programs and 7 SQL statement groups a port replaces (about 3,800
-  lines of code in all);
+  loaders, and the 62 inline jq programs and 7 SQL (Structured Query Language) statement groups a port
+  replaces (about 3,800 lines of code in all);
 - the eleven bats files and one bashunit file, 186 test cases, 3,886 lines, and the five orphan
   fixture libraries under `test/fixtures/` (2,051 lines, 127 functions) that are the only record of
   what the five untested tools once asserted;
@@ -76,7 +78,8 @@ manifests enforce dependency direction: `posture-application` depends on `postur
 `posture-protocol` owns serialization and depends on `serde_json`, with no application or adapter
 dependency; `posture-adapters` depends on domain, application, posture-protocol and the sibling
 `pns-protocol`; `posture-cli` composes the domain, application and adapters. Domain and application
-import no wire crate, JSON value or concrete adapter. The adapter maps records to typed domain values.
+import no wire crate, JSON (JavaScript Object Notation) value or concrete adapter. The adapter maps
+records to typed domain values.
 
 `posture-protocol` owns the persisted six-field digest record shared by the separate `posture alert` and
 `posture digest` processes. This is an existing contract: `results-alerter/digest-store.sh:42-52` writes
@@ -166,9 +169,11 @@ today, over ports the use case declares. Names are proposed.
 - `Heartbeat` replaces `heartbeat.sh`'s `main` over `SnapshotsLog`, `Clock` and `AlertSink`.
 - `Watchdog` replaces `uptime-watchdog.sh` over `SnapshotsLog`, `Clock`, `ProcessTable`,
   `LaunchdState`, `GatewayHealth`, `KnownGood`, `DeployedState`, `StateFile`, `PnsLedger`,
-  `IndependentAlarm` and `AlertSink`. The application owns both new ports. Pns integrity and health
+  `IndependentAlarm` and `AlertSink`. The application owns these ports. Pns integrity and health
   findings call `IndependentAlarm` directly before any optional `AlertSink` submission; a valid
-  acknowledgement from that sink cannot suppress the independent attempt.
+  acknowledgement from that sink cannot suppress the independent attempt. PR 6.4 also introduces a
+  temporary `LegacyQueue` port for the existing queue's pending and dead-letter counts. Its probe
+  and growth history remain active until PR 6.7 retires that queue.
 - `Poll` replaces `firewall-gatekeeper-monitor.sh` over `Osqueryi`, `ProbeRunner`, `ControlsFile`,
   `StateFile`, `GapMarker` and `AlertSink`.
 - `Funnel` replaces `tailscale-monitor.sh` over `TailscaleStatus`, `StateFile`, `GapMarker` and
@@ -214,11 +219,11 @@ let a test double honour one and not the others.
 - `deployed_state`: `DeployedState`, the `lstat` kind, the sha256 of the current bytes, the
   four-digit mode, the uid and the inode change time, refusing symlinks before hashing. Replaces
   `_pipeline_deployed_state_is_known_good` and `probe_attributes`.
-- `allowlist_file`: `Allowlist` and `SourceAllowlist`, the NDJSON codec with comments preserved and
+- `allowlist_file`: `Allowlist` and `SourceAllowlist`, newline-delimited JSON with comments preserved and
   the one-tuple-per-line rule. Replaces the file reads in `allowlist-verdict.sh` and `allowlist.sh`.
 - `controls_file`: `ControlsFile`, the JSON read the domain validates. Replaces `load_controls`.
-- `upgrade_record`: `UpgradeRecord`, the regular-file check, one bounded read, the TSV split by
-  expansion. Replaces `file-integrity-triage.sh:236-333`.
+- `upgrade_record`: `UpgradeRecord`, the regular-file check, one bounded read, the tab-separated value
+  split by expansion. Replaces `file-integrity-triage.sh:236-333`.
 - `launchd`: `LaunchdState` (`launchctl print`) and `LaunchdTable` (`osqueryi` over the `launchd`
   table for the writer). Replaces the watchdog's probe 2 and `allow_label`'s capture.
 - `osqueryi`: `Osqueryi`, one bounded `osqueryi --json` query. Replaces the poller's combined query.
@@ -244,6 +249,9 @@ let a test double honour one and not the others.
   `immutable=1`, so it includes committed rows in the write-ahead log. A bounded busy timeout
   turns contention, corruption, missing files or incompatible schema into an unreadable result.
   Pns owns the schema and migration; this adapter neither writes nor repairs it.
+- `legacy_queue`: the temporary `LegacyQueue` reader uses the same read-only connection rules for
+  the existing queue's two counters (S176 to S178). PR 6.4 adds it and PR 6.7 removes it; Bash owns
+  every write and drain until retirement. The watchdog keeps each store's growth history separate.
 - `privileged`: `PrivilegedInstall` (`/usr/bin/sudo -n /usr/bin/install -o root -g wheel -m ...` out
   of the private copy) and `Osqueryctl` (resolved and trust-checked; `config-check`, `stop`,
   `start`). Replaces the converge's privileged calls.
@@ -321,14 +329,15 @@ state files keep their paths and shapes. The explicit manifest extension is list
   saved copies, and the legacy `50-no-password-auth.conf` it moves aside are sshd's contract and
   keep their names, content and modes byte for byte (S370, S383).
 
-Every writable multi-record store belongs to pns. Posture depends on SQLite only for the independent
-read-only ledger health check, so this check continues to work when the daemon cannot answer.
+Every writable multi-record store in the target design belongs to pns. Posture uses SQLite only for
+independent read-only health checks: pns's ledger, plus the legacy queue during PRs 6.4 to 6.7. Neither
+reader needs its store's producer or drainer to answer.
 
 ### 2.8 Dependencies
 
 `serde_json` (the result log, the controls file, the allowlist, the funnel status, the spool),
 `sha2` (file hashes and the fingerprint), `ureq` with rustls (the one GET), `libc` (`flock`,
-`gethostname`, `gmtime_r`, `kill`, `O_NOFOLLOW`), `rusqlite` (read-only pns ledger health,
+`gethostname`, `gmtime_r`, `kill`, `O_NOFOLLOW`), `rusqlite` (read-only pns and temporary legacy health,
 `posture-adapters` only), and `pns-protocol` by path. No `toml`: posture has
 no configuration file today, every path is derived from `$HOME`, and the port keeps that. No `hmac`:
 posture signs nothing.
@@ -502,13 +511,13 @@ file is renamed to `run_after_59-setup-osquery.sh` in PR 7.1. Slot 59 follows bu
 apply installs the version that implements the new subcommand before invoking it. uu's brew lane runs the
 converge as a program with no arguments (`dot_local/share/uu/src/lanes/brew/repairs.rs:75`,
 `runner.run(&lane.osquery_converge, &[])`), so its `osquery_converge` key must carry argv rather
-than one path; the proposed shape is a TOML array, `["<home>/.local/libexec/posture/posture",
+than one path; the proposed configuration array is `["<home>/.local/libexec/posture/posture",
 "converge"]`, changed in uu's schema (`src/config/schema.rs:26`), its shipped template
 (`dot_config/uu/private_config.toml.tmpl:81`) and its template test (`shipped_template.rs:101`) in
 the same pull request as the converge cutover, per the pns charter's rule that a consumer changes in
 the pull request that needs it. The operator sees that template change on `chezmoi diff`.
 
-### 3.5 The justfile and CI
+### 3.5 The justfile and CI (continuous integration)
 
 `test-rust` (`justfile:167-175`) gains three lines for posture (test, fmt check, clippy with
 `-D warnings`), and `just ship` picks them up through `just test`. No CI workflow change: the
@@ -572,7 +581,24 @@ converge's seam gate, and the exact list is proposed.
    tests live in a sibling `<module>/tests.rs`, split by behavior when they pass the cap. The
    rationale that makes the bash 1.09 lines of comment per line of code moves into
    `dot_local/share/posture/docs/decisions/` records; production keeps a one-line invariant and a
-   link.
+   link. Count physical lines after `rustfmt` with this exact command, substituting the crate path:
+
+   ```bash
+   git ls-files '<crate-path>/*.rs' | while IFS= read -r f; do
+     awk -v F="$f" '
+       /^[[:space:]]*#\[cfg\(test\)\]/ && !seen { seen = 1 }
+       !seen { impl++ }
+       { total++ }
+       END {
+         if (F ~ /(^|\/)tests(\.rs|\/)/) impl = 0
+         printf "%5d impl %5d total  %s\n", impl, total, F
+       }' "$f"
+   done | sort -k3,3rn
+   ```
+
+   Implementation lines precede the first `#[cfg(test)]`; `tests.rs` and files under `tests/` have
+   zero implementation lines. Placing `#[cfg(test)]` above production code is itself a finding,
+   never a way to reduce the count.
 4. **Nothing reaches the live machine.** No test runs the built binary against the real results
    log, `/var/osquery`, a real `sudo`, `osqueryctl`, `osqueryi`, `launchctl`, `tailscale`, the
    hermes gateway or the deployed `pns`. Every test uses a sandbox `HOME` and the scripted
@@ -584,7 +610,7 @@ converge's seam gate, and the exact list is proposed.
    the operator trashes it by hand after the apply, and because the file sits under a tracked
    directory that deletion fires one expected CRIT page per file (S081); the pull request says so.
 6. **Operator-only steps are named per pull request** (section 7): `chezmoi apply`, any osqueryd
-   restart, the TCC grants a probe binary needs, the hermes config edit, the KeePassXC entry, and the
+   restart, the privacy grants a probe binary needs, the hermes config edit, the KeePassXC entry, and the
    trashing of retired files. Agents propose; the operator applies.
 7. **Repository rules.** Conventional Commits, no trailers, no em-dashes, `trash` never `rm` for
    operator files, never `chezmoi apply`, never a force push, at most two open posture branches.
@@ -628,9 +654,9 @@ charter names (converge, which runs `sudo`, goes late; producers wait for the pn
 
 Each pull request: **Statements** moved behind Rust; **Tests** (which pins are re-expressed by name,
 which UNPINNED statements get their first test); **Surface** (the deployed references that change);
-**Cutover** (what the operator verifies and does); **Sizes** (projections; the pull request measures
-with `wc -l` and splits again if a projection was wrong). A pull request with no **Cutover** row
-deploys source and changes no plist or caller.
+**Cutover** (what the operator verifies and does); **Sizes** (projections; the pull request reports
+implementation and total lines with section 4's post-formatting command and splits again if needed).
+A pull request with no **Cutover** row deploys source and changes no plist or caller.
 
 ### Step 0: the pns lane, and what is settled before PR 1.1 opens
 
@@ -662,7 +688,9 @@ record its delivery outcome or explicitly acknowledge it as undelivered, and pre
 export before authorizing removal of exactly those rows. That removal requires fresh scoped
 confirmation; the port adds no automatic purge. Pending remote and local notifications must drain
 under the old route. Until the three independent counts are zero, the old route, key, drainer and
-queue remain in service, and PR 6.7 is blocked.
+queue remain in service with the watchdog's legacy queue probe and drainer monitoring, and PR 6.7
+is blocked. PR 6.4 adds pns monitoring alongside those checks; PR 6.7 removes the legacy checks and
+the retired drainer's monitored label together with the queue.
 
 **0.4 The independent pns checks are designed**, as spec section 5.2 requires: the tuple for the
 deployed `pns` binary under decision 2's authorized-build rule (the pns builder writes the same kind
@@ -722,8 +750,8 @@ desired `osquery.conf` change restarts osqueryd through the converge on that app
 
 ### Step 2: the domain, red first
 
-These pull requests implement pure policy in `posture-domain`, with no I/O or cutover. PR 2.4 also
-implements the existing digest record codec in `posture-protocol`; serialization stays outside the
+These pull requests implement pure policy in `posture-domain`, with no input/output or cutover. PR 2.4
+also implements the existing digest record codec in `posture-protocol`; serialization stays outside the
 domain. Each carries sibling unit tests; every unpinned statement or clause gets a Bash-derived
 acceptance example before its first test.
 
@@ -804,7 +832,7 @@ plus tests under 350.
 `upgrade_record.rs`, `clock.rs`. **Tests**: adapter tests over temporary files: the torn-line read
 (S011), the rotated-log inode (S006, S008), the rename claim under two processes (S282), the whole-
 file JSON refusal with a trailing `{}` (S209), the trust check on a mode (S091), the symlink refusal
-before hashing (S097), the FIFO refusal on the upgrade record (S108), the `flock` contention with a
+before hashing (S097), the named-pipe refusal on the upgrade record (S108), the `flock` contention with a
 second process (S001, S002, S299). **Sizes**: nine files of 80 to 220 plus tests under 400 each.
 
 **PR 3.2 the process adapters.** `probes.rs`, `osqueryi.rs`, `launchd.rs`, `tailscale.rs`,
@@ -904,8 +932,13 @@ trashes the seven retired files, retaining the directory and `pipeline-verdict.s
 **PR 6.4 `posture watchdog`.** **Statements**: S207 to S240. **Surface**: the watchdog plist,
 `executable_uptime-watchdog.sh`, `executable_pipeline-audit.sh`, `executable_canary-freshness.sh`,
 `results-alerter/pipeline-verdict.sh` (its last Bash consumer retires here),
-`test/fixtures/osquery-watchdog-lib.bash`, `osquery-manifest-lib.bash`. Probe 4 (S216) is
-re-expressed against pns (spec D4 and section 5.2), designed in step 0.4, and none of it asks pns:
+`test/fixtures/osquery-watchdog-lib.bash`, `osquery-manifest-lib.bash`. Probe 4 (S216) continues to
+read the legacy queue through the temporary read-only `LegacyQueue` adapter. It preserves unreadable
+pending/dead-letter counts as failures, any existing dead letter as a finding, and pending growth
+across two consecutive ticks, including the prior Bash growth history. The six-agent roster still
+includes `com.webdavis.osquery-alert-drainer`. These legacy checks remain through PR 6.7 because the
+drainer only alarms on rows dead-lettered during its current pass. Pns monitoring is ADDED alongside
+them (spec D4 and section 5.2), designed in step 0.4, and none of it asks pns:
 the deployed `~/.local/libexec/pns/pns` is judged against its known-good tuple through the same
 `KnownGood` and `DeployedState` ports the manifest audit uses; `LaunchdState` reads
 `com.webdavis.pns-daemon` and pages it unloaded or not running, exactly as probe 2 reads the six
@@ -913,8 +946,11 @@ agents (S212); and the application-owned `PnsLedger` port is implemented by the
 `posture-adapters` read-only `rusqlite` reader from section 2.4, with a bounded busy timeout, no
 create and no immutable mode (S178's rule), and pages an unreadable ledger, any dead-lettered row, and an
 undelivered backlog that grew across two consecutive ticks (S216's own shape, over the new store).
-Executable presence is asserted by none of these and is not a probe. **Tests**: first tests for each
-of the three, over the scripted runner and a sandbox ledger, including missing, corrupt, locked
+Executable presence is asserted by none of these and is not a probe. **Tests**: retained Bash examples
+and Rust tests cover unreadable legacy counters, an existing dead letter with no newly dead-lettered
+rows, two consecutive pending increases and missing drainer state while the pns store stays healthy;
+keep the stores' growth histories independent. Add first tests for each of the three pns checks over
+the scripted runner and a sandbox ledger, including missing, corrupt, locked
 and incompatible ledgers returning unreadable instead of zero, and committed rows still in the
 write-ahead log contributing to the count. Each integrity or health finding must invoke the
 independent banner even when a fake engine returns a valid `Accepted` while delivering nothing.
@@ -930,7 +966,7 @@ tick, confirms the "not loaded" page, bootstraps it back, and trashes the retire
 file path per section 3.3. **Cutover**: apply; the operator confirms the first tick reads the existing
 baseline (no first-observation page), then toggles one control the safe way (start and stop the
 OverSight process) across two ticks and reads the page and the silent recovery. The probe binaries
-`fdesetup`, `csrutil`, `sysadminctl`, `defaults`, `pgrep`, `plutil` and `readlink` need no TCC grant;
+`fdesetup`, `csrutil`, `sysadminctl`, `defaults`, `pgrep`, `plutil` and `readlink` need no privacy grant;
 `plutil` reading LuLu's rules archive under `/Library/Objective-See` reads a world-readable file
 today and the port changes nothing about who reads it. **Sizes**: `poll.rs` (application) ~280 plus
 tests split into three.
@@ -941,7 +977,12 @@ the operator confirms the existing `inactive` baseline is read as such (no first
 then runs `tailscale funnel status --json` by hand to confirm the reader's input matches what the
 adapter parsed in the agent log. **Sizes**: `funnel.rs` ~140 plus tests ~220.
 
-**PR 6.7 the drainer and the dispatch library retire.** No Rust. **Surface**: the alert-drainer
+**PR 6.7 the drainer and the dispatch library retire.** Removes the temporary Rust legacy queue reader,
+its probe and growth tracking, and `com.webdavis.osquery-alert-drainer` from the watchdog's
+monitored roster in this same retirement change. Preserve the other five labels and all pns checks.
+**Tests**: a healthy post-retirement tick with the old queue and drainer absent produces no legacy
+health finding; a missing remaining agent or unhealthy pns ledger still produces its finding.
+Mutation-check restoring the retired label and disabling a remaining probe. **Surface**: the drainer
 plist and its loader, `executable_drain-undelivered-alerts.sh`, `executable_alert-dispatch.sh`,
 `test/unit/osquery-alert-dispatch.bats`, `test/integration/osquery-drain-continuation.bats`,
 `test/helpers/build-dispatch-harness.sh`. **Cutover**, and this one has a precondition: before the
@@ -978,11 +1019,12 @@ runs builder 58 before `posture converge` through `run_after_59` and, with nothi
 prints nothing. A sandbox composition test starts with the prior binary refusing `converge`, runs
 the rendered builder with fake cargo, then runs the repointed caller against the newly installed
 fake binary and verifies the invocation succeeds. This tests the scripts' behavior without a live
-apply. The
-operator then edits nothing and instead confirms the quiet no-op in the apply output, runs
-`sudo /usr/bin/install -m 0666 /var/osquery/osquery.flags /var/osquery/osquery.flags` to plant a
-mode drift by hand, re-runs the apply, reads the one repair line and the daemon restart, and confirms
-osqueryd's parent pid changed. That restart is the operator's. **Sizes**: cli `converge.rs` under
+apply. After confirming the quiet no-op, the operator records the current osqueryd parent pid and
+`/usr/bin/stat -f '%Lp' /var/osquery/osquery.flags` (expected `644`), then runs
+`sudo /bin/chmod 0600 /var/osquery/osquery.flags` and verifies the mode reads `600` before proceeding.
+The operator re-runs the apply, reads the repair line and daemon restart, verifies the mode is back
+to `644`, and confirms osqueryd's parent pid changed and stays stable through the settle window. The
+drift and restart are the operator's. **Sizes**: cli `converge.rs` under
 80; the application and adapters were measured in step 3.
 
 ### Step 8: ssh-hardening
@@ -1018,9 +1060,10 @@ is gone afterwards (the grandchild's pid answers ESRCH), the outcome is `Timeout
 where the bash exposed it, and the runner returns inside the deadline plus the 2 s grace plus a
 tolerance. The process-adapter test uses injected short deadline and grace durations to finish within the
 one-second gate; a fake-clock test checks the production two-second grace decision. A healthy child's
-status passes through unchanged; the child reads EOF on stdin; an observation refuses a path with a
-newline or the unit-separator byte, a non-regular file at read time, and a tree past the byte or visit
-bound, and follows a symlinked include for its attributes. **Sizes**: `bounded.rs` ~180 plus tests ~300;
+status passes through unchanged; the child reads end-of-file on stdin; an observation refuses a path
+with a newline or the unit-separator byte, a non-regular file at read time, and a tree past the byte or
+visit bound, and follows a symlinked include for its attributes.
+**Sizes**: `bounded.rs` ~180 plus tests ~300;
 the four adapters 80 to 200 each plus tests.
 
 **PR 8.3 `posture ssh` and the cutover.** The six use cases over the ports of PR 8.2, the cli
@@ -1078,8 +1121,8 @@ Every one of these is the operator's and never an agent's:
 - Confirming all three queue tables are empty before PR 6.7's apply (the two counters plus a
   read-only count of `pending_local_notifications`), with reviewed dead-letter export and
   disposition requiring fresh confirmation before exact-row removal. No automatic purge.
-- TCC: no posture subcommand needs a grant the bash did not already have. `osqueryd` itself keeps
-  Full Disk Access as today; `posture poll` reads the same world-readable files the poller reads.
+- Privacy permissions: no posture subcommand needs a grant the bash did not already have. `osqueryd`
+  keeps Full Disk Access as today; `posture poll` reads the same world-readable files the poller reads.
 
 ## 8. Decisions the operator makes before code moves
 
