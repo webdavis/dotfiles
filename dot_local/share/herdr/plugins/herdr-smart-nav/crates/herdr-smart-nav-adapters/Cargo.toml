@@ -1,0 +1,8 @@
+[package]
+name = "herdr-smart-nav-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+herdr-smart-nav-domain = { path = "../herdr-smart-nav-domain" }
+herdr-smart-nav-protocol = { path = "../herdr-smart-nav-protocol" }

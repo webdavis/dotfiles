@@ -1,0 +1,13 @@
+[package]
+name = "herdr-smart-nav-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "herdr-smart-nav"
+path = "src/main.rs"
+
+[dependencies]
+herdr-smart-nav-domain = { path = "../herdr-smart-nav-domain" }
+herdr-smart-nav-application = { path = "../herdr-smart-nav-application" }
+herdr-smart-nav-adapters = { path = "../herdr-smart-nav-adapters" }

@@ -3,7 +3,35 @@
 version = 4
 
 [[package]]
-name = "herdr-smart-nav"
+name = "herdr-smart-nav-adapters"
+version = "0.1.0"
+dependencies = [
+ "herdr-smart-nav-domain",
+ "herdr-smart-nav-protocol",
+]
+
+[[package]]
+name = "herdr-smart-nav-application"
+version = "0.1.0"
+dependencies = [
+ "herdr-smart-nav-domain",
+]
+
+[[package]]
+name = "herdr-smart-nav-cli"
+version = "0.1.0"
+dependencies = [
+ "herdr-smart-nav-adapters",
+ "herdr-smart-nav-application",
+ "herdr-smart-nav-domain",
+]
+
+[[package]]
+name = "herdr-smart-nav-domain"
+version = "0.1.0"
+
+[[package]]
+name = "herdr-smart-nav-protocol"
 version = "0.1.0"
 dependencies = [
  "serde_json",

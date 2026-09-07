@@ -164,7 +164,7 @@ test-e2e: validate-tests
 # second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
 # developer pays the build once.
 test-rust:
-  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
+  cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
