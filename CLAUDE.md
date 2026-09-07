@@ -87,14 +87,14 @@ wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
-pipeline, rotate-logs, update-skills, the macos-defaults library, ssh-hardening, herdr-jump,
-cutover-gate, live-reconcile, the cli-print-style library, the two herdr Rust plugins. Out of scope, and
-deleted on sight: LaunchAgent plist field assertions, "is this hook wired in", `.chezmoiignore` OS
-branching, roster-versus-lock-table agreement, justfile-versus-CI-workflow parity, markdown heading
-guards, and meta-tests about how other tests are written. The question to ask is whether gutting our
-source logic while leaving the declarations intact would turn the test red. If it would not, it is not
-testing our behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a
-config that disagrees with itself is now caught by review, not by a gate.
+pipeline, rotate-logs, update-skills, the macos-defaults library, ssh-hardening, cutover-gate,
+live-reconcile, the cli-print-style library, the two herdr Rust plugins. Out of scope, and deleted on
+sight: LaunchAgent plist field assertions, "is this hook wired in", `.chezmoiignore` OS branching,
+roster-versus-lock-table agreement, justfile-versus-CI-workflow parity, markdown heading guards, and
+meta-tests about how other tests are written. The question to ask is whether gutting our source logic
+while leaving the declarations intact would turn the test red. If it would not, it is not testing our
+behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a config that
+disagrees with itself is now caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then the
 one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each
@@ -446,10 +446,10 @@ Four rules decide the shape below `libexec`, in this order:
    `unattended-upgrades/` names what they do. A directory named for a CLI a script happens to shell out
    to would need `jq/` and `curl/` siblings to be consistent, so that axis is not used.
 1. **A directory exists only when it has more than one member.** A leaf with no private helpers stays a
-   flat file (`compress-and-truncate-local-logs.sh`, `control-hue-lights.sh`, `herdr-jump.sh`). Make the
-   group the day a second member arrives, not in anticipation of one. The exception is a single file
-   whose own name cannot carry its domain: `tailscale/reconcile-hosts-pin.sh` keeps its directory because
-   the filename says nothing about Tailscale and it is the only root-executed script in the tree.
+   flat file (`compress-and-truncate-local-logs.sh`, `control-hue-lights.sh`). Make the group the day a
+   second member arrives, not in anticipation of one. The exception is a single file whose own name
+   cannot carry its domain: `tailscale/reconcile-hosts-pin.sh` keeps its directory because the filename
+   says nothing about Tailscale and it is the only root-executed script in the tree.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
    tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
    `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
@@ -560,16 +560,34 @@ keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (
 with a `prefix+.` fallback for terminals without CSI-u. The design spec at
 `docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` has the full mapping table.
 
+The jump itself is a herdr **plugin** (`dot_local/share/herdr/plugins/herdr-workspace-jump/`, a Rust
+binary), bound via nine `type = "plugin_action"` keybindings. herdr has no built-in create-or-focus:
+`workspace create` is not idempotent and `workspace focus` takes an id rather than a label, so the label
+is resolved against the live list first, exact match and first hit (labels are NOT unique on this
+machine). It sends two newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a
+fresh connection for each request. Every socket failure falls back to the `herdr` CLI through
+`HERDR_BIN_PATH`. A keybinding passes NO arguments, so the label and the working directory are baked into
+each action's argv in the manifest, one action per workspace; herdr does not run an action through a
+shell, so the manifest's `~` is expanded by the plugin. Built and linked by `run_onchange_after_56`.
+
+The same plugin owns the workspace-level most-recently-used toggle on `prefix+ctrl+\\` (herdr ships
+`last_pane` but no workspace equivalent). Its `[[events]]` hook on `workspace.focused` fires for EVERY
+focus change, mouse and picker included, which is why it stays correct where a key-bound script did not:
+a script only sees the switches routed through itself. The two-deep state lives at
+`~/.local/state/herdr/plugins/herdr-workspace-jump/mru` and needs no extra socket call, because checking
+that the target still exists reuses the same workspace list a jump already reads.
+
 On every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
 last-focused workspace (homelab in practice, once visited, since the session persists); herdr has no
-launch-into-workspace flag. Jump to homelab anytime via the `h` alias or the `prefix+ctrl+h` chord.
+launch-into-workspace flag. Jump to homelab anytime via the `h` alias (which invokes the same plugin
+action) or the `prefix+ctrl+h` chord.
 
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
 `type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv
-with no `/bin/sh -lc` wrapper. It is built and linked by `run_onchange_after_57`, mirroring the
-`last-workspace` plugin, and it shells the `herdr` CLI rather than using a Rust SDK. Plugin actions get
-`HERDR_PANE_ID`, and the binary falls back to `HERDR_ACTIVE_PANE_ID` when that is absent.
+with no `/bin/sh -lc` wrapper. It is built and linked by `run_onchange_after_57`, and it shells the
+`herdr` CLI rather than using a Rust SDK. Plugin actions get `HERDR_PANE_ID`, and the binary falls back
+to `HERDR_ACTIVE_PANE_ID` when that is absent.
 
 ### Herdr native status
 

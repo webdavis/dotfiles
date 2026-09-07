@@ -65,6 +65,12 @@ tmp.*
 # Same, for the uu crate.
 .local/share/uu/target
 
+# Same, for the posture crate, and the same rule for its docs as for pns's: the
+# test baseline, the acceptance examples and the decision records travel with
+# the crate in git and never reach $HOME.
+.local/share/posture/target
+.local/share/posture/docs
+
 # The committed input to `just pns-config-render`, never a deploy target:
 # the shipped template it generates is what chezmoi applies.
 .config/pns/config-values.toml
@@ -96,4 +102,8 @@ Library
 .local/libexec/uu
 .local/share/uu
 .config/uu
+# posture is the osquery pipeline's port, and that pipeline is macOS-only
+# (launchd, osqueryd under /var/osquery, a darwin-gated builder).
+.local/libexec/posture
+.local/share/posture
 {{- end }}
