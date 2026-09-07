@@ -203,3 +203,17 @@ vim.api.nvim_create_autocmd("User", {
     end
   end,
 })
+
+-- Listen on the socket named for this herdr pane (spec 7.3), so the nvim-mcp
+-- resolver derives the path from its own HERDR_PANE_ID and connects, with
+-- nothing recorded anywhere. Why the name, the root and the silence are what
+-- they are is in custom_api/pane_socket.lua. On VimEnter, not at require time:
+-- a headless `-l` run (the spec runner) requires this file too and exits
+-- through os.exit, which skips Neovim's socket cleanup, so a socket bound here
+-- would outlive it as a stale name in the operator's real run root.
+vim.api.nvim_create_autocmd("VimEnter", {
+  group = augroup("pane_socket"),
+  callback = function()
+    require("custom_api.pane_socket").listen()
+  end,
+})

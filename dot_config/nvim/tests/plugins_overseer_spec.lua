@@ -15,6 +15,7 @@ local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config roo
 -- Capture the setup() options without loading overseer itself.
 local captured_hooks = {}
 local captured_maps = {}
+local captured_overseer
 local captured_view_opts
 
 local function captured_setup_opts()
@@ -50,6 +51,7 @@ local function captured_setup_opts()
   local saved_autocmd = vim.api.nvim_create_autocmd
 
   package.loaded["overseer"] = overseer_fake
+  captured_overseer = overseer_fake
   -- `map` is a global installed by init.lua, which this runner never loads.
   _G.map = function(spec)
     for _, lhs in ipairs(type(spec.lhs) == "table" and spec.lhs or { spec.lhs }) do
@@ -62,7 +64,13 @@ local function captured_setup_opts()
   vim.api.nvim_create_autocmd = function() end
 
   local ok, err = pcall(function()
-    dofile(config_root .. "/lua/plugins/overseer.lua").config()
+    local spec = dofile(config_root .. "/lua/plugins/overseer.lua")
+    -- The keymaps live in the spec's `keys` rows, where lazy installs them, so
+    -- they are read from there rather than from a `map()` call in `config`.
+    for _, row in ipairs(spec.keys or {}) do
+      captured_maps[row[1]] = row[2]
+    end
+    spec.config()
   end)
 
   package.loaded["overseer"] = saved_overseer
@@ -231,8 +239,11 @@ return {
     captured_setup_opts()
     local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
     local real_cmd = vim.cmd
+    local real_overseer = package.loaded["overseer"]
     vim.cmd = function() end
+    package.loaded["overseer"] = captured_overseer
     local ok, err = pcall(rhs)
+    package.loaded["overseer"] = real_overseer
     vim.cmd = real_cmd
     assert(ok, err)
     local view = assert(captured_view_opts, "the mapping never built an output view")
@@ -250,8 +261,11 @@ return {
     captured_setup_opts()
     local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
     local real_cmd = vim.cmd
+    local real_overseer = package.loaded["overseer"]
     vim.cmd = function() end
+    package.loaded["overseer"] = captured_overseer
     local ok, err = pcall(rhs)
+    package.loaded["overseer"] = real_overseer
     vim.cmd = real_cmd
     assert(ok, err)
     local view = assert(captured_view_opts, "the mapping never built an output view")

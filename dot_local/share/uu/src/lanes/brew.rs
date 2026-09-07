@@ -17,8 +17,9 @@ pub mod upgrade_record;
 use std::time::Duration;
 
 use crate::config::BrewLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter};
 use crate::record::RunFacts;
+use uu_domain::LaneReport;
 
 use changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
 use repairs::{converge_osquery, mas_declarations, refresh_tailscaled};

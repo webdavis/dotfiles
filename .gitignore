@@ -42,6 +42,9 @@ dot_local/share/pns/target/
 # Same, for the uu crate.
 dot_local/share/uu/target/
 
+# Same, for the posture crate.
+dot_local/share/posture/target/
+
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*
 *config.yaml.corrupt*
