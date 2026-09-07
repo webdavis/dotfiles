@@ -140,6 +140,14 @@ return {
         args = event.args ~= "" and { event.args } or {},
         bang = event.bang or nil,
         mods = event.smods,
+        -- `shellcmdline` completion already expanded `%`, `#` and `<cword>` while
+        -- the command line was parsed, so `event.args` is a RESULT, not a pattern.
+        -- Expanding it again rewrote text the operator had escaped to keep: with a
+        -- buffer named, `:OverseerShell! printf '\%s\n' hello` became
+        -- `printf '<that buffer's path>s\n' hello`, and with no buffer name it
+        -- failed outright with E499. `nvim_cmd` expands by default, so the replay
+        -- has to turn it off.
+        magic = { file = false },
       })
     end, {
       -- Overseer's own declaration at the pin, copied field for field. It takes
