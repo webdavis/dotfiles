@@ -137,9 +137,9 @@ pub fn parse(line: &str) -> Result<Job, String> {
     })
 }
 
-/// The most an id or a marker name may be. Long enough for a session id with
-/// a prefix on it, short enough that a spool filename stays a filename.
-pub const ID_MAX: usize = 64;
+// The id bound moved to `pns-domain`, because the nag derives its own name
+// cap from it and a member crate never reaches back into this package.
+pub use pns_domain::jobs::ID_MAX;
 
 /// True when a name may be a filename inside the state directory.
 ///

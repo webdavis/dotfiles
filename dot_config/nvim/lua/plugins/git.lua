@@ -95,7 +95,7 @@ end
 return {
   {
     "lewis6991/gitsigns.nvim",
-    event = { "BufReadPre", "BufNewFile" },
+    event = { "BufReadPre", "BufNewFile", "BufFilePost", "BufWritePost" },
     -- The two global blame maps below are declared in `config`, so they would be
     -- absent from which-key until the first buffer read. These rows carry no
     -- `rhs`, so lazy.nvim installs a placeholder that keeps the label, loads the
