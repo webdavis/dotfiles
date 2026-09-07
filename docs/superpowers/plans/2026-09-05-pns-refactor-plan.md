@@ -267,10 +267,16 @@ S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the schedule), 
 `DimWindow`, `Routed`, `Routing`, `LEVELS`, `resolve`, `Showing`, `dim_showing`, `window_refusal`,
 `Muting`, `muted_now`, `mutable_names`, `remember` (lines 1-743 less `hue_settings`, `quiet_window` and
 `inventory`, which parse TOML and JSON) to `pns-domain/src/lamps/{window,dim,resolve,mute,inventory}.rs`.
-Tests: 42 by name, split alongside. Consumer: `main.rs` `fire_pulse_unless_quiet`, `run_pulse_writes`,
-`run_tick_writes`, `lights_quiet`. Sizes: five production files of 80 to 260, tests 120 to 400. Its
-callers in `main.rs` stay put in this PR. Statements: S107 (`QuietWindow`), S108, S111, S112
-(`muted_now`), S222.
+The policy also needs the plain `Lights`, `Pulse`, `Blocked`, `Unread`, `Looping` and `Target` value
+records and their defaults, so those move first from `config.rs` to `pns-domain/src/lamps/config.rs`.
+TOML parsing and bounds stay in the root configuration module. `QuietWindow` keeps private fields;
+retained fixtures construct it through `parse_window`. The `Fixture` value stays in the domain and
+`fixture_path` renders its Hue resource path at the bridge edge.
+Tests: 42 by name, retained under `src/channels/hue/` in five private files because their cases span
+policy and the retained parsers. The root channel splits bridge transport, JSON bodies and effect
+selection into `hue/{bridge,bodies,render}.rs`. Consumer calls remain in the root runtime modules,
+with fixture path construction updated to the edge function. Statements: S107 (`QuietWindow`), S108,
+S111, S112 (`muted_now`), S222.
 
 **PR 5.9 the recap composition.** Moves `src/recap.rs` whole (it reads no file, no clock and no
 environment; its one input type is `missed::Entry` from PR 5.4) to
