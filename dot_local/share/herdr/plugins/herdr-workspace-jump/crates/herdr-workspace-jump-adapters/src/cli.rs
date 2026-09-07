@@ -8,8 +8,11 @@
 
 use std::process::Command;
 
-use crate::jump::WorkspaceDirectory;
-use crate::protocol::{self, JumpError, Workspace};
+use herdr_workspace_jump_application::{JumpError, WorkspaceDirectory};
+use herdr_workspace_jump_domain::Workspace;
+use herdr_workspace_jump_protocol as protocol;
+
+use crate::response;
 
 pub struct CliWorkspaceDirectory {
     binary: String,
@@ -35,7 +38,13 @@ impl CliWorkspaceDirectory {
             .output()
             .map_err(|error| JumpError::Unreachable(format!("{}: {error}", self.binary)))?;
         let body = String::from_utf8_lossy(&output.stdout);
-        let result = protocol::result_of(&body);
+        // The CLI can acknowledge focus without stdout; a socket must always
+        // return an envelope. Keep this process-output exception at its adapter.
+        let result = if body.trim().is_empty() {
+            Ok(serde_json::json!({}))
+        } else {
+            protocol::result_of(&body).map_err(response::jump_error)
+        };
         if !output.status.success() && result.is_ok() {
             let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(JumpError::Transport(format!(
@@ -52,7 +61,7 @@ impl CliWorkspaceDirectory {
 impl WorkspaceDirectory for CliWorkspaceDirectory {
     fn list(&mut self) -> Result<Vec<Workspace>, JumpError> {
         let result = self.run(&["workspace", "list"])?;
-        protocol::workspaces_of(&result)
+        response::workspaces(&result)
     }
 
     fn focus(&mut self, workspace_id: &str) -> Result<(), JumpError> {
@@ -122,6 +131,15 @@ mod tests {
     }
 
     #[test]
+    fn a_silent_successful_cli_acknowledgment_is_accepted() {
+        let directory = CliWorkspaceDirectory::using(Some("true".to_string()));
+        assert_eq!(
+            directory.run(&["workspace", "focus", "wA"]),
+            Ok(serde_json::json!({}))
+        );
+    }
+
+    #[test]
     fn a_successful_envelope_is_parsed_into_workspaces() {
         let directory = CliWorkspaceDirectory::using(Some("echo".to_string()));
         // `echo` replays its arguments, so this stands in for a herdr that
@@ -133,11 +151,57 @@ mod tests {
             Err(error) => panic!("expected the envelope to parse: {error}"),
         };
         assert_eq!(
-            protocol::workspaces_of(&result),
+            response::workspaces(&result),
             Ok(vec![Workspace {
                 workspace_id: "wA".to_string(),
                 label: "netpulse".to_string(),
             }])
+        );
+    }
+    #[test]
+    fn list_executes_the_actual_cli_and_maps_its_workspace_records() {
+        let fake = crate::cli_command::RecordedCli::answering(
+            r#"{"result":{"workspaces":[{"workspace_id":"wA","label":"Ivy vault "}]}}"#,
+            "",
+        );
+        let mut directory = CliWorkspaceDirectory::using(Some(fake.binary.clone()));
+        assert_eq!(
+            directory.list(),
+            Ok(vec![Workspace {
+                workspace_id: "wA".into(),
+                label: "Ivy vault ".into()
+            }])
+        );
+        assert_eq!(fake.calls(), vec![vec!["workspace", "list"]]);
+    }
+
+    #[test]
+    fn focus_executes_the_actual_cli_with_the_exact_workspace_id() {
+        let fake = crate::cli_command::RecordedCli::answering("", "");
+        let mut directory = CliWorkspaceDirectory::using(Some(fake.binary.clone()));
+        assert_eq!(directory.focus("wA"), Ok(()));
+        assert_eq!(fake.calls(), vec![vec!["workspace", "focus", "wA"]]);
+    }
+
+    #[test]
+    fn create_executes_the_actual_cli_with_distinct_cwd_label_and_focus_arguments() {
+        let fake = crate::cli_command::RecordedCli::answering("", "");
+        let mut directory = CliWorkspaceDirectory::using(Some(fake.binary.clone()));
+        assert_eq!(
+            directory.create("Ivy vault's label ", "/tmp/a project's root"),
+            Ok(())
+        );
+        assert_eq!(
+            fake.calls(),
+            vec![vec![
+                "workspace",
+                "create",
+                "--cwd",
+                "/tmp/a project's root",
+                "--label",
+                "Ivy vault's label ",
+                "--focus"
+            ]]
         );
     }
 }

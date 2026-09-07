@@ -1,6 +1,10 @@
 return {
   {
     "xzbdmw/colorful-menu.nvim",
+    -- Eager only because it has no trigger. It renders blink.cmp's menu labels
+    -- and nothing else, so it belongs behind blink.cmp's own
+    -- `event = { "InsertEnter", "CmdlineEnter" }` or as a dependency of it.
+    lazy = false,
     config = function()
       -- You don't need to set these options.
       require("colorful-menu").setup({
