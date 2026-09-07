@@ -15,12 +15,13 @@ jobs:
           persist-credentials: false
       # bashunit comes from its release asset rather than the formula, because the runner's
       # cached Homebrew index pours whatever release it happens to hold (0.43.0 on
-      # 2026-09-05) while neotest-bashunit's fixtures were measured against one exact
-      # release. BASHUNIT_VERSION, BASHUNIT_SHA256 and M.verified_version in
-      # dot_local/share/neotest-bashunit/lua/neotest-bashunit/parse.lua all name that release
-      # and nothing enforces that the three agree: move them together by hand, after
-      # re-measuring the fixtures. The checksum is the half a compromised upstream release
-      # cannot rewrite, so it is pinned here and not read from the release.
+      # 2026-09-05) and this repository's whole *.test.sh corpus runs on it. The
+      # neotest-bashunit adapter, which pins the same release in M.verified_version against
+      # frozen fixtures, now lives in its own repository, so nothing here catches a version
+      # skew between the two: move BASHUNIT_VERSION and BASHUNIT_SHA256 together by hand, and
+      # re-measure that repository's fixtures when they move. The checksum is the half a
+      # compromised upstream release cannot rewrite, so it is pinned here and not read from
+      # the release.
       - name: Install the lint and test toolchain (Homebrew + uv, no nix)
         env:
           BASHUNIT_VERSION: "0.50.1"

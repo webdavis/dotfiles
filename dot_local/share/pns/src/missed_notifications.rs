@@ -14,9 +14,9 @@
 //! without the event's own text. Fusing them would mean either printing
 //! content to a terminal or journaling nothing worth replaying.
 //!
-//! What a miss COMPOSES INTO moved to `pns-domain`. The codec stays because
-//! this crate is where `serde_json` lives, and the three predicates stay
-//! because they answer over the engine's `Decision`.
+//! Missed-event composition and predicates live in `pns-domain`.
+//! The codec stays here because this crate is where `serde_json` lives;
+//! the exports below preserve the existing caller paths.
 
 use crate::args::EventArgs;
 

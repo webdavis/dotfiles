@@ -6,7 +6,8 @@
 
 use std::time::Duration;
 
-use crate::lanes::{CommandRunner, LaneReport};
+use crate::lanes::CommandRunner;
+use uu_domain::LaneReport;
 
 /// What the record says about one step. THE REASON, not only the status:
 /// `exit 1` alone sends the operator to a log the week may have rotated away,

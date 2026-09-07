@@ -2,22 +2,15 @@
 //! probe set and the recorded readings. One copy, because these rows were one
 //! test module before the file outgrew the size rule.
 
-#![allow(unused_imports)]
-
-pub use crate::config::parse_config;
-pub use crate::engine::{
-    DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading, decide,
-    operator_surface,
-};
-pub use crate::probes::{
+use super::{Decision, Overrides, decide};
+use crate::config::parse_config;
+use crate::probes::{
     IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
     Wants,
 };
-pub use crate::registry::Selection;
-pub use crate::routing::{Leg, ReportMode};
-pub use crate::surface::{DeliveryPlan, SessionView, Surface, Visibility};
-pub use std::cell::Cell;
-pub use std::collections::BTreeMap;
+use crate::registry::Selection;
+use crate::surface::SessionView;
+use std::cell::Cell;
 
 /// Recording probes: every reading is counted, so a test can pin that a
 /// probe was never consulted, not only what the verdict was.

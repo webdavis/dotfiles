@@ -1,6 +1,9 @@
 //! The decision, pinned: mute.
 
-use super::fixtures::*;
+use super::fixtures::{CountingProbes, decide_with, elsewhere, names, three_selection, watching};
+use super::{Overrides, decide};
+use crate::routing::{Leg, ReportMode};
+use crate::surface::SessionView;
 
 // --- the operator's mute ------------------------------------------------
 

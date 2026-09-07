@@ -2,6 +2,7 @@
 -- dotfiles' run_after_53): line-anchored annotations sent back to agents.
 return {
   "ChmaraX/herdr-nvim",
+  lazy = false,
   opts = {
     prefix = "<leader>A", -- the default <leader>a collides with other maps here
   },

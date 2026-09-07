@@ -1,6 +1,9 @@
 //! The decision, pinned: readings.
 
-use super::fixtures::*;
+use super::fixtures::{CountingProbes, decide_with, elsewhere, three_selection, watching};
+use super::{DEFAULT_DESK_IDLE_SECS, Overrides, decide};
+use crate::surface::{DeliveryPlan, Surface, Visibility};
+use std::collections::BTreeMap;
 
 // --- the readings the decision ran on ------------------------------------
 

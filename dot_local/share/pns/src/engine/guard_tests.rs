@@ -1,6 +1,9 @@
 //! The decision, pinned: guard.
 
-use super::fixtures::*;
+use super::Overrides;
+use super::fixtures::{CountingProbes, decide_with, names, watching};
+use crate::probes::Wants;
+use std::collections::BTreeMap;
 
 // --- pane safety --------------------------------------------------------
 

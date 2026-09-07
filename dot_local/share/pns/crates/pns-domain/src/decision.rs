@@ -4,9 +4,9 @@
 //! POLICY ONLY: no file, no clock, no environment. `Overrides::from_env` is
 //! here because it parses a map somebody else read, not the environment.
 //!
-//! `decide` itself stays in the legacy package for now. It is generic over the
-//! five probe traits, which become ports in a later step; everything it
-//! answers IN is here.
+//! `decide` stays in the legacy package until PR 6.1 separates application
+//! observation acquisition from pure arbitration over a completed typed
+//! snapshot here. Domain never invokes probes or coordinates their startup.
 
 use crate::routing::Leg;
 use crate::surface::{Surface, Visibility};

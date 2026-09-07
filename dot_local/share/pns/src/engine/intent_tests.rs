@@ -1,6 +1,9 @@
 //! The decision, pinned: intent.
 
-use super::fixtures::*;
+use super::fixtures::{CountingProbes, decide_with, elsewhere, names, three_selection, watching};
+use super::{Overrides, decide, operator_surface};
+use crate::surface::Surface;
+use std::collections::BTreeMap;
 
 // --- caller intent ------------------------------------------------------
 

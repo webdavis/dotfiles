@@ -290,7 +290,9 @@ if [[ $- == *i* ]]; then
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias h='herdr-jump.sh homelab "$HOME/workspaces/Ivy/webdavis/homelab"'
+  # The same action the prefix+ctrl+h chord fires, so the label and the working
+  # directory stay in the plugin manifest rather than being repeated here.
+  alias h='herdr plugin action invoke herdr-workspace-jump.jump_homelab'
   alias fman='compgen -c | fzf | xargs man'
 
   # Custom git wrappers and other user aliases.

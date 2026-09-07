@@ -14,11 +14,10 @@
 //! is more specific than an override), the narrowing flags beat both, and
 //! force exempts the event from viewed-pane suppression.
 
-// THE DECISION'S VALUE TYPES moved to `pns-domain`. `decide` stays here until
-// the probe traits it is generic over become ports.
-pub use pns_domain::decision::{
-    DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading,
-};
+// The decision values live in `pns-domain`. PR 6.1 separates acquisition into
+// application and pure arbitration over a completed typed snapshot into domain.
+// Keep this legacy call surface until composition replaces it.
+pub use pns_domain::{DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading};
 
 use crate::probes::{
     IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,

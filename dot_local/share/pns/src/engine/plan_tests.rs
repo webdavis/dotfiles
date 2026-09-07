@@ -1,6 +1,8 @@
 //! The decision, pinned: plan.
 
-use super::fixtures::*;
+use super::fixtures::{CountingProbes, decide_with, elsewhere, names, three_selection, watching};
+use super::{Decision, Overrides, decide};
+use crate::surface::SessionView;
 
 // --- the plan drives the legs -------------------------------------------
 
