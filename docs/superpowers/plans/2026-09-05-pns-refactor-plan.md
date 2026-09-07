@@ -299,18 +299,21 @@ checks and diagnostic wording remain in `device_identity`. Sizes: three producti
 260, tests of 200 to 420. Statements: S168 (`episode_id`), S271 (identity construction), S273
 (`home_reading`), S274 (`stale_identifiers`).
 
-**PR 5.11 the decision.** Moves from `src/engine.rs`: `DEFAULT_DESK_IDLE_SECS`, `Overrides` (the struct
-and `silenced`, `reads_desk`, `reads_phone`), `Decision`, `GateInputs`, `SurfaceReading`, `decide` (lines
-29-99, 134-301) to `pns-domain/src/decision.rs`. It ALSO carries the three predicates PR 5.4 had to leave
-behind, `was_missed`, `should_replay` and `is_present`, out of `src/missed_notifications.rs` and into
-`pns-domain/src/missed.rs` beside the rest of that policy, with their twelve tests: they read only the
-`Decision` and `Overrides` this step moves, so this is the first step at which they can go. Stays:
-`Overrides::from_env` (reads the environment, PR 8.1), `operator_surface`, `surface_reading`,
-`operator_visibility` (they drive probe traits, PR 6.1). Tests: the `decide` tests by name into
-`decision/tests.rs`, split by the mute, the override and the readings seams, plus the predicate tests
-into `missed/tests.rs`. Sizes: `decision.rs` ~170; three test files of 350 to 450. `decide`'s signature
-does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, S118, and S106, S158
-(predicate), S159, S161 (predicate) arriving from PR 5.4; S159's own test stays assigned to PR 11.3.
+**PR 5.11 the decision values and missed predicates.** Moves from `src/engine.rs`:
+`DEFAULT_DESK_IDLE_SECS`, `Overrides` and its whole implementation (`silenced`, `reads_desk`,
+`reads_phone`, `from_env`), `Decision`, `GateInputs` and `SurfaceReading` to
+`pns-domain/src/decision.rs`. `from_env` parses a supplied map; environment collection stays at the
+command edge for PR 8.1. Carries the three predicates PR 5.4 left behind, `was_missed`, `should_replay`
+and `is_present`, from `src/missed_notifications.rs` into `pns-domain/src/missed.rs`, with their twelve
+tests. They read only the decision values and overrides this step moves. Stays: the probe-driving
+`decide`, `operator_surface`, `surface_reading` and `operator_visibility`. PR 6.1 owns their split into
+application observation acquisition and pure domain arbitration over a completed typed snapshot. Tests:
+retain all 36 engine tests by name in the private `engine/{guard,intent,mute,plan,readings}_tests.rs`
+files, and the twelve predicates in `missed/predicate_tests.rs`. Sizes: `decision.rs` about 215 lines,
+`engine.rs` about 255, private engine test files 191 to 304, and `missed.rs` 413. The legacy `decide`
+signature stays unchanged until the later composition work replaces its call surface. Statements: S099
+(the arbitration), S102, S103, S118, and S106, S158 (predicate), S159, S161 (predicate) arriving from PR
+5.4; S159's own test stays assigned to PR 11.3.
 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
@@ -351,15 +354,23 @@ unchanged.
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
 `surface_reading`, `operator_visibility` (`src/engine.rs:332-433`) to
-`pns-application/src/environment_reading.rs`; moves `select_plugins` and its warnings
-(`src/registry.rs:368-407`) to `pns-application/src/selection.rs` over a `ConfigOutcome` type it
-declares. Declares, test-first, the ports the later use cases need: `Clock`, `NotificationDestination`
-(`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`, `ActivityRing`, `ReturnMoment`,
-`LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from `hue.rs:744-750`), `Router` (from
-`home.rs`), `CommandRunner` (from `system.rs`). Tests: the `engine.rs` probe-count tests
-(`CountingProbes`) by name; new port tests only where a port carries logic (none should). Sizes:
-`ports/*.rs` under 120 each; `environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests
-~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to S091, S124.
+`pns-application/src/environment_reading.rs`. Completes the decision split deferred by PR 5.11:
+application acquires one typed environment snapshot and coordinates probe startup; pure `decide` moves to
+`pns-domain/src/decision.rs` over the request, settings and completed snapshot. Domain may determine
+which facts are required but never invokes probes or starts them. Preserve one observation time, unknown
+readings distinct from negative facts, required-fact guards, once-only observations and the existing
+concurrency contract. Keep the legacy call surface until composition replaces it. Moves `select_plugins`
+and its warnings (`src/registry.rs:368-407`) to `pns-application/src/selection.rs` over a `ConfigOutcome`
+type it declares. Declares, test-first, the ports the later use cases need: `Clock`,
+`NotificationDestination` (`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`,
+`ActivityRing`, `ReturnMoment`, `LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from
+`hue.rs:744-750`), `Router` (from `home.rs`), `CommandRunner` (from `system.rs`). Tests: pure arbitration
+tests move by name to `decision/tests.rs` and private behavior children as needed; recording-probe and
+acquisition tests, including `CountingProbes`, move by name to `environment_reading/tests.rs`. Preserve
+every existing name and observable contract across the split. New port tests apply only where a port
+carries logic (none should). Sizes: `ports/*.rs` under 120 each; `environment_reading.rs` ~150 plus tests
+~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089
+to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
@@ -598,7 +609,9 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 `presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
 `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
-`pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
+`pns-application/src/poll_presence.rs`. The state-file codec imports `RawPresence` and `Edge` from the
+curated `pns_domain` exports; step 5.12 already owns these pure values in
+`pns-domain/src/presence/status.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
 Statements: S045, S187, S188, S233.
 

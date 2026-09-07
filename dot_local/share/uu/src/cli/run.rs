@@ -14,8 +14,9 @@ use pns::channels::hermes::UreqSignedPost;
 use unattended_upgrades::alert::alert_summary;
 use unattended_upgrades::config::{Config, config_path};
 use unattended_upgrades::lanes::run_lane;
-use unattended_upgrades::record::{RunFacts, gap_line, record_body, record_detail, record_state};
+use unattended_upgrades::record::{RunFacts, gap_line, record_detail, record_state};
 use uu_domain::{LaneReport, lane_budget};
+use uu_protocol::record_body;
 
 use crate::delivery::{PnsAlerter, deliver_record, send_alert};
 use crate::runner::SystemRunner;

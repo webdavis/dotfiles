@@ -2,7 +2,7 @@
 //! as the operator's return, and what proves they were here.
 
 use super::{is_present, should_replay, was_missed};
-use crate::engine::{Decision, GateInputs, Overrides};
+use crate::decision::{Decision, GateInputs, Overrides};
 use crate::surface::{DeliveryPlan, Surface, Visibility};
 
 /// A decision over the three values the predicate reads, with every other
@@ -152,7 +152,7 @@ fn a_muted_event_the_surface_would_have_decorated_is_the_journals_queue() {
     // rewritten that to Hidden, and reading the session's own answer here
     // would call an empty screen a watched one.
     let back_tap = Decision {
-        inputs: crate::engine::GateInputs {
+        inputs: crate::decision::GateInputs {
             session_visibility: Visibility::Visible,
             visibility: Visibility::Hidden,
             ..decided(Surface::Mobile, Visibility::Hidden, NOTHING).inputs

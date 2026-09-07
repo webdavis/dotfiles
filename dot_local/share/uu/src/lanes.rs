@@ -21,7 +21,7 @@ mod spawn;
 mod text;
 mod uv;
 
-pub use spawn::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict};
+pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::{STDERR_TAIL, failure_reason, tail};
 use uu_domain::LaneReport;
 

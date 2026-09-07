@@ -9,7 +9,8 @@ use std::io::Write;
 use std::process::{ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use unattended_upgrades::lanes::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict, failure_reason};
+use unattended_upgrades::lanes::{CommandRunner, Ran, Verdict, failure_reason};
+use uu_protocol::DEFERRED_EXIT_CODE;
 
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
