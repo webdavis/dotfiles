@@ -1824,7 +1824,7 @@ mod daemon_tests {
         // about this fixture.
         let beating_at_the_default = Heartbeat {
             pid: 4321,
-            at: NOW - HEARTBEAT_STALE_SECS,
+            at: NOW - 1,
         };
         assert_eq!(
             daemon_line(true, Some(beating_at_the_default), Some(NOW), 0),
