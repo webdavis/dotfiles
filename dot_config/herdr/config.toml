@@ -139,6 +139,12 @@ type = "plugin_action"
 command = "herdr-workspace-jump.jump_plantpulse"
 description = "jump to plantpulse workspace"
 
+[[keys.command]]
+key = "prefix+ctrl+f"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_fitness"
+description = "jump to fitness workspace"
+
 # Workspace-level MRU toggle, the same plugin that owns the quick-jump chords
 # (herdr has no builtin; the plugin tracks workspace.focused so mouse and picker
 # switches count too).

@@ -147,6 +147,7 @@ workspace gets one `[[keys.command]]` entry running `herdr workspace create --cw
 | essential-feed-case-study | `prefix+ctrl+e` | `~/workspaces/Ivy/webdavis/essential-feed-case-study` |
 | netpulse | `prefix+ctrl+n` | `~/workspaces/Ivy/webdavis/netpulse` |
 | plantpulse | `prefix+ctrl+p` | `~/workspaces/Ivy/hobbies/plantpulse` |
+| fitness | `prefix+ctrl+f` | `~/workspaces/Ivy/hobbies/fitness` |
 
 Notes:
 

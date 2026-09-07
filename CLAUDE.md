@@ -551,7 +551,7 @@ reload and lockout-recovery procedure is in `docs/runbooks/macos-fresh-machine-q
 ### Herdr workspace management
 
 Workspaces (project-anchored tab groups, roughly tmux sessions) are configured at
-`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords bound on nine
+`dot_config/herdr/config.toml`. Nine project workspaces are reached by quick-jump chords bound on ten
 keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (a period, sent via CSI-u)
 with a `prefix+.` fallback for terminals without CSI-u. The design spec at
 `docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` has the full mapping table.
