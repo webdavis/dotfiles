@@ -656,21 +656,26 @@ and PR 4d lifts it with the other exclusions, with no taplo reformat to commit u
 It lands in PR 31, after the Mason race is removed (PR 5b) and the lock is final.
 
 - **Trigger.** The rendered script embeds the sha256 of `lazy-lock.json`, `lua/plugins/lsp.lua`
-  (the two tool lists live there), and its bootstrap and verification helpers. A deferral appends one
-  byte to a retry marker whose size is embedded in the render, so even two deferrals in one second
-  produce different scripts. A successful run resets that token to zero and settles after one final
-  run. Rendering uses `stat` and never reads the marker's contents.
+  (the two tool lists live there), `lua/plugins/treesitter.lua` (the core parser list), and its
+  bootstrap and verification helpers. A deferral appends one byte to a retry marker whose size is
+  embedded in the render, so even two deferrals in one second produce different scripts. A successful
+  run resets that token to zero and settles after one final run. Rendering uses `stat` and never reads
+  the marker's contents.
 - **Guard.** `command -v nvim` or defer with the marker. No darwin guard: Lazy resolves the current
   platform's enabled plugins, and verification checks those pins rather than disabled lock entries.
 - **Completion.** There is no outer timeout. Lazy retains its configured timeout during restore.
   The bootstrap waits for our declared shell builds through Neovim's process API and checks their
   exit status, including silent failures. Other Lazy build tasks must finish without an error, and
-  the asynchronous parser update must return a successful result before bootstrap exits.
+  the asynchronous parser update and original core installation must return successful results.
+  Verify each declared core language and its dependencies: compiled parser artifacts for languages
+  with an installer, queries for query-only languages. Force installation only for missing artifacts
+  so leftover queries cannot hide an absent parser.
 - **Steps.** Restore against the source lock, retrying at most three times while the number of
-  incorrect pins decreases. Build the enabled plugins even if they are already at their pins, because
-  a previous build failure does not persist in Lazy's task state. Refresh the Mason registry with a
-  checked callback, resolve the union of language servers and tools, and install that same union
-  headlessly. Then run the source Lua test runner against the deployed config:
+  incorrect pins decreases. Refresh the Mason registry with a checked callback, resolve the union of
+  language servers and tools, and install that same union headlessly. Then build the enabled plugins
+  with their prerequisites available, even if they are already at their pins, because a previous
+  build failure does not persist in Lazy's task state. Run the source Lua test runner against the
+  deployed config:
   `nvim --headless --clean -l {{ .chezmoi.sourceDir }}/dot_config/nvim/tests/run.lua --config
   "$HOME/.config/nvim"`. `tests/` is chezmoiignored and never exists under `$HOME`.
 - **Verification, then non-zero exit.** Every enabled source pin must match the installed commit,
