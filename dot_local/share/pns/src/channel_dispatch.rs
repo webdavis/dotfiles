@@ -1,5 +1,7 @@
 use crate::*;
 
+const EXECUTABLE_DEADLINE: Duration = Duration::from_secs(5);
+
 /// Every leg to its destination, in the registry's delivery order, each
 /// paired with what its channel had to say for itself.
 ///
@@ -196,6 +198,7 @@ fn deliver_leg(
     deliver(
         &channels_dir.join(format!("{}.sh", leg.name)),
         &pns::channels::event_json(rendered, leg.mode),
+        EXECUTABLE_DEADLINE,
     )
 }
 /// Hand one channel its event on stdin. A channel that is missing, is not
@@ -210,8 +213,9 @@ fn deliver_leg(
 /// hand-run check tell a delivery from a spawn that never happened. The exit
 /// status of a channel that DID run is still dropped, because a channel
 /// declining is its own business.
-fn deliver(channel: &Path, event: &str) -> Delivery {
-    let mut child = match Command::new(channel).stdin(Stdio::piped()).spawn() {
+fn deliver(channel: &Path, event: &str, deadline: Duration) -> Delivery {
+    let expires_at = std::time::Instant::now() + deadline;
+    let child = match Command::new(channel).stdin(Stdio::piped()).spawn() {
         Ok(child) => child,
         Err(error) => {
             return Delivery::Unlaunched(format!(
@@ -220,12 +224,11 @@ fn deliver(channel: &Path, event: &str) -> Delivery {
             ));
         }
     };
-    if let Some(mut stdin) = child.stdin.take() {
-        // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
-        // reading one line with `read -r` gets nothing without it.
-        let _ = stdin.write_all(event.as_bytes());
-        let _ = stdin.write_all(b"\n");
-    }
-    let _ = child.wait();
+    // Bound both the write and wait. Keep newline framing, inherited output
+    // and the silent verdict even when a launched channel fails or times out.
+    let _ = pns::system::finish_bounded(child, Some(&format!("{event}\n")), expires_at, 0);
     Delivery::Silent
 }
+
+#[cfg(test)]
+mod tests;

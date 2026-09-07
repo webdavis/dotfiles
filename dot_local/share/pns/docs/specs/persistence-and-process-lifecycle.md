@@ -213,7 +213,7 @@ which is each spawn's deadline, termination behavior, group handling and cleanup
 | --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | P1  | `current_exe()` + the job's own argv (`src/main.rs:spawn_job`)                                                                    | the daemon                                              | `child_bound(tick, id)` = `tick * CHILD_TICKS` (30 ticks), or for the `lights` job `max(tick*30, MAX_REFRESH_SECS + tick_bridge_deadline + tick)` = 37s at the production tick (`src/main.rs:child_bound`)      | `SIGKILL` to the group, then `child.kill()` on the direct child, then `wait()` (`src/main.rs:reap`)           | YES (`src/main.rs:kill_group`, negative pid, refusing pid \<= 1)                                                   | a failed spawn is printed on stderr; a running child's own stderr is INHERITED into the daemon's log (`src/main.rs:spawn_job`) | `reap` on every pass, `try_wait` and never `wait`                                                    |
 | P2  | `current_exe() recap --since <n> --until <n>` (`src/main.rs:spawn_recap`)                                                         | any event process                                       | NONE in this process. The child is never waited on. `PNS_REMOTE_TIMEOUT` is set to `RECAP_DEADLINE_SECS` = 30 only when the environment named none, which bounds the child's own network legs and not the child | not applicable                                                                                                | its own group, but nothing ever kills it                                                                           | only whether the spawn succeeded, as a bool that the card reads (`src/main.rs:spawn_recap`)                                    | none. Reparented when the parent exits. **UNBOUNDED (finding U1)**                                   |
-| P3  | `<channels_dir>/<leg>.sh` with the event on stdin (`src/main.rs:deliver`)                                                         | any event process                                       | NONE. `let _ = child.wait();` with no clock                                                                                                                                                                     | not applicable                                                                                                | no                                                                                                                 | never: "The exit status of a channel that DID run is still dropped"; only launch failure becomes `Delivery::Unlaunched`        | none. **UNBOUNDED (finding U2)**                                                                     |
+| P3  | `<channels_dir>/<leg>.sh` with event stdin (`src/channel_dispatch.rs:deliver`) | any event process                                       | Five seconds across input and wait (`system::finish_bounded`) | `Delivery::Silent`, same as any launched executable | direct child killed and reaped; descendants uncontained | never: "The exit status of a channel that DID run is still dropped"; only launch failure becomes `Delivery::Unlaunched`        | `channel_dispatch::tests` hanging child and blocked input |
 | P4  | `moshi_hook_bin() <subcommand>` with the payload on stdin (`src/main.rs:spawn_moshi_hook`)                                        | the harness hook or gate                                | `submit_deadline()`: `PNS_MOSHI_SUBMIT_DEADLINE_MS`, else `[plugins.mobile] submit_deadline_secs`, else `DEFAULT_SUBMIT_DEADLINE_SECS` = 5s (`src/main.rs:submit_deadline`)                                     | `child.kill()` then `child.wait()`, and the call returns 0, which is no opinion (`src/main.rs:answer_within`) | NO, deliberately: "THE KILL REACHES THE DIRECT CHILD ONLY ... that day the kill has to widen to the process group" | the child's exit code becomes this process's exit code (`src/main.rs:moshi_decision`)                                          | `answer_within` reaps on the kill path; a child that finishes is reaped by `moshi_decision`'s `wait` |
 | P5  | any probe: `terminal-notifier`, `/usr/sbin/ioreg`, `/usr/bin/pgrep`, `/bin/ps`, `herdr` (`src/system.rs:SystemCommandRunner`)     | any process holding a probe set, and the banner channel | `PROBE_DEADLINE` = 5s, and `PROBE_READ_MAX` = 1 MiB of stdout                                                                                                                                                   | `child.kill()` then `child.wait()`, and the runner answers `None` (`src/system.rs:run_bounded`)               | no                                                                                                                 | `None` reads as unknown, and unknown never suppresses                                                                          | `run_bounded`'s kill-and-wait on every non-answer path                                               |
 | P6  | `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with the prompt on stdin (`src/main.rs:condense`)         | the `stop` hook                                         | `PNS_CONDENSER_DEADLINE_MS`, else `CONDENSER_DEADLINE` = 30s; read cap `PROBE_READ_MAX` = 1 MiB                                                                                                                 | as P5                                                                                                         | no                                                                                                                 | `None` falls back to trimming the reply (`src/main.rs:condense`)                                                               | as P5                                                                                                |
@@ -237,13 +237,11 @@ so a child that does not read its stdin cannot block the caller.
   BACKGROUND CHILD'S." Its process group is its own
   (`tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own`), so a harness killing the hook
   by group does not take it with it, and nothing else will ever kill it.
-- **U2: an executable channel (P3) is spawned and waited on with no deadline at all.**
-  `src/main.rs:deliver` writes the event to stdin and then calls `let _ = child.wait();`. A channel
-  script that hangs holds the whole event process for as long as it lives. Note the mitigation that
-  exists and its limit: when this event process is itself a daemon child (P1) it is killed by group at
-  `child_bound`, and `tests/daemon.rs:a_hung_child_does_not_stall_the_tick_and_is_killed` proves the
-  grandchild dies with it. An event process started by a harness hook or by the shell has no such parent
-  bound.
+- **U2: plan 14.2 bounds the executable channel's direct child.**
+  `src/channel_dispatch.rs:deliver` shares `system::finish_bounded` with the probe runner. Input and
+  wait have one five-second budget; expiry kills and reaps the direct child. Descendants are not
+  contained, and killing pns removes the owner of this deadline. The daemon's separate process-group
+  bound still applies to daemon jobs. Producer-death cleanup remains a prerequisite for lights slice 10.
 
 ______________________________________________________________________
 
@@ -1111,17 +1109,16 @@ other test here and stop in production."
 - Compatibility contract: the job re-executes `current_exe()` "AND NEVER A STORED PATH ... so nothing in
   the spool can name another program" (`src/main.rs:spawn_job`).
 
-### 23. The detached recap child and the executable channel are spawned unbounded
+### 23. The recap is detached; an executable channel has a direct-child deadline
 
 Given an event that earns a recap, or a leg whose destination is an executable channel
 
 When the child is started
 
-Then in the recap's case nothing waits on it and nothing ever kills it, and in the channel's case the
-caller waits on it with no deadline at all.
+Then in the recap's case nothing waits on it and nothing ever kills it. The channel's input and wait
+share a five-second deadline while pns is alive.
 
-This is finding U1 and finding U2, stated in the process table. Both are DELIBERATE at their sites and
-both are still unbounded spawns.
+Finding U1 remains open. Plan 14.2 repairs U2's direct-child deadline; descendant cleanup remains open.
 
 - Success: `tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own` proves the group, which
   is the detachment half and not a bound.
@@ -1133,14 +1130,16 @@ both are still unbounded spawns.
 - Thresholds: the recap child gets `PNS_REMOTE_TIMEOUT` = `RECAP_DEADLINE_SECS` = "30" ONLY when the
   environment named no deadline, because "`PNS_REMOTE_TIMEOUT=0` is curl's `-m 0`, no deadline at all,
   which nobody is behind to interrupt here: a wedged gateway would keep this process alive for good, and
-  every later window would add another." There is NO byte or time ceiling on the executable channel.
+  every later window would add another." The executable channel has a five-second direct-child budget
+  and no byte ceiling on inherited output.
 - Required side effects: the recap child gets `stdin`, `stdout` and `stderr` all null and its own process
   group; the channel gets the event on stdin, newline-terminated, "as the bash's `jq -cn` emitted it".
 - Forbidden side effects: the recap child must NOT stay in the parent's group: "A hook the harness times
   out is killed by GROUP, and so is a shell prompt taking `SIGINT`; a child left in the parent's group
   goes with it, after the marker has already moved on, so the window can never fire again."
-- Timeout and cancellation: none in either case. When the parent is itself a daemon child, finding U2 is
-  bounded transitively by behavior 22; a hook-started or shell-started parent has no such bound.
+- Timeout and cancellation: the executable direct child is killed and reaped at its deadline, still
+  answering `Delivery::Silent`. This cleanup does not survive pns death or contain descendants. The
+  daemon's separate process-group deadline is described by behavior 22.
 - Idempotency and duplicates: the recap child re-reads the activity ring itself, so "nothing is
   serialized between them and nothing is lost if the child never starts."
 - Privacy: the channel receives the fully rendered event, which is the operator's own text, over a pipe

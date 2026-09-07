@@ -79,7 +79,7 @@ pub fn run_bounded(
     max_bytes: u64,
 ) -> Option<String> {
     let expires_at = std::time::Instant::now() + deadline;
-    let mut child = command
+    let child = command
         .stdin(if stdin_text.is_some() {
             std::process::Stdio::piped()
         } else {
@@ -90,12 +90,21 @@ pub fn run_bounded(
         .spawn()
         .ok()?;
 
+    finish_bounded(child, stdin_text, expires_at, max_bytes)
+}
+
+pub fn finish_bounded(
+    mut child: std::process::Child,
+    stdin_text: Option<&str>,
+    expires_at: std::time::Instant,
+    max_bytes: u64,
+) -> Option<String> {
     // The WRITE is inside the window too: a child that never reads its stdin
     // blocks the writer, and doing it before the clock started meant the
     // deadline never covered the case.
     let stdin_text = stdin_text.map(String::from);
     let mut stdin = child.stdin.take();
-    let mut stdout = child.stdout.take()?;
+    let stdout = child.stdout.take();
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         if let (Some(text), Some(mut pipe)) = (stdin_text, stdin.take()) {
@@ -110,8 +119,10 @@ pub fn run_bounded(
         // the ceiling is asked for so the reader downstream can tell a child
         // that went over from one that stopped exactly on it.
         let mut output = Vec::new();
-        let mut capped = std::io::Read::take(&mut stdout, max_bytes.saturating_add(1));
-        let _ = std::io::Read::read_to_end(&mut capped, &mut output);
+        if let Some(stdout) = stdout {
+            let mut capped = std::io::Read::take(stdout, max_bytes.saturating_add(1));
+            let _ = std::io::Read::read_to_end(&mut capped, &mut output);
+        }
         // The BYTES travel, not a string: the size that matters is the size on
         // the wire, and a lossy conversion grows an invalid byte into three.
         let _ = sender.send(output);
@@ -119,7 +130,7 @@ pub fn run_bounded(
 
     // Over the ceiling is the same no-answer a blown deadline is; see above.
     let output = receiver
-        .recv_timeout(deadline)
+        .recv_timeout(expires_at.saturating_duration_since(std::time::Instant::now()))
         .ok()
         .filter(|bytes: &Vec<u8>| bytes.len() as u64 <= max_bytes);
     // Closed stdout is not an exited process: a child can close it and sleep,

@@ -36,9 +36,11 @@ already has a behavior-numbered row above it.
 Two entries are findings rather than merely missing tests, and are called out because a test alone will
 not close them:
 
-- An executable channel runs with **no deadline and no output ceiling**. `src/main.rs:deliver` spawns the
-  channel and calls `child.wait()`, so a wedged channel holds the event open indefinitely. Every other
-  delivery path and every probe is bounded.
+- S147's executable deadline is repaired by plan 14.2. `src/channel_dispatch.rs:deliver` shares
+  `system::finish_bounded` with the probe runner: input and direct-child wait have one five-second
+  budget, and an expired child is killed and reaped. The two `channel_dispatch::tests` cases pin a
+  hanging child and blocked input with short private budgets. Output remains inherited without a byte
+  ceiling. Descendant cleanup after producer death remains outside this repair and gates lights slice 10.
 - **Nothing calls `fsync`, `sync_all` or `sync_data` anywhere in the crate**, so there is no durability
   guarantee to test. That is a decision the persistence step has to take deliberately rather than
   inherit.
@@ -114,11 +116,11 @@ Write the test against the code where it lives today, then move.
 | `return-recap.md` | 7. Review notes are one directory, one glob, one window, and every read is bounded | nothing bounds the wall time of `notes_matching`; a directory on a hung network mount would block the recap child for as long as the mount does, and no test or comment addresses it. |
 | `return-recap.md` | 8. One recap spends one summarizer budget across up to three questions | the child INHERITS this process's environment. `src/main.rs:summarize` builds a bare `Command::new(program)` with no `env_clear` and no `env_remove`, so every variable in the recap child's environment reaches the summarizer, and no test or comment addresses that. |
 | `return-recap.md` | 8. One recap spends one summarizer budget across up to three questions | no test or comment covers a forking summarizer. |
-| `routing-and-delivery.md` | 11. An executable channel is handed the event on stdin and never reports | no test in `tests/dispatch.rs` or `tests/native.rs` pins the absence of a deadline here; grepped both files for `sleep`, `deadline` and `timeout` against the channel-stub tests and found nothing exercising a hanging channel. |
+| `routing-and-delivery.md` | 11. An executable channel is handed the event on stdin and never reports | S147 direct-child deadline repaired in plan 14.2 and pinned by `channel_dispatch::tests`. Output ceiling and producer-death descendant cleanup remain open.
 | `routing-and-delivery.md` | 11. An executable channel is handed the event on stdin and never reports | no test observes an executable channel writing to stdout; the stub channels all redirect into a file (`tests/support/mod.rs:Sandbox::without_config`), and `tests/dispatch.rs:an_absent_channel_is_simply_not_installed` asserts empty stdout only for a channel that never ran. |
 | `routing-and-delivery.md` | 16. A route is a NAME, and it swaps the gateway's final path segment | no test pins that warning line from `hermes_url_for`. grepped `tests/` for `usable route name` and the only hit is `tests/dispatch.rs` line 1385, which pins the analogous sentence from `src/home.rs` for `stale_alert_channel`, not the `--channel` one. |
 | `routing-and-delivery.md` | 19. A channel that panics costs one leg, never the run | whether a child can be orphaned that way. looked at `src/main.rs:dispatch_legs` and `src/system.rs:run_bounded` and found no drop guard, and no test exercises a panicking channel. |
-| `routing-and-delivery.md` | (spec preamble or a table row) | no test pins that an executable channel has no deadline or output ceiling. grepped `tests/dispatch.rs` and `tests/native.rs` for a hanging or high-volume stub channel and found none. The absence is read from `src/main.rs:deliver`, which calls `Command::spawn` and `child.wait()` directly rather than ... |
+| `routing-and-delivery.md` | (spec preamble or a table row) | S147 direct-child deadline repaired in plan 14.2 and pinned by `channel_dispatch::tests`. Output ceiling and producer-death descendant cleanup remain open.
 | `routing-and-delivery.md` | (spec preamble or a table row) | no test observes an executable channel writing to the event's stdout or stderr. `src/main.rs:deliver` configures neither, so both are inherited; every stub channel in `tests/support/mod.rs:Sandbox::without_config` redirects into a file instead. |
 | `routing-and-delivery.md` | (spec preamble or a table row) | no test pins the `pns: --channel "<name>" is not a usable route name; posting to the default route` warning from `src/main.rs:hermes_url_for`. The only `usable route name` assertion in `tests/` is `tests/dispatch.rs` line 1385, which covers `src/home.rs`'s analogous sentence for `stale_alert_channel`. |
 | `routing-and-delivery.md` | (spec preamble or a table row) | no test exercises a panicking channel, so `src/main.rs:dispatch_legs`'s `catch_unwind` arm and its `the {name} channel PANICKED; nothing was sent` sentence are unpinned. grepped `tests/` for `PANICKED` and found no hits. |
