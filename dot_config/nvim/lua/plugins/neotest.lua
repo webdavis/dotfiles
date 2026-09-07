@@ -470,7 +470,7 @@ return {
       -- Ours, in its own repository and installed like any other plugin. A dependency rather
       -- than a filetype-lazy spec, like the two above, so it reaches the runtime path when
       -- neotest itself loads and is there before `config` builds the adapter list.
-      { "webdavis/neotest-bashunit", commit = "d4369fa38b3b6688fd2a57d3e6275d28c262ab48" },
+      { "webdavis/neotest-bashunit", commit = "4c07ce1c94a53be4a5e8c959fd759432c81039f6" },
     },
     -- stylua: ignore start
     keys = {

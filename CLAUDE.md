@@ -385,30 +385,20 @@ the two agree, so they must be moved together by hand. The same hand-sync applie
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
-**bashunit is pinned in CI, and the gate that used to check the pin now lives in another repository.**
-The `neotest-bashunit` adapter moved out to `webdavis/neotest-bashunit` when custom Neovim plugins became
-their own repositories, and it took `parse.verified_version` and its frozen fixtures with it. That
-version check is still real, it just runs over there and in `:checkhealth neotest-bashunit`, not in this
-repository's suite: nothing here notices a bashunit whose output shape moved.
+**bashunit uses a pinned upstream beta in CI.** The stable release 0.50.1 splits comma-containing
+exclusions incorrectly. `.github/workflows/lint.yml` checks out `BASHUNIT_COMMIT`, runs upstream's
+unchanged build, and verifies the executable against `BASHUNIT_SHA256` before adding it to `PATH`. The
+Git checkout is required because upstream's source archives omit documentation the build embeds.
 
-The CI pin stays, because this repository's own `*.test.sh` corpus runs on whatever bashunit the runner
-has. The toolchain step in `.github/workflows/lint.yml` downloads bashunit's release asset itself and
-verifies it against a sha256 pinned beside the version, rather than taking the formula or running an
-unpinned installer script; the runner's cached Homebrew index once poured 0.43.0 into a job and turned
-the whole Lint job red. Pinning the checksum here is what the version alone cannot do: a compromised
-upstream release can rewrite a tag and the checksum it publishes, but not the one in our tree.
+The source build still reports `0.50.1`, so its version banner cannot distinguish it from the release.
+The `webdavis/neotest-bashunit` adapter certifies the measured executable by checksum as well as version.
+Move the source commit, executable checksum and adapter pin together, after re-measuring its fixtures.
+The adapter's fixture gate lives in that repository; this repository's suite runs its own shell tests.
 
-`BASHUNIT_VERSION` and `BASHUNIT_SHA256` in that workflow step move together by hand. When the pin moves,
-the adapter repository's `M.verified_version` and fixtures have to be re-measured too, and nothing across
-the two repositories enforces that.
-
-Local stays Homebrew (`Brewfile.dev`, `.chezmoidata/system_packages_autoinstall.yaml`), because Homebrew
-has no declarative version pin the way `uv`'s `==` does. That used to be survivable: the adapter's own
-suite refused to certify fixtures captured from a different release, so a `brew upgrade bashunit` past
-the pin turned `just test-unit` red on a machine where nobody had touched a test. **That gate left with
-the adapter.** A local upgrade now silently moves the release this repository's whole `*.test.sh` corpus
-runs on, and nothing here says a word; CI is the only place the pinned release is still what runs. That
-is the REVERSE of the stylua trade below, and it was not chosen: it is what moving the adapter out cost.
+The local beta is installed at `~/.local/bin/bashunit`, ahead of Homebrew on the managed shell's `PATH`.
+Homebrew still supplies the stable fallback through `Brewfile.dev` and the system package declaration; a
+Homebrew upgrade does not replace this local override. `just setup` supplies that stable fallback, so a
+fresh machine also needs the pinned beta build before using the measured adapter.
 
 **stylua is deliberately NOT pinned.** It is also a byte rewriter, same class of risk as mdformat, but
 Homebrew has no declarative version pin the way `uv`'s `==` does. The cost: a newer stylua on a fresh
