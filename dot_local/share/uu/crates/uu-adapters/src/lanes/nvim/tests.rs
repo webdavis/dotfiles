@@ -38,19 +38,21 @@ impl CommandRunner for Child {
         })
     }
 }
-fn lane() -> NvimPluginsLane {
+fn lane(auto_commit: bool) -> NvimPluginsLane {
     NvimPluginsLane {
         host: NvimHost {
             nvim: "/fixture/nvim".into(),
             config: "/fixture/config with spaces/".into(),
         },
+        auto_commit,
+        repo: Some("/fixture/source with spaces".into()),
     }
 }
 
 #[test]
 fn the_plugins_lane_runs_nvim_headless_with_the_configs_init_and_the_uu_module() {
     let child = Child::new(Verdict::Clean);
-    let report = lane().run("editor", &stub_facts(), &child);
+    let report = lane(false).run("editor", &stub_facts(), &child);
     assert_eq!(report.verdict(), LaneVerdict::Completed);
     assert_eq!(
         *child.calls.borrow(),
@@ -69,7 +71,7 @@ fn the_plugins_lane_runs_nvim_headless_with_the_configs_init_and_the_uu_module()
 fn an_nvim_lane_names_its_own_lane_not_its_type() {
     let child = Child::new(Verdict::Clean);
     assert_eq!(
-        lane().run("my-editor", &stub_facts(), &child).name,
+        lane(false).run("my-editor", &stub_facts(), &child).name,
         "my-editor"
     );
 }
@@ -77,7 +79,7 @@ fn an_nvim_lane_names_its_own_lane_not_its_type() {
 #[test]
 fn a_plugins_child_exiting_pending_is_a_pending_lane_carrying_its_lines() {
     let child = Child::new(Verdict::Pending("exit 100: pins need review".into()));
-    let report = lane().run("editor", &stub_facts(), &child);
+    let report = lane(false).run("editor", &stub_facts(), &child);
     assert_eq!(report.verdict(), LaneVerdict::Pending);
     assert_eq!(report.failures(), 0);
     assert_eq!(
@@ -96,10 +98,32 @@ fn a_plugins_child_exiting_non_zero_is_a_counted_failure_carrying_its_stderr_tai
         Verdict::Deferred("exit 75: fetch tail".into()),
     ] {
         let child = Child::new(verdict);
-        let report = lane().run("editor", &stub_facts(), &child);
+        let report = lane(false).run("editor", &stub_facts(), &child);
         assert_eq!(report.verdict(), LaneVerdict::Failed);
         assert_eq!(report.failures(), 1);
         assert_eq!(report.lines[0], "finder: updates available");
         assert!(report.lines[1].ends_with("fetch tail"));
     }
+}
+
+#[test]
+fn a_plugins_lane_with_auto_commit_on_hands_the_module_the_repo() {
+    let child = Child::new(Verdict::Clean);
+    lane(true).run("editor", &stub_facts(), &child);
+    assert_eq!(
+        &child.calls.borrow()[0][6..],
+        &["--auto-commit", "--repo", "/fixture/source with spaces"]
+    );
+}
+
+#[test]
+fn a_plugins_lane_with_auto_commit_off_passes_no_commit_flag() {
+    let child = Child::new(Verdict::Clean);
+    lane(false).run("editor", &stub_facts(), &child);
+    assert_eq!(child.calls.borrow()[0].len(), 6);
+    assert!(
+        !child.calls.borrow()[0]
+            .iter()
+            .any(|arg| arg == "--auto-commit" || arg == "--repo")
+    );
 }

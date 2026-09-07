@@ -134,3 +134,21 @@ for these retained limits.
   pending or failed plugin by name and count current plugins without listing them. Any plugin error makes
   the report failed; otherwise updates make it pending. Exit through Neovim so the completed headless
   instance releases its server socket.
+- **Given** `auto_commit = true`, **when** resolving configuration, **then** require an absolute `repo`.
+  Its default is false; a non-boolean value is refused with the key and written value.
+- **Given** an enabled writeback with no open recovery, **when** its branch or lock preflight is refused,
+  **then** report the reason and check only. Require a branch, a clean source lock, equality of
+  committed, indexed and deployed lock bytes, and installed lock-managed revisions matching the lock.
+  Local plugins are outside lock management.
+- **Given** an allowed writeback, **when** updating, **then** durably save the repository, config,
+  branch, starting commit and old lock before any update. Save the candidate lock after the update,
+  including a failed update. Immediately before copying, recheck branch, commit, source and index lock
+  bytes. Preserve intervening edits and retain recovery on any refusal.
+- **Given** changed plugin pins, **when** committing, **then** copy and commit only
+  `dot_config/nvim/lazy-lock.json` with ordinary hooks, preserving unrelated staged paths. Report
+  completion only after committed, deployed and installed pins agree. An unchanged candidate closes
+  recovery without an empty commit. Update, copy, hook and commit failures remain failed and retain both
+  old and candidate lock bytes.
+- **Given** open recovery, **when** the lane runs again, **then** refuse checks and updates until the
+  operator's clean committed, deployed and installed pins agree, even if auto-commit is now off. After
+  that agreement, archive the recovery record and resume the requested mode.

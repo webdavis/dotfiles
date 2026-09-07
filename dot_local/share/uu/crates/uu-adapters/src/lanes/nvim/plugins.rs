@@ -14,6 +14,17 @@ impl LaneAdapter for NvimPluginsLane {
         Some(&self.host.nvim)
     }
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
-        invoke(&self.host, "plugins", &[], name, runner)
+        let args = if self.auto_commit {
+            vec![
+                "--auto-commit",
+                "--repo",
+                self.repo
+                    .as_deref()
+                    .expect("parser requires repo for auto_commit"),
+            ]
+        } else {
+            Vec::new()
+        };
+        invoke(&self.host, "plugins", &args, name, runner)
     }
 }

@@ -171,10 +171,14 @@ deadline_secs = 21600
 # deadline_secs = 21600
 # escalate_after_runs = 3
 
-# Check the committed Neovim plugin pins without changing them.
+# Check the committed Neovim plugin pins without changing them. Enabling
+# auto_commit also requires clean, matching source, deployed and installed pins.
+# Failed write-back retains recovery state until those pins are reconciled.
 [lanes.nvim-plugins]
 type = "nvim-plugins"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
+auto_commit = false
+repo = "{{ .chezmoi.sourceDir }}"
 escalate_after_runs = 3
 deadline_secs = 21600

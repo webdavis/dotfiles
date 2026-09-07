@@ -201,7 +201,8 @@ mod tests {
                 let text = if table == TOP_LEVEL {
                     format!("{key} = true\n")
                 } else {
-                    format!("[{table}]\n{key} = true\n")
+                    let probe = if *key == "auto_commit" { "42" } else { "true" };
+                    format!("[{table}]\n{key} = {probe}\n")
                 };
                 let detail = match parse_config(&text) {
                     Err(error) => error.detail().to_string(),

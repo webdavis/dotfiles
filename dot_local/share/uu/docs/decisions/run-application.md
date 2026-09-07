@@ -147,3 +147,22 @@ existing command runner preserves the child exit and stdout; the adapter maps Ne
 pending or failure. The outer Neovim configuration owns Lazy calls and Git writeback, so the Rust package
 contains no dependency on a deployed Lua path. The required absolute config names both its initializer
 and the entry script. Pure report decisions stay separate from plugin, Git and filesystem operations.
+
+Writeback is off by default. The shipped template enables the report lane and records the source
+repository explicitly. Recovery lives at `stdpath("state")/uu/plugins-<config hash>.json`. Each record is
+a versioned JSON (JavaScript Object Notation) file with restrictive permissions, file and
+parent-directory synchronization and atomic replacement. This filesystem protocol belongs beside the lock
+bytes it protects. No database migration or new Rust dependency is involved.
+
+A failed writeback leaves the active recovery file, its old lock and candidate lock for inspection. The
+operator chooses the desired pins and reconciles the source commit, deployed lock and installed
+lock-managed plugins. A later invocation verifies that agreement before renaming the record to its
+`.closed` archive. Disabling auto-commit cannot skip an open recovery. Successful commits use Git's
+ordinary hooks and the exact owned lock path, with only the already approved message-generation and
+graph-refresh environment settings. The lane never pushes or resets the index.
+
+The native fixture uses the current copied Neovim configuration and candidate modules, with a private
+initializer selecting copied Lazy code and one owned local plugin repository. It proves actual checks,
+updates, accepting and rejecting hooks and recovery. The fixture never reads live editor sockets or
+changes installed third-party source. The native exit regression also proves that a completed plugin
+report closes its own socket.

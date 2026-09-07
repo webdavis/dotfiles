@@ -17,7 +17,9 @@ fn an_nvim_lane_defaults_its_binary_to_nvim_on_the_running_path() {
             host: NvimHost {
                 nvim: "nvim".into(),
                 config: "/fixture/config".into()
-            }
+            },
+            auto_commit: false,
+            repo: None
         })
     );
 }
@@ -27,5 +29,21 @@ fn an_nvim_lane_config_that_is_not_absolute_is_refused_by_name() {
     for value in ["\"relative\"", "\" \"", "42"] {
         let why = refusal(&format!("[lanes.nvim-plugins]\nconfig = {value}\n"));
         assert!(why.contains("config") && !why.contains("unknown"), "{why}");
+    }
+}
+
+#[test]
+fn a_plugins_lane_with_auto_commit_on_and_no_repo_is_refused_by_name() {
+    let why = refusal("[lanes.nvim-plugins]\nconfig = \"/fixture/config\"\nauto_commit = true\n");
+    assert!(why.contains("repo") && why.contains("auto_commit"), "{why}");
+}
+
+#[test]
+fn auto_commit_that_is_not_a_boolean_is_refused_naming_what_was_written() {
+    for value in ["42", "\"yes\"", "[]"] {
+        let why = refusal(&format!(
+            "[lanes.nvim-plugins]\nconfig = \"/fixture/config\"\nauto_commit = {value}\n"
+        ));
+        assert!(why.contains("auto_commit") && why.contains(value), "{why}");
     }
 }
