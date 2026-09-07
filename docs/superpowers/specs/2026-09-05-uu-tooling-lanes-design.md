@@ -427,6 +427,17 @@ hermes registry-update phase, the fork drift check, the app-owned `cua-driver` p
 superpowers routing assertion all stay. The roster gate stays fail-closed: a missing, unparseable or
 schema-broken `custom-skill-lock.json`, or one tracking zero skills, refuses the run.
 
+Weekly publication captures the outgoing generation's skill names before exchange. After either a
+fresh build or recovered candidate is published, it removes delisted managed store symlinks and
+quarantines delisted real directories whose names belonged to that outgoing generation. Foreign real
+directories and foreign or app-owned symlinks survive. Surviving store entries remain eligible for
+Claude delivery unless `claudeDelivery` is `"none"`; Hermes also requires a profile mapping and excludes
+the collision names. Owned delisted content leaves both delivery sets before fan-out. Recovery keeps
+the outgoing ownership evidence until that pruning finishes, before sweeping its generation.
+Full candidate validation also rejects surplus npx lock keys, preventing later reinstalls of delisted
+skills. Additive bootstrap preserves existing generation names, lock entries and store entries and
+does not prune delisted content; the next full weekly publication owns that removal.
+
 What changes. The exchange primitive is `renameatx_np` with `RENAME_SWAP`, through libc, which is
 the macOS system call Coreutils `mv --exchange` wraps; uu is already macOS-only, so resolving it at run
 time and probing it with a swap goes away. The `--dry-run` mode goes away; nothing in this repository

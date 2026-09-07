@@ -579,7 +579,12 @@ garbage sweep, the in-flight marker and `recover()`. Tests:
 `replacement_after_startup_does_not_change_the_captured_updater_identity`,
 `a_generation_whose_metadata_id_disagrees_with_its_directory_is_refused`,
 `an_in_flight_exchange_marker_is_finished_on_the_next_run`,
-`failed_prior_generation_retention_keeps_the_marker_and_workspace_out_of_the_sweep`.
+`failed_prior_generation_retention_keeps_the_marker_and_workspace_out_of_the_sweep`,
+`recovery_keeps_outgoing_ownership_evidence_until_delisted_pruning_finishes`.
+E10 needs the outgoing skill names captured before exchange, including on replay after exchange.
+Retain that evidence with the interrupted publication until E10 finishes pruning; sweeping a retained
+generation must not erase the only ownership evidence. The bash snapshot `GEN_PREV_OWNED_NAMES` is
+process-local, so copying that variable alone would lose ownership on restart.
 Sizes: `generation.rs` about 220 plus
 `generation/tests.rs` about 280; `generation/exchange.rs` about 60.
 
@@ -613,26 +618,53 @@ plus tests about 180.
 **PR E9 Codex overlays and candidate validation.** Adds `src/lanes/skills/overlay.rs` (the
 `agents/openai.yaml` policy asserted into every on-demand skill directory, stripped from a core one)
 and `src/lanes/skills/validate.rs` (every tracked name present with a `SKILL.md`, the lock one
-document, every overlay right; a failure discards the whole candidate). Tests:
+document, every overlay right; a failure discards the whole candidate). A full candidate's npx lock
+keys equal `npxTracked`; additive candidates may retain delisted keys until the next weekly refresh.
+Tests:
 `an_on_demand_skill_gets_the_codex_overlay_and_a_core_one_does_not`,
 `a_candidate_missing_a_tracked_skill_or_its_skill_md_fails_validation_and_is_discarded`,
-`a_candidate_whose_overlays_drifted_fails_validation`. Sizes: two files about 120 plus tests about
+`a_candidate_whose_overlays_drifted_fails_validation`,
+`a_full_candidate_with_a_delisted_npx_lock_key_is_refused_but_additive_preserves_it`.
+Mutant: remove `__gen_validate_candidate`'s full-mode exact-key check, leaving single-document
+validation intact. Sizes: two files about 120 plus tests about
 150 each.
 
 **PR E10 publish and the store links.** Adds `src/lanes/skills/publish.rs`: the exchange, the
-store symlinks `~/.agents/skills/<name>` to `../.skills-current/skills/<name>`, the delisted prune
-(a real directory where a link is expected is reported, never deleted), the npx lock link. Tests:
+store symlinks `~/.agents/skills/<name>` to `../.skills-current/skills/<name>`, the npx lock link,
+and full-run pruning based on E6's outgoing ownership evidence. Remove an exact managed symlink when
+its name is delisted; quarantine a delisted real directory only when its name belonged to the outgoing
+generation. Preserve foreign real directories, foreign/app-owned symlinks and still-tracked names.
+For tracked real directories, preserve reconciliation's separate rule: replace one only after recovery
+has absorbed its content into the published generation; report an unseen competing writer and leave it.
+Both fresh and reused weekly candidates reconcile and prune before E11 computes delivery sets.
+Interrupted publication replays pruning with the retained outgoing names before releasing their
+evidence to the sweep. Additive publication never prunes or replaces an existing store entry. Tests:
 `a_published_candidate_becomes_current_and_every_store_link_resolves_into_it`,
-`a_delisted_name_loses_its_store_link_and_a_real_dir_there_is_reported_not_deleted`,
-`the_npx_lock_link_points_into_the_current_generation`. Sizes: about 160 plus tests about 200.
+`a_delisted_managed_store_link_is_removed_without_following_foreign_symlinks`,
+`a_delisted_outgoing_owned_real_directory_leaves_the_store`,
+`a_foreign_real_directory_survives_delisted_pruning`,
+`a_tracked_real_directory_is_replaced_only_after_its_content_is_absorbed`,
+`recovery_after_exchange_prunes_with_outgoing_names_before_sweeping`,
+`additive_publication_preserves_existing_store_entries`,
+`the_npx_lock_link_points_into_the_current_generation`.
+Independent source-derived mutants in `__gen_prune_delisted_store_links`: skip its owned-real-directory
+branch; remove only its `__gen_name_was_generation_owned` guard; remove only its exact managed-link
+guard. Each must fail its own control while the unmutated control passes. Also drop the outgoing-name
+snapshot in `__gen_publish`; replay must retain that identity across restart. In
+`__gen_reconcile_store_links`, bypass the reabsorbed-name check and, separately, its additive early
+return. Sizes: about 180 implementation plus private tests about 280, split by behavior at thresholds.
 
-**PR E11 the fan-out.** Adds `src/lanes/skills/fanout.rs`: Claude gets every store skill except a
-`claudeDelivery` `"none"` row; hermes gets exactly the profiles each `hermesProfiles` row names
+**PR E11 the fan-out.** Adds `src/lanes/skills/fanout.rs`: Claude gets every surviving store skill
+except a `claudeDelivery` `"none"` row; hermes gets exactly the profiles each `hermesProfiles` row names
 (`default` is `~/.hermes/skills`, any other name `~/.hermes/profiles/<name>/skills`), the two
 collision names never, and a profile `skills` directory that is a symlink or missing is refused.
+Derive eligibility from the post-prune store, not just the tracked roster: a preserved foreign real
+skill directory can still reach Claude and, when mapped and non-colliding, Hermes. A removed owned
+delisted directory reaches neither, and full convergence removes its stale managed delivery links.
 Tests: `every_store_skill_reaches_claude_unless_delivery_is_none`,
 `a_hermes_profile_row_plants_exactly_the_listed_profiles_and_an_empty_row_plants_none`,
 `a_collision_name_is_never_fanned_out_to_hermes`,
+`owned_delisted_content_leaves_both_delivery_sets_while_foreign_content_remains_eligible`,
 `a_profile_skills_dir_that_is_a_symlink_is_refused`. Sizes: about 180 plus tests about 220.
 
 **PR E12 the hermes registry phase.** Adds `src/lanes/skills/hermes.rs`: `hermes -p <profile>
@@ -666,22 +698,34 @@ live phases still run against the unchanged generation and their failures aggreg
 `a_flat_store_is_migrated_and_recovered_before_weekly_candidate_build`,
 `a_failed_candidate_leaves_publication_untouched_but_still_runs_live_followup_phases`,
 `weekly_before_and_after_fingerprints_produce_the_skills_change_section`.
-Use fake effects to remove each phase in turn and prove the whole-run behavior test fails. Registration
-waits for E16. Order: after E5 through E14. Sizes: orchestration about 150 implementation, private tests
+Use fake effects to remove each phase in turn and prove the whole-run behavior test fails. Add separate
+fresh-build and reused-candidate controls:
+`fresh_weekly_publication_prunes_owned_delisted_content_before_delivery`,
+`reused_weekly_publication_prunes_owned_delisted_content_before_delivery`.
+Each starts with owned and foreign real directories plus stale managed delivery links, then asserts
+store contents and both harnesses' resulting links. Remove each of `__gen_weekly_attempt`'s two
+`__gen_prune_delisted_store_links` calls independently; skipping either must fail its matching control.
+Registration waits for E16. Order: after E5 through E14. Sizes: orchestration about 150 implementation,
+private tests
 about 250; migration about 150 implementation, private tests about 200; split at the stated thresholds.
 
 **PR E15 skills bootstrap.** Adds `src/lanes/skills/bootstrap.rs`: per roster skill
 the health reading (`absent`, `link`, `skillmd`, `lock`, `overlay`), a forced reinstall for the first
 four, a rebuild for the fifth, additive publish, a fan-out that creates missing links only, live overlay
 checks and routing. Bootstrap stays additive and never migrates a flat store or refreshes healthy
-skills. It propagates required phase failures and remains unregistered until E16.
+skills. It retains delisted generation names and npx lock keys, never prunes the store, and leaves
+existing delivery entries alone; E9's exact lock-key rule applies only to full candidates. It propagates
+required phase failures and remains unregistered until E16.
 Tests:
 `a_healthy_store_bootstraps_as_a_no_op_that_publishes_nothing`,
 `an_absent_roster_skill_is_installed_and_published`,
 `a_link_that_resolves_to_a_skill_without_its_skill_md_is_reinstalled`,
 `bootstrap_never_updates_a_present_and_healthy_skill`,
 `bootstrap_never_migrates_a_flat_store`,
+`bootstrap_preserves_delisted_generation_lock_store_and_delivery_entries`,
 `bootstrap_returns_failure_when_a_required_post_publish_check_fails`.
+Source controls come from `__gen_build_candidate`'s additive copy and `converge_dir`'s
+`INSTALL_ONLY` branch; filter that copy to tracked names and remove that branch independently.
 Order: after E1 and E15a. Sizes: bootstrap about 180 implementation plus private tests about 220.
 Re-decompose by responsibility at the thresholds.
 
