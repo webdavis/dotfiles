@@ -87,18 +87,51 @@ mod tests {
         assert!(input.ends_with('\n'), "{input:?}");
         let event: serde_json::Value =
             serde_json::from_str(input.trim_end()).expect("the event is JSON");
-        // The COMPLETE parsed event against the same facts `lane_event`
-        // itself would produce, not just one field: a mutant that swaps the
-        // event for `{"lane":"mine"}` still has a correct `lane` field.
-        let recorded: serde_json::Value =
-            serde_json::from_str(lane_event("mine", &stub_facts()).trim_end())
-                .expect("the reference event is JSON");
-        assert_eq!(event, recorded);
+        assert_eq!(
+            event,
+            serde_json::json!({
+                "agent": "uu",
+                "lane": "mine",
+                "host": "test-host",
+                "started": {"epoch": 0, "iso": "1970-01-01T00:00:00Z"},
+                "last_successful_run": {"state": "never-recorded"},
+            })
+        );
         assert!(
             report.lines.contains(&"3 upgraded".to_string()),
             "{:?}",
             report.lines
         );
+    }
+
+    #[test]
+    fn a_command_lane_preserves_recorded_and_unreadable_markers_in_the_child_event() {
+        use crate::record::Marker;
+
+        for (marker, expected) in [
+            (
+                Marker::Unreadable,
+                serde_json::json!({"state": "unreadable"}),
+            ),
+            (
+                Marker::Recorded {
+                    epoch: 42,
+                    iso: "a\"b\nc".to_string(),
+                },
+                serde_json::json!({"state": "recorded", "epoch": 42, "iso": "a\"b\nc"}),
+            ),
+        ] {
+            let runner = ScriptedRunner::new(&[]);
+            let facts = RunFacts {
+                marker: &marker,
+                ..stub_facts()
+            };
+            command_lane(&["/bin/updater"]).run("mine", &facts, &runner);
+            let inputs = runner.inputs();
+            assert_eq!(inputs.len(), 1);
+            let event: serde_json::Value = serde_json::from_str(&inputs[0]).unwrap();
+            assert_eq!(event["last_successful_run"], expected);
+        }
     }
 
     #[test]
