@@ -114,6 +114,11 @@ mod tests {
                 "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
                 "nvim-plugins",
             ),
+            (
+                "nvim-smoke-test",
+                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+                "nvim-smoke-test",
+            ),
             ("herdr", "[lanes.herdr]\n", "herdr"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
             ("uv", "[lanes.uv]\n", "uv"),

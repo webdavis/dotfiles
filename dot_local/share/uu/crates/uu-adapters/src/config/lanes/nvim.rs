@@ -120,5 +120,36 @@ pub(crate) fn parse_nvim_parsers_lane(
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NvimSmokeTestLane {
+    pub(crate) host: NvimHost,
+    pub(crate) cache: String,
+}
+
+impl NvimSmokeTestLane {
+    pub(crate) const KEYS: &'static [&'static str] = &[
+        "cache",
+        "config",
+        "deadline_secs",
+        "escalate_after_runs",
+        "nvim",
+        "type",
+    ];
+    pub(crate) fn parse(label: &str, fields: toml::Table) -> Result<Self, ConfigError> {
+        for key in fields.keys() {
+            admits_lane(label, "nvim-smoke-test", Self::KEYS, key)?;
+        }
+        let cache = fields.get("cache").ok_or_else(|| {
+            ConfigError::Invalid(format!(
+                "`{label}` has no `cache`; state the absolute candidate tree directory"
+            ))
+        })?;
+        Ok(Self {
+            host: host(label, &fields)?,
+            cache: absolute(label, "cache", cache)?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;

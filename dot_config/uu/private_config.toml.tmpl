@@ -196,3 +196,14 @@ type = "nvim-parsers"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
 deadline_secs = 21600
+
+# Opt-in: prepare candidate plugins in a private config and data tree, then
+# verify startup in a fresh Neovim process. The retained plugin and copied Mason
+# trees cost roughly 2.5 gigabytes (2026-09-06 measurement). Health
+# reports stay under cache. Uncomment to enable; trash that cache to reclaim space.
+# [lanes.nvim-smoke-test]
+# type = "nvim-smoke-test"
+# nvim = "/opt/homebrew/bin/nvim"
+# config = "{{ .chezmoi.homeDir }}/.config/nvim"
+# cache = "{{ .chezmoi.homeDir }}/.cache/uu/nvim-smoke-test"
+# deadline_secs = 21600

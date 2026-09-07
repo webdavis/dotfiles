@@ -13,7 +13,7 @@ existing exit behavior.
 | `uu-domain`      | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                                |
 | `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                               |
 | `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                   |
-| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns` and the existing infrastructure libraries.                   |
+| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns-hermes` and the existing infrastructure libraries.            |
 | `uu-cli`         | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
 
 `uu-cli` also takes `uu-domain` as a test dependency for the value types in the existing application
@@ -86,7 +86,7 @@ samples the host for the outbound weekly record; this is not one host lookup for
 
 Concrete adapters and command parsing belong to their own crates; the root is a virtual workspace. Parser
 fixtures belong to the adapter package, and the outer repository verifies its actual configuration
-template separately. The command's registration list binds eight type names to their typed parsers,
+template separately. The command's registration list binds nine type names to their typed parsers,
 execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a registration
 while retaining the operator's declared name, resolved deadline and pending threshold. Execution and
 doctor use that selected adapter, so neither repeats a technology-name switch. Domain and application
@@ -186,3 +186,11 @@ binaries. Execution evidence uses owned interpreter scripts through each rendere
 missing-directory and system-precedence faults. Native installer evidence uses copied plugin code, a
 supported local Mason registry, inert owned artifacts and a locally compiled owned grammar. Installed
 plugin trees and live editor sockets are outside those fixtures.
+
+## Candidate startup verification
+
+The opt-in smoke lane copies config and Mason into its cache, isolates both children with private HOME
+and Claude discovery roots, prepares updates, and verifies the resulting lock in a fresh VimEnter
+process. Completion is tied to this run and the exact lock bytes. Startup errors, unreadable loaded
+notifier history, stderr, timeout and failed child exits fail the lane. Health severity remains a
+separate report.

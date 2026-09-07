@@ -356,3 +356,15 @@ added	-	lanes::nvim::tests::parsers::the_parsers_lane_runs_the_parsers_module_he
 added	-	schedule::tests::runtime::a_rendered_job_finds_an_interpreter_available_only_in_the_homes_cargo_directory	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	schedule::tests::runtime::a_rendered_job_finds_an_interpreter_available_only_in_the_homes_fnm_directory	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	schedule::tests::runtime::a_rendered_job_uses_the_homes_fnm_interpreter_before_the_system_interpreter	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
+added	-	config::lanes::nvim::tests::a_smoke_test_cache_must_be_an_absolute_directory	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	config::lanes::nvim::tests::a_smoke_test_lane_without_a_cache_key_is_refused_because_nothing_names_the_tree	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::a_failed_prepare_never_launches_the_verifier	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::a_missing_completion_or_unreadable_loaded_notifier_history_fails_verification	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::a_smoke_test_child_exiting_non_zero_is_a_counted_failure	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::both_smoke_children_keep_home_and_claude_discovery_private	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::candidate_verification_starts_a_new_process_after_prepare_succeeds	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::isolation::the_real_smoke_children_keep_external_home_and_discovery_unchanged	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::the_smoke_test_copies_config_and_mason_without_linking_live_state	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::the_smoke_test_runs_nvim_through_env_with_the_four_base_directories_redirected	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	lanes::nvim::smoke_test::tests::verifier_stderr_fails_even_after_a_successful_exit_and_valid_completion	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	runner::tests::a_successful_child_keeps_raw_stderr_for_startup_verification	not-present	ok	C7 behavior contract; actual named source-fault evidence retained

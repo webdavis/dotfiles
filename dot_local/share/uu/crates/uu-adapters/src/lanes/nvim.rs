@@ -5,6 +5,7 @@ use uu_domain::LaneReport;
 mod mason;
 mod parsers;
 mod plugins;
+mod smoke_test;
 
 fn invoke(
     host: &NvimHost,

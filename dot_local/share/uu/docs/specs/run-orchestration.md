@@ -178,3 +178,12 @@ for these retained limits.
   current parsers and retain each failed compiler's output tail.
 - **Given** either lane changed installed tools or parsers, **when** reporting, **then** append the
   existing restart notice if another Neovim instance's socket is present.
+
+## Candidate startup verification
+
+- **Given** an enabled `nvim-smoke-test` lane, **when** it runs, **then** require an absolute cache, copy
+  config and Mason, and run prepare then a fresh verifier with private config, data, state, cache, HOME
+  and Claude discovery roots. A failed prepare never reaches verification.
+- **Given** a candidate, **when** verification ends, **then** require this run's completion and exact
+  lock, actual VimEnter, no startup diagnostics and no stderr, with child failure and timeout counted.
+  Retain raw diagnostics and report paths. Health error and warning counts do not change startup status.

@@ -32,7 +32,7 @@ pub use command::CommandLane;
 pub use herdr::HerdrLane;
 pub use npm::NpmLane;
 pub(crate) use nvim::NvimHost;
-pub use nvim::{NvimMasonLane, NvimParsersLane, NvimPluginsLane};
+pub use nvim::{NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane};
 pub use uv::UvLane;
 
 /// The lane REGISTRY: every declared `[lanes.<name>]` block, keyed by the name
@@ -241,6 +241,10 @@ mod tests {
             (
                 "nvim-plugins",
                 "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
+                "nvim-smoke-test",
+                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
             ),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),

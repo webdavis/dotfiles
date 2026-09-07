@@ -47,7 +47,7 @@ end
 function M.health_counts(lines)
   local errors, warnings = 0, 0
   for _, line in ipairs(lines) do
-    local severity = line:match("^%s*%-?%s*(%u+)%f[%W]")
+    local severity = line:match("^%s*%-?%s*[^%w]*(%u+)%f[%W]")
     if severity == "ERROR" then
       errors = errors + 1
     elseif severity == "WARNING" then

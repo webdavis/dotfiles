@@ -153,6 +153,7 @@ impl CommandRunner for ScriptedRunner {
             Verdict::Clean
         };
         Ok(Ran {
+            stderr: String::new(),
             stdout: self.stdout.clone(),
             verdict,
         })

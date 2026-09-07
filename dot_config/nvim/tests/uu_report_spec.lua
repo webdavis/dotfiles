@@ -50,8 +50,10 @@ return {
       "- OK all fine",
       "ERROR second failure",
       "ordinary prose about ERROR",
+      "- ❌ ERROR owned optional provider absent",
+      "- ⚠️ WARNING owned optional warning",
     })
-    assert(errors == 2 and warnings == 1)
+    assert(errors == 3 and warnings == 2)
   end,
   ["a dirty lock file refuses the commit and names the reason"] = function()
     local allowed, why = report().commit_allowed(" M dot_config/nvim/lazy-lock.json\n", "refs/heads/main")

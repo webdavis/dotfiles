@@ -228,3 +228,12 @@ fn run_with_input_preserves_pending_stdout_and_stderr_while_neighboring_statuses
         }
     }
 }
+
+#[test]
+fn a_successful_child_keeps_raw_stderr_for_startup_verification() {
+    let ran = runner()
+        .run_with_input("/bin/sh", &["-c", "printf 'startup error\\n' >&2"], "")
+        .unwrap();
+    assert_eq!(ran.verdict, Verdict::Clean);
+    assert_eq!(ran.stderr, "startup error\n");
+}

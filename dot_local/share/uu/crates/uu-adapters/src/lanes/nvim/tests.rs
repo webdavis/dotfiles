@@ -33,6 +33,7 @@ impl CommandRunner for Child {
                 .collect(),
         );
         Ok(Ran {
+            stderr: String::new(),
             stdout: "finder: updates available\n".into(),
             verdict: self.verdict.clone(),
         })
