@@ -50,6 +50,37 @@ local function shell_build(command, dir)
   assert(result.code == 0 and result.signal == 0, "build failed (exit " .. result.code .. "): " .. command)
 end
 
+local function install_core_parsers(plugin)
+  local treesitter = require("nvim-treesitter")
+  -- A second install can wait for the first one to stop without preserving its
+  -- failure. Keep the actual LazyDone result before checking installed files.
+  if plugin._.core_parser_install then
+    assert(plugin._.core_parser_install:wait(), "core parser installation failed")
+  end
+  local declared = assert(require("lazy.core.plugin").values(plugin, "opts", false).ensure_installed)
+  assert(#declared > 0, "core parser inventory is empty")
+  local parsers = require("nvim-treesitter.parsers")
+  for _, language in ipairs(declared) do
+    assert(parsers[language], "unknown core parser: " .. language)
+  end
+  local required = require("nvim-treesitter.config").norm_languages(vim.deepcopy(declared))
+  local function missing()
+    local installed = { parsers = treesitter.get_installed("parsers"), queries = treesitter.get_installed("queries") }
+    return vim.tbl_filter(function(language)
+      local kind = parsers[language].install_info and "parsers" or "queries"
+      return not vim.list_contains(installed[kind], language)
+    end, required)
+  end
+  local absent = missing()
+  if #absent > 0 then
+    -- Ordinary install treats a leftover query directory as an installed
+    -- language. Force only missing artifacts so a partial install can recover.
+    assert(treesitter.install(absent, { force = true }):wait(), "core parser installation failed")
+  end
+  absent = missing()
+  assert(#absent == 0, "missing core parsers: " .. table.concat(absent, ", "))
+end
+
 function M.build_plugins()
   local plugins = require("lazy.core.config").plugins
   local managed = {}
@@ -63,6 +94,7 @@ function M.build_plugins()
       -- This command starts background work; its public task API waits and
       -- returns false when a parser could not be built.
       assert(require("nvim-treesitter").update():wait(), "parser update failed")
+      install_core_parsers(plugin)
     else
       managed[name] = plugin
     end

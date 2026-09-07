@@ -71,6 +71,61 @@ local function mason_modules(refresh_ok, install_ok)
   return modules, installed, looked_up
 end
 
+local function parser_modules(success, artifacts)
+  local state = { finished = false, requested = {}, force = false }
+  local modules = {
+    ["lazy.core.config"] = {
+      plugins = { ["nvim-treesitter"] = { build = ":TSUpdate", opts = { ensure_installed = { "lua" } }, _ = {} } },
+    },
+    ["lazy.core.plugin"] = {
+      values = function(plugin)
+        return plugin.opts
+      end,
+    },
+    ["nvim-treesitter.config"] = {
+      norm_languages = function(languages)
+        assert(vim.deep_equal(languages, { "lua" }), "did not use the configured core list")
+        return { "lua", "ecma" }
+      end,
+    },
+    ["nvim-treesitter.parsers"] = { lua = { install_info = {} }, ecma = {} },
+    ["nvim-treesitter"] = {
+      update = function()
+        return {
+          wait = function()
+            return true
+          end,
+        }
+      end,
+      get_installed = function(kind)
+        if state.finished then
+          return artifacts[kind]
+        end
+        -- A leftover query directory must not count as a compiled parser.
+        return kind == "queries" and { "lua" } or {}
+      end,
+      install = function(languages, options)
+        state.requested, state.force = languages, options and options.force
+        vim.defer_fn(function()
+          state.finished = true
+        end, 20)
+        return {
+          wait = function()
+            assert(
+              vim.wait(500, function()
+                return state.finished
+              end),
+              "fixture installation never completed"
+            )
+            return success
+          end,
+        }
+      end,
+    },
+  }
+  return modules, state
+end
+
 return {
   ["installs the server and tool union and waits for asynchronous completion"] = function()
     local modules, installed = mason_modules(true, true)
@@ -215,6 +270,70 @@ return {
       local ok, err = pcall(subject.build_plugins)
       assert(waited, "parser update did not finish")
       assert(not ok and tostring(err):find("parser", 1, true), tostring(err))
+    end)
+  end,
+  ["waits for a delayed core install failure even when update found nothing"] = function()
+    local modules, state = parser_modules(false, { parsers = {}, queries = {} })
+    with_modules(modules, function(subject)
+      local ok, err = pcall(subject.build_plugins)
+      assert(state.finished, "returned while core installation was pending")
+      assert(not ok and tostring(err):find("core parser installation failed", 1, true), tostring(err))
+    end)
+  end,
+  ["awaits the original LazyDone task and preserves its delayed failure"] = function()
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    modules["lazy.core.config"].plugins["nvim-treesitter"]._ = {
+      core_parser_install = {
+        wait = function()
+          vim.defer_fn(function()
+            state.finished = true
+          end, 20)
+          assert(
+            vim.wait(500, function()
+              return state.finished
+            end),
+            "fixture installation never completed"
+          )
+          return false
+        end,
+      },
+    }
+    with_modules(modules, function(subject)
+      local ok, err = pcall(subject.build_plugins)
+      assert(state.finished, "did not wait for the original installation")
+      assert(not ok and tostring(err):find("core parser installation failed", 1, true), tostring(err))
+      assert(#state.requested == 0, "replaced the failed task with another installation")
+    end)
+  end,
+  ["waits for core parsers and query dependencies to finish successfully"] = function()
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    with_modules(modules, function(subject)
+      subject.build_plugins()
+      assert(state.finished, "returned while core installation was pending")
+      assert(vim.deep_equal(state.requested, { "lua", "ecma" }), vim.inspect(state.requested))
+      assert(state.force, "leftover queries can make an ordinary install skip the missing parser")
+    end)
+  end,
+  ["a joined install reporting success still requires the compiled parser"] = function()
+    local modules = parser_modules(true, { parsers = {}, queries = { "lua", "ecma" } })
+    with_modules(modules, function(subject)
+      local ok, err = pcall(subject.build_plugins)
+      assert(not ok and tostring(err):find("missing core parsers: lua", 1, true), tostring(err))
+    end)
+  end,
+  ["a joined install cannot omit a required query-only language"] = function()
+    local modules = parser_modules(true, { parsers = { "lua" }, queries = {} })
+    with_modules(modules, function(subject)
+      local ok, err = pcall(subject.build_plugins)
+      assert(not ok and tostring(err):find("missing core parsers: ecma", 1, true), tostring(err))
+    end)
+  end,
+  ["already installed core languages need no forced installation"] = function()
+    local modules, state = parser_modules(true, { parsers = { "lua" }, queries = { "ecma" } })
+    state.finished = true
+    with_modules(modules, function(subject)
+      subject.build_plugins()
+      assert(#state.requested == 0, "rebuilt an already installed core language")
     end)
   end,
   ["a silent shell build failure reports its exit status"] = function()

@@ -14,6 +14,7 @@ set -euo pipefail
 {{ $nvim := joinPath .chezmoi.sourceDir "dot_config/nvim" -}}
 # lazy-lock.json {{ include (joinPath $nvim "lazy-lock.json") | sha256sum }}
 # lua/plugins/lsp.lua {{ include (joinPath $nvim "lua/plugins/lsp.lua") | sha256sum }}
+# lua/plugins/treesitter.lua {{ include (joinPath $nvim "lua/plugins/treesitter.lua") | sha256sum }}
 # bootstrap.lua {{ include (joinPath $nvim "lua/custom_api/bootstrap.lua") | sha256sum }}
 # verifier {{ include (joinPath .chezmoi.sourceDir "dot_local/libexec/executable_verify-nvim-bootstrap.sh") | sha256sum }}
 # A deferral appends one byte. Size changes even when timestamps share a second,
@@ -94,10 +95,10 @@ while true; do
   pass=$((pass + 1))
 done
 
-run_step 'Lazy builds' \
-  nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" build
 run_step 'Mason server and tool installation' \
   nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" mason "$work/mason-tools"
+run_step 'Lazy builds' \
+  nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" build
 run_step 'the config test suite' \
   nvim --headless --clean -l "$test_runner" --config "$config_dir"
 run_step 'verification' \
