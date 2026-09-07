@@ -15,6 +15,7 @@ use unattended_upgrades::config::LANE_TYPES;
 
 mod cli;
 mod delivery;
+mod run_adapters;
 mod runner;
 mod state;
 mod system;

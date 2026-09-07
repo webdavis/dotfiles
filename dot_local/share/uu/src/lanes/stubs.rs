@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::lanes::{CommandRunner, Ran, Verdict};
-use crate::record::{Marker, RunFacts};
+use uu_domain::{Marker, RunFacts};
 
 /// A runner that answers from a script and records every call. The script
 /// is keyed on the whole argument vector, so a test says exactly which

@@ -4,6 +4,36 @@ mod support;
 
 use support::*;
 
+#[test]
+fn a_staleness_alert_reads_the_previous_streak_before_the_new_count_is_published() {
+    let home = Home::new("streak-alert-before-write");
+    let updater = home.write_stub("updater", "cat >/dev/null\nexit 75\n");
+    let engine = home.write_stub(
+        "pns-stub",
+        "cat \"$HOME/.local/state/uu/lanes/mine/streak\" >\"$HOME/alert-saw-streak\"\n",
+    );
+    let home = home.with_config(&format!(
+        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [alerts]\nbinary = \"{}\"\n",
+        updater.display(),
+        engine.display(),
+    ));
+    for _ in 0..3 {
+        let output = home.uu(&["run"]);
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+    }
+    assert_eq!(
+        std::fs::read_to_string(home.dir.join("alert-saw-streak")).unwrap(),
+        "2\n",
+        "the trip must be delivered before its new count is published"
+    );
+    assert_eq!(
+        std::fs::read_to_string(home.dir.join(".local/state/uu/lanes/mine/streak")).unwrap(),
+        "3\n",
+        "a delivered trip must then advance its count"
+    );
+}
+
 // --- the staleness bound -----------------------------------------------------
 
 #[test]

@@ -22,21 +22,7 @@ fn path(home: &str) -> PathBuf {
 /// crash alike, so there is no stale-lock file to clean up by hand.
 pub struct RunLock(#[allow(dead_code)] std::fs::File);
 
-/// Why `acquire` could not hand back a lock: the ONE arm that is genuine
-/// contention, and everything else. The call site says something different
-/// for each, because "to avoid racing the run that already holds it" is only
-/// true for `Contended`: a directory that could not be created or a lock file
-/// that could not even be opened is an environment problem with its own real
-/// cause, and this is the one place the operator hears about it, so blaming a
-/// race that never happened would send them chasing the wrong thing.
-pub enum LockFailure {
-    /// `flock` itself refused: another run genuinely holds the lock right
-    /// now.
-    Contended(String),
-    /// The lock file, or the directory it lives in, could not even be
-    /// opened.
-    Unavailable(String),
-}
+use uu_application::LockFailure;
 
 /// Take the run lock, or say why not. NON-BLOCKING (`LOCK_NB`): a second run
 /// finding this one still going must say so and exit, never wait its turn

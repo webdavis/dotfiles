@@ -10,8 +10,8 @@
 use crate::config::CommandLane;
 use crate::lanes::text::stdout_lines;
 use crate::lanes::{CommandRunner, LaneAdapter, Verdict};
-use crate::record::RunFacts;
 use uu_domain::LaneReport;
+use uu_domain::RunFacts;
 use uu_protocol::lane_event;
 
 /// STDOUT IS KEPT EVEN ON A NON-CLEAN EXIT. `run_with_input`'s `Ran::verdict`
@@ -32,7 +32,7 @@ impl LaneAdapter for CommandLane {
         let mut report = LaneReport::new(name);
         let program = self.run[0].as_str();
         let args: Vec<&str> = self.run[1..].iter().map(String::as_str).collect();
-        let event = lane_event(name, &facts.into());
+        let event = lane_event(name, &crate::record::event_for(facts));
         match runner.run_with_input(program, &args, &event) {
             Ok(ran) => {
                 for line in stdout_lines(&ran.stdout) {
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn a_command_lane_preserves_recorded_and_unreadable_markers_in_the_child_event() {
-        use crate::record::Marker;
+        use uu_domain::Marker;
 
         for (marker, expected) in [
             (
@@ -147,7 +147,7 @@ mod tests {
             "a failed child's stdout is not lost: {:?}",
             report.lines
         );
-        let summary = crate::alert::alert_summary(&report);
+        let summary = uu_domain::alert_summary(&report);
         assert!(summary.contains("exit 1"), "{summary}");
         assert!(summary.contains(program), "{summary}");
         // THE VERDICT COMES LAST: what the child printed is noted first, so

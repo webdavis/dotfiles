@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use unattended_upgrades::config::Config;
+use uu_application::Streak;
 
 /// Where a lane's non-success streak lives: one small file per lane, named for
 /// the lane itself so two lanes never share bookkeeping.
@@ -18,21 +18,6 @@ pub fn path(home: &str, lane: &str) -> PathBuf {
 
 fn lanes_dir(home: &str) -> PathBuf {
     super::dir(home).join("lanes")
-}
-
-/// What reading a lane's streak file found.
-///
-/// `Absent` COVERS ONLY `NotFound`: that is the one case that legitimately
-/// means a fresh lane, or one that has never had a non-success run. Anything
-/// else the file could say (unreadable, a directory sitting where the file
-/// belongs, content that is not a plain count) is `Unreadable`, never a
-/// silent zero: zero would forgive whatever streak the file actually held,
-/// which is the fail-open this whole capability exists to refuse.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Streak {
-    Absent,
-    Value(u32),
-    Unreadable(String),
 }
 
 pub fn read(path: &Path) -> Streak {
@@ -81,7 +66,7 @@ pub fn write(path: &Path, value: u32) -> Result<(), String> {
 /// its own failure, matching every other piece of this bookkeeping: a stale
 /// directory that resists cleanup costs nothing but a few bytes, never a
 /// wrong verdict.
-pub fn prune_removed_lanes(home: &str, config: &Config) {
+pub fn prune_removed_lanes(home: &str, declared: &[&str]) {
     let Ok(entries) = std::fs::read_dir(lanes_dir(home)) else {
         return;
     };
@@ -89,7 +74,7 @@ pub fn prune_removed_lanes(home: &str, config: &Config) {
         let Some(name) = entry.file_name().to_str().map(str::to_string) else {
             continue;
         };
-        if !config.lanes.contains_key(&name) {
+        if !declared.contains(&name.as_str()) {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }

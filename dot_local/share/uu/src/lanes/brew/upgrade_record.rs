@@ -20,7 +20,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::config::BrewLane;
-use crate::record::RunFacts;
+use uu_domain::RunFacts;
 
 /// Persist what this run moved, or answer WHY nothing was written.
 ///

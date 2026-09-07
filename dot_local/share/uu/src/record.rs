@@ -9,8 +9,8 @@
 mod event;
 mod marker;
 
-pub use event::RunFacts;
-pub use marker::{Marker, elapsed, gap_line, marker_contents, parse_marker};
+pub use event::event_for;
+pub use marker::{elapsed, gap_line, marker_contents, parse_marker};
 
 use uu_domain::LaneReport;
 
