@@ -40,6 +40,8 @@ use crate::*;
 /// lamp lit with nothing in the system that knows about it.
 ///
 /// IT PRINTS NOTHING. The complaints are answered for the caller to say once.
+// Keep the bridge, elapsed clock and sleeper independently injectable; the
+// other seven inputs are the tick state already acquired by the caller.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_tick_writes<B: pns::channels::hue::Bridge>(
     bridge: &B,
