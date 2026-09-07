@@ -270,22 +270,30 @@ Trashing the cache directory reclaims the space; commenting the block out stops 
 
 **Command.** uu copies `<config>` and its starting lock to `<cache>/c/nvim`. It uses short copy roots
 `c`, `d`, `s`, `k` for configuration, data, state and cache, because long paths can break `vim.loader`
-cache filenames. It runs two sequential
-children with the same isolated roots through `/usr/bin/env`:
+cache filenames. It creates a private home at `<cache>/h` and Claude state at `<cache>/h/.claude`,
+with mode 0700. Both production children explicitly set HOME and replace any inherited
+CLAUDE_CONFIG_DIR with those private paths. The pinned Claude plugin uses that override before
+`~/.claude/ide`, so redirecting only the four base directories cannot isolate its discovery state.
+It runs two sequential children with the same private roots through `/usr/bin/env`:
 
 ```text
-/usr/bin/env XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
+/usr/bin/env HOME=<cache>/h CLAUDE_CONFIG_DIR=<cache>/h/.claude
+  XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
   XDG_CACHE_HOME=<cache>/k nvim --headless -u <cache>/c/nvim/init.lua
   -l <cache>/c/nvim/lua/uu/smoke_test.lua prepare
 
-/usr/bin/env XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
+/usr/bin/env HOME=<cache>/h CLAUDE_CONFIG_DIR=<cache>/h/.claude
+  XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
   XDG_CACHE_HOME=<cache>/k nvim --headless -u <cache>/c/nvim/init.lua
   -c "lua dofile('<cache>/c/nvim/lua/uu/smoke_test.lua')"
 ```
 
 The paths above are schematic; compose arguments without a shell and escape the Lua path as a Lua
-string. Tests redirect HOME and temporary files too and neutralize global/system Git configuration.
-No experiment updates a live plugin or skill.
+string. HOME and the explicit Claude override are production requirements for both prepare and
+fresh verification, including their startup and shutdown work. Candidate discovery files and their
+cleanup stay beneath the private home; neither child inherits the operator's Claude discovery path.
+Tests also redirect temporary files and neutralize global/system Git configuration. No experiment
+updates a live plugin or skill.
 
 The prepare child updates only the copied lock and candidate data tree with
 `require("lazy.manage").update({ wait = true, show = false })`, checks every plugin's `has_errors`,
@@ -312,6 +320,16 @@ Required failing controls use an initialization error and an owned plugin config
 errors after Snacks and Noice load. Each must fail even when Neovim exits 0 and lazy.nvim's task error
 flag is false; the notifier cases must also fail with empty stderr. A healthy control must pass. The
 verifier quits itself after capture, because `-l` and an early `qa!` can skip `VimEnter` altogether.
+
+The isolation control seeds external home and Claude discovery directories, including an inherited
+CLAUDE_CONFIG_DIR override, then runs the real owned smoke launcher with an owned candidate fixture.
+That fixture writes one HOME-based state marker and one discovery marker beneath CLAUDE_CONFIG_DIR.
+Pause each child after those writes: both private markers must exist and every external entry and
+sentinel byte must remain unchanged. Repeat the external-state checks after shutdown and cleanup.
+Remove only the HOME assignment, then only the Claude override, independently for each child; each
+mutant must fail its corresponding control. The HOME-based write keeps that assertion effective even
+when the explicit Claude override still protects discovery. This tests our child isolation, not the
+third-party plugin's implementation.
 
 **Record row.** Pass or fail, the count of `ERROR` and `WARNING` lines in the health report, the count
 of mappings in the dump, and how many mappings were added or removed since the previous run's dump,

@@ -105,8 +105,9 @@ referrer of each, found by grep on this commit.
 1. **Neovim evidence.** The pure half of every `lua/uu/` module is pinned by a `uu_*_spec.lua`; the
    half that drives lazy.nvim, Mason or the treesitter installer is proved by one real headless run of
    the exact command the lane composes against copied config and data. Use one-letter copy names,
-   isolated HOME and all four base directories, and `GIT_CONFIG_GLOBAL=/dev/null` and
-   `GIT_CONFIG_SYSTEM=/dev/null`. Keep every artifact and put commands and output in the body.
+   isolated HOME and all four base directories, explicitly private CLAUDE_CONFIG_DIR, and
+   `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_SYSTEM=/dev/null`. Keep every artifact and put
+   commands and output in the body.
    Never drive a live plugin tree; both production smoke verification and experiments copy Mason.
    A fake plugin manager is not written. Fakes for our sequencing and failure decisions are valid.
 1. **No live effects.** No pull request runs `uu run` against the real config, bootstraps or boots
@@ -412,9 +413,12 @@ Sizes: `parsers.lua` about 80; `lanes/nvim/parsers.rs` about 50 plus tests about
 **PR C7 the `nvim-smoke-test` lane: prepare then verify in a fresh process.** Adds
 `NvimSmokeTestLane { host, cache }` (`cache` absolute, required) and `src/lanes/nvim/smoke_test.rs`
 (copy `<config>` to `<cache>/c/nvim`, data/state/cache roots `d`, `s`, `k`, and a copy of Mason's
-tree at `d/nvim/mason`, for production and experiments). It runs the two exact argv forms in the spec:
-prepare with `-l .../smoke_test.lua prepare`, then a separate process with
-`-c "lua dofile('<copy>/lua/uu/smoke_test.lua')"` and the same `-u` and isolated roots.
+tree at `d/nvim/mason`, for production and experiments). Create private `<cache>/h` and its `.claude`
+directory with mode 0700. Both production children set `HOME=<cache>/h` and explicitly replace any
+inherited override with `CLAUDE_CONFIG_DIR=<cache>/h/.claude`, so plugin discovery and cleanup remain
+private. Run the two exact argv forms in the spec: prepare with `-l .../smoke_test.lua prepare`, then a
+separate process with `-c "lua dofile('<copy>/lua/uu/smoke_test.lua')"` and the same `-u` and private
+roots. The four base directories alone are insufficient for plugins that also use HOME or overrides.
 `smoke_test.lua` prepares with `lazy.manage.update({ wait = true, show = false })` and rejects task
 errors. Its verifier registers a self-quitting `VimEnter` callback, fires `User VeryLazy`, drains
 startup work within the deadline and captures errors including Snacks and Noice history, then runs
@@ -425,6 +429,7 @@ counts stay separate from startup failure detection. Write health to `<cache>/ch
 The registry touch points include an opt-in commented block with the disk-cost comment; the operator
 enables it in their config. An early `vim.notify` wrapper or `has_errors` alone is never sufficient.
 Tests: Rust `the_smoke_test_runs_nvim_through_env_with_the_four_base_directories_redirected`,
+`both_smoke_children_keep_home_and_claude_discovery_private`,
 `the_smoke_test_copies_config_and_mason_without_linking_live_state`,
 `candidate_verification_starts_a_new_process_after_prepare_succeeds`,
 `a_failed_prepare_never_launches_the_verifier`,
@@ -436,8 +441,15 @@ an init error, an owned plugin config error, and errors after Snacks and Noice l
 at exit 0 with `has_errors=false`; the notifier controls also have zero stderr. An owned module changed
 on disk stays old in the prepare process and loads new in the verifier. Record actual `VimEnter`,
 completion, diagnostics and `du -sh <cache>` against the roughly 2.5 gigabyte estimate. Retain a control
-showing silent health progress preserves health errors in the buffer with empty stderr. Sizes:
-`lanes/nvim/smoke_test.rs` about 170 plus private tests about 200; `smoke_test.lua` about 180 and
+showing silent health progress preserves health errors in the buffer with empty stderr.
+For the isolation control, seed an external HOME and an external CLAUDE_CONFIG_DIR with discovery
+sentinels. Run the actual owned launcher for both children with an owned fixture that writes a
+HOME-based state marker and a Claude discovery marker. Pause after the writes and require the private
+markers plus unchanged external entries and bytes; check the external state again after cleanup.
+Independently omit HOME and omit the Claude override in each child's environment: all four mutants
+must fail. The two writes keep either mutant observable while the other isolation setting remains.
+This is a future test of our launcher, not a third-party test or an already implemented smoke lane.
+Sizes: `lanes/nvim/smoke_test.rs` about 170 plus private tests about 200; `smoke_test.lua` about 180 and
 private startup-diagnostic code about 120. All new diagnostic decisions have named pure controls.
 
 **PR C8 the keymap dump and its diff.** Adds to the fresh verifier in `smoke_test.lua`: `keymap_rows`
