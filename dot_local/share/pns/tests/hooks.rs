@@ -21,20 +21,11 @@ fn hook_with(
     event: &str,
     payload: &str,
 ) -> std::process::Output {
-    let mut child = command
-        .args(["hook", event])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the engine runs");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(payload.as_bytes())
-        .expect("payload");
-    child.wait_with_output().expect("output")
+    command.args(["hook", event]);
+    captured_child::CapturedChild::spawn(&mut command)
+        .expect("the engine runs")
+        .input_output_within(payload.as_bytes(), HANG_LIMIT)
+        .expect("hook output within the fixture deadline")
 }
 
 fn marker(sandbox: &Sandbox, session: &str) -> std::path::PathBuf {
