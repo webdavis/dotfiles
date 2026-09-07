@@ -295,6 +295,17 @@ Stays: `line` (the ring's on-disk shape, PR 11.2), `section`, `render`, `complai
 `QUOTED_MAX` (the doctor's presentation, PR 15.1). Tests: the `printable` and `Record` tests by name.
 Sizes: ~150 plus tests ~250. Statements: S157 (`printable`).
 
+| Pull request                         | Status   |
+| ------------------------------------ | -------- |
+| 5.14 shard main.rs into root modules | Complete |
+
+Moves the 13,484-line `src/main.rs` into 51 root-package responsibility modules, with 27 test files and
+four shared fixture files. Measured after formatting: `main.rs` is 299 lines; every extracted file is
+below 500 lines, with a maximum of 417. The optional hooks split reduces `tests/hooks.rs` from 6,217 to
+351 lines; its 29 behavior files are at most 360 lines. Bodies, names and test leaves are preserved. This
+changes no ownership: later steps still move these modules into crates. The shard exists so parallel
+lanes own distinct files instead of editing the same `main.rs`.
+
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
 sections 1 to 6 of the specification all sit in `main.rs`.
