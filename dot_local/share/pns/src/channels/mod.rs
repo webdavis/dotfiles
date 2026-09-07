@@ -57,7 +57,7 @@ impl Event {
 /// THE VOCABULARY IS THE ROUTING'S, in `pns-domain` beside the `Leg` it
 /// answers for and the `ReportMode` that says whether anyone reads it, and it
 /// is named here for every destination that produces one.
-pub use pns_domain::routing::Delivery;
+pub use pns_domain::Delivery;
 
 /// True when native plugins take precedence for dispatch: only when the
 /// channels directory was NOT explicitly overridden.

@@ -1,0 +1,10 @@
+[package]
+name = "herdr-workspace-jump-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+herdr-workspace-jump-domain = { path = "../herdr-workspace-jump-domain" }
+herdr-workspace-jump-application = { path = "../herdr-workspace-jump-application" }
+herdr-workspace-jump-protocol = { path = "../herdr-workspace-jump-protocol" }
+serde_json = "1"
