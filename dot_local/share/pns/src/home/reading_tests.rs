@@ -180,9 +180,9 @@ fn on_keys_matching_different_clients_the_verdict_names_the_strongest() {
     // device, because a MAC is the device itself, a name is a label the
     // operator can reuse, and an address is only today's lease.
     let disagreeing = r#"{"data":[
-        {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
-        {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"},
-        {"name":"dresden","macAddress":"3c:06:30:0f:8a:bf","ipAddress":"192.168.1.169"}]}"#;
+            {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
+            {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"},
+            {"name":"dresden","macAddress":"3c:06:30:0f:8a:bf","ipAddress":"192.168.1.169"}]}"#;
     assert_eq!(
         home_reading(parse_clients(disagreeing), &full_identity()).presence,
         HomePresence::Home {
@@ -282,9 +282,9 @@ fn a_key_that_found_another_client_than_the_verdict_names_says_which_one() {
     // The three keys DISAGREE: the MAC found "mouse" and answers, so the
     // name and the address are pointing at clients this device is not.
     let disagreeing = r#"{"data":[
-        {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
-        {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"},
-        {"name":"dresden","macAddress":"3c:06:30:0f:8a:bf","ipAddress":"192.168.1.169"}]}"#;
+            {"name":"mister","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.7"},
+            {"name":"mouse","macAddress":"2e:11:ab:6d:b0:4f","ipAddress":"192.168.1.8"},
+            {"name":"dresden","macAddress":"3c:06:30:0f:8a:bf","ipAddress":"192.168.1.169"}]}"#;
     assert_eq!(
         home_reading(parse_clients(disagreeing), &full_identity())
             .keys
@@ -308,17 +308,17 @@ fn a_key_that_found_another_client_than_the_verdict_names_says_which_one() {
     for (listing, client) in [
         (
             r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-                {"name":"mouse","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
+                    {"name":"mouse","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
             "\"mouse\"",
         ),
         (
             r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-                {"macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
+                    {"macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
             "\"60:82:46:3c:fb:01\"",
         ),
         (
             r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-                {"ipAddress":"192.168.1.8"}]}"#,
+                    {"ipAddress":"192.168.1.8"}]}"#,
             "\"192.168.1.8\"",
         ),
         // PRESENT BUT EMPTY is the field the router has no answer for,
@@ -327,12 +327,12 @@ fn a_key_that_found_another_client_than_the_verdict_names_says_which_one() {
         // to the next one exactly as a missing field does.
         (
             r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-                {"name":"","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
+                    {"name":"","macAddress":"60:82:46:3c:fb:01","ipAddress":"192.168.1.8"}]}"#,
             "\"60:82:46:3c:fb:01\"",
         ),
         (
             r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
-                {"name":"","macAddress":"","ipAddress":"192.168.1.8"}]}"#,
+                    {"name":"","macAddress":"","ipAddress":"192.168.1.8"}]}"#,
             "\"192.168.1.8\"",
         ),
     ] {
@@ -362,11 +362,11 @@ fn a_key_the_winners_own_entry_carries_is_this_device_in_either_listing_order() 
     // disagrees with anything and the order the router happened to list
     // them in cannot change that.
     let winner_second = r#"{"data":[
-        {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"},
-        {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
+            {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"},
+            {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"}]}"#;
     let winner_first = r#"{"data":[
-        {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
-        {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"}]}"#;
+            {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
+            {"name":"mister","ipAddress":"192.168.1.7","macAddress":"60:82:46:3c:fb:01"}]}"#;
     for listing in [winner_second, winner_first] {
         let reading = home_reading(
             parse_clients(listing),

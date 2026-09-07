@@ -14,37 +14,60 @@
 //! is more specific than an override), the narrowing flags beat both, and
 //! force exempts the event from viewed-pane suppression.
 
-// THE DECISION'S VALUE TYPES moved to `pns-domain`, and the decision itself
-// followed the probe traits to `pns-application` once those became ports.
-// Nothing is left of this module but the paths its callers already name.
-pub use pns_domain::decision::{
-    DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading,
+// The decision values live in `pns-domain`. PR 6.1 separates acquisition into
+// application and pure arbitration over a completed typed snapshot into domain.
+// Keep this legacy call surface until composition replaces it.
+pub use pns_domain::{DEFAULT_DESK_IDLE_SECS, Decision, GateInputs, Overrides, SurfaceReading};
+
+use crate::probes::{
+    IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
 };
+use crate::registry::Selection;
 
-/// THE DECISION ITSELF moved to `pns-application`, once the probe traits it
-/// is generic over became ports there. This is the path its callers name.
-pub use pns_application::decide::decide;
+/// Decide the plan for one event. `now_secs` is the wall clock, taken once at
+/// the edge; `None` reads as an unreadable clock, which ages nothing.
+///
+/// ASSEMBLY ONLY. Where the operator is looking is `surface::surface`, whether
+/// the origin pane is on screen is `surface::visibility`, and what to do about
+/// it is `surface::plan`. This reads the probes those three need and turns the
+/// plan into legs.
+// Preserve the existing external call while composition migrates to DecisionRequest.
+#[allow(clippy::too_many_arguments)]
+pub fn decide<P>(
+    probes: &P,
+    selection: &Selection,
+    overrides: &Overrides,
+    local_only: bool,
+    remote_only: bool,
+    pane: &str,
+    now_secs: Option<u64>,
+    long_running: bool,
+    mobile_watch_card: bool,
+) -> Decision
+where
+    P: IdleProbe
+        + PhoneMarkerProbe
+        + PhoneInputProbe
+        + ScreenLockProbe
+        + SessionViewProbe
+        + ProbeStart,
+{
+    pns_application::decide(
+        probes,
+        selection,
+        overrides,
+        pns_domain::DecisionRequest {
+            local_only,
+            remote_only,
+            pane,
+            now_secs,
+            long_running,
+            mobile_watch_card,
+        },
+    )
+}
 
-/// THE ENVIRONMENT READING moved to `pns-application`, where the probe ports
-/// it is generic over are declared.
-pub use pns_application::environment_reading::{
-    operator_surface, operator_visibility, surface_reading,
-};
+pub use pns_application::operator_surface;
 
 #[cfg(test)]
-mod fixtures;
-
-#[cfg(test)]
-mod readings_tests;
-
-#[cfg(test)]
-mod plan_tests;
-
-#[cfg(test)]
-mod mute_tests;
-
-#[cfg(test)]
-mod intent_tests;
-
-#[cfg(test)]
-mod guard_tests;
+mod tests;

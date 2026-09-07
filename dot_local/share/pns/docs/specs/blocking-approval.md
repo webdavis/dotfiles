@@ -504,10 +504,10 @@ Then one marker file per waiting session is published, and a later event from th
   path whose stdout a harness hook reads must not gain a line about the state directory, and a missing
   marker costs one lamp its colour and never a card.
 - Compatibility contract: none, these files are pns's own.
-- Related: the GATE writes no markers at all. `src/main.rs:gate_mode` calls neither
-  `update_blocked_marker` nor `run_event`. NOT ESTABLISHED: no test asserts the absence of a marker after
-  a gate run specifically; I grepped `tests/hooks.rs` for marker assertions in the gate section and found
-  only the "no event raised" assertions cited in behavior 1.
+- Related: the gate writes no markers. `src/moshi_submission.rs:gate_mode` calls neither
+  `update_blocked_marker` nor `run_event`. The hooks case
+  `a_forwarded_gate_leaves_the_state_markers_untouched` verifies a real forward for both bare and
+  explicit pi gate forms, then checks the existing marker bytes and exact state-directory entries.
 
 ### 11. The nag armed with the wait
 

@@ -76,7 +76,6 @@ packages:
         - atuin
         - bash
         - bashunit
-        - bats-core
         - bash-completion@2
         - bash-preexec
         - bat
@@ -130,6 +129,7 @@ packages:
         - iperf3
         - jq
         - just
+        - lazydocker
         - librsvg
         - lmilojevicc/tap/seshagy
         - luacheck

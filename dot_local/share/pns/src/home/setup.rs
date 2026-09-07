@@ -4,9 +4,11 @@
 //! Split from `home.rs` for the size rule, along the seam the migration plan
 //! already draws: these follow the config edge, the rest follows the router.
 
+use pns_domain::home::DeviceIdentityError;
+
 use super::{
     DeviceIdentity, DeviceKey, HomeReading, KeyOutcome, RouterSettings, Staleness, UNIFI_TYPE,
-    normalized_mac, stale_warning, verdict_line,
+    stale_warning, verdict_line,
 };
 
 /// The enabled router sensor's settings table, or the cause it could not be
@@ -72,14 +74,13 @@ pub fn device_identity(router: &toml::Table) -> Result<DeviceIdentity, SetupFail
     // can reach a comparison.
     let hostname = read_device_key(router, DeviceKey::Hostname, |text| Some(text.to_string()))?;
     let ipv4 = read_device_key(router, DeviceKey::Ipv4, |text| text.parse().ok())?;
-    let mac = read_device_key(router, DeviceKey::Mac, normalized_mac)?;
-    if hostname.is_none() && ipv4.is_none() && mac.is_none() {
-        return Err(SetupFailure::NoDeviceIdentifier);
-    }
-    Ok(DeviceIdentity {
-        hostname,
-        ipv4,
-        mac,
+    let mac = read_device_key(router, DeviceKey::Mac, |text| Some(text.to_string()))?;
+    DeviceIdentity::new(hostname, ipv4, mac).map_err(|failure| match failure {
+        DeviceIdentityError::NoIdentifier => SetupFailure::NoDeviceIdentifier,
+        DeviceIdentityError::InvalidKey { key, value } => SetupFailure::InvalidDeviceKey {
+            key,
+            found: format!("{value:?}"),
+        },
     })
 }
 /// One optional device key, read through its own shape. ABSENT STAYS ABSENT;

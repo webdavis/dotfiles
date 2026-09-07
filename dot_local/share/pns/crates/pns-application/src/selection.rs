@@ -83,3 +83,6 @@ fn core_warning(detail: &str) -> String {
         CORE.join(", ")
     )
 }
+
+#[cfg(test)]
+mod tests;

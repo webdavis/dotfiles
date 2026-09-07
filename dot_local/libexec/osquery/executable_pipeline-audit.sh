@@ -141,7 +141,7 @@ _pipeline_audit_size() {
 #              unavailable (the verdict helper it reuses is not installed),
 #              untrustworthy (not root-owned, or group/world-writable),
 #              malformed (a line that is not
-#              "<sha256> <mode> <uid> <absolute-path>"),
+#              "<sha256|unbuilt> <mode> <uid> <absolute-path>"),
 #              overlong (more entries than the audit will examine), budget (the
 #              wall-clock ceiling was reached first).
 #
@@ -219,7 +219,7 @@ _pipeline_audit_scan_manifest() {
     return 1
   }
 
-  # The manifest is "<sha256> <mode> <uid> <path>", single-space separated with the
+  # The manifest is "<sha256|unbuilt> <mode> <uid> <path>", single-space separated with the
   # PATH LAST. The line is matched WHOLE rather than split into fields: a path may
   # contain spaces, and word-splitting would silently truncate it into a path that
   # exists nowhere (which would then report as a bogus divergence forever). The path
@@ -233,7 +233,7 @@ _pipeline_audit_scan_manifest() {
   # malformed and the caller pages, rather than being read as if the missing columns
   # did not matter. The pattern is also what BOUNDS the two attribute columns, so
   # the comparisons below are string equalities over already-constrained values.
-  local line_pattern='^([0-9a-fA-F]{64}) ([0-7]{4}) ([0-9]{1,10}) (/.+)$'
+  local line_pattern='^([0-9a-fA-F]{64}|unbuilt) ([0-7]{4}) ([0-9]{1,10}) (/.+)$'
   local entries=0 line want_hash want_mode want_uid target
   local size disk_hash disk_mode disk_uid
 
@@ -274,6 +274,9 @@ _pipeline_audit_scan_manifest() {
       printf 'missing %s\n' "$target"
     elif [[ ! -f $target ]]; then
       printf 'irregular %s\n' "$target"
+    elif [[ $want_hash == unbuilt ]]; then
+      # No regular file can satisfy an artifact with no authorized build record.
+      printf 'content %s\n' "$target"
     else
       # The three columns are read BEFORE anything is judged, so an attribute that
       # cannot be read reports unreadable ONCE for the path rather than once per

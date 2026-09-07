@@ -37,13 +37,64 @@ impl DeviceKey {
 }
 /// The configured device, as identifiers that have already been VALIDATED:
 /// an address is an `Ipv4Addr` and never text, a MAC is the one normalized
-/// spelling, and at least one of the three is set. `device_identity` is the
+/// spelling, and at least one of the three is set. `DeviceIdentity::new` is the
 /// only way to build one, so an unparsed value cannot reach a comparison.
 #[derive(Debug, PartialEq)]
 pub struct DeviceIdentity {
-    pub hostname: Option<String>,
-    pub ipv4: Option<std::net::Ipv4Addr>,
-    pub mac: Option<String>,
+    hostname: Option<String>,
+    ipv4: Option<std::net::Ipv4Addr>,
+    mac: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum DeviceIdentityError {
+    NoIdentifier,
+    InvalidKey { key: DeviceKey, value: String },
+}
+
+impl DeviceIdentity {
+    pub fn new(
+        hostname: Option<String>,
+        ipv4: Option<std::net::Ipv4Addr>,
+        mac: Option<String>,
+    ) -> Result<Self, DeviceIdentityError> {
+        if let Some(value) = &hostname
+            && value.is_empty()
+        {
+            return Err(DeviceIdentityError::InvalidKey {
+                key: DeviceKey::Hostname,
+                value: value.clone(),
+            });
+        }
+        let mac = mac
+            .map(|value| {
+                normalized_mac(&value).ok_or(DeviceIdentityError::InvalidKey {
+                    key: DeviceKey::Mac,
+                    value,
+                })
+            })
+            .transpose()?;
+        if hostname.is_none() && ipv4.is_none() && mac.is_none() {
+            return Err(DeviceIdentityError::NoIdentifier);
+        }
+        Ok(Self {
+            hostname,
+            ipv4,
+            mac,
+        })
+    }
+
+    pub(super) fn hostname(&self) -> &Option<String> {
+        &self.hostname
+    }
+
+    pub(super) fn ipv4(&self) -> Option<std::net::Ipv4Addr> {
+        self.ipv4
+    }
+
+    pub(super) fn mac(&self) -> &Option<String> {
+        &self.mac
+    }
 }
 /// One client the router listed, in the router's own spelling. Every field is
 /// optional because every one of them is: the UDR omits `name` for a client
@@ -127,7 +178,7 @@ pub const UNIFI_TYPE: &str = "unifi";
 /// or `None` for six-group text that is not one. THE SAME FUNCTION VALIDATES
 /// AND COMPARES, on both sides, so the config's notion of equal and the
 /// router's cannot drift apart.
-pub fn normalized_mac(text: &str) -> Option<String> {
+fn normalized_mac(text: &str) -> Option<String> {
     // ONE uniform separator. No separator at all (a bare 12-hex run) and a
     // mix of the two are typos rather than spellings, and accepting the run
     // would mean guessing at a grouping nothing on the wire uses.
@@ -143,3 +194,6 @@ pub fn normalized_mac(text: &str) -> Option<String> {
             .all(|group| group.len() == 2 && group.bytes().all(|byte| byte.is_ascii_hexdigit())))
     .then(|| groups.join(":").to_ascii_lowercase())
 }
+
+#[cfg(test)]
+mod tests;

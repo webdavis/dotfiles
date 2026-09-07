@@ -4,12 +4,12 @@ use crate::ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, Journal, LampRecords, LightsTick, LoopLease,
     ReturnMoment,
 };
-use pns_domain::decision::{Decision, GateInputs, Overrides};
-use pns_domain::decision_record::Record;
+use pns_domain::EventArgs;
+use pns_domain::Record;
+use pns_domain::Snapshot;
 use pns_domain::lamps::config::Behaviour;
-use pns_domain::notification::EventArgs;
-use pns_domain::presence::narrowing::Snapshot;
 use pns_domain::surface::{DeliveryPlan, Surface, Visibility};
+use pns_domain::{Decision, GateInputs, Overrides};
 use std::cell::RefCell;
 
 /// EVERY PORT RECORDS INTO ONE LOG, which is what makes the ORDER assertable.
@@ -18,6 +18,8 @@ use std::cell::RefCell;
 #[derive(Default)]
 struct Recorder {
     steps: RefCell<Vec<String>>,
+    replays: RefCell<Vec<(Option<u64>, Vec<pns_domain::routing::Leg>)>>,
+    claims: RefCell<Vec<(Option<u64>, bool)>>,
 }
 
 impl Recorder {
@@ -37,16 +39,16 @@ impl DecisionRing for Recorder {
             "decision"
         });
     }
-    fn read(&self) -> Option<String> {
-        None
+    fn read(&self) -> Result<Option<String>, String> {
+        Ok(None)
     }
 }
 impl Journal for Recorder {
     fn journal(&self, _event: &EventArgs, _now: Option<u64>) {
         self.note("journal");
     }
-    fn read(&self) -> Option<String> {
-        None
+    fn read(&self) -> Result<Option<String>, String> {
+        Ok(None)
     }
 }
 impl ActivityRing for Recorder {
@@ -76,12 +78,16 @@ impl LampRecords for Recorder {
     }
 }
 impl MissedReplay for Recorder {
-    fn replay(&self) {
+    fn replay(&self, decision: &Decision) {
+        self.replays
+            .borrow_mut()
+            .push((decision.inputs.now_secs, decision.legs.clone()));
         self.note("replay");
     }
 }
 impl ReturnMoment for Recorder {
-    fn claim(&self, _now: Option<u64>, take_journal: bool) -> Option<Claim> {
+    fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
+        self.claims.borrow_mut().push((now, take_journal));
         self.note(if take_journal {
             "edge(journal)"
         } else {
@@ -101,19 +107,8 @@ impl LightsTick for Recorder {
     }
 }
 
-fn ports(recorder: &Recorder) -> SubmitNotification<'_> {
-    SubmitNotification {
-        decisions: recorder,
-        journal: recorder,
-        blocked: recorder,
-        lamp_records: recorder,
-        lease: recorder,
-        activity: recorder,
-        replay: recorder,
-        moment: recorder,
-        lamps: recorder,
-        tick: recorder,
-    }
+fn ports(recorder: &Recorder) -> SubmitNotification<'_, Recorder> {
+    SubmitNotification { ports: recorder }
 }
 
 /// A decision that delivered nothing anybody would see, which is what makes an
@@ -193,179 +188,7 @@ fn run(taken: Submission) -> Vec<String> {
     recorder.steps()
 }
 
-// --- the order itself ---------------------------------------------------
-
-#[test]
-fn the_records_are_written_in_the_order_the_event_path_states() {
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    assert_eq!(
-        run(submission(&event, &decision, &overrides)),
-        [
-            "decision",
-            "marker(live)",
-            "news(Done)",
-            "lease",
-            "activity",
-            "replay",
-            "edge",
-            "pulse(Done)",
-            "clear",
-            "tick",
-        ]
-    );
-}
-
-#[test]
-fn the_decision_line_is_written_before_anything_else() {
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    let steps = run(submission(&event, &decision, &overrides));
-    assert_eq!(steps.first().map(String::as_str), Some("decision"));
-}
-
-#[test]
-fn the_journal_is_written_before_the_activity_ring() {
-    let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
-    let steps = run(submission(&event, &decision, &overrides));
-    let journal = steps.iter().position(|step| step == "journal").unwrap();
-    let activity = steps.iter().position(|step| step == "activity").unwrap();
-    assert!(journal < activity, "{steps:?}");
-}
-
-#[test]
-fn the_catch_up_runs_after_both_records_and_before_the_pulse() {
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    let steps = run(submission(&event, &decision, &overrides));
-    let activity = steps.iter().position(|step| step == "activity").unwrap();
-    let replay = steps.iter().position(|step| step == "replay").unwrap();
-    let pulse = steps
-        .iter()
-        .position(|step| step.starts_with("pulse"))
-        .unwrap();
-    assert!(activity < replay && replay < pulse, "{steps:?}");
-}
-
-#[test]
-fn the_pulse_goes_after_every_record_the_operator_might_be_waiting_on() {
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    let steps = run(submission(&event, &decision, &overrides));
-    let pulse = steps
-        .iter()
-        .position(|step| step.starts_with("pulse"))
-        .unwrap();
-    for earlier in ["decision", "activity", "replay"] {
-        let at = steps.iter().position(|step| step == earlier).unwrap();
-        assert!(at < pulse, "{earlier} ran after the pulse: {steps:?}");
-    }
-}
-
-#[test]
-fn the_lights_tick_is_registered_last() {
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    let steps = run(submission(&event, &decision, &overrides));
-    assert_eq!(steps.last().map(String::as_str), Some("tick"));
-}
-
-// --- what each attempt is allowed to write ------------------------------
-
-#[test]
-fn a_nudge_writes_its_decision_line_and_stops() {
-    let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
-    let taken = Submission {
-        attempt: Attempt::Nudge,
-        ..submission(&event, &decision, &overrides)
-    };
-    assert_eq!(run(taken), ["decision(nag)"]);
-}
-
-#[test]
-fn an_observation_writes_its_decision_line_and_stops() {
-    let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
-    let taken = Submission {
-        attempt: Attempt::Observation,
-        ..submission(&event, &decision, &overrides)
-    };
-    assert_eq!(run(taken), ["decision"]);
-}
-
-#[test]
-fn only_a_nudge_marks_its_decision_line_as_one() {
-    let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
-    for (attempt, expected) in [
-        (Attempt::First, "decision"),
-        (Attempt::Observation, "decision"),
-        (Attempt::Nudge, "decision(nag)"),
-    ] {
-        let taken = Submission {
-            attempt,
-            ..submission(&event, &decision, &overrides)
-        };
-        assert_eq!(run(taken).first().map(String::as_str), Some(expected));
-    }
-}
-
-// --- the gates on individual steps --------------------------------------
-
-#[test]
-fn an_event_nobody_missed_reaches_no_journal() {
-    let (event, overrides) = (event(), Overrides::default());
-    let mut decision = missed_decision();
-    decision.plan.banner = true;
-    let steps = run(submission(&event, &decision, &overrides));
-    assert!(!steps.contains(&"journal".to_string()), "{steps:?}");
-    assert!(steps.contains(&"activity".to_string()), "{steps:?}");
-}
-
-#[test]
-fn a_machine_with_no_live_lamps_writes_no_marker_start_no_clear_and_no_tick() {
-    // PRESENT AT THE DESK ON PURPOSE. With an absent operator the clear is
-    // already skipped for its own reason, so an unguarded clear would still
-    // look correct here and the missing guard would go unnoticed.
-    let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
-    let taken = Submission {
-        lamps_live: false,
-        ..submission(&event, &decision, &overrides)
-    };
-    let steps = run(taken);
-    assert!(steps.contains(&"marker".to_string()), "{steps:?}");
-    assert!(!steps.contains(&"clear".to_string()), "{steps:?}");
-    assert!(!steps.contains(&"tick".to_string()), "{steps:?}");
-}
-
-#[test]
-fn the_return_edge_is_claimed_without_taking_the_journal_with_it() {
-    let (event, overrides) = (event(), Overrides::default());
-    let mut decision = missed_decision();
-    decision.inputs.surface = Surface::Desk;
-    let steps = run(submission(&event, &decision, &overrides));
-    assert!(steps.contains(&"edge".to_string()), "{steps:?}");
-    assert!(!steps.contains(&"edge(journal)".to_string()), "{steps:?}");
-}
-
-#[test]
-fn a_blocked_event_pulses_even_where_the_plan_did_not_ask_for_one() {
-    let (overrides, decision) = (Overrides::default(), missed_decision());
-    let event = EventArgs {
-        state: "blocked".to_string(),
-        ..event()
-    };
-    let steps = run(submission(&event, &decision, &overrides));
-    assert!(steps.contains(&"pulse(Blocked)".to_string()), "{steps:?}");
-}
-
-#[test]
-fn a_silenced_blocked_event_pulses_nothing() {
-    let decision = missed_decision();
-    let event = EventArgs {
-        state: "blocked".to_string(),
-        ..event()
-    };
-    let overrides = Overrides {
-        muted: true,
-        ..Overrides::default()
-    };
-    let steps = run(submission(&event, &decision, &overrides));
-    assert!(
-        !steps.iter().any(|step| step.starts_with("pulse")),
-        "{steps:?}"
-    );
-}
+mod arguments;
+mod attempts;
+mod gates;
+mod order;

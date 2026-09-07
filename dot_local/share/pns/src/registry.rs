@@ -22,14 +22,14 @@ pub fn select_plugins(
     loaded: Result<crate::config::LoadOutcome, crate::config::ConfigError>,
 ) -> (Selection, Option<String>) {
     use crate::config::LoadOutcome;
-    use pns_application::selection::ConfigOutcome;
+    use pns_application::ConfigOutcome;
 
     let outcome = match loaded {
         Ok(LoadOutcome::Loaded(config)) => ConfigOutcome::Loaded(config.plugin_switches()),
         Ok(LoadOutcome::Missing) => ConfigOutcome::Missing,
         Err(error) => ConfigOutcome::Unreadable(error.detail().to_string()),
     };
-    pns_application::selection::select_plugins(registry, outcome)
+    pns_application::select_plugins(registry, outcome)
 }
 
 #[cfg(test)]

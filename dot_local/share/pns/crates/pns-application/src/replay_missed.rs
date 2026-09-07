@@ -10,9 +10,9 @@
 
 use crate::ports::delivery::{RecapPublisher, ReplayDelivery};
 use crate::ports::records::{ActivityRing, ReturnMoment};
-use pns_domain::decision::Decision;
+use pns_domain::Decision;
+use pns_domain::EventArgs;
 use pns_domain::missed::{self, Entry};
-use pns_domain::notification::EventArgs;
 
 /// The operator's `[recap]` answers, as this decision needs them.
 ///
@@ -30,14 +30,14 @@ pub struct RecapPolicy {
 }
 
 /// The ports one catch-up runs over.
-pub struct ReplayMissedNotifications<'a> {
-    pub moment: &'a dyn ReturnMoment,
-    pub activity: &'a dyn ActivityRing,
-    pub publisher: &'a dyn RecapPublisher,
-    pub delivery: &'a dyn ReplayDelivery,
+pub struct ReplayMissedNotifications<'a, P> {
+    pub ports: &'a P,
 }
 
-impl ReplayMissedNotifications<'_> {
+impl<P> ReplayMissedNotifications<'_, P>
+where
+    P: ReturnMoment + ActivityRing + RecapPublisher + ReplayDelivery,
+{
     /// Deliver the catch-up for this event, or decline and say nothing.
     pub fn run(&self, decision: &Decision, recap: RecapPolicy, durable_route: bool) {
         if !missed::should_replay(decision) {
@@ -55,9 +55,8 @@ impl ReplayMissedNotifications<'_> {
         // CLAIMED BEFORE ANYTHING IS READ. Two events arriving together must
         // not both replay the same window, and the claim is what decides which
         // one does.
-        let Some(claim) = self
-            .moment
-            .claim(decision.inputs.now_secs, recap.replay_card)
+        let Some(claim) =
+            ReturnMoment::claim(self.ports, decision.inputs.now_secs, recap.replay_card)
         else {
             return;
         };
@@ -67,7 +66,7 @@ impl ReplayMissedNotifications<'_> {
             _ => None,
         };
         let counted: Vec<Entry> = window.map_or_else(Vec::new, |(since, until)| {
-            self.activity.entries_between(since, until)
+            ActivityRing::entries_between(self.ports, since, until)
         });
 
         // THE DIGEST IS DURABLE AND THE CARD IS NOT, so the digest needs a
@@ -76,7 +75,7 @@ impl ReplayMissedNotifications<'_> {
         let fires =
             recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events;
         let posted = match window {
-            Some((since, until)) if fires => self.publisher.publish(since, until),
+            Some((since, until)) if fires => RecapPublisher::publish(self.ports, since, until),
             _ => false,
         };
 
@@ -98,7 +97,8 @@ impl ReplayMissedNotifications<'_> {
             missed::summary(&claim.waiting)
         };
 
-        self.delivery.deliver(
+        ReplayDelivery::deliver(
+            self.ports,
             &EventArgs {
                 agent: "pns".to_string(),
                 state: "missed".to_string(),

@@ -8,11 +8,13 @@
 //! variable; the adapters do that, and they depend on this crate rather than
 //! the other way round.
 
-pub mod clock;
-pub mod delivery;
-pub mod devices;
-pub mod environment;
-pub mod harness;
-pub mod notification;
-pub mod process;
-pub mod records;
+pub(super) mod clock;
+pub(super) mod delivery;
+pub(super) mod devices;
+pub(super) mod environment;
+pub(super) mod harness;
+pub(super) mod notification;
+pub(super) mod process;
+pub(super) mod records;
+
+pub(super) mod nag;

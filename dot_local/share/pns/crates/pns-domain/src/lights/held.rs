@@ -141,3 +141,6 @@ pub fn pulse_fires(
 ) -> bool {
     shows.contains(&behaviour) && !lamp_is_held
 }
+
+#[cfg(test)]
+mod tests;

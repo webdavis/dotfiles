@@ -4,7 +4,7 @@
 //! them declare their own ports. What is left here is the path this package's
 //! callers already name.
 
-pub use pns_application::ports::environment::{
+pub use pns_application::{
     IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
     Wants,
 };

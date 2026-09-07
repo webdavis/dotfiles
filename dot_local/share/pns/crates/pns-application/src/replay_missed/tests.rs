@@ -1,11 +1,11 @@
 use super::{RecapPolicy, ReplayMissedNotifications};
 use crate::ports::delivery::{RecapPublisher, ReplayDelivery};
 use crate::ports::records::{ActivityRing, Claim, ReturnMoment};
-use pns_domain::decision::{Decision, GateInputs};
+use pns_domain::EventArgs;
 use pns_domain::missed::Entry;
-use pns_domain::notification::EventArgs;
 use pns_domain::routing::{Leg, ReportMode};
 use pns_domain::surface::{DeliveryPlan, Surface, Visibility};
+use pns_domain::{Decision, GateInputs};
 use std::cell::RefCell;
 
 /// One log for every port, so the ORDER and the refusals are both assertable.
@@ -73,13 +73,8 @@ impl ReplayDelivery for Recorder {
     }
 }
 
-fn ports(recorder: &Recorder) -> ReplayMissedNotifications<'_> {
-    ReplayMissedNotifications {
-        moment: recorder,
-        activity: recorder,
-        publisher: recorder,
-        delivery: recorder,
-    }
+fn ports(recorder: &Recorder) -> ReplayMissedNotifications<'_, Recorder> {
+    ReplayMissedNotifications { ports: recorder }
 }
 
 fn entry(at: u64) -> Entry {

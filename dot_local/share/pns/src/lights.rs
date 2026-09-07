@@ -450,15 +450,6 @@ mod unread_tests;
 mod loop_tests;
 
 #[cfg(test)]
-mod held_tests;
-
-#[cfg(test)]
-mod breath_tests;
-
-#[cfg(test)]
-mod accent_tests;
-
-#[cfg(test)]
 mod phase_tests;
 
 #[cfg(test)]

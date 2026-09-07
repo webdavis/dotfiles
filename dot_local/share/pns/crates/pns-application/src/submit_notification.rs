@@ -15,13 +15,13 @@ use crate::ports::records::{
     ActivityRing, BlockedMarker, DecisionRing, Journal, LampRecords, LightsTick, LoopLease,
     ReturnMoment,
 };
-use pns_domain::decision::{Decision, Overrides};
-use pns_domain::decision_record::Record;
+use pns_domain::EventArgs;
+use pns_domain::Record;
+use pns_domain::Snapshot;
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed;
-use pns_domain::notification::EventArgs;
-use pns_domain::presence::narrowing::Snapshot;
 use pns_domain::pulse;
+use pns_domain::{Decision, Overrides};
 
 /// Which delivery of one prompt this is.
 ///
@@ -64,35 +64,41 @@ pub struct Submission<'a> {
 }
 
 /// The ports the tail writes through.
-pub struct SubmitNotification<'a> {
-    pub decisions: &'a dyn DecisionRing,
-    pub journal: &'a dyn Journal,
-    pub blocked: &'a dyn BlockedMarker,
-    pub lamp_records: &'a dyn LampRecords,
-    pub lease: &'a dyn LoopLease,
-    pub activity: &'a dyn ActivityRing,
-    pub replay: &'a dyn MissedReplay,
-    pub moment: &'a dyn ReturnMoment,
-    pub lamps: &'a dyn LampSignal,
-    pub tick: &'a dyn LightsTick,
+pub struct SubmitNotification<'a, P> {
+    pub ports: &'a P,
 }
 
-impl SubmitNotification<'_> {
+impl<P> SubmitNotification<'_, P>
+where
+    P: DecisionRing
+        + Journal
+        + BlockedMarker
+        + LampRecords
+        + LoopLease
+        + ActivityRing
+        + MissedReplay
+        + ReturnMoment
+        + LampSignal
+        + LightsTick,
+{
     /// Write this event's records, in order.
     pub fn record(&self, submission: &Submission) {
         let decision = submission.decision;
         let overrides = submission.overrides;
 
-        self.decisions.record(&Record {
-            event: submission.event,
-            decision,
-            overrides,
-            legs: submission.legs,
-            nag: submission.attempt == Attempt::Nudge,
-            permission_mode: submission.permission_mode,
-            agent_id: submission.agent_id,
-            tool_name: submission.tool_name,
-        });
+        DecisionRing::record(
+            self.ports,
+            &Record {
+                event: submission.event,
+                decision,
+                overrides,
+                legs: submission.legs,
+                nag: submission.attempt == Attempt::Nudge,
+                permission_mode: submission.permission_mode,
+                agent_id: submission.agent_id,
+                tool_name: submission.tool_name,
+            },
+        );
 
         // THE CONTIGUOUS TAIL BELOW BELONGS TO THE FIRST DELIVERY. A nudge or
         // an observation returns here, so it writes no journal entry, no
@@ -104,35 +110,34 @@ impl SubmitNotification<'_> {
         // ASKED HERE RATHER THAN INSIDE THE PORT, so a test can say that an
         // event nobody missed reaches no journal at all.
         if missed::was_missed(decision, overrides) {
-            self.journal
-                .journal(submission.event, decision.inputs.now_secs);
+            Journal::journal(self.ports, submission.event, decision.inputs.now_secs);
         }
 
-        self.blocked.update(
+        BlockedMarker::update(
+            self.ports,
             submission.session_id,
             &submission.event.state,
             submission.lamps_live,
             decision.inputs.now_secs,
         );
-        self.lamp_records.news(
+        LampRecords::news(
+            self.ports,
             pulse::state_behaviour(&submission.event.state, true),
             decision.inputs.now_secs,
         );
-        self.lease
-            .renew(&submission.event.pane, decision.inputs.now_secs);
+        LoopLease::renew(self.ports, &submission.event.pane, decision.inputs.now_secs);
         // UNCONDITIONALLY, which is the whole difference between it and the
         // journal above: the recap's window is every event, delivered or not.
-        self.activity
-            .record(submission.event, decision.inputs.now_secs);
+        ActivityRing::record(self.ports, submission.event, decision.inputs.now_secs);
 
         // THE CATCH-UP GOES AFTER BOTH RECORDS AND BEFORE THE EDGE: a slow
         // replay must not cost either record, and the edge below closes the
         // window this reads.
         if missed::should_replay(decision) {
-            self.replay.replay();
+            MissedReplay::replay(self.ports, decision);
         }
         if missed::is_present(decision) {
-            self.moment.claim(decision.inputs.now_secs, false);
+            ReturnMoment::claim(self.ports, decision.inputs.now_secs, false);
         }
 
         // THE PULSE GOES LAST, after every channel the operator might be
@@ -141,13 +146,13 @@ impl SubmitNotification<'_> {
         let behaviour = pulse::state_behaviour(&submission.event.state, submission.lights_declared);
         let blocked_lamp = behaviour == Behaviour::Blocked && !overrides.silenced();
         if decision.plan.pulse || blocked_lamp {
-            self.lamps.pulse(behaviour, submission.presence);
+            LampSignal::pulse(self.ports, behaviour, submission.presence);
         }
         if submission.lamps_live && missed::is_present(decision) {
-            self.lamp_records.clear_held();
+            LampRecords::clear_held(self.ports);
         }
         if submission.lamps_live {
-            self.tick.register(decision, overrides);
+            LightsTick::register(self.ports, decision, overrides);
         }
     }
 }

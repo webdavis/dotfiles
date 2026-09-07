@@ -16,7 +16,7 @@
 /// rendered `Event` it becomes, because the use cases in `pns-application`
 /// take one and a use case may not name a type this package owns. The PARSE
 /// below stayed, which is the half that is about a command line.
-pub use pns_domain::notification::EventArgs;
+pub use pns_domain::EventArgs;
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the

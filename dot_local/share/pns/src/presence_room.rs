@@ -3,4 +3,4 @@
 //! THE ARBITRATION MOVED to `pns-domain`. What is left here is the path this
 //! package's callers already name.
 
-pub use pns_domain::presence::room::{Full, Snapshot, chosen};
+pub use pns_domain::{Full, Snapshot, chosen};

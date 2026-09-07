@@ -7,18 +7,18 @@
 //! for the question it answers, so the adapter is where a path, a cap and a
 //! retention count live.
 //!
-//! EVERY WRITE ANSWERS NOTHING. A record nobody could write is dropped at the
+//! RING WRITES ANSWER NOTHING. A record nobody could write is dropped at the
 //! adapter, because the notification path always exits 0 and a complaint about
 //! the state directory in every hook's output is worse than a missing
-//! diagnostic. A port that returned a result would offer a decision no caller
+//! diagnostic. A ring write that returned a result would offer a decision no caller
 //! can act on.
 
-use pns_domain::decision::{Decision, Overrides};
-use pns_domain::decision_record::Record;
+use pns_domain::EventArgs;
+use pns_domain::Record;
+use pns_domain::jobs::Job;
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
-use pns_domain::nag::Record as NagRecord;
-use pns_domain::notification::EventArgs;
+use pns_domain::{Decision, Overrides};
 
 /// The decision log: why a card did or did not fire, newest first.
 ///
@@ -28,15 +28,15 @@ use pns_domain::notification::EventArgs;
 /// composed, and the caller would be doing half the adapter's job to call it.
 ///
 /// Read as ONE STRING rather than parsed rows, because the only reader parses
-/// it itself and `None` is a machine that has recorded nothing yet, which is
-/// not a failure.
+/// it itself. `Ok(None)` means an absent file; `Err` carries error-kind detail
+/// for an unreadable file. The adapter maps only NotFound to absence.
 ///
 /// Checked against `record_decision` (`src/main.rs:814`), which builds the
 /// record, renders it and appends, and the doctor's read (`src/main.rs:7823`),
 /// which hands the whole file to `decision_log::section`. Statements: S157.
 pub trait DecisionRing {
     fn record(&self, record: &Record);
-    fn read(&self) -> Option<String>;
+    fn read(&self) -> Result<Option<String>, String>;
 }
 
 /// The missed-notification journal: events the operator could not have
@@ -49,12 +49,8 @@ pub trait Journal {
     /// `DecisionRing`'s reason: the entry's text is JSON, it is rendered in
     /// the root package until PR 11.2, and a use case cannot compose one.
     fn journal(&self, event: &EventArgs, now: Option<u64>);
-    /// DEFERRED, TYPE-SHAPED: this answers the file rather than parsed
-    /// entries, which its sibling above no longer does. No use case in step 6
-    /// consumes it; the doctor does, in PR 6.11, and that is where this shape
-    /// is re-checked. It expires the moment a use case needs to read what is
-    /// waiting, because the parse it would need is the root's until PR 11.2.
-    fn read(&self) -> Option<String>;
+    /// Reads preserve absent versus unreadable for the doctor without claiming.
+    fn read(&self) -> Result<Option<String>, String>;
 }
 
 /// The activity ring: every event, WHETHER OR NOT anybody perceived it, which
@@ -95,10 +91,9 @@ pub trait ActivityRing {
 /// event path claims the edge alone; the catch-up claims the entries with it,
 /// and only when the operator's config says a replay may card.
 ///
-/// Checked against `claim_moment` (`src/main.rs:1335`) and its two callers,
-/// `mark_present` (`1038`) and the replay (`1154`). The first passes `false`
-/// and the second passes the config's own switch, which is why the flag could
-/// not be dropped.
+/// Checked against `claim_moment` and `mark_present` in `src/return_window.rs`,
+/// and `replay_missed` in `src/return_replay.rs`. The first caller passes false
+/// and the second passes the config's own replay-card switch.
 pub trait ReturnMoment {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim>;
 }
@@ -140,6 +135,13 @@ pub trait JobSpool {
     fn cancel(&self, id: &str) -> Result<bool, String>;
     fn due(&self, now: u64) -> Vec<String>;
     fn claim(&self, id: &str) -> bool;
+
+    /// Publish a daemon-held occurrence only if its id is still absent.
+    /// `Ok(false)` preserves a newer client registration; `Ok(true)` published
+    /// this occurrence. Errors stay distinct from either successful outcome.
+    /// This is `hand_back` in `src/daemon/spool.rs`, consumed by both the wait
+    /// and re-arm paths in `src/daemon_spool_runtime.rs`.
+    fn hand_back(&self, job: &Job) -> Result<bool, String>;
 }
 
 /// The marker behind the blocked lamp: one wait, started and cleared.
@@ -148,7 +150,7 @@ pub trait JobSpool {
 /// written where a lamp map and a transport are both live, because a marker
 /// written with no lamp to read it is a wait nothing will ever clear; a clear
 /// is written regardless, since a marker left behind by a live evening must
-/// still be cleared when the lamps go away. Statements: S117.
+/// still be cleared when the lamps go away. Statements: S114, S174.
 pub trait BlockedMarker {
     fn update(&self, session_id: &str, event_state: &str, lamps_live: bool, now: Option<u64>);
 }
@@ -158,20 +160,9 @@ pub trait BlockedMarker {
 /// IT RENEWS AND NEVER CREATES. The renewal is the pane's own ordinary
 /// traffic, which is what makes the lease a liveness signal rather than a
 /// timer; a machine with no lamps pays one failed open and keeps no state.
-/// NO CLOCK IS NO RENEWAL, never a renewal at epoch zero.
+/// NO CLOCK IS NO RENEWAL, never a renewal at epoch zero. Statements: S175.
 pub trait LoopLease {
     fn renew(&self, pane: &str, now: Option<u64>);
-}
-
-/// This session's nag: the schedule that nudges about a wait nobody answered.
-///
-/// ARMING IS ONE STEP AND NOT THREE. It unlinks the session's answered marker,
-/// publishes the record and re-arms, and a caller that could do two of those
-/// would leave a session armed against a marker that says it is already
-/// answered. Which agents nag at all, and after how long, is the adapter's
-/// read of the config. Statements: S074, S237.
-pub trait NagSchedule {
-    fn arm(&self, session_id: &str, event: &EventArgs);
 }
 
 /// The lights tick this event registers against the job spool.
@@ -188,28 +179,4 @@ pub trait NagSchedule {
 /// S231.
 pub trait LightsTick {
     fn register(&self, decision: &Decision, overrides: &Overrides);
-}
-
-/// The nag's own records: one per session waiting on an approval.
-///
-/// THE FIRE LOCK IS ONE CLAIM AND NOT A FLAG. Only one run may nudge, and on
-/// macOS that has to be a rename rather than a read-then-write, because
-/// concurrent unlink reports success to every racer on APFS.
-///
-/// SESSIONS AND NOT PATHS. Where a record lives, and the rename protocol that
-/// claims it, are the filesystem adapter's business in PR 11.5; a use case
-/// knows only which sessions are due and that it holds each one.
-///
-/// Checked against `claim_fire` (`src/main.rs:4886`), the `record_entries`
-/// and `claim_record` loop (`4479`), `release_fire` (`4956`) and `clear_nag`'s
-/// marker write (`4634`). Statements: S182, S236, S237, S241.
-pub trait NagRecords {
-    /// Take the single fire lock for this run, or answer false when another
-    /// run holds it.
-    fn claim_fire(&self, now: u64) -> bool;
-    /// Every session due a nudge, each claimed by this run.
-    fn claim_due(&self, now: u64) -> Vec<(String, NagRecord)>;
-    fn release_fire(&self);
-    /// Mark this session answered, so the backstop stops nudging about it.
-    fn mark_answered(&self, session_id: &str);
 }

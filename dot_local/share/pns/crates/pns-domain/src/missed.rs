@@ -11,10 +11,9 @@
 //! rule is STRUCTURAL rather than promised: it counts non-empty lines and has
 //! no parse, so there is no code path in it that can emit a field.
 //!
-//! The JSON codec that writes and reads an entry stays in the legacy package,
-//! because this crate takes no `serde_json`, and so do the three predicates
-//! that decide whether an event was missed, because they answer over the
-//! engine's `Decision`.
+//! The JSON codec stays in the legacy package because this crate takes no
+//! `serde_json`. The missed-event predicates live here beside composition,
+//! using the decision values owned by this domain.
 
 use crate::decision::{Decision, Overrides};
 use crate::surface::{Surface, Visibility};

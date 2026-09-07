@@ -1,17 +1,39 @@
 use super::RequestApproval;
-use crate::ports::delivery::{ApprovalForwarder, Forwarded};
+
+#[test]
+fn a_gate_forwards_the_exact_prompt_and_only_waits_for_its_answer() {
+    let recorder = Recorder::new(Some(Forwarded(19)), 23);
+    let code = ports(&recorder).forward_only("pi-hook", "{\"ask\":\"$(untouched)\"}\n");
+    assert_eq!(
+        recorder.steps(),
+        ["forward(pi-hook,{\"ask\":\"$(untouched)\"}\n)", "answer"]
+    );
+    assert_eq!(code, 23);
+}
+
+#[test]
+fn a_gate_whose_forward_never_started_has_no_answer_or_other_effect() {
+    let recorder = Recorder::new(None, 23);
+    let code = ports(&recorder).forward_only("omp-hook", "{}\n");
+    assert_eq!(recorder.steps(), ["forward(omp-hook,{}\n)"]);
+    assert_eq!(code, 0);
+}
+use crate::ports::delivery::ApprovalForwarder;
+use crate::ports::nag::NagSchedule;
 use crate::ports::notification::{PhoneSuppression, RaiseNotification};
-use crate::ports::records::NagSchedule;
-use pns_domain::notification::EventArgs;
+use pns_domain::EventArgs;
 use std::cell::RefCell;
 
 /// EVERY PORT WRITES INTO ONE LOG, which is what makes the ORDER assertable.
 /// Four separate spies could each prove they were called and none of them
 /// could prove what came before it.
+#[derive(Debug, PartialEq, Eq)]
+struct Forwarded(u32);
+
 struct Recorder {
     steps: RefCell<Vec<String>>,
     /// Whether the forward begins. `None` is a spawn that never started.
-    spawn: Option<Forwarded>,
+    spawn: RefCell<Option<Forwarded>>,
     answer: i32,
 }
 
@@ -19,7 +41,7 @@ impl Recorder {
     fn new(spawn: Option<Forwarded>, answer: i32) -> Self {
         Self {
             steps: RefCell::new(Vec::new()),
-            spawn,
+            spawn: RefCell::new(spawn),
             answer,
         }
     }
@@ -32,9 +54,10 @@ impl Recorder {
 }
 
 impl ApprovalForwarder for Recorder {
+    type Forwarded = Forwarded;
     fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Forwarded> {
         self.note(&format!("forward({subcommand},{payload_json})"));
-        self.spawn.as_ref().map(|held| Forwarded(held.0))
+        self.spawn.borrow_mut().take()
     }
     fn answer(&self, _forwarded: Forwarded) -> i32 {
         self.note("answer");
@@ -57,13 +80,8 @@ impl RaiseNotification for Recorder {
     }
 }
 
-fn ports(recorder: &Recorder) -> RequestApproval<'_> {
-    RequestApproval {
-        forwarder: recorder,
-        phone: recorder,
-        nag: recorder,
-        notifier: recorder,
-    }
+fn ports(recorder: &Recorder) -> RequestApproval<'_, Recorder> {
+    RequestApproval { ports: recorder }
 }
 
 fn event() -> EventArgs {

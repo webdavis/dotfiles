@@ -1,10 +1,10 @@
 //! Carrying a signal outward: the destinations, and the approval round trip.
 
+use pns_domain::Event;
+use pns_domain::EventArgs;
 use pns_domain::lamps::config::Behaviour;
-use pns_domain::notification::Event;
-use pns_domain::notification::EventArgs;
-use pns_domain::presence::narrowing::Snapshot;
 use pns_domain::routing::{Delivery, Leg, ReportMode};
+use pns_domain::{Decision, Snapshot};
 
 /// One destination a rendered event can reach.
 ///
@@ -24,45 +24,41 @@ pub trait NotificationDestination {
     fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery;
 }
 
-/// The approval round trip: hand the harness payload to the phone and wait,
-/// bounded, for the operator to answer it.
+/// Submit the original harness payload and complete that submission, bounded.
 ///
 /// TWO STEPS AND NOT ONE, because the caller acts between them. A forward that
 /// really BEGAN suppresses this process's own phone leg, since the card moshi
 /// is raising is one the surface model cannot know about, and that suppression
-/// happens before anybody waits for an answer. Collapsing the pair would make
-/// the suppression unobservable and the ordering untestable.
+/// happens before anybody waits for submission completion. Collapsing the pair
+/// would make the suppression unobservable and the ordering untestable.
 ///
-/// THE PAYLOAD CROSSES AS BYTES, never as a parsed event: it belongs to the
+/// THE PAYLOAD CROSSES UNCHANGED, never as a parsed event: it belongs to the
 /// harness and reaches the other side byte for byte whether or not pns could
-/// parse it.
+/// parse it. The original subcommand crosses beside it.
 ///
-/// The answer is the exit code the harness contract defines, and `None` from
-/// `forward` is a spawn that never began, which is not a denial.
+/// The answer is the submission's arbitrary exit code, not human approval or
+/// denial. `None` from `forward` is a spawn that never began. The adapter owns
+/// the child, its deadline and cleanup; completion consumes that owned child.
 ///
-/// Checked against `blocking_event` (`src/main.rs:2339-2346`), where the
-/// filter chain spawns and the `is_some` branch sets `PNS_SKIP_PHONE`, and
-/// `gate_mode` (`src/main.rs:245`), which spawns and waits with no arming
-/// between. Statements: S074, S076.
+/// Checked against `gate_mode` and `blocking_event` in `src/moshi_submission.rs`,
+/// including the submission semantics documented by `moshi_decision` and
+/// `answer_within`. Statements: S074, S076.
 pub trait ApprovalForwarder {
-    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Forwarded>;
-    fn answer(&self, forwarded: Forwarded) -> i32;
-}
+    type Forwarded;
 
-/// A forward that really began, and nothing more. It carries no detail because
-/// no caller reads one: its whole meaning is that a child exists to wait on.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Forwarded(pub u32);
+    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Self::Forwarded>;
+    fn answer(&self, forwarded: Self::Forwarded) -> i32;
+}
 
 /// The catch-up: whatever the journal is holding, delivered now.
 ///
 /// WHETHER TO REPLAY IS THE CALLER'S QUESTION, not this port's. The use case
 /// asks the domain first and only then calls this, so an observation or a
 /// nudge reaches no adapter at all and an ordering test can say so. What the
-/// replay is delivered THROUGH, and which of the operator's channels count as
-/// somewhere they would see it, is bound into the adapter. Statements: S106.
+/// replay is delivered through is bound into the adapter. The current decision
+/// supplies its delivery legs and clock. Statements: S106.
 pub trait MissedReplay {
-    fn replay(&self);
+    fn replay(&self, decision: &Decision);
 }
 
 /// The lamps, signalled for this event.
@@ -71,16 +67,15 @@ pub trait MissedReplay {
 /// on. It is part of the plan rather than a second invocation, but it talks to
 /// a bridge over the network under a deadline, and nothing an operator reads
 /// should queue behind decoration. It still fires for a plan that reached no
-/// channel at all: the lights are not a leg. Statements: S218, S230.
+/// channel at all: the lights are not a leg. Statements: S218.
 pub trait LampSignal {
     fn pulse(&self, behaviour: Behaviour, presence: Option<&Snapshot>);
 }
 
-/// The return recap, published where it durably belongs.
+/// Start the return recap in a separate process.
 ///
-/// IT ANSWERS WHETHER IT POSTED, and the card the operator sees says so. A
-/// recap that failed to publish must not be described as filed somewhere they
-/// can go and read it.
+/// The answer reports whether that process started. It does not confirm
+/// publication: the caller does not wait for the child to render or post.
 ///
 /// THE WINDOW IS THE ONLY ARGUMENT. Which repositories are read, how the
 /// digest is composed and where it is posted are the adapter's; the use case

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] [--only-bashunit]
 # <suite-dir> -- run one test suite: its bashunit `<name>.test.sh` files, then
-# its executable *.sh tests, then its *.bats suites. Shared by every test recipe
-# so the checked-discovery and fd-closing rules below live in ONE place.
+# its executable *.sh tests. Shared by every test recipe so the
+# checked-discovery and fd-closing rules below live in ONE place.
 #
 # Two correctness rules the gate depends on:
 #
@@ -23,7 +23,7 @@
 #
 #   --shuffle[=seed]   randomize the *.sh order to flush hidden ordering
 #                      dependence; the seed is printed so a failure replays with
-#                      TEST_SEED=<seed>. (Bats 1.11 has no built-in shuffle.)
+#                      TEST_SEED=<seed>.
 #   --warn-slow-ms N   print a WARN-ONLY summary of *.sh tests over N ms; the
 #                      warnings never fail the run.
 #   --only-bashunit    run the bashunit lane alone and stop, for focused
@@ -34,6 +34,22 @@
 # process); the shuffle uses gshuf/shuf when present and degrades to sorted
 # order otherwise.
 set -euo pipefail
+
+# A test's throwaway `git init` sandbox must not inherit the OPERATOR's git
+# config. `~/.gitconfig` sets core.fsmonitor = true, so a git command that
+# refreshes the index in such a sandbox talks to a `git fsmonitor--daemon` for
+# that repository (git starts one when none is running and retries). What was
+# observed in the gate's output was `error: could not read IPC response`, which
+# git prints when the daemon connection is made but the reply cannot be read;
+# git then falls back to an ordinary index scan, so the tests were never wrong,
+# only noisy. The count of those lines varied run to run, and an `error:` line
+# in a green gate was read as a failing one. That config also aims
+# core.hooksPath at the user-wide hooks, which a unit test has no business
+# running. /dev/null is a readable, empty config file, so this is a scrub rather
+# than a stub. It sits at script scope for the reason the two rules above do:
+# every test in every suite comes through this one runner, so a test written
+# tomorrow inherits the scrub without having to know it needs one.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] [--only-bashunit] <suite-dir>'
 
@@ -234,28 +250,6 @@ run_bashunit_files() { # <bashunit_list_file>
   NO_COLOR=1 bashunit "${bashunit_files[@]}" || status=1
 }
 
-# Run the suite's *.bats suites from <bats_list_file>.
-run_bats_suites() { # <bats_list_file>
-  local bats_list="$1"
-  local bats_files=() b
-  while IFS= read -r -d '' b; do
-    bats_files+=("$b")
-  done <"$bats_list"
-  ((${#bats_files[@]} > 0)) || return 0
-
-  printf '== bats (%s) ==\n' "$suite_directory"
-  # Host bats-core only (a brew formula, declared in the package manifest);
-  # the nix devshell fallback is gone with the flake (2026-08-05). No --jobs:
-  # parallel bats needs GNU parallel, and the six remaining bats files run in
-  # seconds serially.
-  if ! command -v bats >/dev/null 2>&1; then
-    printf 'FAIL: bats is not installed; run "brew install bats-core" (it is declared in .chezmoidata/system_packages_autoinstall.yaml)\n' >&2
-    status=1
-    return
-  fi
-  bats "${bats_files[@]}" || status=1
-}
-
 # The suite directory must be given and must exist before anything runs.
 require_suite_directory() {
   [[ -n $suite_directory ]] || die_usage
@@ -272,13 +266,6 @@ discover_sh_tests() { # <outfile>
   fi
 }
 
-discover_bats_tests() { # <outfile>
-  if ! discover_tests "$suite_directory" "$1" -name '*.bats'; then
-    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$suite_directory" >&2
-    exit 1
-  fi
-}
-
 # `*.test.sh` exactly, and only the ones sitting flat in THIS suite. Note this
 # runs before the *.sh discovery below and matches a strict subset of it, except
 # that a bashunit file is never executable, so the two lanes cannot both claim
@@ -290,10 +277,9 @@ discover_bashunit_tests() { # <outfile>
   fi
 }
 
-# An empty suite is a green no-op: say so and stop. The bats list file is empty
-# exactly when discovery found no bats files.
-exit_zero_if_no_tests_found() { # <bats_list_file>
-  if [[ $any_sh -eq 0 && $any_bashunit -eq 0 && ! -s $1 ]]; then
+# An empty suite is a green no-op: say so and stop.
+exit_zero_if_no_tests_found() {
+  if [[ $any_sh -eq 0 && $any_bashunit -eq 0 ]]; then
     printf 'no tests found in %s\n' "$suite_directory"
     exit 0
   fi
@@ -312,7 +298,7 @@ main() {
 
   workdir="$(mktemp -d)"
   trap 'rm -rf "$workdir"' EXIT
-  local sh_list="$workdir/sh" bats_list="$workdir/bats" bashunit_list="$workdir/bashunit"
+  local sh_list="$workdir/sh" bashunit_list="$workdir/bashunit"
 
   discover_bashunit_tests "$bashunit_list"
   run_bashunit_files "$bashunit_list"
@@ -323,9 +309,7 @@ main() {
 
   discover_sh_tests "$sh_list"
   run_sh_tests "$sh_list"
-  discover_bats_tests "$bats_list"
-  exit_zero_if_no_tests_found "$bats_list"
-  run_bats_suites "$bats_list"
+  exit_zero_if_no_tests_found
   print_slow_test_summary
 
   exit "$status"

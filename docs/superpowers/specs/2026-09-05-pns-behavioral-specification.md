@@ -852,10 +852,11 @@ S081. The gate builds a throwaway probe set, runs no delivery plan, writes no ma
       also `at_the_desk_the_gate_submits_nothing_and_exits_zero`
            at tests/hooks.rs:2437
 
-S082. No test asserts that a gate run leaves no marker behind, and no test measures what Codex does
-      with a `PermissionRequest` hook's exit code.
-      Source: `src/main.rs:235-247 gate_mode`.
-      Pin: UNPINNED. Both recorded in `docs/specs/blocking-approval.md`.
+S082. A forwarded gate preserves existing marker bytes and creates no state-directory entry.
+      What Codex does with a `PermissionRequest` hook's exit code remains unmeasured.
+      Source: `src/moshi_submission.rs:gate_mode`.
+      Pin: `a_forwarded_gate_leaves_the_state_markers_untouched` in `tests/hooks/gate.rs`.
+      UNPINNED: Codex's interpretation of the exit code, recorded in `docs/specs/blocking-approval.md`.
 
 S083. The blocked hook's card is state `blocked`, project from the payload's `cwd`, detail from the
       message chain (`Bash: command=rm -rf /tmp/x` for Claude Code, `shell: command=bash -lc rm -rf

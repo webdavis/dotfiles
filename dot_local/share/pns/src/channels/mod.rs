@@ -18,7 +18,7 @@ use crate::routing::ReportMode;
 /// One rendered event, the structured form of the channel contract's JSON
 /// object. THE VALUE MOVED to `pns-domain`, where the ports that hand it to a
 /// destination are declared; the wire format below stayed, because it is JSON.
-pub use pns_domain::notification::Event;
+pub use pns_domain::Event;
 
 /// The event as the JSON object the channel contract specifies, for an
 /// executable channel reading one line on stdin. The delivery mode is the
@@ -48,7 +48,7 @@ pub fn event_json(event: &Event, mode: ReportMode) -> String {
 /// THE VOCABULARY IS THE ROUTING'S, in `pns-domain` beside the `Leg` it
 /// answers for and the `ReportMode` that says whether anyone reads it, and it
 /// is named here for every destination that produces one.
-pub use pns_domain::routing::Delivery;
+pub use pns_domain::Delivery;
 
 /// True when native plugins take precedence for dispatch: only when the
 /// channels directory was NOT explicitly overridden.

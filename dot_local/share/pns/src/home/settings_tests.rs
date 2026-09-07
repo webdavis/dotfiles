@@ -165,11 +165,7 @@ fn a_router_table_naming_no_device_at_all_is_refused_naming_every_key() {
 fn a_table_carrying_only_a_hostname_yields_it_and_the_retired_key_is_not_read() {
     assert_eq!(
         device_identity(&table("device_hostname = \"mister\"\n")),
-        Ok(DeviceIdentity {
-            hostname: Some("mister".to_string()),
-            ipv4: None,
-            mac: None,
-        })
+        Ok(DeviceIdentity::new(Some("mister".to_string()), None, None).unwrap())
     );
     // `phone` is the RETIRED spelling. Reading it as an identifier would
     // hide the rename the operator still has to make, and this repo does
@@ -243,11 +239,10 @@ fn a_malformed_device_ipv4_is_refused_naming_the_key_and_quoting_the_value() {
     // typed as: nothing downstream can compare it as a string.
     assert_eq!(
         device_identity(&table("device_ipv4 = \"192.168.1.169\"\n")),
-        Ok(DeviceIdentity {
-            hostname: None,
-            ipv4: Some(std::net::Ipv4Addr::new(192, 168, 1, 169)),
-            mac: None,
-        })
+        Ok(
+            DeviceIdentity::new(None, Some(std::net::Ipv4Addr::new(192, 168, 1, 169)), None)
+                .unwrap()
+        )
     );
 }
 
@@ -297,11 +292,7 @@ fn a_well_formed_mac_in_any_case_or_separator_validates_to_one_spelling() {
     ] {
         assert_eq!(
             device_identity(&table(&format!("device_mac = \"{typed}\"\n"))),
-            Ok(DeviceIdentity {
-                hostname: None,
-                ipv4: None,
-                mac: Some("2e:11:ab:6d:b0:4f".to_string()),
-            }),
+            Ok(DeviceIdentity::new(None, None, Some("2e:11:ab:6d:b0:4f".to_string())).unwrap()),
             "case: {typed:?}"
         );
     }

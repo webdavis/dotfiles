@@ -69,11 +69,12 @@ the rows for PR 5.1 and PR 5.7. The ladder continues at PR 5.2.
 
 ## 3. Rules every pull request in the ladder obeys
 
-1. **Kind of work, declared.** A PR is a pure move or new behavior, never both. A pure move carries
-   the block-identity check (removed lines equal added lines after stripping the expected visibility
-   token per line) and the whole-file reconstruction check (delete the block and the import lines from
-   both sides and `cmp` the remainder), both from the header of `extraction-verify.sh`. New behavior
-   carries a red test first and a mutation check by hand (revert the fix, the test goes red, restore).
+1. **Kind of work, declared per logical commit.** Related rows ship in the batches below.
+   Original stacked commits are preserved. Pure moves retain block-identity and whole-file
+   reconstruction proof; behavior changes retain observed fail-first coverage and independent mutation
+   controls. A batch containing both is described as mixed work, never as a pure move. Valid evidence is
+   reused by exact source identity, with one final batch suite and the unchanged extraction verifier.
+   No behavior, safety requirement, consumer gate or test obligation is removed by batching.
 2. **Gates.** `just test-rust`, `just lint-check`, the uu test line, the builder's build line, the
    render-and-diff check, and the argv differential with its control mutant. `just ship` before the
    pull request opens, because a topic branch with no open pull request runs the suite nowhere.
@@ -94,12 +95,34 @@ the rows for PR 5.1 and PR 5.7. The ladder continues at PR 5.2.
 6. **Unpinned first.** Before a step moves code behind an UNPINNED statement in the specification, the
    PR before it writes the missing test against the code where it lives. The statements are listed per
    step below.
-7. **Order.** The presence policy is on `main` (`7c58f94b`), so no step waits on a branch. A step
-   lands after the steps its row names under `Order:`; a row with no `Order:` lands in ladder order.
-8. **Two open pns branches at most**, per the operator's 2026-08-30 ruling, and every PR gets the
-   independent model review at max reasoning beside the pipeline's own steps.
+7. **Order.** Batch order follows dependencies. Rows inside a batch retain their dependency order
+   and separate logical commits; old numeric ladder order does not force an otherwise independent
+   extraction to wait. The configuration foundation precedes dependent adapters. Deadline repairs are
+   proved before the affected moves. Store and ledger activation precede recording decoration.
+8. **Delivery.** Finish the existing stack through its corrected highest branch, preserving all
+   ancestor commits. No separate model review pass is required under the operator's current ruling;
+   normal hooks, source inspection, retained controls, final batch gates and hosted checks still apply.
 9. Repository rules: Conventional Commits, no trailers, no em-dashes, `trash` never `rm`, never
    `chezmoi apply`, never a force push.
+
+### Remaining delivery batches
+
+Rows below are scope, not extra deliveries. Finished mobile configuration work and partial nag work
+are reused in their assigned batches. Verification-only 8.4 and residual 16 work are included once.
+
+| Batch | Existing work and remaining rows |
+| --- | --- |
+| Combined use-case stack | Existing PRs 399, 400, 401, 402, 403, 407, 409, 411, 412, 415, 416 through corrected 416 |
+| Hook deadline repair | Existing PR 378 |
+| Configuration foundation | 13.1 to 13.5, including completed 13.4a |
+| Executable deadline repair | 14.2 |
+| External adapters | 10.1, 10.2, 14.1, 14.3, 14.4, 14.5 |
+| Remaining application use cases | Partial 6.5, 6.6 to 6.13, 14.6, 13.6 |
+| File protocols | 11.1, 11.2, 11.5 |
+| Transactional state | 11.3, 12.1 |
+| Reliable delivery | 7.2, 7.3, 9.1, 9.2, 11.4 and the posture priority-route and delivery-class prerequisites |
+| Command and hook adapters | 8.1, 8.2, 8.3, 13.7; includes 8.4 verification |
+| Workspace closure | 15.1, 15.2, conditional 17.1, 18.1 and residual 16 after subtracting merged shard work |
 
 ## 4. What is being moved, measured
 
@@ -215,13 +238,20 @@ measured: `missed.rs` 323 plus `missed/tests.rs` 306; the root module splits its
 `record_path`, `claim_path` (path grammar) stay for PR 11.5. Tests: by name. Sizes: `nag.rs` ~180 plus
 tests ~140. Statements: S239 (`fate`), S240.
 
-**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `validate_shape`,
-`Heartbeat`, the bounds (`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`,
-`MIN_EVERY_SECS`, `DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`,
-`172-340`) to `pns-domain/src/jobs.rs`. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`,
-`publish_*`, `marker_exists`, `prepare_spool` stay for PR 11.5. Tests: `decide`, `rearm`,
-`validate_shape`, `validate_registration`, heartbeat round trip, by name. Sizes: `jobs.rs` ~230 plus
-tests ~350. Statements: S199, S200 (the `rearm` half), S205, S206.
+**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `Heartbeat`, the bounds
+(`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`, `MIN_EVERY_SECS`,
+`DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`, `172-340`) to
+`pns-domain/src/jobs.rs`. `validate_shape` and `validate_registration` do NOT move, against this row's
+first draft: `validate_shape`'s last rule caps the RENDERED record, which makes it a fact about the
+serialized form rather than about the job, and `validate_registration` calls it. Both stay beside
+`render` with their own tests, and both go to `pns-adapters` with the TAB codec in PR 11.5, which is
+where the serialized form lands. A pure `validate_shape(job, rendered_len)` would let the rule move
+later; nothing needs it yet. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`, `publish_*`,
+`marker_exists`, `prepare_spool` stay for PR 11.5 too. Tests: `decide`, `rearm`, heartbeat round trip, by
+name; the two validators' tests stay with them. S206's own test is written here, red-first, in
+`doctor.rs` rather than the domain, because the behavior it states belongs to the grader `daemon_line`
+and a test beside the constant can only restate the constant. Sizes: `jobs.rs` ~230 plus tests ~350.
+Statements: S199, S200 (the `rearm` half), S205, S206.
 
 **PR 5.7 the lights policy.** Moves from `src/lights.rs`: `WORKING`, `any_working`, `Streak`,
 `next_streak`, `News`, `news_after`, `Unread`, `unread_arming`, `last_interaction`, `Loop`,
@@ -230,26 +260,46 @@ tests ~350. Statements: S199, S200 (the `rearm` half), S205, S206.
 `breath_fades`, `Phase`, `HeldEntry`, `resume_from`, `Action`, `blocked_marker_action`, `Say`, `say`,
 `Muted`, `MAX_MUTED_PLACES`, `bare_mute_secs`, `muted_after`, `muted_places`, `muted_report` (lines
 19-1369 less the items below; `working_owner` and its two suffixes are already in
-`pns-domain/src/lights.rs` since PR 5.1 and stay in that module's root file when it becomes the `lights/`
-directory). Stays for later steps: `workspace_agent_statuses` (a `serde_json` parse of herdr's answer, PR
-14.1), `render_streak`/`parse_streak`, `render_news`/`parse_news`, `render_held_token`/
+`pns-domain/src/lights.rs` since PR 5.1 and stay in that module's root file). Stays for later steps:
+`workspace_agent_statuses` (a `serde_json` parse of herdr's answer, PR 14.1),
+`render_streak`/`parse_streak`, `render_news`/`parse_news`, `render_held_token`/
 `parse_held_token`, `muted_entries`/`render_muted` (state codecs, PR 11.2), `lease_dir`, `lease_marker`,
 `blocked_dir`, `blocked_marker`, `sweep_claim` (paths, PR 11.5), `loop_command`, `LOOP_USAGE`,
-`QuietCommand`, `quiet_command`, `NO_SCHEDULE` (argv adaptation, PR 8.1). Target files:
-`pns-domain/src/lights/{held,streak,unread,loop,breath,phase,mute}.rs`. Tests: 54 by name, split into the
-same seven. Sizes: seven production files of 90 to 220, seven test files of 120 to 420. Statements: S114
-(`blocked_marker_action`), S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the
-schedule), S040 (`bare_mute_secs`).
+`QuietCommand`, `quiet_command`, `NO_SCHEDULE` (argv adaptation, PR 8.1). The seven files under
+`pns-domain/src/lights/` measure `held.rs` 146 lines, `streak.rs` 67, `unread.rs` 151, `looping.rs` 73,
+`breath.rs` 165, `phase.rs` 188 and `mute.rs` 150. The domain root remains `lights.rs` at 63 lines.
+`Breath` and `BreatheThenFlare` move early from `src/config.rs` into
+`pns-domain/src/lamps/config.rs`, now 57 lines. The consumers `breath_cycle(&Breath)` and
+`breathe_then_flare_cycle(&BreatheThenFlare)` require those values in the domain, which cannot depend
+back on the legacy configuration parser.
+
+All 54 leaf test names survive, including the two `working_owner` tests already in the domain's
+`lights/tests.rs` at 72 lines. The four held, seven breath and five accent tests move into
+`lights/held/tests.rs` (124 lines), `lights/breath/tests.rs` (298) and
+`lights/breath/tests/accent.rs` (200), with their bodies unchanged apart from paths. Breath and accent
+share the literal motion fixtures in `lights/breath/tests/fixtures.rs` (30). The remaining 36 tests
+stay in the legacy `src/lights/` modules: `streak_tests.rs` (109), `unread_tests.rs` (280),
+`loop_tests.rs` (261), `phase_tests.rs` (343), `mute_tests.rs` (133) and `quiet_command_tests.rs`
+(360). These modules mix policy with codecs, marker paths or argument parsing. The legacy
+`fixtures.rs` is 76 lines and `src/lights.rs` is 459. Statements: S114 (`blocked_marker_action`),
+S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the schedule), S040
+(`bare_mute_secs`).
 
 **PR 5.8 the lamp resolution policy.** Moves from `src/channels/hue.rs`: `QuietWindow`, `minute_of_day`,
 `quiet_now`, `Fixture`, `Unresolved`, `Missing`, `missing_sentence`, `Lamp`, `Inventory` (types),
 `DimWindow`, `Routed`, `Routing`, `LEVELS`, `resolve`, `Showing`, `dim_showing`, `window_refusal`,
 `Muting`, `muted_now`, `mutable_names`, `remember` (lines 1-743 less `hue_settings`, `quiet_window` and
 `inventory`, which parse TOML and JSON) to `pns-domain/src/lamps/{window,dim,resolve,mute,inventory}.rs`.
-Tests: 42 by name, split alongside. Consumer: `main.rs` `fire_pulse_unless_quiet`, `run_pulse_writes`,
-`run_tick_writes`, `lights_quiet`. Sizes: five production files of 80 to 260, tests 120 to 400. Its
-callers in `main.rs` stay put in this PR. Statements: S107 (`QuietWindow`), S108, S111, S112
-(`muted_now`), S222.
+The policy also needs the plain `Lights`, `Pulse`, `Blocked`, `Unread`, `Looping` and `Target` value
+records and their defaults, so those move first from `config.rs` to `pns-domain/src/lamps/config.rs`.
+TOML parsing and bounds stay in the root configuration module. `QuietWindow` keeps private fields;
+retained fixtures construct it through `parse_window`. The `Fixture` value stays in the domain and
+`fixture_path` renders its Hue resource path at the bridge edge.
+Tests: 42 by name, retained under `src/channels/hue/` in five private files because their cases span
+policy and the retained parsers. The root channel splits bridge transport, JSON bodies and effect
+selection into `hue/{bridge,bodies,render}.rs`. Consumer calls remain in the root runtime modules,
+with fixture path construction updated to the edge function. Statements: S107 (`QuietWindow`), S108,
+S111, S112 (`muted_now`), S222.
 
 **PR 5.9 the recap composition.** Moves `src/recap.rs` whole (it reads no file, no clock and no
 environment; its one input type is `missed::Entry` from PR 5.4) to
@@ -259,37 +309,40 @@ of 120 to 260; tests of 150 to 420. Statements: S246 (budgets), S247, S250 (`ans
 S252.
 
 **PR 5.10 the home-probe policy.** Moves from `src/home.rs`: `DeviceKey`, `DeviceIdentity`,
-`HomePresence`, `Client`, `KeyReading`, `KeyOutcome`, `home_reading`, `client_carries`, `first_match`,
+`HomePresence`, `HomeReading`, `Client`, `KeyReading`, `KeyOutcome`, `home_reading`, `client_carries`,
+`first_match`,
 `client_label`, `normalized_mac`, `Staleness`, `stale_identifiers`, `episode_id`, `is_new_staleness`,
 `stale_warning`, `UNIFI_TYPE` to `pns-domain/src/home/{identity,reading,staleness}.rs`. Stays:
 `parse_clients`, `first_site_id`, `Router`, `UniFiRouter`, `read_home`, `ROUTER_*` (PR 14.5);
 `router_settings`, `device_identity`, `router_api_key`, `stale_alert_channel`, `enabled_router_table`,
 `SetupFailure`, `setup_report`, `report` (config reading and presentation, PRs 13.4 and 15.1). Tests: 52
-by name, split. Sizes: three production files of 120 to 260, tests of 200 to 420. Statements: S168
-(`episode_id`), S273 (`home_reading`), S274 (`stale_identifiers`).
+by name, split. Four domain tests also pin the public identity constructor: private fields preserve
+S271's non-empty identifier and normalized MAC invariants at the crate boundary. Configuration type
+checks and diagnostic wording remain in `device_identity`. Sizes: three production files of 120 to
+260, tests of 200 to 420. Statements: S168 (`episode_id`), S271 (identity construction), S273
+(`home_reading`), S274 (`stale_identifiers`).
 
-**PR 5.11 the decision.** Moves from `src/engine.rs`: `DEFAULT_DESK_IDLE_SECS`, `Overrides` (the struct
-and `silenced`, `reads_desk`, `reads_phone`), `Decision`, `GateInputs`, `SurfaceReading`, `decide` (lines
-29-99, 134-301) to `pns-domain/src/decision.rs`. It ALSO carries the three predicates PR 5.4 had to leave
-behind, `was_missed`, `should_replay` and `is_present`, out of `src/missed_notifications.rs` and into
-`pns-domain/src/missed.rs` beside the rest of that policy, with their twelve tests: they read only the
-`Decision` and `Overrides` this step moves, so this is the first step at which they can go. Stays:
-`Overrides::from_env` (reads the environment, PR 8.1), `operator_surface`, `surface_reading`,
-`operator_visibility` (they drive probe traits, PR 6.1). Tests: the `decide` tests by name into
-`decision/tests.rs`, split by the mute, the override and the readings seams, plus the predicate tests
-into `missed/tests.rs`. Sizes: `decision.rs` ~170; three test files of 350 to 450. `decide`'s signature
-does not change in `engine.rs`. Statements: S099 (the arbitration), S102, S103, S118, and S106, S158
-(predicate), S159, S161 (predicate) arriving from PR 5.4; S159's own test stays assigned to PR 11.3.
-`decide` itself stayed here because it is generic over the probe traits; THAT REASON EXPIRED AT PR 6.1,
-which made those traits ports, and PR 6.1e moved it to `pns-application/src/decide.rs` beside them.
+**PR 5.11 the decision values and missed predicates.** Moves from `src/engine.rs`:
+`DEFAULT_DESK_IDLE_SECS`, `Overrides` and its whole implementation (`silenced`, `reads_desk`,
+`reads_phone`, `from_env`), `Decision`, `GateInputs` and `SurfaceReading` to
+`pns-domain/src/decision.rs`. `from_env` parses a supplied map; environment collection stays at the
+command edge for PR 8.1. Carries the three predicates PR 5.4 left behind, `was_missed`, `should_replay`
+and `is_present`, from `src/missed_notifications.rs` into `pns-domain/src/missed.rs`, with their twelve
+tests. They read only the decision values and overrides this step moves. Stays: the probe-driving
+`decide`, `operator_surface`, `surface_reading` and `operator_visibility`. PR 6.1 owns their split into
+application observation acquisition and pure domain arbitration over a completed typed snapshot. Tests:
+retain all 36 engine tests by name in the private `engine/{guard,intent,mute,plan,readings}_tests.rs`
+files, and the twelve predicates in `missed/predicate_tests.rs`. Sizes: `decision.rs` about 215 lines,
+`engine.rs` about 255, private engine test files 191 to 304, and `missed.rs` 413. The legacy `decide`
+signature stays unchanged until the later composition work replaces its call surface. Statements: S099
+(the arbitration), S102, S103, S118, and S106, S158 (predicate), S159, S161 (predicate) arriving from PR
+5.4; S159's own test stays assigned to PR 11.3.
 
 **PR 5.12 the presence policy.** Moves `src/presence.rs` (`idle_secs_from_ns`, `PresenceStatus`,
 `Unreadable`, `classify`, `unreadable_said`), the new `presence_policy.rs` (`Narrowing`, `narrow`) and
 `presence_room.rs` (`Snapshot`, `Full`, `chosen`, `desk_age`) to
-`pns-domain/src/presence/{status,narrowing,room}.rs`. `RawPresence` and `Edge` come with them, out of
-`presence_file.rs` and into `status.rs` beside the `classify` that takes them; the codec around them
-stays for PR 10.2 and names them at their new home. `presence_file.rs` itself (a state-file line codec)
-and `presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
+`pns-domain/src/presence/{status,narrowing,room}.rs`. `presence_file.rs` (a state-file line codec) and
+`presence_instant.rs` (the bridge's timestamp grammar) go to adapters in PR 10.2. Tests: by name,
 including the presence policy's own. Sizes: three production files under 200; tests under 350.
 Statements: S084 (`idle_secs_from_ns`), S234, S235.
 
@@ -297,14 +350,27 @@ Statements: S084 (`idle_secs_from_ns`), S234, S235.
 `UNPRINTABLE`, `ABSENT`, `tri`, `count`, `verdicts`, `yes_no` to `pns-domain/src/decision_record.rs`, and
 `Delivery` from `channels/mod.rs` to `pns-domain/src/routing.rs`, beside the `Leg` it answers for and the
 `ReportMode` that says whether anyone reads it: `verdicts` takes it, and a destination's outcome is a
-value the policy reads rather than something the domain may reach into the adapters for. `Record` does
-NOT move here: it borrows an `&EventArgs`, which still lives in the root package. THAT REASON EXPIRED AT
-PR 6.1a, which moved `EventArgs` to the domain and left every field of `Record` domain-resident; PR 6.1e
-moved it, and the `DecisionRing` port takes it rather than a rendered line. Stays: `line`, `NO_CLOCK`
-(the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the
-doctor's presentation, PR 15.1). Tests: none move; every one drives `line` or `section`, both of which
-stay, and `decision_log.rs` splits at that seam into shared fixtures, line rows and section rows. Sizes:
-~110 plus the three test siblings under 400. Statements: S157 (`printable`).
+value the policy reads rather than something the domain may reach into the adapters for. `Record`
+stays beside `line` in this step. PR 6.1a moves `EventArgs` and PR 6.1e then moves `Record` into the
+domain; both original commits are retained by the combined step 6 delivery.
+Stays: `line`, `NO_CLOCK` (the ring's on-disk shape,
+PR 11.2), `section`, `render`, `complaint`, `escaped`, `QUOTED_MAX` (the doctor's presentation, PR 15.1).
+The doctor presentation stays in the private `decision_log/report.rs` module until PR 15.1;
+`decision_log::section` remains its existing public entry point. Tests stay grouped into record fields,
+printable identity and report sections, with shared fixtures under a private `cfg(test)` subtree.
+Sizes: the domain record is 109 lines, the legacy record codec is 164 lines and its private report is
+116 lines; private test children remain under 200. Statements: S157 (`printable`).
+
+| Pull request                         | Status   |
+| ------------------------------------ | -------- |
+| 5.14 shard main.rs into root modules | Complete |
+
+Moves the 13,484-line `src/main.rs` into 51 root-package responsibility modules, with 27 test files and
+four shared fixture files. Measured after formatting: `main.rs` is 299 lines; every extracted file is
+below 500 lines, with a maximum of 417. The optional hooks split reduces `tests/hooks.rs` from 6,217 to
+351 lines; its 29 behavior files are at most 360 lines. Bodies, names and test leaves are preserved. This
+changes no ownership: later steps still move these modules into crates. The shard exists so parallel
+lanes own distinct files instead of editing the same `main.rs`.
 
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
@@ -312,47 +378,36 @@ sections 1 to 6 of the specification all sit in `main.rs`.
 
 ### Step 6: use cases and the ports they own, in `pns-application`
 
-New code, test-first: a use case is the ordering of calls that `run_event` and its siblings perform
-today, expressed over traits the use case declares. Each PR moves one `*_mode` body out of `main.rs` into
-a use case, leaves a one-line call at the old site, and proves the argv differential unchanged. A PORT IS
-DECLARED FROM A CONSUMER'S REAL SIGNATURE, never from a description of its purpose. PR 6.1 declared nine
-ports before any consumer existed and three of them were wrong (`LampRecords` described a read-then-write
-nothing performs, `ReturnMoment` dropped an argument its two callers differ in, and `ApprovalForwarder`
-collapsed two steps a caller acts between); the four it MOVED from real code were all correct. PR 6.1d
-re-cut them against `main.rs` line by line. Declare a port no earlier than the call site that will
-consume it, and name that call site in its doc comment. A DEFERRAL NOTE NAMES ITS KIND, for the same
-reason. A capability-shaped reason (this crate takes no `serde_json`, opens no file, spawns no process)
-holds as long as the crate declares no such dependency. A type-shaped reason (X still lives in the root)
-expires the moment that type moves, silently, so every type-shaped note names the PR that moves the type
-and is re-checked when that PR lands. All five blocks in step 6 were type-shaped notes nobody re-read;
-not one capability-shaped note has expired. AND A PORT IS CHECKED AGAINST WHAT ITS CONSUMER CAN DO WITH
-THE ANSWER, not only against the call site's shape. PR 6.1d's audit kept `ActivityRing::read` because a
-read existed at the call site, and PR 6.1g had to re-cut it anyway: it answered the file, the parse it
-would need is `serde_json` in the root, and a use case holding that string could neither read it nor
-window it. A port whose answer its consumer cannot use is a port that does not exist yet.
+Use cases express the existing ordering over ports taken from real consumers. Shared corrections
+and existing descendant implementations ship together through the corrected PR 6.4 branch. The
+current PR 6.1 snapshot obligation remains part of that delivery. EventArgs and the decision Record
+move with their existing commits; their prior type-location deferrals are closed. The approval,
+return-moment and activity ports retain the later consumer-driven corrections.
+PR 6.1a owns the existing `EventArgs` value move, while parsing and the both-flags refusal remain at
+the command edge for PR 8.1.
 
 **PR 6.1 the ports and the selection policy.** Moves `src/probes.rs` (the five probe traits, `Wants`,
 `ProbeStart`, 123 lines) to `pns-application/src/ports/environment.rs`; moves `operator_surface`,
 `surface_reading`, `operator_visibility` (`src/engine.rs:332-433`) to
-`pns-application/src/environment_reading.rs`; moves `select_plugins` and its warnings
-(`src/registry.rs:368-407`) to `pns-application/src/selection.rs` over a `ConfigOutcome` type it
-declares. Declares, test-first, the ports the later use cases need: `Clock`, `NotificationDestination`
-(`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`, `ActivityRing`, `ReturnMoment`,
-`LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from `hue.rs:744-750`), `Router` (from
-`home.rs`), `CommandRunner` (from `system.rs`). `Event` comes with them, out of `channels/mod.rs` and
-into `pns-domain/src/notification.rs`: `NotificationDestination` hands one to a destination, and a port
-may not name a type the adapters own. Its `to_json` stays where the JSON is, as the free function
-`event_json`, because an inherent impl may only be written in the crate that defines the type. THAT LIST
-IS SHORT BY FOUR. PR 6.2's record tail also writes a blocked marker, renews a loop lease, runs the
-catch-up and signals the lamps, and none of those has a port here; `BlockedMarker`, `LoopLease`,
-`MissedReplay` and `LampSignal` are declared in PR 6.1b, cut off PR 6.1a, and THREE OF THE NINE DECLARED
-HERE WERE WRONG and are re-cut in PR 6.1d, which also adds `LightsTick` and annotates every surviving
-port with the consumer it was checked against, and `ActivityRing` is re-cut again in PR 6.1g, and
-`DecisionRing` is re-cut again in PR 6.1e to take a `Record` rather than a rendered line, so that PR 6.2
-moves an ordering over ports that already exist. Tests: the `engine.rs` probe-count tests
-(`CountingProbes`) by name; new port tests only where a port carries logic (none should). Sizes:
-`ports/*.rs` under 130 each; `environment_reading.rs` ~150 plus tests ~350; `selection.rs` ~80 plus tests
-~120. Statements: S085 (the read-only-where-idle-answered rule), S089 to S091, S124.
+`pns-application/src/environment_reading.rs`. Completes the decision split deferred by PR 5.11:
+application acquires one typed environment snapshot and coordinates probe startup; pure `decide` moves to
+`pns-domain/src/decision.rs` over the request, settings and completed snapshot. Domain may determine
+which facts are required but never invokes probes or starts them. Preserve one observation time, unknown
+readings distinct from negative facts, required-fact guards, once-only observations and the existing
+concurrency contract. Keep the legacy call surface until composition replaces it. Moves `select_plugins`
+and its warnings (`src/registry.rs:368-407`) to `pns-application/src/selection.rs` over a `ConfigOutcome`
+type it declares. Declares, test-first, the ports the later use cases need: `Clock`,
+`NotificationDestination` (`deliver(&Event, ReportMode) -> Delivery`), `DecisionRing`, `Journal`,
+`ActivityRing`, `ReturnMoment`, `LampRecords`, `JobSpool`, `ApprovalForwarder`, `Bridge` (moved from
+`hue.rs:744-750`), `Router` (from `home.rs`), `CommandRunner` (from `system.rs`). `Event` comes with
+them, out of `channels/mod.rs` and into `pns-domain/src/notification.rs`: the destination port needs
+the domain value. Its JSON serializer stays at the edge as the free function `event_json`. Tests: pure arbitration
+tests move by name to `decision/tests.rs` and private behavior children as needed; recording-probe and
+acquisition tests, including `CountingProbes`, move by name to `environment_reading/tests.rs`. Preserve
+every existing name and observable contract across the split. New port tests apply only where a port
+carries logic (none should). Sizes: `ports/*.rs` under 120 each; `environment_reading.rs` ~150 plus tests
+~350; `selection.rs` ~80 plus tests ~120. Statements: S085 (the read-only-where-idle-answered rule), S089
+to S091, S124.
 
 **PR 6.2 `SubmitNotification`.** Moves `run_event` (`src/main.rs:2917-3223`), `Attempt`, `dispatch_legs`,
 `rendered_event`, `overrides_from_env`'s call site, the record tail (`record_decision`, `record_missed`,
@@ -361,7 +416,7 @@ gate, `clear_held_lamps`, `register_lights_tick`) into `pns-application/src/subm
 one use case over the ports of PR 6.1 and PR 6.1b (`BlockedMarker`, `LoopLease`, `MissedReplay` and
 `LampSignal` are 6.1b's, because the tail writes four records 6.1's list did not name, and `LampRecords`
 and `LightsTick` are 6.1d's, which re-cut the first against `record_news` and `clear_held_lamps` and
-added the second), keeping today's ordering exactly. `decide` is already in `pns-application` (PR 6.1e),
+added the second), keeping today's ordering exactly. `decide` was moved by PR 6.1e; PR 6.1 now separates acquisition from pure policy,
 so this row orders a call rather than moving one (decide, snapshot, dispatch, decision record, journal,
 marker, news, lease, activity, replay, edge, pulse, clear, tick). The filesystem bodies of those records
 stay in the root package behind port implementations until step 11. Tests written first: one ordering
@@ -390,12 +445,14 @@ it. Tests: the `tests/hooks.rs` approval section stays as acceptance; a use-case
 (forward, skip-phone only on a real spawn, arm, notify, wait) over recording fakes. Consumer: `pns hook
 blocked`, `pns gate`, `pns pi-hook`, proved by the argv differential's `gate` and `hook` rows plus the
 hooks suite. Sizes: ~120 plus tests ~250, down from the ~240 the old row estimated, because the child
-handling is no longer part of it. Unpinned first: S082 (a gate run leaves no marker). Statements: S022,
+handling is no longer part of it. S082's gate-marker case is now pinned; Codex's exit-code
+interpretation remains unmeasured. Statements: S022,
 S023, S074 to S083. AS BUILT, the use case takes the moshi subcommand as an `Option` and orders five
 steps over four ports; which agents forward at all, whether the payload is whole and whether the operator
-is reachable stay at the composition root as three reads it already performed. `ApprovalPath` holds the
-`std::process::Child` on the root's side and the port carries a `Forwarded` marker, because a child
-process is exactly what `pns-application` may not name.
+is reachable stay at the composition root as three reads it already performed. `MoshiApprovalForwarder` supplies an owned child as the port's associated handle. The application transfers
+that handle between the ordered steps, and the adapter consumes it at completion without a shared slot.
+Application code names no concrete process type. `RequestApproval::forward_only` orders spawn and
+completion alone for gate callers; the root retains their allowlist, presence and payload reads.
 
 **PR 6.4 `ReplayMissedNotifications` and `RecordActivity`.** Moves `replay_missed`, `Moment`,
 `claim_moment`, `StrandedWindow`, `stranded_window_claim`, `window_claim_suffix`, `window_claim_is_free`,
@@ -534,9 +591,11 @@ differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus test
 `event_mode`, `USAGE`, `PULSE_USAGE`, `LIGHTS_USAGE`, `LOOP_USAGE`, `QUIET_USAGE`, `DAEMON_USAGE`,
 `NAG_USAGE`, `Overrides::from_env`, `loop_command`, `quiet_command`, `parse_schedule`, `recap_bounds`,
 `pulse_mode`'s and `quiet_mode`'s argument arms into
-`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. It also carries `Record`, held back by PR 5.13
-because it borrows an `&EventArgs`: this is where that struct's home is settled, so decide there whether
-`Record` follows it to the CLI crate or `EventArgs` splits into a domain event value and a parse result.
+`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. `EventArgs` and `Record` already belong to the
+domain through the combined step 6 delivery. This row moves argument parsing and usage adaptation
+while importing those existing values; it does not relocate them again.
+This row also decides and implements the separation of `help` and other command-only parse state
+from the domain event value, preserving current argument behavior and updating every construction site.
 The both-flags refusal stays here with its tested wording (decision 0007) and never becomes a domain
 state. Unpinned first: S007 (a subcommand word carrying producer flags), S010 (the exact warning
 sentence), S015 (last flag wins), S027 (`USAGE` versus `PULSE_USAGE`, fixed rather than pinned: backlog
@@ -570,6 +629,19 @@ moved logic; `USAGE` gains two lines and the argv differential two rows. Tests f
 behaviors re-expressed as unit tests over the tier and marker policy in `pns-domain/src/shell.rs`, plus
 one dispatch acceptance per verb. Sizes: domain ~120 plus tests ~250; cli `shell.rs` ~120. Statements:
 S207 to S211 (their bash pins are retired in this PR and named in the baseline mapping).
+
+ALSO A DELIVERABLE OF THIS PR: `pns --version`. There is no version handler today, and there never
+has been. `is_producer_argv` rejects the word, so `pns --version` prints `USAGE` and exits 2
+(`src/main.rs` dispatcher, `src/invocation.rs::is_producer_argv` at main `52eaeab8`), and Cargo's
+`0.1.0` is never emitted anywhere. The second consumer of `--elapsed` is `webdavis/pns.nvim`, the
+editor-side producer in its own repository, which carries no thresholds. Its advisory
+`:checkhealth pns` comparison needs a version to read; `report()` does not check that version or
+withhold `--elapsed`. Nvim overhaul task 26 waits for this PR before wiring the plugin, and sets
+its `minimum_version` to this release. Three things this PR states rather than assumes: the word
+`--version` (and `-V`) is answered by the dispatcher and exits 0; the output is ONE line of semver on
+stdout and nothing else, so a caller can compare it without parsing prose; and the version this PR
+ships is the FIRST that carries `--elapsed`, recorded here as the minimum `pns.nvim` pins. `USAGE`
+gains a third line for it, and the argv differential a third row.
 
 **PR 8.4 the Codex installer and the Claude hook table, verified.** No code moves. Runs
 `test/unit/pns-codex-install-hooks.sh` and reads `private_dot_claude/modify_settings.json:325-387`
@@ -609,13 +681,13 @@ accepted with the reason). Sizes: four files of 100 to 260 plus tests under 400.
 
 **PR 10.2 the presence poll adapters.** Pure move. `presence_hue.rs` (the `grouped_motion` read),
 `presence_instant.rs` (the bridge's timestamp grammar), `presence_lock.rs` (the `flock`),
-`presence_file.rs` (the state-file line codec, importing `RawPresence` and `Edge` from the domain, where
-PR 5.12 put them: the codec is the adapter and those two types are its output, so a `classify` in the
-domain that takes them must not reach into this crate for them), the presence policy's
-`presence_journal.rs` (the `presence-decisions` ring codec), and `presence_mode`, `presence_launch`,
-`presence_poll`, `write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
+`presence_file.rs` (the state-file line codec), the presence policy's `presence_journal.rs` (the
+`presence-decisions` ring codec), and `presence_mode`, `presence_launch`, `presence_poll`,
+`write_presence_reading`, `Polled` (`src/main.rs:5238-5457`) into
 `pns-adapters/src/presence/{bridge,instant,lock,state_file,journal}.rs` and
-`pns-application/src/poll_presence.rs`. Tests: by name, including `presence_hue/tests.rs` and
+`pns-application/src/poll_presence.rs`. The state-file codec imports `RawPresence` and `Edge` from the
+curated `pns_domain` exports; step 5.12 already owns these pure values in
+`pns-domain/src/presence/status.rs`. Tests: by name, including `presence_hue/tests.rs` and
 `selection_tests.rs` as they are. Sizes: five adapter files under 250 plus tests; the use case ~150.
 Statements: S045, S187, S188, S233.
 
@@ -639,9 +711,7 @@ file names (`DECISIONS`, `MISSED_NOTIFICATIONS`, `ACTIVITY`, `LAST_PRESENT`, `LI
 PR 11.3 lands the SQLite store section 8 settles and PR 12.1 moves the records into it; the port shape is
 the same either way, which is why the ports land first. Tests: the codec tests by name; the ring rows of
 `tests/dispatch.rs` as acceptance. Sizes: six files of 80 to 220 plus tests under 300. Statements: S157,
-S158, S160, S161, S167 to S173, S177, S178. `decision_log::line` is here rather than in PR 5.13 or PR
-6.1e: both left it deliberately, because rendering the ring's text is the file's own shape and belongs
-with the file.
+S158, S160, S161, S167 to S173, S177, S178.
 
 **PR 11.3 the SQLite store.** New infrastructure behind the PR 6.1 ports, settled in section 8. Decision
 record 0012 (the two fail directions) lands first in the same PR, then
@@ -674,13 +744,15 @@ successors of S158, S242, S243.
 **PR 11.5 the remaining filesystem protocols.** Pure move of the protocols that stay protocols because
 another process is the other party: the spool (`spool_entries`, `peek`, `claim`, `hand_back`,
 `publish_if_absent`, `publish_job`, `cancel`, `marker_exists`, `prepare_spool`, `publish_heartbeat`, the
-TAB codec, `WORKING_PREFIX`, from `src/daemon.rs`), the journal claim and hold protocol
-(`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`, `owner_is_gone`, the window
-claim), the nag records and fire lock (`nag_dir`, `record_path`, `claim_path`, `render`/`parse`,
-`claim_record`, `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`), the marker
-directories (`lease_dir`, `lease_marker`, `blocked_dir`, `blocked_marker`, `sweep_claim`,
-`sweep_markers`, `sweep_leases`, `sweep_shell_markers`, `sweep_legacy_state`), the turn marker claim, and
-the setup publish (`publish_config`, `pending_name`, `write_then_publish`, `keep_aside_at`) into
+TAB codec, `WORKING_PREFIX`, and `validate_shape` and `validate_registration`, which PR 5.6 left behind
+because the first caps the RENDERED record and the second calls it, from `src/daemon.rs`), the journal
+claim and hold protocol (`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`,
+`owner_is_gone`, the window claim), the nag records and fire lock (`nag_dir`, `record_path`,
+`claim_path`, `render`/`parse`, `claim_record`, `claim_fire`, `claim_lock`, `publish_lock`,
+`lock_aged_out`, `release_fire`), the marker directories (`lease_dir`, `lease_marker`, `blocked_dir`,
+`blocked_marker`, `sweep_claim`, `sweep_markers`, `sweep_leases`, `sweep_shell_markers`,
+`sweep_legacy_state`), the turn marker claim, and the setup publish (`publish_config`, `pending_name`,
+`write_then_publish`, `keep_aside_at`) into
 `pns-adapters/src/protocols/{spool,claims,nag,markers,turn,config_publish}.rs`. Each keeps the
 decision-0001 invariant as a one-line comment linking the record. Unpinned first: S165 (recorded as
 accepted; the source says no test can plant it), S183. Tests: by name; the claim rows of
@@ -725,15 +797,16 @@ them. This step consolidates the config-free policy cases in the domain and keep
 integration checks with the adapters. Sizes: five files of 100 to 260 plus tests under 450 each (the
 config tests split by table). Statements: S078, S116, S189, S236, S276, S280, S284, S285.
 
-**PR 13.3 the lights tables.** Pure move of `Lights`, `Pulse`, `Breath`, `Blocked`, `Unread`,
-`BreatheThenFlare`, `Looping`, `Target`, `Behaviour`, `BEHAVIOUR_WORDS`, the locked defaults, `percent`,
-`ends_agree`, `accent_agrees`, `behaviour_table`, `behaviours`, `breath_key`, `parse_lights`,
-`parse_pulse`, `parse_breath`, `parse_blocked`, `parse_unread`, `parse_looping`, `parse_targets`
+**PR 13.3 the lights tables.** Pure move of `Lights`, `Pulse`, `Blocked`, `Unread`, `Looping`, `Target`,
+`BEHAVIOUR_WORDS`, the locked defaults, `percent`, `ends_agree`, `accent_agrees`, `behaviour_table`,
+`behaviours`, `breath_key`, `parse_lights`, `parse_pulse`, `parse_breath`, `parse_blocked`,
+`parse_unread`, `parse_looping`, `parse_targets`
 (`src/config.rs:121-436`, `1259-1579`, reading `bounded` from the `values.rs` of 13.2) to
-`pns-adapters/src/config/lights/{tables,bounds,targets}.rs`, with the plain value types (`Behaviour`,
-`Breath`, `Pulse`, `Target`) landing in `pns-domain/src/lamps/config.rs` because the lamp policy reads
-them. Tests: by name, split by table. Sizes: three files of 150 to 250 plus tests under 450. Statements:
-S277, S278.
+`pns-adapters/src/config/lights/{tables,bounds,targets}.rs`. The plain value types `Pulse` and `Target`
+land in `pns-domain/src/lamps/config.rs` because the lamp policy reads them. `Behaviour` already lives
+there, and PR 5.7 moved `Breath` and `BreatheThenFlare` there for the breath policy. Their parsers
+remain part of this step. Tests: by name, split by table. Sizes: three files of 150 to 250 plus tests
+under 450. Statements: S277, S278.
 
 **PR 13.4 the plugin tables that select a backend.** Pure move of `parse_presence`, `presence_count`,
 `Presence`, the `desk_room` and `desk_stale_after_secs` bounds and the presence constants
@@ -794,7 +867,7 @@ S147.
 `Delivery` nor `Event` is among them. PR 5.13 put `Delivery` in `pns-domain/src/routing.rs` because
 `verdicts` takes it, and PR 6.1 put `Event` in `pns-domain/src/notification.rs` because the
 `NotificationDestination` port hands one to a destination; the domain may not reach into this crate for a
-type, so every destination here imports both from there. `event_json` is a free function rather than a
+type, so every destination here imports both through the curated `pns_domain` exports. `event_json` is a free function rather than a
 method for that reason and stays one. uu's `Cargo.toml:36` dependency and its three import sites
 (`src/delivery.rs:11`, `src/delivery.rs:99`, `src/cli/run.rs:13`) move to the crate section 8 names in
 the same PR, and `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` is run and recorded.

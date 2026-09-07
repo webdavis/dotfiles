@@ -18,10 +18,35 @@
 //! already: the environment probes, the surface and visibility they are read
 //! into, and the plugin selection.
 
-pub mod decide;
-pub mod environment_reading;
-pub mod ports;
-pub mod replay_missed;
-pub mod request_approval;
-pub mod selection;
-pub mod submit_notification;
+mod environment_reading;
+mod ports;
+mod replay_missed;
+mod request_approval;
+mod selection;
+mod submit_notification;
+
+pub use environment_reading::{decide, operator_surface};
+
+pub use ports::clock::Clock;
+pub use ports::delivery::{
+    ApprovalForwarder, LampSignal, MissedReplay, NotificationDestination, RecapPublisher,
+    ReplayDelivery,
+};
+pub use ports::devices::{Bridge, Router};
+pub use ports::environment::{
+    IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
+    Wants,
+};
+pub use ports::harness::HarnessPayload;
+pub use ports::notification::{PhoneSuppression, RaiseNotification};
+pub use ports::process::CommandRunner;
+pub use ports::records::{
+    ActivityRing, BlockedMarker, Claim, DecisionRing, JobSpool, Journal, LampRecords, LightsTick,
+    LoopLease, ReturnMoment,
+};
+pub use replay_missed::{RecapPolicy, ReplayMissedNotifications};
+pub use request_approval::RequestApproval;
+pub use selection::{ConfigOutcome, select_plugins};
+pub use submit_notification::{Attempt, Submission, SubmitNotification};
+
+pub use ports::nag::{NagRecords, NagSchedule};

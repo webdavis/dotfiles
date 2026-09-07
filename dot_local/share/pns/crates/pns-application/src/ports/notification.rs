@@ -12,7 +12,7 @@
 /// Checked against `run_event` as `blocking_event` calls it
 /// (`src/main.rs:2343`). Statements: S074.
 pub trait RaiseNotification {
-    fn raise(&self, event: &pns_domain::notification::EventArgs);
+    fn raise(&self, event: &pns_domain::EventArgs);
 }
 
 /// Suppress this process's own phone leg for the rest of this run.

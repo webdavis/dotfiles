@@ -76,7 +76,7 @@ route_severity() {
 # never safe.
 #
 # digest_append (digest-store.sh), allowlist_verdict (allowlist-verdict.sh),
-# pipeline_verdict (pipeline-verdict.sh), and the enrich-finding.sh script are
+# pipeline_verdict (pipeline-verdict.sh), and the posture executable are
 # expected to be available alongside this helper; the entry script sources all
 # helpers into one process.
 route_findings() {
@@ -109,10 +109,10 @@ route_findings() {
   # read back as a severity slot that exists but says nothing.
   if [[ -n $sev_batch ]]; then mapfile -t sevs <<<"$sev_batch"; fi
 
-  # The signing enricher (enrich-finding.sh): given an inspectable path it emits a
+  # The signing enricher (posture enrich): given an inspectable path it emits a
   # trust fact string and exits 10 when the code is UNTRUSTED. Overridable for tests;
   # absent/non-executable -> enrichment is skipped (fail-open, the finding still surfaces).
-  local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.local/libexec/osquery/enrich-finding.sh}"
+  local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.local/libexec/posture/posture}"
 
   local -a pages=()
   local i q act path label program category target base hash verb ep sev av signing enrich_status
@@ -148,11 +148,11 @@ route_findings() {
     # persistence_launchd, kernel_extensions_new, and system_extensions_new arms and
     # INTENTIONALLY IGNORED by the log-only es_launchd_writes /
     # persistence_startup_items_crontab arms. Fail-open: an absent or erroring enricher
-    # leaves the finding surfaced, just without a Signing field.
+    # never suppresses the finding. Any nonempty fact still surfaces; only exit 10 promotes.
     signing=""
     if [[ -n $ep && ($sev == "CRIT" || $sev == "NOTICE") && -x $enrich_script ]]; then
       enrich_status=0
-      signing=$("$enrich_script" "$ep" 2>/dev/null) || enrich_status=$?
+      signing=$("$enrich_script" enrich "$ep" 2>/dev/null) || enrich_status=$?
       [[ $enrich_status -eq 10 && $sev == "NOTICE" ]] && sev="CRIT"
     fi
     [[ -n $signing ]] && obj=$(jq -c --arg sig "$signing" '.signing = $sig' <<<"$obj")

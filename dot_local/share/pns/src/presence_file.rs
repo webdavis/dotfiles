@@ -60,7 +60,7 @@ pub fn room_fits(room: &str) -> bool {
 /// it. THE VALUES ARE THE POLICY'S, not this codec's: `classify` in
 /// `pns-domain` takes them, so they live beside it and are named here for
 /// every caller that reads a line and then judges it.
-pub use pns_domain::presence::status::{Edge, RawPresence};
+pub use pns_domain::{Edge, RawPresence};
 
 /// One line of the state file, or `None` when it is not one. A MISSING FILE
 /// AND A MALFORMED LINE ARE ONE ANSWER: nothing a caller could do differs.

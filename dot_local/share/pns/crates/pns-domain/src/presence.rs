@@ -7,6 +7,12 @@
 //! POLICY ONLY: no bridge, no file, no clock. The composition root takes one
 //! snapshot of the world and hands it in.
 
-pub mod narrowing;
-pub mod room;
-pub mod status;
+mod narrowing;
+mod room;
+mod status;
+
+pub use narrowing::{Narrowing, narrow};
+pub use room::{Full, Snapshot, chosen};
+pub use status::{
+    Edge, PresenceStatus, RawPresence, Unreadable, classify, idle_secs_from_ns, unreadable_said,
+};

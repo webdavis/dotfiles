@@ -45,14 +45,10 @@
 
 // THE HOME-PROBE POLICY moved to `pns-domain`, one file per question it
 // answers. What stays here reads the router, the config and the terminal.
-pub use pns_domain::home::identity::{
-    Client, DeviceIdentity, DeviceKey, UNIFI_TYPE, normalized_mac,
-};
-pub use pns_domain::home::reading::{
-    HomePresence, HomeReading, KeyOutcome, KeyReading, home_reading,
-};
-pub use pns_domain::home::staleness::{
-    Staleness, episode_id, is_new_staleness, stale_identifiers, stale_warning,
+pub use pns_domain::home::{
+    Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, KeyReading,
+    Staleness, UNIFI_TYPE, episode_id, home_reading, is_new_staleness, stale_identifiers,
+    stale_warning,
 };
 
 /// The router sensor's settings, validated.
@@ -67,7 +63,7 @@ pub struct RouterSettings {
 /// The seam one probe reads the router through. DECLARED in
 /// `pns-application`, beside the home-probe use case that consumes it;
 /// named here for the adapter that implements it.
-pub use pns_application::ports::devices::Router;
+pub use pns_application::Router;
 
 /// The clients in a UniFi `/clients` listing, or `None` when the text is not
 /// one. `None` and an empty list are DIFFERENT readings: an empty list is a
