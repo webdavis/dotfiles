@@ -2,7 +2,10 @@
 //! any other caller would produce, and a blocking one becomes the operator's
 //! decision. These are the twins of the bats suites the bash hooks carried.
 
+#[path = "hooks/captured_child.rs"]
+mod captured_child;
 mod support;
+use captured_child::CapturedChild;
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -1958,18 +1961,6 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
 /// would block forever, with a tight injected deadline, and require an answer.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// `spawn_hook` with the child's stderr KEPT, for the row that asserts what
-/// the engine said about a wait it gave up on rather than only what it did.
-fn spawn_hook_saying(mut command: Command, event: &str) -> std::process::Child {
-    command
-        .args(["hook", event])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the engine runs")
-}
-
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
         .args(["hook", event])
@@ -2000,65 +1991,6 @@ fn finished_within(mut child: std::process::Child, limit: std::time::Duration) -
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-}
-
-/// How long until the hook's STDOUT REACHES EOF, and `None` when it never does
-/// inside the limit.
-///
-/// PROCESS EXIT IS THE WRONG CLOCK FOR A SUBMISSION. Claude Code decides a
-/// `PermissionRequest` by reading the hook's stdout to end, and only stdin is
-/// piped to moshi-hook, so a submission that outlives the hook still holds
-/// that write end and the prompt stays hidden for as long as it does. Timing
-/// the process alone reports a tenth of a second for a run that leaves the
-/// harness waiting ten, which is the whole reason the bound below is measured
-/// here instead.
-///
-/// THE READER IS ITS OWN THREAD because the read is the thing being bounded:
-/// a caller that blocked on it could not report the case it exists to catch.
-fn stdout_eof_within(
-    stdout: std::process::ChildStdout,
-    limit: std::time::Duration,
-) -> Option<std::time::Duration> {
-    let started = std::time::Instant::now();
-    drain_to_end(stdout)
-        .recv_timeout(limit)
-        .ok()
-        .map(|_| started.elapsed())
-}
-
-/// Everything `reader` yields up to EOF, drained on its own thread FROM THIS
-/// CALL ONWARD and handed back through the receiver once the stream closes.
-///
-/// Draining starts here rather than at the first `recv`, so a child's two
-/// streams are drained together: neither can fill its pipe while the test
-/// waits on the other, and a `recv_timeout` on the receiver is what bounds
-/// the read. A read performed on the test's own thread has no bound at all.
-fn drain_to_end(reader: impl std::io::Read + Send + 'static) -> std::sync::mpsc::Receiver<Vec<u8>> {
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut reader = reader;
-        let mut drained = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut reader, &mut drained);
-        let _ = sender.send(drained);
-    });
-    receiver
-}
-
-/// What a drained stream held once it closed, or `None` when it stayed open
-/// past `limit`.
-///
-/// THE SAME LIVENESS LIMIT AS THE STDOUT READ. A child that closed stdout and
-/// kept stderr would otherwise park the test thread for as long as it liked
-/// after the stdout bound had already been honoured, and a row that parks is
-/// a row that cannot report the hang it exists to catch.
-fn said_within(
-    drain: std::sync::mpsc::Receiver<Vec<u8>>,
-    limit: std::time::Duration,
-) -> Option<String> {
-    drain
-        .recv_timeout(limit)
-        .ok()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 #[test]
@@ -2266,26 +2198,25 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_SUBMIT_DEADLINE_MS", SILENT_MOSHI_DEADLINE_MS);
     stub_silent_moshi(&sandbox, &mut command);
-    let mut child = spawn_hook_saying(command, "blocked");
-    let stdout = child.stdout.take().expect("stdout");
-    let said = drain_to_end(child.stderr.take().expect("stderr"));
+    command.args(["hook", "blocked"]);
+    let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
     write_payload(
-        &mut child,
+        &mut capture.child,
         br#"{"message":"may I run this","session_id":"s1","cwd":"/a/dotfiles"}"#,
     );
     // THE STREAM ENDS AT ALL, which is the KILL and not the deadline: a wait
     // that expired without killing the child leaves this open for the stub's
     // whole ten seconds, so `HANG_LIMIT` is what catches a reverted kill.
-    stdout_eof_within(stdout, HANG_LIMIT)
-        .expect("the harness's own read of this hook has to end at all");
-    let said = said_within(said, HANG_LIMIT)
-        .expect("the hook's stderr has to close inside the same liveness limit");
+    let output = capture
+        .output_within(HANG_LIMIT)
+        .expect("the hook's streams and process must finish inside the liveness limit");
+    let said = String::from_utf8_lossy(&output.stderr);
     assert!(
         said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
         "the wait had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
-        finished_within(child, HANG_LIMIT),
+        output.status.code(),
         Some(0),
         "a daemon that never answers must not hold the permission prompt off the screen"
     );
@@ -2333,26 +2264,19 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         GATE_SILENT_MOSHI_DEADLINE_MS,
     );
     stub_silent_moshi(&sandbox, &mut command);
-    let mut child = command
-        .args(["gate", "claude-hook"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the engine runs");
-    let stdout = child.stdout.take().expect("stdout");
-    let said = drain_to_end(child.stderr.take().expect("stderr"));
-    write_payload(&mut child, b"{\"ask\":1}\n");
-    stdout_eof_within(stdout, HANG_LIMIT)
-        .expect("the harness's own read of the gate has to end at all");
-    let said = said_within(said, HANG_LIMIT)
-        .expect("the gate's stderr has to close inside the same liveness limit");
+    command.args(["gate", "claude-hook"]);
+    let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
+    write_payload(&mut capture.child, b"{\"ask\":1}\n");
+    let output = capture
+        .output_within(HANG_LIMIT)
+        .expect("the gate's streams and process must finish inside the liveness limit");
+    let said = String::from_utf8_lossy(&output.stderr);
     assert!(
         said.contains(&expiry_line(GATE_SILENT_MOSHI_DEADLINE_MS)),
         "the gate had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
-        finished_within(child, HANG_LIMIT),
+        output.status.code(),
         Some(0),
         "the gate waits on the same clock: no opinion, and the harness prompts as usual"
     );
