@@ -66,7 +66,7 @@ mod tests {
             "brew upgrade",
             Err("exit 1: no such tap".into()),
         );
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert_eq!(report.lines, vec!["brew upgrade: exit 1: no such tap"]);
     }
 
@@ -74,7 +74,7 @@ mod tests {
     fn a_step_that_worked_is_recorded_without_the_build_log_it_printed() {
         let mut report = report();
         note(&mut report, "brew upgrade", Ok("pages of output".into()));
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert_eq!(report.lines, vec!["brew upgrade: ok"]);
     }
 

@@ -32,13 +32,29 @@ pub enum RecordOutcome {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlarmKind {
+    Failed,
+    Stale,
+    Pending,
+    RecordLost,
+}
+
 pub struct RunRecord<'a> {
+    pub host: &'a str,
     pub failures: usize,
     pub deferred: usize,
+    pub pending: usize,
     pub detail: &'a str,
 }
 
 pub trait RunDelivery {
-    fn alert(&self, target: AlertTarget<'_>, summary: &str) -> AlertOutcome;
+    fn alert(
+        &self,
+        kind: AlarmKind,
+        host: &str,
+        target: AlertTarget<'_>,
+        summary: &str,
+    ) -> AlertOutcome;
     fn record(&self, record: RunRecord<'_>) -> RecordOutcome;
 }

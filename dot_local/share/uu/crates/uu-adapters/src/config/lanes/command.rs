@@ -74,7 +74,8 @@ fn parse_run(table_label: &str, setting: &toml::Value) -> Result<Vec<String>, Co
 }
 
 impl CommandLane {
-    pub(crate) const KEYS: &'static [&'static str] = &["deadline_secs", "run", "type"];
+    pub(crate) const KEYS: &'static [&'static str] =
+        &["deadline_secs", "escalate_after_runs", "run", "type"];
 }
 
 #[cfg(test)]

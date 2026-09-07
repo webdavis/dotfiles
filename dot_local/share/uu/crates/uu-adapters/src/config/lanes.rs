@@ -43,6 +43,7 @@ pub type Lanes = BTreeMap<String, Lane>;
 #[derive(Debug)]
 pub struct Lane {
     pub deadline: Duration,
+    pub escalate_after_runs: std::num::NonZeroU32,
     pub(crate) adapter: Box<dyn LaneAdapter>,
     type_name: &'static str,
 }
@@ -91,6 +92,10 @@ pub(super) fn parse_lanes(
             Some(stated) => parse_deadline(&table_label, &stated)?,
             None => DEFAULT_LANE_DEADLINE,
         };
+        let escalate_after_runs = match fields.remove("escalate_after_runs") {
+            Some(stated) => super::escalation::parse_escalation(&table_label, &stated)?,
+            None => uu_domain::DEFAULT_ESCALATE_AFTER_RUNS,
+        };
         let registration = lane_type(&name, &table_label, &fields, registrations)?;
         let adapter = registration.parse(&table_label, fields)?;
         lanes.insert(
@@ -98,6 +103,7 @@ pub(super) fn parse_lanes(
             Lane {
                 adapter,
                 deadline,
+                escalate_after_runs,
                 type_name: registration.type_name(),
             },
         );

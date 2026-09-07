@@ -18,3 +18,5 @@
 /// hermes itself, or that forwards hermes's own status unchanged, would
 /// collide; the shipped config template says so.
 pub const DEFERRED_EXIT_CODE: i32 = 75;
+
+pub const PENDING_EXIT_CODE: i32 = 100;

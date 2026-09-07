@@ -28,9 +28,11 @@ fn a_whole_run_samples_old_facts_and_holds_the_guard_through_marker_publication(
                 marker
             ),
             Event::Render(vec![report]),
-            Event::StreakRead("alpha".into()),
-            Event::StreakWrite("alpha".into(), 0),
-            Event::Record(0, 0, "fixture record body".into()),
+            Event::StreakRead(StreakKind::NonSuccess, "alpha".into()),
+            Event::StreakWrite(StreakKind::NonSuccess, "alpha".into(), 0),
+            Event::StreakRead(StreakKind::Pending, "alpha".into()),
+            Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
+            Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
             Event::Epoch(Some(200)),
             Event::MarkerWrite(200),
@@ -55,10 +57,12 @@ fn a_lane_failure_is_alerted_before_streak_and_record_publication() {
         &events[rendered..],
         [
             Event::Render(vec![report]),
-            Event::Alert("alpha".into()),
-            Event::StreakRead("alpha".into()),
-            Event::StreakWrite("alpha".into(), 1),
-            Event::Record(1, 0, "fixture record body".into()),
+            Event::Alert(AlarmKind::Failed, "alpha".into()),
+            Event::StreakRead(StreakKind::NonSuccess, "alpha".into()),
+            Event::StreakWrite(StreakKind::NonSuccess, "alpha".into(), 1),
+            Event::StreakRead(StreakKind::Pending, "alpha".into()),
+            Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
+            Event::Record(1, 0, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
             Event::Release,
         ]
@@ -76,16 +80,18 @@ fn a_failed_stale_alert_is_attempted_before_publishing_the_retry_streak() {
     let events = fixture.events();
     let read = events
         .iter()
-        .position(|event| matches!(event, Event::StreakRead(_)))
+        .position(|event| matches!(event, Event::StreakRead(..)))
         .unwrap();
     assert_eq!(
         &events[read..],
         [
-            Event::StreakRead("alpha".into()),
-            Event::Alert("alpha".into()),
+            Event::StreakRead(StreakKind::NonSuccess, "alpha".into()),
+            Event::Alert(AlarmKind::Stale, "alpha".into()),
             Event::Notice("alert failed".into()),
-            Event::StreakWrite("alpha".into(), 2),
-            Event::Record(0, 1, "fixture record body".into()),
+            Event::StreakWrite(StreakKind::NonSuccess, "alpha".into(), 2),
+            Event::StreakRead(StreakKind::Pending, "alpha".into()),
+            Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
+            Event::Record(0, 1, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
             Event::Release,
         ]

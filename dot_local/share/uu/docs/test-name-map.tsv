@@ -29,7 +29,7 @@ retained	a_second_run_finding_the_lock_already_held_refuses_and_exits_rather_tha
 moved	a_staleness_alert_the_engine_refused_is_retried_rather_than_lost_for_good	failures::a_staleness_alert_the_engine_refused_is_retried_rather_than_lost_for_good	ok	ok	permanent persistence/delivery failure contract; crates/uu-cli/tests/staleness/failures.rs
 moved	a_streak_file_made_read_only_between_runs_is_still_correctly_advanced	failures::a_streak_file_made_read_only_between_runs_is_still_correctly_advanced	ok	ok	permanent persistence/delivery failure contract; crates/uu-cli/tests/staleness/failures.rs
 moved	a_success_between_deferrals_resets_the_staleness_streak	streaks::a_success_between_deferrals_resets_the_staleness_streak	ok	ok	permanent streak-policy contract; crates/uu-cli/tests/staleness/streaks.rs
-retained	alert::tests::a_lane_that_failed_without_saying_anything_still_produces_a_summary	alert::tests::a_lane_that_failed_without_saying_anything_still_produces_a_summary	ok	ok	permanent behavior contract; same leaf name
+moved	alert::tests::a_lane_that_failed_without_saying_anything_still_produces_a_summary	report::tests::a_lane_that_failed_without_saying_anything_still_produces_a_summary	ok	ok	typed LaneReport fallback summary; domain report tests
 retained	alert::tests::a_later_success_never_stands_in_for_the_failure_being_alerted	alert::tests::a_later_success_never_stands_in_for_the_failure_being_alerted	ok	ok	permanent behavior contract; same leaf name
 retained	alert::tests::an_alert_names_uu_the_failure_the_host_and_the_lane	alert::tests::an_alert_names_uu_the_failure_the_host_and_the_lane	ok	ok	permanent behavior contract; same leaf name
 retained	alert::tests::an_alert_never_names_a_channel_because_the_default_route_is_the_alert_route	alert::tests::an_alert_never_names_a_channel_because_the_default_route_is_the_alert_route	ok	ok	permanent behavior contract; same leaf name
@@ -303,3 +303,27 @@ added	-	config::lanes::registration_contract::a_registered_command_alias_accepts
 added	-	cli::run::tests::a_missing_registration_refuses_before_any_command_or_diagnostic_can_run	not-present	ok	registration behavior contract; shared configuration, selected execution or doctor consumer
 added	-	cli::run::tests::the_production_registration_list_loads_and_runs_the_selected_command	not-present	ok	registration behavior contract; shared configuration, selected execution or doctor consumer
 added	-	cli::run::tests::an_alternate_registration_reaches_execution_and_doctor_with_distinct_names	not-present	ok	registration behavior contract; shared configuration, selected execution or doctor consumer
+added	-	cli::run::tests::pending::a_command_lane_accepts_its_own_escalation_threshold	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
+added	-	cli::run::tests::pending::a_pending_command_lane_keeps_its_output_and_advances_the_marker	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
+added	-	cli::run::tests::pending::the_parsed_pending_threshold_uses_its_own_file_and_resets_after_completed_work	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
+added	-	config::escalation::tests::escalate_after_runs_defaults_to_three_on_every_lane_type	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
+added	-	config::escalation::tests::escalation_accepts_both_positive_integer_bounds_and_custom_values	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
+added	-	config::escalation::tests::invalid_escalation_values_are_refused_by_key_and_lane_name	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
+added	-	delivery::tests::a_pending_only_run_posts_a_body_stated_pending_not_completed	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/delivery.rs
+added	-	escalation::tests::a_non_pending_verdict_resets_pending_history_even_at_saturation	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/escalation/tests.rs
+added	-	escalation::tests::pending_escalation_trips_only_at_the_configured_threshold	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/escalation/tests.rs
+added	-	lanes::command::tests::a_pending_command_preserves_its_stdout_and_own_reason_without_failure_or_deferral	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/lanes/command/tests.rs
+added	-	record::tests::a_deferral_wins_over_a_pending_lane_in_the_same_run	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/record/tests.rs
+added	-	record::tests::a_pending_lane_is_named_pending_rather_than_zero_failures	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/record/tests.rs
+added	-	record::tests::a_run_with_nothing_failed_or_deferred_but_something_pending_is_pending	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/record/tests.rs
+added	-	record::tests::the_closing_line_counts_pending_lanes_beside_failures_and_deferrals	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/record/tests.rs
+added	-	report::tests::a_deferral_wins_over_pending_in_either_order	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/report/tests.rs
+added	-	report::tests::a_pending_report_is_successful_work_but_is_not_completed	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/report/tests.rs
+added	-	report::tests::failure_wins_over_pending_and_deferral_in_every_order	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/report/tests.rs
+added	-	run::tests::pending::a_refused_pending_alarm_stays_retryable_without_blocking_a_clean_record_marker	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	run::tests::pending::a_refused_pending_count_write_is_visible_and_alerted	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	run::tests::pending::completed_failed_and_deferred_verdicts_all_break_the_pending_streak	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	run::tests::pending::pending_runs_count_separately_and_advance_the_success_marker	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	run::tests::pending::the_configured_pending_threshold_alerts_once_and_before_its_count_is_published	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	run::tests::pending::unreadable_pending_history_is_reported_and_not_silently_reset	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
+added	-	runner::tests::run_with_input_preserves_pending_stdout_and_stderr_while_neighboring_statuses_fail	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/runner/tests.rs

@@ -10,7 +10,7 @@ use std::process::{ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::lanes::{CommandRunner, Ran, Verdict, failure_reason};
-use uu_protocol::DEFERRED_EXIT_CODE;
+use uu_protocol::{DEFERRED_EXIT_CODE, PENDING_EXIT_CODE};
 
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
@@ -160,9 +160,12 @@ impl CommandRunner for SystemRunner {
                 );
                 // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
                 // this ported from use it to mean "nothing was attempted, try
-                // later", and every other non-zero code stays a real failure.
+                // later", while 100 is successful work awaiting operator action. Other
+                // non-zero codes stay real failures.
                 if status.code() == Some(DEFERRED_EXIT_CODE) {
                     Verdict::Deferred(reason)
+                } else if status.code() == Some(PENDING_EXIT_CODE) {
+                    Verdict::Pending(reason)
                 } else {
                     Verdict::Failed(reason)
                 }

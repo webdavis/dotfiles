@@ -1,5 +1,13 @@
 //! What one lane did, as the record and the alert read it.
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaneVerdict {
+    Completed,
+    Pending,
+    Deferred,
+    Failed,
+}
+
 /// What one lane did: how many things went wrong, whether it DEFERRED instead
 /// of running, the lines the record carries about it, and the last of those
 /// lines that reported a FAILURE.
@@ -14,10 +22,10 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneReport {
     pub name: String,
-    pub failures: usize,
-    pub deferred: bool,
+    failures: usize,
+    verdict: LaneVerdict,
     pub lines: Vec<String>,
-    pub last_failure: Option<String>,
+    last_failure: Option<String>,
 }
 
 impl LaneReport {
@@ -26,7 +34,7 @@ impl LaneReport {
         LaneReport {
             name: name.to_string(),
             failures: 0,
-            deferred: false,
+            verdict: LaneVerdict::Completed,
             lines: Vec::new(),
             last_failure: None,
         }
@@ -37,17 +45,42 @@ impl LaneReport {
     /// which is the drift a second `failures += 1` beside a bare push invites.
     pub fn failed(&mut self, line: String) {
         self.failures += 1;
+        self.verdict = LaneVerdict::Failed;
         self.last_failure = Some(line.clone());
         self.lines.push(line);
     }
 
     /// The lane DEFERRED: nothing was attempted, so this is recorded rather
     /// than counted as a failure and never fires the per-run alert. Distinct
-    /// from `failed`, which the caller must never also call for the same
-    /// verdict: a lane either deferred or it did not.
+    /// from `failed`; an earlier failure retains precedence over a deferral.
     pub fn deferred(&mut self, line: String) {
-        self.deferred = true;
+        if self.verdict != LaneVerdict::Failed {
+            self.verdict = LaneVerdict::Deferred;
+        }
         self.lines.push(line);
+    }
+
+    pub fn pending(&mut self, line: String) {
+        if matches!(self.verdict, LaneVerdict::Completed | LaneVerdict::Pending) {
+            self.verdict = LaneVerdict::Pending;
+        }
+        self.lines.push(line);
+    }
+
+    pub fn verdict(&self) -> LaneVerdict {
+        self.verdict
+    }
+
+    pub fn failures(&self) -> usize {
+        self.failures
+    }
+
+    pub fn last_failure(&self) -> Option<&str> {
+        self.last_failure.as_deref()
+    }
+
+    pub fn succeeded(&self) -> bool {
+        matches!(self.verdict, LaneVerdict::Completed | LaneVerdict::Pending)
     }
 
     /// One thing that went right, or a fact the record carries.
@@ -55,3 +88,6 @@ impl LaneReport {
         self.lines.push(line);
     }
 }
+
+#[cfg(test)]
+mod tests;

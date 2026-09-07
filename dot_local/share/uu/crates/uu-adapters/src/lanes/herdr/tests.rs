@@ -24,7 +24,7 @@ fn lane(plugins: &[(&str, &str)]) -> HerdrLane {
 fn a_clean_run_updates_herdr_then_refreshes_every_plugin_in_roster_order() {
     let runner = ScriptedRunner::new(&[]);
     let report = lane(&[("a", "o/a"), ("b", "o/b")]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 0);
+    assert_eq!(report.failures(), 0);
     assert_eq!(
         runner.calls(),
         vec![
@@ -51,7 +51,7 @@ fn the_configured_binary_is_the_one_that_runs() {
 fn a_failed_self_update_is_counted_and_the_plugins_still_refresh() {
     let runner = ScriptedRunner::new(&[&["herdr", "update"]]);
     let report = lane(&[("a", "o/a")]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 1);
+    assert_eq!(report.failures(), 1);
     assert!(
         report
             .lines
@@ -83,7 +83,7 @@ fn a_version_that_will_not_answer_still_leaves_the_update_reported_as_ok() {
     // as a failure would report a healthy update as a broken one.
     let runner = ScriptedRunner::new(&[&["herdr", "--version"]]);
     let report = lane(&[]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 0);
+    assert_eq!(report.failures(), 0);
     assert_eq!(report.lines[0], "herdr self-update: ok");
 }
 
@@ -93,7 +93,7 @@ fn a_plugin_whose_uninstall_fails_is_left_installed_and_never_reinstalled() {
     // half-removed plugin becomes two.
     let runner = ScriptedRunner::new(&[&["herdr", "plugin", "uninstall", "a"]]);
     let report = lane(&[("a", "o/a"), ("b", "o/b")]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 1);
+    assert_eq!(report.failures(), 1);
     assert!(
         report
             .lines
@@ -174,7 +174,7 @@ fn a_failed_install_is_retried_exactly_once_and_a_second_attempt_that_works_is_a
         2,
         "one retry, not none and not a loop"
     );
-    assert_eq!(report.failures, 0);
+    assert_eq!(report.failures(), 0);
     assert!(
         report
             .lines
@@ -187,7 +187,7 @@ fn a_failed_install_is_retried_exactly_once_and_a_second_attempt_that_works_is_a
 fn a_plugin_that_fails_twice_is_named_loudly_as_missing() {
     let runner = ScriptedRunner::new(&[&["herdr", "plugin", "install", "o/a", "--yes"]]);
     let report = lane(&[("a", "o/a")]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 1);
+    assert_eq!(report.failures(), 1);
     assert!(
         report
             .lines
@@ -237,7 +237,7 @@ fn a_failed_step_names_the_reason_the_command_gave() {
     {
         assert!(line.contains("exit 1"), "{line}");
     }
-    assert_eq!(report.failures, 2);
+    assert_eq!(report.failures(), 2);
 }
 
 #[test]
@@ -249,7 +249,7 @@ fn every_failure_across_the_lane_is_counted_once() {
     ]);
     let report =
         lane(&[("a", "o/a"), ("b", "o/b"), ("c", "o/c")]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 3);
+    assert_eq!(report.failures(), 3);
     assert_eq!(report.name, "herdr");
 }
 
@@ -257,7 +257,7 @@ fn every_failure_across_the_lane_is_counted_once() {
 fn a_lane_with_no_plugins_still_updates_the_binary() {
     let runner = ScriptedRunner::new(&[]);
     let report = lane(&[]).run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures, 0);
+    assert_eq!(report.failures(), 0);
     assert_eq!(
         runner.calls().first().map(|call| call[1].clone()),
         Some("update".to_string())

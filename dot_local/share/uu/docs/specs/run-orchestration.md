@@ -1,7 +1,7 @@
 # Run orchestration
 
-`uu run [<lane>]` must preserve the command, record and state contracts below when its sequencing moves
-into `uu-application`. These scenarios describe the required behavior, not a new wire format.
+`uu run [<lane>]` follows the command, record and state contracts below. `uu-application` owns
+sequencing; adapters parse configuration, run commands and deliver records and alarms.
 
 ## Entering a run
 
@@ -40,25 +40,48 @@ into `uu-application`. These scenarios describe the required behavior, not a new
 
 - **Given** lane reports, **when** composing the run, **then** print the record detail before attempting
   per-lane failure alerts, process staleness after those alerts, and deliver the run record afterward.
-  Count failed operations and deferred lanes separately. The outbound state is `failed` if any operation
-  failed, otherwise `deferred` if any lane deferred, otherwise `completed`.
+  Pending escalation follows staleness, before record delivery. Count failed operations, deferred lanes
+  and pending lanes separately. The outbound state is `failed` if any operation failed, otherwise
+  `deferred` if any lane deferred, otherwise `pending` if any lane is pending, otherwise `completed`.
+  Pending lanes are named `pending` in the detail and counted in its closing line.
+
 - **Given** an alert channel, **when** delivery fails, **then** report its cause and continue the run. An
   unconfigured channel produces the existing log notice and owes no external delivery. Neither case is
   silently reported as a successful external send.
-- **Given** per-lane history, **when** a lane succeeds, **then** reset its non-success streak to zero. A
-  failure or deferral increments it with saturation at the maximum `u32` value. Counts one and two do not
-  trip; reaching three trips once; advancing from three to four does not alert again. A later success
-  permits a new streak to trip. Lanes retain independent histories.
+
+- **Given** per-lane history, **when** a lane completes or reports pending work, **then** reset its
+  non-success streak to zero. A failure or deferral increments it with saturation at the maximum `u32`
+  value. Counts one and two do not trip; reaching three trips once; advancing from three to four does not
+  alert again. A later success permits a new streak to trip. Lanes retain independent histories.
+
 - **Given** absent streak history, **when** counting the current attempt, **then** start from zero.
   Unreadable history is a different state: attempt a diagnostic alert and treat it as two, one below the
   threshold. A failed or deferred attempt can then trip instead of silently forgiving its history.
+
 - **Given** a trip at three, **when** attempting its alert, **then** do so before writing the new streak.
   If the configured alert fails, write two so the next non-success retries. A delivered or unconfigured
   alert permits writing three. Repeated failed delivery may therefore repeat the attempt; this is not an
   exactly-once delivery guarantee.
+
 - **Given** a streak write failure, **when** the adapter returns its location and cause, **then** emit
   the bookkeeping diagnostic and attempt a lane alert. Do not report a successful write. This does not
   add a separate condition to the run's marker policy.
+
+- **Given** a command child that exits 100, **when** collecting its result, **then** retain stdout and
+  its stderr-derived reason as pending work. Exit 75 remains deferred; other unsuccessful exits remain
+  failures. A report's typed verdict gives failure precedence over deferral, then pending, then
+  completed.
+
+- **Given** a configured lane, **when** parsing `escalate_after_runs`, **then** accept a positive whole
+  number through the maximum `u32` value, defaulting to three. Resolve it before type-specific parsing
+  and pass it to the application with the lane's deadline.
+
+- **Given** consecutive pending runs, **when** the count reaches that lane's threshold, **then** attempt
+  one pending alarm before publishing the count. Below the threshold and beyond it, do not trip. Counts
+  saturate; any non-pending verdict resets the count. Unreadable history is reported and treated as one
+  below the configured threshold. A refused alarm keeps that value so the next pending run retries. Write
+  failures are reported as pending bookkeeping failures and alerted. The state adapter keeps this count
+  in `lanes/<name>/pending`, separately from `streak`; existing whole-directory pruning covers both.
 
 ## Delivering the record and advancing the marker
 
@@ -88,7 +111,8 @@ with `Command::args`; the use case must not reinterpret report text as shell syn
 contents and diagnostic disclosure are preserved, with no new redaction or logging policy.
 
 Lane watchdogs retain their process-group termination and escaped-process diagnostics. The alert adapter
-still waits with `Command::status` and has no deadline of its own. This extraction introduces no new
-cancellation mechanism and makes no stronger cleanup guarantee for escaped or stuck spawns. State paths,
-encodings and configuration remain unchanged; no store migration or deduplication is introduced. See
-[the ownership decision](../decisions/run-application.md) for these retained limits.
+still waits with `Command::status` and has no deadline of its own. The signed record post retains its
+ten-second deadline. No new cancellation mechanism or stronger cleanup guarantee for escaped or stuck
+spawns is introduced. The new pending file uses the existing count encoding and atomic writer; no store
+migration or deduplication is introduced. See [the ownership decision](../decisions/run-application.md)
+for these retained limits.

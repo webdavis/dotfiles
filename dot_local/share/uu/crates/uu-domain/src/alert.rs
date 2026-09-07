@@ -6,9 +6,9 @@ pub fn alert_summary(lane: &crate::LaneReport) -> String {
     // line is routinely a later success, so `1 failure(s); plugin a:
     // refreshed` is an alert that names nothing to fix. The rest is in the
     // record.
-    match lane.last_failure.as_ref() {
-        Some(failure) => format!("{} failure(s); {failure}", lane.failures),
-        None => format!("{} failure(s)", lane.failures),
+    match lane.last_failure() {
+        Some(failure) => format!("{} failure(s); {failure}", lane.failures()),
+        None => format!("{} failure(s)", lane.failures()),
     }
 }
 
@@ -41,17 +41,5 @@ mod tests {
         let summary = alert_summary(&report);
         assert!(summary.contains("herdr self-update FAILED"), "{summary}");
         assert!(!summary.contains("refreshed"), "{summary}");
-    }
-
-    #[test]
-    fn a_lane_that_failed_without_saying_anything_still_produces_a_summary() {
-        let report = LaneReport {
-            name: "herdr".to_string(),
-            failures: 1,
-            deferred: false,
-            lines: Vec::new(),
-            last_failure: None,
-        };
-        assert_eq!(alert_summary(&report), "1 failure(s)");
     }
 }

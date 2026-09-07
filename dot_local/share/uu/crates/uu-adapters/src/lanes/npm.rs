@@ -242,8 +242,8 @@ mod tests {
         // carrying a hardcoded `npm` would name a lane nobody declared.
         let report = lane().run("globals", &stub_facts(), &StubRunner::clean());
         assert_eq!(report.name, "globals");
-        assert_eq!(report.failures, 0);
-        assert_eq!(report.last_failure, None);
+        assert_eq!(report.failures(), 0);
+        assert_eq!(report.last_failure(), None);
         assert_eq!(report.lines, vec![format!("{NPM} update -g: ok")]);
     }
 
@@ -254,8 +254,8 @@ mod tests {
             &stub_facts(),
             &StubRunner::refusing("exit 1: npm error code EACCES"),
         );
-        assert_eq!(report.failures, 1);
-        let line = report.last_failure.expect("a failure names itself");
+        assert_eq!(report.failures(), 1);
+        let line = report.last_failure().expect("a failure names itself");
         assert!(line.contains("exit 1: npm error code EACCES"), "{line}");
         assert_eq!(report.lines, vec![line]);
     }
@@ -269,10 +269,10 @@ mod tests {
             &stub_facts(),
             &StubRunner::refusing("exit 127: sh: npm: No such file or directory"),
         );
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert!(
             report
-                .last_failure
+                .last_failure()
                 .is_some_and(|line| line.contains("No such file or directory")),
             "an absent npm must name itself in the record"
         );

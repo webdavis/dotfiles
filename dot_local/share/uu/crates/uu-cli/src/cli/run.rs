@@ -68,7 +68,15 @@ fn execute(
     let lanes = config
         .lanes
         .iter()
-        .map(|(name, lane)| (name.clone(), lane.deadline))
+        .map(|(name, lane)| {
+            (
+                name.clone(),
+                uu_application::LaneSettings {
+                    deadline: lane.deadline,
+                    escalate_after_runs: lane.escalate_after_runs,
+                },
+            )
+        })
         .collect();
     let run = Run {
         state: FileRunState(home),

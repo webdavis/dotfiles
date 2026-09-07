@@ -143,12 +143,20 @@ deadline_secs = 21600
 # silence. The lane's own program may still alert on its own account, a
 # record the gateway never received alerts regardless of what any lane did,
 # and three straight non-successes (deferred, failed, or a mix) still fire
-# uu's own staleness alert below. Any other non-zero exit is a real failure.
+# uu's own staleness alert below. Exit 100 means pending; every other non-zero
+# exit is a real failure.
 # THE COLLISION: 75 is also the exit code hermes's own gateway process uses
 # to ask its service manager for a planned restart, so a program that IS
 # hermes, or that forwards hermes's own exit code unchanged, could exit 75
 # for a reason that has nothing to do with deferral; write your own exit
 # code rather than passing one through.
+#
+# EXIT 100 MEANS PENDING: the check succeeded, but updates need operator action.
+# It keeps stdout and the stderr reason, counts as neither failure nor deferral,
+# and allows the last-success marker to advance after the record is delivered.
+# `escalate_after_runs` defaults to 3 for every lane. Consecutive pending runs
+# trigger one alarm at that count; any non-pending verdict resets the count.
+# A refused alarm stays eligible on the next pending run.
 #
 # A lane that goes three straight runs without a real success (deferred,
 # failed, or both) fires one staleness alert of its own, whatever each
@@ -157,3 +165,4 @@ deadline_secs = 21600
 # type = "command"
 # run = ["/usr/local/bin/my-updater", "--yes"]
 # deadline_secs = 21600
+# escalate_after_runs = 3

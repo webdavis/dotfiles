@@ -151,7 +151,7 @@ pub(crate) mod tests {
         let mut absent = lane();
         absent.tailscaled = "/no/such/tailscaled".to_string();
         refresh_tailscaled(&mut report, &runner, &absent);
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert!(runner.calls().is_empty(), "{:?}", runner.calls());
     }
 
@@ -162,7 +162,7 @@ pub(crate) mod tests {
         let runner = ScriptedRunner::new(&[]);
         let mut report = report();
         refresh_tailscaled(&mut report, &runner, &lane());
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert_eq!(
             runner.calls(),
             vec![vec![CMP, "-s", "/bin/sh", SYSTEM_TAILSCALED]]
@@ -176,7 +176,7 @@ pub(crate) mod tests {
         let runner = ScriptedRunner::new(&[&[CMP, "-s", "/bin/sh", SYSTEM_TAILSCALED]]);
         let mut report = report();
         refresh_tailscaled(&mut report, &runner, &lane());
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert_eq!(
             runner.calls().last(),
             Some(&vec![
@@ -197,7 +197,7 @@ pub(crate) mod tests {
         let runner = ScriptedRunner::new(&[&["/b/converge"]]);
         let mut report = report();
         converge_osquery(&mut report, &runner, &lane());
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert!(said(&report, "osquery config converge"), "{report:?}");
         assert!(said(&report, "may be the vendor default"), "{report:?}");
         assert!(said(&report, "run chezmoi apply"), "{report:?}");
@@ -210,7 +210,7 @@ pub(crate) mod tests {
         let mut unconfigured = lane();
         unconfigured.osquery_converge = String::new();
         converge_osquery(&mut report, &runner, &unconfigured);
-        assert_eq!(report.failures, 1);
+        assert_eq!(report.failures(), 1);
         assert!(said(&report, "may be the vendor default"), "{report:?}");
         assert!(runner.calls().is_empty(), "{:?}", runner.calls());
     }
@@ -220,7 +220,7 @@ pub(crate) mod tests {
         let runner = ScriptedRunner::new(&[]);
         let mut report = report();
         converge_osquery(&mut report, &runner, &lane());
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert_eq!(runner.calls(), vec![vec!["/b/converge"]]);
     }
 
@@ -231,7 +231,7 @@ pub(crate) mod tests {
         let mut unpublished = lane();
         unpublished.mas_manifest = "/no/such/mas.Brewfile".to_string();
         mas_declarations(&mut report, &runner, &unpublished, Duration::from_secs(180));
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert!(said(&report, "nothing to install"), "{report:?}");
         assert!(runner.calls().is_empty(), "{:?}", runner.calls());
     }
@@ -253,7 +253,7 @@ pub(crate) mod tests {
         empty.mas_manifest = manifest.to_string_lossy().to_string();
         mas_declarations(&mut report, &runner, &empty, Duration::from_secs(180));
         let _ = fs::remove_file(&manifest);
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert!(said(&report, "nothing to install"), "{report:?}");
         assert!(runner.calls().is_empty(), "{:?}", runner.calls());
     }
@@ -263,7 +263,7 @@ pub(crate) mod tests {
         let runner = ScriptedRunner::new(&[]);
         let mut report = report();
         mas_declarations(&mut report, &runner, &lane(), Duration::from_secs(180));
-        assert_eq!(report.failures, 0);
+        assert_eq!(report.failures(), 0);
         assert_eq!(
             runner.deadlines(),
             vec![(

@@ -68,6 +68,7 @@ impl BrewLane {
     pub(crate) const KEYS: &'static [&'static str] = &[
         "brew",
         "deadline_secs",
+        "escalate_after_runs",
         "mas",
         "mas_manifest",
         "osquery_converge",

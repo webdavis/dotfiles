@@ -17,6 +17,7 @@
 //! distinct from both error and emptiness; a `[records]` block with no signing
 //! key is refused rather than left as a record path that can never land.
 
+mod escalation;
 mod lanes;
 mod schedule;
 mod schema;
