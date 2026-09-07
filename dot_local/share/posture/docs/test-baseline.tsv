@@ -1,0 +1,188 @@
+target	test	result
+test/e2e/osquery-alerter-concurrency.bats	T-CONCURRENT-fd-hygiene: a detached child never wedges the lock (fd not leaked)	ok
+test/e2e/osquery-alerter-concurrency.bats	T-CONCURRENT-one-notification: two parallel runs deliver a batch exactly once	ok
+test/e2e/osquery-alerter-criteria.bats	C1: new_admin_user added fires a CRIT page	ok
+test/e2e/osquery-alerter-criteria.bats	C2: differential filevault_off added (not snapshot) fires a CRIT page	ok
+test/e2e/osquery-alerter-criteria.bats	C3a: agent_exposure_changed added pages	ok
+test/e2e/osquery-alerter-criteria.bats	C3b: agent_secretfile_changed pages	ok
+test/e2e/osquery-alerter-criteria.bats	C3c: agent_authfile_changed (config.toml) does NOT page, lands in the digest spool	ok
+test/e2e/osquery-alerter-criteria.bats	C4a: a persistence agent fully matching an allowlisted own-agent tuple is suppressed	ok
+test/e2e/osquery-alerter-criteria.bats	C4b: the same allowlisted label with a different program pages (reused label)	ok
+test/e2e/osquery-alerter-criteria.bats	C4c: an unknown user LaunchAgent pages (default-deny, operator ruling)	ok
+test/e2e/osquery-alerter-criteria.bats	C4d: an allowlisted-but-untrusted program pages (enrichment beats suppression)	ok
+test/e2e/osquery-alerter-criteria.bats	C5: the old flat launch-allowlist.txt is NOT consulted (the entry reads the new path/env)	ok
+test/e2e/osquery-alerter-criteria.bats	C5b: the unified OSQUERY_LAUNCHD_ALLOWLIST env var is what the entry reads	ok
+test/e2e/osquery-alerter-criteria.bats	C6: a pipeline_integrity file change with no manifest pages (fail-open)	ok
+test/e2e/osquery-alerter-criteria.bats	C7: a paged agent_secretfile_changed body shows the basename only, never the path or sha256	ok
+test/e2e/osquery-alerter-hostile-columns.bats	HOSTILE-0x1F: a 0x1F-injected path cannot impersonate an allowlisted tuple; the finding pages	ok
+test/e2e/osquery-alerter-hostile-columns.bats	HOSTILE-control: the genuine allowlisted own-agent is suppressed, so the injection pins are not vacuous	ok
+test/e2e/osquery-alerter-hostile-columns.bats	HOSTILE-newline: a newline in a column does not split the record; the finding pages	ok
+test/e2e/osquery-alerter-hostile-columns.bats	HOSTILE-tab: a tab in a column stays opaque; the finding pages	ok
+test/integration/osquery-digest-builder.bats	a build failure before the send restores the rotated batch to the live store	ok
+test/integration/osquery-digest-builder.bats	a crafted identity cannot inject an extra markdown line into the digest body	ok
+test/integration/osquery-digest-builder.bats	a detector with more findings than the bullet cap shows N bullets and a +K more roll-up	ok
+test/integration/osquery-digest-builder.bats	a hard send failure (persist failed) restores the batch to the live store for retry	ok
+test/integration/osquery-digest-builder.bats	a non-numeric cap env value falls back to the default instead of failing the render	ok
+test/integration/osquery-digest-builder.bats	a store with records sends exactly one silent digest, then rotates the batch to .last	ok
+test/integration/osquery-digest-builder.bats	a stored send (delivery pending, rc 0) rotates the batch to .last, not restored	ok
+test/integration/osquery-digest-builder.bats	a torn or malformed spool line is skipped, so the day's digest still builds	ok
+test/integration/osquery-digest-builder.bats	a valid-JSON wrong-shape line is coerced, not fatal, and the digest still sends	ok
+test/integration/osquery-digest-builder.bats	a whitespace-only digest store produces no message and exits 0	ok
+test/integration/osquery-digest-builder.bats	a zero-byte digest store produces no message and exits 0	ok
+test/integration/osquery-digest-builder.bats	an absent digest store produces no message and exits 0	ok
+test/integration/osquery-digest-builder.bats	an all-torn store renders an empty body, so it sends nothing and preserves the batch to .last	ok
+test/integration/osquery-digest-builder.bats	an attacker-controlled field renders inside a code span, so a mention or link is inert	ok
+test/integration/osquery-digest-builder.bats	an orphaned .build from a killed run is swept back into the next digest	ok
+test/integration/osquery-digest-builder.bats	an oversized body is capped inside jq and sent once, with no broken-pipe failure	ok
+test/integration/osquery-digest-builder.bats	an oversized field is truncated in the sanitize chokepoint and cannot crowd out other groups	ok
+test/integration/osquery-digest-builder.bats	findings across three detectors render as three grouped blocks with header and count	ok
+test/integration/osquery-digest-builder.bats	more detector groups than the group cap show M blocks and an and-K-more marker	ok
+test/integration/osquery-digest-builder.bats	restore preserves a finding appended to the fresh store during the build	ok
+test/integration/osquery-digest-builder.bats	the body is codepoint-capped with an honest truncation marker	ok
+test/integration/osquery-digest-builder.bats	the group and bullet caps are env-overridable named constants	ok
+test/integration/osquery-digest-builder.bats	the work-file name includes the pid, so same-second claims from different runs do not collide	ok
+test/integration/osquery-drain-continuation.bats	T-DRAIN-continue-past-malformed: an undecodable poison row in the middle is skipped and the rows behind it still deliver	ok
+test/integration/osquery-drain-continuation.bats	T-DRAIN-continue-past-permanent: a permanent poison row in the middle does not starve the rows behind it	ok
+test/integration/osquery-drain-continuation.bats	T-DRAIN-errexit-first-row-failure: under set -e a failing FIRST record does not abort the drain; the queue finishes and exit is 0	ok
+test/integration/osquery-drain-continuation.bats	T-DRAIN-mixed-batch-full-drain: a mixed batch drains completely in one pass, each row handled by class, none starved	ok
+test/integration/osquery-heartbeat.bats	B1: a fresh canary sends exactly one CRIT message that reads healthy	ok
+test/integration/osquery-heartbeat.bats	B2: the healthy message is silent (empty sound), a proof-of-life never pings	ok
+test/integration/osquery-heartbeat.bats	B3: a stale canary reports unhealthy, the stopped-daemon case a one-shot would miss	ok
+test/integration/osquery-heartbeat.bats	B4: the unhealthy message is also silent, the heartbeat never pings even degraded	ok
+test/integration/osquery-heartbeat.bats	B5: no canary at all reports unhealthy as MISSING, never a blind checkmark	ok
+test/integration/osquery-heartbeat.bats	B6: the healthy message is honest about what it verified (R2-8)	ok
+test/integration/osquery-heartbeat.bats	B7: a malformed canary timestamp is rejected, unhealthy, and cannot inject	ok
+test/integration/osquery-heartbeat.bats	B7a: an over-range canary epoch is rejected (fail-safe MISSING), never a 64-bit-overflow false fresh	ok
+test/integration/osquery-heartbeat.bats	B7b: a leading-zero canary epoch is rejected (fail-safe MISSING), never an octal-parse fall-through	ok
+test/integration/osquery-heartbeat.bats	B8: freshness is judged from the NEWEST canary row when several exist	ok
+test/integration/osquery-heartbeat.bats	clock-failure: a non-numeric clock reports unhealthy, never false-healthy via now=0	ok
+test/integration/osquery-heartbeat.bats	clock-skew: a future-dated canary reads healthy with a non-negative rendered age	ok
+test/integration/osquery-heartbeat.bats	fire-and-forget: a hard send failure never fails the heartbeat (exit 0)	ok
+test/integration/osquery-heartbeat.bats	format-tolerance: a spaced-JSON canary reads the same as compact (JSON-semantic reader)	ok
+test/integration/osquery-heartbeat.bats	healthy-honesty: the healthy body is a recent observation, not a present-tense overclaim	ok
+test/integration/osquery-heartbeat.bats	implausible-future: a canary far in the future reports unhealthy IMPLAUSIBLE, not healthy	ok
+test/integration/osquery-heartbeat.bats	seam: newest_canary_timestamp returns the newest validated integer, else empty	ok
+test/unit/osquery-alert-dispatch.bats	a count probe never creates the database it reads	ok
+test/unit/osquery-alert-dispatch.bats	a counter reads zero while its table is still un-bootstrapped, not an error	ok
+test/unit/osquery-alert-dispatch.bats	an apostrophe in a dead-letter reason completes the move out of the pending queue	ok
+test/unit/osquery-alert-dispatch.bats	an apostrophe in the page URL is stored intact instead of being rejected by corrupted SQL	ok
+test/unit/osquery-alert-dispatch.bats	an apostrophe request id survives retry bookkeeping and its delete-by-id	ok
+test/unit/osquery-alert-dispatch.bats	an unreadable store fails the probe instead of reporting a false zero	ok
+test/unit/osquery-alert-dispatch.bats	both counters read zero before anything has ever been stored	ok
+test/unit/osquery-alert-dispatch.bats	the counters report how many pages are queued and how many the drain gave up on	ok
+test/unit/osquery-alert-dispatch.bats	the drain SELECT carries an apostrophe URL through to the delivery attempt	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_directory_at_0755_root_wheel_has_not_drifted	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_directory_standing_where_the_config_belongs_reads_as_irregular	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_drifted_path_in_the_last_position_still_warrants_a_restart	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_file_matching_on_content_mode_owner_and_group_has_not_drifted	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_file_standing_where_the_packs_directory_belongs_reads_as_irregular	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_group_writable_directory_reads_as_drift	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_missing_directory_reads_as_absent	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_state_that_could_not_be_read_reads_as_unreadable_never_as_ok	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_a_symlink_standing_where_the_config_belongs_reads_as_irregular	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_an_empty_verdict_list_means_no_restart	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_any_single_drifted_path_warrants_a_restart	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_content_drift_is_reported_ahead_of_an_attribute_that_also_drifted	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_correct_bytes_owned_by_a_non_root_user_read_as_drift	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_correct_bytes_owned_by_a_non_wheel_group_read_as_drift	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_correct_bytes_under_a_world_writable_mode_read_as_drift_not_as_ok	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_differing_bytes_read_as_content_drift	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_nothing_at_the_path_reads_as_absent	ok
+test/unit/osquery-converge-drift-verdict.test.sh	test_nothing_drifted_means_no_restart	ok
+test/unit/osquery-converge.bats	a LIVE file that cannot be compared is reinstalled, never counted as converged	ok
+test/unit/osquery-converge.bats	a config the daemon cannot parse refuses the restart and never stops the daemon	ok
+test/unit/osquery-converge.bats	a converged tree is a silent no-op: nothing printed, nothing privileged, no restart	ok
+test/unit/osquery-converge.bats	a daemon that comes back under a NEW pid inside the settle window is a failure	ok
+test/unit/osquery-converge.bats	a daemon that dies inside the settle window is a loud failure	ok
+test/unit/osquery-converge.bats	a daemon that never comes back is a loud failure, not a reported success	ok
+test/unit/osquery-converge.bats	a daemon whose parent pid never changed is not a restart, however the stop exited	ok
+test/unit/osquery-converge.bats	a desired file that cannot be read is never treated as converged	ok
+test/unit/osquery-converge.bats	a desired file that is not deployed is a loud failure, never a silent skip	ok
+test/unit/osquery-converge.bats	a file in the desired tree the tool does not install is refused, not ignored	ok
+test/unit/osquery-converge.bats	a group-writable target directory is repaired to 0755 root:wheel	ok
+test/unit/osquery-converge.bats	a missing log directory is created, because the daemon logs into it	ok
+test/unit/osquery-converge.bats	a missing packs directory is created before the packs are installed into it	ok
+test/unit/osquery-converge.bats	a missing vendor plist refuses the restart and never stops the daemon	ok
+test/unit/osquery-converge.bats	a path owned by a non-root user is reinstalled, files and directories alike	ok
+test/unit/osquery-converge.bats	a planted file is matched on its exact relative path, not on a pattern or a basename	ok
+test/unit/osquery-converge.bats	a repair says which file it repaired and why	ok
+test/unit/osquery-converge.bats	a restart is claimed only when the parent pid actually changed	ok
+test/unit/osquery-converge.bats	a seam variable set without the test seam is refused, so it is not a production knob	ok
+test/unit/osquery-converge.bats	a setuid bit on a live file reads as drift, not as a matching 0644	ok
+test/unit/osquery-converge.bats	a staging directory reached through a symlinked PARENT is refused too	ok
+test/unit/osquery-converge.bats	a staging directory that is itself a symlink is refused, not followed	ok
+test/unit/osquery-converge.bats	a staging tree the tool cannot fully read is a refusal, not a silent pass	ok
+test/unit/osquery-converge.bats	a start that fails after a successful stop leaves no success line	ok
+test/unit/osquery-converge.bats	a start that fails is FATAL even while a daemon is still running	ok
+test/unit/osquery-converge.bats	a stop that fails with no daemon running does not stop the run, because a fresh host has nothing to stop	ok
+test/unit/osquery-converge.bats	a symlink in the desired tree is refused rather than installed through	ok
+test/unit/osquery-converge.bats	a symlink planted in the desired tree under an unlisted name is refused too	ok
+test/unit/osquery-converge.bats	a symlink standing at the config path is replaced by a regular file	ok
+test/unit/osquery-converge.bats	a symlink standing in for the vendor plist refuses the restart	ok
+test/unit/osquery-converge.bats	a symlink standing where the packs directory belongs claims nothing and repairs nothing	ok
+test/unit/osquery-converge.bats	a symlink standing where the target directory belongs is refused, never repaired through	ok
+test/unit/osquery-converge.bats	a wiped file is reinstalled and the daemon is restarted	ok
+test/unit/osquery-converge.bats	a wiped pack is reinstalled too, so a partial wipe is fully repaired	ok
+test/unit/osquery-converge.bats	an osqueryctl resolved into a directory root does not own is refused, never handed to sudo	ok
+test/unit/osquery-converge.bats	an osqueryctl resolved into a group-writable directory is refused too	ok
+test/unit/osquery-converge.bats	an unknown argument is a usage error, never a silent full converge	ok
+test/unit/osquery-converge.bats	correct bytes under a world-writable mode are reinstalled, not passed over	ok
+test/unit/osquery-converge.bats	creating the log directory does not bounce the root daemon	ok
+test/unit/osquery-converge.bats	only the drifted file is reinstalled, so a repair is not a rewrite of everything	ok
+test/unit/osquery-converge.bats	osquery not being installed at all is a quiet no-op	ok
+test/unit/osquery-converge.bats	the content comparison reads the private copy, not the deployed staging tree	ok
+test/unit/osquery-converge.bats	the install carries owner, group and mode in ONE call	ok
+test/unit/osquery-converge.bats	the privileged install names /usr/bin/install, never a PATH lookup	ok
+test/unit/osquery-converge.bats	the privileged install reads from a private staging copy, not from the deployed tree	ok
+test/unit/osquery-converge.bats	the restart is judged on the ppid-1 parent, never on an arbitrary worker	ok
+test/unit/osquery-converge.bats	the test seam without a sudo is refused too, so root is never the real one	ok
+test/unit/osquery-converge.bats	the test seam without a target directory is refused, never defaulted to /var/osquery	ok
+test/unit/osquery-normalize-and-digest-store.bats	a counter==0 membership baseline is discarded while counter>0 and counter-absent rows survive	ok
+test/unit/osquery-normalize-and-digest-store.bats	a failed append leaves no partial line behind	ok
+test/unit/osquery-normalize-and-digest-store.bats	a failed append never aborts the detection path	ok
+test/unit/osquery-normalize-and-digest-store.bats	a failed append says so on stderr, naming the spool it could not write	ok
+test/unit/osquery-normalize-and-digest-store.bats	a finding's raw hash and secret column never reach the spool, only its path	ok
+test/unit/osquery-normalize-and-digest-store.bats	a listening-port finding is identified by name, address and port together	ok
+test/unit/osquery-normalize-and-digest-store.bats	a malformed line drops out without taking the rest of the batch with it	ok
+test/unit/osquery-normalize-and-digest-store.bats	a packed row reaches the routing stage under its bare query name, with its columns and action intact	ok
+test/unit/osquery-normalize-and-digest-store.bats	a row that omits its action is normalized to changed, so no later stage special-cases a null	ok
+test/unit/osquery-normalize-and-digest-store.bats	a snapshot-action row stays one finding instead of fanning out its snapshot array	ok
+test/unit/osquery-normalize-and-digest-store.bats	a tab inside a path is squashed to a space, so the enrich path stays one renderable token	ok
+test/unit/osquery-normalize-and-digest-store.bats	an unrecognized query name never becomes a finding, whether it arrives packed or top-level	ok
+test/unit/osquery-normalize-and-digest-store.bats	appends accumulate, one line per finding, so the daily digest sees every one	ok
+test/unit/osquery-normalize-and-digest-store.bats	one append records a single line of derived triage fields and nothing else	ok
+test/unit/osquery-normalize-and-digest-store.bats	only the pack segment is stripped, so a hyphenated pack name leaves the query's own underscores alone	ok
+test/unit/osquery-normalize-and-digest-store.bats	renameio atomic-write churn is dropped while a real file event on the same query survives	ok
+test/unit/osquery-normalize-and-digest-store.bats	the enrich path names the exact file each query type hands the enricher, and is empty where signing does not apply	ok
+test/unit/osquery-normalize-and-digest-store.bats	the heartbeat canary is dropped defensively, so a stray liveness row can never generate noise	ok
+test/unit/osquery-normalize-and-digest-store.bats	the spool is private: a 700 directory and a 600 file	ok
+test/unit/osquery-normalize-and-digest-store.bats	the three absolute-state queries keep their counter==0 row, so an already-unsafe state pages on first observation	ok
+test/unit/osquery-render.bats	a CRIT finding renders a plain-English header, its decision fields and a next step	ok
+test/unit/osquery-render.bats	a command-substitution path never executes in a rendered next-step command	ok
+test/unit/osquery-render.bats	a field value over 240 characters is truncated behind a marker	ok
+test/unit/osquery-render.bats	a quote-breaking path never executes in a cat, sudo cat or shasum next-step command	ok
+test/unit/osquery-render.bats	a quote-breaking path never executes in a codesign next-step command	ok
+test/unit/osquery-render.bats	a secret or credential file is rendered by basename, never with its path or its content hash	ok
+test/unit/osquery-render.bats	an embedded carriage return is squashed the same way a newline is	ok
+test/unit/osquery-render.bats	an embedded newline in any rendered column stays on one line, so no signing line can be forged	ok
+test/unit/osquery-render.bats	file-integrity triage facts render exactly when the router attached them	ok
+test/unit/osquery-render.bats	the page body is hard-capped below the 2000-char delivery limit	ok
+test/unit/osquery-render.bats	the page renders at most eight blocks and counts every CRIT finding it dropped	ok
+test/unit/osquery-route.bats	a failed page emit reports nonzero instead of a clean nothing-to-page	ok
+test/unit/osquery-route.bats	a finding whose severity never arrived pages, the batch completes, and the shortfall is announced	ok
+test/unit/osquery-route.bats	a healthy emit writes the candidate and a batch with nothing to page emits nothing, both exiting 0	ok
+test/unit/osquery-route.bats	a healthy severity batch routes normally and warns about nothing	ok
+test/unit/osquery-route.bats	a protection in its unsafe state, a new admin account and a new setuid-root binary are CRIT	ok
+test/unit/osquery-route.bats	a security-policy row that is not the unsafe state falls to NOTICE, never to INFO	ok
+test/unit/osquery-route.bats	an untrusted program behind a fully allowlisted label still pages, and the trusted one is suppressed	ok
+test/unit/osquery-route.bats	default-deny: a reused label, an unknown agent and a LaunchDaemon page, an Apple item is skipped	ok
+test/unit/osquery-route.bats	every finding reaches exactly one channel and every page is stamped CRIT	ok
+test/unit/osquery-route.bats	persistence, extensions, watched files and endpoint-security writes are NOTICE	ok
+test/unit/osquery-route.bats	software drift, listeners, logins and the agent queries are INFO	ok
+test/unit/osquery-route.bats	the ambiguous tier digests: a credential file, a new listener, a private key, sudoers	ok
+test/unit/osquery-route.bats	the extension arms honor the untrusted-signing promotion and the log-only arms ignore it	ok
+test/unit/osquery-route.bats	the page tier reaches stdout, including the two remote-auth file events	ok
+test/unit/osquery-route.bats	the safe-direction rows and the poller-owned protection reach neither channel	ok
+test/unit/osquery-route.bats	the signing verdict is attached to a paged finding, trusted or not	ok
+test/unit/osquery-route.bats	with nothing able to vouch, tracked edits and an unknown agent page while a neighbour stays silent	ok
+test/unit/ssh-hardening-dropin.sh	ssh-hardening-dropin	ok

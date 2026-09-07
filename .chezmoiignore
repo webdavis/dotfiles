@@ -65,6 +65,12 @@ tmp.*
 # Same, for the uu crate.
 .local/share/uu/target
 
+# Same, for the posture crate, and the same rule for its docs as for pns's: the
+# test baseline, the acceptance examples and the decision records travel with
+# the crate in git and never reach $HOME.
+.local/share/posture/target
+.local/share/posture/docs
+
 # neotest-bashunit's own headless specs and their runner: development artifacts
 # for people working ON the adapter, the same rule .config/nvim/tests/ follows.
 # `just test-neotest-bashunit` runs them from the source tree.
@@ -101,4 +107,8 @@ Library
 .local/libexec/uu
 .local/share/uu
 .config/uu
+# posture is the osquery pipeline's port, and that pipeline is macOS-only
+# (launchd, osqueryd under /var/osquery, a darwin-gated builder).
+.local/libexec/posture
+.local/share/posture
 {{- end }}

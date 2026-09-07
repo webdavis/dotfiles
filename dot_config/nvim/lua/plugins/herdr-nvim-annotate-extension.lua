@@ -20,7 +20,7 @@
 -- notifier.
 return {
   "webdavis/herdr-nvim-annotate-extension.nvim",
-  commit = "0a5d39889a84f0212180283e73fc345b59b199d2",
+  commit = "a7713d5e857c8c8c41ea6cd707eda07c2d082c9c",
   dependencies = { "ChmaraX/herdr-nvim" },
   keys = {
     {

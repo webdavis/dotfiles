@@ -215,13 +215,20 @@ measured: `missed.rs` 323 plus `missed/tests.rs` 306; the root module splits its
 `record_path`, `claim_path` (path grammar) stay for PR 11.5. Tests: by name. Sizes: `nag.rs` ~180 plus
 tests ~140. Statements: S239 (`fate`), S240.
 
-**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `validate_shape`,
-`Heartbeat`, the bounds (`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`,
-`MIN_EVERY_SECS`, `DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`,
-`172-340`) to `pns-domain/src/jobs.rs`. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`,
-`publish_*`, `marker_exists`, `prepare_spool` stay for PR 11.5. Tests: `decide`, `rearm`,
-`validate_shape`, `validate_registration`, heartbeat round trip, by name. Sizes: `jobs.rs` ~230 plus
-tests ~350. Statements: S199, S200 (the `rearm` half), S205, S206.
+**PR 5.6 the job policy.** Moves `Job`, `Verdict`, `Reason`, `decide`, `rearm`, `Heartbeat`, the bounds
+(`ID_MAX`, `RECORD_MAX`, `ARGS_MAX`, `ARGS_BYTES_MAX`, `EVERY_MAX_SECS`, `MIN_EVERY_SECS`,
+`DUE_WINDOW_SECS`, `HEARTBEAT_STALE_SECS`) and `name_is_safe` (`src/daemon.rs:29-45`, `172-340`) to
+`pns-domain/src/jobs.rs`. `validate_shape` and `validate_registration` do NOT move, against this row's
+first draft: `validate_shape`'s last rule caps the RENDERED record, which makes it a fact about the
+serialized form rather than about the job, and `validate_registration` calls it. Both stay beside
+`render` with their own tests, and both go to `pns-adapters` with the TAB codec in PR 11.5, which is
+where the serialized form lands. A pure `validate_shape(job, rendered_len)` would let the rule move
+later; nothing needs it yet. The TAB codec, `spool_entries`, `peek`, `claim`, `hand_back`, `publish_*`,
+`marker_exists`, `prepare_spool` stay for PR 11.5 too. Tests: `decide`, `rearm`, heartbeat round trip, by
+name; the two validators' tests stay with them. S206's own test is written here, red-first, in
+`doctor.rs` rather than the domain, because the behavior it states belongs to the grader `daemon_line`
+and a test beside the constant can only restate the constant. Sizes: `jobs.rs` ~230 plus tests ~350.
+Statements: S199, S200 (the `rearm` half), S205, S206.
 
 **PR 5.7 the lights policy.** Moves from `src/lights.rs`: `WORKING`, `any_working`, `Streak`,
 `next_streak`, `News`, `news_after`, `Unread`, `unread_arming`, `last_interaction`, `Loop`,
@@ -230,16 +237,30 @@ tests ~350. Statements: S199, S200 (the `rearm` half), S205, S206.
 `breath_fades`, `Phase`, `HeldEntry`, `resume_from`, `Action`, `blocked_marker_action`, `Say`, `say`,
 `Muted`, `MAX_MUTED_PLACES`, `bare_mute_secs`, `muted_after`, `muted_places`, `muted_report` (lines
 19-1369 less the items below; `working_owner` and its two suffixes are already in
-`pns-domain/src/lights.rs` since PR 5.1 and stay in that module's root file when it becomes the `lights/`
-directory). Stays for later steps: `workspace_agent_statuses` (a `serde_json` parse of herdr's answer, PR
-14.1), `render_streak`/`parse_streak`, `render_news`/`parse_news`, `render_held_token`/
+`pns-domain/src/lights.rs` since PR 5.1 and stay in that module's root file). Stays for later steps:
+`workspace_agent_statuses` (a `serde_json` parse of herdr's answer, PR 14.1),
+`render_streak`/`parse_streak`, `render_news`/`parse_news`, `render_held_token`/
 `parse_held_token`, `muted_entries`/`render_muted` (state codecs, PR 11.2), `lease_dir`, `lease_marker`,
 `blocked_dir`, `blocked_marker`, `sweep_claim` (paths, PR 11.5), `loop_command`, `LOOP_USAGE`,
-`QuietCommand`, `quiet_command`, `NO_SCHEDULE` (argv adaptation, PR 8.1). Target files:
-`pns-domain/src/lights/{held,streak,unread,loop,breath,phase,mute}.rs`. Tests: 54 by name, split into the
-same seven. Sizes: seven production files of 90 to 220, seven test files of 120 to 420. Statements: S114
-(`blocked_marker_action`), S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the
-schedule), S040 (`bare_mute_secs`).
+`QuietCommand`, `quiet_command`, `NO_SCHEDULE` (argv adaptation, PR 8.1). The seven files under
+`pns-domain/src/lights/` measure `held.rs` 146 lines, `streak.rs` 67, `unread.rs` 151, `looping.rs` 73,
+`breath.rs` 165, `phase.rs` 188 and `mute.rs` 150. The domain root remains `lights.rs` at 63 lines.
+`Breath` and `BreatheThenFlare` move early from `src/config.rs` into
+`pns-domain/src/lamps/config.rs`, now 57 lines. The consumers `breath_cycle(&Breath)` and
+`breathe_then_flare_cycle(&BreatheThenFlare)` require those values in the domain, which cannot depend
+back on the legacy configuration parser.
+
+All 54 leaf test names survive, including the two `working_owner` tests already in the domain's
+`lights/tests.rs` at 72 lines. The four held, seven breath and five accent tests move into
+`lights/held/tests.rs` (124 lines), `lights/breath/tests.rs` (298) and
+`lights/breath/tests/accent.rs` (200), with their bodies unchanged apart from paths. Breath and accent
+share the literal motion fixtures in `lights/breath/tests/fixtures.rs` (30). The remaining 36 tests
+stay in the legacy `src/lights/` modules: `streak_tests.rs` (109), `unread_tests.rs` (280),
+`loop_tests.rs` (261), `phase_tests.rs` (343), `mute_tests.rs` (133) and `quiet_command_tests.rs`
+(360). These modules mix policy with codecs, marker paths or argument parsing. The legacy
+`fixtures.rs` is 76 lines and `src/lights.rs` is 459. Statements: S114 (`blocked_marker_action`),
+S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the schedule), S040
+(`bare_mute_secs`).
 
 **PR 5.8 the lamp resolution policy.** Moves from `src/channels/hue.rs`: `QuietWindow`, `minute_of_day`,
 `quiet_now`, `Fixture`, `Unresolved`, `Missing`, `missing_sentence`, `Lamp`, `Inventory` (types),
@@ -294,6 +315,17 @@ Statements: S084 (`idle_secs_from_ns`), S234, S235.
 Stays: `line` (the ring's on-disk shape, PR 11.2), `section`, `render`, `complaint`, `escaped`,
 `QUOTED_MAX` (the doctor's presentation, PR 15.1). Tests: the `printable` and `Record` tests by name.
 Sizes: ~150 plus tests ~250. Statements: S157 (`printable`).
+
+| Pull request                         | Status   |
+| ------------------------------------ | -------- |
+| 5.14 shard main.rs into root modules | Complete |
+
+Moves the 13,484-line `src/main.rs` into 51 root-package responsibility modules, with 27 test files and
+four shared fixture files. Measured after formatting: `main.rs` is 299 lines; every extracted file is
+below 500 lines, with a maximum of 417. The optional hooks split reduces `tests/hooks.rs` from 6,217 to
+351 lines; its 29 behavior files are at most 360 lines. Bodies, names and test leaves are preserved. This
+changes no ownership: later steps still move these modules into crates. The shard exists so parallel
+lanes own distinct files instead of editing the same `main.rs`.
 
 Unpinned statements written first in this step: S015 (last flag wins) before PR 8.1 rather than
 here; none of PR 5.1 to 5.13 moves code behind an UNPINNED statement, because the unpinned rows in
@@ -600,13 +632,15 @@ successors of S158, S242, S243.
 **PR 11.5 the remaining filesystem protocols.** Pure move of the protocols that stay protocols because
 another process is the other party: the spool (`spool_entries`, `peek`, `claim`, `hand_back`,
 `publish_if_absent`, `publish_job`, `cancel`, `marker_exists`, `prepare_spool`, `publish_heartbeat`, the
-TAB codec, `WORKING_PREFIX`, from `src/daemon.rs`), the journal claim and hold protocol
-(`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`, `owner_is_gone`, the window
-claim), the nag records and fire lock (`nag_dir`, `record_path`, `claim_path`, `render`/`parse`,
-`claim_record`, `claim_fire`, `claim_lock`, `publish_lock`, `lock_aged_out`, `release_fire`), the marker
-directories (`lease_dir`, `lease_marker`, `blocked_dir`, `blocked_marker`, `sweep_claim`,
-`sweep_markers`, `sweep_leases`, `sweep_shell_markers`, `sweep_legacy_state`), the turn marker claim, and
-the setup publish (`publish_config`, `pending_name`, `write_then_publish`, `keep_aside_at`) into
+TAB codec, `WORKING_PREFIX`, and `validate_shape` and `validate_registration`, which PR 5.6 left behind
+because the first caps the RENDERED record and the second calls it, from `src/daemon.rs`), the journal
+claim and hold protocol (`claim_by_rename`, `take_claim`, `stranded_claims`, `abandoned_hold`,
+`owner_is_gone`, the window claim), the nag records and fire lock (`nag_dir`, `record_path`,
+`claim_path`, `render`/`parse`, `claim_record`, `claim_fire`, `claim_lock`, `publish_lock`,
+`lock_aged_out`, `release_fire`), the marker directories (`lease_dir`, `lease_marker`, `blocked_dir`,
+`blocked_marker`, `sweep_claim`, `sweep_markers`, `sweep_leases`, `sweep_shell_markers`,
+`sweep_legacy_state`), the turn marker claim, and the setup publish (`publish_config`, `pending_name`,
+`write_then_publish`, `keep_aside_at`) into
 `pns-adapters/src/protocols/{spool,claims,nag,markers,turn,config_publish}.rs`. Each keeps the
 decision-0001 invariant as a one-line comment linking the record. Unpinned first: S165 (recorded as
 accepted; the source says no test can plant it), S183. Tests: by name; the claim rows of
@@ -651,15 +685,16 @@ them. This step consolidates the config-free policy cases in the domain and keep
 integration checks with the adapters. Sizes: five files of 100 to 260 plus tests under 450 each (the
 config tests split by table). Statements: S078, S116, S189, S236, S276, S280, S284, S285.
 
-**PR 13.3 the lights tables.** Pure move of `Lights`, `Pulse`, `Breath`, `Blocked`, `Unread`,
-`BreatheThenFlare`, `Looping`, `Target`, `Behaviour`, `BEHAVIOUR_WORDS`, the locked defaults, `percent`,
-`ends_agree`, `accent_agrees`, `behaviour_table`, `behaviours`, `breath_key`, `parse_lights`,
-`parse_pulse`, `parse_breath`, `parse_blocked`, `parse_unread`, `parse_looping`, `parse_targets`
+**PR 13.3 the lights tables.** Pure move of `Lights`, `Pulse`, `Blocked`, `Unread`, `Looping`, `Target`,
+`BEHAVIOUR_WORDS`, the locked defaults, `percent`, `ends_agree`, `accent_agrees`, `behaviour_table`,
+`behaviours`, `breath_key`, `parse_lights`, `parse_pulse`, `parse_breath`, `parse_blocked`,
+`parse_unread`, `parse_looping`, `parse_targets`
 (`src/config.rs:121-436`, `1259-1579`, reading `bounded` from the `values.rs` of 13.2) to
-`pns-adapters/src/config/lights/{tables,bounds,targets}.rs`, with the plain value types (`Behaviour`,
-`Breath`, `Pulse`, `Target`) landing in `pns-domain/src/lamps/config.rs` because the lamp policy reads
-them. Tests: by name, split by table. Sizes: three files of 150 to 250 plus tests under 450. Statements:
-S277, S278.
+`pns-adapters/src/config/lights/{tables,bounds,targets}.rs`. The plain value types `Pulse` and `Target`
+land in `pns-domain/src/lamps/config.rs` because the lamp policy reads them. `Behaviour` already lives
+there, and PR 5.7 moved `Breath` and `BreatheThenFlare` there for the breath policy. Their parsers
+remain part of this step. Tests: by name, split by table. Sizes: three files of 150 to 250 plus tests
+under 450. Statements: S277, S278.
 
 **PR 13.4 the plugin tables that select a backend.** Pure move of `parse_presence`, `presence_count`,
 `Presence`, the `desk_room` and `desk_stale_after_secs` bounds and the presence constants

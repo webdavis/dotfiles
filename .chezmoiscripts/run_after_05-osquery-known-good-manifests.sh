@@ -122,6 +122,18 @@ set -euo pipefail
 
 [[ "$(uname)" == Darwin ]] || exit 0
 
+# A builder needs one publication outcome: never install its governing tuple
+# and then report failure from an unrelated manifest. Other callers keep both.
+refresh_scope=all
+case "$#:$*" in
+  0:) ;;
+  1:--pipeline-only) refresh_scope=pipeline ;;
+  *)
+    printf 'usage: %s [--pipeline-only]\n' "${0##*/}" >&2
+    exit 2
+    ;;
+esac
+
 # Keep these defaults in sync with PIPELINE_MANIFEST and MANAGED_BIN_MANIFEST in
 # dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh (the consumer).
 # Tests pin the literals equal, because the producer and the consumers of a
@@ -216,7 +228,7 @@ if [[ ${#pipeline_paths[@]} -eq 0 ]]; then
   printf 'osquery known-good manifests: no managed pipeline files resolved, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
-if [[ ${#managed_bin_paths[@]} -eq 0 ]]; then
+if [[ $refresh_scope == all && ${#managed_bin_paths[@]} -eq 0 ]]; then
   printf 'osquery known-good manifests: no managed ~/.local/bin files resolved, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
@@ -256,8 +268,10 @@ if [[ -r $config_template ]]; then
     state set --bucket=configState --key=configState \
     --value="{\"configTemplateContentsSHA256\":\"$config_template_sha256\"}" 2>/dev/null || true
 fi
+dump_paths=("${pipeline_paths[@]}")
+[[ $refresh_scope == all ]] && dump_paths+=("${managed_bin_paths[@]}")
 if ! chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
-  dump --format=json "${pipeline_paths[@]}" "${managed_bin_paths[@]}" >"$dump_json"; then
+  dump --format=json "${dump_paths[@]}" >"$dump_json"; then
   printf 'osquery known-good manifests: could not dump the managed files, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
@@ -382,4 +396,6 @@ refresh_manifest() {
 }
 
 refresh_manifest 'osquery pipeline' "$pipeline_manifest" pipeline_paths
-refresh_manifest 'managed bin' "$managed_bin_manifest" managed_bin_paths
+if [[ $refresh_scope == all ]]; then
+  refresh_manifest 'managed bin' "$managed_bin_manifest" managed_bin_paths
+fi

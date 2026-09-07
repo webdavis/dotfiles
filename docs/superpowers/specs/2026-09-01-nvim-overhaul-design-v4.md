@@ -655,27 +655,34 @@ and PR 4d lifts it with the other exclusions, with no taplo reformat to commit u
 `.chezmoiscripts/run_onchange_after_80-bootstrap-nvim.sh.tmpl` (80 is free; 72 is the highest today).
 It lands in PR 31, after the Mason race is removed (PR 5b) and the lock is final.
 
-- **Trigger.** The rendered script embeds the sha256 of `lazy-lock.json` and of `lua/plugins/lsp.lua`
-  (the two tool lists live there), the same `include | sha256sum` idiom `run_onchange_after_58` uses,
-  so a pin or tool-list change re-fires it. A retry marker's modification time is embedded as well,
-  exactly as the pns build script does, so a deferred run (no `nvim` on PATH yet) re-fires on the next
-  apply instead of consuming the trigger.
-- **Guard.** `command -v nvim` or defer with the marker. No darwin guard: the config deploys on both
-  operating systems, and the only macOS-only pieces (the Swift stack) are gated inside Lua with
-  `vim.fn.has("mac")`. This replaces item 50's "darwin guard" by decision.
-- **No timeout.** A cold machine clones 80-odd repositories and builds `tree-sitter-cli` with cargo;
-  the v1 `timeout 120` was the reason a half-installed editor read as "done". A network failure makes
-  the commands below exit non-zero, chezmoi does not record the run, and the next apply retries.
-- **Steps.** `nvim --headless "+Lazy! restore" +qa`, then `nvim --headless "+MasonToolsInstallSync" +qa`
-  (valid only once `run_on_start = false`, PR 5b, so the sync run and the autostart run cannot race),
-  then the test runner from the SOURCE tree against the deployed config (6.3):
+- **Trigger.** The rendered script embeds the sha256 of `lazy-lock.json`, `lua/plugins/lsp.lua`
+  (the two tool lists live there), `lua/plugins/treesitter.lua` (the core parser list), and its
+  bootstrap and verification helpers. A deferral appends one byte to a retry marker whose size is
+  embedded in the render, so even two deferrals in one second produce different scripts. A successful
+  run resets that token to zero and settles after one final run. Rendering uses `stat` and never reads
+  the marker's contents.
+- **Guard.** `command -v nvim` or defer with the marker. No darwin guard: Lazy resolves the current
+  platform's enabled plugins, and verification checks those pins rather than disabled lock entries.
+- **Completion.** There is no outer timeout. Lazy retains its configured timeout during restore.
+  The bootstrap waits for our declared shell builds through Neovim's process API and checks their
+  exit status, including silent failures. Other Lazy build tasks must finish without an error, and
+  the asynchronous parser update and original core installation must return successful results.
+  Verify each declared core language and its dependencies: compiled parser artifacts for languages
+  with an installer, queries for query-only languages. Force installation only for missing artifacts
+  so leftover queries cannot hide an absent parser.
+- **Steps.** Restore against the source lock, retrying at most three times while the number of
+  incorrect pins decreases. Refresh the Mason registry with a checked callback, resolve the union of
+  language servers and tools, and install that same union headlessly. Then build the enabled plugins
+  with their prerequisites available, even if they are already at their pins, because a previous
+  build failure does not persist in Lazy's task state. Run the source Lua test runner against the
+  deployed config:
   `nvim --headless --clean -l {{ .chezmoi.sourceDir }}/dot_config/nvim/tests/run.lua --config
-  "$HOME/.config/nvim"`. `tests/` is chezmoiignored and never exists under `$HOME`; the runner is
-  addressed through the source directory chezmoi already knows.
-- **Verification, then non-zero exit.** Every pin in `lazy-lock.json` has a directory under
-  `~/.local/share/nvim/lazy/`; every name in the two `ensure_installed` lists has a Mason package
-  directory; the Lua tests pass. The missing names are printed with their tool, and the script exits 1.
-  A quiet apply prints nothing (operator ruling 2026-08-05).
+  "$HOME/.config/nvim"`. `tests/` is chezmoiignored and never exists under `$HOME`.
+- **Verification, then non-zero exit.** Every enabled source pin must match the installed commit,
+  every resolved Mason name must have a package directory, the Lua tests must pass, and clangd must
+  carry its configured flags. Empty inventories are errors. Each step appends its output to a
+  retained bootstrap-cache transcript, replayed if a later check fails. Success prints nothing
+  (operator ruling 2026-08-05).
 - **Prerequisites documented in the script header:** network access, `git`, `cargo` (from
   `run_once_before_20-install-rustup`, needed by `tree-sitter-cli`), `go` (needed by Mason's `gopls`,
   section 5.3), and Xcode for the Swift stack.
@@ -1544,11 +1551,44 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 1. `nvim --headless +qa` writes nothing to stderr, five runs.
 2. `nvim --headless "+checkhealth" "+w! <file>" +qa` is clean: zero ERROR lines except those that
    name an absent optional external tool the config does not require (`luarocks`/hererocks, `gs`,
-   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol); each such exception is
-   listed in the PR body with its line. The three none-ls executable errors and the treesitter
-   runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. The two Snacks `vim.ui.*`
-   lines are re-checked in a TUI `:checkhealth snacks`; if they persist there they are config bugs
-   and are fixed.
+   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol), plus the three below;
+   each such exception is listed in the PR body with its line. The three none-ls executable errors
+   and the treesitter runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. Run the
+   headless capture with `Lazy! load all` before `checkhealth`: without it the lazy plugins never
+   register a health check and coverage drops from 42 sections to 15, which reads as an improvement
+   and is not one.
+
+   Three more exceptions, triaged 2026-09-05 against each health provider's source at its pinned
+   commit. Their exact lines:
+
+   ```
+   - ❌ ERROR gh not authenticated
+   - ❌ ERROR setup did not run
+   - ❌ ERROR `pymobiledevice3` detected, but the `remote_debugger` script is not installed. (see: `:help |xcodebuild.remote-debugger`)|
+   ```
+
+   - `atlas`, "gh not authenticated": a measurement artifact, not a posture. `gh` reads its host
+     list from `$XDG_CONFIG_HOME/gh/hosts.yml`, and every headless run redirects `XDG_CONFIG_HOME`
+     to a throwaway tree, so `gh` finds no host and `atlas/health.lua` reads the non-zero exit as
+     "not authenticated". Measured both ways on 2026-09-05: `gh auth status` exits 0 with the real
+     value and 1 under the redirect. Nothing to fix in the config or the plugin.
+   - `snacks`, "setup did not run" under `Snacks.dashboard`: a headless artifact, the same class as
+     the two `vim.ui.*` lines. `snacks/init.lua` gates `dashboard`, `input`, `picker`, `scroll` and
+     `scope` setup on `UIEnter`, which never fires in a process with no UI, so `did_setup` stays
+     false and `dashboard.lua` reports the error.
+   - `xcodebuild`, "pymobiledevice3 detected, but the remote_debugger script is not installed": the
+     intended state. `lua/plugins/xcodebuild.lua` records why iOS 17+ secure-tunnel debugging stays
+     off: the documented install grants passwordless root to a helper under user-writable
+     `~/Library`. The helper runs `/bin/bash` and resolves `pymobiledevice3` through PATH; that
+     entry point selects its user-owned Python interpreter by absolute path. The check is right
+     about the fact, and the fact is deliberate, so the plugin is not patched and no sudo rule is
+     added.
+
+   The two Snacks `vim.ui.*` lines and the `Snacks.dashboard` line were re-checked under a pty on
+   2026-09-05 (`script -q /dev/null nvim`, `:checkhealth snacks` fired from a `UIEnter` autocmd).
+   All three are absent there and the dashboard reports "setup ran" and "dashboard opened", so they
+   are artifacts of the headless run rather than config bugs. The pty capture leaves five snacks
+   errors, all of them already-listed absent tools.
 3. The warm headless startup median (synthetic, `User VeryLazy` fired by hand) passes the 9.1 gate:
    within 10 ms of the previous PR's number for every PR except PR 2 (captured and labelled advisory
    instead, 9.1), and below the import-day baseline by more than 10 ms for PR 30d and PR 31. The TUI

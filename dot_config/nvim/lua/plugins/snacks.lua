@@ -329,7 +329,12 @@ return {
           Snacks.toggle({
             name = "Git Signs",
             get = function()
-              return require("gitsigns.config").config.signcolumn
+              -- Read the module only if something else already loaded it. A bare
+              -- `require` here would pull gitsigns off its own trigger through
+              -- lazy.nvim's loader, and with no file open it is not loaded at
+              -- all, so there are no signs to report.
+              local gitsigns_config = package.loaded["gitsigns.config"]
+              return gitsigns_config ~= nil and gitsigns_config.config.signcolumn or false
             end,
             set = function(state)
               require("gitsigns").toggle_signs(state)

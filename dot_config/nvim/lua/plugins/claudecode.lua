@@ -78,9 +78,47 @@ return {
       desc = "Claude: launch or attach --ide",
     },
   },
-  opts = {
-    terminal = {
-      provider = "none",
-    },
-  },
+  -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO,
+  -- DEBUG and TRACE through `nvim_echo`, which is STDERR in a headless run. So
+  -- every `--headless` start that reached `VimLeavePre` printed
+  -- `[ClaudeCode] [init] [INFO] Claude Code integration stopped` (`logger.lua`,
+  -- `init.lua:597` at the pinned commit) and failed the zero-stderr startup gate.
+  -- A global `warn` is too wide: `:ClaudeCodeStatus` answers at INFO as well
+  -- (`init.lua:619-621`), and would go silent. A headless session is the one
+  -- kind with no UI attached, and `opts` is evaluated when the plugin loads
+  -- (`VeryLazy`), after the UI has attached in an interactive session, so this
+  -- quiets exactly the sessions whose INFO was noise and nothing else. The one
+  -- gap is a UI that attaches AFTER the plugin loaded (an `--embed` client that
+  -- ran commands before attaching): `init` closes it by raising the level back
+  -- to the plugin's default through the logger's own `setup` on the first
+  -- `UIEnter`, and only when the logger has already been loaded, so a normal
+  -- interactive start (UI first, plugin at `VeryLazy`) is untouched.
+  init = function()
+    -- Not `once`: a UI can attach and detach before the plugin loads (an
+    -- `--embed` client attaching, detaching, and letting `VeryLazy` load the
+    -- plugin with no UI), and a one-shot hook consumed then would leave a later
+    -- attach unable to restore INFO. The hook stays until it has something to
+    -- restore, and removes itself only after it has done so.
+    local group = vim.api.nvim_create_augroup("claudecode_restore_info", { clear = true })
+    vim.api.nvim_create_autocmd("UIEnter", {
+      group = group,
+      desc = "claudecode.nvim: restore INFO logging once a UI is attached",
+      callback = function()
+        local logger = package.loaded["claudecode.logger"]
+        if not logger then
+          return
+        end
+        logger.setup({ log_level = "info" })
+        vim.api.nvim_del_augroup_by_id(group)
+      end,
+    })
+  end,
+  opts = function()
+    return {
+      log_level = #vim.api.nvim_list_uis() == 0 and "warn" or "info",
+      terminal = {
+        provider = "none",
+      },
+    }
+  end,
 }

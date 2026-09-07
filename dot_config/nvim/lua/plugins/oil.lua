@@ -52,6 +52,10 @@ return {
   },
   {
     "benomahony/oil-git.nvim",
+    -- Its whole surface is an `ftplugin/oil.lua`, so the oil filetype is the
+    -- trigger. lazy.nvim re-fires FileType after loading, so the ftplugin still
+    -- runs on the buffer that loaded it.
+    ft = "oil",
     dependencies = { "stevearc/oil.nvim" },
     -- No opts or config needed! Works automatically
   },
