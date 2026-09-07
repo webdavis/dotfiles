@@ -86,11 +86,11 @@ samples the host for the outbound weekly record; this is not one host lookup for
 
 Concrete adapters and command parsing belong to their own crates; the root is a virtual workspace. Parser
 fixtures belong to the adapter package, and the outer repository verifies its actual configuration
-template separately. The command's registration list binds the five existing type names to their typed
-parsers, execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a
-registration while retaining the operator's declared name, resolved deadline and pending threshold.
-Execution and doctor use that selected adapter, so neither repeats a technology-name switch. Domain and
-application retain their existing dependency direction and know no concrete lane technology.
+template separately. The command's registration list binds six type names to their typed parsers,
+execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a registration
+while retaining the operator's declared name, resolved deadline and pending threshold. Execution and
+doctor use that selected adapter, so neither repeats a technology-name switch. Domain and application
+retain their existing dependency direction and know no concrete lane technology.
 
 Module trees are private, with deliberate exports at their package roots. Large unit-test modules live in
 private child files. `config.rs` owns the shared file boundary and top-level configuration;
@@ -133,8 +133,17 @@ diagnostic must distinguish those two durations and its recorded process group m
 pure policy tests retain own-deadline and run-budget expiry directions. These controls avoid a wall-clock
 wait without changing the configuration's whole-second units or the production clock.
 
-The current evidence combines the workspace library, command composition and integration batches with the
-focused delivery check that added the actual pending-count adapter case. All 336 cases passed below one
-second; the maximum was 0.650372375 seconds. Each of the 32 added cases failed its intended assertion
-under a real source fault, across 35 independently compiled fault arms. The signed predecessor and final
-release also matched on all 21 argument vectors, while the retained faulty executable differed on 16.
+The pending and alarm evidence combines the workspace library, command composition and integration
+batches with the focused delivery check that added the actual pending-count adapter case. All 336 cases
+passed below one second; the maximum was 0.650372375 seconds. Each of the 32 added cases failed its
+intended assertion under a real source fault, across 35 independently compiled fault arms. The signed
+predecessor and final release also matched on all 21 argument vectors, while the retained faulty
+executable differed on 16.
+
+## Neovim consumer and lock recovery
+
+The `nvim-plugins` registration owns its typed executable, config and optional writeback settings. The
+existing command runner preserves the child exit and stdout; the adapter maps Neovim's nonzero exits to
+pending or failure. The outer Neovim configuration owns Lazy calls and Git writeback, so the Rust package
+contains no dependency on a deployed Lua path. The required absolute config names both its initializer
+and the entry script. Pure report decisions stay separate from plugin, Git and filesystem operations.

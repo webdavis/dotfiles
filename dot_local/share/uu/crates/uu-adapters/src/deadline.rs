@@ -81,6 +81,10 @@ mod tests {
         // construction, not by its author remembering to carry the field.
         let fixtures: &[(&str, &str)] = &[
             ("brew", "[lanes.brew]\n"),
+            (
+                "nvim-plugins",
+                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+            ),
             ("command", "[lanes.command]\nrun = [\"x\"]\n"),
             ("herdr", "[lanes.herdr]\n"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),

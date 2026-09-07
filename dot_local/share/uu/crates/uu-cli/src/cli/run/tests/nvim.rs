@@ -1,0 +1,25 @@
+use super::{Clock, Duration, Fixture, Observed, RunOutcome, execute};
+use uu_domain::LaneVerdict;
+
+#[test]
+fn a_registered_nvim_plugins_lane_preserves_a_pending_exit_and_its_output() {
+    let fixture = Fixture::new("nvim-plugins-pending");
+    let nvim = fixture.stub("printf 'finder: updates available\\n'\nexit 100\n");
+    let config = fixture.load(&format!("[lanes.editor]\ntype = \"nvim-plugins\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered Neovim plugin parser");
+    let observed = Observed::default();
+    assert_eq!(
+        execute(
+            fixture.home(),
+            &config,
+            None,
+            Clock::new(Duration::ZERO),
+            &observed
+        ),
+        RunOutcome::Completed
+    );
+    let reports = observed.reports.borrow();
+    assert_eq!(reports[0].name, "editor");
+    assert_eq!(reports[0].verdict(), LaneVerdict::Pending);
+    assert_eq!(reports[0].lines[0], "finder: updates available");
+    assert!(fixture.marker().exists());
+}

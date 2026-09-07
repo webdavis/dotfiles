@@ -9,6 +9,7 @@ mod brew;
 mod command;
 mod herdr;
 mod npm;
+mod nvim;
 mod spawn;
 mod text;
 mod uv;
@@ -98,6 +99,11 @@ mod tests {
         let fixtures: &[(&str, &str, &str)] = &[
             ("brew", "[lanes.brew]\n", "brew"),
             ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
+            (
+                "nvim-plugins",
+                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+                "nvim-plugins",
+            ),
             ("herdr", "[lanes.herdr]\n", "herdr"),
             ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
             ("uv", "[lanes.uv]\n", "uv"),

@@ -335,3 +335,11 @@ added	-	run::tests::pending::pending_runs_count_separately_and_advance_the_succe
 added	-	run::tests::pending::the_configured_pending_threshold_alerts_once_and_before_its_count_is_published	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
 added	-	run::tests::pending::unreadable_pending_history_is_reported_and_not_silently_reset	not-present	ok	A1-A3 behavior contract; crates/uu-application/src/run/tests/pending.rs
 added	-	runner::tests::run_with_input_preserves_pending_stdout_and_stderr_while_neighboring_statuses_fail	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/runner/tests.rs
+added	-	cli::run::tests::nvim::a_registered_nvim_plugins_lane_preserves_a_pending_exit_and_its_output	not-present	ok	C1-C4 behavior contract; crates/uu-cli/src/cli/run/tests/nvim.rs
+added	-	config::lanes::nvim::tests::an_nvim_lane_config_that_is_not_absolute_is_refused_by_name	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/config/lanes/nvim/tests.rs
+added	-	config::lanes::nvim::tests::an_nvim_lane_defaults_its_binary_to_nvim_on_the_running_path	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/config/lanes/nvim/tests.rs
+added	-	config::lanes::nvim::tests::an_nvim_lane_without_a_config_key_is_refused_because_nothing_names_the_init	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/config/lanes/nvim/tests.rs
+added	-	lanes::nvim::tests::a_plugins_child_exiting_non_zero_is_a_counted_failure_carrying_its_stderr_tail	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs
+added	-	lanes::nvim::tests::a_plugins_child_exiting_pending_is_a_pending_lane_carrying_its_lines	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs
+added	-	lanes::nvim::tests::an_nvim_lane_names_its_own_lane_not_its_type	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs
+added	-	lanes::nvim::tests::the_plugins_lane_runs_nvim_headless_with_the_configs_init_and_the_uu_module	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs

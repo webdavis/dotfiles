@@ -65,4 +65,23 @@ return {
     local allowed, why = report().commit_allowed("", "refs/heads/topic\n")
     assert(allowed and why == nil)
   end,
+  ["a pending plugin report closes its owned Neovim server socket"] = function()
+    local fixture = dofile(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h") .. "/uu_fixture.lua")
+    local root = vim.fn.tempname()
+    local module = debug.getinfo(report().plugin_lines, "S").source:sub(2)
+    local config = vim.fn.fnamemodify(module, ":h:h:h")
+    local marker, init = root .. "/socket", root .. "/init.lua"
+    fixture.write(init, (string.format("package.path = %q .. package.path\n", config .. "/lua/?.lua;")) .. [[
+package.loaded["lazy.core.config"] = { plugins = { fixture = { _ = { updates = true } } } }
+package.loaded["lazy.core.plugin"] = { has_errors = function() return false end }
+package.loaded["lazy.manage"] = { check = function(options) assert(options.wait and not options.show) end }
+package.loaded["uu.writeback"] = { run = function() return { kind = "check", lines = {} } end }
+]] .. string.format("local f = assert(io.open(%q, 'w')); f:write(vim.v.servername); f:close()\n", marker))
+    local child = vim
+      .system({ vim.v.progpath, "--headless", "-u", init, "-l", config .. "/lua/uu/plugins.lua" }, { text = true })
+      :wait()
+    local socket = fixture.read(marker)
+    assert(child.code == 100 and child.stdout:find("fixture: updates available", 1, true), child.stdout .. child.stderr)
+    assert(socket ~= "" and vim.uv.fs_stat(socket) == nil, "completed plugin report left its owned server socket")
+  end,
 }

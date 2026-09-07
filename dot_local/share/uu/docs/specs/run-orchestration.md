@@ -123,3 +123,14 @@ ten-second deadline. No new cancellation mechanism or stronger cleanup guarantee
 spawns is introduced. The new pending file uses the existing count encoding and atomic writer; no store
 migration or deduplication is introduced. See [the ownership decision](../decisions/run-application.md)
 for these retained limits.
+
+## Neovim plugin pins
+
+- **Given** a `nvim-plugins` lane, **when** resolving configuration, **then** require an absolute
+  `config` directory and default its executable to `nvim`. Run it headless with that directory's
+  `init.lua` and `lua/uu/plugins.lua`, preserving paths containing spaces. Retain child output for
+  completed, pending and failed results. Exit 100 is pending; every other nonzero exit is failed.
+- **Given** report-only mode, **when** checking plugins, **then** wait for Lazy's check, list each
+  pending or failed plugin by name and count current plugins without listing them. Any plugin error makes
+  the report failed; otherwise updates make it pending. Exit through Neovim so the completed headless
+  instance releases its server socket.

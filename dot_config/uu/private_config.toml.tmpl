@@ -170,3 +170,11 @@ deadline_secs = 21600
 # run = ["/usr/local/bin/my-updater", "--yes"]
 # deadline_secs = 21600
 # escalate_after_runs = 3
+
+# Check the committed Neovim plugin pins without changing them.
+[lanes.nvim-plugins]
+type = "nvim-plugins"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+escalate_after_runs = 3
+deadline_secs = 21600

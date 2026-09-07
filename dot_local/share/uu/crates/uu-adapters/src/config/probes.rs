@@ -1,11 +1,15 @@
 use super::{Config, ConfigError};
-use crate::{BrewLane, CommandLane, HerdrLane, LaneAdapter, LaneRegistration, NpmLane, UvLane};
+use crate::{
+    BrewLane, CommandLane, HerdrLane, LaneAdapter, LaneRegistration, NpmLane, NvimPluginsLane,
+    UvLane,
+};
 
 pub(crate) const REGISTRATIONS: &[LaneRegistration] = &[
     LaneRegistration::new::<BrewLane>("brew"),
     LaneRegistration::new::<CommandLane>("command"),
     LaneRegistration::new::<HerdrLane>("herdr"),
     LaneRegistration::new::<NpmLane>("npm"),
+    LaneRegistration::new::<NvimPluginsLane>("nvim-plugins"),
     LaneRegistration::new::<UvLane>("uv"),
 ];
 

@@ -63,7 +63,7 @@ fn a_missing_registration_refuses_before_any_command_or_diagnostic_can_run() {
         .unwrap_err();
     assert_eq!(
         error.detail(),
-        "lane `chosen` has type `fixture-command`, which is no lane type; this build serves brew, command, herdr, npm, uv"
+        "lane `chosen` has type `fixture-command`, which is no lane type; this build serves brew, command, herdr, npm, nvim-plugins, uv"
     );
     assert!(!touched.exists());
     assert!(!fixture.marker().exists());
@@ -182,3 +182,5 @@ fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
     assert_eq!(marker.split_whitespace().next(), Some("2000"), "{marker}");
     assert_eq!(observed.reports.borrow()[0].failures(), 0);
 }
+
+mod nvim;
