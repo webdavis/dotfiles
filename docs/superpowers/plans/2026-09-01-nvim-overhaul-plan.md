@@ -939,6 +939,13 @@ Lane: agent. Depends on: PR 12, PR 13 (`claudecode.lua`), PR 23 (`blame_sha`). B
 state gate, the one-slot queue, the detached `herdr agent wait`, the recheck and the state machine
 are all deleted from the design. Delivery is `herdr-nvim`'s own `<leader>As` and `<leader>AS`.
 
+**This task is superseded in place, not rewritten.** It SHIPPED as the local module below, and the
+own-repository ruling landed after it (2026-09-05: every custom Neovim plugin is its own public
+repository, spec 7.7). Under that ruling custom #3 becomes
+`webdavis/herdr-nvim-annotate-extension.nvim`, which the operator has created, and the composer, its
+spec and the `<leader>Cx` edge move there. Extracting it is FOLLOW-UP work with its own task; the
+file list below is the record of what PR 16 built, not an instruction to build it locally again.
+
 **Files:** Create `lua/custom_api/annotate.lua`, `tests/annotate_spec.lua`. Modify
 `lua/plugins/claudecode.lua` (`<leader>Cx`, `desc = "Claude: annotate line with diagnostic and
 blame"`).
@@ -976,37 +983,80 @@ the installed plugin: `lua/herdr-nvim/comments.lua:6`, `lua/herdr-nvim/ui.lua:50
 ### Task 26: PR 14, custom #1, the editor-side pns producer (spec 7.7, 10.9)
 
 Lane: agent, LAST in the lane. Depends on: PR 7f, PR 3 (the xcodebuild spec), PR 19b
-(`overseer.lua`), PR 28b (`neotest.lua`), AND the pns refactor that builds `--elapsed <secs>` (the
-operator froze pns work pending that refactor on 2026-09-03; the requirement is written into
+(`overseer.lua`), PR 28b (`neotest.lua`), AND the pns refactor's PR 8.3, which builds `--elapsed
+<secs>` (`docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`; the operator froze pns work
+pending that refactor on 2026-09-03, and the requirement is written into
 `~/.claude/pipeline/pns-refactor-prompt-v2.md`). Brief: `brief-nvim-pns-producer.md`. Closes custom
-#1. Re-sequenced 2026-09-03: there is no Lua module, because the tier is pns's to decide, and the
-three edges land together here rather than two here and one in the neotest PR.
+#1. Re-sequenced 2026-09-03: the three edges land together here rather than two here and one in the
+neotest PR. Re-shaped 2026-09-05 (operator ruling): this is NOT three bare call sites. It ships as a
+standalone Neovim plugin in its OWN GitHub repository, `webdavis/pns.nvim`, which any lazy.nvim
+user installs the ordinary way. Every custom plugin in this overhaul ships that way.
 
-**Files:** Modify `lua/plugins/overseer.lua` (an `on_complete` component), `lua/plugins/xcodebuild.lua`
-(the `User` autocmd pair), `lua/plugins/neotest.lua` (the `client.listeners.results` edge). No
-`lua/custom_api/` file and no spec file.
+**Plugin delivered; configuration still gated.** `webdavis/pns.nvim` v0.1.0 is released at
+`bfac762784393b77144c3e65019b7caf6ef70c7c`, with its own tests. This task installs and wires that
+plugin after pns PR 8.3; it does not rebuild the plugin or repeat its extraction. Nothing about the
+plugin's source, its tests or its formatting lands in this repository: no `dir =`, no `treefmt.toml`
+row, no `.chezmoiignore` row, no justfile recipe.
 
-**Interfaces:** each edge runs `vim.system` on `~/.local/libexec/pns/pns` with
-`--agent nvim --state done|failed --project <cwd basename> --detail "<tool>: <task>" --elapsed <secs>
---pane "$HERDR_PANE_ID"`. The editor never applies the 30 and 300 thresholds and never renders a
-duration string: it states the seconds and pns picks the tier. Edge facts, re-verified at the pins:
-`xcodebuild.nvim` fires `User` patterns `XcodebuildBuild{Started,Finished}` and
-`XcodebuildTests{Started,Finished}` (`lua/xcodebuild/broadcasting/events.lua`), duration between the
-pair; neotest's results edge is `lua/neotest/client/events/init.lua`.
+**Files:** Create `dot_config/nvim/lua/plugins/pns.lua`, naming `"webdavis/pns.nvim"` with a
+`commit =` pin and setting `binary = "~/.local/libexec/pns/pns"`. Modify
+`dot_config/nvim/lua/plugins/overseer.lua` (register the `pns.report` component),
+`dot_config/nvim/lua/plugins/neotest.lua` (register the plugin's consumer), and the lazy-lock.
+No `lua/custom_api/` file and no `dot_config/nvim/tests/` spec.
 
-- [ ] **Step 1:** confirm `pns --help` lists `--elapsed` before writing any edge; if it does not, the
-  pns refactor has not landed and this task does not start. Paste the help line.
-- [ ] **Step 2:** the three edges. No unit test: nothing pure is left in the editor, and a test that
-  asserted the argv would be asserting a tool we did not write is about to reject or accept.
-- [ ] **Step 3, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
+**In `webdavis/pns.nvim`:** standard plugin layout, `lua/pns/` with `init.lua` (`report`) and
+`integrations/{overseer,xcodebuild,neotest}.lua`, `doc/pns.txt`, a README with the lazy.nvim install
+snippet, `:checkhealth pns` reporting whether the pns binary was found and is new enough, and headless
+Lua tests for `report` and each integration. A `binary` option names the executable and defaults to
+`pns` on PATH, so the plugin works on a machine that installed pns some other way.
+
+**Interfaces:** the reporting call is
+`require("pns").report({ state = "done"|"failed", detail = "<tool>: <task>", elapsed = <secs>,
+project = <cwd basename> })`, which spawns the pns binary through `vim.system` with
+`--agent nvim --state <state> --project <project> --detail <detail> --elapsed <secs>
+--pane "$HERDR_PANE_ID"`. The plugin carries NO thresholds and renders no duration string: it states
+the seconds and pns picks the tier. `:checkhealth pns` probes `pns --version` and compares it with
+`minimum_version`. This check is advisory: `report()` does not probe the version or withhold
+`--elapsed` after a health error. The default minimum `0.2.0` is provisional; Step 1 supplies the
+actual pns release that first accepts the flag, and the config sets that minimum explicitly.
+
+Overseer and neotest require registration in their own setup. Add `"pns.report"` to overseer's
+component alias and make the plugin available through its dependency list. In `neotest.setup()`,
+retain the existing consumers and add
+`consumers.pns = require("pns.integrations.neotest").consumer`. Calling `require("pns").setup(opts)`
+arms the xcodebuild event listeners; it does not register either of the other integrations.
+Ensure setup runs before the host's start events. Edge facts, re-verified at the pins:
+`xcodebuild.nvim` fires `User` patterns
+`XcodebuildBuild{Started,Finished}` and `XcodebuildTests{Started,Finished}`
+(`lua/xcodebuild/broadcasting/events.lua`), duration between the pair; neotest's results edge is
+`lua/neotest/client/events/init.lua`.
+
+- [ ] **Step 1:** confirm `pns --help` lists `--elapsed` before writing any code; if it does not, PR
+  8.3 of the pns refactor has not landed and this task does not start. Paste the help line, and the
+  `pns --version` used for the explicit `minimum_version` setting.
+- [ ] **Step 2:** verify the released plugin's existing headless tests and select the tested commit
+  this task will pin. Its implementation and release already exist in `webdavis/pns.nvim`.
+- [ ] **Step 3:** `lua/plugins/pns.lua` with that pin, the `binary` option, and `minimum_version` set
+  to Step 1's pns release. Register the overseer component and the neotest consumer in their host
+  specs, preserving other consumers and components. Call pns setup for xcodebuild's event listeners.
+  Paste a clean `:checkhealth pns` and a fake-client neotest completion that reaches `report()` once;
+  an installed host alone must not be counted as a wired consumer.
+- [ ] **Step 4, live (10.9), pasted:** a 35 s overseer task gives one Discord card whose detail names
   the tool and the task; a 10 s one gives none; the 35 s run's `--elapsed 35` appears in the pasted
   command line. The banner is not asserted (the engine suppresses it for the watched pane).
-- [ ] **Step 4:** Gates G1 to G6; G4 unchanged. Commit: `feat(nvim): report task completions to pns`.
+- [ ] **Step 5:** Gates G1 to G6. G4 is NOT unchanged and must not be claimed so: the dump's plugin
+  state pass emits a row per `require("lazy").plugins()` entry, so installing the plugin necessarily
+  adds one. Require exactly that: ONE added plugin state row, `pns.nvim`, with its `lazy` and
+  `loaded` fields as the spec sets them, and not one keymap row added, removed or changed anywhere
+  in the global or buffer-local passes, because the plugin binds nothing. Commit:
+  `feat(nvim): report task completions to pns`.
 
 ### Task 27: PR 15, custom #2, the review-ledger quickfix (spec 7.7)
 
 Lane: agent. Depends on: PR 7f, PR 8 (`keymaps.lua`). Brief: `brief-nvim-review-ledger.md`. Closes custom
-#2. Shrunk 2026-09-03: no `custom_api` module and no fixture file.
+#2. Shrunk 2026-09-03: no `custom_api` module and no fixture file. The own-repository ruling of
+2026-09-05 does not reach this one and nothing here moves: `:ReviewLedger` is a user command of about
+ten lines, not a plugin, so there is nothing to extract into a repository.
 `~/.claude/pipeline/findings-register.sh` is NOT tracked by this repository (verified: `git ls-files
 private_dot_claude` returns no pipeline entry), so Neovim cannot call a `quickfix` subcommand living
 there, and a second parser in Lua would be a second thing to keep in step with the table format. One awk
@@ -1257,17 +1307,19 @@ Lane: standalone. Depends on: PR 3, PR 12 (`which-key.lua`), and for the Bash ro
 `brief-nvim-neotest-core.md`.
 Closes 44 (part). Re-scoped 2026-09-03: both adapter pins the plan carried are dropped
 (`webdavis/neotest-swift` is an empty scaffold, one `lua/.gitkeep`; `rouge8/neotest-rust` was
-archived 2025-08-19), the set is now one adapter per language (spec 5.3), and the pns edge is NOT
-here: PR 14 adds all three edges together. Bash is an adapter we write over bashunit, and Zig rides
-`nvim-neotest/neotest-vim-test` rather than an overseer template.
+archived 2025-08-19), the set is now one adapter per language (spec 5.3). This PR adds no pns edge:
+PR 14 later registers `pns.nvim`'s consumer in `neotest.setup()`, after pns PR 8.3 ships. Bash uses
+our released `webdavis/neotest-bashunit` adapter, and Zig rides `nvim-neotest/neotest-vim-test`
+rather than an overseer template.
 
 **Files:** Create `lua/plugins/neotest.lua`. Modify `lua/plugins/which-key.lua`, the lock.
 
 - [ ] **Step 1:** `nvim-neotest/neotest` `commit = "27bf921"` plus `nvim-neotest/nvim-nio`; every
   eager adapter: `mrcjkb/rustaceanvim` (its own neotest adapter; its README says never to add
   neotest-rust), `nvim-neotest/neotest-python`, `fredrikaverpil/neotest-golang`, our own
-  `neotest-bashunit` (loaded with `dir = "~/.local/share/neotest-bashunit"`, the way the pns crate is
-  loaded), and `nvim-neotest/neotest-vim-test` configured for vim-test's `zigtest` runner (v3.3.1,
+  `webdavis/neotest-bashunit` (a `commit =` pin and matching lazy-lock row, with its source and
+  tests in its own repository), and `nvim-neotest/neotest-vim-test` configured for vim-test's
+  `zigtest` runner (v3.3.1,
   updated 2026-05-07; `lawrence-laz/neotest-zig` is rejected, pinned to Zig 0.14 with issue #41 open
   ten months). Keys `<leader>tt` nearest, `tf` file, `ta` all, `ts` summary, `to` output, `tS` stop;
   group row `{ "<leader>t", group = "test" }`. Each pin read with `git ls-remote <repo> HEAD` and

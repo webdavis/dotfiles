@@ -533,6 +533,19 @@ behaviors re-expressed as unit tests over the tier and marker policy in `pns-dom
 one dispatch acceptance per verb. Sizes: domain ~120 plus tests ~250; cli `shell.rs` ~120. Statements:
 S207 to S211 (their bash pins are retired in this PR and named in the baseline mapping).
 
+ALSO A DELIVERABLE OF THIS PR: `pns --version`. There is no version handler today, and there never
+has been. `is_producer_argv` rejects the word, so `pns --version` prints `USAGE` and exits 2
+(`src/main.rs` dispatcher, `src/invocation.rs::is_producer_argv` at main `52eaeab8`), and Cargo's
+`0.1.0` is never emitted anywhere. The second consumer of `--elapsed` is `webdavis/pns.nvim`, the
+editor-side producer in its own repository, which carries no thresholds. Its advisory
+`:checkhealth pns` comparison needs a version to read; `report()` does not check that version or
+withhold `--elapsed`. Nvim overhaul task 26 waits for this PR before wiring the plugin, and sets
+its `minimum_version` to this release. Three things this PR states rather than assumes: the word
+`--version` (and `-V`) is answered by the dispatcher and exits 0; the output is ONE line of semver on
+stdout and nothing else, so a caller can compare it without parsing prose; and the version this PR
+ships is the FIRST that carries `--elapsed`, recorded here as the minimum `pns.nvim` pins. `USAGE`
+gains a third line for it, and the argv differential a third row.
+
 **PR 8.4 the Codex installer and the Claude hook table, verified.** No code moves. Runs
 `test/unit/pns-codex-install-hooks.sh` and reads `private_dot_claude/modify_settings.json:325-387`
 against the cli's hook table, recording in the completion report that the eleven words still map.
