@@ -1,6 +1,6 @@
 -- The `<leader>uG` Git Signs toggle declared in `lua/plugins/snacks.lua`.
 --
--- gitsigns is `event = { "BufReadPre", "BufNewFile" }`, so with no file open it
+-- gitsigns loads on file events, so with no file open it
 -- is not loaded and `gitsigns.config` is not in `package.loaded`. The toggle's
 -- `get` runs whenever snacks paints that entry, and a bare `require` there would
 -- reach lazy.nvim's own package loader and pull gitsigns off its trigger, which
