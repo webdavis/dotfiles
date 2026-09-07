@@ -1,8 +1,9 @@
 # posture-cli: the composition root, and the `posture` binary.
 #
-# Depends on every other member because composing them is its job: it decodes
-# argv, builds the concrete adapters, hands them to the use case the subcommand
-# names, and translates the outcome into stderr and an exit code.
+# Depends on domain, application and adapters to compose the tool. It decodes
+# argv, constructs adapters, invokes the named use case and translates its
+# outcome to stderr and an exit code. Wire codecs stay behind the adapters;
+# this crate depends on neither posture-protocol nor pns-protocol.
 #
 # The binary target keeps the tool's name because every caller (seven
 # LaunchAgent plists, the osquery setup runner, uu's brew lane and the

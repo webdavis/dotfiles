@@ -1,9 +1,9 @@
 # posture-adapters: everything concrete, organized by the capability it provides.
 #
 # Depends inward only: on the ports in posture-application, the policy types in
-# posture-domain, and pns's wire contract in pns-protocol, because the one
-# thing posture produces is a submission to the pns engine. Nothing depends on
-# this crate except posture-cli, which composes it.
+# posture-domain, the digest record codec in posture-protocol, and pns's wire
+# contract in pns-protocol. Only this crate consumes either protocol; it maps
+# wire records to typed domain values. posture-cli composes the adapters.
 #
 # pns-protocol is a PATH dependency on the sibling source tree. The relative
 # path resolves in both trees this crate lives in: the repository checkout
@@ -20,3 +20,4 @@ edition = "2024"
 pns-protocol = { path = "../../../pns/crates/pns-protocol" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
+posture-protocol = { path = "../posture-protocol" }

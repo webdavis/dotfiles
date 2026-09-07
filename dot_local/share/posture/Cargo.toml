@@ -1,21 +1,20 @@
 # posture: the Rust port of this machine's osquery security pipeline.
 #
-# THE WORKSPACE. Four crates, one binary named `posture`, one lock. The
-# dependency edges are declared in the member manifests and nowhere else, which
-# is what enforces them: a crate that omits another cannot name it, and the
-# compiler refuses the `use` rather than a review catching it. The allowed
-# edges are
+# THE WORKSPACE. Five crates, one binary named `posture`, one lock. Member
+# manifests declare the inward edges; domain and application cannot import
+# an adapter or a wire codec they do not depend on.
 #
 #   posture-application -> posture-domain
-#   posture-adapters    -> posture-application, posture-domain, pns-protocol
+#   posture-protocol    -> no dependencies until its codec lands in PR 2.4
+#   posture-adapters    -> posture-application, posture-domain,
+#                          posture-protocol, pns-protocol
 #   posture-cli         -> posture-adapters, posture-application, posture-domain
 #
-# There is no posture-protocol crate, deliberately: posture defines no wire
-# contract of its own. It consumes osquery's result log, chezmoi's manifest
-# runner output, uu's upgrade record and the rendered controls file, and it
-# produces to pns through pns's own protocol crate, taken by path from the
-# sibling source tree (`../pns/crates/pns-protocol`), which resolves in the
-# repository checkout and in the deployed `~/.local/share` tree alike.
+# posture-protocol owns the existing digest record shared by the alert and
+# digest processes. PR 2.4 implements its unchanged six-field wire codec;
+# this foundation declares the boundary only. The sibling pns-protocol owns
+# notification envelopes and is consumed only by posture-adapters. Its path
+# resolves in both the checkout and the deployed source tree.
 #
 # WHAT THIS BINARY IS ALLOWED TO SPAWN is a closed roster, stated in the plan's
 # section 2.6 and enforced adapter by adapter as each one lands. Today the
@@ -31,6 +30,7 @@ members = [
   "crates/posture-application",
   "crates/posture-cli",
   "crates/posture-domain",
+  "crates/posture-protocol",
 ]
 default-members = ["crates/posture-cli"]
 

@@ -7,7 +7,9 @@
 //! reader that refuses symlinks before hashing, the allowlist and controls
 //! codecs, the upgrade-record reader, the bounded process runners for every
 //! external tool the roster permits, the pns producer that submits through
-//! pns's protocol crate, the last-resort banner for the engine-down case, the
+//! pns's protocol crate, the digest record codec in posture-protocol, the
+//! independent local alarm for engine submission and integrity/health failures,
+//! the read-only pns ledger health check with a bounded busy timeout, the
 //! privileged install and osqueryctl calls the converge alone may make, the
 //! staging tree's symlink walk and private copy, the chezmoi publisher, and
 //! the clock.
