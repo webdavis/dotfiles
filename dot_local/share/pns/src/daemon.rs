@@ -21,9 +21,9 @@
 // is a fact about the rendered line.
 pub use pns_domain::jobs::{
     ARGS_BYTES_MAX, ARGS_MAX, DUE_WINDOW_SECS, EVERY_MAX_SECS, HEARTBEAT_STALE_SECS, Heartbeat,
-    ID_MAX, Job, MIN_EVERY_SECS, RECORD_MAX, Reason, Verdict, decide, name_is_safe,
-    parse_heartbeat, rearm, render_heartbeat,
+    ID_MAX, Job, RECORD_MAX, Reason, Verdict, decide, parse_heartbeat, rearm, render_heartbeat,
 };
+use pns_domain::jobs::{MIN_EVERY_SECS, name_is_safe};
 /// candidate for one is a legal marker name.
 pub fn render(job: &Job) -> String {
     let mut fields = vec![
@@ -209,12 +209,12 @@ fn count(key: &str, value: &str) -> Result<u64, String> {
     crate::parse_count(value).ok_or_else(|| format!("field `{key}` is not a plain count"))
 }
 
-#[cfg(test)]
-mod record_tests;
-
 mod spool;
 
 pub use spool::{
     Peeked, Startup, cancel, claim, hand_back, heartbeat_path, job_count, marker_dir,
     marker_exists, peek, prepare_spool, publish_heartbeat, schedule, spool_dir, spool_entries,
 };
+
+#[cfg(test)]
+mod record_tests;
