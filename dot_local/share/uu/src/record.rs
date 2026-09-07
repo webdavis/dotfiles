@@ -12,7 +12,7 @@ mod marker;
 pub use event::{RunFacts, lane_event};
 pub use marker::{Marker, elapsed, gap_line, marker_contents, parse_marker};
 
-use crate::lanes::LaneReport;
+use uu_domain::LaneReport;
 
 /// The agent name every uu record and alert carries.
 pub const AGENT: &str = "uu";

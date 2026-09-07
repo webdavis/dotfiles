@@ -154,11 +154,9 @@ test-e2e: validate-tests
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# pns is a WORKSPACE and the other three crates are not, which is why only its
-# three lines carry --workspace (--all is what cargo fmt calls the same thing).
-# Its root manifest is still a package as well as the workspace root, so
-# without those words cargo tests, formats and lints that one package and
-# skips every member crate without saying so.
+# pns and uu keep a root package beside their workspace members. Their three
+# lines select --workspace (--all for cargo fmt), because a root-package-only
+# command skips the member crates without saying so.
 #
 # The three herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
@@ -171,9 +169,9 @@ test-rust:
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
-  cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
-  cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
-  cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
 # `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The

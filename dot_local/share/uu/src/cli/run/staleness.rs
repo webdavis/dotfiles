@@ -6,8 +6,7 @@
 //! `staleness` decides the next count and when it trips; this reads and
 //! publishes it, and alerts on a trip.
 
-use unattended_upgrades::lanes::LaneReport;
-use unattended_upgrades::staleness::{STALE_AFTER_RUNS, next_streak};
+use uu_domain::{LaneReport, STALE_AFTER_RUNS, next_streak};
 
 use crate::delivery::{PnsAlerter, send_alert};
 use crate::state::streak::{self, Streak};
