@@ -154,13 +154,10 @@ test-e2e: validate-tests
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# pns and posture are WORKSPACES and the other three crates are not, which is
-# why only their lines carry --workspace (--all is what cargo fmt calls the same
-# thing). pns's root manifest is still a package as well as the workspace root,
-# so without those words cargo tests, formats and lints that one package and
-# skips every member crate without saying so; posture's root is a virtual
-# workspace whose default member is the cli crate alone, so the words are what
-# reach its other three members.
+# pns and uu keep root packages beside their workspace members. Their commands
+# select --workspace (--all for cargo fmt), or they silently skip those members.
+# posture has a virtual workspace whose default member is the cli crate alone;
+# the same selectors reach all its members.
 #
 # The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
@@ -172,9 +169,9 @@ test-rust:
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
-  cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
-  cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
-  cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
   cargo test --locked --workspace --manifest-path dot_local/share/posture/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/posture/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/posture/Cargo.toml -- -D warnings

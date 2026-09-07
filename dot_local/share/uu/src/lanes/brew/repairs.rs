@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use super::steps::{bounded_step, note};
 use crate::config::BrewLane;
-use crate::lanes::{CommandRunner, LaneReport};
+use crate::lanes::CommandRunner;
+use uu_domain::LaneReport;
 
 /// The root-owned copy the system daemon runs. `brew upgrade` moves the
 /// Homebrew build and never touches this one, so an upgraded tailscale would
