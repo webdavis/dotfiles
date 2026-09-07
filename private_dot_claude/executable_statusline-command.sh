@@ -58,26 +58,54 @@ fi
 # Context usage bar
 context_info=""
 context_color='160;169;203' # #a0a9cb, calm
-# Compaction fires at CLAUDE_AUTOCOMPACT_PCT_OVERRIDE percent of the window when
-# the operator set it (75 here), so the gauge measures against THAT ceiling:
-# the percent is "how far to compaction" and the denominator is the ceiling in
-# tokens (750k on a 1M window). Without the override the raw window is used.
-compact_pct=""
-if [[ -r "$HOME/.claude/settings.json" ]]; then
-  compact_pct=$(jq -r '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
-fi
-[[ $compact_pct =~ ^[0-9]+$ ]] || compact_pct=100
+# Compaction estimate for Claude Code 2.1.263: reserve up to 20k output tokens,
+# then 13k for the summary; a percentage override can only lower that ceiling.
+# The statusline payload omits session-only /autocompact values and model-specific
+# output defaults. Assume a 20k output reserve unless explicitly lowered, use
+# the full model window when no supported window setting is visible, and mark
+# the gauge with ~. This remains a percentage of the estimated compaction ceiling.
 if [[ -n $used_pct ]]; then
-  used_int=${used_pct%.*}
-  gauge_pct=$((used_int * 100 / compact_pct))
-  context_info=" ctx:${gauge_pct}%"
-  if [[ -n $window_size ]]; then
-    ceiling=$((window_size * compact_pct / 100))
-    if ((ceiling >= 1000000)); then
-      context_info+="/$((ceiling / 1000000))M"
-    else
-      context_info+="/$((ceiling / 1000))k"
-    fi
+  compact_settings='{}'
+  settings_path="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  if [[ -r $settings_path ]]; then
+    compact_settings=$(jq -c '{
+      pct: .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE,
+      window: (.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW // .autoCompactWindow),
+      output: .env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+    }' "$settings_path" 2>/dev/null || printf '{}')
+  fi
+  # An explicitly set environment value, including an empty one, wins over
+  # the settings fallback. Parse decimal strings in jq, never as shell octal.
+  context_values=$(printf '%s' "$compact_settings" | jq -r \
+    --arg pct "${CLAUDE_AUTOCOMPACT_PCT_OVERRIDE-}" \
+    --arg pct_set "${CLAUDE_AUTOCOMPACT_PCT_OVERRIDE+x}" \
+    --arg window "${CLAUDE_CODE_AUTO_COMPACT_WINDOW-}" \
+    --arg window_set "${CLAUDE_CODE_AUTO_COMPACT_WINDOW+x}" \
+    --arg output "${CLAUDE_CODE_MAX_OUTPUT_TOKENS-}" \
+    --arg output_set "${CLAUDE_CODE_MAX_OUTPUT_TOKENS+x}" \
+    --argjson model_window "${window_size:-200000}" --argjson used "$used_pct" '
+      def decimal:
+        tostring | if test("^[0-9]+([.][0-9]+)?$") then tonumber else null end;
+      (if $pct_set == "x" then $pct else .pct end | decimal) as $percentage |
+      (if $window_set == "x" then $window else .window end | decimal) as $configured_window |
+      (if $output_set == "x" then $output else .output end | decimal) as $configured_output |
+      (if $configured_window > 0 then
+        [([$configured_window | floor, 100000] | max), 1000000, $model_window] | min
+       else $model_window end) as $capacity |
+      (if $configured_output > 0 then [$configured_output | floor, 20000] | min
+       else 20000 end) as $reserve |
+      ($capacity - $reserve) as $effective |
+      ($effective - 13000) as $default_ceiling |
+      (if $percentage >= 1 and $percentage <= 100 then
+        [($effective * $percentage / 100 | floor), $default_ceiling] | min
+       else $default_ceiling end) as $ceiling |
+      [($used * $model_window / $ceiling | floor), $ceiling] | @tsv')
+  read -r gauge_pct ceiling <<<"$context_values"
+  context_info=" ctx:~${gauge_pct}%"
+  if ((ceiling >= 1000000)); then
+    context_info+="/$((ceiling / 1000000))M"
+  else
+    context_info+="/$((ceiling / 1000))k"
   fi
   # Yellow at four fifths of the way to compaction, red at nine tenths.
   if ((gauge_pct >= 90)); then
