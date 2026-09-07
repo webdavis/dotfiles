@@ -1606,7 +1606,7 @@ fn note_glob(setting: &toml::Value) -> Result<String, ConfigError> {
 
 /// The IO edge: read the file at `path` and hand its text to the parser.
 pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
-    match std::fs::read_to_string(path) {
+    match read_config_text(path) {
         Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
         // A dangling symlink also reads NotFound, and chezmoi deploys configs
         // as symlinks: the entry is PRESENT with a wrong target, so only an
@@ -1622,6 +1622,27 @@ pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
             path.display()
         ))),
     }
+}
+
+fn read_config_text(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    // Open before checking the descriptor, so replacing the path cannot
+    // turn the subsequent read into a wait on a pipe.
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the config path is not a regular file",
+        ));
+    }
+    let mut text = String::new();
+    file.read_to_string(&mut text)?;
+    Ok(text)
 }
 
 /// The `[plugins.mobile]` settings, but ONLY when the table is ARMED: switched
