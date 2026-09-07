@@ -130,6 +130,7 @@ packages:
         - iperf3
         - jq
         - just
+        - lazydocker
         - librsvg
         - lmilojevicc/tap/seshagy
         - luacheck

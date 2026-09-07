@@ -152,11 +152,19 @@ return {
       -- copies while Mason's sit further down the list. Rebuilding the list this way is also
       -- what keeps a second call idempotent.
       local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
+      -- `vim.env.PATH` is nil when the process PATH is unset or empty (measured on 0.12.5),
+      -- and there is nothing to keep in either case.
+      local path = vim.env.PATH
+      if not path then
+        vim.env.PATH = mason_bin
+        return
+      end
       local entries = { mason_bin }
-      for _, entry in ipairs(vim.split(vim.env.PATH or "", ":", { plain = true })) do
-        -- An empty entry means the working directory; dropping it is what keeps an absent
-        -- PATH from becoming a trailing colon.
-        if entry ~= mason_bin and entry ~= "" then
+      for _, entry in ipairs(vim.split(path, ":", { plain = true })) do
+        -- Only Mason's own entry is filtered out. An empty entry means the working directory
+        -- (`/usr/bin::/bin` looks in `.` between the two) and it stays where it is: it is the
+        -- operator's configuration, and the plain prepend `mason.setup()` does keeps it too.
+        if entry ~= mason_bin then
           table.insert(entries, entry)
         end
       end
@@ -419,7 +427,7 @@ return {
             vim.cmd("CustomFormatEnable")
           end
         end,
-        desc = "Format: toggle autoformat-on-save",
+        desc = "Format: toggle autoformat-on-save (alias of <leader>cc)",
         silent = true,
       },
       {

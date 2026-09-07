@@ -52,9 +52,10 @@ return {
   },
   {
     "benomahony/oil-git.nvim",
-    -- Eager only because it has no trigger. It decorates oil buffers, so it
-    -- belongs behind the same load as oil.nvim itself.
-    lazy = false,
+    -- Its whole surface is an `ftplugin/oil.lua`, so the oil filetype is the
+    -- trigger. lazy.nvim re-fires FileType after loading, so the ftplugin still
+    -- runs on the buffer that loaded it.
+    ft = "oil",
     dependencies = { "stevearc/oil.nvim" },
     -- No opts or config needed! Works automatically
   },

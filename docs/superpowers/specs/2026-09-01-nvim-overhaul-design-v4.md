@@ -94,7 +94,8 @@ losing its module:
    `webdavis/pns.nvim`; custom #3, which shipped as `custom_api/annotate.lua` before the ruling,
    becomes `webdavis/herdr-nvim-annotate-extension.nvim` by a follow-up extraction. Custom #2 is not
    a plugin and does not move. `pns --version` becomes a deliverable of the pns refactor's PR 8.3,
-   because the plugin gates itself on a minimum pns version (7.7, 11, 12.4).
+   because its advisory health check compares a minimum pns version. Config wiring waits for that
+   release (7.7, 11, 12.4).
 
 ## 0. Status and provenance
 
@@ -666,27 +667,34 @@ and PR 4d lifts it with the other exclusions, with no taplo reformat to commit u
 `.chezmoiscripts/run_onchange_after_80-bootstrap-nvim.sh.tmpl` (80 is free; 72 is the highest today).
 It lands in PR 31, after the Mason race is removed (PR 5b) and the lock is final.
 
-- **Trigger.** The rendered script embeds the sha256 of `lazy-lock.json` and of `lua/plugins/lsp.lua`
-  (the two tool lists live there), the same `include | sha256sum` idiom `run_onchange_after_58` uses,
-  so a pin or tool-list change re-fires it. A retry marker's modification time is embedded as well,
-  exactly as the pns build script does, so a deferred run (no `nvim` on PATH yet) re-fires on the next
-  apply instead of consuming the trigger.
-- **Guard.** `command -v nvim` or defer with the marker. No darwin guard: the config deploys on both
-  operating systems, and the only macOS-only pieces (the Swift stack) are gated inside Lua with
-  `vim.fn.has("mac")`. This replaces item 50's "darwin guard" by decision.
-- **No timeout.** A cold machine clones 80-odd repositories and builds `tree-sitter-cli` with cargo;
-  the v1 `timeout 120` was the reason a half-installed editor read as "done". A network failure makes
-  the commands below exit non-zero, chezmoi does not record the run, and the next apply retries.
-- **Steps.** `nvim --headless "+Lazy! restore" +qa`, then `nvim --headless "+MasonToolsInstallSync" +qa`
-  (valid only once `run_on_start = false`, PR 5b, so the sync run and the autostart run cannot race),
-  then the test runner from the SOURCE tree against the deployed config (6.3):
+- **Trigger.** The rendered script embeds the sha256 of `lazy-lock.json`, `lua/plugins/lsp.lua`
+  (the two tool lists live there), `lua/plugins/treesitter.lua` (the core parser list), and its
+  bootstrap and verification helpers. A deferral appends one byte to a retry marker whose size is
+  embedded in the render, so even two deferrals in one second produce different scripts. A successful
+  run resets that token to zero and settles after one final run. Rendering uses `stat` and never reads
+  the marker's contents.
+- **Guard.** `command -v nvim` or defer with the marker. No darwin guard: Lazy resolves the current
+  platform's enabled plugins, and verification checks those pins rather than disabled lock entries.
+- **Completion.** There is no outer timeout. Lazy retains its configured timeout during restore.
+  The bootstrap waits for our declared shell builds through Neovim's process API and checks their
+  exit status, including silent failures. Other Lazy build tasks must finish without an error, and
+  the asynchronous parser update and original core installation must return successful results.
+  Verify each declared core language and its dependencies: compiled parser artifacts for languages
+  with an installer, queries for query-only languages. Force installation only for missing artifacts
+  so leftover queries cannot hide an absent parser.
+- **Steps.** Restore against the source lock, retrying at most three times while the number of
+  incorrect pins decreases. Refresh the Mason registry with a checked callback, resolve the union of
+  language servers and tools, and install that same union headlessly. Then build the enabled plugins
+  with their prerequisites available, even if they are already at their pins, because a previous
+  build failure does not persist in Lazy's task state. Run the source Lua test runner against the
+  deployed config:
   `nvim --headless --clean -l {{ .chezmoi.sourceDir }}/dot_config/nvim/tests/run.lua --config
-  "$HOME/.config/nvim"`. `tests/` is chezmoiignored and never exists under `$HOME`; the runner is
-  addressed through the source directory chezmoi already knows.
-- **Verification, then non-zero exit.** Every pin in `lazy-lock.json` has a directory under
-  `~/.local/share/nvim/lazy/`; every name in the two `ensure_installed` lists has a Mason package
-  directory; the Lua tests pass. The missing names are printed with their tool, and the script exits 1.
-  A quiet apply prints nothing (operator ruling 2026-08-05).
+  "$HOME/.config/nvim"`. `tests/` is chezmoiignored and never exists under `$HOME`.
+- **Verification, then non-zero exit.** Every enabled source pin must match the installed commit,
+  every resolved Mason name must have a package directory, the Lua tests must pass, and clangd must
+  carry its configured flags. Empty inventories are errors. Each step appends its output to a
+  retained bootstrap-cache transcript, replayed if a later check fails. Success prints nothing
+  (operator ruling 2026-08-05).
 - **Prerequisites documented in the script header:** network access, `git`, `cargo` (from
   `run_once_before_20-install-rustup`, needed by `tree-sitter-cli`), `go` (needed by Mason's `gopls`,
   section 5.3), and Xcode for the Swift stack.
@@ -1298,7 +1306,7 @@ are this config's own internals and were never candidates for a plugin.
 
 **#1, the editor-side pns producer (PR 14).** Overseer, `xcodebuild.nvim` and neotest runs report to
 pns the way the shell notifier does, through a small standalone Neovim plugin with its own GitHub
-repository, `webdavis/pns.nvim` (function-named, no handle; the empty repository exists). Operator
+repository, `webdavis/pns.nvim` (v0.1.0, commit `bfac762784393b77144c3e65019b7caf6ef70c7c`). Operator
 ruling 2026-09-05: every custom Neovim plugin in this overhaul ships that way, installed by any
 lazy.nvim user the ordinary way, so this is neither a `lua/custom_api/` module, nor three bare call
 sites pasted into three plugin specs, nor a directory inside the pns crate.
@@ -1310,25 +1318,30 @@ which is what makes the plugin usable on a machine that installed pns some other
 config's spec sets it to `~/.local/libexec/pns/pns`, where the dotfiles put it. The plugin's own
 repository runs the plugin's own tests, so nothing about them lands here.
 
-The plugin and pns are coupled by a MINIMUM VERSION HANDSHAKE, not by living in one tree. The
-plugin declares the oldest pns it works against, reads `pns --version` once, and refuses with a
-`checkhealth` failure rather than emitting argv an older binary would reject. That is what replaces
-the guarantee a shared tree would have given: two repositories that release on their own schedules,
-with the flag requirement stated rather than assumed.
+The version check belongs to `:checkhealth pns`: each check probes `pns --version` and compares
+its result with `minimum_version`. It reports an incompatible engine but does not prevent
+`report()` from emitting `--elapsed`; reporting never probes the version. The current default
+minimum `0.2.0` is provisional. PR 14 must first verify pns PR 8.3's released `--version` and
+`--elapsed` support, then set `minimum_version` to that release. This installation gate prevents
+wiring an engine known to reject the producer flags; the health check remains advisory at runtime.
 
 `lua/plugins/pns.lua` in this config names `"webdavis/pns.nvim"` with a `commit =` pin and a
 lazy-lock row, exactly like every other plugin here.
 
-The public surface is ONE call,
+The reporting call is
 `require("pns").report({ state = "done"|"failed", detail = "<tool>: <task>", elapsed = <secs>,
 project = <cwd basename> })`, which spawns the pns binary through `vim.system` with
 `--agent nvim --state <state> --project <project> --detail <detail> --elapsed <secs>
---pane "$HERDR_PANE_ID"`. Three built-in integrations call it, each opt-in by the presence of the
-plugin it hooks and inert without it: an overseer `on_complete` component, registered from the
-overseer spec because a component has to be registered while overseer sets up; the `User` autocmd
-pairs `xcodebuild.nvim` fires (`XcodebuildBuild{Started,Finished}` and
-`XcodebuildTests{Started,Finished}`, `lua/xcodebuild/broadcasting/events.lua`, verified at the pinned
-commit), which arm themselves; and neotest's `client.listeners.results` edge, likewise.
+--pane "$HERDR_PANE_ID"`. Its three built-in integrations need the following wiring:
+
+- Overseer: register `"pns.report"` in its component alias during setup, with `pns.nvim` available
+  through its dependency list.
+- xcodebuild: `require("pns").setup(opts)` arms the `User` event listeners before a run starts.
+  The events are `XcodebuildBuild{Started,Finished}` and `XcodebuildTests{Started,Finished}`
+  (`lua/xcodebuild/broadcasting/events.lua`, verified at the pinned commit).
+- neotest: preserve its existing consumers and register
+  `consumers.pns = require("pns.integrations.neotest").consumer` in `neotest.setup()`. That factory
+  receives the client and attaches the run and results listeners; host presence alone does not do it.
 
 The tier is still not the editor's to decide, and the plugin therefore carries NO thresholds. pns
 gains `--elapsed <secs>` in its refactor, and from then on a producer states how long the work took
@@ -1343,12 +1356,11 @@ repository rather than nowhere. And anyone running Neovim with pns installed can
 call sites buried in this config's plugin specs could never offer. The live check in 10.9 is
 unchanged.
 
-Two sequencing consequences. PR 14 lands AFTER the pns refactor, which is where `--elapsed` is built
-(the operator froze pns work pending that refactor on 2026-09-03), and after PR 28b, whose neotest
-spec it edges. PR 28a and PR 28b therefore ship WITHOUT any pns edge, and PR 14 turns all three on
-at once. Only the overseer one is an edit to a plugin spec here; the neotest and xcodebuild
-integrations live in `pns.nvim` and arm themselves once their host plugin is present, so PR 14
-touches neither `neotest.lua` nor the xcodebuild spec.
+PR 14 waits for pns PR 8.3 to release `--version` and `--elapsed`, and for PR 28b to finish the
+neotest spec. PR 28a and PR 28b ship without a pns edge; PR 14 then wires all three integrations.
+The plugin implementation is already released. The remaining config edits are `pns.lua`,
+`overseer.lua`, `neotest.lua` and the lock. Xcodebuild's integration is armed by pns setup, so its
+host spec needs no event-listener code.
 
 **#2, the review-ledger quickfix (PR 15).** The pipeline's findings registers
 (`~/.claude/pipeline/slices/findings-*.md`) hold one table whose rows start with `| F<n>` and whose
@@ -1585,11 +1597,44 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
 1. `nvim --headless +qa` writes nothing to stderr, five runs.
 2. `nvim --headless "+checkhealth" "+w! <file>" +qa` is clean: zero ERROR lines except those that
    name an absent optional external tool the config does not require (`luarocks`/hererocks, `gs`,
-   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol); each such exception is
-   listed in the PR body with its line. The three none-ls executable errors and the treesitter
-   runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. The two Snacks `vim.ui.*`
-   lines are re-checked in a TUI `:checkhealth snacks`; if they persist there they are config bugs
-   and are fixed.
+   `tectonic`, `pdflatex`, `mmdc`, `lazygit`, the kitty graphics protocol), plus the three below;
+   each such exception is listed in the PR body with its line. The three none-ls executable errors
+   and the treesitter runtimepath error are NOT exceptions; PR 29a and PR 29b remove them. Run the
+   headless capture with `Lazy! load all` before `checkhealth`: without it the lazy plugins never
+   register a health check and coverage drops from 42 sections to 15, which reads as an improvement
+   and is not one.
+
+   Three more exceptions, triaged 2026-09-05 against each health provider's source at its pinned
+   commit. Their exact lines:
+
+   ```
+   - ❌ ERROR gh not authenticated
+   - ❌ ERROR setup did not run
+   - ❌ ERROR `pymobiledevice3` detected, but the `remote_debugger` script is not installed. (see: `:help |xcodebuild.remote-debugger`)|
+   ```
+
+   - `atlas`, "gh not authenticated": a measurement artifact, not a posture. `gh` reads its host
+     list from `$XDG_CONFIG_HOME/gh/hosts.yml`, and every headless run redirects `XDG_CONFIG_HOME`
+     to a throwaway tree, so `gh` finds no host and `atlas/health.lua` reads the non-zero exit as
+     "not authenticated". Measured both ways on 2026-09-05: `gh auth status` exits 0 with the real
+     value and 1 under the redirect. Nothing to fix in the config or the plugin.
+   - `snacks`, "setup did not run" under `Snacks.dashboard`: a headless artifact, the same class as
+     the two `vim.ui.*` lines. `snacks/init.lua` gates `dashboard`, `input`, `picker`, `scroll` and
+     `scope` setup on `UIEnter`, which never fires in a process with no UI, so `did_setup` stays
+     false and `dashboard.lua` reports the error.
+   - `xcodebuild`, "pymobiledevice3 detected, but the remote_debugger script is not installed": the
+     intended state. `lua/plugins/xcodebuild.lua` records why iOS 17+ secure-tunnel debugging stays
+     off: the documented install grants passwordless root to a helper under user-writable
+     `~/Library`. The helper runs `/bin/bash` and resolves `pymobiledevice3` through PATH; that
+     entry point selects its user-owned Python interpreter by absolute path. The check is right
+     about the fact, and the fact is deliberate, so the plugin is not patched and no sudo rule is
+     added.
+
+   The two Snacks `vim.ui.*` lines and the `Snacks.dashboard` line were re-checked under a pty on
+   2026-09-05 (`script -q /dev/null nvim`, `:checkhealth snacks` fired from a `UIEnter` autocmd).
+   All three are absent there and the dashboard reports "setup ran" and "dashboard opened", so they
+   are artifacts of the headless run rather than config bugs. The pty capture leaves five snacks
+   errors, all of them already-listed absent tools.
 3. The warm headless startup median (synthetic, `User VeryLazy` fired by hand) passes the 9.1 gate:
    within 10 ms of the previous PR's number for every PR except PR 2 (captured and labelled advisory
    instead, 9.1), and below the import-day baseline by more than 10 ms for PR 30d and PR 31. The TUI
@@ -1678,7 +1723,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 13 | The launch helper `<leader>Cc` over `herdr-nvim`'s lookup, `agent prompt`, `pane split --env`, `agent start`; extends `custom_api/herdr.lua` | PR 12, PR 11 (`custom_api/herdr.lua`) | 77 (launch) |
 | PR 23 | git-blame: rebuild the three keymaps on `custom_api` and gitsigns `on_attach`, then drop the plugin (`git.lua`, `custom_api/git.lua`, `custom_api/github.lua`) | PR 7f, PR 18 | 21, 28 |
 | PR 16 | Custom #3: the line annotator, `compose_text` into `herdr-nvim`'s `comments.add` and `ui.decorate`, `<leader>Cx`; no send path; shares the `<leader>C` keymap file with PR 13 | PR 12, PR 13, PR 23 | custom #3 |
-| PR 14 | Custom #1: the editor-side pns producer, its own repository `webdavis/pns.nvim`: install it here with a `commit =` pin and register the overseer component (`lua/plugins/pns.lua`, `overseer.lua`) | PR 7f, PR 3, PR 19b, PR 28b (`neotest.lua`), and the pns refactor that builds `--elapsed` | custom #1 |
+| PR 14 | pns.nvim wiring (7.7) | PR 7f, 3, 19b, 28b; pns 8.3 | custom #1 |
 | PR 15 | Custom #2: `:ReviewLedger[!]`, about ten lines of `setqflist` over an inline awk in `keymaps.lua`; no module, no fixture | PR 7f, PR 8 (`keymaps.lua`) | custom #2 |
 | PR 17a | Drop cspell (`lsp.lua`)                                                                                 | PR 5b                 | 23                                          |
 | PR 17b | Drop gitmoji (`blink-cmp.lua`)                                                                          | PR 2                  | 24                                          |
@@ -1700,7 +1745,7 @@ resolved by keeping both sides, and the re-gate rule below re-proves the result.
 | PR 26b | Bump hlslens +1 (bug #15)                                                                                | PR 2                  | 16                                          |
 | PR 26c | Bump catppuccin with the colorscheme rename (bug #16, `ui.lua`)                                         | PR 2                  | 17                                          |
 | PR 27 | gopls in Mason and `go` in the YAML (`lsp.lua`)                                                          | PR 17a                | 37                                          |
-| PR 28a | neotest core plus every eager adapter (Rust, Python, Go, Bash over our own `neotest-bashunit`, and Zig through the shared `neotest-vim-test`), `<leader>t` and its which-key group row (`which-key.lua`); each adapter verified against a scratch project in a real pane. No pns edge, here or ever: `pns.nvim` arms its own neotest integration | PR 3, PR 12, and for the Bash row only, the bashunit program's T1 and T2 | 44 (part) |
+| PR 28a | neotest core and eager adapters (5.3) | PR 3, 12; Bash: T1, T2 | 44 (part) |
 | PR 28b | The ft-lazy adapters (JS/TS, Lua, Java, Elixir, Swift from Codeberg); each verified against a scratch project in a real pane. No pns edge | PR 28a | 44 (part) |
 | PR 29a | Health floor: none-ls executable gating (`lsp.lua`)                                                     | PR 27                 | 68 (none-ls half), 71 (health half)         |
 | PR 29b | Health floor: the treesitter runtimepath investigation and the treesitter-context check                | PR 2                  | 36 (note), 68, 71 (health half)             |
@@ -1751,11 +1796,17 @@ the design. Every bats test this spec still names is bats until T1 lands and bas
 | PR    | Behavior                                                                                  | Depends on |
 | ----- | ------------------------------------------------------------------------------------------- | ---------- |
 | T1    | `bashunit-toolchain`: bashunit 0.50.1 into `Brewfile.dev`, the machine YAML and the CI toolchain step (all three by hand); `test/validate-tests.sh` admits the non-executable `<name>.test.sh` shape and `test/run-test-suite.sh` runs it through `bashunit` with the shuffle seed and the slow-test warning preserved; the CLAUDE.md testing section; one real bashunit test that goes red when its subject breaks | none |
-| T2    | `neotest-bashunit`: the adapter at `dot_local/share/neotest-bashunit/`, a source tree that becomes its own repository the way `~/.local/share/pns` did, loaded by lazy.nvim with `dir =`; headless Lua tests for discovery and result parsing over fixture JSON; a real-pane run against T1's test. Design first: the per-test JSON fields verified from `src/reports/json.sh` at the pin, how a failure maps to a line, what `--filter` matches, what a file with no tests returns | T1 |
+| T2 | Released neotest-bashunit adapter (details below) | T1 |
 | T3a   | Migrate the small files: the pns marker tests (deleted outright when the pns refactor moves that logic into Rust) and `homebrew-weekly-converge-absence.bats`, which migrates only if the brew bash script still exists when T3a runs and otherwise dies with it. `uu-launchagent-loader.bats` is DELETED, not migrated: it tests deployment glue, out of scope under the 2026-08-05 ruling. The nvim wrapper is NOT here either; PR 6b deletes it | T1 |
 | T3b   | Migrate the six osquery unit files                                                           | T3a |
 | T3c   | Migrate the three osquery integration files                                                  | T3b |
 | T3d   | Migrate the three osquery e2e files, then bats-core leaves `Brewfile.dev`, the machine YAML and CI | T3c |
+
+T2 is the released `webdavis/neotest-bashunit` repository, installed with a `commit =` pin and a
+matching lazy-lock row. It is not an in-tree source directory or a later extraction. Its own
+headless Lua tests cover discovery and result parsing over recorded bashunit 0.50.1 output,
+failure-line mapping and substring `--filter` matching. The Bash config row still needs the T1
+toolchain and a real-pane per-test run; those acceptance steps do not rebuild the adapter.
 
 Each migration PR proves equivalence: the same assertions, the subject spot-killed to show the
 migrated test red, every test under one second.
@@ -1789,12 +1840,10 @@ encode:
 - `lua/plugins/claudecode.lua`, the `<leader>C` keymap file: PR 12, 11, 13, 16, 30c9.
 - `lua/plugins/noice.lua`: PR 17c, 22b, 29c. `lua/plugins/blink-cmp.lua`: PR 17b, 29c.
 - `lua/config/autocmds.lua`: PR 4b, 20. `lua/config/options.lua`: PR 20, 29c.
-- `lua/plugins/neotest.lua`: PR 28a (creates it), 28b (adds the ft-lazy adapters). NOT PR 14: the
-  neotest and xcodebuild integrations live in `pns.nvim` and arm themselves on the host plugin's
-  presence, so PR 14 edits neither this file nor the xcodebuild spec.
+- `lua/plugins/neotest.lua`: PR 28a (creates it), 28b (adds the ft-lazy adapters), then PR 14
+  (registers `pns.integrations.neotest.consumer` while preserving the other consumers).
 - `lua/plugins/overseer.lua`: PR 19a, 19b, 14, 30c3. `lua/plugins/autosave.lua`: PR 12, 24, 30c2.
-  PR 14's one edit here registers the plugin's `on_complete` component, which is the only integration
-  that cannot arm itself.
+  PR 14 registers the plugin's `pns.report` component; neotest's consumer is registered separately.
 - `lua/plugins/pns.lua`: PR 14 creates it, and nothing else touches it.
 - `lua/plugins/harpoon.lua`: PR 22a, 30c4. The xcodebuild spec: PR 3. `lua/config/lazy.lua`:
   PR 4a, 30d.
@@ -1937,7 +1986,7 @@ re-gated since its last merge of `main` is not a verdict.
 | F    | neotest, auto-save, xcodebuild in scope       | 5.3         | PR 3, PR 12, PR 28a, PR 28b |
 | G    | own program                                   | 0           | this spec |
 | H    | import unchanged first                        | 3.7         | PR 2      |
-| custom #1 | editor-side pns producer (own repo `webdavis/pns.nvim`; pns `--elapsed`) | 7.7 | PR 14, after the pns refactor |
+| custom #1 | pns.nvim producer | 7.7 | PR 14, after pns 8.3 |
 | custom #2 | review-ledger quickfix (`:ReviewLedger`, inline awk) | 7.7 | PR 15 |
 | custom #3 | line annotator into `herdr-nvim` comments | 7.7        | PR 16     |
 | custom #4 | Neovim MCP server, evaluate then build   | 7.3         | PR 9 (evaluate), PR 10a (resolver or crate spec), PR 10b (crate build) |

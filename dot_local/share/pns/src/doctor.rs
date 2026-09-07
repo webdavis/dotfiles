@@ -1790,6 +1790,48 @@ mod daemon_tests {
         );
     }
 
+    /// S206: A TICK LONGER THAN THE BOUND READS A HEALTHY DAEMON AS DEAD.
+    ///
+    /// `HEARTBEAT_STALE_SECS` is ten of the DEFAULT tick and is fixed at
+    /// compile time, while `PNS_DAEMON_TICK_MS` is read at run time and admits
+    /// far more. On any tick longer than the bound the previous beat is
+    /// ALREADY STALE when the next one is written, so a daemon that is beating
+    /// exactly as configured grades as not running, on every tick, forever.
+    ///
+    /// DRIVEN THROUGH `daemon_line` AND NOTHING ELSE. An earlier version of
+    /// this test compared two numbers against a copy of the rule, which
+    /// established the constant's value and nothing about the grader: widening
+    /// the classifier left it green.
+    #[test]
+    fn a_tick_slower_than_the_bound_grades_a_beating_daemon_as_not_running() {
+        // One beat per thirty seconds, which is a daemon told to look every
+        // thirty seconds and doing so.
+        let tick_secs = 30;
+        let beating_as_told = Heartbeat {
+            pid: 4321,
+            at: NOW - tick_secs,
+        };
+        assert_eq!(
+            daemon_line(true, Some(beating_as_told), Some(NOW), 0),
+            format!(
+                "pns doctor: the daemon is enabled, its last beat was {tick_secs}s ago, \
+                 so it is not running"
+            ),
+            "a {tick_secs}s tick outruns the {HEARTBEAT_STALE_SECS}s bound"
+        );
+        // AND THE SAME DAEMON ON THE DEFAULT TICK GRADES AS RUNNING, which is
+        // what makes the line above a statement about the bound rather than
+        // about this fixture.
+        let beating_at_the_default = Heartbeat {
+            pid: 4321,
+            at: NOW - 1,
+        };
+        assert_eq!(
+            daemon_line(true, Some(beating_at_the_default), Some(NOW), 0),
+            "pns doctor: the daemon is running, pid 4321, 0 jobs scheduled"
+        );
+    }
+
     /// OFF IN THE CONFIG IS NOT THE SAME FACT AS STOPPED.
     ///
     /// Nothing bounces the launchd job when the config changes, so a daemon
