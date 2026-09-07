@@ -2,12 +2,12 @@
 //! refresh.
 
 use crate::config::ConfigError;
-use crate::config::schema::{admits, non_empty};
+use crate::config::schema::{admits_lane, non_empty};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HerdrLane {
-    pub binary: String,
-    pub plugins: Vec<Plugin>,
+    pub(crate) binary: String,
+    pub(crate) plugins: Vec<Plugin>,
 }
 
 /// The herdr command when no key states one.
@@ -17,11 +17,11 @@ pub const DEFAULT_HERDR_BINARY: &str = "herdr";
 /// reinstall it from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Plugin {
-    pub id: String,
-    pub repo: String,
+    pub(crate) id: String,
+    pub(crate) repo: String,
 }
 
-pub(super) fn parse_herdr_lane(
+pub(crate) fn parse_herdr_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<HerdrLane, ConfigError> {
@@ -30,7 +30,7 @@ pub(super) fn parse_herdr_lane(
         plugins: Vec::new(),
     };
     for (name, setting) in table {
-        admits(table_label, "lanes.herdr", &name)?;
+        admits_lane(table_label, "herdr", HerdrLane::KEYS, &name)?;
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             "plugins" => lane.plugins = parse_plugins(table_label, &setting)?,
@@ -93,56 +93,60 @@ fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>
         .collect()
 }
 
+impl HerdrLane {
+    pub(crate) const KEYS: &'static [&'static str] =
+        &["binary", "deadline_secs", "plugins", "type"];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::LaneKind;
-    use crate::config::probes::{kind, parsed, refusal};
+    use crate::config::probes::{checked_text, refusal, typed};
 
     #[test]
     fn the_herdr_lane_still_parses_with_its_type_written_out() {
         assert_eq!(
-            kind(&parsed("[lanes.herdr]\ntype = \"herdr\"\n"), "herdr"),
-            Some(&LaneKind::Herdr(HerdrLane {
+            typed::<HerdrLane>(checked_text("[lanes.herdr]\ntype = \"herdr\"\n"), "herdr"),
+            Some(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
-            }))
+            })
         );
     }
 
     #[test]
     fn a_herdr_lane_may_carry_any_name_once_its_type_says_herdr() {
         assert_eq!(
-            kind(&parsed("[lanes.mine]\ntype = \"herdr\"\n"), "mine"),
-            Some(&LaneKind::Herdr(HerdrLane {
+            typed::<HerdrLane>(checked_text("[lanes.mine]\ntype = \"herdr\"\n"), "mine"),
+            Some(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
-            }))
+            })
         );
     }
 
     #[test]
     fn a_lane_block_with_nothing_in_it_is_the_lane_on_with_its_defaults() {
         assert_eq!(
-            kind(&parsed("[lanes.herdr]\n"), "herdr"),
-            Some(&LaneKind::Herdr(HerdrLane {
+            typed::<HerdrLane>(checked_text("[lanes.herdr]\n"), "herdr"),
+            Some(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
-            }))
+            })
         );
     }
 
     #[test]
     fn the_plugin_roster_is_read_as_id_and_repo_pairs_in_the_order_written() {
-        let config = parsed(
+        let config = checked_text(
             "[lanes.herdr]\n\
              plugins = [\n\
                { id = \"worktrunk\", repo = \"owner/herdr-worktrunk\" },\n\
                { id = \"herdr-bar\", repo = \"other/herdr-bar\" },\n\
              ]\n",
         );
-        let Some(LaneKind::Herdr(herdr)) = kind(&config, "herdr") else {
-            panic!("expected a herdr lane, got {:?}", config.lanes.get("herdr"));
+        let Some(herdr) = typed::<HerdrLane>(config, "herdr") else {
+            panic!("expected a herdr lane, got {:?}", config);
         };
         assert_eq!(
             herdr.plugins,

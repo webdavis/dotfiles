@@ -1,10 +1,10 @@
 use super::*;
-use crate::config::probes::{parsed, refusal};
+use crate::config::probes::{REGISTRATIONS, parse_config, parsed, refusal};
 
 #[test]
 fn an_empty_config_runs_nothing_and_posts_nothing() {
     let config = parsed("");
-    assert_eq!(config.lanes, Lanes::default());
+    assert!(config.lanes.is_empty());
     assert_eq!(config.records, None);
     assert_eq!(config.alerts, None);
 }
@@ -59,10 +59,10 @@ fn an_alerts_block_finds_the_engine_on_path_when_it_names_no_binary() {
 
 #[test]
 fn a_path_with_nothing_at_it_is_missing_rather_than_an_error() {
-    assert_eq!(
-        load_config(Path::new("/nonexistent/uu-config-test.toml")),
+    assert!(matches!(
+        load_config(Path::new("/nonexistent/uu-config-test.toml"), REGISTRATIONS),
         Ok(LoadOutcome::Missing)
-    );
+    ));
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn a_dangling_config_symlink_is_unreadable_rather_than_missing() {
     let link = std::env::temp_dir().join(format!("uu-config-dangling-{}", std::process::id()));
     let _ = std::fs::remove_file(&link);
     std::os::unix::fs::symlink("uu-absent-target", &link).expect("the link");
-    let outcome = load_config(&link);
+    let outcome = load_config(&link, REGISTRATIONS);
     std::fs::remove_file(&link).ok();
     assert!(
         matches!(outcome, Err(ConfigError::Unreadable(_))),

@@ -4,11 +4,11 @@
 //! tool uv installed.
 
 use crate::config::ConfigError;
-use crate::config::schema::{admits, non_empty};
+use crate::config::schema::{admits_lane, non_empty};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UvLane {
-    pub binary: String,
+    pub(crate) binary: String,
 }
 
 /// The uv command when no key states one, resolved on the running process's
@@ -16,12 +16,12 @@ pub struct UvLane {
 /// absolute path instead, because the weekly job's PATH is the plist's.
 pub const DEFAULT_UV_BINARY: &str = "uv";
 
-pub(super) fn parse_uv_lane(table_label: &str, table: toml::Table) -> Result<UvLane, ConfigError> {
+pub(crate) fn parse_uv_lane(table_label: &str, table: toml::Table) -> Result<UvLane, ConfigError> {
     let mut lane = UvLane {
         binary: DEFAULT_UV_BINARY.to_string(),
     };
     for (name, setting) in table {
-        admits(table_label, "lanes.uv", &name)?;
+        admits_lane(table_label, "uv", UvLane::KEYS, &name)?;
         match name.as_str() {
             "binary" => lane.binary = non_empty(table_label, &name, &setting)?,
             // Read by `lane_type` before this block was dispatched; nothing
@@ -34,32 +34,35 @@ pub(super) fn parse_uv_lane(table_label: &str, table: toml::Table) -> Result<UvL
     Ok(lane)
 }
 
+impl UvLane {
+    pub(crate) const KEYS: &'static [&'static str] = &["binary", "deadline_secs", "type"];
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::LaneKind;
-    use crate::config::probes::{kind, parsed};
+    use crate::config::probes::{checked_text, typed};
 
     #[test]
     fn a_uv_lane_defaults_to_the_uv_command_on_the_running_path() {
         assert_eq!(
-            kind(&parsed("[lanes.uv]\n"), "uv"),
-            Some(&LaneKind::Uv(UvLane {
+            typed::<UvLane>(checked_text("[lanes.uv]\n"), "uv"),
+            Some(UvLane {
                 binary: DEFAULT_UV_BINARY.to_string(),
-            }))
+            })
         );
     }
 
     #[test]
     fn a_uv_lane_may_carry_any_name_and_drive_the_binary_it_states() {
         assert_eq!(
-            kind(
-                &parsed("[lanes.tools]\ntype = \"uv\"\nbinary = \"/opt/homebrew/bin/uv\"\n"),
+            typed::<UvLane>(
+                checked_text("[lanes.tools]\ntype = \"uv\"\nbinary = \"/opt/homebrew/bin/uv\"\n"),
                 "tools"
             ),
-            Some(&LaneKind::Uv(UvLane {
+            Some(UvLane {
                 binary: "/opt/homebrew/bin/uv".to_string(),
-            }))
+            })
         );
     }
 }

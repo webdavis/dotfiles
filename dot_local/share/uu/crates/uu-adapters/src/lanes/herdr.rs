@@ -17,6 +17,14 @@ use uu_domain::LaneReport;
 use uu_domain::RunFacts;
 
 impl LaneAdapter for HerdrLane {
+    fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError> {
+        crate::config::parse_herdr_lane(label, fields)
+    }
+
+    fn keys() -> &'static [&'static str] {
+        Self::KEYS
+    }
+
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
         let mut report = LaneReport::new(name);
 

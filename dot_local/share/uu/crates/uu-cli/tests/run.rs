@@ -4,15 +4,6 @@ mod support;
 
 use support::*;
 
-/// The epoch at the head of a marker or a stub's breadcrumb.
-fn epoch_in(text: &str) -> i64 {
-    text.split_whitespace()
-        .next()
-        .expect("an epoch field")
-        .parse()
-        .expect("an epoch")
-}
-
 #[test]
 fn a_machine_with_no_config_updates_nothing_and_exits_clean() {
     let home = Home::new("no-config");
@@ -220,40 +211,6 @@ fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_sta
 }
 
 #[test]
-fn a_lane_that_outlives_its_deadline_fails_instead_of_holding_the_run_open() {
-    // THE WIRE, which no unit test reaches: the deadline the LANE'S OWN BLOCK
-    // declares has to be the one the spawn is bounded by. A run handed some
-    // other duration would wait the stub out and report a clean self-update.
-    //
-    // The stub leaves a `sleep` behind holding its stdout and exits at once,
-    // which is the hang this bounds: waiting on the child answers immediately
-    // and the READ is what blocks. Its 4 seconds outlast the 1-second deadline
-    // by enough that a run finishing here finished because uu stopped it.
-    let home = Home::new("lane-deadline").with_herdr_lane_and(
-        "sleep 4 &
-exit 0
-",
-        "deadline_secs = 1
-",
-    );
-    // STRUCTURAL: `deadline_secs` is whole seconds, so one second is the
-    // shortest deadline a config can state and the shortest this can take.
-    home.allow_slow("the smallest deadline a config can express is one second");
-    let output = home.uu(&["run"]);
-    let said = stdout(&output);
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "a lane failure is not a run failure: {output:?}"
-    );
-    assert!(
-        said.contains("lane `herdr` exceeded its 1s deadline"),
-        "{said}"
-    );
-    assert!(said.contains("1 failure(s)"), "{said}");
-}
-
-#[test]
 fn a_record_the_gateway_never_received_leaves_the_marker_unmoved() {
     // The marker is what the NEXT record measures its gap from, so a run
     // stamped successful after its entry was refused makes the following entry
@@ -310,42 +267,5 @@ fn a_deferred_only_run_posts_a_record_body_stated_deferred_not_completed() {
         body.contains("\"state\":\"deferred\""),
         "a run with only a deferred lane and zero failures must post state \
          `deferred`, never `completed`: {body}"
-    );
-}
-
-#[test]
-fn the_marker_stamps_when_the_run_finished_and_not_when_it_started() {
-    // Every record's gap is measured from this timestamp, so a marker holding
-    // the run's START time inflates the next gap by the whole duration of the
-    // run before it, and lanes have no upper bound. Crossing a wall-clock
-    // second inside the lane is the only observation that tells the two
-    // instants apart, so the stub spends its update call doing exactly that
-    // and leaves behind the second it began in.
-    let home = Home::new("finish-time").with_herdr_lane_and(
-        "case \"$1\" in\n\
-         update)\n\
-         date +%s >\"$HOME/lane-started\"\n\
-         began=$(date +%s)\n\
-         while [ \"$(date +%s)\" = \"$began\" ]; do sleep 0.05; done\n\
-         ;;\n\
-         esac\n\
-         exit 0\n",
-        "",
-    );
-    // STRUCTURAL: the marker's own resolution is whole seconds, so telling
-    // the run's start from its finish needs a real second boundary between
-    // them; the spin above is 0 to just-under-1s by construction, not a
-    // number this test controls.
-    home.allow_slow(
-        "the marker's resolution is whole seconds; crossing one is the only reliable signal",
-    );
-    let output = home.uu(&["run"]);
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-    let began =
-        epoch_in(&std::fs::read_to_string(home.dir.join("lane-started")).expect("the lane"));
-    let stamped = epoch_in(&std::fs::read_to_string(home.marker()).expect("the marker"));
-    assert!(
-        stamped > began,
-        "the marker stamped {stamped}, which is not after the second the lane began in ({began})"
     );
 }

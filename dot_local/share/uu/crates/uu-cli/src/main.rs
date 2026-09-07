@@ -9,9 +9,8 @@
 //! A config uu could not read, or a lane the operator asked for and did not
 //! get, is uu failing (1). An argument uu does not serve is usage (2).
 
-use uu_adapters::LANE_TYPES;
-
 mod cli;
+mod registrations;
 
 fn main() {
     // Die on a closed pipe the way every other unix tool does. Rust ignores
@@ -29,10 +28,10 @@ fn dispatch() -> i32 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let words: Vec<&str> = argv.iter().map(String::as_str).collect();
     match words.as_slice() {
-        ["run"] => cli::run::run_mode(None),
-        ["run", lane] => cli::run::run_mode(Some(lane)),
-        ["doctor"] => cli::doctor::doctor_mode(),
-        ["schedule", "render"] => cli::schedule::schedule_mode(),
+        ["run"] => cli::run_mode(None),
+        ["run", lane] => cli::run_mode(Some(lane)),
+        ["doctor"] => cli::doctor_mode(),
+        ["schedule", "render"] => cli::schedule_mode(),
         [] => usage("no command given"),
         [command, ..] => usage(&format!("unknown command `{command}`")),
     }
@@ -48,7 +47,11 @@ fn usage(problem: &str) -> i32 {
            uu doctor           what this config turns on, and what it cannot reach\n  \
            uu schedule render  the launchd job for the configured day and time\n\
          lane types: {}",
-        LANE_TYPES.join(", ")
+        registrations::LANES
+            .iter()
+            .map(uu_adapters::LaneRegistration::type_name)
+            .collect::<Vec<_>>()
+            .join(", ")
     );
     2
 }

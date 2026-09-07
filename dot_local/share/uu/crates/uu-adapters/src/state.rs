@@ -5,9 +5,15 @@
 //! anything: the policy lives in the library (`record::marker`, `staleness`)
 //! and this is where it is read from and written to disk.
 
-pub mod lock;
-pub mod marker;
-pub mod streak;
+mod lock;
+mod marker;
+mod streak;
+
+pub use lock::{RunLock, acquire as acquire_lock};
+pub use marker::{path as marker_path, read as read_marker, write as write_marker};
+pub use streak::{
+    path as streak_path, prune_removed_lanes, read as read_streak, write as write_streak,
+};
 
 use std::path::{Path, PathBuf};
 

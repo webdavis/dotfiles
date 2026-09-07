@@ -1,7 +1,7 @@
 //! `uu doctor`: what this config turns on, and what it cannot reach.
 
 use uu_adapters::{
-    Config, LaneKind, config_path, gap_line, home, marker_path, now_epoch, read_marker, resolve,
+    Config, config_path, gap_line, home, marker_path, now_epoch, read_marker, resolve,
 };
 
 pub fn doctor_mode() -> i32 {
@@ -19,15 +19,8 @@ pub fn doctor_mode() -> i32 {
         Err(code) => return code,
     };
 
-    if config.lanes.is_empty() {
-        println!("uu: lanes: none declared");
-    } else {
-        for (name, lane) in &config.lanes {
-            println!("uu: lane {name}: on ({})", lane.kind.type_name());
-            if let LaneKind::Command(command) = &lane.kind {
-                report_program(name, &command.run[0]);
-            }
-        }
+    for line in lane_descriptions(&config) {
+        println!("{line}");
     }
     match config.records.as_ref() {
         // THE KEY IS NEVER PRINTED, only whether there is one.
@@ -69,13 +62,12 @@ pub fn doctor_mode() -> i32 {
 /// at `/`, so `found` or `NOT FOUND` here says nothing about what that run
 /// will see. An absolute path or a bare name on PATH resolves the same way in
 /// both places, so only this case gets its own line instead of a resolution.
-fn report_program(name: &str, program: &str) {
+fn describe_program(name: &str, program: &str) -> String {
     if program.contains('/') && !program.starts_with('/') {
-        println!(
+        return format!(
             "uu: lane {name}: program `{program}`, RELATIVE PATH; the weekly run starts in /, so \
              this resolves differently there"
         );
-        return;
     }
     let reachable = match resolve(program) {
         Some(found) => format!("found at {}", found.display()),
@@ -83,8 +75,22 @@ fn report_program(name: &str, program: &str) {
                  [alerts] is configured"
             .to_string(),
     };
-    println!(
+    format!(
         "uu: lane {name}: program `{program}`, {reachable} (doctor resolves on this shell's PATH; \
          the weekly run uses the plist's own PATH, which can differ)"
-    );
+    )
+}
+
+pub(super) fn lane_descriptions(config: &Config) -> Vec<String> {
+    if config.lanes.is_empty() {
+        return vec!["uu: lanes: none declared".to_string()];
+    }
+    let mut lines = Vec::new();
+    for (name, lane) in &config.lanes {
+        lines.push(format!("uu: lane {name}: on ({})", lane.type_name()));
+        if let Some(program) = lane.diagnostic_program() {
+            lines.push(describe_program(name, program));
+        }
+    }
+    lines
 }

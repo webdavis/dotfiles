@@ -1,9 +1,13 @@
 //! The three things uu does, one module each, and the two answers all three
 //! need first.
 
-pub mod doctor;
-pub mod run;
-pub mod schedule;
+mod doctor;
+mod run;
+mod schedule;
+
+pub(super) use doctor::doctor_mode;
+pub(super) use run::run_mode;
+pub(super) use schedule::schedule_mode;
 
 use std::path::Path;
 
@@ -13,7 +17,7 @@ use uu_adapters::{Config, ConfigError, LoadOutcome, load_config};
 /// printed here and returned as an exit code, because every mode answers it
 /// the same way: loudly, and without guessing.
 fn loaded(path: &Path) -> Result<Option<Config>, i32> {
-    match load_config(path) {
+    match load_config(path, crate::registrations::LANES) {
         Ok(LoadOutcome::Loaded(config)) => Ok(Some(config)),
         Ok(LoadOutcome::Missing) => Ok(None),
         Err(error) => {

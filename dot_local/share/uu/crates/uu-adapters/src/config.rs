@@ -21,11 +21,15 @@ mod lanes;
 mod schedule;
 mod schema;
 
+use crate::LaneRegistration;
 use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
 
-pub use lanes::{BrewLane, CommandLane, HerdrLane, LANE_TYPES, LaneKind, Lanes, NpmLane, UvLane};
+pub use lanes::{BrewLane, CommandLane, HerdrLane, Lanes, NpmLane, UvLane};
+pub(crate) use lanes::{
+    parse_brew_lane, parse_command_lane, parse_herdr_lane, parse_npm_lane, parse_uv_lane,
+};
 pub use schedule::Schedule;
 use schema::TOP_LEVEL;
 
@@ -36,7 +40,7 @@ pub fn config_path(home: &str) -> PathBuf {
 }
 
 /// The whole parsed file.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default)]
 pub struct Config {
     pub schedule: Schedule,
     /// `[records]`, or None when the block is absent, which is records off.
@@ -96,7 +100,7 @@ impl ConfigError {
 
 /// What loading found at the path. `Missing` is deliberately not an error: an
 /// unconfigured machine is a state to report, not a fault to diagnose.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum LoadOutcome {
     Missing,
     Loaded(Config),
@@ -110,9 +114,12 @@ pub enum LoadOutcome {
 /// CONFIGURED machine whose file stopped resolving, and reading that as an
 /// unconfigured one turns every lane off without a word. The link itself is
 /// what decides, exactly as the pns loader beside this one does it.
-pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
+pub fn load_config(
+    path: &Path,
+    registrations: &[LaneRegistration],
+) -> Result<LoadOutcome, ConfigError> {
     match std::fs::read_to_string(path) {
-        Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
+        Ok(text) => parse_config(&text, registrations).map(LoadOutcome::Loaded),
         Err(error)
             if error.kind() == std::io::ErrorKind::NotFound
                 && std::fs::symlink_metadata(path).is_err() =>
@@ -124,7 +131,10 @@ pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
 }
 
 /// The pure half: text in, config or a named refusal out.
-pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
+pub(crate) fn parse_config(
+    text: &str,
+    registrations: &[LaneRegistration],
+) -> Result<Config, ConfigError> {
     // The parser's Display echoes the offending source line and this file
     // carries the signing key, so the refusal is rebuilt from the cause and
     // the location alone.
@@ -144,7 +154,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             "schedule" => config.schedule = schedule::parse_schedule(value)?,
             "records" => config.records = Some(parse_records(value)?),
             "alerts" => config.alerts = Some(parse_alerts(value)?),
-            "lanes" => config.lanes = lanes::parse_lanes(value)?,
+            "lanes" => config.lanes = lanes::parse_lanes(value, registrations)?,
             _ => {
                 return Err(ConfigError::Invalid(format!(
                     "unknown top-level key `{key}`; the file serves {}",
@@ -201,6 +211,8 @@ pub(crate) use lanes::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED, Plugin};
 
 #[cfg(test)]
 mod probes;
+#[cfg(test)]
+pub(crate) use probes::parse_config as parse_test_config;
 #[cfg(test)]
 mod shipped_template;
 

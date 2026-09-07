@@ -8,34 +8,13 @@
 
 use super::ConfigError;
 
-/// EVERY KEY EVERY TABLE SERVES, table by table: the one statement of this
-/// schema's vocabulary, and the source of both the refusal that names a
-/// mistyped key and the list of what to write instead.
+/// The shared tables' keys. Each typed lane owns its own vocabulary; both
+/// paths refuse mistyped keys and list what to write instead.
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (TOP_LEVEL, &["alerts", "lanes", "records", "schedule"]),
     ("schedule", &["day", "time"]),
     ("records", &["key", "url"]),
     ("alerts", &["binary"]),
-    (
-        "lanes.brew",
-        &[
-            "brew",
-            "deadline_secs",
-            "mas",
-            "mas_manifest",
-            "osquery_converge",
-            "tailscaled",
-            "type",
-            "upgrade_record",
-        ],
-    ),
-    ("lanes.command", &["deadline_secs", "run", "type"]),
-    (
-        "lanes.herdr",
-        &["binary", "deadline_secs", "plugins", "type"],
-    ),
-    ("lanes.npm", &["binary", "deadline_secs", "type"]),
-    ("lanes.uv", &["binary", "deadline_secs", "type"]),
 ];
 
 /// The roster row for the file's own top level. THE EMPTY NAME, because that
@@ -53,10 +32,8 @@ pub fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 
 /// Whether a table admits a key, refusing it BY NAME and with the whole
 /// vocabulary spelled out when it does not. `table` is what the refusal NAMES
-/// as the offender; `vocabulary` is which `TABLE_KEYS` row judges it. The two
-/// differ only for a lane block, where an operator-chosen name (`lanes.mine`)
-/// is judged against its TYPE's row (`lanes.herdr`); every other caller passes
-/// the same string twice.
+/// as the offender; `vocabulary` is which shared `TABLE_KEYS` row judges it.
+/// Lane callers instead pass their typed vocabulary to `admits_lane`.
 ///
 /// THIS IS THE ONE GATE, and every table's match then has a fallthrough that
 /// does nothing. The alternative shape, a gate here AND a refusal in each
@@ -66,27 +43,23 @@ pub fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 /// no arm to read it, is what `every_key_the_roster_declares_is_actually_read`
 /// walks.
 pub fn admits(table: &str, vocabulary: &str, key: &str) -> Result<(), ConfigError> {
-    match keys_of(vocabulary) {
-        Some(serves) if !serves.contains(&key) => Err(unknown_key(table, vocabulary, key)),
-        _ => Ok(()),
-    }
+    let serves = keys_of(vocabulary)
+        .ok_or_else(|| ConfigError::Invalid(format!("no vocabulary for `{vocabulary}`")))?;
+    admit_key(table, "the table", serves, key)
 }
 
-/// The refusal itself, naming the offending table, the key, and the
-/// vocabulary that answers for it. THE LISTING IS THE POINT: a refusal that
-/// only says a key is unknown leaves an operator guessing at the spelling,
-/// and guessing is what produced it. A lane's vocabulary is phrased around
-/// its TYPE ("a `herdr` lane serves ...") because the table named in the
-/// refusal may be a name the operator chose, not the type that governs it.
-fn unknown_key(table: &str, vocabulary: &str, key: &str) -> ConfigError {
-    let keys = keys_of(vocabulary).unwrap_or_default().join(", ");
-    let whose = match vocabulary.strip_prefix("lanes.") {
-        Some(kind) => format!("a `{kind}` lane"),
-        None => "the table".to_string(),
-    };
-    ConfigError::Invalid(format!(
-        "unknown `{table}` key `{key}`; {whose} serves {keys}"
-    ))
+pub fn admits_lane(table: &str, kind: &str, serves: &[&str], key: &str) -> Result<(), ConfigError> {
+    admit_key(table, &format!("a `{kind}` lane"), serves, key)
+}
+
+fn admit_key(table: &str, whose: &str, serves: &[&str], key: &str) -> Result<(), ConfigError> {
+    if serves.contains(&key) {
+        return Ok(());
+    }
+    Err(ConfigError::Invalid(format!(
+        "unknown `{table}` key `{key}`; {whose} serves {}",
+        serves.join(", ")
+    )))
 }
 
 /// One table, refused BY NAME when the operator wrote something else there.
@@ -135,7 +108,7 @@ pub fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String,
 mod tests {
     use super::*;
     use crate::config::probes::refusal;
-    use crate::config::{LANE_TYPES, parse_config};
+    use crate::config::probes::{REGISTRATIONS, parse_config};
 
     #[test]
     fn every_table_refuses_its_own_near_miss_and_lists_its_vocabulary() {
@@ -185,7 +158,8 @@ mod tests {
     #[test]
     fn every_lane_type_refuses_a_key_it_does_not_serve_and_so_does_a_user_named_lane() {
         // The built-in roster, judged by its own name...
-        for kind in LANE_TYPES {
+        for registration in REGISTRATIONS {
+            let kind = registration.type_name();
             let detail = refusal(&format!("[lanes.{kind}]\nbogus = 1\n"));
             assert!(
                 detail.contains(&format!("unknown `lanes.{kind}` key `bogus`")),
@@ -206,7 +180,7 @@ mod tests {
     #[test]
     fn every_key_the_roster_declares_is_actually_read() {
         // The one drift a single admission gate can still admit: a key added to
-        // `TABLE_KEYS` with no arm to read it is accepted and then ignored, so
+        // a shared or typed lane vocabulary with no arm to read it is ignored, so
         // the operator writes a setting that does nothing and no refusal ever
         // mentions it. Every key here is handed a value of the wrong type; an
         // arm refuses it, and a key with no arm accepts anything.
@@ -214,9 +188,17 @@ mod tests {
         // A BOOLEAN IS THE PROBE, because no key this schema serves admits
         // one. An integer probe would be a LEGAL value for `deadline_secs`,
         // and this test would then read the key it is meant to walk as unread.
-        for (table, keys) in TABLE_KEYS {
-            for key in *keys {
-                let text = if *table == TOP_LEVEL {
+        let tables = TABLE_KEYS
+            .iter()
+            .map(|(name, keys)| (name.to_string(), *keys))
+            .chain(
+                REGISTRATIONS
+                    .iter()
+                    .map(|entry| (format!("lanes.{}", entry.type_name()), entry.keys())),
+            );
+        for (table, keys) in tables {
+            for key in keys {
+                let text = if table == TOP_LEVEL {
                     format!("{key} = true\n")
                 } else {
                     format!("[{table}]\n{key} = true\n")

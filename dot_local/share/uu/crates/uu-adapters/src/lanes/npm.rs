@@ -49,6 +49,14 @@ const PREPEND_PATH: &str = r#"PATH="$1${PATH:+:$PATH}"; export PATH; shift; exec
 
 /// Upgrade every global npm package, and report what that took.
 impl LaneAdapter for NpmLane {
+    fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError> {
+        crate::config::parse_npm_lane(label, fields)
+    }
+
+    fn keys() -> &'static [&'static str] {
+        Self::KEYS
+    }
+
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
         let mut report = LaneReport::new(name);
         let binary = self.binary.as_str();

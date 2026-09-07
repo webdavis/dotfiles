@@ -15,6 +15,9 @@ deadlines, constructs adapters and maps the typed result to the existing exit be
 | `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns` and the existing infrastructure libraries.                   |
 | `uu-cli`         | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
 
+`uu-cli` also takes `uu-domain` as a test dependency for the value types in the existing application
+ports.
+
 `Marker` and `RunFacts` belong to the domain because they describe the previous successful run and the
 facts supplied to a lane, without prescribing an encoding.
 `crates/uu-adapters/src/record/event.rs::event_for` maps them into protocol types at the existing adapter
@@ -24,13 +27,13 @@ compatibility facade.
 
 ## Ports and their current adapters
 
-| Consumer-owned port | Current adapter                        | Boundary                                                                                                 |
-| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `RunState`          | `run_adapters::FileRunState`           | Lock lifetime, marker and streak reads/writes, removed-lane pruning.                                     |
-| `RunClock`          | `run_adapters::SystemRunClock`         | Fallible wall-clock samples and monotonic elapsed time.                                                  |
-| `LaneExecutor`      | `run_adapters::ConfiguredLaneExecutor` | A runner per lane, supplied with actual budget and declared deadline; existing lane dispatch stays here. |
-| `RunDelivery`       | `delivery::EngineRunDelivery`          | Configured alert process, record encoding/signing and signed POST through the existing clients.          |
-| `RunPresentation`   | `run_adapters::ConsoleRunPresentation` | Header facts, detail rendering and exact diagnostic streams and wording.                                 |
+| Consumer-owned port | Current adapter                        | Boundary                                                                                                           |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `RunState`          | `run_adapters::FileRunState`           | Lock lifetime, marker and streak reads/writes, removed-lane pruning.                                               |
+| `RunClock`          | `run_adapters::SystemRunClock`         | Fallible wall-clock samples and monotonic elapsed time.                                                            |
+| `LaneExecutor`      | `run_adapters::ConfiguredLaneExecutor` | A runner per declared lane, supplied with actual budget and declared deadline; invokes its selected typed adapter. |
+| `RunDelivery`       | `delivery::EngineRunDelivery`          | Configured alert process, record encoding/signing and signed POST through the existing clients.                    |
+| `RunPresentation`   | `run_adapters::ConsoleRunPresentation` | Header facts, detail rendering and exact diagnostic streams and wording.                                           |
 
 The associated state guard keeps ownership explicit without exposing a filesystem lock to the use case.
 Typed outcomes distinguish contention from unavailable locking, absent from unreadable history, missing
@@ -73,22 +76,33 @@ output in a run.
   existing stuck-spawn and escaped-process limitations. The application neither claims those processes
   are gone nor introduces a second cleanup path.
 
-Row 0.4 moves concrete adapters and command parsing into their own crates and leaves a virtual workspace
-at the root. Parser fixtures belong to the adapter package; the outer repository verifies its actual
-configuration template separately. Row 0.5 owns lane registrations and removal of the central
-technology-name switches. Row 0.6 closes remaining visibility, size and verification obligations.
+Concrete adapters and command parsing belong to their own crates; the root is a virtual workspace. Parser
+fixtures belong to the adapter package, and the outer repository verifies its actual configuration
+template separately. The command's registration list binds the five existing type names to their typed
+parsers, execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a
+registration while retaining the operator's declared name and resolved deadline. Execution and doctor use
+that selected adapter, so neither repeats a technology-name switch. Domain and application retain their
+existing dependency direction and know no concrete lane technology.
+
+Module trees are private, with deliberate exports at their package roots. Large unit-test modules live in
+private child files. `config.rs` retains 208 implementation lines and 220 total, slightly above the
+200-line target but below the 250-line decomposition threshold; its remaining responsibility is the
+shared file boundary and top-level configuration. Every other file meets the 200/300 targets, and all
+files meet the 500-line cap.
 
 ## Test ownership and evidence
 
-[The name map](../test-name-map.tsv) records every one of the 287 baseline leaf names and its successful
-successor, plus the new notification-order integration test and twelve application tests. No baseline
-leaf is removed. Two record-body call-site tests move from `cli::run::tests` to `delivery::tests` with
-new qualified names. Two delivery-policy tests keep their names but move from the binary's delivery
-module into the application crate; their fixtures now supply typed outcomes rather than a transport. The
-map records those ownership changes explicitly. These moved tests remain behavior contracts. The seven
-inherited harness speed-guard leaves instead check test infrastructure; the map preserves them and
-assigns their classification and timing closure to row 0.6. Their presence is not evidence of product
-behavior or a guarantee that every test is fast.
+[The name map](../test-name-map.tsv) retains the original 287 baseline contracts and the thirteen
+application-extraction additions. All 300 cases entering registration and package closure have successful
+named successors; four new registration cases bring the current total to 304. The two command timing
+cases move into the actual command composition, and the ten staleness cases split between streak policy
+and persistence/delivery failures. The original record-body and delivery-policy moves remain recorded in
+the map.
+
+The seven inherited harness speed-guard cases remain classified as infrastructure coverage, not product
+behavior. Their backdated fixture clocks test the guard itself. They do not excuse product tests from the
+one-second limit; the timed workspace run measures each case's actual duration separately. No new
+slow-test exception is added.
 
 The record-body tests still protect the adapter call site: dropping the deferred count there can post
 `completed` while the pure verdict tests stay green. The moved delivery-policy tests protect refusal and
@@ -96,10 +110,17 @@ success directions through injected outcomes. The twelve new tests exercise the 
 concrete in-memory ports, including guard lifetime, ordering, budget exhaustion, continued execution,
 selection, lock refusals, finish-clock failure and the record-to-marker decision.
 
-The combined package run recorded 300 expected successful outcomes with no missing or extra names. Rust
-formatting, all-target checking, strict Clippy, workspace tests, strict documentation and a locked
-release build passed on that candidate. Seventeen independently compiled application mutants failed the
-intended assertions against green controls. This evidence does not replace repository gates or the
-command-surface differential. The inherited test
-`a_lane_that_outlives_its_deadline_fails_instead_of_holding_the_run_open` took 1.0611155 seconds in this
-run, compared with 1.049154291 seconds in the baseline; its timing remains a row 0.6 closure item.
+The application-extraction run recorded 300 successful outcomes. Its formatting, checking, Clippy,
+workspace tests, documentation and locked release build passed, and seventeen independently compiled
+application mutants failed their intended assertions against green controls. That historical run measured
+`a_lane_that_outlives_its_deadline_fails_instead_of_holding_the_run_open` at 1.0611155 seconds, compared
+with 1.049154291 seconds in its baseline. The later 0.4 candidate measured 1.068 seconds. Those slow
+observations remain evidence of the gap that package closure fixes.
+
+The current timed workspace run passes all 304 cases, with a maximum of 0.653576125 seconds. The marker
+composition test supplies distinct start and finish clock readings while using the real state adapter.
+The deadline composition test passes a parsed seven-second deadline through the real executor and gives
+the pipe holder only the final 80 milliseconds of the overall run budget. Its diagnostic must distinguish
+those two durations and its recorded process group must be gone. The existing pure policy tests retain
+own-deadline and run-budget expiry directions. These controls avoid a wall-clock wait without changing
+the configuration's whole-second units or the production clock.
