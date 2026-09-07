@@ -11,6 +11,7 @@ const FAKE_BOUND: Duration = Duration::from_millis(400);
 
 pub(crate) enum Reply {
     Line(String),
+    RecordFocus { state: PathBuf, answer: bool },
 }
 
 pub(crate) struct SocketServer {
@@ -56,12 +57,33 @@ impl SocketServer {
                 if !reader.read_line(&mut request).is_ok_and(|count| count > 0) {
                     return;
                 }
-                if request_sender.send(request).is_err() {
+                if request_sender.send(request.clone()).is_err() {
                     return;
                 }
                 match reply {
                     Reply::Line(line) => {
                         let _ = writeln!(reader.get_mut(), "{line}");
+                    }
+                    Reply::RecordFocus { state, answer } => {
+                        let request: serde_json::Value =
+                            serde_json::from_str(&request).expect("focus request JSON");
+                        assert_eq!(request["method"], "workspace.focus");
+                        crate::command::record_at(
+                            &state,
+                            &serde_json::json!({
+                                "data": { "workspace_id": request["params"]["workspace_id"] }
+                            })
+                            .to_string(),
+                        );
+                        if answer {
+                            let _ = writeln!(
+                                reader.get_mut(),
+                                "{}",
+                                serde_json::json!({
+                                    "id": request["id"], "result": { "type": "ok" }
+                                })
+                            );
+                        }
                     }
                 }
                 // herdr 0.8.2 closes each ordinary connection after one reply.
