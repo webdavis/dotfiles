@@ -1401,6 +1401,27 @@ cursor node to the first node whose type ends in `function_definition`, `functio
 store, `comments.add(bufnr, line, line, text)`, and the id it returns goes to `ui.decorate(id)`, so
 the annotation sits in the buffer exactly like one typed with `<leader>Ac`.
 
+**It is a PUBLISHED PLUGIN, not a `custom_api` module** (operator ruling 2026-09-05). What the
+annotator is coupled to is `herdr-nvim`, and a module of this config would have hidden that coupling
+inside a private tree and pinned the annotator to this machine.
+`webdavis/herdr-nvim-annotate-extension.nvim` is its own repository, installed by lazy.nvim the way
+any third-party plugin is (`{ "webdavis/herdr-nvim-annotate-extension.nvim", dependencies =
+{ "ChmaraX/herdr-nvim" } }`), and the name says what it is: an extension of herdr-nvim. The rule that
+follows from being a plugin is that it requires nothing from this config, so it carries its own git
+edge (the argv runner, the blame of the buffer's own text, the porcelain parse) and its own `trim`
+rather than reaching into `custom_api.git` and `custom_api.util`, which keep both for their other
+consumers. The duplication is the declared price of a plugin anyone can install.
+
+Inside it, `lua/herdr-nvim-annotate-extension/compose.lua` is the pure half (the composer, the
+node-type filter, the blame and diagnostic formatters, the annotatable rule), reaching no buffer and
+no process, and `init.lua` is the editor edge and the sink. It ships `:HerdrAnnotateLine`, vimdoc, and
+`:checkhealth herdr-nvim-annotate-extension`, and its specs run from its own `tests/run.lua`, so this
+repository no longer carries the annotator's code or its tests at all. What stays here is one
+lazy.nvim spec, `lua/plugins/herdr-nvim-annotate-extension.lua`, holding the `commit` pin and the
+`<leader>Cx` row, which is unchanged in key, mode and description. That row calls `line()` through
+`custom_api.try` rather than the shipped command, so a refusal reports through the keymap-layer error
+boundary (6.1) like every other keymap here.
+
 Delivery is not this plugin's job. `herdr-nvim` already ships `<leader>As` (paste every pending comment
 into the agent's input) and `<leader>AS` (send them, auto-submitting), both resolving the agent with the
 lookup of 7.4. The prefix is the UPPERCASE `A`: the plugin's own default is `<leader>a` and this config
@@ -1409,12 +1430,11 @@ overrides it (`herdr-nvim.lua:6`, 8.1), so every `herdr-nvim` key in this spec a
 the detached `herdr agent wait`, the recheck and the state machine v4.3 carried: nothing is ever typed
 into an agent by this keymap, so there is nothing to race and nothing to be best-effort about. The
 composer is a text function over data the editor already holds. Pure and tested:
-`compose_text(parts, separator)`, including that a nil part contributes no gap. It shipped as
-`lua/custom_api/annotate.lua` with `tests/annotate_spec.lua` beside it, before the own-repository
-ruling of 2026-09-05. Under that ruling it becomes `webdavis/herdr-nvim-annotate-extension.nvim`,
-which the operator has created: the composer, its tests and the `<leader>Cx` edge move there, and
-this config installs it like any other plugin. That extraction is follow-up work, tracked separately
-from PR 16, which shipped the module.
+`compose_text(parts, separator)`, including that a nil part contributes no gap. It first shipped as
+`lua/custom_api/annotate.lua` with `tests/annotate_spec.lua`, before the own-repository ruling of
+2026-09-05. The extraction now installs `webdavis/herdr-nvim-annotate-extension.nvim` v0.1.1, with the
+composer and its tests in that repository. This config owns the pin and `<leader>Cx` edge. PR 16
+remains the record of the original module delivery.
 
 **The stored text is ONE line, parts joined by ` | `** (space, pipe, space) in that same order. It was
 one part per line until 2026-09-05, when a review measured that herdr-nvim cannot list a multi-line
@@ -1423,8 +1443,9 @@ comment: `ui.comment_list` builds one buffer line per comment out of the comment
 `'replacement string' item contains newlines` and every annotation carrying two parts broke
 `<leader>Al` outright. We do not patch third-party plugins, so the separator moved instead of the
 plugin. `compose_text` keeps the newline as its default and takes the separator as an argument, so
-this reverts to one part per line by changing the one constant in `annotate.lua` once herdr-nvim can
-list a multi-line comment. The upstream report is drafted at
+this reverts to one part per line by setting the plugin's exported `PART_SEPARATOR` back to `"\n"`
+once herdr-nvim can list a multi-line comment. The constant sits on the sink rather than on the
+composer because the reason for it is the store's and not the text's. The upstream report is drafted at
 `/tmp/herdr-nvim-multiline-issue.md`.
 
 ## 8. Keymap and which-key design
@@ -1883,8 +1904,9 @@ re-gated since its last merge of `main` is not a verdict.
    PR 9 decides, by the 7.3 table, inside its one-day budget; PR 10a or PR 10b ships and registers.
 4. **The custom server's name**, if built. Default `nvim-workspace-mcp`; confirm before creating it
    (rename rule). 7.7 no longer proposes a module name: #1 is the repository `webdavis/pns.nvim` and
-   creates no module here, #2 creates none at all, and #3's `custom_api/annotate.lua` shipped and is
-   being extracted to `webdavis/herdr-nvim-annotate-extension.nvim` under the own-repository ruling.
+   creates no module here, #2 creates none at all, and #3 now installs the published plugin
+   `webdavis/herdr-nvim-annotate-extension.nvim`. Its former `custom_api/annotate.lua` module is retired
+   by this extraction.
 5. **Agent keymap prefix.** Default `<leader>C` "claude"; the implementer may pick another free letter
    under the section 8.2 rule, stating why.
 6. **`go` via Homebrew for Mason's gopls.** Default: yes, it is what decision D requires to work; the
