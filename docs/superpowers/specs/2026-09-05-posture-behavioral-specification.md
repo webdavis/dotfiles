@@ -145,7 +145,8 @@ The sourced libraries return a status to a function caller rather than to a proc
 
 - `send_alert` returns 0 when the page was delivered or durably stored and nonzero only when the
   write-ahead persist failed; its log lines go to a file, never to stderr (S144, S187).
-- `pipeline_audit_scan` returns 0 with `<kind> <path>` lines, or 1 with one refusal token (S227).
+- `pipeline_audit_scan` returns 0 with `<kind> <path>` lines, or 1 with a refusal token after any
+  findings already printed. The watchdog treats mixed output as an `unknown` refusal (S227, S230).
 - `newest_canary_timestamp` prints the newest validated epoch or nothing (S193, S196).
 - `allowlist_verdict` returns 0 to suppress, 1 for not allowlisted, 2 for a reused label (S069).
 - `pipeline_verdict` returns 0 to page and 1 to stay silent (S079).
@@ -1253,8 +1254,8 @@ S064. Triage facts are gathered ONLY after the verdict has already decided to pa
       guarded: an absent helper, a failing helper, non-JSON output, or output whose three members are
       not all strings each leaves the finding exactly as the verdict produced it.
       Source: `results-alerter/route.sh:303-348`.
-      Pin: `file-integrity triage facts render exactly when the router attached them`
-           at test/unit/osquery-render.bats:240
+      Pin: UNPINNED. `test/unit/osquery-render.bats:240` supplies a triage object directly to the
+      renderer; it never calls the router. Removing the router's shape check leaves that test green.
 
 S065. The triage helper's stderr is deliberately NOT redirected, so its diagnostics reach the
       alerter's launchd log.
@@ -1468,17 +1469,16 @@ S101. The mode reader asks GNU `stat -c '%a'` first and BSD `stat -f '%p'` secon
       prints only the low nine bits), range-checks the raw value, and returns exactly four octal
       digits so a setuid bit cannot read back as an ordinary mode.
       Source: `results-alerter/pipeline-verdict.sh:187-193 _pipeline_file_mode`.
-      Pin: `a setuid bit on a live file reads as drift, not as a matching 0644`
-           at test/unit/osquery-converge.bats:332 (the converge tool's own reader, the same idiom;
-      the verdict's copy is UNPINNED)
+      Pin: UNPINNED. `test/unit/osquery-converge.bats:332` exercises converge's separate mode reader.
+      Replacing this verdict helper's reader with a constant `0644` leaves that test green.
 
 ### 8.6 file-integrity-triage.sh
 
 S102. `file_integrity_triage <target>` prints one compact JSON object with exactly three string
       members: `recorded`, `ondisk` and `upgrade`, built with `jq -n --arg`, never by interpolation.
       Source: `results-alerter/file-integrity-triage.sh:377-385`.
-      Pin: `file-integrity triage facts render exactly when the router attached them`
-           at test/unit/osquery-render.bats:240
+      Pin: UNPINNED. `test/unit/osquery-render.bats:240` injects its own object into the renderer.
+      Replacing the triage producer's output with `null` leaves that test green.
 
 S103. Every function returns 0 on every input, so a page is never lost to a correlation failure; a jq
       that cannot run yields `{}`.
@@ -2250,9 +2250,9 @@ Nothing in `test/` runs this file either. The orphan harness is
 `test/fixtures/osquery-manifest-lib.bash` (175 lines, 17 functions).
 
 S227. `pipeline_audit_scan` returns 0 having printed one `<kind> <path>` line per diverging COLUMN in
-      manifest order, or returns 1 having printed a single refusal TOKEN. No output plus return 0 is
-      the only all-clear.
-      Source: `executable_pipeline-audit.sh:124-201`.
+      manifest order, or returns 1 after printing a refusal token. Any earlier divergence lines remain
+      on stdout. No output plus return 0 is the only all-clear.
+      Source: `executable_pipeline-audit.sh:170-201`, `:236-319`.
       Pin: UNPINNED.
 
 S228. The seven divergence kinds are `content`, `mode`, `owner`, `missing`, `irregular`, `oversize`
@@ -2266,10 +2266,12 @@ S229. A path that drifted on two columns is reported TWICE under two kinds, deli
       Source: `executable_pipeline-audit.sh:308-319`.
       Pin: UNPINNED.
 
-S230. BOTH manifests are audited on the same tick and a refusal on either refuses the WHOLE scan,
-      dropping the findings gathered so far, because a partial list beside a refusal token invites
-      being read as complete.
-      Source: `executable_pipeline-audit.sh:188-200`.
+S230. The scan visits the pipeline manifest, then the managed-bin manifest, and stops at the first
+      refusal. Output streams as each entry is judged, so a refusal after a finding in the same or
+      second manifest retains that finding before the refusal token. The watchdog classifies mixed
+      output as `unknown` and applies its existing fingerprint and two-tick alarm rule.
+      Source: `executable_pipeline-audit.sh:188-201`, `:236-319`;
+      `executable_uptime-watchdog.sh:303-321`, `:378-452`.
       Pin: UNPINNED.
 
 S231. The reused seam is checked BY NAME (`declare -F _pipeline_manifest_is_trustworthy`) and reports
@@ -3451,15 +3453,17 @@ S399. `nocasematch` is ON at file scope so keyword and yes/no matching mirror ss
 Recomputed on 2026-09-06 over the 399 numbered statement blocks. A `Pin: UNPINNED` statement has no cited
 behavioral pin. S015, S062 and S178 cite a test for only some clauses and count as partially pinned;
 their uncovered clauses are explicitly UNPINNED. S175 and S201 have no behavioral pin: the cited
-counter test never drains, and removing the age clamp leaves every heartbeat test green. The 31 SSH
-statements include two pinned by the plain-script unit test and 29 UNPINNED.
+counter test never drains, and removing the age clamp leaves every heartbeat test green. S064 and S102
+are also unpinned: the rendering fixture bypasses both router validation and the triage producer.
+S101's cited case exercises converge's separate mode reader. Independent source mutations confirm
+all three gaps. The 31 SSH statements include two pinned by the plain-script unit test and 29 UNPINNED.
 
 | Count                                             | Value |
 | ------------------------------------------------- | ----- |
 | Statements                                        | 399   |
-| Fully pinned                                      | 166   |
+| Fully pinned                                      | 163   |
 | Partially pinned                                  | 3     |
-| UNPINNED                                          | 230   |
+| UNPINNED                                          | 233   |
 | Distinct test cases cited as pins                  | 183   |
 | Test cases in the corpus that cover this pipeline | 187   |
 | Statements the port drops (section 6)             | 46    |
@@ -3468,10 +3472,11 @@ Four of the 187 test cases have no effective pin citation: the retired flat `lau
 and unified `OSQUERY_LAUNCHD_ALLOWLIST` cases in `test/e2e/osquery-alerter-criteria.bats:178, :189`,
 the counter case at `test/unit/osquery-alert-dispatch.bats:91` rejected as a drain pin in S175, and
 the clock-skew case at `test/integration/osquery-heartbeat.bats:295` rejected in S201. The two assertion
-ranges in `test/unit/ssh-hardening-dropin.sh` count as one test case.
+ranges in `test/unit/ssh-hardening-dropin.sh` count as one test case. Reclassifying S064, S101 and
+S102 changes no distinct-case total: their cited cases still pin renderer and converge behaviors.
 
 The 399 statements are an inventory of what the bash does, not proof that a port matches it. A
-statement is checkable only where a test covers its behavior; 230 have no pin and three have
+statement is checkable only where a test covers its behavior; 233 have no pin and three have
 uncovered clauses; for those, a Rust test written
 from the statement's prose checks the porter's reading of the bash, not the bash. The plan's section
 4, rule 1, therefore requires a bash-derived acceptance example (the exact input and the output the
