@@ -68,6 +68,19 @@ fn a_command_lane_accepts_its_own_escalation_threshold() {
 }
 
 #[test]
+fn a_records_block_accepts_an_optional_failure_webhook() {
+    let fixture = Fixture::new("failure-webhook-setting");
+    let config = fixture.load(
+        "[records]\nkey = \"fixture-key\"\nurl = \"http://127.0.0.1:0/records\"\nfailure_webhook = \"http://127.0.0.1:0/alarms\"\n",
+        crate::registrations::LANES,
+    );
+    assert!(
+        config.is_ok(),
+        "the explicit alarm destination must be read: {config:?}"
+    );
+}
+
+#[test]
 fn the_parsed_pending_threshold_uses_its_own_file_and_resets_after_completed_work() {
     use std::os::unix::fs::PermissionsExt;
     let fixture = Fixture::new("pending-lifecycle");

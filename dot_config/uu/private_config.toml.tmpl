@@ -1,6 +1,6 @@
 # uu's lane selection. THE FILE SELECTS: a lane runs only when its
 # [lanes.<name>] block exists, records post only when [records] exists, and
-# alerts leave the machine only when [alerts] exists. With no file at all a
+# alarms leave the machine only through configured destinations. With no file at all a
 # bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
 # that lane by name and is refused with exit 1.
 #
@@ -28,6 +28,10 @@ time = "12:00"
 [records]
 url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
 key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+# Optional second destination for failed, stale, pending and record-lost alarms.
+# Signed with the same key. Each configured destination is attempted once;
+# a refusal stays retryable for one-shot alarms without changing the run verdict.
+# failure_webhook = "http://127.0.0.1:8644/webhooks/unattended-upgrades-failures"
 
 # Where a failed lane is reported. uu is a client here and takes no delivery
 # decision: pns owns presence and escalation. An engine that is not there leaves

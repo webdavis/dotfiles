@@ -4,6 +4,7 @@ use crate::alert::{Alerter, alert_argv};
 use crate::config::Records;
 use crate::record::record_state;
 use crate::system::host;
+mod alarm;
 use pns::channels::hermes::{
     PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign,
 };
@@ -53,20 +54,37 @@ impl<'a> EngineRunDelivery<'a, UreqSignedPost, PnsAlerter> {
 impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
     fn alert(
         &self,
-        _kind: AlarmKind,
+        kind: AlarmKind,
         host: &str,
         target: AlertTarget<'_>,
         summary: &str,
     ) -> AlertOutcome {
-        let Some(binary) = self.engine else {
-            return AlertOutcome::NotConfigured;
-        };
-        match self
-            .alerter
-            .alert(binary, &alert_argv(host, target_name(target), summary))
+        let mut configured = false;
+        let mut failures = Vec::new();
+        if let Some(binary) = self.engine {
+            configured = true;
+            if let Err(why) = self
+                .alerter
+                .alert(binary, &alert_argv(host, target_name(target), summary))
+            {
+                failures.push(why);
+            }
+        }
+        if let Some((records, url)) = self
+            .records
+            .and_then(|records| records.failure_webhook.as_deref().map(|url| (records, url)))
         {
-            Ok(()) => AlertOutcome::Delivered,
-            Err(why) => AlertOutcome::Failed(why),
+            configured = true;
+            if let Err(why) = self.alarm_post(records, url, kind, host, summary) {
+                failures.push(why);
+            }
+        }
+        if !failures.is_empty() {
+            AlertOutcome::Failed(failures.join("; "))
+        } else if configured {
+            AlertOutcome::Delivered
+        } else {
+            AlertOutcome::NotConfigured
         }
     }
 

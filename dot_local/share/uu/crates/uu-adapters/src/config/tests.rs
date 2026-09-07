@@ -37,6 +37,7 @@ fn a_records_block_posts_to_the_unattended_upgrades_route_when_it_names_no_url()
         Some(Records {
             url: DEFAULT_RECORD_URL.to_string(),
             key: "secret".to_string(),
+            failure_webhook: None,
         })
     );
 }
@@ -89,4 +90,32 @@ fn the_config_lives_under_the_xdg_config_directory() {
         config_path("/home/x"),
         std::path::PathBuf::from("/home/x/.config/uu/config.toml")
     );
+}
+
+#[test]
+fn a_failure_webhook_is_optional_but_a_stated_value_must_be_nonblank_text() {
+    assert_eq!(
+        parsed("[records]\nkey = \"secret\"\n")
+            .records
+            .unwrap()
+            .failure_webhook,
+        None
+    );
+    assert_eq!(
+        parsed("[records]\nkey = \"secret\"\nfailure_webhook = \"http://127.0.0.1:0/alarm\"\n")
+            .records
+            .unwrap()
+            .failure_webhook
+            .as_deref(),
+        Some("http://127.0.0.1:0/alarm")
+    );
+    for value in ["\"\"", "\" \"", "42", "true"] {
+        let why = refusal(&format!(
+            "[records]\nkey = \"secret\"\nfailure_webhook = {value}\n"
+        ));
+        assert!(
+            why.contains("failure_webhook") && !why.contains("unknown"),
+            "{why}"
+        );
+    }
 }

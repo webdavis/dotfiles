@@ -3,7 +3,7 @@ use crate::ports::{
     RunRecord,
 };
 
-/// No configured engine means nothing is owed. A configured failure stays owed
+/// No configured alarm destination means nothing is owed. A configured failure stays owed
 /// so a one-shot staleness alert can retry on the next run.
 pub(crate) fn send_alert(
     delivery: &impl RunDelivery,

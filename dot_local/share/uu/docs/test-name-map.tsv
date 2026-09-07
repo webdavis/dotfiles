@@ -305,10 +305,18 @@ added	-	cli::run::tests::the_production_registration_list_loads_and_runs_the_sel
 added	-	cli::run::tests::an_alternate_registration_reaches_execution_and_doctor_with_distinct_names	not-present	ok	registration behavior contract; shared configuration, selected execution or doctor consumer
 added	-	cli::run::tests::pending::a_command_lane_accepts_its_own_escalation_threshold	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
 added	-	cli::run::tests::pending::a_pending_command_lane_keeps_its_output_and_advances_the_marker	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
+added	-	cli::run::tests::pending::a_records_block_accepts_an_optional_failure_webhook	not-present	ok	A4 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
 added	-	cli::run::tests::pending::the_parsed_pending_threshold_uses_its_own_file_and_resets_after_completed_work	not-present	ok	A1-A3 behavior contract; crates/uu-cli/src/cli/run/tests/pending.rs
 added	-	config::escalation::tests::escalate_after_runs_defaults_to_three_on_every_lane_type	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
 added	-	config::escalation::tests::escalation_accepts_both_positive_integer_bounds_and_custom_values	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
 added	-	config::escalation::tests::invalid_escalation_values_are_refused_by_key_and_lane_name	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/config/escalation/tests.rs
+added	-	config::tests::a_failure_webhook_is_optional_but_a_stated_value_must_be_nonblank_text	not-present	ok	A4 behavior contract; crates/uu-adapters/src/config/tests.rs
+added	-	delivery::alarm::tests::a_pending_record_passes_its_count_through_the_actual_delivery_adapter	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
+added	-	delivery::alarm::tests::a_webhook_without_an_engine_is_still_attempted_and_neither_means_not_configured	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
+added	-	delivery::alarm::tests::an_absent_failure_webhook_keeps_engine_only_delivery_and_never_posts	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
+added	-	delivery::alarm::tests::an_unsignable_alarm_does_not_post_or_suppress_the_engine_attempt	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
+added	-	delivery::alarm::tests::either_destination_failure_is_reported_after_both_were_attempted_once	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
+added	-	delivery::alarm::tests::every_alarm_posts_its_kind_host_and_detail_with_the_records_key_and_bound	not-present	ok	A4 behavior contract; crates/uu-adapters/src/delivery/alarm/tests.rs
 added	-	delivery::tests::a_pending_only_run_posts_a_body_stated_pending_not_completed	not-present	ok	A1-A3 behavior contract; crates/uu-adapters/src/delivery.rs
 added	-	escalation::tests::a_non_pending_verdict_resets_pending_history_even_at_saturation	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/escalation/tests.rs
 added	-	escalation::tests::pending_escalation_trips_only_at_the_configured_threshold	not-present	ok	A1-A3 behavior contract; crates/uu-domain/src/escalation/tests.rs

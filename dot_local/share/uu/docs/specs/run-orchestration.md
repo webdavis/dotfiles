@@ -83,6 +83,13 @@ sequencing; adapters parse configuration, run commands and deliver records and a
   failures are reported as pending bookkeeping failures and alerted. The state adapter keeps this count
   in `lanes/<name>/pending`, separately from `streak`; existing whole-directory pruning covers both.
 
+- **Given** a configured failure webhook, **when** any failed, stale, pending or record-lost alarm is
+  raised, **then** post its kind, sampled host and detail using the existing four-field record body and
+  records signing key. Attempt the webhook and configured pns engine independently, once each. Any
+  configured refusal makes the combined alarm unsuccessful and retains one-shot retry eligibility. A
+  later retry may reach a destination that accepted the earlier attempt. It does not change the run exit
+  or add a condition to marker eligibility. With the webhook absent, delivery remains pns-only.
+
 ## Delivering the record and advancing the marker
 
 - **Given** an unconfigured record channel, **when** reporting a run, **then** log that nothing was
@@ -111,7 +118,7 @@ with `Command::args`; the use case must not reinterpret report text as shell syn
 contents and diagnostic disclosure are preserved, with no new redaction or logging policy.
 
 Lane watchdogs retain their process-group termination and escaped-process diagnostics. The alert adapter
-still waits with `Command::status` and has no deadline of its own. The signed record post retains its
+still waits with `Command::status` and has no deadline of its own. Both signed-post paths retain the
 ten-second deadline. No new cancellation mechanism or stronger cleanup guarantee for escaped or stuck
 spawns is introduced. The new pending file uses the existing count encoding and atomic writer; no store
 migration or deduplication is introduced. See [the ownership decision](../decisions/run-application.md)

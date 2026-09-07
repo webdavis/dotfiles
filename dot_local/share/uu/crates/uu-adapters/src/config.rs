@@ -2,23 +2,25 @@
 //!
 //! THE FILE SELECTS; it never defines. A lane runs only when its
 //! `[lanes.<name>]` block exists, records post only when `[records]` exists,
-//! and alerts leave the machine only when `[alerts]` exists. With no file at
+//! and alarms leave the machine only through configured destinations. With no file at
 //! all a bare `uu run` runs nothing, logs what it found and exits clean,
 //! which is what makes a fresh install harmless; `uu run <lane>` still asks
 //! for that lane by name and is refused with exit 1.
 //!
-//! FOUR TABLES, and this file owns the top level plus the two leaf blocks
-//! whose whole content is a setting each. `schema` states what every table
-//! serves and what shape one value takes, `schedule` reads the day and time,
-//! and `lanes` is the registry with a module per kind.
+//! This file owns the top level and the alert-engine setting. `schema` states
+//! the shared table vocabulary, `records` parses record and alarm destinations,
+//! `schedule` reads the day and time, and `lanes` selects registered adapters.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config; a MISSING file is its own outcome,
 //! distinct from both error and emptiness; a `[records]` block with no signing
 //! key is refused rather than left as a record path that can never land.
 
-mod escalation;
 mod lanes;
+mod records;
+pub use records::Records;
+use records::parse_records;
+mod escalation;
 mod schedule;
 mod schema;
 
@@ -50,21 +52,6 @@ pub struct Config {
     pub alerts: Option<Alerts>,
     pub lanes: Lanes,
 }
-
-/// `[records]`: where the weekly what-happened entry is posted, and the key it
-/// is signed with.
-///
-/// THE KEY IS REQUIRED once the block exists. A records block that cannot sign
-/// is a record path that can never land, and the whole point of the record is
-/// that its absence means something.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Records {
-    pub url: String,
-    pub key: String,
-}
-
-/// The gateway route the record goes to when no key states one.
-pub const DEFAULT_RECORD_URL: &str = "http://127.0.0.1:8644/webhooks/unattended-upgrades";
 
 /// `[alerts]`: the pns engine a failed lane is reported through.
 #[derive(Debug, Clone, PartialEq)]
@@ -167,32 +154,6 @@ pub(crate) fn parse_config(
     Ok(config)
 }
 
-fn parse_records(value: toml::Value) -> Result<Records, ConfigError> {
-    let table = table_of("records", value)?;
-    let mut url = DEFAULT_RECORD_URL.to_string();
-    let mut key = None;
-    for (name, setting) in table {
-        admits("records", "records", &name)?;
-        match name.as_str() {
-            "url" => url = non_empty("records", &name, &setting)?,
-            "key" => key = Some(non_empty("records", &name, &setting)?),
-            // `admits` above is the ONE gate; nothing reaches here.
-            _ => {}
-        }
-    }
-    // A RECORDS BLOCK THAT CANNOT SIGN IS REFUSED, not quietly demoted to
-    // log-only. The record's absence is what the operator reads as a dead
-    // machine, so a path that can never post has to say so at load.
-    let key = key.ok_or_else(|| {
-        ConfigError::Invalid(
-            "`records` has no `key`, so nothing it posts could be signed; remove the table to \
-             switch records off"
-                .to_string(),
-        )
-    })?;
-    Ok(Records { url, key })
-}
-
 fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     let table = table_of("alerts", value)?;
     let mut binary = DEFAULT_ALERT_BINARY.to_string();
@@ -206,6 +167,9 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
     }
     Ok(Alerts { binary })
 }
+
+#[cfg(test)]
+use records::DEFAULT_RECORD_URL;
 
 #[cfg(test)]
 pub(crate) use lanes::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED, Plugin};
