@@ -10,9 +10,7 @@ binary = "/stand-in/.local/libexec/pns/pns"
 type = "herdr"
 binary = "/stand-in/.local/bin/herdr"
 deadline_secs = 21600
-plugins = [
-  { id = "stand-in", repo = "stand-in" },
-]
+plugins = [{ id = "stand-in", repo = "stand-in" }]
 [lanes.brew]
 type = "brew"
 brew = "/opt/homebrew/bin/brew"
