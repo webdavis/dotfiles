@@ -8,6 +8,13 @@ cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
 project_dir=$(echo "$input" | jq -r '.workspace.project_dir // empty')
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+git_worktree=$(echo "$input" | jq -r '.workspace.git_worktree // empty')
+fast_mode=$(echo "$input" | jq -r '.fast_mode // false')
+thinking_on=$(echo "$input" | jq -r '.thinking.enabled // false')
+over_200k=$(echo "$input" | jq -r '.exceeds_200k_tokens // false')
+cache_present=$(echo "$input" | jq -r 'if .prompt_cache == null then "no" else "yes" end')
+cache_warm=$(echo "$input" | jq -r '.prompt_cache.warm // false')
+cache_expires=$(echo "$input" | jq -r '.prompt_cache.expires_at // empty')
 # Effort level: the live session value from stdin when the model supports
 # reasoning effort; otherwise fall back to the configured default in
 # settings.json (chezmoi-enforced, so always present there).
@@ -49,10 +56,44 @@ fi
 
 # Context usage bar
 context_info=""
+context_color='160;169;203' # #a0a9cb, calm
 if [[ -n $used_pct ]]; then
   used_int=${used_pct%.*}
   context_info=" ctx:${used_int}%"
+  if ((used_int >= 80)); then
+    context_color='247;118;142' # #f7768e, red: compaction is close
+  elif ((used_int >= 60)); then
+    context_color='224;175;104' # #e0af68, yellow
+  fi
 fi
+if [[ $over_200k == true ]]; then
+  context_info+=" ⚠200k"
+  context_color='247;118;142'
+fi
+
+# Prompt cache: a warm cache makes the next turn cheap; show how long it stays
+# warm, or an empty circle once it has gone cold. Omitted when the input has
+# no prompt_cache object at all (before the first API response).
+cache_info=""
+if [[ $cache_present == yes ]]; then
+  if [[ $cache_warm == true && -n $cache_expires ]]; then
+    cache_left=$((${cache_expires%.*} - $(date +%s)))
+    if ((cache_left >= 3600)); then
+      cache_info="cache ● $((cache_left / 3600))h$(((cache_left % 3600) / 60))m"
+    elif ((cache_left > 0)); then
+      cache_info="cache ● $((cache_left / 60))m"
+    else
+      cache_info="cache ○"
+    fi
+  else
+    cache_info="cache ○"
+  fi
+fi
+
+# Session flags: fast mode and extended thinking both change what a turn costs.
+flags=""
+[[ $fast_mode == true ]] && flags+="⚡"
+[[ $thinking_on == true ]] && flags+="💭"
 
 # Usage windows (5-hour session and weekly), rendered the way the Claude.ai
 # usage page does: a ten-cell bar of the share USED, the percent, and when the
@@ -122,7 +163,17 @@ printf '\033[38;2;163;174;210m%s\033[0m' "$host" # hostname: #a3aed2
 printf ' \033[38;2;72;127;235m%s\033[0m' "$dir"  # directory: #487feb
 
 if [[ -n $git_branch ]]; then
-  printf ' \033[38;2;118;159;240m%s\033[0m' " $git_branch" # git branch: #769ff0
+  branch_tag=" $git_branch"
+  # A linked worktree gets a fork glyph so the pane says which checkout it is;
+  # the worktree name is shown only when it differs from the branch.
+  if [[ -n $git_worktree ]]; then
+    if [[ $git_worktree == "$git_branch" ]]; then
+      branch_tag="⑂ $git_branch"
+    else
+      branch_tag="⑂ $git_worktree ($git_branch)"
+    fi
+  fi
+  printf ' \033[38;2;118;159;240m%s\033[0m' "$branch_tag" # git branch: #769ff0
 fi
 
 if [[ -n $model ]]; then
@@ -130,11 +181,18 @@ if [[ -n $model ]]; then
   if [[ -n $effort_level ]]; then
     model_tag="$model $effort_level"
   fi
+  if [[ -n $flags ]]; then
+    model_tag="$model_tag $flags"
+  fi
   printf ' \033[38;2;97;104;126m%s\033[0m' "[$model_tag]" # model: #61687e
 fi
 
 if [[ -n $context_info ]]; then
-  printf ' \033[38;2;160;169;203m%s\033[0m' "$context_info" # context: #a0a9cb
+  printf ' \033[38;2;%sm%s\033[0m' "$context_color" "$context_info" # context: calm, yellow or red
+fi
+
+if [[ -n $cache_info ]]; then
+  printf '  \033[38;2;97;104;126m%s\033[0m' "$cache_info" # cache: #61687e
 fi
 
 if [[ -n $rate_info ]]; then
