@@ -52,6 +52,9 @@ return {
   },
   {
     "benomahony/oil-git.nvim",
+    -- Eager only because it has no trigger. It decorates oil buffers, so it
+    -- belongs behind the same load as oil.nvim itself.
+    lazy = false,
     dependencies = { "stevearc/oil.nvim" },
     -- No opts or config needed! Works automatically
   },

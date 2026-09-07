@@ -13,21 +13,24 @@
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- What the faked `get_available()` answers. The uninstalled entry is a name no
--- parser file can be called rather than a real language: `neotest_spec` appends
--- the real `stdpath("data")/site` to the runtimepath and never takes it back, so
--- in an aggregate run every genuinely available language already has a parser on
--- this machine and the install case would invert.
+-- What the faked `get_available()` answers at first. The two made-up entries are
+-- names no parser file can be called rather than real languages: `neotest_spec`
+-- appends the real `stdpath("data")/site` to the runtimepath and never takes it
+-- back, so in an aggregate run every genuinely available language already has a
+-- parser on this machine and the install cases would invert.
 local UNINSTALLED_LANGUAGE = "language_with_no_parser_on_disk"
+local REGISTERED_LATER_LANGUAGE = "language_registered_after_startup"
 local AVAILABLE = { "lua", UNINSTALLED_LANGUAGE, "vimdoc" }
 
 ---Load the treesitter plugin spec against faked nvim-treesitter modules, run
 ---its `config()`, and hand `fn` a recorder of what the hook asked to install.
+---`recorder.available` is the list the faked `get_available()` answers with on
+---its next call, so a case can grow the registry mid-run.
 ---
 ---The fakes stay in place while `fn` runs: the hook resolves nothing at build
 ---time, so restoring `package.loaded` before firing a FileType would measure
 ---the real plugin instead of the doubles.
----@param fn fun(recorder: { installs: string[], available_queries: integer })
+---@param fn fun(recorder: { installs: string[], available: string[] })
 local function with_treesitter(fn)
   local names = { "nvim-treesitter", "nvim-treesitter.config" }
   local saved = {}
@@ -35,7 +38,7 @@ local function with_treesitter(fn)
     saved[name] = { package.loaded[name] }
   end
 
-  local recorder = { installs = {}, available_queries = 0 }
+  local recorder = { installs = {}, available = vim.deepcopy(AVAILABLE) }
 
   package.loaded["nvim-treesitter"] = {
     install = function(languages)
@@ -46,8 +49,7 @@ local function with_treesitter(fn)
   }
   package.loaded["nvim-treesitter.config"] = {
     get_available = function()
-      recorder.available_queries = recorder.available_queries + 1
-      return vim.deepcopy(AVAILABLE)
+      return vim.deepcopy(recorder.available)
     end,
   }
 
@@ -157,14 +159,23 @@ return {
     end)
   end,
 
-  ["the available-language list is read once, not once per buffer"] = function()
-    -- `get_available` fires a `User TSUpdate` autocmd and sorts the whole parser
-    -- table on every call, so the hook caches it for the session.
+  ["a language the registry gains after the first query is queued on the next"] = function()
+    -- `:TSUpdate` and `:TSInstall` reload nvim-treesitter's parser table and
+    -- re-run every `User TSUpdate` registration, so a plugin update can make a
+    -- language installable in the middle of a session. A set kept from the first
+    -- answer rejected such a language until restart; the hook asks every time.
+    assert(
+      #vim.api.nvim_get_runtime_file("parser/" .. REGISTERED_LATER_LANGUAGE .. ".*", true) == 0,
+      "a parser for " .. REGISTERED_LATER_LANGUAGE .. " exists, so this case no longer measures the missing-parser path"
+    )
     with_treesitter(function(recorder)
-      open("snacks_notif")
-      open("atlas.notes")
-      open("snacks_notif")
-      assert(recorder.available_queries == 1, "read the available list " .. recorder.available_queries .. " times")
+      open("snacks_notif") -- the first query, answered without the new language
+      table.insert(recorder.available, REGISTERED_LATER_LANGUAGE)
+      open(REGISTERED_LATER_LANGUAGE)
+      assert(
+        #recorder.installs == 1 and recorder.installs[1] == REGISTERED_LATER_LANGUAGE,
+        "queued " .. joined(recorder.installs)
+      )
     end)
   end,
 }

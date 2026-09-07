@@ -2,9 +2,10 @@
 return {
   "nvim-treesitter/nvim-treesitter",
   dependencies = {
-    {
-      "WhoIsSethDaniel/mason-tool-installer.nvim",
-    },
+    -- mason-tool-installer was never a treesitter dependency: it installs Mason
+    -- tools, not parsers, and nothing here calls it. Being listed made it load
+    -- with this eager spec, which kept the whole Mason side of the LSP group
+    -- eager too. It carries its own trigger now (plugins/lsp.lua).
     {
       "nvim-treesitter/nvim-treesitter-context",
       opts = {
@@ -265,26 +266,26 @@ return {
       checkhealth = true,
     }
 
-    -- The languages nvim-treesitter can actually build, read once per session.
-    local installable_languages
-
     -- nvim-treesitter refuses a language missing from its own parser table,
     -- logging "skipping unsupported language" to stderr, and the poll below then
     -- waits thirty seconds for a parser that is never coming. Plugins name their
     -- own scratch buffers (snacks.nvim's `snacks_notif`, atlas.nvim's
     -- `atlas.notes`), so asking is the only test that keeps working as plugins
     -- come and go.
+    --
+    -- Asked on every call rather than once per session: `:TSUpdate` and
+    -- `:TSInstall` reload the parser table and re-run every `User TSUpdate`
+    -- registration, so what is installable changes mid-session, and a set kept
+    -- from the first answer rejected a newly registered language until restart.
+    -- `get_available()` fires `User TSUpdate` itself before reading the table,
+    -- which is what makes a registration a plugin added after startup count,
+    -- the same way the install path applies it. Measured at the 427e9222 pin:
+    -- about 0.1 ms of a FileType pass that already costs about 5 ms for a
+    -- parser-less scratch buffer.
     ---@param language string
     ---@return boolean
     local function is_installable(language)
-      if not installable_languages then
-        installable_languages = {}
-        -- Not free: this fires a `User TSUpdate` autocmd and sorts the parser table.
-        for _, available in ipairs(require("nvim-treesitter.config").get_available()) do
-          installable_languages[available] = true
-        end
-      end
-      return installable_languages[language] == true
+      return vim.list_contains(require("nvim-treesitter.config").get_available(), language)
     end
 
     -- Auto-install parsers and enable highlighting on FileType.
