@@ -151,6 +151,18 @@ fn a_complete_response_before_the_deadline_succeeds() {
 }
 
 #[test]
+fn a_complete_buffered_response_survives_peer_close() {
+    let (mut client, mut peer) = UnixStream::pair().expect("owned socket pair");
+    let response = "{\"result\":{\"type\":\"ok\"}}\n";
+    peer.write_all(response.as_bytes()).expect("buffered reply");
+    drop(peer);
+    assert_eq!(
+        read_response(&mut client, Instant::now() + Duration::from_millis(150)),
+        Ok(response.to_string())
+    );
+}
+
+#[test]
 fn a_blank_socket_acknowledgment_is_not_success() {
     let server = SocketServer::start(vec![Reply::Line(String::new())]);
     let mut directory = connected(&server);
