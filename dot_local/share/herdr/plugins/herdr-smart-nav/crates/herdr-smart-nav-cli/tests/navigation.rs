@@ -1,9 +1,40 @@
 mod support;
 
+use std::ffi::OsString;
+use std::os::unix::{ffi::OsStringExt, process::CommandExt};
+
 use support::Fixture;
 
 const NVIM: &str =
     r#"{"result":{"process_info":{"foreground_processes":[{"name":"bash"},{"name":"nvim"}]}}}"#;
+
+#[test]
+fn non_unicode_direction_is_usage_without_invoking_herdr() {
+    let mut fixture = Fixture::new(&[]);
+    fixture.command.arg(OsString::from_vec(vec![0xff]));
+    let result = fixture.run();
+    assert_eq!(result.status.code(), Some(2), "{}", result.stderr);
+    assert_eq!(result.stdout, "");
+    assert_eq!(
+        result.stderr,
+        "herdr-smart-nav: usage: herdr-smart-nav left|down|up|right\n"
+    );
+    assert!(result.calls.is_empty());
+}
+
+#[test]
+fn non_unicode_argv0_does_not_prevent_navigation() {
+    let mut fixture = Fixture::new(&["left"]);
+    fixture.command.arg0(OsString::from_vec(vec![0xff]));
+    let result = fixture.run();
+    assert_eq!(result.status.code(), Some(0), "{}", result.stderr);
+    assert_eq!(
+        result.calls,
+        [vec!["pane", "focus", "--direction", "left", "--current"]]
+    );
+    assert_eq!(result.stdout, "action output");
+    assert_eq!(result.stderr, "action diagnostic");
+}
 
 #[test]
 fn invalid_arguments_print_usage_without_invoking_herdr() {

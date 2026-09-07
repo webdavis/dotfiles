@@ -7,7 +7,10 @@ use herdr_smart_nav_domain::direction_to_chord;
 mod pane;
 
 fn main() {
-    let direction = env::args().nth(1).unwrap_or_default();
+    let direction = env::args_os()
+        .nth(1)
+        .and_then(|arg| arg.into_string().ok())
+        .unwrap_or_default();
     let Some(chord) = direction_to_chord(&direction) else {
         eprintln!("herdr-smart-nav: usage: herdr-smart-nav left|down|up|right");
         std::process::exit(2);
