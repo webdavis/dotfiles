@@ -64,7 +64,13 @@ STUB
   export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/.local/state/osquery-undelivered-alerts.sqlite3"
   export OSQUERY_RETRY_BACKOFF_BASE=0 # do not really sleep between retries in tests
 
-  DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_alert-dispatch.sh"
+  # Located from THIS helper's own path rather than a runner-supplied variable:
+  # bashunit defines no BATS_TEST_DIRNAME, and a fixture that resolves under only
+  # one runner breaks the moment its suite migrates. Inside a function,
+  # BASH_SOURCE[0] is the file that DEFINED the function, so test/helpers/../..
+  # is the repo root under either runner; the cd/pwd pair makes it absolute, so a
+  # later chdir cannot invalidate it.
+  DISPATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/osquery/executable_alert-dispatch.sh"
   # shellcheck source=/dev/null
   source "$DISPATCH"
 }
