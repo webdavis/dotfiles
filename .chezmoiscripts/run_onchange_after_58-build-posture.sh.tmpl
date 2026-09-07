@@ -1,0 +1,153 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+umask 077
+
+# Builds the posture binary and installs it where the osquery LaunchAgents will
+# run it. The crate deploys as SOURCE under ~/.local/share/posture; nothing
+# else compiles it, so without this script every plist repointed at the binary
+# would find nothing there.
+#
+# Re-runs whenever a build input changes. Three kinds are hashed below, globbed
+# rather than listed so a new module or workspace member cannot miss the
+# trigger: the crate's own sources, manifests and lock; the sibling
+# pns-protocol crate it links by path, because a change there changes the bytes
+# this installs while the pns builder's header fires only the pns build; and
+# the compiler, by the MODIFICATION TIME of every installed toolchain's rustc
+# (never its contents: reading a file at render time aborts the apply on an
+# unreadable node and hangs on a FIFO), so a `rustup update` re-fires the build
+# and the record below moves with the bytes in the same run. Every toolchain is
+# statted rather than the one rustup calls active, because finding the active
+# one would mean reading settings.toml at render time; an update to a toolchain
+# cargo does not use re-fires a build that produces identical bytes and
+# installs nothing.
+{{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/posture" -}}
+{{ $protocol := joinPath .chezmoi.sourceDir "dot_local/share/pns/crates/pns-protocol" -}}
+{{ range (glob (joinPath $crate "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- range (glob (joinPath $crate "build.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+#   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
+#   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
+{{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- range (glob (joinPath $protocol "**/*.rs")) }}
+#   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+#   pns-protocol/Cargo.toml {{ include (joinPath $protocol "Cargo.toml") | sha256sum }}
+{{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
+#   {{ . }} {{ (stat .).modTime }}
+{{- end }}
+#
+# Retry state, the mechanism the pns and uu builders use: chezmoi records a
+# run_onchange script as done on ANY exit 0, so a skipped build (no toolchain,
+# no deployed source) must change this rendered script to re-fire on the next
+# apply. The marker's modification time is the trigger, never its contents,
+# for the reason given above.
+#   retry-marker: {{ $rm := printf "%s/.cache/posture-build/posture.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+crate_dir="$HOME/.local/share/posture"
+# The path dependency resolves to the deployed pns source beside this crate.
+protocol_manifest="$HOME/.local/share/pns/crates/pns-protocol/Cargo.toml"
+# Scheduled jobs and the operator share this installed entry point.
+install_dir="$HOME/.local/libexec/posture"
+binary="$install_dir/posture"
+artifact="$crate_dir/target/release/posture"
+retry_marker="$HOME/.cache/posture-build/posture.retry"
+build_record="$HOME/.local/state/posture-build-record"
+
+# Deterministic paths, never a PATH probe: a fresh machine provisions rustup
+# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
+cargo_bin="$HOME/.cargo/bin/cargo"
+
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+if [[ ! -x $cargo_bin ]]; then
+  report_line 'posture: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
+  report_line 'posture: crate source is not deployed yet; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+if [[ ! -f $protocol_manifest ]]; then
+  report_line 'posture: the pns-protocol crate it links is not deployed yet; build deferred to the next apply.' >&2
+  bump_retry_marker
+  exit 0
+fi
+
+report_section 'posture'
+report_line 'building the release binary'
+# A build failure exits non-zero, which chezmoi does not record, so it retries
+# on its own without touching the marker.
+# --locked: build exactly the committed lock, so an apply can never rewrite the
+# deployed lockfile or pull a dependency the lock never recorded.
+# --bin posture: the one target ever installed.
+"$cargo_bin" build --release --locked --quiet --bin posture --manifest-path "$crate_dir/Cargo.toml"
+
+# Never publish a tuple the audit cannot verify.
+artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
+if ((artifact_bytes == 0 || artifact_bytes > 8388608)); then
+  printf 'posture: refusing artifact of %s bytes (allowed 1..8388608)\n' "$artifact_bytes" >&2
+  exit 1
+fi
+artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
+[[ $artifact_hash =~ ^[0-9a-f]{64}$ ]] || exit 1
+compiler="$("$HOME/.cargo/bin/rustc" --version --verbose)"
+
+mkdir -p "$(dirname "$build_record")" "$install_dir"
+next_record="$(mktemp "${build_record}.new.XXXXXX")"
+previous_record="$(mktemp "${build_record}.previous.XXXXXX")"
+trap 'rm -f "$next_record" "$previous_record"' EXIT
+printf 'sha256 %s\nbytes %s\n%s\n' "$artifact_hash" "$artifact_bytes" "$compiler" >"$next_record"
+chmod 600 "$next_record"
+
+# A byte-identical authorized build retains the tuple and its publication time.
+if cmp -s "$artifact" "$binary" && cmp -s "$next_record" "$build_record"; then
+  rm -f "$retry_marker"
+  exit 0
+fi
+
+had_record=0
+if [[ -f $build_record ]]; then
+  cp -p "$build_record" "$previous_record"
+  had_record=1
+fi
+mv -f "$next_record" "$build_record"
+
+# The scoped runner has no second manifest to fail after publishing this one.
+# A failed refresh therefore restores the record while preserving the old tuple.
+if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" --pipeline-only; then
+  if [[ $had_record == 1 ]]; then
+    mv -f "$previous_record" "$build_record"
+  else
+    rm -f "$build_record"
+  fi
+  report_line 'posture: manifest refresh failed; binary unchanged' >&2
+  exit 1
+fi
+
+# The tuple precedes the atomic installation. An install failure retains the
+# new record, so the old binary is drift and the next apply retries the build.
+/usr/bin/install -m 755 "$artifact" "$binary"
+report_line "installed $binary"
+rm -f "$retry_marker"
+{{ end -}}

@@ -1,0 +1,41 @@
+# posture: the Rust port of this machine's osquery security pipeline.
+#
+# THE WORKSPACE. Four crates, one binary named `posture`, one lock. The
+# dependency edges are declared in the member manifests and nowhere else, which
+# is what enforces them: a crate that omits another cannot name it, and the
+# compiler refuses the `use` rather than a review catching it. The allowed
+# edges are
+#
+#   posture-application -> posture-domain
+#   posture-adapters    -> posture-application, posture-domain, pns-protocol
+#   posture-cli         -> posture-adapters, posture-application, posture-domain
+#
+# There is no posture-protocol crate, deliberately: posture defines no wire
+# contract of its own. It consumes osquery's result log, chezmoi's manifest
+# runner output, uu's upgrade record and the rendered controls file, and it
+# produces to pns through pns's own protocol crate, taken by path from the
+# sibling source tree (`../pns/crates/pns-protocol`), which resolves in the
+# repository checkout and in the deployed `~/.local/share` tree alike.
+#
+# WHAT THIS BINARY IS ALLOWED TO SPAWN is a closed roster, stated in the plan's
+# section 2.6 and enforced adapter by adapter as each one lands. Today the
+# binary spawns nothing: it prints usage and exits 2 for every word.
+#
+# The release profile is what the builder installs and what the manifest audit
+# hashes. The audit refuses a file over 8 MiB, so the profile is tuned for size
+# and the builder measures the artifact against that bound before installing.
+[workspace]
+resolver = "3"
+members = [
+  "crates/posture-adapters",
+  "crates/posture-application",
+  "crates/posture-cli",
+  "crates/posture-domain",
+]
+default-members = ["crates/posture-cli"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

@@ -1,0 +1,22 @@
+# posture-adapters: everything concrete, organized by the capability it provides.
+#
+# Depends inward only: on the ports in posture-application, the policy types in
+# posture-domain, and pns's wire contract in pns-protocol, because the one
+# thing posture produces is a submission to the pns engine. Nothing depends on
+# this crate except posture-cli, which composes it.
+#
+# pns-protocol is a PATH dependency on the sibling source tree. The relative
+# path resolves in both trees this crate lives in: the repository checkout
+# beside `dot_local/share/pns`, and the deployed `~/.local/share/posture` beside
+# `~/.local/share/pns`. The builder hashes that crate as a build input for the
+# same reason.
+
+[package]
+name = "posture-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pns-protocol = { path = "../../../pns/crates/pns-protocol" }
+posture-application = { path = "../posture-application" }
+posture-domain = { path = "../posture-domain" }

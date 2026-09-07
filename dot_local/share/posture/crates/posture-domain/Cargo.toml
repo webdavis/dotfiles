@@ -1,0 +1,12 @@
+# posture-domain: the pipeline's policy as total functions of their arguments.
+#
+# NO DEPENDENCIES, and that is the boundary rather than an accident of being
+# empty. Every reading this crate judges arrives as a typed value with its own
+# "could not read" state, never as an empty string, so a fail-safe direction is
+# an enum arm and not an emptiness check. Nothing here reads a file, opens a
+# socket, parses JSON, spawns a process, asks the clock or holds a privilege.
+
+[package]
+name = "posture-domain"
+version = "0.1.0"
+edition = "2024"
