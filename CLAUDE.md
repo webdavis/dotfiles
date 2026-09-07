@@ -75,14 +75,15 @@ just ship               # the three gates CI runs, in CI order, the explicit pre
 ```
 
 **Tests must be fast or they go** (operator ruling): every test passes within a second, measured, and a
-slow one is deleted rather than tolerated. Every former Bats test runs under **bashunit** (operator ruling
-2026-09-03; the migration finished and bats-core left the toolchain in the same change): a bashunit file
-is `test/<suite>/<name>.test.sh`, non-executable, one behavior per `function test_*`, run as one of the
-two lanes of `test/run-test-suite.sh`. Nothing runs bats any more, and `just validate-tests` rejects a
-`*.bats` anywhere below `test/`. The Neovim config's Lua specs (`dot_config/nvim/tests/*_spec.lua`) run
-under `nvim --headless --clean -l` through `just test-nvim`, also a dependency of `test-unit`; Rust is
-tested with `cargo test`. A large purge in 2026-08 left 160+ deleted files in git history as a
-cherry-pick pool: restore individual logic asserts from it, never wholesale.
+slow one is deleted rather than tolerated. Every former Bats test runs under **bashunit** (operator
+ruling 2026-09-03; the migration finished and bats-core left the toolchain in the same change): a
+bashunit file is `test/<suite>/<name>.test.sh`, non-executable, one behavior per `function test_*`, run
+as one of the two lanes of `test/run-test-suite.sh`. Nothing runs bats any more, and
+`just validate-tests` rejects a `*.bats` anywhere below `test/`. The Neovim config's Lua specs
+(`dot_config/nvim/tests/*_spec.lua`) run under `nvim --headless --clean -l` through `just test-nvim`,
+also a dependency of `test-unit`; Rust is tested with `cargo test`. A large purge in 2026-08 left 160+
+deleted files in git history as a cherry-pick pool: restore individual logic asserts from it, never
+wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
@@ -97,10 +98,9 @@ disagrees with itself is now caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then the
 one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each
-run (replay a failure with `TEST_SEED=<seed>`, printed every run;
-shuffling degrades to sorted order on a host with neither `gshuf` nor `shuf`). A WARN-ONLY performance
-summary lists any test over the threshold as a refactor-or-move-suite candidate; warnings never fail the
-run.
+run (replay a failure with `TEST_SEED=<seed>`, printed every run; shuffling degrades to sorted order on a
+host with neither `gshuf` nor `shuf`). A WARN-ONLY performance summary lists any test over the threshold
+as a refactor-or-move-suite candidate; warnings never fail the run.
 
 **CI** runs `just test`, and `just ship` runs CI's three gates as literal command lines
 (`just lint-check`, `just test`, `just lint-actions-security`). Nothing enforces that those two stay in
