@@ -1,8 +1,8 @@
 //! Test support: a one-shot HTTP capture server for the integration gate.
 //!
-//! Binds an ephemeral loopback port, writes the port number to argv[1],
-//! accepts one request (or as many as argv[4] asks for), APPENDS each one's
-//! raw bytes (headers and body) to argv[2], answers 200, and exits. std only,
+//! Binds an ephemeral loopback port, writes the port number to `argv[1]`,
+//! accepts one request (or as many as `argv[4]` asks for), APPENDS each one's
+//! raw bytes (headers and body) to `argv[2]`, answers 200, and exits. std only,
 //! built alongside the engine, so the gate depends on nothing with an
 //! interpreter cold start to diagnose. Exits non-zero if the requests do not
 //! all arrive within thirty seconds, so a wedged gate fails instead of hanging.
