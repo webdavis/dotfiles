@@ -5,7 +5,11 @@
 //! rendered event, the pane scrub and the exit-0 edge without a network, a
 //! key or a sleep. The native plugins are the other half, in native.rs.
 
+#[path = "dispatch/captured_events.rs"]
+mod captured_events;
 mod support;
+
+use captured_events::events;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -3522,15 +3526,37 @@ fn the_doctor_reads_the_room_off_the_state_file_and_judges_it_against_the_config
     // AND A WRITER THAT STOPPED IS UNKNOWN, which is the whole guarantee: the
     // bound the config states has to reach the judgement, or a dead bridge
     // pins the operator in the last room it saw them in for good.
+    let polled_at = now - 60;
     std::fs::write(
         &published,
-        format!("{} {} 1 3F - Studio\n", now - 60, now - 60),
+        format!("{polled_at} {polled_at} 1 3F - Studio\n"),
     )
     .expect("the reading");
+    // The doctor's clock can cross a second boundary after this fixture's
+    // timestamp. Its reported age must fall between the two actual reads,
+    // without weakening the stale verdict or accepting an unrelated unknown.
+    let before = now_secs();
     let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
+    let after = now_secs();
+    let line = reported
+        .lines()
+        .find(|line| line.starts_with("presence: "))
+        .expect("the presence result");
+    let age = line
+        .strip_prefix("presence: unknown (stale, poll ")
+        .and_then(|age| age.strip_suffix("s old)"))
+        .and_then(|age| age.parse::<u64>().ok())
+        .unwrap_or_else(|| panic!("a poll nobody refreshed still named a room: {reported}"));
+    assert_eq!(
+        line,
+        format!("presence: unknown (stale, poll {age}s old)"),
+        "the stale poll age must use the report's exact grammar"
+    );
     assert!(
-        reported.contains("presence: unknown (stale, poll 60s old)"),
-        "a poll nobody refreshed still named a room: {reported}"
+        (before - polled_at..=after - polled_at).contains(&age),
+        "poll age {age} is outside the observed bounds {}..={}",
+        before - polled_at,
+        after - polled_at
     );
 }
 
@@ -4595,17 +4621,6 @@ fn record_every_event(sandbox: &Sandbox) {
             &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
         );
     }
-}
-
-/// Every event one channel was handed, in the order it got them.
-fn events(sandbox: &Sandbox, channel: &str) -> Vec<serde_json::Value> {
-    std::fs::read_to_string(sandbox.path(&format!("{channel}.events")))
-        .unwrap_or_default()
-        .lines()
-        .map(|line| {
-            serde_json::from_str(line).unwrap_or_else(|error| panic!("{channel}: {error}: {line}"))
-        })
-        .collect()
 }
 
 /// Everything the state directory holds, sorted. A claim file the run left

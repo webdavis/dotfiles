@@ -12,8 +12,9 @@
 //! argv alone.
 
 use crate::config::HerdrLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
-use crate::record::RunFacts;
+use crate::lanes::{CommandRunner, LaneAdapter};
+use uu_domain::LaneReport;
+use uu_domain::RunFacts;
 
 impl LaneAdapter for HerdrLane {
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
@@ -285,7 +286,7 @@ mod tests {
         // worked.
         let runner = ScriptedRunner::new(&[&["herdr", "update"]]);
         let report = lane(&[("a", "o/a")]).run("herdr", &stub_facts(), &runner);
-        let summary = crate::alert::alert_summary(&report);
+        let summary = uu_domain::alert_summary(&report);
         assert!(summary.contains("self-update FAILED"), "{summary}");
         assert!(!summary.contains("refreshed"), "{summary}");
     }

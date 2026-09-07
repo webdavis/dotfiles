@@ -17,17 +17,16 @@ mod brew;
 mod command;
 mod herdr;
 mod npm;
-mod report;
 mod spawn;
 mod text;
 mod uv;
 
-pub use report::LaneReport;
-pub use spawn::{CommandRunner, DEFERRED_EXIT_CODE, Ran, Verdict};
+pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::{STDERR_TAIL, failure_reason, tail};
+use uu_domain::LaneReport;
 
 use crate::config::{Config, LaneKind};
-use crate::record::RunFacts;
+use uu_domain::RunFacts;
 
 /// What running ONE KIND of lane does. Implemented once per `LaneKind`
 /// variant, beside the config struct that variant carries.

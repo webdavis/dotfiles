@@ -32,9 +32,9 @@ return {
   -- what gets them back.
   -- stylua: ignore start
   keys = {
-    { "<leader>at", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
+    { "<leader>at", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus, alias of <leader>aa)" },
     { "<leader>aa", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
-    { "<leader>aT", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
+    { "<leader>aT", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus, alias of <leader>aA)" },
     { "<leader>aA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
     { "<leader>ao", "<cmd>AerialOpen!<cr>",     desc = "Aerial: open sidebar (don't focus)" },
     { "<leader>aO", "<cmd>AerialOpen<cr>",      desc = "Aerial: open sidebar (and focus)" },

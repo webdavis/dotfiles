@@ -181,8 +181,10 @@ function test_every_interactive_tui_on_the_skip_list_publishes_no_marker() {
   local tui offenders=""
   for tui in vim nvim less man top btop ssh herdr claude hermes codex fzf; do
     __cmd_notify_preexec "$tui src/main.rs"
+    assert_successful_code
     [[ ! -e $MARKER ]] || offenders+="$tui with an argument; "
     __cmd_notify_preexec "$tui"
+    assert_successful_code
     [[ ! -e $MARKER ]] || offenders+="bare $tui; "
   done
   assert_empty "$offenders"

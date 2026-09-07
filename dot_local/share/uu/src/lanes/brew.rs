@@ -17,8 +17,9 @@ pub mod upgrade_record;
 use std::time::Duration;
 
 use crate::config::BrewLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
-use crate::record::RunFacts;
+use crate::lanes::{CommandRunner, LaneAdapter};
+use uu_domain::LaneReport;
+use uu_domain::RunFacts;
 
 use changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
 use repairs::{converge_osquery, mas_declarations, refresh_tailscaled};
@@ -154,7 +155,7 @@ pub(crate) mod tests {
     use super::repairs::tests::lane;
     use super::*;
     use crate::lanes::stubs::ScriptedRunner;
-    use crate::record::Marker;
+    use uu_domain::Marker;
 
     const STUB_MARKER: Marker = Marker::NeverRecorded;
 

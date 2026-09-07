@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use crate::lanes::{CommandRunner, Ran, Verdict};
-use crate::record::{Marker, RunFacts};
+use uu_domain::{Marker, RunFacts};
 
 /// A runner that answers from a script and records every call. The script
 /// is keyed on the whole argument vector, so a test says exactly which
@@ -148,7 +148,7 @@ impl CommandRunner for ScriptedRunner {
 }
 
 /// The one fixed `RunFacts` every test here that does not care about its
-/// contents can share; `record.rs` owns the tests that pin `lane_event`
+/// contents can share; `uu-protocol` owns the tests that pin `lane_event`
 /// itself against varied facts.
 const STUB_MARKER: Marker = Marker::NeverRecorded;
 

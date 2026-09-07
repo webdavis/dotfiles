@@ -22,7 +22,8 @@ use std::time::Duration;
 
 use super::ConfigError;
 use super::schema::{non_empty, table_of};
-use crate::deadline::{DEFAULT_LANE_DEADLINE, parse_deadline};
+use crate::deadline::parse_deadline;
+use uu_domain::DEFAULT_LANE_DEADLINE;
 
 pub use brew::{BrewLane, DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
 pub use command::CommandLane;

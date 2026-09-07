@@ -2,7 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use unattended_upgrades::record::{Marker, marker_contents, parse_marker};
+use unattended_upgrades::record::{marker_contents, parse_marker};
+use uu_domain::Marker;
 
 use crate::system::iso;
 
@@ -30,19 +31,11 @@ pub fn read(path: &Path) -> Marker {
 /// Best effort, and never silent: a job must not fail because it could not
 /// write its own bookkeeping, but a failure to write would have the next entry
 /// measure its gap from a run that did not happen.
-pub fn write(path: &Path, epoch: i64) {
-    let written = path
-        .parent()
+pub fn write(path: &Path, epoch: i64) -> std::io::Result<()> {
+    path.parent()
         .map(std::fs::create_dir_all)
         .transpose()
-        .and_then(|_| std::fs::write(path, marker_contents(epoch, &iso(epoch))));
-    if let Err(error) = written {
-        eprintln!(
-            "uu: could not record the successful-run timestamp at {}: {error}; the next entry \
-             will report a stale or absent gap",
-            path.display()
-        );
-    }
+        .and_then(|_| std::fs::write(path, marker_contents(epoch, &iso(epoch))))
 }
 
 #[cfg(test)]

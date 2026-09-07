@@ -81,6 +81,7 @@ crit() {
 render() {
   local out
   out="$(printf '%s\n' "$1" | render_page | jq -r '.pcount, .pbody')"
+  assert_successful_code
   RENDER_COUNT=${out%%$'\n'*}
   RENDER_BODY=${out#*$'\n'}
 }

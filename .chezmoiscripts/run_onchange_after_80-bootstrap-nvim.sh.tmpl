@@ -1,0 +1,114 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Bootstrap the deployed Neovim config using this checkout's source lock.
+# Prerequisites: network access, git, cargo (tree-sitter-cli), go (gopls),
+# and Xcode for the Swift stack on macOS. Earlier apply stages own them.
+# No operating-system guard: Lazy resolves platform conditions before checking
+# pins. No outer timeout: Mason builds can take minutes. Lazy retains its own
+# configured process timeout; an expired or failed build fails this script.
+# Successful steps are quiet. Transcripts remain in the bootstrap cache so a
+# later failed verification can replay the original installation diagnostics.
+
+{{ $nvim := joinPath .chezmoi.sourceDir "dot_config/nvim" -}}
+# lazy-lock.json {{ include (joinPath $nvim "lazy-lock.json") | sha256sum }}
+# lua/plugins/lsp.lua {{ include (joinPath $nvim "lua/plugins/lsp.lua") | sha256sum }}
+# lua/plugins/treesitter.lua {{ include (joinPath $nvim "lua/plugins/treesitter.lua") | sha256sum }}
+# bootstrap.lua {{ include (joinPath $nvim "lua/custom_api/bootstrap.lua") | sha256sum }}
+# verifier {{ include (joinPath .chezmoi.sourceDir "dot_local/libexec/executable_verify-nvim-bootstrap.sh") | sha256sum }}
+# A deferral appends one byte. Size changes even when timestamps share a second,
+# and stat never reads a FIFO or an unreadable marker's contents.
+# retry-marker: {{ $rm := printf "%s/.cache/nvim-bootstrap/retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).size }}{{ else }}0{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+config_dir="$HOME/.config/nvim"
+data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/nvim"
+verify="$HOME/.local/libexec/verify-nvim-bootstrap.sh"
+retry_marker="$HOME/.cache/nvim-bootstrap/retry"
+test_runner={{ joinPath $nvim "tests/run.lua" | quote }}
+# Lazy rewrites the deployed lock even on failed installation. The source lock
+# is the intent being applied, including when target-only pins differ.
+source_lock={{ joinPath $nvim "lazy-lock.json" | quote }}
+restore_bound=3
+
+if [[ ! -r $verify ]]; then
+  report_line "nvim bootstrap: $verify is not deployed; cannot verify the bootstrap." >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "$verify"
+
+if ! command -v nvim >/dev/null 2>&1; then
+  report_line 'nvim bootstrap: nvim is not on PATH; installation deferred to the next apply.' >&2
+  bump_nvim_retry_marker "$retry_marker"
+  exit 0
+fi
+
+mkdir -p "$(dirname "$retry_marker")"
+work="$(mktemp -d "$(dirname "$retry_marker")/run.XXXXXX")"
+log="$work/bootstrap.log"
+run_step() {
+  nvim_bootstrap_step "$log" "$@"
+}
+
+cat >"$work/bootstrap.lua" <<'LUA'
+local bootstrap = require("custom_api.bootstrap")
+if arg[1] == "restore" then
+  bootstrap.restore_plugins()
+  local source = vim.json.decode(table.concat(vim.fn.readfile(arg[2]), "\n"))
+  vim.fn.writefile({ vim.json.encode(bootstrap.enabled_lock(source)) }, arg[3])
+elseif arg[1] == "build" then
+  bootstrap.build_plugins()
+elseif arg[1] == "mason" then
+  vim.fn.writefile(bootstrap.install_mason(), arg[2])
+else
+  error("unknown bootstrap step")
+end
+LUA
+
+previous_unmet=1000000
+pass=1
+while true; do
+  # Restore can replace an incorrect HEAD with an incorrect deployed pin unless
+  # the committed intent is put back before each pass.
+  install -m 644 "$source_lock" "$config_dir/lazy-lock.json"
+  run_step "Lazy restore (pass $pass of $restore_bound)" \
+    nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" \
+    restore "$source_lock" "$work/enabled-lock.json"
+  if ! unmet="$(mispinned_lazy_plugins "$work/enabled-lock.json" "$data_dir/lazy")"; then
+    cat "$log" >&2
+    report_line 'nvim bootstrap: enabled plugin lock is unreadable or empty.' >&2
+    exit 1
+  fi
+  unmet_count=0
+  [[ -z $unmet ]] || unmet_count="$(printf '%s\n' "$unmet" | wc -l | tr -d ' ')"
+  [[ $unmet_count -ne 0 ]] || break
+  if [[ $pass -ge $restore_bound || $unmet_count -ge $previous_unmet ]]; then
+    cat "$log" >&2
+    report_line "nvim bootstrap: restore did not converge after pass $pass; log retained at $log" >&2
+    printf '%s\n' "$unmet" >&2
+    exit 1
+  fi
+  previous_unmet="$unmet_count"
+  pass=$((pass + 1))
+done
+
+run_step 'Mason server and tool installation' \
+  nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" mason "$work/mason-tools"
+run_step 'Lazy builds' \
+  nvim --headless -u "$config_dir/init.lua" -l "$work/bootstrap.lua" build
+run_step 'the config test suite' \
+  nvim --headless --clean -l "$test_runner" --config "$config_dir"
+run_step 'verification' \
+  "$verify" "$work/enabled-lock.json" "$data_dir/lazy" "$work/mason-tools" "$data_dir/mason/packages"
+run_step "clangd's configured flags" \
+  nvim --headless -u "$config_dir/init.lua" -c 'lua os.exit(pcall(function()
+  assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--clang-tidy"))
+  assert(vim.tbl_contains(vim.lsp.config.clangd.cmd, "--header-insertion=iwyu"))
+end) and 0 or 1)'
+
+# Zero is the settled token. A successful run after a deferral causes one final
+# run with that token, then successive renders agree and the bootstrap settles.
+: >"$retry_marker"

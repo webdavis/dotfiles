@@ -9,8 +9,10 @@
 
 use crate::config::CommandLane;
 use crate::lanes::text::stdout_lines;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport, Verdict};
-use crate::record::{RunFacts, lane_event};
+use crate::lanes::{CommandRunner, LaneAdapter, Verdict};
+use uu_domain::LaneReport;
+use uu_domain::RunFacts;
+use uu_protocol::lane_event;
 
 /// STDOUT IS KEPT EVEN ON A NON-CLEAN EXIT. `run_with_input`'s `Ran::verdict`
 /// already carries the reason (the exit description and the stderr tail);
@@ -30,7 +32,7 @@ impl LaneAdapter for CommandLane {
         let mut report = LaneReport::new(name);
         let program = self.run[0].as_str();
         let args: Vec<&str> = self.run[1..].iter().map(String::as_str).collect();
-        let event = lane_event(name, facts);
+        let event = lane_event(name, &crate::record::event_for(facts));
         match runner.run_with_input(program, &args, &event) {
             Ok(ran) => {
                 for line in stdout_lines(&ran.stdout) {
@@ -86,18 +88,51 @@ mod tests {
         assert!(input.ends_with('\n'), "{input:?}");
         let event: serde_json::Value =
             serde_json::from_str(input.trim_end()).expect("the event is JSON");
-        // The COMPLETE parsed event against the same facts `lane_event`
-        // itself would produce, not just one field: a mutant that swaps the
-        // event for `{"lane":"mine"}` still has a correct `lane` field.
-        let recorded: serde_json::Value =
-            serde_json::from_str(lane_event("mine", &stub_facts()).trim_end())
-                .expect("the reference event is JSON");
-        assert_eq!(event, recorded);
+        assert_eq!(
+            event,
+            serde_json::json!({
+                "agent": "uu",
+                "lane": "mine",
+                "host": "test-host",
+                "started": {"epoch": 0, "iso": "1970-01-01T00:00:00Z"},
+                "last_successful_run": {"state": "never-recorded"},
+            })
+        );
         assert!(
             report.lines.contains(&"3 upgraded".to_string()),
             "{:?}",
             report.lines
         );
+    }
+
+    #[test]
+    fn a_command_lane_preserves_recorded_and_unreadable_markers_in_the_child_event() {
+        use uu_domain::Marker;
+
+        for (marker, expected) in [
+            (
+                Marker::Unreadable,
+                serde_json::json!({"state": "unreadable"}),
+            ),
+            (
+                Marker::Recorded {
+                    epoch: 42,
+                    iso: "a\"b\nc".to_string(),
+                },
+                serde_json::json!({"state": "recorded", "epoch": 42, "iso": "a\"b\nc"}),
+            ),
+        ] {
+            let runner = ScriptedRunner::new(&[]);
+            let facts = RunFacts {
+                marker: &marker,
+                ..stub_facts()
+            };
+            command_lane(&["/bin/updater"]).run("mine", &facts, &runner);
+            let inputs = runner.inputs();
+            assert_eq!(inputs.len(), 1);
+            let event: serde_json::Value = serde_json::from_str(&inputs[0]).unwrap();
+            assert_eq!(event["last_successful_run"], expected);
+        }
     }
 
     #[test]
@@ -112,7 +147,7 @@ mod tests {
             "a failed child's stdout is not lost: {:?}",
             report.lines
         );
-        let summary = crate::alert::alert_summary(&report);
+        let summary = uu_domain::alert_summary(&report);
         assert!(summary.contains("exit 1"), "{summary}");
         assert!(summary.contains(program), "{summary}");
         // THE VERDICT COMES LAST: what the child printed is noted first, so

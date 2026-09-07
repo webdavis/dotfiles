@@ -429,15 +429,17 @@ function test_newest_canary_timestamp_returns_the_newest_validated_integer_else_
   # shellcheck source=/dev/null
   source "$HEARTBEAT"
   local first status=0
-  first="$(newest_canary_timestamp)" || status=$?
+  first="$(newest_canary_timestamp 2>&1)" || status=$?
   assert_exit_code 0 "" "$status"
   assert_empty "$first" # no canary row yet
   seed_canary 42
-  assert_matches '^[0-9]+$' "$(newest_canary_timestamp)" # a plain integer
+  status=0
+  [[ "$(newest_canary_timestamp 2>&1)" =~ ^[0-9]+$ ]] || status=1
+  assert_exit_code 0 "" "$status" # the entire output is a plain integer
   : >"$OSQUERY_SNAPSHOTS_LOG"
   seed_raw_canary "not-a-number"
   # Malformed -> validated to empty, never reaches the decision.
-  assert_empty "$(newest_canary_timestamp)"
+  assert_empty "$(newest_canary_timestamp 2>&1)"
 }
 
 # fire-and-forget

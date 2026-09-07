@@ -315,7 +315,8 @@ function test_a_wiped_file_is_reinstalled_and_the_daemon_is_restarted() {
   converge >/dev/null 2>&1
   assert_successful_code
   assert_file_exists "$TARGET/osquery.conf"
-  assert_files_equals "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  cmp -s "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  assert_successful_code
   assert_true restarted
 }
 
@@ -323,7 +324,8 @@ function test_a_wiped_pack_is_reinstalled_too_so_a_partial_wipe_is_fully_repaire
   rm -f "$TARGET/packs/intrusion-detection.conf"
   converge >/dev/null 2>&1
   assert_successful_code
-  assert_files_equals "$DESIRED/packs/intrusion-detection.conf" "$TARGET/packs/intrusion-detection.conf"
+  cmp -s "$DESIRED/packs/intrusion-detection.conf" "$TARGET/packs/intrusion-detection.conf"
+  assert_successful_code
 }
 
 function test_correct_bytes_under_a_world_writable_mode_are_reinstalled_not_passed_over() {
@@ -372,7 +374,8 @@ function test_a_symlink_standing_at_the_config_path_is_replaced_by_a_regular_fil
   converge >/dev/null 2>&1
   assert_successful_code
   assert_is_not_symlink "$TARGET/osquery.conf"
-  assert_files_equals "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  cmp -s "$DESIRED/osquery.conf" "$TARGET/osquery.conf"
+  assert_successful_code
 }
 
 function test_the_install_carries_owner_group_and_mode_in_one_call() {
@@ -730,6 +733,7 @@ function test_a_staging_tree_the_tool_cannot_fully_read_is_a_refusal_not_a_silen
   mkdir -p "$DESIRED/packs/unreadable"
   printf 'planted\n' >"$DESIRED/packs/unreadable/planted.conf"
   chmod 0000 "$DESIRED/packs/unreadable"
+  rm -f "$TARGET/osquery.conf"
   converge >/dev/null 2>&1
   local status=$?
   chmod 0755 "$DESIRED/packs/unreadable"

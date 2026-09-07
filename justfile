@@ -83,13 +83,13 @@ apply:
 # `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
 # `just ship` run `just test`.
 
-# Unit suite only: the commit gate. The two Lua camps run first (the nvim
-# config's specs, then neotest-bashunit's), then the one runner, which runs the
-# suite's own two lanes in order: its bashunit `*.test.sh` files, then its
-# executable *.sh tests. --shuffle randomizes the *.sh order to flush hidden
-# ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
-# warn-only summary. The other suites run the same runner plain.
-test-unit: validate-tests test-nvim test-neotest-bashunit
+# Unit suite only: the commit gate. The nvim config's Lua specs run first, then
+# the one runner, which runs the suite's own two lanes in order: its bashunit
+# `*.test.sh` files, then its executable *.sh tests. --shuffle randomizes the
+# *.sh order to flush hidden ordering deps (seed printed for replay);
+# --warn-slow-ms flags slow tests in a warn-only summary. The other suites run
+# the same runner plain.
+test-unit: validate-tests test-nvim
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -101,7 +101,7 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The four Rust crates' tests, the one camp that is not a shell suite. The two
+# The five Rust crates' tests, the one camp that is not a shell suite. The two
 # herdr plugins cover the pure decision functions in their src/main.rs (every
 # Command call sits behind an untested boundary by design) with inline
 # `#[cfg(test)] mod tests`. pns and uu are NOT pure-decision libraries: each
@@ -148,17 +148,16 @@ test-e2e: validate-tests
 # no new step: macos-latest ships cargo, clippy and rustfmt, and `just test`
 # pulls this in.
 #
-# fmt and clippy run for pns and uu ONLY. Nothing linted Rust anywhere before
+# fmt and clippy run for pns, uu and posture ONLY. Nothing linted Rust anywhere before
 # pns, and adopting the two for the herdr plugins is a separate decision with
 # its own diff; a gate that fails on code this slice did not touch would just be
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# pns is a WORKSPACE and the other three crates are not, which is why only its
-# three lines carry --workspace (--all is what cargo fmt calls the same thing).
-# Its root manifest is still a package as well as the workspace root, so
-# without those words cargo tests, formats and lints that one package and
-# skips every member crate without saying so.
+# pns and uu keep root packages beside their workspace members. Their commands
+# select --workspace (--all for cargo fmt), or they silently skip those members.
+# posture has a virtual workspace whose default member is the cli crate alone;
+# the same selectors reach all its members.
 #
 # The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
@@ -166,13 +165,16 @@ test-e2e: validate-tests
 # developer pays the build once.
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
-  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
+  cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
-  cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
-  cargo fmt --check --manifest-path dot_local/share/uu/Cargo.toml
-  cargo clippy --locked --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/posture/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/posture/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/posture/Cargo.toml -- -D warnings
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
 # `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The
@@ -182,12 +184,6 @@ test-rust:
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
-# neotest-bashunit's own specs (dot_local/share/neotest-bashunit/tests), the
-# same runner shape one directory over. `--clean` is load-bearing rather than
-# merely fast here: the rules under test are the pure ones in parse.lua, so they
-# must hold with neotest itself not installed. test-unit depends on this recipe.
-test-neotest-bashunit:
-  nvim --headless --clean -l dot_local/share/neotest-bashunit/tests/run.lua
 
 # ONE suite's bashunit `<name>.test.sh` files, for focused iteration. Every
 # suite recipe above already runs its own bashunit lane through the same

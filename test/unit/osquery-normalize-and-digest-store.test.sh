@@ -73,24 +73,28 @@ discard_fixture() {
 function test_a_packed_row_reaches_routing_under_its_bare_query_name_with_columns_and_action_intact() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{"path":"/tmp/x"}}')"
+  assert_successful_code
   assert_same '{"q":"suid_bin_unexpected","act":"added","cols":{"path":"/tmp/x"},"ep":"/tmp/x"}' "$normalized"
 }
 
 function test_only_the_pack_segment_is_stripped_so_a_hyphenated_pack_name_leaves_the_querys_underscores_alone() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"pack_agent-attack-surface_agent_exposure_changed","action":"added","columns":{}}')"
+  assert_successful_code
   assert_same '{"q":"agent_exposure_changed","act":"added","cols":{},"ep":""}' "$normalized"
 }
 
 function test_a_row_that_omits_its_action_is_normalized_to_changed_so_no_later_stage_special_cases_a_null() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"new_admin_user","columns":{"username":"bob"}}')"
+  assert_successful_code
   assert_same '{"q":"new_admin_user","act":"changed","cols":{"username":"bob"},"ep":""}' "$normalized"
 }
 
 function test_a_snapshot_action_row_stays_one_finding_instead_of_fanning_out_its_snapshot_array() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"pack_security-policy-regression_filevault_state","action":"snapshot","snapshot":[{"path":"/a"},{"path":"/b"}]}')"
+  assert_successful_code
   assert_same '{"q":"filevault_state","act":"snapshot","cols":{},"ep":""}' "$normalized"
 }
 
@@ -102,6 +106,7 @@ this is not json
 {"name":"new_admin_user","action":"added","columns":{"username":"alice"}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
@@ -121,12 +126,14 @@ function test_an_unrecognized_query_name_never_becomes_a_finding_packed_or_top_l
 {"name":"pack_security-policy-regression_filevault_off","action":"added","columns":{}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
 function test_the_heartbeat_canary_is_dropped_defensively_so_a_stray_liveness_row_generates_no_noise() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"heartbeat_canary","action":"snapshot","columns":{}}')"
+  assert_successful_code
   assert_empty "$normalized"
 }
 
@@ -138,6 +145,7 @@ function test_renameio_atomic_write_churn_is_dropped_while_a_real_file_event_on_
 {"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.ssh/authorized_keys"}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
@@ -152,6 +160,7 @@ function test_a_counter_zero_membership_baseline_is_discarded_while_counter_posi
 {"name":"new_admin_user","action":"added","columns":{"username":"mallory"}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
@@ -167,6 +176,7 @@ function test_the_three_absolute_state_queries_keep_their_counter_zero_row_so_an
 {"name":"pack_agent-attack-surface_agent_exposure_changed","action":"added","counter":0,"columns":{}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
@@ -190,12 +200,14 @@ function test_the_enrich_path_names_the_exact_file_each_query_type_hands_the_enr
 {"name":"new_admin_user","action":"added","columns":{"username":"eve"}}
 EOF
   )"
+  assert_successful_code
   assert_same "$expected" "$normalized"
 }
 
 function test_a_tab_inside_a_path_is_squashed_to_a_space_so_the_enrich_path_stays_one_renderable_token() {
   local normalized
   normalized="$(normalize_findings <<<'{"name":"es_launchd_writes","action":"added","columns":{"path":"/usr/bin/foo\tbar"}}')"
+  assert_successful_code
   assert_same '{"q":"es_launchd_writes","act":"added","cols":{"path":"/usr/bin/foo\tbar"},"ep":"/usr/bin/foo bar"}' "$normalized"
 }
 
@@ -207,6 +219,7 @@ function test_one_append_records_a_single_line_of_derived_triage_fields_and_noth
   derived_line_pattern+=',"detector":"system_extensions_new","category":"","identity":"com.example.ext"'
   derived_line_pattern+=',"action":"added","summary":"system_extensions_new com.example.ext"\}$'
   digest_append '{"q":"system_extensions_new","act":"added","cols":{"identifier":"com.example.ext","team":"TEAMID"},"ep":""}'
+  assert_successful_code
   mapfile -t lines <"$SPOOL"
   assert_same 1 "${#lines[@]}"
   assert_matches "$derived_line_pattern" "${lines[0]}"
@@ -215,14 +228,18 @@ function test_one_append_records_a_single_line_of_derived_triage_fields_and_noth
 function test_appends_accumulate_one_line_per_finding_so_the_daily_digest_sees_every_one() {
   local lines
   digest_append '{"q":"system_extensions_new","act":"added","cols":{"identifier":"com.example.ext"},"ep":""}'
+  assert_successful_code
   digest_append '{"q":"new_admin_user","act":"added","cols":{"username":"eve"},"ep":""}'
+  assert_successful_code
   digest_append '{"q":"suid_bin_unexpected","act":"added","cols":{"path":"/tmp/suid"},"ep":""}'
+  assert_successful_code
   mapfile -t lines <"$SPOOL"
   assert_same 3 "${#lines[@]}"
 }
 
 function test_the_spool_is_private_a_700_directory_and_a_600_file() {
   digest_append '{"q":"new_admin_user","act":"added","cols":{"username":"eve"},"ep":""}'
+  assert_successful_code
   assert_file_permissions 700 "${SPOOL%/*}"
   assert_file_permissions 600 "$SPOOL"
 }
@@ -230,6 +247,7 @@ function test_the_spool_is_private_a_700_directory_and_a_600_file() {
 function test_a_listening_port_finding_is_identified_by_name_address_and_port_together() {
   local line
   digest_append '{"q":"listening_ports_non_loopback","act":"added","cols":{"name":"nc","address":"0.0.0.0","port":"4444"},"ep":""}'
+  assert_successful_code
   IFS= read -r line <"$SPOOL"
   assert_contains '"identity":"nc 0.0.0.0:4444"' "$line"
 }
@@ -237,6 +255,7 @@ function test_a_listening_port_finding_is_identified_by_name_address_and_port_to
 function test_a_findings_raw_hash_and_secret_column_never_reach_the_spool_only_its_path() {
   local line
   digest_append '{"q":"agent_authfile_changed","act":"added","cols":{"path":"/Users/x/.codex/config.toml","sha256":"deadbeefdeadbeef","secret_value":"SUPERSECRETTOKEN"},"ep":""}'
+  assert_successful_code
   IFS= read -r line <"$SPOOL"
   assert_contains '"identity":"/Users/x/.codex/config.toml"' "$line"
   assert_not_contains sha256 "$line"
@@ -258,6 +277,7 @@ function test_a_failed_append_says_so_on_stderr_naming_the_spool_it_could_not_wr
   local diagnostic
   PATH="$FILE_FIXTURE/failing-jq:$PATH"
   digest_append '{"q":"new_admin_user","act":"added","cols":{"username":"eve"},"ep":""}' 2>"$TEST_FIXTURE/stderr"
+  assert_successful_code
   IFS= read -r diagnostic <"$TEST_FIXTURE/stderr"
   assert_contains digest-store "$diagnostic"
   assert_contains "$SPOOL" "$diagnostic"
@@ -266,5 +286,6 @@ function test_a_failed_append_says_so_on_stderr_naming_the_spool_it_could_not_wr
 function test_a_failed_append_leaves_no_partial_line_behind() {
   PATH="$FILE_FIXTURE/failing-jq:$PATH"
   digest_append '{"q":"new_admin_user","act":"added","cols":{"username":"eve"},"ep":""}' 2>/dev/null
+  assert_successful_code
   assert_is_file_empty "$SPOOL"
 }
