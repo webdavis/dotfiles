@@ -272,6 +272,16 @@ function test_an_identical_build_retains_the_record_and_skips_refresh() {
   assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
 }
 
+function test_an_identical_build_repairs_binary_and_record_permissions() {
+  ready_to_build
+  assert_builder_succeeds
+  chmod 644 "$installed_binary" "$build_record"
+  assert_builder_succeeds
+  assert_same 755 "$(stat -f '%Lp' "$installed_binary")"
+  assert_same 600 "$(stat -f '%Lp' "$build_record")"
+  assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
+}
+
 function test_an_artifact_at_the_audit_size_limit_can_be_published() {
   ready_to_build
   printf 8388608 >"$sandbox_home/.stub-artifact-bytes"

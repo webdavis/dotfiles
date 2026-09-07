@@ -117,6 +117,8 @@ chmod 600 "$next_record"
 
 # A byte-identical authorized build retains the tuple and its publication time.
 if cmp -s "$artifact" "$binary" && cmp -s "$next_record" "$build_record"; then
+  chmod 755 "$binary"
+  chmod 600 "$build_record"
   rm -f "$retry_marker"
   exit 0
 fi
