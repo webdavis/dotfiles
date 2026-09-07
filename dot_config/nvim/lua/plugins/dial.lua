@@ -3,6 +3,7 @@
 -- startup trigger moves before PR 30a.
 return {
   "monaqa/dial.nvim",
+  lazy = false,
   config = function()
     local augend = require("dial.augend")
 

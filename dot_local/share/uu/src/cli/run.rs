@@ -13,9 +13,9 @@ use std::time::Instant;
 use pns::channels::hermes::UreqSignedPost;
 use unattended_upgrades::alert::alert_summary;
 use unattended_upgrades::config::{Config, config_path};
-use unattended_upgrades::deadline::lane_budget;
-use unattended_upgrades::lanes::{LaneReport, run_lane};
+use unattended_upgrades::lanes::run_lane;
 use unattended_upgrades::record::{RunFacts, gap_line, record_body, record_detail, record_state};
+use uu_domain::{LaneReport, lane_budget};
 
 use crate::delivery::{PnsAlerter, deliver_record, send_alert};
 use crate::runner::SystemRunner;
