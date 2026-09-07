@@ -58,6 +58,21 @@ fi
 # Context usage bar
 context_info=""
 context_color='160;169;203' # #a0a9cb, calm
+# Compaction fires at CLAUDE_AUTOCOMPACT_PCT_OVERRIDE percent of the window when
+# the operator set it (75 here), so the gauge warns relative to THAT point:
+# yellow fifteen points before it, red five points before it. Without the
+# override the built-in thresholds of 60 and 80 apply.
+compact_pct=""
+if [[ -r "$HOME/.claude/settings.json" ]]; then
+  compact_pct=$(jq -r '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+fi
+if [[ $compact_pct =~ ^[0-9]+$ ]]; then
+  warn_at=$((compact_pct - 15))
+  alarm_at=$((compact_pct - 5))
+else
+  warn_at=60
+  alarm_at=80
+fi
 if [[ -n $used_pct ]]; then
   used_int=${used_pct%.*}
   context_info=" ctx:${used_int}%"
@@ -70,9 +85,9 @@ if [[ -n $used_pct ]]; then
       *) context_info+="/$((window_size / 1000))k" ;;
     esac
   fi
-  if ((used_int >= 80)); then
+  if ((used_int >= alarm_at)); then
     context_color='247;118;142' # #f7768e, red: compaction is close
-  elif ((used_int >= 60)); then
+  elif ((used_int >= warn_at)); then
     context_color='224;175;104' # #e0af68, yellow
   fi
 fi
@@ -147,11 +162,16 @@ usage_window() {
   fi
   local bar
   bar=$(usage_bar "$pct")
+  # Color by share used: calm under 50, yellow from 50, red from 80.
+  local color='97;104;126'
+  if ((pct >= 80)); then color='247;118;142'; elif ((pct >= 50)); then color='224;175;104'; fi
+  printf '\033[38;2;%sm' "$color"
   if [[ -n $when ]]; then
     printf '%s %s %s%% used, %s' "$label" "$bar" "$pct" "$when"
   else
     printf '%s %s %s%% used' "$label" "$bar" "$pct"
   fi
+  printf '\033[0m'
 }
 
 rate_segments=()
@@ -208,7 +228,7 @@ if [[ -n $cache_info ]]; then
 fi
 
 if [[ -n $rate_info ]]; then
-  printf ' \033[38;2;97;104;126m%s\033[0m' "$rate_info" # rate limits: #61687e
+  printf ' %s' "$rate_info" # each window carries its own color
 fi
 
 printf '\n'
