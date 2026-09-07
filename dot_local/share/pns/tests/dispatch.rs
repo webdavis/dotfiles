@@ -5,7 +5,11 @@
 //! rendered event, the pane scrub and the exit-0 edge without a network, a
 //! key or a sleep. The native plugins are the other half, in native.rs.
 
+#[path = "dispatch/captured_events.rs"]
+mod captured_events;
 mod support;
+
+use captured_events::events;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -4595,17 +4599,6 @@ fn record_every_event(sandbox: &Sandbox) {
             &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
         );
     }
-}
-
-/// Every event one channel was handed, in the order it got them.
-fn events(sandbox: &Sandbox, channel: &str) -> Vec<serde_json::Value> {
-    std::fs::read_to_string(sandbox.path(&format!("{channel}.events")))
-        .unwrap_or_default()
-        .lines()
-        .map(|line| {
-            serde_json::from_str(line).unwrap_or_else(|error| panic!("{channel}: {error}: {line}"))
-        })
-        .collect()
 }
 
 /// Everything the state directory holds, sorted. A claim file the run left
