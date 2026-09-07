@@ -103,5 +103,22 @@ pub(crate) fn parse_nvim_mason_lane(
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NvimParsersLane {
+    pub(crate) host: NvimHost,
+}
+
+pub(crate) fn parse_nvim_parsers_lane(
+    label: &str,
+    fields: toml::Table,
+) -> Result<NvimParsersLane, ConfigError> {
+    for key in fields.keys() {
+        admits_lane(label, "nvim-parsers", NvimHost::KEYS, key)?;
+    }
+    Ok(NvimParsersLane {
+        host: host(label, &fields)?,
+    })
+}
+
 #[cfg(test)]
 mod tests;

@@ -128,4 +128,21 @@ function M.mason_lines(events)
   return lines, failed and M.FAILED or M.OK
 end
 
+function M.parser_lines(summary)
+  local lines = {}
+  for _, error in ipairs(summary.errors) do
+    lines[#lines + 1] = error
+  end
+  for _, name in ipairs(summary.updated) do
+    lines[#lines + 1] = name .. ": parser updated"
+  end
+  for _, name in ipairs(summary.current) do
+    lines[#lines + 1] = name .. ": parser current"
+  end
+  if not summary.ok and #summary.errors == 0 then
+    lines[#lines + 1] = "parser update failed"
+  end
+  return lines, summary.ok and #summary.errors == 0 and M.OK or M.FAILED
+end
+
 return M

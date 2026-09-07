@@ -3,6 +3,7 @@ use crate::lanes::text::stdout_lines;
 use crate::lanes::{CommandRunner, Verdict};
 use uu_domain::LaneReport;
 mod mason;
+mod parsers;
 mod plugins;
 
 fn invoke(

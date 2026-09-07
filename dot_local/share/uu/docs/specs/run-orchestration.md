@@ -168,3 +168,13 @@ for these retained limits.
 - **Given** either generated job, **when** an installer launches an interpreter, **then** search the
   home's managed Node directory before system tools, and include the home's Cargo binary directory.
   Preserve existing home and property-list escaping.
+
+## Parser reconciliation
+
+- **Given** a `nvim-parsers` lane, **when** it runs, **then** invoke its required absolute config's
+  `lua/uu/parsers.lua` through the shared headless host, retaining its own lane name and child failure.
+- **Given** installed parsers, **when** reconciling the locked installer revisions, **then** call
+  `update(nil, { summary = true }):wait()`. A false result or exception fails the lane. Name updated and
+  current parsers and retain each failed compiler's output tail.
+- **Given** either lane changed installed tools or parsers, **when** reporting, **then** append the
+  existing restart notice if another Neovim instance's socket is present.

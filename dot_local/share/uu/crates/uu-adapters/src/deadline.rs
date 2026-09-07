@@ -86,6 +86,10 @@ mod tests {
                 "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
             ),
             (
+                "nvim-parsers",
+                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+            ),
+            (
                 "nvim-plugins",
                 "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
             ),

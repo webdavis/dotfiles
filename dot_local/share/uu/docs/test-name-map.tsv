@@ -348,8 +348,11 @@ added	-	lanes::nvim::tests::a_plugins_lane_with_auto_commit_on_hands_the_module_
 added	-	lanes::nvim::tests::an_nvim_lane_names_its_own_lane_not_its_type	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs
 added	-	lanes::nvim::tests::the_plugins_lane_runs_nvim_headless_with_the_configs_init_and_the_uu_module	not-present	ok	C1-C4 behavior contract; crates/uu-adapters/src/lanes/nvim/tests.rs
 added	-	cli::run::tests::nvim::a_registered_mason_lane_records_the_real_child_failure	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
+added	-	cli::run::tests::nvim::a_registered_parsers_lane_records_the_real_child_failure	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	lanes::nvim::tests::mason::a_mason_child_exiting_non_zero_is_a_counted_failure	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	lanes::nvim::tests::mason::the_mason_lane_runs_the_mason_module_headless_under_the_lanes_own_name	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
+added	-	lanes::nvim::tests::parsers::a_parsers_child_exiting_non_zero_is_a_counted_failure_carrying_the_compiler_tail	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
+added	-	lanes::nvim::tests::parsers::the_parsers_lane_runs_the_parsers_module_headless_under_the_lanes_own_name	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	schedule::tests::runtime::a_rendered_job_finds_an_interpreter_available_only_in_the_homes_cargo_directory	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	schedule::tests::runtime::a_rendered_job_finds_an_interpreter_available_only_in_the_homes_fnm_directory	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained
 added	-	schedule::tests::runtime::a_rendered_job_uses_the_homes_fnm_interpreter_before_the_system_interpreter	not-present	ok	C5-C6 behavior contract; named source-fault evidence retained

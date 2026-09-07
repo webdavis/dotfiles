@@ -86,7 +86,7 @@ samples the host for the outbound weekly record; this is not one host lookup for
 
 Concrete adapters and command parsing belong to their own crates; the root is a virtual workspace. Parser
 fixtures belong to the adapter package, and the outer repository verifies its actual configuration
-template separately. The command's registration list binds seven type names to their typed parsers,
+template separately. The command's registration list binds eight type names to their typed parsers,
 execution and diagnostics. Each typed parser owns its admitted keys. Configuration selects a registration
 while retaining the operator's declared name, resolved deadline and pending threshold. Execution and
 doctor use that selected adapter, so neither repeats a technology-name switch. Domain and application
@@ -168,16 +168,21 @@ never reads live editor sockets or changes installed third-party source. The nat
 proves that a completed plugin report closes its own socket. Socket discovery reports present socket
 paths; it does not connect to editors or verify that an unrelated stale socket has a live owner.
 
-## Mason tools
+## Mason tools and parser reconciliation
 
-The Mason lane reuses the typed Neovim host and command boundary. Its Lua entry owns the installer calls;
-the pure report function owns status and output. Mason refreshes its registry before subscribing to
-package outcomes and running the synchronous tool installer. Completion names do not establish success. A
-package failure retains its reason even when the surrounding command throws. Language servers remain an
-operator action through `:Mason`. Successful updates reuse the existing restart notice.
+Mason and parser lanes reuse the typed Neovim host and command boundary. Their Lua entries own the
+installer calls; pure report functions own status and output. Mason refreshes its registry before
+subscribing to package outcomes and running the synchronous tool installer. Completion names do not
+establish success. A package failure retains its reason even when the surrounding command throws.
+Language servers remain an operator action through `:Mason`.
+
+Parser reconciliation waits for the installer and treats its normal false result as failure. Installer
+log contexts identify updated and failed parsers; failed compiler output retains its tail. Both update
+lanes reuse the existing restart notice. The six-hour deadline remains: the native owned grammar fixture
+proves the wait and failure boundary, but cannot establish a bound for the operator's parser fleet.
 
 The tracked job and standalone renderer put the managed Node directory first, followed by Cargo's
 binaries. Execution evidence uses owned interpreter scripts through each rendered path, including
 missing-directory and system-precedence faults. Native installer evidence uses copied plugin code, a
-supported local Mason registry and inert owned artifacts. Installed plugin trees and live editor sockets
-are outside those fixtures.
+supported local Mason registry, inert owned artifacts and a locally compiled owned grammar. Installed
+plugin trees and live editor sockets are outside those fixtures.

@@ -189,3 +189,10 @@ type = "nvim-mason"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
 deadline_secs = 21600
+
+# Reconcile installed parsers to the revisions pinned by the Treesitter plugin.
+[lanes.nvim-parsers]
+type = "nvim-parsers"
+nvim = "/opt/homebrew/bin/nvim"
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+deadline_secs = 21600
