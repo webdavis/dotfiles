@@ -289,7 +289,7 @@ fn a_lamp_moved_to_another_room_answers_the_room_it_is_in_now() {
         .replace(
             r#""children":[{"rid":"b1e78057-aa81-4de0-ab08-6d06e1736dd6","rtype":"device"}]"#,
             r#""children":[{"rid":"b1e78057-aa81-4de0-ab08-6d06e1736dd6","rtype":"device"},
-               {"rid":"c97b44a9-cdcc-48c3-a15d-630fdaa936d0","rtype":"device"}]"#,
+                   {"rid":"c97b44a9-cdcc-48c3-a15d-630fdaa936d0","rtype":"device"}]"#,
         );
     let held = inventory(&moved, CLIP_LIGHTS, CLIP_ZONES);
     assert_eq!(

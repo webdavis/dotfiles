@@ -160,3 +160,6 @@ pub fn breath_fades(budget_ms: u64, cycle: &[Leg], resume: Resume) -> Vec<Fade> 
     }
     fades
 }
+
+#[cfg(test)]
+mod tests;

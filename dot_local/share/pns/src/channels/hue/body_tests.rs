@@ -239,10 +239,7 @@ fn a_table_that_names_no_quiet_hours_has_no_window() {
 fn a_window_parses_to_minutes_since_local_midnight() {
     assert_eq!(
         quiet_window(&table("quiet_hours = \"22:00-07:00\"")),
-        Ok(Some(QuietWindow {
-            start: 1320,
-            end: 420
-        })),
+        Ok(parse_window("22:00-07:00")),
         "22:00 is 1320 minutes in and 07:00 is 420"
     );
     assert_eq!(
@@ -297,28 +294,24 @@ fn a_blanked_quiet_hours_is_no_window_rather_than_a_refusal() {
     );
 }
 
-/// 22:00 to 23:00, the plainest same-day window.
-const EVENING: QuietWindow = QuietWindow {
-    start: 1320,
-    end: 1380,
-};
-
 #[test]
 fn a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end() {
+    // 22:00 to 23:00, the plainest same-day window.
+    let evening = parse_window("22:00-23:00").expect("valid window");
     assert!(
-        !quiet_now(Some(&EVENING), Some(1319)),
+        !quiet_now(Some(&evening), Some(1319)),
         "the minute before the window is loud"
     );
     assert!(
-        quiet_now(Some(&EVENING), Some(1320)),
+        quiet_now(Some(&evening), Some(1320)),
         "the start is inside the window"
     );
     assert!(
-        quiet_now(Some(&EVENING), Some(1379)),
+        quiet_now(Some(&evening), Some(1379)),
         "and so is the last minute before its end"
     );
     assert!(
-        !quiet_now(Some(&EVENING), Some(1380)),
+        !quiet_now(Some(&evening), Some(1380)),
         "the end is loud on the dot, so two adjacent windows cannot overlap"
     );
 }
@@ -326,10 +319,7 @@ fn a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end() {
 #[test]
 fn a_window_whose_start_is_after_its_end_is_quiet_on_both_sides_of_midnight() {
     // 22:00-07:00, the window the template documents.
-    let overnight = QuietWindow {
-        start: 1320,
-        end: 420,
-    };
+    let overnight = parse_window("22:00-07:00").expect("valid window");
     for (minute, quiet, moment) in [
         (1319, false, "21:59, before it opens"),
         (1320, true, "22:00, the start"),
@@ -352,10 +342,7 @@ fn a_window_whose_start_equals_its_end_is_never_quiet() {
     // An empty half-open range, and deliberately not a special case: the
     // all-day mute already exists as `enabled = false`. Every minute of
     // the day is checked, because "never" is the whole claim.
-    let empty = QuietWindow {
-        start: 600,
-        end: 600,
-    };
+    let empty = parse_window("10:00-10:00").expect("valid window");
     for minute in 0..1440 {
         assert!(
             !quiet_now(Some(&empty), Some(minute)),

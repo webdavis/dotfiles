@@ -35,6 +35,15 @@ return {
     "folke/snacks.nvim",
   },
   version = "^1.0.0",
+  -- The toggle key is the whole trigger. This spec ships `enabled = false`, so
+  -- auto-save writes nothing until `<leader>uv` turns it on, and no edit event
+  -- needs to load it first.
+  --
+  -- Trigger-only, no rhs: `<leader>uv` is a snacks toggle built in `config` from
+  -- this spec's own `opts` table, so the mapping cannot exist before the plugin
+  -- loads. lazy's placeholder holds the key and the press that loads the plugin
+  -- is re-fed to the toggle snacks registers.
+  keys = { { "<leader>uv", desc = "Toggle Autosave" } },
   opts = {
     enabled = false,
     trigger_events = {
