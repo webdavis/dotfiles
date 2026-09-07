@@ -27,7 +27,8 @@ citations underneath it.
   statement survives a line drift. Paths are repository-relative; the source name prefixes
   (`executable_`, `private_`) are chezmoi's and the deployed path drops them.
 - `Pin:` the test whose failure would announce a change, named as the leaf test name with its file
-  and line. A second pin is written `also`. A statement no test pins says `UNPINNED` and names what
+  and line. A partial pin identifies its covered clause and marks the uncovered clauses UNPINNED. A
+  second pin is written `also`. A statement no test pins says `UNPINNED` and names what
   was looked for. The plan writes the missing test first, against the code where it lives today,
   before the step that moves the behavior behind it.
 
@@ -252,8 +253,10 @@ Drain order is `ORDER BY occurrence_ts, sequence_number` (S164). Thresholds, all
 `OSQUERY_DRAIN_MAX_ATTEMPTS` 20, `OSQUERY_DRAIN_MAX_AGE_SECONDS` 604800,
 `OSQUERY_DRAIN_RETRY_BASE_SECONDS` 60, `OSQUERY_DRAIN_RETRY_RANDOM_SECONDS` defaulting to the base,
 `OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS` 86400 (S166, S170, S185). Under the delivery recommended in
-section 5 this database has no successor in posture; its rows move to pns's ledger, and the
-retirement steps in the plan drain it to zero first.
+section 5 this database has no successor in posture. New requests use pns's ledger after each
+producer cutover. Existing pending rows drain under the old route; dead letters need operator
+review, a preserved export and fresh confirmation before exact-row removal. The plan requires
+all three tables empty before retirement.
 
 ### 3.4 The webhook body and the route that renders it
 
@@ -296,11 +299,12 @@ per non-paging finding, six DERIVED fields only, never the whole columns object
  "identity":"<label|identifier|target_path|path|username|?>","action":"<act>","summary":"<q> <identity>"}
 ```
 
-The default path is an independent literal in two places, `digest-store.sh:25` and `digest.sh:30`.
-The daily run claims the batch by renaming it to `<store>.<epoch>.<pid>.build`, rotates it to
-`<store>.last` (mode 600) on success, and appends it back on failure (S281 to S285, S296). Two
-processes share this file by a rename protocol, which is why it stays a file in the port (plan,
-section 2.4).
+The default path is an independent literal in two places, `digest-store.sh:25` and `digest.sh:30`. The
+daily run claims the batch by renaming it to `<store>.<epoch>.<pid>.build`, rotates it to `<store>.last`
+(mode 600) on success, and appends it back on failure (S281 to S285, S296). Two processes share this file
+by a rename protocol, which is why it stays a file in the port. The Rust `posture-protocol` crate owns
+its existing record codec, with the current six fields and unversioned wire shape unchanged. Filesystem
+operations remain adapters and grouping remains pure domain policy (plan sections 2.1 and 2.4; PR 2.4).
 
 ### 3.6 The heartbeat canary
 
@@ -447,7 +451,9 @@ weakens one names it in its description.
   inherits the same honest claim and adds no stronger one.
 - **SI-15** Single-host scope. The target is this machine alone, provisioned from this repository;
   no fleet framing and no per-host URL work (memory `osquery-security-project.md`).
-- **SI-16** Every sshd call is bounded. A call into `sshd` runs in a process group of its own under
+- **SI-16** Target correction: every sshd call is bounded. The Bash install and reload bound their
+  verification child, but direct `--verify` has unbounded calls (S381). PR 8.2 closes that gap
+  deliberately (section 6.1). In the port a call into `sshd` runs in a process group of its own under
   a deadline (`SSH_HARDENING_VERIFY_DEADLINE`, default 120 s) and is stopped with TERM, a 2 s grace
   and KILL to the whole group when it expires, reported as 124 the way `timeout(1)` reports it,
   because one named pipe under the drop-in glob blocks `sshd -G` and `sshd -t` forever (S381,
@@ -467,8 +473,9 @@ The pipeline does not call pns in any form. A repository-wide grep for `pns` und
 Delivery is `alert-dispatch.sh` end to end: `alerter` or `osascript` for the local banner, a
 hand-rolled HMAC plus `curl` for the Discord page, a SQLite write-ahead queue, a drain with backoff
 and dead-lettering, and a durable retry of the local banner (S142 to S187). Forty-six statements
-describe it; six are pinned, and those six pin the two counters, the SQL quoting and the drain's
-skip-and-continue. The write-ahead path, the HMAC, the banner confirmation and the dead-letter
+describe it; five have at least a partial pin covering the two counters, the SQL quoting and the
+drain's skip-and-continue. S178's read-only and write-ahead-log clauses remain UNPINNED. The write-ahead
+path, the HMAC, the banner confirmation and the dead-letter
 thresholds have no direct test.
 
 pns is the operator's one notification engine (memory `pns-fully-rust-plugin-architecture`, ruling
@@ -549,22 +556,33 @@ What it costs, and how each cost is met:
 - The pipeline-broken alarm (SI-6, S183). When the binary is absent, exits nonzero, hangs to its
   deadline, or returns no parseable envelope, the engine itself is the broken component, and no
   engine can report that. So posture keeps one last-resort banner, a bounded `osascript` spawn with
-  the fixed loud sound and the backslash-first literal escape (S180), raised only on that path. This
+  the fixed loud sound and the backslash-first literal escape (S180). This same banner also reports
+  the independent integrity and health findings below, without submitting through pns. This
   is the alarm for the engine being down, not a second delivery engine: it retries nothing, stores
   nothing and posts nowhere. It covers DETECTABLE failure and nothing more. A pns binary replaced by
   one that answers `accepted` and delivers nothing is invisible to this path, because the answer is
-  the only thing a producer can see, and SI-14's honesty applies: the banner is not a tamper defence
-  and the documents must not describe it as one. Catching that case is the integrity check below.
+  the only thing a producer can see, and SI-14's honesty applies: the submit-failure branch cannot detect
+  a forged acknowledgement. The independent checks below
+  detect the failures their own evidence exposes and raise the banner directly.
 - Independent integrity and health checks for pns. Delegating delivery puts pns on posture's trust
   path, so posture judges pns the way it judges every other component: without asking pns. None of
   the following is answered by the pns binary. The deployed `~/.local/libexec/pns/pns` gets a
   known-good tuple under the same authorized-build rule the plan's decision 2 gives posture's own
   binary, so a swapped engine pages like a swapped script. `posture watchdog` reads launchd's state
   for `com.webdavis.pns-daemon` and the daemon's liveness directly, the way probe 2 reads the six
-  agents today (S212), and pages a daemon that is unloaded or wedged. The watchdog opens pns's
-  ledger read-only, exactly as S176 to S178 open the SQLite queue today, and pages an unreadable
+  agents today (S212), and pages a daemon that is unloaded or not running. The ledger checks below
+  detect delivery failures from their own evidence; process liveness alone cannot prove progress. The
+  watchdog opens pns's
+  ledger read-only through an in-process SQLite reader with a bounded busy timeout (the source
+  counter rule is S178), and pages an unreadable
   ledger, any dead-lettered row, and an undelivered backlog that grew across two passes. Executable
-  presence is not detection and replaces none of these; the plan's PR 6.4 is corrected accordingly.
+  presence is not detection and replaces none of these. Each pns integrity or health finding raises
+  the bounded local alarm directly, BEFORE any optional submission to pns, and an `Accepted`
+  result cannot suppress it. The watchdog records a reported alarm only after that independent
+  attempt succeeds; a failed attempt leaves it eligible on the next tick. This is an independent
+  local notification attempt, not proof the operator saw it or a remote delivery guarantee. Native
+  notification restrictions and compromise of posture or its trust inputs remain outside that
+  promise (SI-14). A forged acknowledgement by itself still provides no evidence to the producer.
 - The operator mute and Focus. SETTLED by the operator on 2026-09-06: a security page cuts through
   the mute and Focus for the banner and the phone. What is true of pns today, read from the code: a
   mute or a configured Focus zeroes the banner, the phone card and the pulse and keeps only the
@@ -659,7 +677,10 @@ Stated here so the pns program can size it; the design belongs there.
    `priority` route keeps its key and body, because the bash producers and every retry still queued
    in the SQLite store POST the old contract until the last one is gone. The old route and the
    runtime key file `~/.config/osquery/webhook-secret` retire only after the plan's PR 6.7 has
-   drained the queue (plan, step 0). The edit is in the encrypted source
+   drained pending remote and local deliveries and completed an operator-reviewed disposition of
+   every dead letter, then independently confirmed all three tables empty (plan, step 0.3 and
+   PR 6.7). The drain never deletes dead letters, so time alone cannot satisfy this gate. The edit is in
+   the encrypted source
    `private_dot_hermes/encrypted_private_config.yaml.age`, which the operator edits.
 6. The delivery class. `pns submit --json` accepts a class on the request, and pns's routing lets an
    event of a class the operator's config names cut through the mute and a configured Focus for the
@@ -708,8 +729,9 @@ behavior lives afterwards.
 - **D10** The `declare -F` presence checks on reused seams and the conditional sourcing of helpers
   (S018, S019, S078, S107, S217, S231, S232). One binary has no partial install, and an absent
   triage helper becomes a compile-time fact.
-- **D11** The `$single_quote` SQL escaping and the hex-in-SQL row export (S158, S186). Posture holds
-  no SQL; the D2 successor binds parameters.
+- **D11** The `$single_quote` SQL escaping and the hex-in-SQL row export (S158, S186). Posture owns
+  no writable queue; the D2 successor binds parameters. Its independent health adapter reads pns
+  with a read-only SQLite connection, without migrations or writes.
 - **D12** The `heartbeat_canary` exclusion as a rule of its own (S026). It folds into S025's closed
   set, which becomes a Rust enum the canary is not in.
 - **D13** The spool default path spelled in two places (that clause of S117). One `Paths` value
@@ -727,7 +749,7 @@ The converge's `rm -rf` of its private stage (S349) stays as a Rust `remove_dir_
 process created, because the `trash` rule covers operator files, not a per-run temporary directory
 the tool owns.
 
-### 6.1 The delivery changes the port makes on purpose
+### 6.1 The behavior changes the port makes on purpose
 
 "No product changes" was the first draft's claim and it is false as written: moving delivery into
 pns changes what the operator can observe, and each change below is approved as a deliberate one
@@ -750,6 +772,15 @@ and a difference found there is a regression.
   directly. Observable: the banner's look is pns's.
 - D9: a host that lost `lockf` ran the alerter, the drainer and the writer unlocked; the port fails
   closed instead.
+- SSH verification bounds (S381): direct Bash `--verify` calls `sshd -G` and `sshd -G -T -C`
+  without `run_bounded`. PR 8.2 deliberately routes these calls through the bounded adapter too;
+  the existing group termination behavior remains the target for every mode.
+- SSH path refusal (S395): Bash checks collected names for newline and unit-separator bytes, but
+  its earlier newline-framed enumeration can omit a newline-containing file and return success.
+  PR 8.2 preserves names through enumeration and rejects either byte before framing records.
+- Required unbuilt artifacts: PR 1.2 adds an explicit `unbuilt` manifest record, which enumerates
+  the required binary without vouching for any content. Both manifest consumers change together;
+  an empty regular file can never satisfy it (plan section 3.2).
 - The presence gate: a `NeedsAttention` page reaches the phone when the operator is away, which the
   pipeline never did. Observable: a new surface for the same page.
 - The operator mute: a security `NeedsAttention` carries the delivery class that cuts through pns's
@@ -772,6 +803,11 @@ sentence would have removed both daily messages and the silent banners. Section 
 now state the preservation as a requirement on the pns route work.
 
 ## 7. Vocabulary
+
+Every Rust brief and review names both `/Users/stephen/.agents/skills/clean-code/SKILL.md` and
+`/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`; the Rust binding wins all numbers and
+mechanisms. The five local crates include posture-protocol for the existing digest record contract.
+External notification envelopes stay owned by the sibling pns-protocol crate (plan section 2.1).
 
 Names come from the code, and where the code and this list disagree the code wins.
 
@@ -888,7 +924,9 @@ S015. The cursor is checkpointed ONLY after the batch is durably delivered or sp
       last complete record, by an atomic write plus rename with fd 9 closed in the child.
       Source: `executable_results-alerter.sh:95 _checkpoint`, `:211-226 main`.
       Pin: `T-CONCURRENT-one-notification: two parallel runs deliver a batch exactly once`
-           at test/e2e/osquery-alerter-concurrency.bats:48
+           at test/e2e/osquery-alerter-concurrency.bats:48 (successful concurrent delivery only).
+      UNPINNED: the delivery-success guard, atomic checkpoint publication and child descriptor
+      handling. Removing the guard still leaves that concurrency test green.
 
 S016. A batch with no page candidate still checkpoints, because digest and log-only rows were already
       handled in-stage.
@@ -1180,7 +1218,8 @@ S062. The `sshd_config` category pages; the `sudoers` category digests; any othe
       log-only.
       Source: `results-alerter/route.sh:272, :350-354`.
       Pin: `the page tier reaches stdout, including the two remote-auth file events`
-           at test/unit/osquery-route.bats:389
+           at test/unit/osquery-route.bats:389 (the `sshd_config` page branch only).
+      UNPINNED: the `sudoers` digest branch and the other-category log-only branch.
 
 S063. Five categories consult `pipeline_verdict` instead: `pipeline_integrity`, `managed_bin`,
       `launch_agents`, `launch_daemons` and `allowlist_file`. It answers page or silent, never digest.
@@ -1859,8 +1898,8 @@ S175. An absent database is a quiet no-op, and each drain gates on its table exi
       created by one queue does not spray "no such table" on every tick.
       Source: `executable_alert-dispatch.sh:185-191 _osquery_table_exists`, `:625-628`, `:1023`,
       `:1068`.
-      Pin: `a counter reads zero while its table is still un-bootstrapped, not an error`
-           at test/unit/osquery-alert-dispatch.bats:91
+      Pin: UNPINNED. The counter test at test/unit/osquery-alert-dispatch.bats:91 does not run
+      a drain and cannot establish either drain behavior.
 
 S176. `osquery_pending_alert_count` and `osquery_dead_letter_count` are public read-only counters
       that print a bare integer and never modify stored data.
@@ -1882,7 +1921,9 @@ S178. The counter opens the database `-readonly` and never creates it, and delib
       not folded back.
       Source: `executable_alert-dispatch.sh:465-474, :487`.
       Pin: `a count probe never creates the database it reads`
-           at test/unit/osquery-alert-dispatch.bats:85
+           at test/unit/osquery-alert-dispatch.bats:85 (absent-file behavior only).
+      UNPINNED: read-only access to an existing database and inclusion of committed rows in its
+      write-ahead log. The absent-file test returns before SQLite is opened.
 
 S179. The ordinary local notification strips Discord markdown (`**` and backticks) before handing
       plain text to `alerter`, backgrounded, or to `osascript` with its failure ignored, so a broken
@@ -2458,10 +2499,11 @@ S274. A present persist-gap marker distrusts the on-disk baseline entirely, beca
       Source: `executable_tailscale-monitor.sh:181-191`.
       Pin: UNPINNED.
 
-S275. A page fires on a fresh off-to-on transition, on a first-observation active funnel, and on an
-      active read recovering from a blind window; a steady active funnel and a closing funnel are
-      both silent.
-      Source: `executable_tailscale-monitor.sh:264-272`.
+S275. A page fires on a fresh off-to-on transition or an active read without a trusted baseline
+      (first observation, corrupt state or the persist-failure marker). A failed status read keeps
+      an existing active baseline: active, failed read, active produces the gap page only and
+      silently clears the read-gap marker on recovery. Steady active and closing are silent.
+      Source: `executable_tailscale-monitor.sh:162-272` (baseline validation, gap and active arms).
       Pin: UNPINNED.
 
 S276. The exposed `SNI:port` values are attacker-influenceable and cross into the body through the
@@ -3192,7 +3234,10 @@ S377. The line tokenizer mirrors sshd's two tokenizers, every rule measured agai
       keyword after that discard is a comment; arguments split on space and tab only, single- and
       double-quoted segments concatenate, a backslash escapes either quote, a backslash and an
       unquoted space and is kept literally otherwise, and a `#` opening an argument comments out the
-      rest; an unterminated quote drops the line; a reader that consumed nothing is a failure.
+      rest. An unterminated keyword quote fails the line; an unterminated argument stops argument
+      collection but keeps already completed arguments. For example,
+      `PasswordAuthentication yes "unterminated` returns 0 with keyword
+      `PasswordAuthentication` and arguments `[yes]`. A reader that consumed nothing is a failure.
       Source: `executable_ssh-hardening.sh:705-952` (`trim_trailing_line_whitespace` through
       `parse_config_line`).
       Pin: UNPINNED. The differential suite the comment at `:691` names
@@ -3222,14 +3267,17 @@ S380. The walk starts from two roots, the main config and every regular file in 
       Source: `executable_ssh-hardening.sh:1360-1395 config_tree_roots`.
       Pin: UNPINNED.
 
-S381. Every sshd call this script waits on runs under `run_bounded`: the child is started in a
+S381. `run_bounded` bounds the install and reload verification child and the calls explicitly
+      routed through it. Direct `--verify` also reaches unbounded `sshd -G -f` and
+      `sshd -G -T -C` calls at lines 643 and 1433; universal coverage is the deliberate PR 8.2
+      correction in section 6.1. For calls routed through the helper, the child is started in a
       process group of its own (monitor mode), with stdin from `/dev/null` and SIGTTOU and SIGTTIN
       ignored; the wait polls at 0.25 s ticks up to `SSH_HARDENING_VERIFY_DEADLINE` seconds (default
       120; anything that is not one to five digits, or is over 86400, is the default); on expiry TERM
       goes to the whole group, then a 2 s grace, then KILL to the group, the child is reaped, and the
       call returns 124, the status `timeout(1)` reports the same event with.
       Source: `executable_ssh-hardening.sh:385-513` (`VERIFY_DEADLINE_SECONDS`, `stop_bounded_group`,
-      `run_bounded`).
+      `run_bounded`), `:643 check_global`, `:1433 check_connection_specs`.
       Pin: UNPINNED. The e2e watchdog test the comment at `:420` names
       (`test/e2e/ssh-hardening-verify-watchdog.sh`) was purged on 2026-08-05.
 
@@ -3337,8 +3385,10 @@ S395. A tree observation is one record per unique file in `LC_ALL=C` order: the 
       and gid from `stat -L` (following the link, so the record describes the file opened) with the
       type read in the same call and a non-regular type refused, and a `cksum` of the content; never
       mtime, never the inode. Bounds: 512 file VISITS, 262144 bytes read (counted before the parse),
-      depth 15; a path holding a newline or the unit-separator byte is refused by name; every read
-      is unprivileged.
+      depth 15. Collected paths holding a newline or the unit-separator byte are refused by name,
+      but earlier newline-framed enumeration can omit a newline-containing drop-in before that
+      check: a file named `line\nbreak.conf` was omitted and observation returned success.
+      PR 8.2 deliberately closes that gap (section 6.1). Every read is unprivileged.
       Source: `executable_ssh-hardening.sh:1779-2019` (`collect_config_tree_from_file`,
       `observe_config_tree`), `:177-195`.
       Pin: UNPINNED.
@@ -3374,15 +3424,17 @@ S399. `nocasematch` is ON at file scope so keyword and yes/no matching mirror ss
 
 ## 9. Counts
 
-Computed over this document on 2026-09-05 with `grep -c '^S[0-9][0-9][0-9]\. '` and
-`grep -c '^      Pin: UNPINNED'`, and again on 2026-09-06 after section 8.22 joined (31 statements,
-2 pinned by the one plain-script unit test, 29 UNPINNED).
+Recomputed on 2026-09-06 over the 399 numbered statement blocks. A `Pin: UNPINNED` statement has no cited
+behavioral pin. S015, S062 and S178 cite a test for only some clauses and count as partially pinned;
+their uncovered clauses are explicitly UNPINNED. The review correction removes S175 from the pinned
+count. The 31 SSH statements include two pinned by the plain-script unit test and 29 UNPINNED.
 
 | Count                                             | Value |
 | ------------------------------------------------- | ----- |
 | Statements                                        | 399   |
-| Pinned                                            | 171   |
-| UNPINNED                                          | 228   |
+| Fully pinned                                      | 167   |
+| Partially pinned                                  | 3     |
+| UNPINNED                                          | 229   |
 | Distinct tests referenced                         | 185   |
 | Test cases in the corpus that cover this pipeline | 187   |
 | Statements the port drops (section 6)             | 46    |
@@ -3391,11 +3443,13 @@ Only two of the 186 cases go uncited, both in `test/e2e/osquery-alerter-criteria
 asserts the retired flat `launch-allowlist.txt` is not consulted and that the unified
 `OSQUERY_LAUNCHD_ALLOWLIST` variable is what the entry reads (`:178`, `:189`).
 
-The 368 statements are an inventory of what the bash does, not proof that a port matches it. A
-statement is checkable only where a test names it, and 199 are not; for those, a Rust test written
+The 399 statements are an inventory of what the bash does, not proof that a port matches it. A
+statement is checkable only where a test covers its behavior; 229 have no pin and three have
+uncovered clauses; for those, a Rust test written
 from the statement's prose checks the porter's reading of the bash, not the bash. The plan's section
 4, rule 1, therefore requires a bash-derived acceptance example (the exact input and the output the
-running script produced) for every UNPINNED statement a pull request moves, captured before the Rust
+running script produced) for every UNPINNED statement or uncovered clause a pull request moves, captured
+before the Rust
 test that interprets it is written.
 
 The pinned share concentrates in six tools (the alerter entry and its four stages, the digest
