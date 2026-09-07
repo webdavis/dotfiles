@@ -329,6 +329,7 @@ assert_severities() {
   local expected="$1" got
   shift
   got=$(printf '%s\n' "$@" | route_severity)
+  assert_successful_code
   assert_same "$expected" "$got"
 }
 

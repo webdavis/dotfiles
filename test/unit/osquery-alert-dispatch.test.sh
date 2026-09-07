@@ -112,7 +112,9 @@ function test_both_counters_read_zero_before_anything_has_ever_been_stored() {
 
 function test_a_count_probe_never_creates_the_database_it_reads() {
   osquery_pending_alert_count >/dev/null
+  assert_successful_code
   osquery_dead_letter_count >/dev/null
+  assert_successful_code
   assert_false path_exists "$OSQUERY_UNDELIVERED_ALERTS_DB"
 }
 
@@ -156,6 +158,7 @@ function test_the_drain_select_carries_an_apostrophe_url_through_to_the_delivery
   local rows
   OSQUERY_UNDELIVERED_ALERTS_DB="$QUOTE_WORK/store.sqlite3"
   rows="$(_osquery_pending_alert_rows)"
+  assert_successful_code
   assert_contains "$(printf 'osquery-apos-url\t%s' "$APOSTROPHE_URL")" "$rows"
 }
 
