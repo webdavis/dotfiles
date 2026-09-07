@@ -48,11 +48,22 @@ if [[ -n $used_pct ]]; then
 fi
 
 # Usage windows (5-hour session and weekly), rendered the way the Claude.ai
-# usage page does: percent USED and when the window resets. The session window
-# shows a countdown; the weekly window shows the weekday and clock time. The
-# stdin JSON only carries rate_limits for Claude.ai subscribers, or behind a
-# gateway, and only after the first API response, so both segments are omitted
-# when the fields are absent. resets_at is Unix epoch seconds (documented).
+# usage page does: a ten-cell bar of the share USED, the percent, and when the
+# window resets. The session window shows a countdown; the weekly window shows
+# the weekday and clock time. The stdin JSON only carries rate_limits for
+# Claude.ai subscribers, or behind a gateway, and only after the first API
+# response, so both segments are omitted when the fields are absent. resets_at
+# is Unix epoch seconds (documented).
+usage_bar() {
+  local pct="$1" filled bar=""
+  filled=$(((pct + 5) / 10))
+  ((filled > 10)) && filled=10
+  local i
+  for ((i = 0; i < 10; i++)); do
+    if ((i < filled)); then bar+="▓"; else bar+="░"; fi
+  done
+  printf '%s' "$bar"
+}
 usage_window() {
   local used="$1" reset="$2" label="$3" style="$4"
   local pct when=""
@@ -74,10 +85,12 @@ usage_window() {
       when="resets $(date -r "$epoch" +'%a %H:%M' 2>/dev/null || true)"
     fi
   fi
+  local bar
+  bar=$(usage_bar "$pct")
   if [[ -n $when ]]; then
-    printf '%s %s%% used, %s' "$label" "$pct" "$when"
+    printf '%s %s %s%% used, %s' "$label" "$bar" "$pct" "$when"
   else
-    printf '%s %s%% used' "$label" "$pct"
+    printf '%s %s %s%% used' "$label" "$bar" "$pct"
   fi
 }
 
