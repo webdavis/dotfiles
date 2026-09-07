@@ -21,11 +21,14 @@
 
 pub mod count;
 pub mod home;
+pub mod jobs;
 pub mod lamps;
 pub mod lights;
 pub mod missed;
+pub mod nag;
 pub mod pulse;
 pub mod quiet;
+pub mod recap;
 pub mod registry;
 pub mod render;
 pub mod routing;

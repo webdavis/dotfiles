@@ -1,0 +1,89 @@
+id = "herdr-workspace-jump"
+name = "Workspace Jump"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Create-or-focus a workspace by label, which herdr has no single built-in command for."
+platforms = ["macos", "linux"]
+
+# Compiled at install time. `herdr plugin link` (local dev) does NOT run this, so
+# the chezmoiscript that links the plugin builds it first.
+[[build]]
+command = ["cargo", "build", "--release", "--locked"]
+
+# One action per workspace. A `plugin_action` keybinding passes its action name
+# and nothing else, and herdr states that actions are manifest-only ("runtime
+# action registration ... not part of v1"), so the label and the working
+# directory are baked into each action's argv, exactly as herdr-smart-nav bakes
+# its four directions.
+#
+# `command` is an argv array that herdr does NOT run through a shell, so `$HOME`
+# would arrive as four literal characters. The paths below use `~`, which the
+# plugin expands itself against HOME.
+
+[[actions]]
+id = "jump_homelab"
+title = "Jump to the homelab workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "homelab",
+  "~/workspaces/Ivy/webdavis/homelab",
+]
+
+[[actions]]
+id = "jump_dotfiles"
+title = "Jump to the dotfiles workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "dotfiles",
+  "~/workspaces/Ivy/webdavis/dotfiles",
+]
+
+[[actions]]
+id = "jump_casually_concerned"
+title = "Jump to the casually-concerned workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "casually-concerned",
+  "~/workspaces/Ivy/casually-concerned",
+]
+
+[[actions]]
+id = "jump_ivy"
+title = "Jump to the Ivy vault workspace"
+command = ["./target/release/herdr-workspace-jump", "Ivy", "~/workspaces/Ivy"]
+
+[[actions]]
+id = "jump_justdavis_ansible"
+title = "Jump to the justdavis-ansible workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "justdavis-ansible",
+  "~/workspaces/Ivy/karlmdavis/justdavis-ansible",
+]
+
+[[actions]]
+id = "jump_essential_feed_case_study"
+title = "Jump to the essential-feed-case-study workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "essential-feed-case-study",
+  "~/workspaces/Ivy/webdavis/essential-feed-case-study",
+]
+
+[[actions]]
+id = "jump_netpulse"
+title = "Jump to the netpulse workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "netpulse",
+  "~/workspaces/Ivy/webdavis/netpulse",
+]
+
+[[actions]]
+id = "jump_plantpulse"
+title = "Jump to the plantpulse workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "plantpulse",
+  "~/workspaces/Ivy/hobbies/plantpulse",
+]

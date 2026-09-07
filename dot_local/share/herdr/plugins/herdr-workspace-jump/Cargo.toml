@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/herdr-workspace-jump-domain",
+  "crates/herdr-workspace-jump-application",
+  "crates/herdr-workspace-jump-protocol",
+  "crates/herdr-workspace-jump-adapters",
+  "crates/herdr-workspace-jump-cli",
+]
+default-members = ["crates/herdr-workspace-jump-cli"]
