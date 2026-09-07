@@ -43,12 +43,12 @@ umask 077
 #   {{ . }} {{ (stat .).modTime }}
 {{- end }}
 #
-# Retry state, the mechanism the pns and uu builders use: chezmoi records a
+# Retry state: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped build (no toolchain,
 # no deployed source) must change this rendered script to re-fire on the next
-# apply. The marker's modification time is the trigger, never its contents,
-# for the reason given above.
-#   retry-marker: {{ $rm := printf "%s/.cache/posture-build/posture.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+# apply. Every deferral appends a byte, so the marker's size changes even
+# within one second. Rendering stats the marker without reading its contents.
+#   retry-marker: {{ $rm := printf "%s/.cache/posture-build/posture.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).size }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
@@ -67,13 +67,8 @@ build_record="$HOME/.local/state/posture-build-record"
 cargo_bin="$HOME/.cargo/bin/cargo"
 
 bump_retry_marker() {
-  local count=0
   mkdir -p "$(dirname "$retry_marker")"
-  if [[ -f $retry_marker ]]; then
-    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
-    [[ $count =~ ^[0-9]+$ ]] || count=0
-  fi
-  printf '%d\n' "$((count + 1))" >"$retry_marker"
+  printf 'x' >>"$retry_marker"
 }
 
 if [[ ! -x $cargo_bin ]]; then

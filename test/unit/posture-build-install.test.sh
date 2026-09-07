@@ -33,6 +33,12 @@ set_up_before_script() {
     return 1
   }
   chmod +x "$rendered_builder"
+  # Exercise the builder's trigger without rehashing every build input per case.
+  retry_template="$render_dir/retry-trigger.tmpl"
+  : >"$render_dir/chezmoi.toml"
+  sed -n '/^#   retry-marker: /p' \
+    "$(repo_root)/.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl" >"$retry_template"
+  [[ -s $retry_template ]]
 }
 
 # Sandboxes stay under the system temporary directory for failure inspection.
@@ -162,9 +168,23 @@ function test_a_missing_toolchain_defers_the_build_and_leaves_the_trigger_retrya
   assert_file_not_exists "$installed_binary"
   assert_file_exists "$retry_marker"
   local first_attempt
-  first_attempt="$(cat "$retry_marker")"
+  first_attempt="$(wc -c <"$retry_marker")"
   assert_builder_succeeds
-  assert_greater_than "$first_attempt" "$(cat "$retry_marker")"
+  assert_greater_than "$first_attempt" "$(wc -c <"$retry_marker")"
+}
+
+function test_same_second_deferrals_change_the_rendered_retry_trigger() {
+  install_stub_toolchain
+  local first_trigger second_trigger
+  assert_builder_succeeds
+  touch -t 202601010000.00 "$retry_marker"
+  first_trigger="$(HOME="$sandbox_home" chezmoi --source "$render_dir" --config "$render_dir/chezmoi.toml" \
+    execute-template --no-tty <"$retry_template")" || return 1
+  assert_builder_succeeds
+  touch -t 202601010000.00 "$retry_marker"
+  second_trigger="$(HOME="$sandbox_home" chezmoi --source "$render_dir" --config "$render_dir/chezmoi.toml" \
+    execute-template --no-tty <"$retry_template")" || return 1
+  assert_not_same "$first_trigger" "$second_trigger"
 }
 
 function test_a_toolchain_without_the_deployed_crate_defers_the_build() {
