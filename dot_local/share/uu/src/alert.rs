@@ -18,7 +18,7 @@
 pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
     [
         "--agent",
-        crate::record::AGENT,
+        uu_protocol::AGENT,
         "--state",
         "failed",
         "--project",
