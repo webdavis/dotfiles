@@ -1,3 +1,4 @@
+use super::captured_child::CapturedChild;
 use super::*;
 
 #[test]
@@ -180,21 +181,33 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
     command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
 }
 
-/// The deadline each silent-moshi run injects, and the window the harness's
-/// own read of the hook must end inside: FOUR TIMES that deadline.
+/// The deadline each silent-moshi run injects.
 ///
-/// FOUR TIMES IS CHOSEN AGAINST A NAMED MUTANT. A deadline hard-coded to one
-/// second, ignoring the injected value, puts EOF just past a second, which the
-/// hook run's 600ms bound refuses. Measured green runs of that one sit at
-/// 0.180-0.198s idle and 0.217s with every core busy, so the bound keeps a
-/// 2.7x margin over the worst honest run and better than 3x over a quiet
-/// machine. The gate run injects 400ms rather than 150 because its stub has a
-/// `/bin/sh` spawn inside the window; its bound scales with it, and it
-/// measures 0.408-0.420s.
+/// WHAT THESE TWO ROWS PIN, AND WHAT THEY LEAVE TO A CONTROLLED CLOCK. A row
+/// that spawns the engine has only the wall clock, and the wall clock measures
+/// the machine: the old four-times-the-deadline bound went red under load on a
+/// build that was correct. So the rows here assert what the engine SAID, that
+/// its streams closed inside `HANG_LIMIT`, its exit code and its submission
+/// count. WHEN the wait gives up and that it releases at once are pinned by
+/// the unit tests beside `answer_within_on` in `src/moshi_submission.rs`, on a clock that
+/// moves only when the wait sleeps on it. The gate run injects 400ms rather
+/// than 150 because its stub has a `/bin/sh` spawn inside the window.
 const SILENT_MOSHI_DEADLINE_MS: &str = "150";
-const SILENT_MOSHI_EOF_BOUND: std::time::Duration = std::time::Duration::from_millis(600);
 const GATE_SILENT_MOSHI_DEADLINE_MS: &str = "400";
-const GATE_SILENT_MOSHI_EOF_BOUND: std::time::Duration = std::time::Duration::from_millis(1_600);
+
+/// What a wait that ran out says, with the bound it honoured in the sentence.
+///
+/// THE ENGINE'S OWN WORD RATHER THAN A STOPWATCH. The sentence is the row's
+/// evidence that the wait ended by EXPIRY, and by the injected deadline rather
+/// than a default: a build that never expired, or expired on a bound it read
+/// from somewhere else, says something different here or nothing at all. That
+/// the number in the sentence is also the number the clock was measured
+/// against is the unit tests' claim, not this one's.
+fn expiry_line(deadline_ms: &str) -> String {
+    format!(
+        "pns: the moshi submission did not finish within {deadline_ms}ms; the prompt was released"
+    )
+}
 
 #[test]
 fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
@@ -219,27 +232,32 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     //
     // THE SLEEP IS NOT A SLOW TEST. With the bound in place this run costs the
     // injected deadline and the teardown; it is the RED run, with no bound,
-    // that pays the stub's ten seconds.
+    // that reaches the liveness limit before the capture owner cleans up.
     let sandbox = Sandbox::new("hook-blocked-silent-moshi");
     let mut command = sandbox.pns();
     command
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_SUBMIT_DEADLINE_MS", SILENT_MOSHI_DEADLINE_MS);
     stub_silent_moshi(&sandbox, &mut command);
-    let mut child = spawn_hook(command, "blocked");
-    let stdout = child.stdout.take().expect("stdout");
+    command.args(["hook", "blocked"]);
+    let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
     write_payload(
-        &mut child,
+        &mut capture.child,
         br#"{"message":"may I run this","session_id":"s1","cwd":"/a/dotfiles"}"#,
     );
-    let hidden_for = stdout_eof_within(stdout, HANG_LIMIT)
-        .expect("the harness's own read of this hook has to end at all");
+    // THE STREAM ENDS AT ALL, which is the KILL and not the deadline: a wait
+    // that expired without killing the child leaves this open for the stub's
+    // whole ten seconds, so `HANG_LIMIT` is what catches a reverted kill.
+    let output = capture
+        .output_within(HANG_LIMIT)
+        .expect("the hook's streams and process must finish inside the liveness limit");
+    let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        hidden_for < SILENT_MOSHI_EOF_BOUND,
-        "the prompt stayed hidden for {hidden_for:?}, past the {SILENT_MOSHI_EOF_BOUND:?} bound"
+        said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
+        "the wait had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
-        finished_within(child, HANG_LIMIT),
+        output.status.code(),
         Some(0),
         "a daemon that never answers must not hold the permission prompt off the screen"
     );
@@ -251,13 +269,21 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
         "blocked",
         "the blocked card still went out"
     );
-    // AND THE TIMEOUT SUBMITTED NOTHING FURTHER. One prompt is one submission
-    // however the wait ended: a retry after an expiry is a second card and a
-    // second answer to one question.
-    assert_eq!(
-        submissions(&sandbox),
-        ["claude-hook"],
-        "one prompt, one submission, expiry included"
+    // AND THE TIMEOUT SUBMITTED NOTHING FURTHER. A retry after an expiry is a
+    // second card and a second answer to one question, so NEVER TWO is the
+    // fact this row is about.
+    //
+    // NEVER TWO RATHER THAN EXACTLY ONE, and the difference is the deadline
+    // this row injects. The stub records its argv on its first line, but at
+    // 150ms a loaded machine can spend the whole window forking the shell, so
+    // the engine kills a child that never reached the write and zero is a
+    // correct interleaving. Exactly-one, with the argv, is pinned by
+    // `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`,
+    // which injects no deadline and cannot race.
+    assert!(
+        submissions(&sandbox).len() <= 1,
+        "one prompt is at most one submission, expiry included: {:?}",
+        submissions(&sandbox)
     );
 }
 
@@ -279,29 +305,25 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         GATE_SILENT_MOSHI_DEADLINE_MS,
     );
     stub_silent_moshi(&sandbox, &mut command);
-    let mut child = command
-        .args(["gate", "claude-hook"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the engine runs");
-    let stdout = child.stdout.take().expect("stdout");
-    write_payload(&mut child, b"{\"ask\":1}\n");
-    let hidden_for = stdout_eof_within(stdout, HANG_LIMIT)
-        .expect("the harness's own read of the gate has to end at all");
+    command.args(["gate", "claude-hook"]);
+    let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
+    write_payload(&mut capture.child, b"{\"ask\":1}\n");
+    let output = capture
+        .output_within(HANG_LIMIT)
+        .expect("the gate's streams and process must finish inside the liveness limit");
+    let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        hidden_for < GATE_SILENT_MOSHI_EOF_BOUND,
-        "the gate held its stream for {hidden_for:?}, past the {GATE_SILENT_MOSHI_EOF_BOUND:?} bound"
+        said.contains(&expiry_line(GATE_SILENT_MOSHI_DEADLINE_MS)),
+        "the gate had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
-        finished_within(child, HANG_LIMIT),
+        output.status.code(),
         Some(0),
         "the gate waits on the same clock: no opinion, and the harness prompts as usual"
     );
-    assert_eq!(
-        submissions(&sandbox),
-        ["claude-hook"],
-        "one prompt, one submission, expiry included"
+    assert!(
+        submissions(&sandbox).len() <= 1,
+        "one prompt is at most one submission, expiry included: {:?}",
+        submissions(&sandbox)
     );
 }

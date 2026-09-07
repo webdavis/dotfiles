@@ -203,8 +203,23 @@ fn moshi_decision(mut child: std::process::Child) -> i32 {
 /// NOT `run_bounded`. That helper pipes the child's stdout on its way to
 /// attaching a deadline, and this path's whole stdout contract is that moshi's
 /// stream IS the hook's stream.
-fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
-    let expires_at = std::time::Instant::now() + deadline;
+fn answer_within(child: std::process::Child, deadline: Duration) -> i32 {
+    let started = std::time::Instant::now();
+    answer_within_on(child, deadline, || started.elapsed(), std::thread::sleep)
+}
+
+/// `answer_within` with its clock and its sleeper as parameters, for the
+/// reason `drive_breaths` takes both: the wait fills its whole deadline BY
+/// DESIGN, so a test that read the real clock and slept for real would live
+/// the deadline too, and would be measuring the machine rather than the bound.
+/// `elapsed` is how long the wait has been running; a fake that advances only
+/// inside `sleep` makes the moment of the give-up exact.
+fn answer_within_on(
+    mut child: std::process::Child,
+    deadline: Duration,
+    mut elapsed: impl FnMut() -> Duration,
+    mut sleep: impl FnMut(Duration),
+) -> i32 {
     loop {
         match child.try_wait() {
             // Still `moshi_decision`'s job to turn a finished child into a
@@ -215,17 +230,39 @@ fn answer_within(mut child: std::process::Child, deadline: Duration) -> i32 {
             Err(_) => return 0,
             Ok(None) => {}
         }
-        if std::time::Instant::now() >= expires_at {
+        if elapsed() >= deadline {
             let _ = child.kill();
             // REAPED, not merely signalled: an unreaped child is a zombie
             // holding its slot until pns exits, and the wait is instant on a
             // process already killed.
             let _ = child.wait();
+            // SAID OUT LOUD, AND THE BOUND IS IN THE SENTENCE. An expiry used
+            // to be silent, so an operator whose daemon was wedged saw a
+            // prompt appear late and was told nothing about why. The number is
+            // the deadline THIS wait actually honoured, which is what makes
+            // the sentence answer "how long did it wait, and was that the
+            // bound I configured": a build that ignored the configured value
+            // and used one of its own would say so here.
+            //
+            // IT NAMES THE SUBMISSION, NOT THE PHONE. What ran out here is the
+            // local daemon acknowledging `moshi-hook`'s registration, the wait
+            // the doc comment above describes; the operator's own answer never
+            // travels this path, so a sentence about the phone not answering
+            // would blame the wrong party.
+            //
+            // NO FREE TEXT, in the decision ring's spirit: one integer and
+            // fixed words, so nothing of the operator's own content reaches a
+            // channel the harness may surface.
+            eprintln!(
+                "pns: the moshi submission did not finish within {}ms; the prompt was released",
+                deadline.as_millis()
+            );
             return 0;
         }
-        std::thread::sleep(SUBMISSION_POLL_INTERVAL);
+        sleep(SUBMISSION_POLL_INTERVAL);
     }
 }
+
 /// How often that wait looks. Ten milliseconds is `run_bounded`'s own tick:
 /// short enough to add no latency an operator could notice on a submission
 /// answered in roughly 150, long enough not to spin a core.
@@ -263,3 +300,6 @@ fn configured_submit_deadline() -> Duration {
         Duration::from_secs(pns::config::DEFAULT_SUBMIT_DEADLINE_SECS)
     })
 }
+
+#[cfg(test)]
+mod tests;

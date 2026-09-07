@@ -2,6 +2,8 @@
 //! any other caller would produce, and a blocking one becomes the operator's
 //! decision. These are the twins of the bats suites the bash hooks carried.
 
+#[path = "hooks/captured_child.rs"]
+mod captured_child;
 mod support;
 
 use std::io::Write;
@@ -248,37 +250,6 @@ fn finished_within(mut child: std::process::Child, limit: std::time::Duration) -
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-}
-
-/// How long until the hook's STDOUT REACHES EOF, and `None` when it never does
-/// inside the limit.
-///
-/// PROCESS EXIT IS THE WRONG CLOCK FOR A SUBMISSION. Claude Code decides a
-/// `PermissionRequest` by reading the hook's stdout to end, and only stdin is
-/// piped to moshi-hook, so a submission that outlives the hook still holds
-/// that write end and the prompt stays hidden for as long as it does. Timing
-/// the process alone reports a tenth of a second for a run that leaves the
-/// harness waiting ten, which is the whole reason the bound below is measured
-/// here instead.
-///
-/// THE READER IS ITS OWN THREAD because the read is the thing being bounded:
-/// a caller that blocked on it could not report the case it exists to catch.
-fn stdout_eof_within(
-    stdout: std::process::ChildStdout,
-    limit: std::time::Duration,
-) -> Option<std::time::Duration> {
-    let started = std::time::Instant::now();
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut stdout = stdout;
-        let mut drained = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut drained);
-        let _ = sender.send(());
-    });
-    receiver
-        .recv_timeout(limit)
-        .ok()
-        .map(|()| started.elapsed())
 }
 
 #[path = "hooks/approval_exemptions.rs"]
