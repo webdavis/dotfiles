@@ -101,7 +101,7 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The four Rust crates' tests, the one camp that is not a shell suite. The two
+# The five Rust crates' tests, the one camp that is not a shell suite. The two
 # herdr plugins cover the pure decision functions in their src/main.rs (every
 # Command call sits behind an untested boundary by design) with inline
 # `#[cfg(test)] mod tests`. pns and uu are NOT pure-decision libraries: each
@@ -148,23 +148,23 @@ test-e2e: validate-tests
 # no new step: macos-latest ships cargo, clippy and rustfmt, and `just test`
 # pulls this in.
 #
-# fmt and clippy run for pns and uu ONLY. Nothing linted Rust anywhere before
+# fmt and clippy run for pns, uu and posture ONLY. Nothing linted Rust anywhere before
 # pns, and adopting the two for the herdr plugins is a separate decision with
 # its own diff; a gate that fails on code this slice did not touch would just be
 # turned off. --all-targets so the test modules are linted too, since that is
 # where most of those crates' code lives.
 #
-# pns and uu keep a root package beside their workspace members. Their three
-# lines select --workspace (--all for cargo fmt), because a root-package-only
-# command skips the member crates without saying so.
+# pns and uu keep root packages beside their workspace members. Their commands
+# select --workspace (--all for cargo fmt), or they silently skip those members.
+# posture has a virtual workspace whose default member is the cli crate alone;
+# the same selectors reach its other three members.
 #
-# The three herdr plugins' own build cost is cheap enough to sit in the default
+# The two herdr plugins' own build cost is cheap enough to sit in the default
 # camp list: about 2.5s per crate against an empty target/, well under a
 # second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
 # developer pays the build once.
 test-rust:
   cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
-  cargo test --locked --manifest-path dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
@@ -172,6 +172,9 @@ test-rust:
   cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  cargo test --locked --workspace --manifest-path dot_local/share/posture/Cargo.toml
+  cargo fmt --all --check --manifest-path dot_local/share/posture/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/posture/Cargo.toml -- -D warnings
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
 # `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The

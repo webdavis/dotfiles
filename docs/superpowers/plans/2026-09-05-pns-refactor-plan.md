@@ -267,10 +267,16 @@ S115 (`marker_is_live`), S173, S178 (`say`), S223 to S225, S228 (the schedule), 
 `DimWindow`, `Routed`, `Routing`, `LEVELS`, `resolve`, `Showing`, `dim_showing`, `window_refusal`,
 `Muting`, `muted_now`, `mutable_names`, `remember` (lines 1-743 less `hue_settings`, `quiet_window` and
 `inventory`, which parse TOML and JSON) to `pns-domain/src/lamps/{window,dim,resolve,mute,inventory}.rs`.
-Tests: 42 by name, split alongside. Consumer: `main.rs` `fire_pulse_unless_quiet`, `run_pulse_writes`,
-`run_tick_writes`, `lights_quiet`. Sizes: five production files of 80 to 260, tests 120 to 400. Its
-callers in `main.rs` stay put in this PR. Statements: S107 (`QuietWindow`), S108, S111, S112
-(`muted_now`), S222.
+The policy also needs the plain `Lights`, `Pulse`, `Blocked`, `Unread`, `Looping` and `Target` value
+records and their defaults, so those move first from `config.rs` to `pns-domain/src/lamps/config.rs`.
+TOML parsing and bounds stay in the root configuration module. `QuietWindow` keeps private fields;
+retained fixtures construct it through `parse_window`. The `Fixture` value stays in the domain and
+`fixture_path` renders its Hue resource path at the bridge edge.
+Tests: 42 by name, retained under `src/channels/hue/` in five private files because their cases span
+policy and the retained parsers. The root channel splits bridge transport, JSON bodies and effect
+selection into `hue/{bridge,bodies,render}.rs`. Consumer calls remain in the root runtime modules,
+with fixture path construction updated to the edge function. Statements: S107 (`QuietWindow`), S108,
+S111, S112 (`muted_now`), S222.
 
 **PR 5.9 the recap composition.** Moves `src/recap.rs` whole (it reads no file, no clock and no
 environment; its one input type is `missed::Entry` from PR 5.4) to
@@ -532,6 +538,19 @@ moved logic; `USAGE` gains two lines and the argv differential two rows. Tests f
 behaviors re-expressed as unit tests over the tier and marker policy in `pns-domain/src/shell.rs`, plus
 one dispatch acceptance per verb. Sizes: domain ~120 plus tests ~250; cli `shell.rs` ~120. Statements:
 S207 to S211 (their bash pins are retired in this PR and named in the baseline mapping).
+
+ALSO A DELIVERABLE OF THIS PR: `pns --version`. There is no version handler today, and there never
+has been. `is_producer_argv` rejects the word, so `pns --version` prints `USAGE` and exits 2
+(`src/main.rs` dispatcher, `src/invocation.rs::is_producer_argv` at main `52eaeab8`), and Cargo's
+`0.1.0` is never emitted anywhere. The second consumer of `--elapsed` is `webdavis/pns.nvim`, the
+editor-side producer in its own repository, which carries no thresholds. Its advisory
+`:checkhealth pns` comparison needs a version to read; `report()` does not check that version or
+withhold `--elapsed`. Nvim overhaul task 26 waits for this PR before wiring the plugin, and sets
+its `minimum_version` to this release. Three things this PR states rather than assumes: the word
+`--version` (and `-V`) is answered by the dispatcher and exits 0; the output is ONE line of semver on
+stdout and nothing else, so a caller can compare it without parsing prose; and the version this PR
+ships is the FIRST that carries `--elapsed`, recorded here as the minimum `pns.nvim` pins. `USAGE`
+gains a third line for it, and the argv differential a third row.
 
 **PR 8.4 the Codex installer and the Claude hook table, verified.** No code moves. Runs
 `test/unit/pns-codex-install-hooks.sh` and reads `private_dot_claude/modify_settings.json:325-387`

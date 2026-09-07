@@ -8,6 +8,7 @@ name = "herdr-workspace-jump"
 path = "src/main.rs"
 
 [dependencies]
+herdr-workspace-jump-protocol = { path = "../herdr-workspace-jump-protocol" }
 herdr-workspace-jump-domain = { path = "../herdr-workspace-jump-domain" }
 herdr-workspace-jump-application = { path = "../herdr-workspace-jump-application" }
 herdr-workspace-jump-adapters = { path = "../herdr-workspace-jump-adapters" }
