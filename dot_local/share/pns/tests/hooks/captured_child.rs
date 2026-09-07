@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::mpsc::{self, Receiver};
@@ -10,6 +10,7 @@ pub(super) struct CapturedChild {
     stdout: Receiver<io::Result<Vec<u8>>>,
     stderr: Receiver<io::Result<Vec<u8>>>,
     readers: Vec<JoinHandle<()>>,
+    writer: Option<JoinHandle<()>>,
     reaped: bool,
 }
 
@@ -28,12 +29,34 @@ impl CapturedChild {
             stdout,
             stderr,
             readers: vec![out_reader, err_reader],
+            writer: None,
             reaped: false,
         })
     }
 
-    pub(super) fn output_within(mut self, limit: Duration) -> io::Result<Output> {
+    pub(super) fn input_output_within(
+        mut self,
+        payload: &[u8],
+        limit: Duration,
+    ) -> io::Result<Output> {
         let deadline = Instant::now() + limit;
+        let mut stdin = self.child.stdin.take().expect("piped stdin");
+        let payload = payload.to_vec();
+        let (sender, receiver) = mpsc::channel();
+        self.writer = Some(std::thread::spawn(move || {
+            let result = stdin.write_all(&payload);
+            drop(stdin);
+            let _ = sender.send(result);
+        }));
+        receive(&receiver, deadline)?;
+        self.output_until(deadline)
+    }
+
+    pub(super) fn output_within(self, limit: Duration) -> io::Result<Output> {
+        self.output_until(Instant::now() + limit)
+    }
+
+    fn output_until(mut self, deadline: Instant) -> io::Result<Output> {
         // Both streams must close before reaping: an inherited pipe may still
         // belong to a submission descendant after the hook has exited.
         let stdout = receive(&self.stdout, deadline)?;
@@ -75,6 +98,9 @@ impl Drop for CapturedChild {
         for reader in self.readers.drain(..) {
             let _ = reader.join();
         }
+        if let Some(writer) = self.writer.take() {
+            let _ = writer.join();
+        }
     }
 }
 
@@ -89,7 +115,7 @@ fn drain(reader: impl Read + Send + 'static) -> (Receiver<io::Result<Vec<u8>>>, 
     (receiver, handle)
 }
 
-fn receive(receiver: &Receiver<io::Result<Vec<u8>>>, deadline: Instant) -> io::Result<Vec<u8>> {
+fn receive<T>(receiver: &Receiver<io::Result<T>>, deadline: Instant) -> io::Result<T> {
     receiver
         .recv_timeout(deadline.saturating_duration_since(Instant::now()))
         .map_err(|error| match error {
