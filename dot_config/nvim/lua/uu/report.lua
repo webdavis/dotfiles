@@ -31,6 +31,11 @@ function M.other_instances(sockets, own_pid)
   return count
 end
 
+function M.running_sockets()
+  local parent = vim.fn.fnamemodify(vim.fn.stdpath("run"), ":h")
+  return vim.fn.glob(parent .. "/*/nvim.*.0", false, true)
+end
+
 function M.restart_notice(count)
   if count > 0 then
     return ("%d Neovim instance(s) were running during this update; restart them to load the new versions"):format(

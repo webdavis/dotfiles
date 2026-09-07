@@ -54,6 +54,11 @@ local function run()
     local lines, status = plugin_report()
     vim.list_extend(result.lines, lines)
     result.status = status
+  elseif result.changed then
+    local notice = Report.restart_notice(Report.other_instances(Report.running_sockets(), vim.uv.os_getpid()))
+    if notice then
+      result.lines[#result.lines + 1] = notice
+    end
   end
   return result.lines, result.status
 end

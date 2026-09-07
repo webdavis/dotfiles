@@ -163,6 +163,7 @@ graph-refresh environment settings. The lane never pushes or resets the index.
 
 The native fixture uses the current copied Neovim configuration and candidate modules, with a private
 initializer selecting copied Lazy code and one owned local plugin repository. It proves actual checks,
-updates, accepting and rejecting hooks and recovery. The fixture never reads live editor sockets or
-changes installed third-party source. The native exit regression also proves that a completed plugin
-report closes its own socket.
+updates, accepting and rejecting hooks, recovery and one owned competing editor instance. The fixture
+never reads live editor sockets or changes installed third-party source. The native exit regression also
+proves that a completed plugin report closes its own socket. Socket discovery reports present socket
+paths; it does not connect to editors or verify that an unrelated stale socket has a live owner.

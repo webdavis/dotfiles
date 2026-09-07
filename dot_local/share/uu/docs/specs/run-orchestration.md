@@ -152,3 +152,7 @@ for these retained limits.
 - **Given** open recovery, **when** the lane runs again, **then** refuse checks and updates until the
   operator's clean committed, deployed and installed pins agree, even if auto-commit is now off. After
   that agreement, archive the recovery record and resume the requested mode.
+- **Given** a successful changed update, **when** other Neovim sockets are present under the per-user
+  runtime root, **then** count other process identifiers once, excluding our own, and print
+  `N Neovim instance(s) were running during this update; restart them to load the new versions`. With no
+  other socket, print no notice.

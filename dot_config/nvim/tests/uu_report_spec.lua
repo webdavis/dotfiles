@@ -65,6 +65,24 @@ return {
     local allowed, why = report().commit_allowed("", "refs/heads/topic\n")
     assert(allowed and why == nil)
   end,
+  ["the run directory's parent is the per-user socket root"] = function()
+    local stdpath, glob = vim.fn.stdpath, vim.fn.glob
+    local pattern
+    vim.fn.stdpath = function(kind)
+      assert(kind == "run")
+      return "/private/fixture/nvim.user/one-instance"
+    end
+    vim.fn.glob = function(value)
+      pattern = value
+      return { "/private/fixture/nvim.user/other/nvim.42.0" }
+    end
+    local ok, sockets = pcall(function()
+      return report().running_sockets()
+    end)
+    vim.fn.stdpath, vim.fn.glob = stdpath, glob
+    assert(ok, sockets)
+    assert(pattern == "/private/fixture/nvim.user/*/nvim.*.0" and #sockets == 1)
+  end,
   ["a pending plugin report closes its owned Neovim server socket"] = function()
     local fixture = dofile(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h") .. "/uu_fixture.lua")
     local root = vim.fn.tempname()
