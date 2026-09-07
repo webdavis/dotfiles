@@ -123,4 +123,4 @@ pub(super) const NIGHT_HEADING: &str = "THE NIGHT IN ORDER";
 /// An empty window, which the event path never posts (nothing is under every
 /// threshold) and a hand-run `pns recap` reaches whenever it is pointed at a
 /// quiet stretch.
-pub const NOTHING_HAPPENED: &str = "- nothing was recorded in this window";
+const NOTHING_HAPPENED: &str = "- nothing was recorded in this window";

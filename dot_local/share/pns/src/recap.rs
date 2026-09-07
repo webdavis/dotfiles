@@ -29,7 +29,6 @@ pub use pns_domain::recap::budget::{MAX_CHARS, fit};
 pub use pns_domain::recap::external::{
     External, Externals, Found, Sourced, merged, noted, unreadable,
 };
-pub use pns_domain::recap::night::NOTHING_HAPPENED;
 pub use pns_domain::recap::prompt::{MAX_ANSWER_BYTES, answer, merge_prompt, note_prompt, prompt};
 pub use pns_domain::recap::sanitize::is_invisible;
 pub use pns_domain::recap::sections::{Timeline, body};
