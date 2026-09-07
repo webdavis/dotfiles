@@ -31,3 +31,20 @@ pub use gate::{
     LaunchdIdentity, Signing, Triage, gate,
 };
 pub use severity::{Action, ProtectionState, Severity, severity};
+
+mod allowlist;
+mod integrity;
+mod known_good;
+
+pub use allowlist::{
+    Allowlist, AllowlistChange, AllowlistEntry, AllowlistLine, AllowlistVerdict, CuratedLine,
+    CurationRefusal, allowlist_verdict, curate_allowlist, relativize_allowlist_identity,
+    valid_allowlist_label,
+};
+pub use integrity::{
+    DeployedState, FileKind, Rehash, deployed_state_known_good, integrity_verdict,
+};
+pub use known_good::{
+    KnownGood, KnownGoodTuple, Manifest, ManifestAuthority, ManifestDigest, ManifestKind,
+    manifest_for, manifest_trustworthy,
+};
