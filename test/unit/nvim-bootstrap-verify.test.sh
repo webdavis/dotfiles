@@ -179,3 +179,50 @@ function test_the_wrong_number_of_arguments_is_an_error_not_a_help_screen() {
   main "$fixture/lock.json" >/dev/null 2>&1
   assert_same 2 "$?"
 }
+
+function test_newline_only_tool_inventory_is_refused() {
+  printf '\n' >"$fixture/newline-tools"
+  main "$fixture/only-on-pin.json" "$fixture/lazy" "$fixture/newline-tools" "$fixture/all-packages" >/dev/null 2>&1
+  assert_same 2 "$?"
+}
+
+function test_whitespace_only_tool_inventory_is_refused() {
+  printf ' \t\n' >"$fixture/blank-tools"
+  main "$fixture/only-on-pin.json" "$fixture/lazy" "$fixture/blank-tools" "$fixture/all-packages" >/dev/null 2>&1
+  assert_same 2 "$?"
+}
+
+function test_empty_plugin_inventory_is_refused() {
+  printf '{}\n' >"$fixture/empty-lock.json"
+  mispinned_lazy_plugins "$fixture/empty-lock.json" "$fixture/lazy" >/dev/null 2>&1
+  assert_same 2 "$?"
+}
+
+function test_every_deferral_changes_the_retry_marker_size_with_a_fixed_timestamp() {
+  local marker="$fixture/retry" first second
+  bump_nvim_retry_marker "$marker"
+  touch -t 202601010000.00 "$marker"
+  first="$(wc -c <"$marker")"
+  bump_nvim_retry_marker "$marker"
+  touch -t 202601010000.00 "$marker"
+  second="$(wc -c <"$marker")"
+  assert_same 1 "$((second - first))"
+}
+
+function test_later_failure_replays_and_retains_earlier_success_status_diagnostics() {
+  local log="$fixture/steps.log" output status
+  nvim_bootstrap_step "$log" install printf 'fixture download failed but tool exited zero\n'
+  output="$(nvim_bootstrap_step "$log" verify bash -c 'printf "fixture unmet package\n"; exit 1' 2>&1)"
+  status="$?"
+  assert_same 1 "$status"
+  assert_contains 'fixture download failed but tool exited zero' "$output"
+  assert_contains 'fixture unmet package' "$output"
+  assert_contains 'fixture download failed but tool exited zero' "$(cat "$log")"
+}
+
+function test_successful_steps_are_quiet() {
+  local output
+  output="$(nvim_bootstrap_step "$fixture/quiet.log" install printf 'progress\n' 2>&1)"
+  assert_same 0 "$?"
+  assert_same '' "$output"
+}

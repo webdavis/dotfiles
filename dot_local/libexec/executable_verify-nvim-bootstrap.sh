@@ -45,7 +45,10 @@ mispinned_lazy_plugins() {
   # substitution, where it is invisible: an unreadable or truncated lock would
   # then yield zero pins and this function would report nothing unmet, which is
   # a gate that passes on a corrupt input.
-  pinned="$(jq -r 'to_entries[] | "\(.key) \(.value.commit)"' "$lock" 2>/dev/null)" || return 2
+  pinned="$(jq -ers 'select(length == 1) | .[0] | objects |
+    select(length > 0 and all(to_entries[];
+      (.key | test("^[^[:space:]/]+$")) and (.value.commit | test("^[0-9a-f]{40}$")))) |
+    to_entries[] | "\(.key) \(.value.commit)"' "$lock" 2>/dev/null)" || return 2
   while read -r name wanted || [[ -n $name ]]; do
     [[ -n $name ]] || continue
     if [[ ! -d "$lazy_dir/$name" ]]; then
@@ -100,7 +103,7 @@ main() {
   # An empty tool list is not evidence that no tool is required: it is what a
   # failed extraction leaves behind, and reading it as "nothing to check" would
   # delete the Mason half of this gate without printing a word.
-  if [[ ! -s $tool_list ]]; then
+  if [[ ! -r $tool_list ]] || ! grep -q '[^[:space:]]' "$tool_list"; then
     printf 'verify-nvim-bootstrap: the Mason tool list is empty or absent: %s\n' "$tool_list" >&2
     return 2
   fi
@@ -123,6 +126,28 @@ main() {
   done <<<"$mason_missing"
 
   return "$status"
+}
+
+# Byte count is the rendered retry token, so two deferrals in one second
+# still differ. No contents are read at render time.
+bump_nvim_retry_marker() {
+  local marker="$1"
+  mkdir -p "$(dirname "$marker")"
+  [[ ! -e $marker || -f $marker ]] || return 1
+  printf 'x' >>"$marker"
+}
+
+# Keep each step's transcript until all verification is over. A tool may exit
+# zero after reporting its own failure; the later failing gate needs that text.
+nvim_bootstrap_step() {
+  local log="$1" name="$2"
+  shift 2
+  printf '\n%s\n' "$name" >>"$log"
+  if ! "$@" >>"$log" 2>&1; then
+    cat "$log" >&2
+    printf 'nvim bootstrap: %s failed; log retained at %s\n' "$name" "$log" >&2
+    return 1
+  fi
 }
 
 # Only this block is a process. Sourcing the file defines the functions above
