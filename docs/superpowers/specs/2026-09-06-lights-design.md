@@ -1,12 +1,11 @@
 # lights: a standalone keyboard controller for Hue lights (design)
 
-Status: proposed. Every name in this document is proposed and needs confirmation before anything is
-created.
+Status: proposed specification. `lights`, `LightController` and `HueLightController` are settled names.
 
 `lights` replaces `dot_local/libexec/executable_control-hue-lights.sh`, the bash script the seven
-aerospace function keys call today. The script shells out to `openhue`, `jq` and GNU `getopt`, so one
-keypress costs three to five process spawns and two or three separate `openhue` invocations, each of
-which opens its own connection to the bridge. `lights` is one binary that talks to the bridge directly.
+aerospace function keys call today. The script shells out to `openhue`, `jq` and an external option
+parser, with repeated client invocations per action. `lights` is one binary that talks to the bridge
+directly.
 
 pns is not involved in any of this. pns is a notification system, and it supports lamps only as a way to
 notify. Controlling the lights is a different job, so `lights` is a separate tool with its own config,
@@ -23,8 +22,8 @@ and a test implementer built that way.
 ### LightController
 
 `LightController` is a trait `lights` owns. Hue is one implementer, selected by `type = "hue"` in the
-config. Nothing above the trait knows that Hue exists, that the transport is HTTPS, or that a room is
-addressed by a UUID.
+config. Nothing above the trait knows that Hue exists, that the transport is encrypted web traffic, or
+that a room is addressed by a vendor resource identifier.
 
 | Role       | Name                       |
 | ---------- | -------------------------- |
@@ -32,12 +31,8 @@ addressed by a UUID.
 | Production | `HueLightController`       |
 | Test       | `RecordingLightController` |
 
-The name is proposed, confirm before creating. The alternative is `RoomLights`, implemented by
-`HueRoomLights`: every method on the trait addresses a room rather than an individual bulb, so
-`RoomLights` puts the scope in the name and drops a role word that decades of MVC have worn thin.
-`LightController` is still the recommendation, because it survives the test implementer's name better.
-`RecordingLightController` reads as a thing that controls lights and records what it was asked to do,
-while `RecordingRoomLights` reads as a collection of lights.
+The standalone tool owns this boundary and its Hue implementer. Neither belongs to pns, and the two
+tools share no crate.
 
 ```rust
 pub trait LightController {
@@ -49,12 +44,19 @@ pub trait LightController {
 }
 ```
 
-`RoomRef` and `SceneRef` are opaque newtypes the controller mints and the controller consumes. The domain
-passes them around and never looks inside one, which is what keeps a Hue resource identifier from leaking
-upward into policy.
+`RoomRef` and `SceneRef` wrap private `usize` indices into the controller's per-process snapshot. The
+application exports `from_index(usize)` and `index() -> usize` for implementers in other crates,
+including recording fakes. Only implementers construct or inspect them; use cases pass them unchanged.
+They are opaque to policy, not secret or unforgeable capabilities. Each controller checks bounds and
+resource kind before use, returning `InvalidReference` without a write for an invalid index.
+References belong to the controller instance that produced them and cannot be persisted or passed
+between instances.
+Hue identifiers remain in the adapter's private tables, never in these public values.
 
 ```rust
-pub struct RoomState { pub room: RoomRef, pub on: bool, pub brightness: Option<Brightness> }
+pub struct RoomState {
+    pub room: RoomRef, pub on: bool, pub brightness: Option<ReportedBrightness>,
+}
 pub struct SceneState { pub scene: SceneRef, pub name: String, pub active: bool }
 
 pub enum BrightnessChange { Absolute(Brightness), Step { direction: Direction, percent: u8 } }
@@ -62,16 +64,18 @@ pub struct Brightness(u8);  // 1 to 100, smart constructor, no public field
 
 pub enum LightControlError {
     Unreachable { detail: String },
-    Refused { status: u16 },
+    Refused { detail: String },
     UnknownRoom { name: String },
     UnknownScene { name: String, room: String },
     Malformed { detail: String },
+    InvalidReference,
 }
 ```
 
-`brightness` is `Option` because the bridge reports a grouped light's dimming as the average over the
-lights that are currently on. A room with every light off carries no brightness at all, and the type says
-so rather than inventing a zero.
+The schema defines grouped brightness as the average over lights that are on, without guaranteeing
+whether dimming is present when all lights are off. A missing dimming value is `None`, never an invented
+zero. Observed brightness uses a separate validated `ReportedBrightness` percentage that preserves the
+schema's fractional 0 through 100 range; the request-only `Brightness` clamp must not alter readings.
 
 ### Notifier
 
@@ -104,7 +108,8 @@ appears the boundary can be introduced then, and the rule above names it `Settin
 
 ## Behaviors
 
-Each row names the bash lines it preserves, by line number in the script as it stands on `main`.
+Line references name `dot_local/libexec/executable_control-hue-lights.sh` at `1cd246f3`. Rows distinguish
+preserved Bash behavior from intentional Rust changes; schema facts do not establish hardware timing.
 
 ### Resolution and defaults
 
@@ -123,18 +128,22 @@ from a `case` statement into config.
 reports a grouped light as on when any light in the group is on, so a half-lit room toggles off.
 Preserves bash:190-204.
 
-**L005. `lights on` and `lights off` write the state directly with no read.** New behavior. The bash had
-only a toggle, so a binding that wanted a known end state could not have one.
+**L005. `lights on` and `lights off` write the requested state after resolving the room.** New behavior.
+`room(name)` may read to obtain the `RoomRef`; its returned power never influences the requested value.
+There is no extra read to decide whether to write, and no write is skipped because the room already
+appears on or off. Bash had only a toggle.
 
 ### Brightness
 
-**L006. A brightness step moves 15 percentage points.** The step is configurable. Preserves bash:333.
+**L006. A brightness step requests a 15 percentage point adjustment.** The step is configurable.
+Preserves bash:333.
 
-**L007. Brightness is clamped to the range the bridge actually honors.** See the correction in L022.
-Preserves bash:341-345 in shape.
+**L007. Absolute brightness requests clamp to 1 through 100; relative steps use bridge clipping.**
+This changes Bash's 0 through 100 clamp at bash:341-345. See L022 for the reporting and hardware limits.
 
-**L008. A direction that is not `up` or `down` and is not a number in range is a usage error.** Preserves
-bash:319.
+**L008. A brightness argument must be `up`, `down` or a non-negative integer.** Invalid syntax exits 1.
+Bash accepts only the two directions (bash:312-320). Numeric input is new and clamps per L009/L022;
+it is parsed before narrowing to `u8`, so 101 clamps to 100 and an overflowing integer is a usage error.
 
 **L009. `lights brightness <n>` sets an absolute level.** New behavior, and it is where the domain clamp
 lives.
@@ -165,27 +174,35 @@ bash:206-218. `static` is one of three values the bridge uses, alongside `inacti
 ### Status
 
 **L015. `lights status` prints the room's power, brightness and active scene, and writes nothing.**
-Preserves bash:397-418.
+Preserves the report fields at bash:397-418. Fractional brightness output is a deliberate change:
+Bash truncates the reading to an integer at bash:277; Rust preserves a valid reported fraction.
 
-**L016. A room whose active scene the bridge does not report renders as `unknown`.** Preserves bash:411.
+**L016. A successful scene lookup with no static scene renders as `unknown`.** Deliberate change.
+Bash prints a blank scene when its lookup succeeds without a static match; `unknown` is only its fallback
+when that lookup fails (bash:206-218,411). Rust distinguishes absence from lookup failure: absence is
+`unknown`, while a failed scene read exits 4 without printing a successful status report.
 
 ### Failures
 
-Every failure prints exactly one line to stderr, prefixed `lights: `, and exits non-zero. There is no
-path on which a failed action exits zero.
+Every failure prints one diagnostic line to stderr, prefixed `lights: `, and exits non-zero. Usage errors
+may also print usage there. Moving room/scene validator diagnostics from stdout to stderr and assigning
+distinct exit codes are deliberate changes. A rejected response never produces success output or a
+notification; a lost write response cannot establish whether the physical write landed.
 
-| Exit | Condition                                                              | Preserves    |
-| ---- | ---------------------------------------------------------------------- | ------------ |
-| 0    | The action landed                                                      |              |
-| 1    | Usage error: unknown subcommand, unknown flag, bad direction or number | bash:468-471 |
-| 2    | The target room is not on the bridge                                   | bash:297-307 |
-| 3    | The named scene is not in the target room                              | bash:350-361 |
-| 4    | The bridge did not answer, or refused the call                         | new          |
-| 5    | The config is missing, unparseable, or names no bridge and key         | new          |
+| Exit | Condition                                              | Relation to Bash                    |
+| ---- | ------------------------------------------------------ | ----------------------------------- |
+| 0    | Request accepted, status reported, or help printed      | Does not prove a physical end state |
+| 1    | Usage error                                            | Retains catch-all exit 1            |
+| 2    | Target room absent                                     | Changed from exit 1 on stdout       |
+| 3    | Named scene absent in target room                      | Changed from exit 1 on stdout       |
+| 4    | Transport, response, or controller-reference failure    | Explicit failure handling is new    |
+| 5    | Missing or invalid config                              | New                                 |
 
-**L017. An unknown room exits 2 and names the room.** Preserves bash:297-307.
+**L017. An unknown room exits 2 and names the room on stderr.** Deliberate change from bash:297-307,
+which exits 1 and writes its diagnostic to stdout.
 
-**L018. An unknown scene exits 3 and names both the scene and the room.** Preserves bash:350-361.
+**L018. An unknown scene exits 3 and names both the scene and the room on stderr.** Deliberate change
+from bash:350-361, which exits 1 and writes its diagnostic to stdout.
 
 **L019. A bridge that does not answer within the timeout exits 4 and says so.** New behavior. The bash
 had no timeout and no transport error handling at all: `openhue` printing nothing and exiting zero on a
@@ -195,13 +212,15 @@ network failure would have made the script report success.
 
 ### Notification
 
-**L021. `--notify` sends one event to pns after the write lands, and never before.** Replaces bash:60-66,
-which called `osascript` directly.
+**L021. `--notify` sends one event to pns after a write response confirms acceptance, and never before.**
+The response must pass status and envelope validation. Status and failed writes never notify. Replaces
+bash:60-66, which called `osascript` directly.
 
 The event is the producer argv the shell notifier already uses:
 
 ```
-~/.local/libexec/pns/pns --agent lights --state done --project <room> --detail "<action line>" --local-only
+~/.local/libexec/pns/pns --agent lights --state done --project <room> \
+  --detail "<action line>" --local-only
 ```
 
 It is spawned detached with both streams discarded and its exit status ignored. A notification that fails
@@ -209,30 +228,40 @@ must never fail the light change, and a machine with no pns installed is silence
 `--local-only` is deliberate: you are standing in the room with your hand on the key, so there is nothing
 for the phone to tell you.
 
-## Deliberate corrections
+## Deliberate brightness changes and hardware acceptance
 
-Two behaviors change on purpose. Both are named here so nobody reads them as regressions.
+These changes join the new commands, error contract, missing-scene rendering and notifier described
+above. They are not claims of Bash parity.
 
-**L022. The brightness floor is 1, not 0.** The bash clamps down to 0 and reports `0%`. The bridge
-documents brightness as a percentage where "value cannot be 0, writing 0 changes it to lowest possible
-brightness", so what the operator saw reported and what the lights did have never matched. `lights`
-clamps to 1 and reports 1. Brightness down at the floor leaves the room at its dimmest and does not turn
-it off; `lights off` is what turns it off, and it is bound to its own key.
+**L022. Absolute requests have a software floor of 1, not 0.** Bash clamps down to 0, sends that value
+and reports `0%` (bash:280-294,334-345). OpenHue's `Brightness.yaml` says a written zero selects the
+device's lowest possible brightness; it does not identify that minimum as 1%. Choosing 1 through 100
+is the Rust input policy, not a measured device range. `BrightnessSet` reports the requested level as
+"requested 1%" at the floor. `BrightnessStepped` reports direction only, never a resulting percentage.
+Neither performs a readback. Status reports a separate snapshot and cannot certify a previous write.
+Brightness commands do not send power-off writes. `lights off` is available explicitly; the seven-key
+map keeps F9 as toggle and has no dedicated off key. The operator verifies floor and power behavior.
 
-**L023. A held brightness key composes.** The bash reads the current level, adds 15 and writes the
-result. The bridge takes about a tenth of a second to reflect a write, so holding the key down issues
-several reads that all see the same pre-change value and several writes that all name the same target.
-The net movement is one step no matter how many times the key fires. `lights` sends the bridge's own
-relative dimming instead, which the bridge applies to whatever the level is when it arrives, so five
-presses move five steps.
+**L023. Relative steps replace the Bash read-modify-write sequence.** OpenHue's `DimmingDelta.yaml`
+specifies adjustment relative to the current brightness and clipping at the device minimum and maximum.
+It does not promise accumulation for rapid requests or describe transition overlap. The old sequence
+can reuse a stale reading, but neither a fixed bridge delay nor lost presses was measured here.
+Sending one relative request per invocation removes our absolute read-modify-write race. Held-key
+accumulation remains an operator acceptance requirement: temporarily configure a 5-point step and
+compare five isolated presses with five rapid presses from 50%, in both directions, away from clipping.
+Restore the default 15-point step afterward. If movement differs or
+presses disappear, stop cutover and revise the design from that evidence. Do not claim five steps from
+five requests based on the schema alone.
 
 ## The Hue implementer
 
-The bridge speaks CLIP v2 at `https://<address>/clip/v2/resource`, authenticated with a
-`hue-application-key` header. It serves a self-signed certificate for its own address, so certificate
-verification is disabled for these calls; there is no authority that could vouch for a Hue bridge, and
-this is what `openhue` does as well. Every endpoint and field below was read from openhue's own OpenAPI
-specification, which is the source its client is generated from.
+The proposed adapter uses `https://<address>/clip/v2/resource` with a `hue-application-key` header.
+The current design disables certificate verification for the configured bridge. The retained schemas
+cannot verify the bridge's certificate or the supported rustls mechanism; confirm the transport setup
+from authoritative source before implementing it. Do not infer that secure verification is impossible.
+The retained OpenHue schemas identified in the plan support the resource fields and brightness limits.
+Scene and write endpoint declarations still need authoritative source verification before their adapter
+slices; they are not claimed as locally verified here. Hardware behavior and timing remain unmeasured.
 
 ### Endpoints
 
@@ -252,8 +281,8 @@ holds the `rid` every write above is addressed to. A grouped light carries `on.o
 `status.active`.
 
 `dimming_delta` takes `action` of `up`, `down` or `stop` and a `brightness_delta` between 0 and 100, and
-the bridge documents it as clipping at the maximum and minimum levels itself. That is what makes L023
-work and what moves the up and down clamp off our side.
+the schema describes clipping at the device maximum and minimum. This moves clipping out of the
+relative-step use case; it does not establish rapid-request accumulation (L023).
 
 ### The call budget
 
@@ -262,23 +291,47 @@ served from that one response, so resolving a room name, finding its grouped lig
 scenes and finding the active one all share a single round trip. Then the operation writes at most one
 PUT.
 
-That gives a uniform budget: **one GET and one PUT for any action, one GET and nothing else for status.**
+The successful bulk path costs **one GET and one PUT per state-changing command; status costs one GET.**
+Help, usage/config errors and unresolved targets do not require that full budget.
 The memo is private to the adapter and invisible above it, and it is trivially safe because the process
 is one shot and exits.
 
 Room and scene names are matched against that one snapshot, and a scene is matched on its name **and**
-its `group.rid`. The room filter is not optional. Hue creates its stock scenes, `Read` and `Concentrate`
-among them, in every room, so a name alone is ambiguous on this bridge and would let a keypress in the
-studio activate a scene in the bedroom.
+its `group.rid`. The room filter is not optional. A scene name can occur in multiple rooms; matching
+only the name could let a studio keypress activate a bedroom scene. Synthetic fixtures must exercise
+that case.
 
-The process uses one HTTP agent for both calls, so the TLS handshake is paid once rather than per call.
-The call timeout is short on purpose, because a human is holding a key down.
+The process reuses one HTTP (Hypertext Transfer Protocol) agent, allowing connection reuse and avoiding
+repeated TLS (Transport Layer Security) handshakes when the connection stays open. The call timeout is
+short because a human is holding a key down.
 
-**The shape is settled and one number behind it is not yet measured.** `GET /clip/v2/resource` returns
-every resource the bridge knows, and nobody has timed it against this bridge. The first live smoke run
-times it as a named step. At or under 150 milliseconds this design stands; over it, the fallback is two
-targeted listings, `GET .../room` and `GET .../scene`, which costs a second round trip on the scene paths
-and keeps the same trait. Either way the number goes in a decision record inside the crate.
+**The read strategy has an unmeasured acceptance bound.** The operator times the bulk read before
+cutover. At or under 150 milliseconds it remains the chosen strategy. Over that bound, measure targeted
+reads before adopting them in a separate implementation slice. This is a design selection, not an
+automatic retry after a slow bulk request. A failed read is not retried inside the same invocation.
+
+With the current `room(name) -> RoomState` port, targeted reads require both `GET .../room` for service
+references and `GET .../grouped_light/<id>` for power and dimming. Even explicit on/off therefore cost
+those two reads, although existing power cannot affect their write. A scene path also needs
+`GET .../scene`, filtered to the resolved room. Each response is memoized for that invocation.
+
+| Path                        | Targeted reads                           | Writes |
+| --------------------------- | ---------------------------------------- | ------ |
+| Toggle, on/off, brightness  | Room listing, selected grouped light     | 1      |
+| Named or rotated scene     | Room listing, grouped light, scenes      | 1      |
+| Status                     | Room listing, grouped light, scenes      | 0      |
+
+The maximum targeted budget is three reads plus one write, or three reads for status. Room and scene
+listings alone cannot implement this port. Record the measured strategy and budgets with the operator's
+acceptance evidence; do not promise that more round trips will be faster.
+
+### Response validation
+
+Every response must have a successful HTTP status and a valid JSON (JavaScript Object Notation)
+envelope with `errors` and `data` arrays. A nonempty `errors` array is `Refused`, including an HTTP 200
+response with both data and errors. A missing or mistyped array, malformed body, or missing required
+resource fields is `Malformed`. Both map to exit 4. Validate before caching reads or reporting write
+success; none of these failures can notify. Diagnostics exclude credentials and raw response bodies.
 
 ## The command line
 
@@ -289,7 +342,7 @@ lights on                             turn the room on
 lights off                            turn the room off
 lights brightness up                  one step brighter
 lights brightness down                one step dimmer
-lights brightness <1-100>             set an absolute level
+lights brightness <n>                 request an absolute level, clamped to 1-100
 lights scene <name>                   activate a scene by name
 lights scene next                     rotate forward
 lights scene previous                 rotate back
@@ -348,7 +401,7 @@ fallback = "Read"
 ```
 
 The bare keys precede every table, because a bare key written after a table header belongs to that table
-in TOML.
+in TOML (Tom's Obvious Minimal Language).
 
 An unknown key is refused by name at load rather than ignored, which is what pns does and for the same
 reason: a typo in a config key otherwise looks exactly like a setting that quietly does nothing.
@@ -359,13 +412,13 @@ reason: a typo in a config key otherwise looks exactly like a setting that quiet
    rotated it, and nothing ever read it. Failures now go to stderr, where the caller sees them.
 1. **The `SUCCESS` and `FAILED` exit banner.** It printed into that same unread log, and it printed
    `SUCCESS` on every ordinary run. The exit code carries this.
-1. **The ANSI color branch.** All seven bindings run under aerospace with no terminal attached, so the
-   color path was dead in real use and only the plain path ever ran. Status prints plain text.
+1. **The terminal color branch.** All seven bindings run under aerospace with no terminal attached,
+   so the color path was dead in real use and only the plain path ever ran. Status prints plain text.
 1. **The `osascript` notification.** pns is the notifier now, and it already knows about presence, quiet
    hours and every other delivery decision that a raw `display notification` cannot make.
-1. **`openhue`, `jq` and GNU `getopt`.** Three spawns and three install-time dependencies replaced by one
-   binary. GNU `getopt` stays installed, because `dot_bashrc.tmpl` and the osquery allowlist script both
-   still use it.
+1. **Shelling out to `openhue`, `jq` and the external option parser.** The binary replaces these
+   subprocess calls. The option parser stays installed because other scripts still use it; `openhue`
+   remains an operator fallback, as recorded below.
 1. **The `--next` and `--last` options.** They are declared in the `getopt` spec at bash:421-422 and have
    no matching `case` arm, so passing either one reaches the catch-all and errors out. They have never
    worked. `scene next` and `scene previous` are the spellings that do.
@@ -382,19 +435,19 @@ Settled. Each is written into the design above; this is the record of what was c
    hook or a `just` recipe invokes under `libexec`, and pns already lives there even though the operator
    types `pns doctor` by hand. The aerospace keys are the dominant caller.
 
-1. **Brightness up and down send `dimming_delta`.** The bridge applies it to whatever the level is when
-   it arrives, so a held key composes instead of losing presses to a read-modify-write race, and the
-   clamp is the bridge's own documented clipping. Absolute `lights brightness <n>` keeps a domain clamp.
+1. **Brightness up and down send `dimming_delta`.** This removes the client's absolute
+   read-modify-write race and delegates clipping to the bridge. Rapid accumulation is unverified until
+   the operator runs L023. Absolute requests retain the software clamp and report requested levels.
 
-1. **One bulk `GET /clip/v2/resource`, memoized per process.** It gives a uniform budget of one read and
-   one write for any action. The bound is 150 milliseconds: the first live smoke times this call as a
-   named step, and if it comes in slower the fallback is two targeted listings, `GET .../room` and
-   `GET .../scene`, which costs a second round trip on the scene paths and changes no trait.
+1. **Start with one bulk read, memoized per process.** The operator measures the 150 millisecond bound.
+   A slower result requires measuring the targeted strategy and its two- or three-read budget before
+   adoption. There is no automatic fallback or readback in the current call budget.
 
-1. **The brightness floor is 1, and it is reported as 1.** See L022. The bridge rewrites a written 0 to
-   its lowest level, so the old `0%` report was never true.
+1. **The absolute request floor is 1.** This is an input policy, not a measured device minimum. Relative
+   steps report direction, and absolute writes report the requested level. See L022.
 
-1. **The bridge credential is the existing `OpenHue :: API Key (hue-bridge-pro)` entry.** It already
+1. **Reuse the bridge application programming interface credential** named
+   `OpenHue :: API Key (hue-bridge-pro)`. The existing template contract says this entry
    holds the address in its username field and the key in its password field, and the pns config template
    already reads the same two. One bridge credential in two places would be a rotation hazard.
 
