@@ -107,7 +107,9 @@ pub(crate) fn run_tick_writes<B: pns::channels::hue::Bridge>(
                 continue;
             };
             let (color, cycle) = pns::channels::hue::held_render(held, lights, showing);
-            let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
+            let path = pns::channels::hue::fixture_path(&pns::channels::hue::Fixture::Light(
+                routed.lamp.id.clone(),
+            ));
             // A LAMP NOT NAMED IN LAST TICK'S RECORD, OR NAMED THERE WITH NO
             // PHASE, RESUMES AT THE DEFAULT: a fresh arm, an external switch,
             // a killed child's bare token and a dim-window shape change all

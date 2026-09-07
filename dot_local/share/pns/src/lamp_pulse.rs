@@ -177,7 +177,9 @@ fn run_pulse_writes<B: pns::channels::hue::Bridge>(
     // dim window together, because "eligible" has to mean "would light" or the
     // narrowing's own fallback is judging the wrong set.
     let write_for = |routed: &pns::channels::hue::Routed| -> Option<(String, String)> {
-        let path = pns::channels::hue::Fixture::Light(routed.lamp.id.clone()).path();
+        let path = pns::channels::hue::fixture_path(&pns::channels::hue::Fixture::Light(
+            routed.lamp.id.clone(),
+        ));
         let lamp_is_held = held.is_none_or(|held| held.contains(&path));
         if pns::channels::hue::muted_now(&routed.lamp, reading.muted)
             || !pns::lights::pulse_fires(&routed.shows, behaviour, lamp_is_held)
