@@ -5,7 +5,7 @@ refactor; amended 2026-09-06 with the operator's rulings from the grill of 2026-
 Every command below was checked against the copy installed on this machine, not recalled. The
 implementation plan is `docs/superpowers/plans/2026-09-06-uu-tooling-lanes-plan.md`.
 
-uu today runs four lane kinds: `brew`, `npm`, `uv`, and the generic `command` producer API
+uu today runs five lane kinds: `brew`, `herdr`, `npm`, `uv`, and the generic `command` producer API
 (application programming interface). This design adds nine more, in three groups. The Neovim group
 covers the plugins lazy.nvim pins, the tools Mason installs, the treesitter parsers, and a smoke test
 of the whole config. The toolchain group covers cargo-installed binaries and rustup. The third group is
@@ -88,10 +88,11 @@ went stale (three runs without a success), and the weekly record could not be de
 escalation above joins them as the fourth. Every alarm goes through the one `send_alert` path, which is
 what makes the next paragraph a single change rather than four.
 
-Failures may also go to a separate webhook. `[records]` gains `failure_webhook`: a URL that receives a
-second signed POST for every alarm, signed with the same `key` the record uses and carrying the same
-four-field body (`agent` is `uu`, `state` names the alarm as `failed`, `stale`, `record-lost` or
-`pending`, `project` is the host, `detail` is the sentence pns was handed). All four alarms go there;
+Failures may also go to a separate webhook. `[records]` gains `failure_webhook`: a URL (uniform
+resource locator) that receives a second signed POST for every alarm, signed with the same `key` the
+record uses and carrying the same four-field body (`agent` is `uu`, `state` names the alarm as
+`failed`, `stale`, `record-lost` or `pending`, `project` is the host, `detail` is the sentence pns was
+handed). All four alarms go there;
 the operator ruled against a subset. Writing the URL alone opts in; an absent key means off.
 
 `failure_webhook` is an opt-in feature, so it follows the repository's config rule for one: the shipped
@@ -113,8 +114,11 @@ nvim --headless -u <config>/init.lua -l <config>/lua/uu/<module>.lua [args]
 where `<config>` is the lane's `config` key, `~/.config/nvim` on this machine. The `-u` is
 load-bearing: `:help -l` on the installed 0.12.5 says the script runs "after processing any preceding
 Nvim cli-arguments" and "skips user config unless -u was given", so without it lazy.nvim, Mason and
-nvim-treesitter are not on the runtime path at all. A Lua error exits 1 on its own; the modules exit 0,
-1 or 100 deliberately, and print their record lines to stdout, which uu keeps whatever the exit was.
+nvim-treesitter are not on the runtime path at all. An uncaught `-l` script error exits 1; modules exit
+0, 1 or 100 deliberately, and print their record lines to stdout, which uu keeps whatever the exit was.
+The smoke verifier is the exception to `-l`: it must enter the startup event loop, so it registers a
+self-quitting `VimEnter` callback with `-c`, as specified below. An initialization error can still exit
+0; successful process exit alone is never its startup verdict.
 
 The pure halves are pinned by headless specs under `dot_config/nvim/tests/uu_*_spec.lua`, run by
 `just test-nvim` under `--clean` exactly like the `custom_api` specs (the runner puts `lua/` on
@@ -165,17 +169,33 @@ module exits 100 and the lane is pending; the escalation fires after three pendi
 lane records which pins have moved; the operator then updates and commits through a pull request, which
 is also when a breakage is attributable to a change of theirs.
 
-**`auto_commit`, default off.** The write-back answer ships behind this key. When it is `true` the
-module runs `require("lazy.manage").update({ wait = true, show = false })` against the live tree, which
-rewrites the live lock, then copies `<config>/lazy-lock.json` to `<repo>/dot_config/nvim/lazy-lock.json`
-and commits it there with `SKIP_AI_COMMIT=1 git -C <repo> commit`, a fixed message and the operator's
-hooks running as they would for anyone. It never pushes; the pull request stays the operator's. `repo`
-names the chezmoi source checkout and is required when `auto_commit` is on. Two preconditions are
-checked BEFORE the update runs, because the update is what moves the live tree past the committed lock:
-`git status --porcelain -- dot_config/nvim/lazy-lock.json` must print nothing, and HEAD must be a
-branch. When either fails the lane falls back to the check for that run and says why, so the machine is
-never left on plugins its committed lock does not describe. The record then names the commit, the lane
-is completed rather than pending, and the restart notice applies.
+**`auto_commit`, default off.** `repo` names the source checkout and is required when this key is on.
+Before mutation the lane requires a branch, a clean source lock, and agreement between the committed
+lock, the deployed lock and lock-managed installed plugin commits. A failed preflight falls back to
+report-only and names the reason. Other staged paths are never included in the lane's commit.
+
+Before running `require("lazy.manage").update({ wait = true, show = false })` against the live tree,
+the lane durably saves a recovery record under its state directory: repository and config paths, branch,
+starting commit and lock bytes. If that write fails, it performs no update. After a successful update it
+saves the candidate lock there too. Before copying, it rechecks the recorded branch, HEAD and source
+and index lock bytes; any intervening edit fails without overwriting source. It then copies the
+candidate to `<repo>/dot_config/nvim/lazy-lock.json` and commits only that path with
+`SKIP_AI_COMMIT=1 GRAPHIFY_SKIP_HOOK=1` and normal hooks. It never pushes.
+For changed pins, completion requires a successful commit whose lock equals the candidate, the deployed
+lock and the lock-managed installed commits. Only then is recovery closed and the commit named. An
+unchanged candidate closes recovery as a completed no-op after the same agreement check, without an
+empty commit. The restart notice applies when plugins changed.
+
+An update, copy, hook or commit failure is a failed lane, with the failing command and recovery path in
+the record. It retains the old lock, any candidate lock and the recovery record; a partial update is
+never committed as success. Recovery is operator-led reconciliation: either restore the source and
+deployed lock from the saved committed version, or review and commit the candidate through normal hooks,
+then run `:Lazy restore` against the chosen committed lock. Subsequent runs, even with `auto_commit`
+off, refuse further updates and remain failed until the source lock is clean and equals its committed
+version, the deployed lock and every lock-managed installed plugin commit. They then close recovery and
+resume. Neither a rejected hook nor a failed restore can silently turn into a completed or pending run;
+uu never
+resets the repository or overwrites edits made after the failure.
 
 ## Mason tools (`nvim-mason`)
 
@@ -241,33 +261,57 @@ take them: does the config still start, with those versions, on this machine? It
 operator wants it on here, and its block in the shipped config carries a comment naming what it costs.
 
 **What it costs.** A second plugin tree on disk. Measured on 2026-09-06, `~/.local/share/nvim/lazy`
-holds 93 plugins in 417 MB, so the candidate tree is about that size and stays on disk between runs
-under `~/.cache/uu/nvim-smoke-test/`, so a week costs a fetch rather than a fresh clone. Mason's tree
-is 2.1 GB and is NOT duplicated: the candidate's `data/nvim/mason` is a symlink to the live one, which
-the smoke test only reads (mason-tool-installer's `run_on_start` is off in this config, so nothing
-installs at startup). Deleting the cache directory reclaims the space; commenting the block out stops
-paying it.
+holds 93 plugins in 417 megabytes, so the candidate tree is about that size and stays on disk between
+runs under `~/.cache/uu/nvim-smoke-test/`, so a week costs a fetch rather than a fresh clone. Mason's
+tree adds about 2.1 gigabytes and is copied to `d/nvim/mason`, for roughly 2.5 gigabytes total.
+`mason-tool-installer.run_on_start = false` does not make a live symlink safe: mason-lspconfig still
+refreshes the registry during startup, which can write under Mason's root. Copy that tree too.
+Trashing the cache directory reclaims the space; commenting the block out stops future runs.
 
-**Command.** uu copies `<config>` to `<cache>/config/nvim` (a plain recursive copy, so the copied lock
-is the committed one), then runs the module with the four base directories redirected through
-`/usr/bin/env`, which needs no new spawn seam:
+**Command.** uu copies `<config>` and its starting lock to `<cache>/c/nvim`. It uses short copy roots
+`c`, `d`, `s`, `k` for configuration, data, state and cache, because long paths can break `vim.loader`
+cache filenames. It runs two sequential
+children with the same isolated roots through `/usr/bin/env`:
 
 ```text
-/usr/bin/env XDG_CONFIG_HOME=<cache>/config XDG_DATA_HOME=<cache>/data XDG_STATE_HOME=<cache>/state
-  XDG_CACHE_HOME=<cache>/cache nvim --headless -u <cache>/config/nvim/init.lua
-  -l <cache>/config/nvim/lua/uu/smoke_test.lua
+/usr/bin/env XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
+  XDG_CACHE_HOME=<cache>/k nvim --headless -u <cache>/c/nvim/init.lua
+  -l <cache>/c/nvim/lua/uu/smoke_test.lua prepare
+
+/usr/bin/env XDG_CONFIG_HOME=<cache>/c XDG_DATA_HOME=<cache>/d XDG_STATE_HOME=<cache>/s
+  XDG_CACHE_HOME=<cache>/k nvim --headless -u <cache>/c/nvim/init.lua
+  -c "lua dofile('<cache>/c/nvim/lua/uu/smoke_test.lua')"
 ```
 
-Inside, `stdpath("config")` is the copy, so the lock lazy.nvim rewrites is the copy's. The module runs
-`require("lazy.manage").update({ wait = true, show = false })`, which installs the candidate versions
-into the scratch data directory, then runs `checkhealth` and reads the health buffer back, then dumps
-every global keymap (`vim.api.nvim_get_keymap(mode)` for each mode letter) as one
-`mode <tab> lhs <tab> rhs-or-description` row per mapping.
+The paths above are schematic; compose arguments without a shell and escape the Lua path as a Lua
+string. Tests redirect HOME and temporary files too and neutralize global/system Git configuration.
+No experiment updates a live plugin or skill.
 
-**Failure detection.** The module exits 1 when any plugin has errors after the update
-(`has_errors`, as above) or when the config raised a Lua error on the way up. `checkhealth` lines
-marked `ERROR` do not fail the lane on their own, because some are permanent on this machine (an
-optional provider that is not installed); they are counted and named so the operator can compare weeks.
+The prepare child updates only the copied lock and candidate data tree with
+`require("lazy.manage").update({ wait = true, show = false })`, checks every plugin's `has_errors`,
+and exits. After it succeeds, a fresh verifier starts on that exact candidate lock without updating
+again. It enters actual `VimEnter`, fires `User VeryLazy`, drains scheduled startup work within a
+bounded deadline, then captures startup diagnostics before running `silent checkhealth` (never
+`silent!`, which hides exceptions). Silence suppresses progress echoes that otherwise contaminate
+stderr while the health buffer retains its diagnostics. Health and global keymap capture therefore
+observe newly loaded candidate code, not modules cached before the update.
+Each mapping is one `mode <tab> lhs <tab> rhs-or-description` row.
+
+**Failure detection.** The parent requires both child exits to succeed, a fresh verifier completion
+record naming this run and its candidate lock, zero verifier stderr bytes and no startup errors.
+An older completion artifact cannot satisfy this run. The verifier inspects `vim.v.errmsg` and
+ERROR notifications, including the configured notifiers' histories:
+`Snacks.notifier.get_history({ filter = "error" })` and, when Noice loaded,
+`require("noice.message.manager").get({ error = true }, { history = true })`.
+An early `vim.notify` wrapper alone is insufficient because both plugins replace it. An unavailable
+history from a loaded notifier, missing completion record or startup timeout fails closed. Keep raw
+startup diagnostics and the failure reason. Health `ERROR` and `WARNING` counts belong to the separate
+health artifact; optional-provider health errors never suppress startup failures.
+
+Required failing controls use an initialization error and an owned plugin configuration error, including
+errors after Snacks and Noice load. Each must fail even when Neovim exits 0 and lazy.nvim's task error
+flag is false; the notifier cases must also fail with empty stderr. A healthy control must pass. The
+verifier quits itself after capture, because `-l` and an early `qa!` can skip `VimEnter` altogether.
 
 **Record row.** Pass or fail, the count of `ERROR` and `WARNING` lines in the health report, the count
 of mappings in the dump, and how many mappings were added or removed since the previous run's dump,
@@ -275,9 +319,10 @@ by lhs and mode, which is what catches a plugin update that took a key. The full
 dump are written beside the cache at `<cache>/checkhealth.txt` and `<cache>/keymaps.tsv`, and the
 record names those paths rather than carrying their contents.
 
-**Verdict: VERIFY.** Nothing the machine runs on changes. With `auto_commit` off the candidate is
-exactly the pull request the operator would open; with it on, the candidate is what the plugins lane
-just installed, and this lane's failure is the alarm to revert it.
+**Verdict: VERIFY.** Nothing the machine runs on changes. The candidate is a proposed pin bump at the
+revisions its prepare child fetched. That independent check can fetch newer commits than an earlier
+live write-back; the record identifies the candidate lock it verified. This lane's failure alarms for
+operator review. Write-back failures follow the separate recovery contract in the plugins lane.
 
 ## uv tools and fnm-managed npm globals
 
@@ -335,10 +380,13 @@ that is what the apply-time builders compiled pns and uu with, so an unattended 
 the next `chezmoi apply` on a machine whose operator changed nothing, and continuous integration (CI)
 runs stable so nothing caught it first. The operator ruled for the pin: each of the four crates this
 repository owns (pns at its workspace root, uu, and the two herdr plugins) gains a
-`rust-toolchain.toml` with `channel = "stable"`. rustup's `cargo` proxy at `~/.cargo/bin/cargo`, which
-is the path every builder already uses, honours the file, so the builders and `just test-rust` move to
-stable with no other change. Nothing in the four crates uses a nightly feature (no `#![feature]`,
-checked 2026-09-06), and CI has always run them on stable. The one thing that changes for the operator
+`rust-toolchain.toml` with `channel = "stable"`. rustup selects it from the working directory and its
+parents, so every builder must run its cargo line from its crate directory. `just test-rust` runs at
+the repository root with `--manifest-path`; a fifth pin there covers that caller and is excluded by
+name in `.chezmoiignore`. Only the crate-local pins deploy. A root pin deployed as
+`~/rust-toolchain.toml` would also govern unrelated projects under the home directory.
+Nothing in the four crates uses a nightly feature (no `#![feature]`, checked 2026-09-06), and CI has
+always run them on stable. The one thing that changes for the operator
 is Miri, which stays a nightly tool and is invoked as `cargo +nightly miri` from then on; the
 `clean-code-rust` skill's line about the local toolchain being nightly is corrected in the same pull
 request.
@@ -380,7 +428,7 @@ superpowers routing assertion all stay. The roster gate stays fail-closed: a mis
 schema-broken `custom-skill-lock.json`, or one tracking zero skills, refuses the run.
 
 What changes. The exchange primitive is `renameatx_np` with `RENAME_SWAP`, through libc, which is
-the macOS system call `GNU mv --exchange` wraps; uu is already macOS-only, so resolving a GNU mv at run
+the macOS system call Coreutils `mv --exchange` wraps; uu is already macOS-only, so resolving it at run
 time and probing it with a swap goes away. The `--dry-run` mode goes away; nothing in this repository
 calls it and uu has no preview mode to mirror. The `--install-only` mode becomes `uu bootstrap skills`
 (below), which is what the apply-time chezmoiscript runs. Per-skill failure streaks go away: the weekly
@@ -389,6 +437,27 @@ wording they produced adds nothing. Fork drift is not a failure of the lane, it 
 operator ("compare and port by hand"), so it makes the lane pending rather than raising a separate
 alert state per fork. `assert-hermes-superpowers-routing.sh` stays bash, because `live-reconcile.sh`
 also calls it; the lane runs it as a command.
+
+The cleared installer environment retains an explicit PATH built before HOME is redirected: the real
+`~/.local/share/fnm/aliases/default/bin` first, then the approved system directories. Both `npx` and
+`clawhub` use `#!/usr/bin/env node`; an absolute installer path does not locate its child interpreter.
+HOME, the four base directories, temporary files and installer caches remain inside the candidate.
+
+Recovery preserves `generation.json`'s identity, `customLockHash`, updater content hash and `buildMode`
+(`full` or `additive`). The updater identity is a digest of the running executable captured once at
+startup, never the package version. A weekly run reuses only a complete, validated `full` candidate
+whose directory id, roster hash and updater digest match the current run. Additive bootstrap output,
+unknown metadata and output from different code are never reused as a weekly refresh. Interrupted
+publication retains the in-flight marker and its generation until recovery finishes, before any sweep.
+
+There is exactly one publisher at cutover. The partial Rust implementation is unreachable from `run`
+and `bootstrap` and has no active config block until all skills steps are complete. Before the operator
+applies the cutover, they stop the old LaunchAgent and wait for every old or manual publisher, including
+`live-reconcile`, to finish. The cutover enables the completed lane before its apply-time bootstrap;
+`uu run` and `uu bootstrap` share uu's run lock. The operator keeps manual `live-reconcile` separate
+from running uu jobs. The first-install retry marker remains at
+`~/.local/state/skills/first-install-pending`; cleanup never deletes it or its containing directory
+while retries are possible. Source deletion alone neither stops the old process nor retires its lock.
 
 **Record row.** The header the bash job printed (which skills were added, removed or changed, capped
 at twelve names with the rest counted), the generation published, each lane's failed skills with the
@@ -400,9 +469,10 @@ reason, the hermes phase per profile, each fork's drift state, and the routing a
 
 Claude Code refreshes its marketplaces and installed plugins at startup by itself; what it does not do
 is leave a record. The lane reads `~/.claude/plugins/installed_plugins.json` the way the bash job did:
-exactly one JSON document (serde's `from_str` refuses trailing content, so the bash job's slurp-and-count
-comes for free), a `plugins` object with at least one entry, every install record shape-checked before
-the scope filter, USER-scope records only, and a fingerprint that is `version` when the marketplace
+exactly one JSON (JavaScript Object Notation) document (serde's `from_str` refuses trailing content,
+so the bash job's slurp-and-count comes for free), a `plugins` object with at least one entry, every
+install record shape-checked before the scope filter, user-scope records only, and a fingerprint that
+is `version` when the marketplace
 publishes a real one, else `gitCommitSha`, else the literal `unknown`. A degraded file fails the lane
 rather than reading as a quiet week. The reading is compared with the previous one, kept at
 `~/.local/state/uu/lanes/claude-plugins/snapshot.tsv`, through the same change section the brew lane
@@ -416,10 +486,18 @@ snapshot moves when the lane runs, and a record the gateway refused is uu's reco
 full detail in `~/.local/log/uu/uu.log`. That is a deliberate trade, and it is the one the brew lane
 already makes.
 
-The first reading is a baseline and compares nothing. The apply-time seed stays, as `uu bootstrap
-claude-plugins`, for the reason the bash job spells out: the same apply that deploys the record also
-turns marketplace auto-updates on, and baselining at the first scheduled run instead would bake the
-first week's changes into the baseline and report them never. Seeding is idempotent.
+An existing uu snapshot wins. Otherwise both bootstrap and the first scheduled run import
+`~/.local/state/report-plugin-updates/installed-plugins.snapshot` before reading a fresh baseline.
+The import validates sorted tab-separated name/fingerprint pairs, accepts an empty legacy snapshot,
+and atomically publishes the same bytes without deleting the legacy file. An unreadable or malformed
+legacy file fails and is retained; it never causes a fresh baseline that erases undelivered changes.
+The next run compares today's inventory against that last delivered bash snapshot.
+
+Only when neither snapshot exists is the first reading a baseline that compares nothing. The apply-time
+seed stays as `uu bootstrap claude-plugins`: the same apply enables marketplace auto-updates, so waiting
+until the first scheduled run would absorb the first week's changes into the baseline. Seeding and
+import are idempotent. This migration preserves the last delivered history; the future delivery-timing
+trade above starts only after import.
 
 **Record row.** The change section, or the baseline notice, or the reason the file could not be read.
 
@@ -429,7 +507,8 @@ record itself is the product, as it always was.
 ### The shared entry helper (`log-entries.sh`)
 
 Retired once both callers are ported. Every behavior in it already has a home in uu: the marker that
-stores epoch plus ISO 8601 on one line and the gap sentence with its three states (`record::marker`),
+stores epoch plus an ISO (International Organization for Standardization) 8601 timestamp on one line
+and the gap sentence with its three states (`record::marker`),
 the elapsed rendering with its unit boundaries, the change tuples and the sentence with the twelve-name
 cap and code-span quoting (`lanes::brew::changes` and `sections`, lifted to a shared `lanes::changes`
 so three lanes read one copy), the host name, and the once-a-week alarm that the record channel itself
@@ -462,8 +541,8 @@ daemon logs the bash job reported as unmanageable every hour are simply not list
 **The cadence becomes weekly**, because uu is weekly and the rule is that a lane runs in uu's run. Each
 log is then bounded at the threshold plus one week of growth rather than one hour. Measured on
 2026-09-06, the fastest-growing declared log is `yt-dlp/pot-provider.log`, whose five archives are
-dated one day apart, so it reaches the 10 MiB threshold about daily and will sit near 80 MiB before a
-Sunday rotation; every other declared log grows under a megabyte a week. With `archives_kept = 5` the
+dated one day apart, so it reaches the 10 mebibyte threshold daily and will sit near 80 mebibytes before
+a Sunday rotation; every other declared log grows under a megabyte a week. With `archives_kept = 5` the
 history kept becomes five weeks instead of five hours, which serves the second reason better than the
 hourly job did. The alternative, an hourly LaunchAgent running `uu run rotate-logs`, was rejected: a
 single-lane run posts a record and moves the marker like any other, and an hourly record is noise the
@@ -489,7 +568,7 @@ than a silent no-op. It is the one new verb this design adds.
 
 The shipped template (`dot_config/uu/private_config.toml.tmpl`) gains the blocks below, in the house
 style: every defaulted key written out at its default, opt-in features commented out, `type` selecting
-the implementer, and lanes in the name order they run in. `[schedule]`, `[alerts]` and the four
+the implementer, and lanes in the name order they run in. `[schedule]`, `[alerts]` and the five
 shipped lanes are unchanged and not repeated. `HOME` stands for the rendered home directory and `SRC`
 for the chezmoi source directory.
 
@@ -551,16 +630,16 @@ escalate_after_runs = 3
 deadline_secs = 21600
 
 # Does the config still start on the candidate plugin versions? Installs them
-# into a second plugin tree under `cache` (about 420 MB, measured 2026-09-06,
-# kept between runs so a week costs a fetch), runs checkhealth and dumps every
-# keymap. Delete the directory to reclaim the space, comment the block out to
-# stop paying it.
-[lanes.nvim-smoke-test]
-type = "nvim-smoke-test"
-nvim = "/opt/homebrew/bin/nvim"
-config = "HOME/.config/nvim"
-cache = "HOME/.cache/uu/nvim-smoke-test"
-deadline_secs = 21600
+# into a second plugin tree and copied Mason tree under `cache` (roughly 2.5
+# gigabytes from 2026-09-06 measurements, kept between runs), runs checkhealth and dumps every
+# keymap. This opt-in block is commented by default; the operator enables it
+# here. Trash the directory to reclaim the space.
+# [lanes.nvim-smoke-test]
+# type = "nvim-smoke-test"
+# nvim = "/opt/homebrew/bin/nvim"
+# config = "HOME/.config/nvim"
+# cache = "HOME/.cache/uu/nvim-smoke-test"
+# deadline_secs = 21600
 
 # Bound every declared log at rotate_at_bytes plus a week of growth, keeping
 # archives_kept compressed generations. Only the paths listed here are touched.
@@ -609,6 +688,7 @@ clawhub = "HOME/.local/share/fnm/aliases/default/bin/clawhub"
 hermes_cli = "HOME/.local/bin/hermes"
 cua_driver = "/opt/homebrew/bin/cua-driver"
 routing = "HOME/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
+escalate_after_runs = 3
 deadline_secs = 21600
 ```
 

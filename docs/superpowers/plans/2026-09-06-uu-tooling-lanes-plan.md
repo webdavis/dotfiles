@@ -4,8 +4,11 @@ Written 2026-09-06 against `origin/main` at `319811e2`. It implements
 `docs/superpowers/specs/2026-09-05-uu-tooling-lanes-design.md` as amended the same day: nine lane
 types, the `pending` record state and its escalation, the failure webhook, the stable toolchain pin,
 one new verb, and the retirement of the three bash weekly jobs and the hourly log rotation. The method
-is the `clean-code` skill (`~/.claude/skills/clean-code/SKILL.md`) with the `clean-code-rust` skill's
-spelling of it for every Rust decision; this plan does not restate either. It names, per pull request,
+is `~/.agents/skills/clean-code/SKILL.md` together with
+`~/.agents/skills/clean-code-rust/SKILL.md`; Rust wins every number and mechanism. The ladder has
+42 pull requests (PRs), including six prerequisites for architecture left outside the completed
+responsibility split in #358 and a separate weekly skills assembly before cutover. It names,
+per pull request,
 what is added or moved, which tests carry it by name, which consumer has to keep working, what every
 resulting file is projected to measure, and which earlier pull request it has to land after.
 
@@ -14,8 +17,8 @@ resulting file is projected to measure, and which earlier pull request it has to
 The crate at `dot_local/share/uu` has 59 Rust files and none over 500 lines; the largest are
 `src/runner.rs` and `src/lanes/brew/upgrade_record.rs` at 381. Five lane kinds exist (`brew`,
 `command`, `herdr`, `npm`, `uv`), one config module and one lane module each, and a lane type is added
-by extending seven places, called **the registry touch points** below and extended by every lane pull
-request in this plan:
+by extending seven places. This is the starting inventory, not the final extension contract. Step 0
+replaces central dispatch and assigns each later path to its owning crate:
 
 1. `LANE_TYPES`, `LaneKind` and `type_name` in `src/config/lanes.rs`, and the dispatch arm in
    `parse_lanes`.
@@ -45,25 +48,25 @@ referrer of each, found by grep on this commit.
 
 ## 2. The consumers that must keep working, and how each is proved
 
-- **The builder**, `.chezmoiscripts/run_onchange_after_59-build-uu.sh.tmpl`. It hashes every `.rs`
-  under both crates, so any pull request here rebuilds the binary at the next apply. Its cargo line
-  changes once, in PR B1, and the change is proved by running that line by hand from a clean
-  `target/`.
+- **The builder**, `.chezmoiscripts/run_onchange_after_59-build-uu.sh.tmpl`. PR 0.1 adds uu member
+  manifests to its hashed inputs; B1 adds the toolchain pin and corrects the cargo working directory.
+  Run the resulting cargo line with a fresh retained target directory, never the apply script.
 - **The loader**, `run_onchange_after_71-load-uu-launchagent.sh.tmpl`, pinned by
   `test/unit/uu-launchagent-loader.bats`. The plist changes once (PR C5, the PATH) and the loader
   re-fires on the plist hash; the bats file still passes because it stubs `launchctl`.
-- **The justfile**: `test-rust` (lines 167 to 175) runs the uu tests, fmt and clippy by manifest path
-  and does not change; `test-nvim` (line 182) picks up the new specs. `update-skills` (line 320)
-  changes in PR E16.
-- **The shipped template test** reaches five levels out of the crate into the checkout and asserts
-  every lane the file turns on. Every lane pull request adds its block and its assertion together, so
-  a block dropped later fails a test rather than turning a lane off quietly.
+- **The justfile**: PR 0.1 makes uu's `test-rust` lines select every workspace member for tests,
+  formatting and clippy. `test-nvim` picks up the new specs. `update-skills` changes in PR E16.
+- **The shipped template test** currently reaches five levels out of the crate. PR 0.4 removes that
+  dependency; parser behavior uses package-owned fixtures. Each config change renders with fixture
+  data and parses the actual template as review evidence in the outer repository. Do not add a new
+  declaration-consistency test or require an external template to compile the crate.
 - **The record's readers.** The hermes route `unattended-upgrades` receives the body unchanged in
   shape; `state` gains one value. The osquery file-integrity page reads brew's upgrade record by its
   tab-separated row format, so PR E2's move of `tuple_row` is a pure move proved byte for byte.
 - **pns as a path dependency.** The failure webhook (PR A4) reuses the `SignedPost` seam uu already
   imports for the record and adds no import.
-- **CI.** `just test` on `macos-latest` runs `test-rust` and `test-nvim`; the runner has rustup with
+- **CI (continuous integration).** `just test` on `macos-latest` runs `test-rust` and `test-nvim`;
+  the runner has rustup with
   stable and `brew install neovim`, and the Lua specs must pass under `--clean` with no plugin tree.
 - **The three LaunchAgents being retired** keep running until their cutover pull request lands; no
   earlier pull request touches them.
@@ -74,29 +77,48 @@ referrer of each, found by grep on this commit.
    (revert the change, watch the named test go red, restore); a pure move carries the block-identity
    and whole-file reconstruction checks from `~/.claude/pipeline/extraction-verify.sh`. No pull
    request is both.
-1. **Gates.** `just test-rust`, `just test-nvim` when Lua changed, `just lint-check`, the builder's
-   build line, `cargo clippy --all-targets -- -D warnings` for uu, and `just ship` before the pull
-   request opens, because a topic branch with no open pull request runs the suite nowhere.
-1. **File size.** Every `.rs` file, unit tests included, targets 300 lines and never exceeds 500
-   (operator ruling 2026-09-02, no waiver). A module whose tests push it past 300 keeps them in a
-   sibling `<module>/tests.rs` under `#[cfg(test)] mod tests;`. Sizes below are projections; the pull
-   request measures with the file-size command in the `clean-code-rust` skill and splits again if a
-   projection was wrong. Lua modules keep the same target.
-1. **The registry touch points.** A lane pull request extends all seven in section 1, in that pull
-   request, and its shipped-template assertion names every key of its block.
+1. **Gates.** At the final commit, run `just test-rust`, `just lint-check`, `just ship`, and
+   `just test-nvim` when Lua changes. From uu's workspace root also run
+   `cargo fmt --all -- --check`, `cargo check --locked --workspace --all-targets`,
+   `cargo clippy --locked --workspace --all-targets -- -D warnings`,
+   `cargo test --locked --workspace --no-fail-fast`, and
+   `RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --no-deps`. Run the builder's own
+   cargo line and every dependent sibling's test command; verify generated files when affected.
+   Record exit codes and failures. A failed baseline gate stays failed. Miri is local evidence only.
+1. **Arguments.** Every row compares a separately built previous-main binary with the candidate over
+   the frozen CLI (command-line interface), checking stdout, stderr and exit codes in isolated homes
+   with fake destinations. Prove the differential fails on an intentional argument-outcome mutant,
+   verifying the mutant bytes on disk first. List intended surface changes separately. Comparing a
+   binary with itself or presenting an untested differential is not evidence.
+1. **File size and speed.** After rustfmt, use exactly the physical-line command in the Rust skill:
+   targets 200 implementation and 300 total lines, decomposition normally at 250 implementation or
+   400 total, no handwritten file above 500 total including tests, and `main.rs` below 150 at
+   completion. A test marker above production code is a defect. Tests remain colocated, with private
+   child modules split by behavior when needed; moving tests cannot hide implementation ownership.
+   Measure every test below one second under workspace concurrency. Sizes below are projections;
+   each row reports actual implementation and total lines, with a named later owner for staged
+   violations. PR 0.6 closes existing gaps; later rows own any growth they introduce. Lua targets 300.
+1. **The registry touch points.** After PR 0.5 these mean the lane's typed parser, concrete adapter,
+   composition registration with diagnostics, behavior tests, and shipped config plus its rendered
+   parse evidence. Domain and application gain no type-name switches. Ports remain unregistered and
+   their config blocks commented until their complete cutover rows, especially E5 through E15.
 1. **Neovim evidence.** The pure half of every `lua/uu/` module is pinned by a `uu_*_spec.lua`; the
    half that drives lazy.nvim, Mason or the treesitter installer is proved by one real headless run of
-   the exact command the lane composes, against this config, with the command and its output in the
-   pull request body. A fake plugin manager is a test of a plugin nobody here wrote and is not
-   written.
+   the exact command the lane composes against copied config and data. Use one-letter copy names,
+   isolated HOME and all four base directories, and `GIT_CONFIG_GLOBAL=/dev/null` and
+   `GIT_CONFIG_SYSTEM=/dev/null`. Keep every artifact and put commands and output in the body.
+   Never drive a live plugin tree; both production smoke verification and experiments copy Mason.
+   A fake plugin manager is not written. Fakes for our sequencing and failure decisions are valid.
 1. **No live effects.** No pull request runs `uu run` against the real config, bootstraps or boots
    out a real LaunchAgent, or applies. The operator applies, and section 6 says what they do after.
 1. **Order.** A row lands after the rows its `Order:` names; a row with none lands in ladder order.
-   Step E, the ports, lands last, and within it each lane's cutover lands right after the lane.
+   Step 0 precedes A; step E, the ports, lands last. Each port stays inactive until its cutover.
 1. **Repository rules.** Conventional Commits, one logical change per commit, no trailers; no
    em-dashes anywhere; `trash` never `rm`, including a scratch directory the agent made; never
-   `chezmoi apply`; never a force push. Every Rust brief cites the `clean-code` and `clean-code-rust`
-   skills and the recurring-bug-classes checklist. Two open uu branches at most, and every pull
+   `chezmoi apply`; never a force push. Every Rust brief explicitly names
+   `~/.agents/skills/clean-code/SKILL.md` and `~/.agents/skills/clean-code-rust/SKILL.md`, says Rust
+   wins every number and mechanism, and cites the recurring-bug-classes checklist. Two open uu
+   branches at most, and every pull
    request gets the independent model review at max reasoning beside the pipeline's own steps.
 1. **Deletion is a move.** Retiring a script means grepping the checkout for its name and its
    directory and changing every referrer in the same pull request (the lists in section 5 are the
@@ -109,10 +131,88 @@ Each entry: **Adds** or **Moves**, **Tests** (by name; a test named here is writ
 **Consumer** beyond the standing gates, **Sizes** (projected, tests included), and **Order** where it
 is not ladder order.
 
+### Step 0: finish the remaining Rust architecture
+
+PR #358 already split the implementation by responsibility. Preserve those modules and their test
+names. These six rows address the remaining boundaries, not a second file-sharding exercise. Every
+brief uses both clean-code skills and Rust precedence as required by section 3.
+
+**PR 0.1 workspace and domain ownership.** Moves pure lane-report values, budget decisions and streak
+policy into `crates/uu-domain`; parsing and external effects stay outside. Adds a Cargo workspace with
+that real member and the transitional root package, preserving the `uu` binary. Domain has no process,
+filesystem, environment, serialization or pns dependency. Moves each policy's colocated tests by name;
+records the baseline leaf-name/result set and its successor map. Consumer: builder 59 hashes uu member
+manifests as well as sources; `just test-rust` selects the whole workspace for test, fmt and clippy;
+the committed lockfile follows. Sizes: policy modules at most 200 implementation/300 total, each new
+`lib.rs` below 100. Evidence: all members run, the extracted builder cargo line builds `uu`, and the
+argument differential with its failing control passes the unmutated candidate.
+
+**PR 0.2 protocol ownership.** Moves existing record envelope serialization and child exit-code
+contracts into `crates/uu-protocol`, with their exact byte, escaping and status tests by name. Keep the
+existing protocol shape; no new wire version or unused request model. Protocol owns encoding and depends
+on neither domain nor application. Domain owns policy; neither imports concrete delivery. Consumer:
+record delivery and command lane import the
+protocol contract. Sizes: each module at most 200 implementation/300 total; `lib.rs` below 100.
+
+**PR 0.3 application ownership.** Moves sequencing from `cli/run.rs` into `crates/uu-application`:
+lane execution, marker/streak decisions and record/alert orchestration over consumer-owned ports for
+state, clock, execution and delivery. Port signatures come from those calls; failures remain typed
+outcomes rather than booleans or missing values that erase failure causes. Application depends on
+domain, never concrete adapters or free-form configuration tables. Move orchestration tests by name
+and retain the failure-direction controls for delivery, staleness and marker advancement. Consumer:
+the existing command adapter calls the use case. Sizes: each use case and private tests meet the
+200/300 targets; narrow port declarations below 100. No concrete construction remains in the use case.
+
+**PR 0.4 adapters and command composition.** Moves process, filesystem, configuration parsing and
+validation, clock and transport into `crates/uu-adapters`; pns is an adapter-only dependency. Moves
+argument decoding and concrete construction into `crates/uu-cli`. Adapters consume domain, application
+ports and protocol; the command crate composes all four. Update every consumer and remove the root
+package once the real binary belongs to `uu-cli`, keeping `[[bin]] name = "uu"` and its installed
+path. Replace `config/shipped_template.rs`'s external `include_str!` in this row with package-owned
+config parser fixtures, so moving the module cannot break its relative include. Remove roster-equality
+assertions that test declarations alone. The outer repository renders and parses its actual template
+as verification evidence with fixture values and no secret reads. Move adapter and command tests by
+leaf name and run the full argument differential. Re-scan
+sibling manifests; currently no sibling depends on uu. Sizes: each module targets 200/300; `main.rs`
+below 150. Existing modules retain their responsibilities; only their crate ownership changes.
+
+**PR 0.5 lane registration.** Replaces `LaneKind`, `parse_lanes`, `run_lane` and doctor's parallel
+type switches with concrete registrations at composition. Each registration binds a type name to its
+typed parser, executable adapter and diagnostics; application receives executable lanes without
+knowing their technology. Preserve names, defaults and refusal text, updating the existing minimal
+block, selected-lane and deadline tests by name to exercise real registrations. Test a registration
+with a different display name through parsing, execution and diagnostics; removing its registration
+must fail that behavior. Domain and application cannot import adapters under Cargo dependency rules.
+Sizes: registration/composition modules target 200/300; the root stays below 150. No blanket trait per
+struct, public module tree or central fallback switch remains.
+
+**PR 0.6 package interface and remaining closure.** Curates each `lib.rs` export, defaults modules to
+private and places unit tests beside their implementation. Verify that 0.4 removed every fixture path
+outside the package. Map every baseline
+test to its successor or a named removal reason, retain every behavioral contract and retire temporary
+compatibility exports. Sizes: every file is measured with the prescribed command, 200/300 targets,
+250/400 decomposition thresholds, 500 total cap and `main.rs` below 150. Close all staged ownership
+and size gaps from 0.1 through 0.5 and run every gate, differential and failing control in section 3.
+
+Later rows retain the familiar source names to identify the existing behavior. Resolve them by owner:
+
+| Existing responsibility | Final owner |
+| --- | --- |
+| lane-report values, budget and streak policy | `uu-domain` |
+| record envelope and child exit-code encoding | `uu-protocol` |
+| run/bootstrap, record/alert and streak sequencing | `uu-application` |
+| config/schema, state codecs, command runner and lane technology | `uu-adapters` |
+| arguments, doctor presentation and concrete lane registration | `uu-cli` |
+
+New lane parsing, spawning, storage and plugin interfaces follow the adapter owner; new pure decisions
+follow domain. A later row changes the owning crate and its consumers together. No row restores a
+central dispatch switch or an external test fixture dependency removed here.
+
 ### Step A: the record model
 
-**PR A1 the `pending` lane verdict and record state.** Adds `pending: bool` and `pending(line)` to
-`LaneReport` (`src/lanes/report.rs`); `record_state(failures, deferred, pending)` with the order
+**PR A1 the `pending` lane verdict and record state.** Adds `pending(line)` to `LaneReport`
+(`src/lanes/report.rs`) with a typed verdict (`Completed`, `Pending`, `Deferred`, `Failed`) instead
+of independently mutable status flags; updates every verdict consumer. `record_state` uses the order
 failed, deferred, pending, completed, the `pending` verdict line and the closing count in
 `src/record.rs`; the pending count at the call site in `src/cli/run.rs`, where the marker rule stays
 `failures == 0 && deferred == 0 && !record_lost` because a pending lane did succeed. Tests:
@@ -135,15 +235,18 @@ sibling. Consumer: every `command` lane; a child exiting 100 read as failed befo
 comment is the contract change. Sizes: `command.rs` 238 becomes about 200 plus `command/tests.rs`
 about 230; `spawn.rs` stays under 120.
 
-**PR A3 `escalate_after_runs` and the pending streak.** Adds the key beside `deadline_secs` in
-`parse_lanes` (taken before dispatch, so every type carries it), `Lane.escalate_after: u32`, and
+**PR A3 `escalate_after_runs` and the pending streak.** Adds the key beside `deadline_secs` in the
+common lane parser (before the registered type parser, so every type carries it),
+`Lane.escalate_after: u32`, and
 the `escalate_after_runs` entry in every `TABLE_KEYS` lane row; a new `src/escalation.rs` in the
-library holding `DEFAULT_ESCALATE_AFTER_RUNS = 3`, `parse_escalation` and
+domain holding `DEFAULT_ESCALATE_AFTER_RUNS = 3` and
 `next_pending_streak(previous, pending, threshold)` in the trip-once shape of
 `staleness::next_streak`; a file-name parameter on `state/streak.rs` so the same reader and writer
 keep `pending` beside `streak`; and `src/cli/run/escalation.rs`, mirroring `cli/run/staleness.rs`,
 which reads, advances, alerts once through `send_alert` with how many runs the updates have waited,
-and holds the count one short when the alarm was not delivered. Tests:
+and holds the count one short when the alarm was not delivered. `parse_escalation` stays in the
+adapter's configuration parser; application owns the alert/streak sequencing under the routing table.
+Tests:
 `a_lane_pending_for_the_threshold_number_of_runs_trips_exactly_once`,
 `a_run_with_nothing_pending_resets_the_pending_streak`,
 `a_streak_past_the_threshold_keeps_counting_but_never_trips_again`,
@@ -158,11 +261,12 @@ removes the whole lane directory, so the new file needs no pruning of its own. S
 
 **PR A4 `failure_webhook`.** Adds `Records.failure_webhook: Option<String>` in `src/config.rs`,
 `None` when the key is absent and parsed by `non_empty` like every other string key when present, and
-the `records` row in `TABLE_KEYS`. `delivery.rs::send_alert` takes the records block and the
-`SignedPost` seam and, when the webhook is set, posts `record_body(<alarm kind>, host, detail)`
-signed with `records.key`; its callers in `cli/run.rs`, `cli/run/staleness.rs`,
-`cli/run/escalation.rs` and `deliver_record` pass them, each with its own alarm kind (`failed`,
-`stale`, `pending`, `record-lost`). The template gains a commented `# failure_webhook = "..."` line
+the `records` row in `TABLE_KEYS`. The adapter's delivery implementation takes parsed records settings
+and pns's `SignedPost`; when enabled it posts `record_body(<alarm kind>, host, detail)` signed with
+`records.key`. Application callers use 0.3's delivery port, passing only the alarm kind (`failed`,
+`stale`, `pending`, `record-lost`), host and detail. Neither parsed `Records` nor pns types cross into
+application. Adapter tests own the `SignedPost` spy. The template gains a commented
+`# failure_webhook = "..."` line
 under `[records]`, the opt-in shape. Tests:
 `a_records_block_without_a_failure_webhook_leaves_alarms_on_pns_alone`,
 `a_blank_failure_webhook_is_refused_by_name_like_every_other_blank_string` (one more row in the two
@@ -175,22 +279,29 @@ existing `send_alert` tests keep their names. Sizes: `delivery.rs` 178 becomes a
 
 ### Step B: the toolchain pin
 
-**PR B1 `channel = "stable"` in the four crates.** Adds `rust-toolchain.toml` with
+**PR B1 `channel = "stable"` in the four crate roots.** Adds `rust-toolchain.toml` with
 `[toolchain] channel = "stable"` at `dot_local/share/pns/`, `dot_local/share/uu/`,
 `dot_local/share/herdr/plugins/herdr-smart-nav/` and
 `dot_local/share/herdr/plugins/herdr-last-workspace/`, and a fifth at the repository root, because
 `just test-rust` runs cargo from there with
 `--manifest-path` and rustup reads the toolchain file from the current directory and its parents,
-never from the manifest's. For the same reason the four builders
-(`run_onchange_after_55`, `57`, `58`, `59`) change their cargo line to run from the crate directory,
+never from the manifest's. Add exactly `rust-toolchain.toml` to `.chezmoiignore`, making the root
+pin source-only while the four nested pins deploy. The pns and uu builders (58 and 59) change their
+cargo line to run from the crate directory,
 `(cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin <name>)`, since a
-chezmoiscript's working directory is the home directory where no toolchain file lives;
+chezmoiscript's working directory is the home directory where no toolchain file lives. The two herdr
+builders already use `(cd "$plugin_dir" && "$cargo_bin" build --release --locked)` in
+`.chezmoitemplates/herdr-plugin-build.sh.tmpl`; retain and prove that behavior. Include each pin in
+its builder's hashed inputs. The
 `test/unit/pns-engine-build-install.sh`'s cargo stand-in (lines 91 to 96) stops reading
 `--manifest-path` and asserts the working directory instead. Corrects
 `dot_agents/skills/clean-code-rust/SKILL.md:109` to say the crates pin stable and Miri is
 `cargo +nightly miri`. A declaration pull request: no new Rust test. Evidence: `rustup show
 active-toolchain` inside each crate prints stable; `just test-rust` green; each builder's line run by
-hand from a clean `target/` produces the binary. Nothing in the four crates uses `#![feature]`
+hand in a retained copied crate with a fresh target directory produces the binary. Never run a full
+builder that installs or links live state. Rendered source membership is inspected to confirm the
+root pin is excluded and the nested pins are included, with no declaration test added.
+Nothing in the four crates uses `#![feature]`
 (checked 2026-09-06). Order: before D3.
 
 ### Step C: Neovim
@@ -217,7 +328,7 @@ config }` parsed once for the four types (`nvim` defaults to `nvim` on PATH like
 `invoke(host, module, args, runner)` composing
 `[nvim, --headless, -u, <config>/init.lua, -l, <config>/lua/uu/<module>.lua, args...]` and mapping
 the verdict including 100; `src/lanes/nvim/plugins.rs`, the adapter. The registry touch points, the
-template block and its assertion, the doctor line. Tests:
+template block and its rendered parse evidence, the doctor line. Tests:
 `the_plugins_lane_runs_nvim_headless_with_the_configs_init_and_the_uu_module`,
 `an_nvim_lane_names_its_own_lane_not_its_type`,
 `a_plugins_child_exiting_pending_is_a_pending_lane_carrying_its_lines`,
@@ -225,7 +336,7 @@ template block and its assertion, the doctor line. Tests:
 `an_nvim_lane_without_a_config_key_is_refused_because_nothing_names_the_init`,
 `an_nvim_lane_defaults_its_binary_to_nvim_on_the_running_path`,
 `an_nvim_lane_config_that_is_not_absolute_is_refused_by_name`. Evidence: the composed command run by
-hand against `~/.config/nvim`, printing the moved pins and exiting 100 or 0. Sizes:
+hand against isolated copied config and data, printing the moved pins and exiting 100 or 0. Sizes:
 `config/lanes/nvim.rs` about 140 plus tests about 120; `lanes/nvim.rs` about 110 plus
 `lanes/nvim/tests.rs` about 160; `lanes/nvim/plugins.rs` about 60 plus tests about 100;
 `plugins.lua` about 80.
@@ -235,17 +346,34 @@ hand against `~/.config/nvim`, printing the moved pins and exiting 100 or 0. Siz
 `TABLE_KEYS` row; the adapter passes `--auto-commit --repo <path>` in `args` when on;
 `plugins.lua` reads `_G.arg`, evaluates `report.commit_allowed` over the output of
 `git -C <repo> status --porcelain -- dot_config/nvim/lazy-lock.json` and
-`git -C <repo> symbolic-ref -q HEAD`, runs `lazy.manage.update` with `wait = true` instead of the
-check when allowed, copies `<config>/lazy-lock.json` to `<repo>/dot_config/nvim/lazy-lock.json`, runs
-`SKIP_AI_COMMIT=1 git -C <repo> commit -m "chore(nvim): bump lazy-lock.json"` on that one path, prints
-the commit, and exits 0; when refused it runs the check, prints the reason and exits as PR C2 does.
+`git -C <repo> symbolic-ref -q HEAD`, and selects `lazy.manage.update` with `wait = true` instead of
+the check when allowed. It follows the spec's durable write-back recovery contract: save starting branch,
+commit and lock before mutation, retain the candidate lock after updating, copy only the owned source
+lock and commit that exact path with `SKIP_AI_COMMIT=1 GRAPHIFY_SKIP_HOOK=1` and normal hooks. It
+rechecks branch, HEAD and source/index lock bytes against the starting identity immediately before
+copying, preserving any intervening edit. It checks committed/deployed/installed lock-managed revisions
+before closing recovery. An unchanged candidate completes as a verified no-op without attempting an
+empty commit. Any update, copy,
+hook or commit failure is failed; recovery remains until operator reconciliation is observed. While
+recovery is open, even report-only runs remain failed and no further update starts. Refused preflight
+without open recovery runs the check, prints its reason and exits as C2 does. Never reset the index or
+overwrite later operator edits. Tests cover our decisions and durable recovery using owned effects:
 Tests: `a_plugins_lane_with_auto_commit_on_hands_the_module_the_repo`,
 `a_plugins_lane_with_auto_commit_on_and_no_repo_is_refused_by_name`,
 `a_plugins_lane_with_auto_commit_off_passes_no_commit_flag`,
-`auto_commit_that_is_not_a_boolean_is_refused_naming_what_was_written`; the three `commit_allowed`
-cases are in PR C1's spec. Evidence: a real run with `--repo` pointing at a scratch clone of this
-repository, showing the commit in that clone and nothing pushed. Sizes: `plugins.lua` about 150;
-`config/lanes/nvim.rs` grows by about 40.
+`auto_commit_that_is_not_a_boolean_is_refused_naming_what_was_written`,
+`a_failed_recovery_record_write_prevents_any_plugin_update`,
+`preflight_lock_or_installed_revision_disagreement_falls_back_to_report_only`,
+`an_unchanged_candidate_closes_recovery_without_an_empty_commit`,
+`update_copy_and_commit_failures_retain_recovery_and_never_report_completion`,
+`an_open_recovery_blocks_updates_even_after_auto_commit_is_disabled`,
+`reconciliation_requires_clean_committed_deployed_and_installed_pins_to_agree`,
+`a_source_edit_or_branch_change_during_update_is_preserved_and_leaves_recovery_open`,
+`a_rejected_hook_preserves_unrelated_staged_paths_and_the_candidate_lock`.
+The three `commit_allowed` cases are in C1. Evidence: isolated copied config/data and a scratch local
+repository, a successful normal-hook commit and a rejecting hook, with retained lock bytes and recovery
+state. No live updates or pushes. Sizes: `plugins.lua` about 150, private `writeback.lua` about 180,
+their behavior specs about 250; `config/lanes/nvim.rs` grows by about 40.
 
 **PR C4 the restart notice.** Adds `report.running_sockets()`, the one impure line that globs
 `<parent of stdpath("run")>/*/nvim.*.0`, and the call in `plugins.lua`'s update path that prints
@@ -258,7 +386,8 @@ line. Sizes: about 30 lines of Lua.
 `install:success` and `install:failed` handlers on every package before `MasonToolsUpdateSync`,
 `MasonToolsUpdateCompleted` only as the finish signal, the servers sentence on every run, the restart
 notice, exit 1 on any failed package); `NvimMasonLane { host }` in `config/lanes/nvim.rs` and
-`src/lanes/nvim/mason.rs`; the registry touch points, the template block and its assertion; and the
+`src/lanes/nvim/mason.rs`; the registry touch points, the template block and its rendered parse evidence.
+The
 uu plist's PATH gains `~/.local/share/fnm/aliases/default/bin` and `~/.cargo/bin`, with the plist
 comment saying which Mason packages need them. Tests: Rust
 `the_mason_lane_runs_the_mason_module_headless_under_the_lanes_own_name`,
@@ -272,7 +401,7 @@ about 50 plus tests about 80.
 **PR C6 the `nvim-parsers` lane.** Adds `dot_config/nvim/lua/uu/parsers.lua`
 (`assert(require("nvim-treesitter.install").update(nil, { summary = true }):wait())`, the summary
 lines, the restart notice); `NvimParsersLane { host }` and `src/lanes/nvim/parsers.rs`; the registry
-touch points, the template block and its assertion. Tests: Rust
+touch points, the template block and its rendered parse evidence. Tests: Rust
 `the_parsers_lane_runs_the_parsers_module_headless_under_the_lanes_own_name`,
 `a_parsers_child_exiting_non_zero_is_a_counted_failure_carrying_the_compiler_tail`; Lua, in
 `uu_parsers_spec.lua` over a pure `parser_lines(summary)`: "a false wait result is a failure", "a
@@ -280,24 +409,39 @@ true result lists updated and current parsers". Evidence: a real run, with its w
 pull request body, which decides whether the lane ships its own `deadline_secs` below six hours.
 Sizes: `parsers.lua` about 80; `lanes/nvim/parsers.rs` about 50 plus tests about 80.
 
-**PR C7 the `nvim-smoke-test` lane: the candidate tree and checkhealth.** Adds
+**PR C7 the `nvim-smoke-test` lane: prepare then verify in a fresh process.** Adds
 `NvimSmokeTestLane { host, cache }` (`cache` absolute, required) and `src/lanes/nvim/smoke_test.rs`
-(recursive copy of `<config>` into `<cache>/config/nvim` through `std::fs`, the
-`<cache>/data/nvim/mason` symlink to the live Mason tree, and the argv
-`/usr/bin/env XDG_CONFIG_HOME=... XDG_DATA_HOME=... XDG_STATE_HOME=... XDG_CACHE_HOME=... nvim
---headless -u <copy>/init.lua -l <copy>/lua/uu/smoke_test.lua`, which needs no new spawn seam);
-`dot_config/nvim/lua/uu/smoke_test.lua` (`lazy.manage.update` with `wait = true`, `checkhealth`, the
-health buffer written to `<cache>/checkhealth.txt`, `health_counts`, `has_errors` over every plugin,
-exit); the registry touch points, the template block with the disk-cost comment and its assertion.
+(copy `<config>` to `<cache>/c/nvim`, data/state/cache roots `d`, `s`, `k`, and a copy of Mason's
+tree at `d/nvim/mason`, for production and experiments). It runs the two exact argv forms in the spec:
+prepare with `-l .../smoke_test.lua prepare`, then a separate process with
+`-c "lua dofile('<copy>/lua/uu/smoke_test.lua')"` and the same `-u` and isolated roots.
+`smoke_test.lua` prepares with `lazy.manage.update({ wait = true, show = false })` and rejects task
+errors. Its verifier registers a self-quitting `VimEnter` callback, fires `User VeryLazy`, drains
+startup work within the deadline and captures errors including Snacks and Noice history, then runs
+`silent checkhealth`, never `silent!`; progress echoes must not pollute the startup stderr gate.
+It emits a completion record identifying the exact candidate lock; no completion, error history,
+unreadable loaded-notifier history, stderr, non-zero exit or timeout fails the lane. Health severity
+counts stay separate from startup failure detection. Write health to `<cache>/checkhealth.txt`.
+The registry touch points include an opt-in commented block with the disk-cost comment; the operator
+enables it in their config. An early `vim.notify` wrapper or `has_errors` alone is never sufficient.
 Tests: Rust `the_smoke_test_runs_nvim_through_env_with_the_four_base_directories_redirected`,
-`the_smoke_test_copies_the_config_and_links_masons_tree_before_running`,
+`the_smoke_test_copies_config_and_mason_without_linking_live_state`,
+`candidate_verification_starts_a_new_process_after_prepare_succeeds`,
+`a_failed_prepare_never_launches_the_verifier`,
+`a_missing_completion_or_unreadable_loaded_notifier_history_fails_verification`,
 `a_smoke_test_child_exiting_non_zero_is_a_counted_failure`,
 `a_smoke_test_lane_without_a_cache_key_is_refused_because_nothing_names_the_tree`; Lua, "health
-lines are counted by severity" is PR C1's. Evidence: a real run, and `du -sh <cache>` in the pull
-request body against the spec's 420 MB figure. Sizes: `lanes/nvim/smoke_test.rs` about 170 plus
-`smoke_test/tests.rs` about 200; `smoke_test.lua` about 100.
+lines are counted by severity" is C1's. Evidence: retained offline healthy and failing copies with
+an init error, an owned plugin config error, and errors after Snacks and Noice load. Each fails even
+at exit 0 with `has_errors=false`; the notifier controls also have zero stderr. An owned module changed
+on disk stays old in the prepare process and loads new in the verifier. Record actual `VimEnter`,
+completion, diagnostics and `du -sh <cache>` against the roughly 2.5 gigabyte estimate. Retain a control
+showing silent health progress preserves health errors in the buffer with empty stderr. Sizes:
+`lanes/nvim/smoke_test.rs` about 170 plus private tests about 200; `smoke_test.lua` about 180 and
+private startup-diagnostic code about 120. All new diagnostic decisions have named pure controls.
 
-**PR C8 the keymap dump and its diff.** Adds to `smoke_test.lua`: `keymap_rows` over
+**PR C8 the keymap dump and its diff.** Adds to the fresh verifier in `smoke_test.lua`: `keymap_rows`
+over
 `nvim_get_keymap(mode)` for every mode letter, written to `<cache>/keymaps.tsv`, the diff against the
 previous file through `report.keymap_diff`, and the added and removed counts in the record. Tests, in
 `uu_report_spec.lua`: "the first dump has nothing to diff against and says so"; the diff cases are PR
@@ -311,7 +455,8 @@ false }`, `cargo` absolute), `src/lanes/cargo.rs` (the adapter: the listing, one
 `src/lanes/cargo/listing.rs` (`parse_install_list(stdout)` to `Installed { name, version, source:
 Registry | Git { rev }, binaries }`, `parse_search(stdout, crate)`, `behind_sentence(installed,
 newest)` producing `fd has a new version: 8.4.0 → 10.5.0. Run the following command to compile it:
-cargo install fd-find`); the registry touch points, the template block and its assertion. Tests:
+cargo install fd-find`); the registry touch points, the template block and its rendered parse evidence.
+Tests:
 `the_install_list_is_read_as_crates_with_their_versions_sources_and_binaries`,
 `a_git_sourced_crate_is_skipped_and_its_rev_is_named`,
 `the_search_line_for_the_crate_itself_is_the_newest_version_and_a_neighbour_is_not`,
@@ -334,7 +479,7 @@ crate that is behind, the exit code per crate, the completed verdict when every 
 **PR D3 the `rustup` lane.** Adds `src/config/lanes/rustup.rs` (`RustupLane { rustup }`, absolute),
 `src/lanes/rustup.rs` (`rustup update`, `parse_update_summary(stdout)` to `Toolchain { name,
 outcome: Updated { from, to } | Unchanged(version) }`, one line each); the registry touch points, the
-template block and its assertion. Tests: `an_updated_toolchain_is_recorded_from_and_to`,
+template block and its rendered parse evidence. Tests: `an_updated_toolchain_is_recorded_from_and_to`,
 `an_unchanged_toolchain_is_recorded_as_current`, `rustups_own_update_line_is_recorded`,
 `a_rustup_that_fails_is_a_failure_carrying_its_stderr_tail`,
 `a_summary_line_of_another_shape_is_skipped_rather_than_half_read`. Order: after B1. Sizes:
@@ -342,11 +487,11 @@ template block and its assertion. Tests: `an_updated_toolchain_is_recorded_from_
 
 ### Step E: the ports, last
 
-**PR E1 `uu bootstrap <lane>`.** Adds the `["bootstrap", lane]` arm in `src/main.rs` and
-`src/cli/bootstrap.rs` (load the config, take the run lock, dispatch, print the report's lines, exit
-0 or 1; no record, no marker, no streak); `LaneAdapter::bootstrap(&self, name, runner) ->
-Option<LaneReport>` with a default of `None`, which the CLI refuses with a sentence naming the type;
-the usage text. Tests: `bootstrap_of_a_lane_whose_type_has_no_bootstrap_step_is_refused_naming_the_type`,
+**PR E1 `uu bootstrap <lane>`.** Adds the `["bootstrap", lane]` argument and application use case
+(load the config, take the run lock, invoke the registered bootstrap capability, print the report's
+lines, exit 0 or 1; no record, no marker, no streak). Registrations offer that capability only for
+types that implement it; an absent capability is refused with a sentence naming the type. Update the
+usage text. Tests: `bootstrap_of_a_lane_whose_type_has_no_bootstrap_step_is_refused_naming_the_type`,
 `bootstrap_of_an_undeclared_lane_is_refused_like_a_run_of_one`,
 `bootstrap_posts_no_record_and_leaves_the_marker_and_streaks_alone` (in `tests/run.rs` with the
 `tests/support` sandbox), `usage_lists_bootstrap_beside_run_doctor_and_schedule`. Sizes:
@@ -365,8 +510,11 @@ shape checks in the bash job's order, user scope only, the fingerprint rule vers
 `gitCommitSha` then `unknown`), `src/lanes/claude_plugins.rs` (the adapter: read, compare with
 `~/.local/state/uu/lanes/claude-plugins/snapshot.tsv` through `changes::section` with the bash
 job's caveat, write the snapshot through a sibling temp file and rename, the baseline notice on a
-first reading; `bootstrap` seeds the baseline when absent and leaves an existing one alone); the
-registry touch points, the template block and its assertion. Tests:
+first reading). Both run and bootstrap first keep an existing uu snapshot, else import the validated
+legacy `~/.local/state/report-plugin-updates/installed-plugins.snapshot` atomically, else seed only
+if neither file exists. Import accepts a valid empty snapshot, preserves its bytes and leaves the
+legacy file alone. Bootstrap never compares or advances imported history. A failed read, validation
+or write fails without reseeding. Registration and the active block wait for E4. Tests:
 `an_inventory_holding_two_documents_is_refused_not_read_twice`,
 `an_inventory_with_no_plugins_object_or_an_empty_one_is_refused_rather_than_a_quiet_week`,
 `a_record_without_a_scope_string_refuses_the_whole_reading_rather_than_reading_as_removed`,
@@ -374,18 +522,25 @@ registry touch points, the template block and its assertion. Tests:
 `the_first_reading_is_a_baseline_that_compares_nothing`,
 `a_second_reading_is_compared_and_the_snapshot_moves`,
 `an_unreadable_inventory_fails_the_lane_and_leaves_the_snapshot_alone`,
-`bootstrap_seeds_a_baseline_once_and_leaves_an_existing_one_alone`. Sizes: `inventory.rs` about 120
+`bootstrap_seeds_a_baseline_once_and_leaves_an_existing_one_alone`,
+`an_imported_legacy_snapshot_reports_changes_since_the_last_delivered_bash_record`,
+`an_existing_uu_snapshot_wins_over_a_legacy_snapshot`,
+`an_empty_legacy_snapshot_is_imported_and_new_user_plugins_are_reported_added`,
+`a_failed_legacy_import_preserves_both_states_and_never_seeds_fresh`,
+`repeated_bootstrap_never_consumes_the_imported_comparison`. Sizes: `inventory.rs` about 120
 plus `inventory/tests.rs` about 220; `claude_plugins.rs` about 150 plus tests about 170;
 `config/lanes/claude_plugins.rs` about 60 plus tests about 50.
 
-**PR E4 the `claude-plugins` cutover.** Deletes
+**PR E4 the `claude-plugins` cutover.** Registers and enables E3's complete lane, importing the last
+delivered snapshot before any fresh seed. Deletes
 `dot_local/libexec/unattended-upgrades/claude/executable_report-plugin-updates.sh` and
 `Library/LaunchAgents/com.webdavis.report-plugin-updates.plist.tmpl`. Renames
 `.chezmoiscripts/run_onchange_after_69-load-report-plugin-updates-launchagent.sh.tmpl` to
 `run_onchange_after_69-seed-claude-plugins-baseline.sh.tmpl`: it keeps the ordering paragraph (the
 same apply enables marketplace auto-updates), hashes the uu builder's retry marker the way loader 71
 does, runs `"$HOME/.local/libexec/uu/uu" bootstrap claude-plugins || printf ...` and never exits
-non-zero, and bootstraps nothing. Changes every referrer in section 5. Deletes the plugin-record cases
+non-zero, and never bootstraps a LaunchAgent. Changes every referrer in section 5. Deletes the
+plugin-record cases
 from `test/unit/pns-weekly-engine-resolution.sh` (the file itself goes in PR E17). Order: after E3.
 Operator steps in section 6.
 
@@ -394,8 +549,9 @@ eleven keys of the spec's block, every path absolute) and `src/lanes/skills/rost
 `custom-skill-lock.json` version 2 into typed tables, `tracked_names()` as the union of `npxTracked`
 and `clawhubTracked`, the schema check, the zero-union refusal, the hash taken at run start and
 `unchanged()` before publish, and the disjointness of `hermesRegistry` and non-empty
-`hermesProfiles`). The adapter skeleton in `src/lanes/skills.rs` runs the gate and nothing else yet.
-Registry touch points, the template block and its assertion. Tests:
+`hermesProfiles`). This row adds callable, tested components only. No `run` or `bootstrap` registration
+or active block ships until E16; a manually supplied skills type remains unavailable until then.
+Document the final block commented, including `escalate_after_runs = 3`; E16 activates it. Tests:
 `a_lock_that_is_missing_unparseable_or_schema_broken_refuses_the_run_by_name`,
 `a_roster_tracking_zero_skills_is_refused_as_corruption_not_intent`,
 `the_tracked_set_is_the_union_of_the_npx_and_clawhub_tables`,
@@ -405,8 +561,12 @@ Registry touch points, the template block and its assertion. Tests:
 tests about 120.
 
 **PR E6 the generation model.** Adds `src/lanes/skills/generation.rs`: the paths
-(`.skills-current`, `.skills-generations/<id>/home`, `generation.json` carrying id, createdAt, the
-lock hash and uu's own version as the updater hash), `exchange(a, b)` through
+(`.skills-current`, `.skills-generations/<id>/home`, `generation.json` carrying id, createdAt,
+`customLockHash`, updater content hash and typed `buildMode` full/additive). Capture a digest of the
+running executable once before work, failing before mutation if it cannot be read; a package version
+cannot identify the updater. Recovery requires complete metadata, directory/id agreement, current
+roster and captured updater hashes, and full mode for weekly reuse. Missing or incompatible metadata
+is retained but not reused. `exchange(a, b)` uses
 `libc::renameatx_np(AT_FDCWD, a, AT_FDCWD, b, RENAME_SWAP)` in the smallest adapter module with its
 safety invariant documented, `is_complete`, the retention of exactly one previous generation, the
 garbage sweep, the in-flight marker and `recover()`. Tests:
@@ -414,19 +574,31 @@ garbage sweep, the in-flight marker and `recover()`. Tests:
 `a_candidate_without_its_ready_marker_is_incomplete_and_never_published`,
 `exactly_one_previous_generation_is_retained_and_older_ones_are_swept`,
 `a_recovered_complete_candidate_built_from_the_current_roster_is_reused`,
-`an_in_flight_exchange_marker_is_finished_on_the_next_run`. Sizes: `generation.rs` about 220 plus
+`an_additive_bootstrap_candidate_is_never_reused_as_a_full_weekly_refresh`,
+`different_updater_content_at_the_same_package_version_refuses_candidate_reuse`,
+`replacement_after_startup_does_not_change_the_captured_updater_identity`,
+`a_generation_whose_metadata_id_disagrees_with_its_directory_is_refused`,
+`an_in_flight_exchange_marker_is_finished_on_the_next_run`,
+`failed_prior_generation_retention_keeps_the_marker_and_workspace_out_of_the_sweep`.
+Sizes: `generation.rs` about 220 plus
 `generation/tests.rs` about 280; `generation/exchange.rs` about 60.
 
 **PR E7 the npx lane.** Adds `src/lanes/skills/npx.rs`: one `npx --yes skills@<version> add <repo>
 --skill <name> ... --agent claude-code --agent codex -g -y` per repo group against the candidate, run
-with a CLEARED environment (`Command::env_clear`) carrying only HOME, the XDG directories, TMPDIR and
-the npm cache inside the candidate; failed skills recorded and the rest proceeding; the candidate's
+with `Command::env_clear`, then explicit candidate HOME, base directories, temporary directory and
+npm cache, plus PATH captured before HOME changes: the real fnm default-alias bin first, then
+`/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`. No unrelated environment is inherited. Both npx
+and clawhub use `#!/usr/bin/env node`, so preserve this interpreter PATH in E8 too. Failed skills are
+recorded and the rest proceed; the candidate's
 npx lock read as one document and reconciled. Tests:
 `the_npx_command_is_run_once_per_repo_group_with_every_skill_of_that_group`,
-`the_child_environment_is_the_candidate_home_and_nothing_inherited`,
+`the_child_environment_keeps_candidate_roots_and_only_the_explicit_interpreter_path`,
+`an_env_node_child_starts_with_the_explicit_path_and_fails_without_it`,
 `a_skill_the_cli_failed_is_named_and_the_others_proceed`,
 `a_candidate_lock_holding_two_documents_is_refused`. Consumer: `CommandRunner` gains
 `run_in(program, args, env)` for a cleared environment, with the `ScriptedRunner` recording it.
+The interpreter test starts a harmless owned executable with the installers' real shebang, checks its
+isolated HOME/cache, and removes PATH as the failing control. It never invokes an installer or network.
 Sizes: `npx.rs` about 180 plus tests about 200.
 
 **PR E8 the clawhub lane.** Adds `src/lanes/skills/clawhub.rs`: an absent skill installed in a
@@ -485,27 +657,51 @@ non-zero exit counted. Tests: `a_failed_pack_refresh_is_a_counted_failure_naming
 `a_routing_assertion_that_fails_is_a_counted_failure_carrying_its_output`. Sizes: `skills.rs` grows
 by about 40.
 
-**PR E15 `bootstrap` for the skills lane.** Adds `src/lanes/skills/bootstrap.rs`: per roster skill
+**PR E15a complete weekly skills execution.** Composes E5 through E14 in source order: recovery,
+flat-store migration and recovery again, before-fingerprints, full candidate build, overlay validation,
+publish, app-pack refresh, fan-out, live overlay checks, routing, hermes registry, fork reporting,
+after-fingerprints and the capped change section. A failed candidate prevents publication; the later
+live phases still run against the unchanged generation and their failures aggregate. Tests:
+`a_weekly_skills_run_executes_every_required_phase_and_reports_its_outcome`,
+`a_flat_store_is_migrated_and_recovered_before_weekly_candidate_build`,
+`a_failed_candidate_leaves_publication_untouched_but_still_runs_live_followup_phases`,
+`weekly_before_and_after_fingerprints_produce_the_skills_change_section`.
+Use fake effects to remove each phase in turn and prove the whole-run behavior test fails. Registration
+waits for E16. Order: after E5 through E14. Sizes: orchestration about 150 implementation, private tests
+about 250; migration about 150 implementation, private tests about 200; split at the stated thresholds.
+
+**PR E15 skills bootstrap.** Adds `src/lanes/skills/bootstrap.rs`: per roster skill
 the health reading (`absent`, `link`, `skillmd`, `lock`, `overlay`), a forced reinstall for the first
-four, a rebuild for the fifth, publish, and a fan-out that creates missing links only. Tests:
+four, a rebuild for the fifth, additive publish, a fan-out that creates missing links only, live overlay
+checks and routing. Bootstrap stays additive and never migrates a flat store or refreshes healthy
+skills. It propagates required phase failures and remains unregistered until E16.
+Tests:
 `a_healthy_store_bootstraps_as_a_no_op_that_publishes_nothing`,
 `an_absent_roster_skill_is_installed_and_published`,
 `a_link_that_resolves_to_a_skill_without_its_skill_md_is_reinstalled`,
-`bootstrap_never_updates_a_present_and_healthy_skill`. Order: after E1. Sizes: about 180 plus tests
-about 220.
+`bootstrap_never_updates_a_present_and_healthy_skill`,
+`bootstrap_never_migrates_a_flat_store`,
+`bootstrap_returns_failure_when_a_required_post_publish_check_fails`.
+Order: after E1 and E15a. Sizes: bootstrap about 180 implementation plus private tests about 220.
+Re-decompose by responsibility at the thresholds.
 
-**PR E16 the skills cutover.** Deletes
+**PR E16 the skills cutover.** First requires the operator's pre-apply stop in section 6; registers
+and enables the complete weekly and bootstrap paths, with `escalate_after_runs = 3` explicit. Deletes
 `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh`,
 `Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl` and
 `.chezmoiscripts/run_onchange_after_63-load-update-skills-launchagent.sh.tmpl`. Rewrites
 `run_onchange_after_64-update-skills-first-install.sh.tmpl` to run
-`"$HOME/.local/libexec/uu/uu" bootstrap skills` with its retry marker (the deferred branch folds into
-the failed one, since uu's lock refusal is exit 1) and to hash the uu builder's retry marker instead of
+`"$HOME/.local/libexec/uu/uu" bootstrap skills` with its existing
+`~/.local/state/skills/first-install-pending` retry marker (the deferred branch folds into the failed
+one, since uu's lock refusal is exit 1). Failure or lock refusal retains and advances the marker;
+only successful bootstrap clears it. The script hashes the uu builder's retry marker instead of
 the updater's source. The justfile `update-skills` recipe becomes
 `~/.local/libexec/uu/uu run skills` with a comment that `uu bootstrap skills` is the old
 `--install-only`. Deletes `test/unit/update-skills-change-report.sh`,
 `test/unit/update-skills-json-stream-reads.sh` and `test/unit/update-skills-lock-symlink.sh`, whose
-behaviors PRs E5 to E10 carry by name. Changes every referrer in section 5. Order: after E15.
+behaviors PRs E5 to E10 carry by name. Changes every referrer in section 5. Verify the owned loader's
+retry branches using a failing, contended and successful bootstrap stand-in, retained render evidence
+and marker contents. Do not add declaration meta-tests. Order: after E15 and its full phase controls.
 
 **PR E17 `log-entries.sh` retired.** Deletes
 `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` and
@@ -528,12 +724,14 @@ name: `a_file_of_exactly_the_threshold_rotates_and_one_byte_under_does_not`,
 `retention_keeps_exactly_the_window_pruning_index_zero_and_a_lowered_keep_counts_strays`,
 `a_compress_that_fails_leaves_the_log_untruncated_and_no_partial_behind`,
 `archives_kept_below_one_is_refused_because_it_would_discard_content_outright`,
-`a_log_the_list_does_not_name_is_never_touched`. Registry touch points, the template block with the
-thirteen paths and its assertion. Sizes: `rotation.rs` about 200 plus `rotation/tests.rs` about 280;
+`a_log_the_list_does_not_name_is_never_touched`. Registration waits for E19; until then the template
+block with its thirteen paths stays commented.
+Retain its rendered parse evidence. Sizes: `rotation.rs` about 200 plus `rotation/tests.rs` about 280;
 `rotate_logs.rs` about 100 plus tests about 120; `config/lanes/rotate_logs.rs` about 110 plus tests
 about 100.
 
-**PR E19 the rotation cutover.** Deletes
+**PR E19 the rotation cutover.** Registers and enables E18 after the operator stops the old job.
+Deletes
 `dot_local/libexec/executable_compress-and-truncate-local-logs.sh`,
 `Library/LaunchAgents/com.webdavis.rotate-logs.plist.tmpl`,
 `.chezmoiscripts/run_onchange_after_67-load-rotate-logs-launchagent.sh.tmpl`, the
@@ -589,20 +787,30 @@ record"), `docs/runbooks/claude-code-settings.md`,
 `Library/LaunchAgents/com.webdavis.rotate-logs.plist.tmpl` (deleted), `test/unit/rotate-logs-*.sh`
 (four files, deleted).
 
-## 6. What the operator does after their apply
+## 6. Operator cutover order
 
-Agents never apply, bootstrap or boot out anything. After the apply that carries each cutover:
+Agents never apply, bootstrap or boot out anything. Before each cutover apply, the operator stops the
+retired scheduled writer and waits for any active or manual invocation to finish. For E16 this includes
+old updater and `live-reconcile` work; no publisher may overlap the new bootstrap. Source deletion
+cannot stop an already loaded LaunchAgent. The completed lane is then deployed and bootstrapped by the
+operator's full apply. Manual `live-reconcile` remains separate from running uu jobs.
 
-- PR E4: `launchctl bootout gui/$(id -u)/com.webdavis.report-plugin-updates`; trash
+- PR E4, before apply: `launchctl bootout gui/$(id -u)/com.webdavis.report-plugin-updates`.
+  After apply, verify the legacy snapshot was imported (or that neither baseline existed), then trash
   `~/Library/LaunchAgents/com.webdavis.report-plugin-updates.plist`,
   `~/.local/libexec/unattended-upgrades/claude/`, `~/.local/log/plugins/`; trash
-  `~/.local/state/report-plugin-updates/` once `uu doctor` shows the claude-plugins baseline.
-- PR E16: `launchctl bootout gui/$(id -u)/com.webdavis.update-skills`; trash
+  `~/.local/state/report-plugin-updates/` only after successful import is confirmed. Failed import
+  retains both states for retry; `uu doctor` alone does not prove the history was carried forward.
+- PR E16, before apply: `launchctl bootout gui/$(id -u)/com.webdavis.update-skills`, then confirm no
+  old/manual publisher is running. After successful bootstrap, trash
   `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
   `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh`, `~/.local/log/skills/`,
-  `~/.local/state/update-skills/` and `~/.local/state/skills/`.
+  `~/.local/state/update-skills/`. Preserve `~/.local/state/skills/` and its
+  `first-install-pending` marker. A failed or contended bootstrap retains that marker, so the next
+  apply retries; only successful bootstrap clears it. Do not discard in-flight generation state.
 - PR E17: trash `~/.local/libexec/unattended-upgrades/helpers/`.
-- PR E19: `launchctl bootout gui/$(id -u)/com.webdavis.rotate-logs`; trash
+- PR E19, before apply: `launchctl bootout gui/$(id -u)/com.webdavis.rotate-logs`.
+  After apply, trash
   `~/Library/LaunchAgents/com.webdavis.rotate-logs.plist`,
   `~/.local/libexec/compress-and-truncate-local-logs.sh`, `~/.local/log/rotate-logs.log` and its
   archives, and the retired logs the explicit list no longer covers (`gha-watcher.log`,
