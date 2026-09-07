@@ -31,20 +31,21 @@ local AVAILABLE = { "lua", UNINSTALLED_LANGUAGE, "vimdoc" }
 ---time, so restoring `package.loaded` before firing a FileType would measure
 ---the real plugin instead of the doubles.
 ---@param fn fun(recorder: { installs: string[], available: string[] })
-local function with_treesitter(fn)
+local function with_treesitter(fn, opts)
   local names = { "nvim-treesitter", "nvim-treesitter.config" }
   local saved = {}
   for _, name in ipairs(names) do
     saved[name] = { package.loaded[name] }
   end
 
-  local recorder = { installs = {}, available = vim.deepcopy(AVAILABLE) }
+  local recorder = { installs = {}, available = vim.deepcopy(AVAILABLE), task = {} }
 
   package.loaded["nvim-treesitter"] = {
     install = function(languages)
       for _, language in ipairs(type(languages) == "table" and languages or { languages }) do
         table.insert(recorder.installs, language)
       end
+      return recorder.task
     end,
   }
   package.loaded["nvim-treesitter.config"] = {
@@ -56,8 +57,9 @@ local function with_treesitter(fn)
   local ok, err = pcall(function()
     local spec = dofile(config_root .. "/lua/plugins/treesitter.lua")
     assert(spec[1] == "nvim-treesitter/nvim-treesitter", "the nvim-treesitter spec moved out of plugins/treesitter.lua")
-    spec.config()
-    fn(recorder)
+    spec._ = {}
+    spec.config(spec, opts or spec.opts)
+    fn(recorder, spec)
   end)
 
   for _, name in ipairs(names) do
@@ -82,6 +84,13 @@ local function joined(installs)
 end
 
 return {
+  ["LazyDone installs the configured core list"] = function()
+    with_treesitter(function(recorder, spec)
+      vim.api.nvim_exec_autocmds("User", { pattern = "LazyDone" })
+      assert(vim.deep_equal(recorder.installs, { "fixture_core" }), joined(recorder.installs))
+      assert(spec._.core_parser_install == recorder.task, "lost the original install task")
+    end, { ensure_installed = { "fixture_core" } })
+  end,
   ["a filetype no grammar exists for is never queued for install"] = function()
     -- snacks.nvim's notification buffers. The measured symptom: one headless
     -- start in about five wrote the warning to stderr.
