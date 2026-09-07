@@ -324,3 +324,15 @@ function test_a_failed_install_keeps_the_new_record_for_a_retry() {
   assert_builder_succeeds
   assert_same 'new artifact' "$(cat "$installed_binary")"
 }
+
+function test_an_empty_artifact_never_replaces_trusted_state() {
+  ready_to_build
+  assert_builder_succeeds
+  cp "$build_record" "$sandbox/previous-record"
+  cp "$installed_binary" "$sandbox/previous-binary"
+  printf 0 >"$sandbox_home/.stub-artifact-bytes"
+  assert_builder_fails
+  assert_same "$(cat "$sandbox/previous-record")" "$(cat "$build_record")"
+  assert_same "$(cat "$sandbox/previous-binary")" "$(cat "$installed_binary")"
+  assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
+}
