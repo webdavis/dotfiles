@@ -1353,8 +1353,11 @@ ______________________________________________________________________
   show THAT the bridge was reached and never WHAT was sent. Every body, colour and path assertion is a
   unit test through the `src/channels/hue.rs:Bridge` trait
   (`tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists`).
-- `NOT ESTABLISHED:` any test of the real `UreqBridge` transport (certificate handling, redirect refusal,
-  the global timeout). `src/channels/hue.rs:UreqBridge` is exercised only through the trait in tests.
+- S232 is pinned by the four `pns-adapters/src/hue/transport_tests.rs` cases against a private TLS
+  (Transport Layer Security) listener: self-signed certificate acceptance, application-key header,
+  exact PUT body, no redirect follow and the caller's timeout. The redirect's original body is returned;
+  it is not treated as transport failure. Certificate verification remains disabled as before. Pinning
+  an operator's bridge certificate remains the separate B1 behavior decision.
 - `NOT ESTABLISHED:` the behaviour of `src/main.rs:lights_tick_stale_secs` against a live holder in an
   end-to-end run. `src/main.rs:a_second_tick_stands_down_while_a_first_still_holds_the_lamps` covers the
   stand-down through the function seam; the age-based steal is covered only by `claim_lock`'s own general

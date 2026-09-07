@@ -1,4 +1,5 @@
 use crate::*;
+use pns_adapters::LIGHTS_SAID;
 
 /// One upkeep pass: read the machine, derive the one state the house is in,
 /// and write it to every lamp that should show it.
@@ -16,6 +17,7 @@ use crate::*;
 /// CONSUMES a queue; a tick that claimed it would delete the misses the
 /// operator has not seen yet, which is the opposite of what the glow is for.
 pub(crate) fn lights_tick() -> i32 {
+    pns_adapters::turn_markers::sweep_turn_markers(&state_dir(), now_secs());
     let home = std::env::var("HOME").unwrap_or_default();
     // AN UNREADABLE CONFIG ASKED FOR NOTHING, which is the same reading the
     // event path takes of the lamps one function over: a file nobody could
@@ -151,8 +153,6 @@ pub(crate) fn lights_tick() -> i32 {
     }
     0
 }
-/// Where a tick remembers what it last complained about.
-pub(crate) const LIGHTS_SAID: &str = "lights-said";
 
 /// What a tick says about a held record it could not read at all.
 ///

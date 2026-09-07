@@ -5161,9 +5161,9 @@ fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it()
 
 #[test]
 fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
-    // THE CLAIM IS REMOVED BEFORE DELIVERY, never after, so a channel that
-    // hangs to its deadline and takes the process with it cannot leave an
-    // orphan in the state directory for the next run to trip over.
+    // The historical name remains in the baseline. Completed replay attempts
+    // consume their holds; the interrupted arm below now preserves its batch
+    // under the approved process-death recovery policy.
     let delivered = Sandbox::new("replay-claim-delivered");
     record_every_event(&delivered);
     std::fs::write(journal_path(&delivered), planted_journal(2)).expect("the journal");
@@ -5179,10 +5179,9 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
         "a delivered replay left a claim behind"
     );
 
-    // AND THE RUN THAT NEVER FINISHED. The banner hangs on the replay alone,
-    // so the live event is delivered first and the process is killed while it
-    // is inside the catch-up's own dispatch. A claim removed AFTER delivery is
-    // still on disk at that moment.
+    // The banner hangs on the replay alone, so the live event is delivered
+    // first and the process dies inside the catch-up dispatch. This unfinished
+    // attempt must leave its held bytes for a later return to adopt.
     let killed = Sandbox::new("replay-claim-killed");
     record_every_event(&killed);
     killed.stub_channel(
@@ -5220,14 +5219,26 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
     // AND THE MARKER IS ALREADY BACK, which is the OTHER half of what this
     // process was killed to prove. The window's near edge is restored inside
     // the claim, before anything is counted and long before anything is
-    // dispatched, so a run killed mid-delivery costs the one card it was
-    // holding and never the next window. A build that restored the edge after
+    // dispatched. A run killed mid-delivery leaves its held batch for recovery
+    // without losing the next window. A build that restored the edge after
     // the dispatch leaves no marker here at all, and the window it consumed
     // could never fire again.
+    let held = claim_files(&killed);
+    assert_eq!(held.len(), 1, "the interrupted replay lost its held batch");
+    assert!(held[0].starts_with("missed-notifications.held."));
     assert_eq!(
-        state_files(&killed),
+        std::fs::read_to_string(journal_path(&killed).with_file_name(&held[0]))
+            .expect("the held batch"),
+        planted_journal(2),
+        "an interrupted replay preserves the original journal bytes"
+    );
+    assert_eq!(
+        state_files(&killed)
+            .into_iter()
+            .filter(|name| !held.contains(name))
+            .collect::<Vec<_>>(),
         ["activity", "decisions", "last-present", "lights-news"],
-        "the journal was still claimed, or the window's edge was not restored"
+        "the window's edge was not restored"
     );
     assert!(
         last_present(&killed).is_some_and(|edge| edge > 1_700_000_000),
@@ -8089,10 +8100,10 @@ fn a_mode_catalog_the_doctor_cannot_read_is_said_and_never_reported_as_health() 
 
 /// The tick job the event path registered, or a panic naming what was there
 /// instead.
-fn lights_job(sandbox: &Sandbox) -> pns::daemon::Job {
+fn lights_job(sandbox: &Sandbox) -> pns_domain::jobs::Job {
     let record = std::fs::read_to_string(sandbox.path("state/daemon/lights"))
         .expect("the event registered no lights job");
-    pns::daemon::parse(record.trim_end_matches('\n')).expect("a job record")
+    pns_adapters::job_spool::parse(record.trim_end_matches('\n')).expect("a job record")
 }
 
 /// One event against a sandbox whose lamps are mapped, with no bridge to

@@ -25,7 +25,7 @@ fn writing_the_record_consults_no_probe_the_decision_had_not_already_read() {
         };
         let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
         if also_record {
-            crate::decision_log::line(&crate::decision_log::Record {
+            pns_adapters::decision_codec::line(&crate::decision_log::Record {
                 event: &crate::args::EventArgs::default(),
                 decision: &decision,
                 overrides: &Overrides::default(),

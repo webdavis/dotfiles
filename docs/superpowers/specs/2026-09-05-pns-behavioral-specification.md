@@ -1658,10 +1658,12 @@ S146. An executable channel is `Command::new(<dir>/<name>.sh)` with the event JS
       also `a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made`
            at tests/dispatch.rs:3267
 
-S147. The absence of a deadline on an executable channel, and a channel writing onto the event's
-      inherited stdout, are pinned by nothing.
-      Source: `src/main.rs:4136-4154 deliver`.
-      Pin: UNPINNED. Recorded as a finding, not merely a missing test.
+S147. An executable channel's input and direct-child wait share a five-second deadline. An expired
+      child is killed and reaped; a launched channel still answers Silent. Output remains inherited.
+      Source: `src/channel_dispatch.rs:deliver`, `src/system.rs:finish_bounded` (plan 14.2).
+      Pin: `channel_dispatch::tests::a_hanging_executable_channel_is_killed_and_reaped_even_if_it_never_reads`
+      and `channel_dispatch::tests::an_executable_channel_that_never_reads_cannot_block_the_event_write`.
+      Remaining finding: no output ceiling or producer-death descendant cleanup. Lights slice 10 stays gated.
 
 ### 6.5 `hue` as an attention indicator, `router` and `presence` as sensors
 

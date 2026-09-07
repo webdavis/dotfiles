@@ -208,6 +208,7 @@ dependencies = [
  "pns-adapters",
  "pns-application",
  "pns-domain",
+ "pns-hermes",
  "serde_json",
  "sha2",
  "toml",
@@ -221,9 +222,12 @@ dependencies = [
  "libc",
  "pns-application",
  "pns-domain",
+ "pns-hermes",
  "pns-protocol",
+ "rustls",
  "serde_json",
  "toml",
+ "ureq",
 ]
 
 [[package]]
@@ -246,6 +250,15 @@ dependencies = [
 [[package]]
 name = "pns-domain"
 version = "0.1.0"
+
+[[package]]
+name = "pns-hermes"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "sha2",
+ "ureq",
+]
 
 [[package]]
 name = "pns-protocol"

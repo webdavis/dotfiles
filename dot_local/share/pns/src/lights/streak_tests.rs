@@ -3,24 +3,6 @@
 use super::fixtures::*;
 
 #[test]
-fn every_workspaces_agent_status_is_read_and_a_missing_one_is_not_working() {
-    assert_eq!(
-        workspace_agent_statuses(HERDR_WORKSPACES),
-        vec![WORKING, "idle", "unknown"],
-        "herdr's real answer, in its own order"
-    );
-    assert_eq!(
-        workspace_agent_statuses(NO_STATUS_FIELD),
-        vec![String::new()],
-        "a workspace with no agent_status is a workspace this will not call working"
-    );
-    assert!(
-        workspace_agent_statuses("not json").is_empty(),
-        "an unreadable answer names no working workspace"
-    );
-}
-
-#[test]
 fn one_working_workspace_is_enough_and_none_of_them_working_is_not() {
     let statuses =
         |words: &[&str]| -> Vec<String> { words.iter().map(|word| word.to_string()).collect() };

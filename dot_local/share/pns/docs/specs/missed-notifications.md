@@ -45,8 +45,8 @@ it in five places:
   reports success to every caller on APFS)."
 
 Removal still appears in this area, but only after ownership has already been decided by a rename, and
-only on a path named for the removing process (`src/main.rs:take_claim` removes the held file it itself
-renamed into place; `src/main.rs:claim_moment` removes the window claim it itself took).
+only on a path the removing process owns (`FileReturnMoment::complete` removes its own held files;
+`claim_moment` removes the window claim it took).
 
 - Success: exactly one racer delivers a given batch, and exactly one racer owns a given return moment.
   Pinned deterministically by
@@ -615,7 +615,7 @@ delivered":
 
 - `Nothing`: nothing was there, or another run took it first.
 - `Refused`: the path holds something this tool never wrote. Put back where it was found, and not read.
-- `Taken(entries)`: this run owns them, and the claim they came from is gone.
+- `Taken(HeldJournal)`: this run owns the entries and their held files until completion.
 - `LeftForAdoption`: the claim could not be read or could not be given up. It is still on disk, whole.
 
 `Claimed::entries` returns entries only for `Taken`: "an unread claim is still on disk, and delivering
@@ -623,13 +623,15 @@ from it as well would show the operator the same batch twice."
 
 `src/main.rs:claim_by_rename` refuses to rename over a claim already at its own name: "a rename
 overwrites: the journal would land on top of a batch nobody has seen. Both are left where they are, and
-the next return tries both again." That guard "IS NOT PINNED BY A TEST, and cannot be: no test can plant
-a claim named for a process id the engine has not been given yet."
+the next return tries both again." The guard is pinned by
+`an_existing_claim_for_this_process_preserves_both_waiting_batches`, which plants the claim using the
+calling test process's own id.
 
 - Success: `tests/dispatch.rs:a_present_event_delivers_one_extra_notification_carrying_the_whole_journal`
   asserts the journal is gone after a delivering run.
   `tests/dispatch.rs:the_claim_never_survives_the_run_whether_the_replay_delivered_or_not` asserts no
-  claim survives, delivered or killed mid-dispatch.
+  completed replay leaves no hold; its retained historical name also covers an interrupted replay,
+  which now preserves one held batch byte for byte while the near edge remains restored.
 - Failure sources: the rename fails (`Nothing`); the claimed path turns out not to be a regular file
   (`Refused`, renamed back); a claim already exists at this run's own name (`LeftForAdoption`); the read
   fails (`LeftForAdoption`, behavior 12).
@@ -638,16 +640,15 @@ a claim named for a process id the engine has not been given yet."
   exit 0, the live event alone, empty stdout and stderr, and a FIFO still at the path.
 - Thresholds: `RING_READ_MAX` (256 KiB) is the read ceiling for the claimed batch
   (`src/main.rs:take_claim` passes it).
-- Required side effects: the claim is removed before any delivery, never after, "so a channel that hangs
-  to its deadline and takes the process with it cannot leave an orphan in the state directory for the
-  next run to trip over"
-  (`tests/dispatch.rs:the_claim_never_survives_the_run_whether_the_replay_delivered_or_not`).
+- Required side effects: the hold is visible throughout dispatch. `ReturnMoment::complete` consumes
+  it only after the attempt returns, including a failed delivery. An interrupted attempt remains
+  recoverable under the existing owner-liveness adoption rule.
 - Forbidden side effects: nothing undelivered is destroyed.
   `tests/dispatch.rs:a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed` plants a
   journal with an undecodable byte and asserts exactly one leftover, byte for byte what was waiting.
-- Timeout and cancellation: `src/main.rs:claim_journal` states that "ALL of it before any delivery" is
-  what makes a hang safe: "The entries are in memory from the moment this returns, so a channel that
-  hangs to its deadline and takes the process with it leaves no claim behind."
+- Timeout and cancellation: the read completes before dispatch, but deletion waits for completion.
+  If dispatch unwinds or the process exits before returning, the hold remains. This does not add
+  invocation retries or change the consume-after-completed-failure policy.
 - Idempotency and duplicates: exactly one run may deliver a given batch. The one named race:
   `src/main.rs:claim_journal` states "an append that opened the journal path before the rename writes
   into the claimed inode, and is replayed or lost depending on which side of the read it lands. That is
@@ -670,7 +671,8 @@ Given a claim this run has taken
 
 When `src/main.rs:take_claim` runs
 
-Then the claim is renamed to `missed-notifications.held.<pid>.<seq>` first, read second, and removed third, in that order.
+Then the claim is renamed to `missed-notifications.held.<pid>.<seq>` first and read second. The
+held file stays on disk until the application completes its replay attempt.
 
 The hold name deliberately sits outside the prefix the adoption scan matches, "so nothing can take this
 batch a second time while it is being read. It comes back into that scan only once the process named in
@@ -694,11 +696,12 @@ the coupling; the adoption parses the pid segment alone."
   claim and a good one in the same run and asserts the good one delivers while exactly one held file
   parks.
 - Failure sources: a hold already exists at this name (`LeftForAdoption`); the rename fails (`Nothing`);
-  the read fails (`LeftForAdoption`); the remove fails (`LeftForAdoption`, with the entries deliberately
-  not returned).
+  the read fails (`LeftForAdoption`). A later completion-remove failure leaves the file for adoption;
+  it does not undo an attempt that has already returned.
 - Fail direction: the notification still goes out; a failed hold only costs the replay.
 - Thresholds: `RING_READ_MAX` (256 KiB).
-- Required side effects: on the success path the held file is gone and the entries are in memory.
+- Required side effects: on a successful read the entries are in memory and the held file is still
+  owned on disk. `a_read_claim_stays_on_disk_for_its_live_owner_until_completion` pins this boundary.
 - Forbidden side effects: no read before the rename lands. No remove of a file whose read failed.
 - Timeout and cancellation: not applicable; two renames and one bounded read.
 - Idempotency and duplicates: the hold is what makes a second delivery impossible while a live owner is
@@ -874,7 +877,7 @@ recap's own section: `["asked", "blocked", "denied", "failed", "plan-ready"]`.
   waiting on the operator is the notification it exists to deliver"; the measurement behind that is a
   253-character title that pushed a card to 289 characters and lost the counts and the pointer to
   `render::preview`.
-- Required side effects: the claimed batch is gone before the dispatch starts (behavior 11). The Discord
+- Required side effects: the claimed batch remains held until dispatch returns (behavior 11). The Discord
   half is spawned first, in its own process and its own process group, so the card can say truthfully
   whether there is a recap to point at (`src/main.rs:spawn_recap`,
   `tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own`).
@@ -897,8 +900,9 @@ recap's own section: `["asked", "blocked", "denied", "failed", "plan-ready"]`.
   against a wedged channel is an unbounded retry that grows the file every event."
 - Privacy: the batch reaches "the same channels the live event would have reached" and nowhere else
   (`src/missed_notifications.rs` module header).
-- Process ownership and cleanup: the claim is removed before dispatch, so a channel that hangs to its
-  deadline and takes the process with it leaves no orphan.
+- Process ownership and cleanup: the hold remains through dispatch and is removed after the attempt
+  returns, including failure. An unwind or process death leaves an adoptable hold. The delivery-failure
+  consume policy above is unchanged; durable outcome tracking and retry policy belong to a later step.
 - Compatibility contract: `agent: pns` and `state: missed` are what a channel keys the card off, and
   `pns · missed` is the rendered title. These are operator-visible and are the closest thing in this area
   to a public external contract.
@@ -1094,9 +1098,9 @@ ______________________________________________________________________
   writes `last-present.claim.<owner>` with no epoch segment, so both window-claim tests take the pid-only
   path in `src/main.rs:window_claim_is_free`. The behavior of the age test against a claim whose owner is
   genuinely still alive at 301 seconds is neither stated in the code nor covered.
-- NOT ESTABLISHED: `src/main.rs:claim_by_rename` states outright that its own pid guard "IS NOT PINNED BY
-  A TEST, and cannot be: no test can plant a claim named for a process id the engine has not been given
-  yet."
+- The existing-claim guard is now pinned directly by
+  `an_existing_claim_for_this_process_preserves_both_waiting_batches` in the adapter
+  `protocols/journal_claims/take/tests.rs`; the test knows its own process id before calling the claim.
 - NOT ESTABLISHED: the interleaved-claim arm of `src/main.rs:republish_after` (an append whose read-back
   returns `NotFound` because a claim renamed the file away mid-append) is described as "a race no test in
   this tree can stage deterministically; what is pinned here is the decision, and the race itself belongs

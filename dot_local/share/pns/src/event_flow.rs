@@ -255,6 +255,7 @@ fn run_event_pulsing(
     // decision line was placed against the ones around it for a reason, and a
     // reordering that still compiles is a defect no type here can catch.
     let records = EventRecords {
+        moment: pns_adapters::return_window::FileReturnMoment::new(state_dir()),
         home: &home,
         hue_table: hue_table.as_ref(),
         lights: lights.as_deref(),

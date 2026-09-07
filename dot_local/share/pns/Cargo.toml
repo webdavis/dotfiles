@@ -36,8 +36,8 @@
 # converging on, and this manifest is still the legacy package that owns every
 # behavior until each one moves. Both facts are deliberate for the duration:
 # the binary target must stay named `pns`, the builder must keep finding it at
-# this manifest path, and uu must keep resolving `path = "../pns"`, so the
-# package cannot move house on the way through.
+# this manifest path. The shared signed-POST client now lives in pns-hermes,
+# which uu depends on without compiling the engine or the other adapters.
 #
 # The dependency edges are declared in the member manifests and nowhere else,
 # which is what enforces them: a crate that omits another cannot name it, and
@@ -45,7 +45,7 @@
 # edges are
 #
 #   pns-application -> pns-domain
-#   pns-adapters    -> pns-application, pns-domain, pns-protocol
+#   pns-adapters    -> pns-application, pns-domain, pns-protocol, pns-hermes
 #   pns-cli         -> pns-adapters, pns-application, pns-domain, pns-protocol
 #
 # and pns-protocol depends on nothing, because an external contract crate that
@@ -58,6 +58,7 @@ members = [
   "crates/pns-application",
   "crates/pns-cli",
   "crates/pns-domain",
+  "crates/pns-hermes",
   "crates/pns-protocol",
 ]
 
@@ -67,7 +68,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-hmac = "0.13.0"
 # The one dependency taken for a system FACT rather than a format, and std can
 # answer none of them: which local hour an epoch second falls in is a zone
 # database, a `TZ` variable and two daylight-saving transitions a year
@@ -84,8 +84,8 @@ libc = "0.2.189"
 pns-adapters = { path = "crates/pns-adapters" }
 pns-application = { path = "crates/pns-application" }
 pns-domain = { path = "crates/pns-domain" }
+pns-hermes = { path = "crates/pns-hermes" }
 serde_json = "1.0.151"
-sha2 = "0.11.0"
 # Parse only: the default `display` feature pulls toml_writer, and nothing here
 # ever writes TOML back out. `serde` stays because `toml::Table` and
 # `toml::Value` are gated behind it.

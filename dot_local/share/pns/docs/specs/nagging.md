@@ -626,13 +626,11 @@ Then it renames each record to `<name>.claim.<pid>` first, and reads only what t
   process never opened it and never counts it" (`src/main.rs:nag_mode`).
 - Thresholds: Not applicable.
 - Required side effects: the rename precedes the read, always.
-- Forbidden side effects: no record is read in place and removed afterwards, even though that would pass
-  the suite. The code says so explicitly: "NO TEST IN THIS SUITE KILLS THIS RENAME: reading each record
-  in place and removing it afterwards passes everything, because every fire in the suite bar one is
-  single-process, and that one is arbitrated a level up. It is kept on the measurement, not on a test"
-  (`src/main.rs:claim_record`). The same admission appears in
-  `tests/hooks.rs:a_second_fire_nudges_nothing`: "this test does not kill the rename ... (measured by two
-  reviewers independently)".
+- Forbidden side effects: no record is read in place and removed afterwards. The adapter tests
+  `two_record_claimers_have_one_owner_even_without_the_fire_lock` and
+  `a_record_claim_never_overwrites_a_batch_that_owner_already_holds` pin ownership independently of
+  the whole-fire lock. Replacing the rename with an in-place return fails the first assertion. The
+  historical `a_second_fire_nudges_nothing` still covers the whole use case rather than this seam.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: this is the second level of the answer to "can two racing nags card the
   same approval twice". The per-record claim "is what stops ONE approval being counted twice when a
@@ -1044,8 +1042,8 @@ Collected for a reader who wants to know what is stated but not pinned.
 - Nothing reclaims a stranded `<session>.pending.claim.<pid>` or `fire.lock.claim.<pid>`. The accepted
   risk covers only what a crash mid-fire strands.
 - No test exercises `fire.lock` aging out at 60 seconds, nor the rename-based takeover of a dead lock.
-- No test kills the per-record rename in `claim_record`; the code says so itself and keeps it on the
-  measurement rather than on a test.
+- The per-record rename now has an independent two-owner test, listed in behavior 13. It does not
+  add recovery of stranded nag claims or change the whole-fire lock's age policy.
 - No test drives `clear_nag` through the `stop-failure` call site.
 - The duplicate-count risk on the nag-is-off path is derived from the unlink invariant, not stated or
   tested anywhere.

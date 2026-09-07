@@ -44,7 +44,7 @@
 //! Unknown is the reading that changes nothing.
 
 // THE HOME-PROBE POLICY moved to `pns-domain`, one file per question it
-// answers. What stays here reads the router, the config and the terminal.
+// answers. What stays here presents the reading and setup guidance.
 pub use pns_domain::home::{
     Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, KeyReading,
     Staleness, UNIFI_TYPE, episode_id, home_reading, is_new_staleness, stale_identifiers,
@@ -52,154 +52,12 @@ pub use pns_domain::home::{
 };
 
 pub use pns_adapters::RouterSettings;
+pub use pns_adapters::{UniFiRouter, first_site_id, parse_clients, read_home};
 
 /// The seam one probe reads the router through. DECLARED in
 /// `pns-application`, beside the home-probe use case that consumes it;
 /// named here for the adapter that implements it.
 pub use pns_application::Router;
-
-/// The clients in a UniFi `/clients` listing, or `None` when the text is not
-/// one. `None` and an empty list are DIFFERENT readings: an empty list is a
-/// parsed answer ("nobody is on the wifi"), while `None` is no answer.
-pub fn parse_clients(clients_json: &str) -> Option<Vec<Client>> {
-    let listing = serde_json::from_str::<serde_json::Value>(clients_json).ok()?;
-    let clients = listing.get("data")?.as_array()?;
-    // An INCOMPLETE PAGE is no answer: totalCount counts every client the
-    // router knows, and a device beyond this page would read as departed,
-    // which is a false transition. Completeness is judged on the ENTRIES,
-    // which is what it has always been judged on.
-    if let Some(total) = listing
-        .get("totalCount")
-        .and_then(serde_json::Value::as_u64)
-        && total > clients.len() as u64
-    {
-        return None;
-    }
-    Some(
-        clients
-            .iter()
-            .map(|client| {
-                let field =
-                    |key: &str| -> Option<String> { client.get(key)?.as_str().map(str::to_string) };
-                Client {
-                    name: field("name"),
-                    ipv4: field("ipAddress"),
-                    mac: field("macAddress"),
-                }
-            })
-            .collect(),
-    )
-}
-
-/// One reading: fetch through the seam, parse, judge.
-pub fn read_home<R: Router>(router: &R, device: &DeviceIdentity) -> HomeReading {
-    home_reading(
-        router.clients_json().as_deref().and_then(parse_clients),
-        device,
-    )
-}
-
-/// The production router client, over the same HTTP stack as the other
-/// native legs.
-///
-/// THE SECRET'S PATH IS THE POINT, exactly as in the moshi channel: the key
-/// travels from the config into the request HEADER and nowhere else,
-/// never argv, never a child's environment, never an error string. TLS
-/// verification is disabled the way the hue bridge's is, and for the same
-/// reason: the router serves a self-signed certificate for its own LAN
-/// address, and no CA vouches for it.
-pub struct UniFiRouter {
-    /// The agent every call rides, INJECTED so a test can hand in one wearing
-    /// a scripted transport (`Agent::with_parts`): the production pipeline
-    /// runs for real and only the wire is fake, which is the closest Rust
-    /// analog to stubbing Swift's URL Loading System.
-    agent: ureq::Agent,
-    /// e.g. `https://192.168.1.1`, from the `[plugins.router]` table.
-    base: String,
-    /// The API key, from the `[plugins.router]` table.
-    key: String,
-}
-
-/// One bounded fetch: a probe on a diagnostic path is worth seconds, never a
-/// hang.
-const ROUTER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
-
-/// The router's answers are small (a 200-client listing measures kilobytes),
-/// so the read is capped far below ureq's own 10MB default: a faulty router
-/// streaming garbage costs at most this much memory before reading Unknown.
-const ROUTER_BODY_CAP: u64 = 1_000_000;
-
-impl UniFiRouter {
-    /// The production wiring: TLS with verification disabled exactly as the
-    /// hue bridge's is (the router serves a self-signed certificate for its
-    /// own LAN address, and no CA vouches for it), no redirects, and the
-    /// deadline on every call.
-    pub fn new(base: String, key: String) -> Self {
-        let agent = ureq::Agent::config_builder()
-            .timeout_global(Some(ROUTER_DEADLINE))
-            .max_redirects(0)
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .disable_verification(true)
-                    .build(),
-            )
-            .build()
-            .new_agent();
-        Self::with_agent(agent, base, key)
-    }
-
-    /// The same router over any agent: the seam the scripted-transport tests
-    /// inject through.
-    pub fn with_agent(agent: ureq::Agent, base: String, key: String) -> Self {
-        Self { agent, base, key }
-    }
-}
-
-/// The integration API's clients listing for the default site.
-///
-/// The site is resolved by name (`default`) through the sites listing first,
-/// because site ids are per-install; both calls ride one agent and one
-/// deadline each.
-impl Router for UniFiRouter {
-    fn clients_json(&self) -> Option<String> {
-        let get = |path: &str| {
-            self.agent
-                .get(format!("{}{path}", self.base))
-                .header("X-API-KEY", &self.key)
-                .call()
-                .ok()?
-                .body_mut()
-                .with_config()
-                .limit(ROUTER_BODY_CAP)
-                .read_to_string()
-                .ok()
-        };
-        let sites = get("/proxy/network/integration/v1/sites")?;
-        let site = first_site_id(&sites)?;
-        get(&format!(
-            "/proxy/network/integration/v1/sites/{site}/clients?limit=200"
-        ))
-    }
-}
-
-/// The first site's id out of the sites listing, which on a UDR is the one
-/// `default` site. Validated as id-shaped before it is joined into a path:
-/// this is the one place a router answer becomes part of a URL.
-pub fn first_site_id(sites_json: &str) -> Option<String> {
-    let id = serde_json::from_str::<serde_json::Value>(sites_json)
-        .ok()?
-        .get("data")?
-        .as_array()?
-        .first()?
-        .get("id")?
-        .as_str()?
-        .to_string();
-    (!id.is_empty()
-        && id
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-'))
-    .then_some(id)
-}
 
 /// The one line for the verdict itself. PURE for the same reason as its
 /// caller: a swap of the two sentences below survived every suite before
@@ -228,9 +86,6 @@ pub use setup::*;
 
 #[cfg(test)]
 mod fixtures;
-
-#[cfg(test)]
-mod reading_tests;
 
 #[cfg(test)]
 #[path = "home/tests/settings.rs"]

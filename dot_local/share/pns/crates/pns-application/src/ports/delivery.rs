@@ -95,9 +95,9 @@ pub trait RecapPublisher {
 /// legs the plan already chose; which destination each leg names, and how the
 /// event becomes a card, are the dispatcher's.
 ///
-/// IT ANSWERS NOTHING, because the replay has no reader for a verdict: it is
-/// already the catch-up for things nobody saw, and a failure to deliver it
-/// leaves the journal exactly as it was.
+/// It returns after the attempt completes. The caller then releases the
+/// journal holds even when delivery failed; durable outcomes and retry policy
+/// belong to the delivery ledger, not this legacy replay capability.
 ///
 /// Checked against `replay_missed`'s closing call into `dispatch_legs`
 /// (`src/main.rs`), which passes the synthesized event, the decision's legs

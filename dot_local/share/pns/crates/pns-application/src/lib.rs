@@ -50,3 +50,6 @@ pub use selection::{ConfigOutcome, select_plugins};
 pub use submit_notification::{Attempt, Submission, SubmitNotification};
 
 pub use ports::nag::{NagRecords, NagSchedule};
+
+mod poll_presence;
+pub use poll_presence::{PollClaim, Polled, PresencePoll, poll_presence};

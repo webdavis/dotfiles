@@ -96,6 +96,10 @@ pub trait ActivityRing {
 /// and the second passes the config's own replay-card switch.
 pub trait ReturnMoment {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim>;
+
+    /// Release readable holds after the attempt returns, including failed delivery.
+    /// An interrupted attempt leaves its holds for later adoption.
+    fn complete(&self);
 }
 
 /// What claiming the moment yielded: the edge the marker held, absent when

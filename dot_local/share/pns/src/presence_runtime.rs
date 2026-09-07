@@ -148,7 +148,9 @@ pub(crate) fn narrow_to_presence(
     let (narrowed, decision) = pns::presence_policy::narrow(routing, snapshot);
     let _ = append_ring_line(
         &state.join(PRESENCE_DECISIONS),
-        &pns::presence_journal::entry(&pns::presence_journal::recorded(snapshot, &decision)),
+        &pns_adapters::presence_journal::entry(&pns_adapters::presence_journal::recorded(
+            snapshot, &decision,
+        )),
         pns::decision_log::KEPT,
         RING_READ_MAX,
     );
@@ -156,10 +158,10 @@ pub(crate) fn narrow_to_presence(
 }
 /// The last narrowing this machine decided. `None` is a ring with nothing in
 /// it, which is presence off or never yet consulted.
-pub(crate) fn last_narrowing(state: &Path) -> Option<pns::presence_journal::Entry> {
+pub(crate) fn last_narrowing(state: &Path) -> Option<pns_adapters::presence_journal::Entry> {
     let contents =
-        pns::system::readable_state_file(&state.join(PRESENCE_DECISIONS), RING_READ_MAX).ok()?;
-    pns::presence_journal::last(&contents)
+        pns_adapters::readable_state_file(&state.join(PRESENCE_DECISIONS), RING_READ_MAX).ok()?;
+    pns_adapters::presence_journal::last(&contents)
 }
 
 #[cfg(test)]

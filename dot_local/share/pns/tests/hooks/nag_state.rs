@@ -3,7 +3,7 @@ use super::*;
 // --- the nag ----------------------------------------------------------------
 //
 // The feature's own harness. A record is written BY HAND here rather than
-// through `pns::nag::render`, so the on-disk form is pinned by something other
+// through `pns_adapters::nag_records::render`, so the on-disk form is pinned by something other
 // than the writer under test, and the channel stubs COUNT their invocations,
 // because "exactly one card" is the property most of these behaviors turn on.
 

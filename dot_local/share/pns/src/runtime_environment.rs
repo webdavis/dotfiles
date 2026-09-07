@@ -1,19 +1,6 @@
 use crate::*;
+pub(crate) use pns_adapters::{now_secs, state_dir};
 
-/// Where this binary keeps what it has to remember between runs.
-pub(crate) fn state_dir() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_default();
-    resolve_path(
-        std::env::var("PNS_STATE_DIR").ok().as_deref(),
-        &format!("{home}/.local/state/pns"),
-    )
-}
-pub(crate) fn now_secs() -> Option<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|since_epoch| since_epoch.as_secs())
-}
 /// A deadline override in milliseconds, for tests that must prove expiry
 /// without waiting out the production window.
 pub(crate) fn env_deadline(variable: &str) -> Option<Duration> {
@@ -36,17 +23,6 @@ pub(crate) fn overrides_from_env() -> Overrides {
             .collect::<BTreeMap<_, _>>(),
     )
 }
-/// A path from the environment, defaulting like bash's `${VAR:-default}`:
-/// EMPTY means the default as much as unset does, because joining a filename
-/// to an empty path resolves into the current directory and quietly delivers
-/// nothing.
-pub(crate) fn resolve_path(candidate: Option<&str>, default: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(
-        candidate
-            .filter(|value| !value.is_empty())
-            .unwrap_or(default),
-    )
-}
 /// The first executable of that name on PATH, absolute, or None. The click
 /// string bakes it in because the click runs in a bare launchd context whose
 /// PATH cannot find `~/.local/bin`.
@@ -60,6 +36,8 @@ pub(crate) fn executable_in_path(name: &str) -> Option<String> {
         })
         .map(|path| path.to_string_lossy().into_owned())
 }
+
+pub(crate) use pns_adapters::resolve_path;
 
 #[cfg(test)]
 #[path = "runtime_environment/tests.rs"]

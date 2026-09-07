@@ -87,7 +87,7 @@ pub enum Outcome {
     /// nothing in it).
     Presence(
         crate::presence::PresenceStatus,
-        Option<crate::presence_journal::Entry>,
+        Option<pns_adapters::presence_journal::Entry>,
     ),
     /// Nothing was checked, and why.
     Skipped(&'static str),
@@ -172,7 +172,7 @@ pub fn line(check: &Check, outcome: &Outcome) -> String {
 fn presence_said(
     plugin: &str,
     status: &crate::presence::PresenceStatus,
-    last_narrowing: Option<&crate::presence_journal::Entry>,
+    last_narrowing: Option<&pns_adapters::presence_journal::Entry>,
 ) -> String {
     use crate::presence::PresenceStatus;
     let reading = match status {
@@ -662,7 +662,7 @@ fn verdict(outcome: &Outcome) -> Verdict {
 /// contents are a reader nobody asked for.
 pub fn daemon_line(
     enabled: bool,
-    beat: Option<crate::daemon::Heartbeat>,
+    beat: Option<pns_domain::jobs::Heartbeat>,
     now: Option<u64>,
     jobs: usize,
 ) -> String {
@@ -671,7 +671,7 @@ pub fn daemon_line(
     // daemon on the strength of a timestamp nothing could grade is the
     // identity-is-not-presence mistake with a file standing in for the process.
     let age = beat.and_then(|beat| now.and_then(|now| now.checked_sub(beat.at)));
-    let beating = age.is_some_and(|age| age <= crate::daemon::HEARTBEAT_STALE_SECS);
+    let beating = age.is_some_and(|age| age <= pns_domain::jobs::HEARTBEAT_STALE_SECS);
     if !enabled {
         // THE CONFIG IS NOT THE PROCESS. Nothing bounces the launchd job when
         // the config changes, so a daemon started while the switch was on keeps
@@ -691,7 +691,7 @@ pub fn daemon_line(
         return format!("{PREFIX}the daemon is enabled and has not run yet");
     };
     match age {
-        Some(age) if age <= crate::daemon::HEARTBEAT_STALE_SECS => format!(
+        Some(age) if age <= pns_domain::jobs::HEARTBEAT_STALE_SECS => format!(
             "{PREFIX}the daemon is running, pid {}, {jobs} job{} scheduled",
             beat.pid,
             if jobs == 1 { "" } else { "s" }
@@ -727,7 +727,7 @@ pub fn nag_line(after_secs: u64) -> String {
         0 => format!("{PREFIX}the nag is off (no `[nag] after_secs`)"),
         seconds => format!(
             "{PREFIX}an unanswered approval is carded again after {}",
-            crate::nag::waited(seconds)
+            pns_domain::nag::waited(seconds)
         ),
     }
 }
@@ -797,7 +797,7 @@ mod tests {
     /// The same line, with whatever the narrowing ring last recorded.
     fn presence_line_with(
         status: PresenceStatus,
-        last_narrowing: Option<crate::presence_journal::Entry>,
+        last_narrowing: Option<pns_adapters::presence_journal::Entry>,
     ) -> String {
         line(
             &Check {
@@ -819,7 +819,7 @@ mod tests {
                     room: "2F - Kitchen".to_string(),
                     age_secs: 4,
                 },
-                Some(crate::presence_journal::Entry {
+                Some(pns_adapters::presence_journal::Entry {
                     room: Some("3F - Studio".to_string()),
                     ..Default::default()
                 }),
@@ -831,7 +831,7 @@ mod tests {
         assert_eq!(
             presence_line_with(
                 PresenceStatus::Nowhere { poll_age_secs: 3 },
-                Some(crate::presence_journal::Entry {
+                Some(pns_adapters::presence_journal::Entry {
                     room: None,
                     reason: "motion in no watched room".to_string(),
                     ..Default::default()
@@ -855,7 +855,7 @@ mod tests {
         // line, and that is this filter's job.
         let said = presence_line_with(
             PresenceStatus::Nowhere { poll_age_secs: 3 },
-            Some(crate::presence_journal::Entry {
+            Some(pns_adapters::presence_journal::Entry {
                 room: Some("3F - Studio\npns doctor: forged".to_string()),
                 ..Default::default()
             }),
@@ -1742,7 +1742,7 @@ mod tests {
 #[cfg(test)]
 mod daemon_tests {
     use super::daemon_line;
-    use crate::daemon::{HEARTBEAT_STALE_SECS, Heartbeat, parse_heartbeat, render_heartbeat};
+    use pns_domain::jobs::{HEARTBEAT_STALE_SECS, Heartbeat, parse_heartbeat, render_heartbeat};
 
     const NOW: u64 = 1_700_000_000;
 

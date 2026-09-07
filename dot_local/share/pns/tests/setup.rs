@@ -663,3 +663,6 @@ fn an_empty_home_is_refused_by_name_before_anything_is_written() {
         );
     }
 }
+
+#[path = "setup/managed_warning.rs"]
+mod managed_warning;

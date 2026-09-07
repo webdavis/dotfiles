@@ -91,7 +91,7 @@ const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
 /// operator came to read out of the ring by the act of going to look at it.
 pub(crate) fn decision_section() -> Vec<String> {
     let now = now_secs();
-    match pns::system::readable_state_file(&state_dir().join(DECISIONS), RING_READ_MAX) {
+    match pns_adapters::readable_state_file(&state_dir().join(DECISIONS), RING_READ_MAX) {
         Ok(contents) => pns::decision_log::section(Some(&contents), now),
         // ABSENT IS ITS OWN STATE, and the one the section has an honest line
         // for. Anything else is a directory or a permission problem, which is
@@ -123,13 +123,14 @@ const DECISIONS_UNREADABLE: &str = "pns doctor: the decision log could not be re
 /// and a doctor that still named "the next event" would be telling the
 /// operator a lie their own setting makes permanent.
 pub(crate) fn missed_line(replay_card: bool) -> String {
-    match pns::system::readable_state_file(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX) {
-        Ok(contents) => pns::missed_notifications::waiting_line(Some(&contents), replay_card),
+    match pns_adapters::readable_state_file(&state_dir().join(MISSED_NOTIFICATIONS), RING_READ_MAX)
+    {
+        Ok(contents) => pns_domain::missed::waiting_line(Some(&contents), replay_card),
         // ABSENT IS ITS OWN STATE, and the one the line has an honest sentence
         // for. Anything else is a directory or a permission problem, which is
         // a different thing to say.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            pns::missed_notifications::waiting_line(None, replay_card)
+            pns_domain::missed::waiting_line(None, replay_card)
         }
         Err(error) => format!("{MISSED_UNREADABLE} ({}).", error.kind()),
     }
@@ -149,7 +150,7 @@ const MISSED_UNREADABLE: &str = "pns doctor: the missed-notification journal cou
 /// one `daemon_run` takes, so the report and the service cannot disagree.
 pub(crate) fn daemon_line(enabled: bool) -> String {
     let state = state_dir();
-    let path = pns::daemon::heartbeat_path(&state);
+    let path = pns_adapters::job_spool::heartbeat_path(&state);
     // A NON-REGULAR FILE IS NOT A BEAT AND IS NEVER OPENED, the same refusal
     // the spool takes and for a worse reason: `open` on a FIFO blocks until a
     // writer arrives, so a doctor that read whatever it found there would hang
@@ -158,6 +159,11 @@ pub(crate) fn daemon_line(enabled: bool) -> String {
     let beat = matches!(std::fs::symlink_metadata(&path), Ok(found) if found.is_file())
         .then(|| std::fs::read_to_string(&path).ok())
         .flatten()
-        .and_then(|line| pns::daemon::parse_heartbeat(&line));
-    pns::doctor::daemon_line(enabled, beat, now_secs(), pns::daemon::job_count(&state))
+        .and_then(|line| pns_domain::jobs::parse_heartbeat(&line));
+    pns::doctor::daemon_line(
+        enabled,
+        beat,
+        now_secs(),
+        pns_adapters::job_spool::job_count(&state),
+    )
 }

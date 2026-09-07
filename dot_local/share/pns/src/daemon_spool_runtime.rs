@@ -36,18 +36,18 @@ pub(crate) fn drain_spool(
     children: &mut Vec<Bounded>,
     reported: &mut std::collections::BTreeSet<std::path::PathBuf>,
 ) {
-    for entry in pns::daemon::spool_entries(spool) {
+    for entry in pns_adapters::job_spool::spool_entries(spool) {
         let Some(id) = entry
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
         else {
             continue;
         };
-        match pns::daemon::peek(&entry, &id) {
+        match pns_adapters::job_spool::peek(&entry, &id) {
             // SAID ONCE, never once a tick: the file is left where it is, so
             // the alternative is one line a second about a thing nobody is
             // going to fix while the daemon is watching.
-            pns::daemon::Peeked::Irregular => {
+            pns_adapters::job_spool::Peeked::Irregular => {
                 if reported.insert(entry.clone()) {
                     eprintln!(
                         "pns daemon: {} is not a regular file; left alone and never opened",
@@ -57,18 +57,18 @@ pub(crate) fn drain_spool(
             }
             // NOTHING TO DO, DECIDED WITHOUT TOUCHING IT. This is the only
             // verdict a peek is allowed to be the last word on.
-            pns::daemon::Peeked::Job(job)
-                if pns::daemon::decide(
+            pns_adapters::job_spool::Peeked::Job(job)
+                if pns_domain::jobs::decide(
                     &job,
                     now,
-                    pns::daemon::marker_exists(state, &job),
+                    pns_adapters::job_spool::marker_exists(state, &job),
                     children.iter().any(|bounded| bounded.id == job.id),
-                ) == pns::daemon::Verdict::Wait => {}
+                ) == pns_domain::jobs::Verdict::Wait => {}
             // Anything else is an ACTION, so the record is taken first and read
             // again afterwards. A failed claim means another run got there,
             // which is exactly what the rename is for.
             _ => {
-                if let Some(claim) = pns::daemon::claim(&entry) {
+                if let Some(claim) = pns_adapters::job_spool::claim(&entry) {
                     act(&claim, &id, spool, state, now, tick, children);
                 }
             }
@@ -92,19 +92,19 @@ fn act(
     tick: Duration,
     children: &mut Vec<Bounded>,
 ) {
-    match pns::daemon::peek(claim, id) {
+    match pns_adapters::job_spool::peek(claim, id) {
         // A RENAME MOVES A REGULAR FILE AS A REGULAR FILE, so this is not
         // reachable by the paths above; it is still answered rather than
         // ignored, because the alternative is a claim held forever.
-        pns::daemon::Peeked::Irregular => {
+        pns_adapters::job_spool::Peeked::Irregular => {
             println!("pns daemon: dropped `{id}`: it is not a regular file");
             release(claim);
         }
-        pns::daemon::Peeked::Unusable(refusal) => {
+        pns_adapters::job_spool::Peeked::Unusable(refusal) => {
             println!("pns daemon: dropped `{id}`: {refusal}");
             release(claim);
         }
-        pns::daemon::Peeked::Job(job) => {
+        pns_adapters::job_spool::Peeked::Job(job) => {
             // ASKED AGAIN, AND REDUNDANT WHILE THE PEEK ASKS IT TOO: the peek
             // stands a running job down before anything is claimed, so this is
             // only ever reached with no child of this id alive, and no test can
@@ -112,22 +112,29 @@ fn act(
             // peek is an optimisation over a re-read and this is the decision
             // the claim is actually acted on.
             let running = children.iter().any(|bounded| bounded.id == job.id);
-            match pns::daemon::decide(&job, now, pns::daemon::marker_exists(state, &job), running) {
+            match pns_domain::jobs::decide(
+                &job,
+                now,
+                pns_adapters::job_spool::marker_exists(state, &job),
+                running,
+            ) {
                 // The refresh this daemon claimed is not due yet, so it goes
                 // back CREATE-IF-ABSENT: a client that registered again in the
                 // meantime keeps its own record and this copy is dropped.
-                pns::daemon::Verdict::Wait => match pns::daemon::hand_back(spool, &job) {
-                    Ok(_) => release(claim),
-                    Err(error) => {
-                        eprintln!("pns daemon: `{id}` could not be put back ({error})");
-                        release(claim);
+                pns_domain::jobs::Verdict::Wait => {
+                    match pns_adapters::job_spool::hand_back(spool, &job) {
+                        Ok(_) => release(claim),
+                        Err(error) => {
+                            eprintln!("pns daemon: `{id}` could not be put back ({error})");
+                            release(claim);
+                        }
                     }
-                },
-                pns::daemon::Verdict::Drop(reason) => {
+                }
+                pns_domain::jobs::Verdict::Drop(reason) => {
                     println!("pns daemon: dropped `{id}` because {}", reason.said());
                     release(claim);
                 }
-                pns::daemon::Verdict::Fire => fire(&job, spool, now, tick, claim, children),
+                pns_domain::jobs::Verdict::Fire => fire(&job, spool, now, tick, claim, children),
             }
         }
     }
@@ -161,15 +168,15 @@ fn release(claim: &Path) {
 /// would overwrite it with the due and lease this daemon computed from the
 /// record it had already taken.
 fn fire(
-    job: &pns::daemon::Job,
+    job: &pns_domain::jobs::Job,
     spool: &Path,
     now: u64,
     tick: Duration,
     claim: &Path,
     children: &mut Vec<Bounded>,
 ) {
-    if let Some(next) = pns::daemon::rearm(job, now) {
-        match pns::daemon::hand_back(spool, &next) {
+    if let Some(next) = pns_domain::jobs::rearm(job, now) {
+        match pns_adapters::job_spool::hand_back(spool, &next) {
             Ok(true) => {}
             Ok(false) => println!(
                 "pns daemon: `{}` was registered again while it ran, so its repeat stands down",

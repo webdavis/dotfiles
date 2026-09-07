@@ -73,7 +73,7 @@ fn presence_poll(launch: Launch) -> i32 {
     let Some(hue) = hue_settings(&settings, None) else {
         return 0;
     };
-    let (code, complaint) = write_presence_reading(
+    let polled = write_presence_reading(
         &UreqBridge {
             base: format!("https://{}/clip/v2/resource", hue.bridge),
             key: hue.key,
@@ -87,124 +87,46 @@ fn presence_poll(launch: Launch) -> i32 {
         &state_dir(),
         &presence,
         now,
-    )
-    .reported(launch);
+    );
+    let (code, complaint) = reported(polled, launch);
     if let Some(complaint) = complaint {
         eprintln!("{complaint}");
     }
     code
 }
-
-/// The poll's whole effect: read the bridge, publish the reading. `true` when
-/// a line was published.
-///
-/// A BRIDGE THAT DID NOT ANSWER PUBLISHES NOTHING. That single choice is what
-/// makes a dead bridge, a wrong key and a wedged LAN all read as Unknown a few
-/// seconds later, instead of pinning the operator wherever the last poll left
-/// them. AND NEITHER DOES A READING THE FORMAT CANNOT CARRY: `render` hands
-/// its own line back to its own parser and answers nothing at all when what
-/// comes back is not what went in, so the write is never a line the reader
-/// would read as a different reading.
-///
-/// THE BRIDGE IS A PARAMETER so this, the join of the config, the network and
-/// the state directory, is the thing a test drives end to end. Everything
-/// under it is pure and everything over it is six lines of composition.
-///
-/// ONE POLLER AT A TIME ACROSS THE WHOLE MACHINE, held from before the first
-/// read to after the rename. The running-child check in the daemon is
-/// PROCESS-LOCAL, so a second daemon, a replacement daemon that orphaned the
-/// first one's child, or a hand-typed `pns presence poll` can each be inside
-/// this at once. Without the lock the LAST rename wins rather than the newest
-/// reading: a poller stalled between its two reads publishes an older room
-/// over a newer one and `classify` accepts it as current. Standing down costs
-/// one interval of a reading somebody else is already taking.
-///
-/// THE LOCK IS THE KERNEL'S, not a name on disk, so the poll a killed poller
-/// was inside is claimable the moment it dies: see `presence_lock`.
-pub(crate) fn write_presence_reading<B: pns::channels::hue::Bridge>(
+pub(crate) fn write_presence_reading<B: pns_adapters::Bridge>(
     bridge: &B,
     state: &Path,
     presence: &pns::config::Presence,
     now: u64,
 ) -> Polled {
-    // THE DIRECTORY IS MADE BEFORE THE LOCK, because the lock now runs ahead
-    // of `publish_state_line`, which used to be the thing that made it: a
-    // first poll on a machine with no state directory yet would otherwise fail
-    // to take a lock nobody holds and never publish at all.
-    let _ = std::fs::create_dir_all(state);
-    // HELD BY THE HANDLE AND NOT BY THE NAME, which is what makes a killed
-    // poller cost nothing: the kernel closes its file and the lock is gone.
-    let _lock = match pns::presence_lock::claim(&state.join(pns::presence_lock::LOCK_FILE)) {
-        pns::presence_lock::Claim::Held(file) => file,
-        pns::presence_lock::Claim::Busy => return Polled::Busy,
-        pns::presence_lock::Claim::Unavailable => return Polled::Nothing,
-    };
-    // THE EXCLUSION IS APPLIED BEFORE THE NEWEST EDGE IS CHOSEN, not left to
-    // the reader. `classify` refuses an excluded room outright, so publishing
-    // one would throw away the newest edge in a room that DOES count and
-    // answer Unknown. The key is documented for "a room you pass through",
-    // which is the room that reports MOST often, so the reading it swallowed
-    // would be the common case rather than the corner.
-    let watched: Vec<String> = presence
-        .rooms
-        .iter()
-        .filter(|room| !presence.exclude.contains(room))
-        .cloned()
-        .collect();
-    let Some(reading) = pns::presence_hue::poll(bridge, &watched, now) else {
-        return Polled::Nothing;
-    };
-    // A READING THIS FORMAT CANNOT CARRY PUBLISHES NOTHING, the same direction
-    // a silent bridge takes. `render` used to substitute the poll-only line
-    // for one, which says "the bridge answered and no watched room reported"
-    // on evidence that said a watched room had.
-    let Some(line) = pns::presence_file::render(&reading) else {
-        return Polled::Nothing;
-    };
-    // FAIL-QUIET, in `remember_staleness`'s style: an unwritable state
-    // directory costs the reading, which ages out on its own.
-    if publish_state_line(&state.join(pns::presence_file::STATE_FILE), &line).is_ok() {
-        Polled::Published
-    } else {
-        Polled::Nothing
-    }
+    pns_application::poll_presence(
+        &pns_adapters::BridgePresencePoll { bridge, state },
+        &presence.rooms,
+        &presence.exclude,
+        now,
+    )
 }
-
-/// What one poll did, and what the operator who typed it is told.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Polled {
-    /// A reading reached the state file.
-    Published,
-    /// Nothing was published and nothing this can name is wrong: a bridge that
-    /// did not answer, a reading the format cannot carry, a state directory it
-    /// cannot write. Every one of them ages the last reading out to Unknown,
-    /// which is what they all mean.
-    Nothing,
-    /// Another poller is inside the bridge read.
-    Busy,
-}
-
-impl Polled {
-    /// The exit status, and the one line the operator is owed.
-    ///
-    /// SILENT AND ZERO FOR EVERY REFUSAL BUT ONE, because the daemon runs this
-    /// every few seconds with its stderr pointed at the log: a complaint on the
-    /// ordinary refusals would be a line a second, and the doctor is what names
-    /// a sensor that has stopped reading. Contention is the exception. It is
-    /// transient by construction, so it cannot flood anything, and a hand-typed
-    /// poll that read no bridge and published nothing otherwise looks exactly
-    /// like one that worked.
-    fn reported(self, launch: Launch) -> (i32, Option<&'static str>) {
-        match (self, launch) {
-            (Polled::Busy, Launch::Operator) => (
-                1,
-                Some(
-                    "pns presence: another poll holds the bridge read; \
+pub(crate) use pns_application::Polled;
+/// The exit status, and the one line the operator is owed.
+///
+/// SILENT AND ZERO FOR EVERY REFUSAL BUT ONE, because the daemon runs this
+/// every few seconds with its stderr pointed at the log: a complaint on the
+/// ordinary refusals would be a line a second, and the doctor is what names
+/// a sensor that has stopped reading. Contention is the exception. It is
+/// transient by construction, so it cannot flood anything, and a hand-typed
+/// poll that read no bridge and published nothing otherwise looks exactly
+/// like one that worked.
+fn reported(polled: Polled, launch: Launch) -> (i32, Option<&'static str>) {
+    match (polled, launch) {
+        (Polled::Busy, Launch::Operator) => (
+            1,
+            Some(
+                "pns presence: another poll holds the bridge read; \
                      this one published nothing",
-                ),
             ),
-            _ => (0, None),
-        }
+        ),
+        _ => (0, None),
     }
 }
 /// The spool name the room sensor's poll is registered under.
@@ -250,21 +172,21 @@ pub(crate) fn ensure_presence_poll(
     let Some(presence) = presence else {
         // The failure is dropped for `record_decision`'s reason: a cancel that
         // did not land costs one more poll, and the lease ends it regardless.
-        let _ = pns::daemon::cancel(state, PRESENCE_JOB);
+        let _ = pns_adapters::job_spool::cancel(state, PRESENCE_JOB);
         return;
     };
-    let pending = match pns::daemon::peek(
-        &pns::daemon::spool_dir(state).join(PRESENCE_JOB),
+    let pending = match pns_adapters::job_spool::peek(
+        &pns_adapters::job_spool::spool_dir(state).join(PRESENCE_JOB),
         PRESENCE_JOB,
     ) {
-        pns::daemon::Peeked::Job(job) => Some(job.due),
+        pns_adapters::job_spool::Peeked::Job(job) => Some(job.due),
         _ => None,
     };
     // DUE NOW when nothing is pending, so the first sweep after the switch
     // goes on is followed by a reading on the next tick rather than one
     // interval later.
     let due = pending.filter(|due| *due > now).unwrap_or(now);
-    let job = pns::daemon::Job {
+    let job = pns_domain::jobs::Job {
         id: PRESENCE_JOB.to_string(),
         due,
         until: due.max(now.saturating_add(PRESENCE_LEASE_SECS)),
@@ -279,7 +201,7 @@ pub(crate) fn ensure_presence_poll(
     // The failure is DROPPED here for `schedule_lights_tick`'s reason: a
     // registration that did not land must never cost the daemon a line a
     // second, and the next sweep tries again.
-    let _ = pns::daemon::schedule(state, &job, now);
+    let _ = pns_adapters::job_spool::schedule(state, &job, now);
 }
 
 #[cfg(test)]

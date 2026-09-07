@@ -53,3 +53,6 @@ pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no}
 pub use routing::Delivery;
 
 pub use notification::{Event, EventArgs};
+
+mod focus;
+pub use focus::silenced as focus_silenced;

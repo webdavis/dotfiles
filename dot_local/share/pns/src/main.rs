@@ -11,13 +11,14 @@
 //! still open: `home` is a diagnostic that always exits 0, and a word
 //! trailing `lights tick` is dropped rather than refused.
 
+use pns_adapters::LIGHTS_QUIET_SAID;
 pub(crate) use std::collections::BTreeMap;
-pub(crate) use std::io::{IsTerminal, Read, Seek, Write};
-pub(crate) use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+pub(crate) use std::io::{IsTerminal, Read, Write};
+pub(crate) use std::os::unix::fs::OpenOptionsExt;
 pub(crate) use std::os::unix::process::CommandExt;
-pub(crate) use std::path::{Path, PathBuf};
+pub(crate) use std::path::Path;
 pub(crate) use std::process::{Command, Stdio};
-pub(crate) use std::time::{Duration, SystemTime, UNIX_EPOCH};
+pub(crate) use std::time::{Duration, UNIX_EPOCH};
 
 pub(crate) use pns::args::parse_args;
 pub(crate) use pns::channels::banner::BannerChannel;
@@ -45,7 +46,6 @@ pub(crate) use pns::system::{
     PROBE_READ_MAX, SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded,
 };
 
-mod blocked_wait_markers;
 mod channel_dispatch;
 mod channel_settings;
 mod command_daemon;
@@ -64,21 +64,16 @@ mod daemon_runtime;
 mod daemon_spool_runtime;
 mod doctor_reports;
 mod event_flow;
-mod event_records;
 mod focus_runtime;
-mod home_staleness_memory;
 mod hook_dispatch;
 mod hook_observations;
 mod hook_payload;
 mod invocation;
-mod journal_claims;
 mod lamp_diagnostics;
 mod lamp_event_lease;
 mod lamp_pulse;
 mod lights_breath_runtime;
 mod lights_house_runtime;
-mod lights_marker_runtime;
-mod lights_state_runtime;
 mod lights_tick_runtime;
 mod lights_tick_writes;
 mod moshi_submission;
@@ -87,17 +82,12 @@ mod presence_runtime;
 mod recap_delivery_runtime;
 mod recap_sources_runtime;
 mod return_replay;
-mod return_window;
 mod runtime_environment;
-mod setup_publish_runtime;
 mod setup_walk;
-mod state_lock_runtime;
-mod state_rings;
 mod turn_condenser;
 mod turn_lifecycle;
 mod turn_text;
 
-pub(crate) use blocked_wait_markers::{end_blocked_wait, update_blocked_marker};
 pub(crate) use channel_dispatch::dispatch_legs;
 pub(crate) use channel_settings::{
     Mobile, disabled_backend_warnings, enabled_hue_table, plugin_settings, read_mobile,
@@ -105,8 +95,8 @@ pub(crate) use channel_settings::{
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_home::home_mode;
-pub(crate) use command_lights::{LIGHTS_QUIET_SAID, ad_hoc_quiet, lights_mode};
-pub(crate) use command_loop::{loop_mode, renew_loop_lease};
+pub(crate) use command_lights::{ad_hoc_quiet, lights_mode};
+pub(crate) use command_loop::loop_mode;
 pub(crate) use command_nag::nag_mode;
 pub(crate) use command_presence::{ensure_presence_poll, presence_mode, presence_settings};
 pub(crate) use command_pulse::pulse_mode;
@@ -118,9 +108,7 @@ pub(crate) use daemon_runtime::daemon_run;
 pub(crate) use daemon_spool_runtime::drain_spool;
 pub(crate) use doctor_reports::{daemon_line, decision_section, missed_line, read_pairing};
 pub(crate) use event_flow::{Attempt, run_event};
-pub(crate) use event_records::{DECISIONS, MISSED_NOTIFICATIONS, activity_in, record_decision};
-pub(crate) use focus_runtime::{focus_line, focus_now};
-pub(crate) use home_staleness_memory::{remember_staleness, remembered_staleness};
+pub(crate) use focus_runtime::focus_line;
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
     arm_quota_stale_wait, config_change_detail, model_switch_detail, quota_observation_detail,
@@ -128,7 +116,6 @@ pub(crate) use hook_observations::{
 };
 pub(crate) use hook_payload::{payload_is_whole, read_payload};
 pub(crate) use invocation::{USAGE, event_mode, is_producer_argv, second_argument};
-pub(crate) use journal_claims::{claim_journal, owner_is_gone};
 pub(crate) use lamp_diagnostics::{hue_resolves, lights_report, pulse_outcome};
 pub(crate) use lamp_event_lease::{
     LIGHTS_JOB, ORDINARY_LEASE_SECS, clear_held_lamps, register_lights_tick, schedule_lights_tick,
@@ -136,40 +123,43 @@ pub(crate) use lamp_event_lease::{
 pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_unless_quiet, routing_complaints};
 pub(crate) use lights_breath_runtime::{Breathing, drive_breaths};
 pub(crate) use lights_house_runtime::lights_house;
-pub(crate) use lights_marker_runtime::{
-    blocked_lamp, sweep_leases, sweep_legacy_state, sweep_shell_markers,
-};
-pub(crate) use lights_state_runtime::{
-    held_lamps, read_held, read_news, record_news, remember_held, say_lights_once,
-};
 pub(crate) use lights_tick_runtime::lights_tick;
 pub(crate) use lights_tick_writes::{run_tick_writes, tick_bridge_deadline};
 pub(crate) use moshi_submission::{blocking_event, gate_mode, moshi_hook_bin};
-pub(crate) use nag_schedule_runtime::{
-    BLOCKED_STATE, NAG_OFF, arm_nag, clear_nag, marker_path, nag_after_secs, write_marker,
+pub(crate) use nag_schedule_runtime::{BLOCKED_STATE, NAG_OFF, arm_nag, clear_nag, nag_after_secs};
+pub(crate) use pns_adapters::config_publication::publish_config;
+use pns_adapters::focus_now;
+pub(crate) use pns_adapters::marker_files::renew_loop_lease;
+pub(crate) use pns_adapters::marker_files::{
+    blocked_lamp, sweep_leases, sweep_legacy_state, sweep_shell_markers,
 };
+pub(crate) use pns_adapters::marker_files::{end_blocked_wait, update_blocked_marker};
+pub(crate) use pns_adapters::return_window::mark_present;
+pub(crate) use pns_adapters::{DECISIONS, MISSED_NOTIFICATIONS};
+pub(crate) use pns_adapters::{HeldLock, claim_lock};
+pub(crate) use pns_adapters::{RING_READ_MAX, append_ring_line, publish_state_line};
+pub(crate) use pns_adapters::{
+    held_lamps, read_held, read_news, record_news, remember_held, say_lights_once,
+};
+pub(crate) use pns_adapters::{remember_staleness, remembered_staleness};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, narrow_to_presence, presence_snapshot, presence_status,
     system_probes,
 };
 pub(crate) use recap_delivery_runtime::post_recap;
 pub(crate) use recap_sources_runtime::{
-    found, merged_pull_requests, modified_at, notes_matching, read_sources, truncated,
+    found, merged_pull_requests, notes_matching, read_sources, truncated,
 };
 pub(crate) use return_replay::replay_missed;
-pub(crate) use return_window::{Moment, claim_moment, mark_present, read_epoch};
 pub(crate) use runtime_environment::{
     env_deadline, executable_in_path, now_secs, overrides_from_env, resolve_path, state_dir,
 };
-pub(crate) use setup_publish_runtime::publish_config;
 pub(crate) use setup_walk::walk;
-pub(crate) use state_lock_runtime::{HeldLock, claim_lock};
-pub(crate) use state_rings::{
-    RING_READ_MAX, STATE_FILE_MODE, append_ring_line, publish_state_line,
-};
 pub(crate) use turn_condenser::condense;
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;
+
+pub(crate) use pns_adapters::marker_files::{marker_path, write_marker};
 
 fn main() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
@@ -292,6 +282,4 @@ mod runtime_test_support;
 #[cfg(test)]
 pub(crate) use command_presence::{Polled, write_presence_reading};
 #[cfg(test)]
-pub(crate) use lights_state_runtime::LIGHTS_HELD;
-#[cfg(test)]
-pub(crate) use lights_tick_runtime::LIGHTS_SAID;
+pub(crate) use pns_adapters::LIGHTS_HELD;

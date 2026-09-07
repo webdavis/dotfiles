@@ -1,0 +1,13 @@
+use super::*;
+use crate::device_identity;
+use pns_domain::home::{Client, DeviceKey, HomePresence, KeyOutcome, stale_identifiers};
+mod fixtures;
+use fixtures::*;
+mod evidence;
+mod fetch;
+mod identity;
+mod parsing;
+mod precedence;
+mod transport;
+mod unknown;
+mod winner;

@@ -1,5 +1,7 @@
 use crate::*;
 
+const EXECUTABLE_DEADLINE: Duration = Duration::from_secs(5);
+
 /// Every leg to its destination, in the registry's delivery order, each
 /// paired with what its channel had to say for itself.
 ///
@@ -193,39 +195,9 @@ fn deliver_leg(
             _ => {}
         }
     }
-    deliver(
+    pns_adapters::deliver_executable(
         &channels_dir.join(format!("{}.sh", leg.name)),
         &pns::channels::event_json(rendered, leg.mode),
+        EXECUTABLE_DEADLINE,
     )
-}
-/// Hand one channel its event on stdin. A channel that is missing, is not
-/// executable, or fails is not an error: it is simply not installed, or it
-/// declined, and neither may take down the siblings or the caller.
-///
-/// SILENT ON THE NOTIFICATION PATH whichever verdict it answers with: the
-/// common failure here is a channel nobody installed, and reporting that on
-/// every event would be noise. THE TWO ARE STILL DIFFERENT VERDICTS. A channel
-/// that ran and said nothing is `Silent`; one that never started is
-/// `Unlaunched`, which prints nowhere an event can see and is what lets a
-/// hand-run check tell a delivery from a spawn that never happened. The exit
-/// status of a channel that DID run is still dropped, because a channel
-/// declining is its own business.
-fn deliver(channel: &Path, event: &str) -> Delivery {
-    let mut child = match Command::new(channel).stdin(Stdio::piped()).spawn() {
-        Ok(child) => child,
-        Err(error) => {
-            return Delivery::Unlaunched(format!(
-                "could not launch the channel at {} ({error}); nothing was sent",
-                channel.display()
-            ));
-        }
-    };
-    if let Some(mut stdin) = child.stdin.take() {
-        // Newline-terminated, as the bash's `jq -cn` emitted it: a channel
-        // reading one line with `read -r` gets nothing without it.
-        let _ = stdin.write_all(event.as_bytes());
-        let _ = stdin.write_all(b"\n");
-    }
-    let _ = child.wait();
-    Delivery::Silent
 }

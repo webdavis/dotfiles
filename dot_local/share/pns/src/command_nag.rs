@@ -1,4 +1,5 @@
 use crate::*;
+use pns_adapters::nag_records::{claim_fire, claim_record, record_entries, release_fire};
 
 // --- the nag ----------------------------------------------------------------
 
@@ -33,7 +34,7 @@ pub(crate) fn nag_mode() -> i32 {
         return 2;
     }
     let state = state_dir();
-    let directory = pns::nag::nag_dir(&state);
+    let directory = pns_adapters::nag_records::nag_dir(&state);
     // A CONFIG THAT TURNED THE FEATURE OFF BETWEEN ARMING AND FIRING MEANS NO
     // NUDGE, and the records go with it: the operator cancelled the timer, and
     // a card from it would be the feature ignoring them.
@@ -69,7 +70,7 @@ pub(crate) fn nag_mode() -> i32 {
         return 0;
     };
 
-    let mut held: Vec<(std::path::PathBuf, pns::nag::Record, String)> = Vec::new();
+    let mut held: Vec<(std::path::PathBuf, pns_domain::nag::Record, String)> = Vec::new();
     for record in record_entries(&directory) {
         // SOMEBODY ELSE OWNS IT, or it is not a regular file: either way this
         // process never opened it and never counts it.
@@ -85,7 +86,7 @@ pub(crate) fn nag_mode() -> i32 {
         // degrade to.
         let Some(session) = record
             .file_name()
-            .and_then(|name| pns::nag::session_of(&name.to_string_lossy()))
+            .and_then(|name| pns_domain::nag::session_of(&name.to_string_lossy()))
         else {
             eprintln!(
                 "pns nag: {} is not named for a session this can act on; it is dropped",
@@ -97,19 +98,19 @@ pub(crate) fn nag_mode() -> i32 {
         let parsed = std::fs::read_to_string(&claim)
             .ok()
             .as_deref()
-            .and_then(pns::nag::parse);
-        let answered = pns::nag::marker_name(&session)
+            .and_then(pns_adapters::nag_records::parse);
+        let answered = pns_domain::nag::marker_name(&session)
             .is_some_and(|marker| marker_path(&state, &marker).exists());
         match (
-            pns::nag::fate(parsed.as_ref(), answered, now, after_secs),
+            pns_domain::nag::fate(parsed.as_ref(), answered, now, after_secs),
             parsed,
         ) {
-            (pns::nag::Fate::Count, Some(record)) => held.push((claim, record, session)),
+            (pns_domain::nag::Fate::Count, Some(record)) => held.push((claim, record, session)),
             // AN ACTION THAT SUPPRESSED ITS OWN ERROR HAS ONLY BEEN ATTEMPTED:
             // a file at a record's path that this could not read is somebody
             // else's write, and dropping it in silence is how one would sit
             // there being re-claimed on every fire forever.
-            (pns::nag::Fate::Drop(pns::nag::Dropped::Unreadable), _) => {
+            (pns_domain::nag::Fate::Drop(pns_domain::nag::Dropped::Unreadable), _) => {
                 eprintln!(
                     "pns nag: {} is not a record this can read; it is dropped",
                     record.display()
@@ -136,7 +137,7 @@ pub(crate) fn nag_mode() -> i32 {
     // daemon jobs drop silently when its turn comes; without it the siblings
     // would each wake a process that found nothing and said so.
     for (_, _, session) in &held {
-        let Some(marker) = pns::nag::marker_name(session) else {
+        let Some(marker) = pns_domain::nag::marker_name(session) else {
             continue;
         };
         if let Err(error) = write_marker(&state, &marker) {
@@ -161,7 +162,11 @@ pub(crate) fn nag_mode() -> i32 {
             state: BLOCKED_STATE.to_string(),
             project: oldest.project.clone(),
             branch: oldest.branch.clone(),
-            detail: pns::nag::nudge(held.len(), now.saturating_sub(oldest.armed), &oldest.detail),
+            detail: pns_domain::nag::nudge(
+                held.len(),
+                now.saturating_sub(oldest.armed),
+                &oldest.detail,
+            ),
             pane: oldest.pane.clone(),
             ..Default::default()
         },
@@ -193,109 +198,3 @@ pub(crate) fn nag_mode() -> i32 {
 }
 const NAG_USAGE: &str = "pns: usage: pns nag (it takes no arguments: one fire cards every \
 outstanding approval at once)";
-/// Every file in the nag directory that could be a record, sorted so a fire is
-/// deterministic.
-///
-/// THE SUFFIX IS THE WHOLE FILTER, which is what keeps a claim out of this: a
-/// held claim is `<name>.claim.<pid>` and can never end in the record suffix,
-/// so a record another process is mid-fire on is never re-enumerated here.
-fn record_entries(directory: &Path) -> Vec<std::path::PathBuf> {
-    let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(directory)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|entry| {
-            entry
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().ends_with(pns::nag::RECORD_SUFFIX))
-        })
-        .collect();
-    entries.sort();
-    entries
-}
-
-/// One record taken by rename, or None when somebody else has it.
-///
-/// THE RENAME IS THE OWNERSHIP TEST, in `consume_turn_marker`'s exact shape and
-/// for `take_claim`'s measured reason: a plain unlink reports success to EVERY
-/// racer on APFS, so a remove could tell two processes they each own this
-/// record.
-///
-/// NOT THE SAME GUARANTEE AS THE FIRE CLAIM, and not made redundant by it. The
-/// fire claim is what stops two processes carding in one window; this is what
-/// stops ONE approval being counted twice when a second process is legitimately
-/// running, which is what happens after a crashed fire's window claim ages out
-/// while its records are still on disk. NO TEST IN THIS SUITE KILLS THIS
-/// RENAME: reading each record in place and removing it afterwards passes
-/// everything, because every fire in the suite bar one is single-process, and
-/// that one is arbitrated a level up. It is kept on the measurement, not on a
-/// test.
-///
-/// AN IRREGULAR FILE GOES BACK WHERE IT WAS AND IS NEVER OPENED, following
-/// `append_ring_line`'s own refusal at a state path: a FIFO here would park the
-/// read forever. The rename is still what tests it, because only the winner is
-/// entitled to look at all.
-fn claim_record(record: &Path) -> Option<std::path::PathBuf> {
-    let claim = pns::nag::claim_path(record, std::process::id());
-    // NEVER RENAMED OVER A CLAIM ALREADY THERE, for `claim_by_rename`'s reason:
-    // the name carries this process's id, so anything sitting at it is a record
-    // this pid claimed and could not finish, and a rename would land the new one
-    // on top of it.
-    if std::fs::symlink_metadata(&claim).is_ok() {
-        return None;
-    }
-    std::fs::rename(record, &claim).ok()?;
-    if !matches!(std::fs::symlink_metadata(&claim), Ok(found) if found.is_file()) {
-        let _ = std::fs::rename(&claim, record);
-        return None;
-    }
-    Some(claim)
-}
-
-/// The whole fire owned ONCE, or None when this process is not the one holding
-/// this window.
-///
-/// NOT A DUPLICATE OF THE PER-RECORD CLAIM, which answers a different question.
-/// That one is per-approval crash safety: it is what stops one record being
-/// counted by two processes, and it stays. But ownership taken per record lets
-/// two woken processes each win a DISJOINT, NON-EMPTY subset and each card its
-/// own true count, which is one card per FIRE rather than one card per fire
-/// WINDOW, and that is precisely what the coalescing ruling forbids. Measured
-/// on the build before this: sixteen concurrent fires over one directory
-/// produced sixteen cards. The window is what has to be owned, so it is.
-///
-/// AN EXCLUSIVE CREATE IS THE ARBITRATION, NOT A RENAME, and the difference is
-/// measured rather than stylistic. A rename claim moves the contended name OUT
-/// of the way: the winner renames `fire.lock` to its own claim, so a racer that
-/// looked for a holder a moment earlier finds no lock at that name, creates one
-/// and takes it too. That form delivered TWO cards from four concurrent fires,
-/// reproducibly, under load. An exclusive create leaves the lock sitting at its
-/// name for the whole fire, so every later racer is refused by the same atomic
-/// operation, whenever it arrives. The rename survives below, in the one place
-/// a remove would be unsafe.
-///
-/// AND AGED OUT AT A MINUTE, so a crash mid-fire cannot wedge the feature for
-/// good. A minute is a wide margin over the work the lock has to cover: the
-/// holder claims every record by rename before it delivers anything, so a fire
-/// that broke in later finds an empty directory in any case. What the wait
-/// costs when the holder really did die is one nudge window, which is the safe
-/// direction.
-fn claim_fire(directory: &Path, now: u64) -> Option<std::path::PathBuf> {
-    let lock = directory.join(pns::nag::FIRE_LOCK);
-    claim_lock(&lock, now, pns::nag::FIRE_STALE_SECS).then_some(lock)
-}
-/// The fire given up, so the next window can be claimed without waiting out
-/// `FIRE_STALE_SECS`.
-///
-/// SAID WHEN IT FAILS, and the consequence is named rather than implied: the
-/// feature is not broken by a claim left behind, it is DELAYED, because the age
-/// test is what recovers it.
-fn release_fire(fire: &Path) {
-    if let Err(error) = std::fs::remove_file(fire) {
-        eprintln!(
-            "pns nag: the fire claim {} could not be given up ({error}); the next fire waits it out",
-            fire.display()
-        );
-    }
-}

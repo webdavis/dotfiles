@@ -80,6 +80,7 @@ where
         };
 
         if !recap.replay_card {
+            ReturnMoment::complete(self.ports);
             return;
         }
         // A CARD WITH NOTHING IN IT IS NOISE. With no digest to point at and
@@ -92,6 +93,7 @@ where
                 posted,
             )
         } else if claim.waiting.is_empty() {
+            ReturnMoment::complete(self.ports);
             return;
         } else {
             missed::summary(&claim.waiting)
@@ -107,6 +109,7 @@ where
             },
             &decision.legs,
         );
+        ReturnMoment::complete(self.ports);
     }
 }
 

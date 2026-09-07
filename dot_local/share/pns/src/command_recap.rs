@@ -42,7 +42,11 @@ pub(crate) fn recap_mode() -> i32 {
             },
         ),
     };
-    let entries = activity_in(since, until);
+    let entries = pns_application::ActivityRing::entries_between(
+        &pns_adapters::FileRecords::new(state_dir()),
+        since,
+        until,
+    );
     // THE TWO EXTERNAL SOURCES ARE READ ONLY WHEN A KEY NAMES THEM, and both
     // are read HERE, in the process nobody is waiting on. A repository listing
     // is a network call somebody else's machine answers and a glob is a

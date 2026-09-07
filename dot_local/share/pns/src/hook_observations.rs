@@ -91,23 +91,7 @@ pub(crate) fn config_change_detail(source: &str, file_path: &str) -> Option<Stri
         format!("{label}: {path}")
     })
 }
-/// How many received `policy_settings` changes the audit trail remembers,
-/// comfortably past the five-entry decision ring (`decision_log::KEPT`): a
-/// policy change is rarer and more consequential than an ordinary observed
-/// event, and it must outlive more than a handful of intervening turns rather
-/// than vanish with them the moment the ring rolls over.
-///
-/// THE ARITHMETIC `append_ring_line` ASKS EVERY CALLER FOR, against the
-/// `RING_READ_MAX` this passes beside it: a line is a timestamp, a session cut
-/// to `CONFIG_SESSION_MAX_CHARS` and a path cut to `CONFIG_PATH_MAX_CHARS`, so
-/// its worst case is about 4.4 KB of UTF-8 and twenty of them about 88 KB,
-/// comfortably inside the reader's 256 KiB ceiling. Without both cuts the
-/// depth alone would not bound the FILE, and a ring past that ceiling can
-/// never be pruned again: the heal fires and the trail collapses to one line.
-const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
-/// The policy-settings audit trail's file name, beside `DECISIONS` and
-/// `ACTIVITY`.
-const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";
+
 /// Append one received `policy_settings` change to a bounded, state-only
 /// audit record, so it outlives the five-entry decision ring an ordinary
 /// observed event is logged to. STATE-ONLY, in `record_missed`'s style: no
@@ -120,17 +104,9 @@ const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";
 /// the state directory, and a record that did not land costs a read of this
 /// file later, never a card.
 pub(crate) fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
-    let now = now.unwrap_or_default();
     let session = config_field(session_id, CONFIG_SESSION_MAX_CHARS);
     let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
-    let path = if path.is_empty() { "none" } else { &path };
-    let line = format!("{now} session={session} file={path}");
-    let _ = append_ring_line(
-        &state_dir().join(POLICY_SETTINGS_AUDIT),
-        &line,
-        POLICY_SETTINGS_AUDIT_KEPT,
-        RING_READ_MAX,
-    );
+    pns_adapters::record_policy_settings_change(&state_dir(), &session, &path, now);
 }
 /// The three quota-notification labels this binary recognises, and nothing
 /// else: an exact allowlist, matching the exact matcher declared beside it in

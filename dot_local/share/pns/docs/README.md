@@ -72,3 +72,17 @@ The suite recorded as a SET OF NAMES with results, never a count, plus the proce
 suite against it and the classification of the existing tests. A count passes when one test is dropped
 and another added, and it passes a rename, which is how a behavioral contract goes missing during a
 refactor.
+
+## File-protocol ownership
+
+`pns-adapters` now owns filesystem reads, private atomic publication, append locks, ring codecs,
+`FileRecords`, and the spool, nag, marker, return-window and setup-publication protocols. The domain
+keeps policy and typed records. The application consumes its existing ring ports and owns when a
+replay attempt completes through `ReturnMoment::complete`. The root commands still compose adapters
+and retain use cases scheduled for later application steps; no placeholder repository is introduced.
+
+The ring and line formats remain unchanged. This extraction does not introduce a database, migrate
+state, add a delivery ledger or retry failed attempts. The replay hold, seven-day turn retention,
+private turn creation and setup failure changes are deliberate repairs recorded in decision 0001 and
+the corresponding specifications. Other historical source anchors in these documents identify their
+original sites; the moved test table in `test-baseline.md` names current locations.

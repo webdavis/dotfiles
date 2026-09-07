@@ -439,21 +439,21 @@ newline, waits for the child, and answers `Delivery::Silent`. A spawn that faile
   (`src/main.rs:deliver` doc comment). Pinned by
   `tests/dispatch.rs:an_absent_channel_is_simply_not_installed` and
   `tests/dispatch.rs:a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`.
-- **Thresholds:** **There is no deadline and no output ceiling on an executable channel.**
-  `src/main.rs:deliver` calls `Command::spawn` and `child.wait()` directly, not `system::run_bounded`. A
-  wedged channel blocks the dispatch indefinitely. This is the one delivery path in the crate with no
-  bound; the banner's spawn is bounded at 5 s and 1 MiB and both HTTP legs carry their own deadlines.
+- **Thresholds:** `src/channel_dispatch.rs:deliver` gives input and direct-child wait one five-second
+  budget through `pns_adapters::finish_bounded`, the probe runner's completion path. Output remains inherited
+  without a byte ceiling. There is no aggregate deadline across the legs.
 - **Required side effects:** Exactly one write of the event JSON plus `\n` to the child's stdin.
 - **Forbidden side effects:** The exit status must not become a caller-visible failure.
-- **Timeout and cancellation:** None. See Thresholds. NOT ESTABLISHED: no test in `tests/dispatch.rs` or
-  `tests/native.rs` pins the absence of a deadline here; I grepped both files for `sleep`, `deadline` and
-  `timeout` against the channel-stub tests and found nothing exercising a hanging channel.
+- **Timeout and cancellation:** At the deadline the direct child is killed and reaped, still returning
+  `Delivery::Silent`. The private `destinations::executable::tests` cases cover a hanging child and a child that
+  never reads a pipe-filling event. Their test deadlines are shorter than the production budget.
 - **Idempotency and duplicates:** One spawn per leg per dispatch.
 - **Privacy:** The event JSON reaches the child's stdin, which is the process's own pipe rather than argv
   or the environment. It carries `agent`, `state`, `project`, `branch`, `detail`, `title`, `message`,
   `preview`, `pane` and `mode`, and NO secret: neither the moshi token nor the hermes key is a field of
   `channels::Event` (`src/channels/mod.rs:Event`).
-- **Process ownership and cleanup:** The engine owns the child and reaps it with `child.wait()`. Its
+- **Process ownership and cleanup:** The engine owns the direct child and reaps it with `child.wait()`.
+  This does not contain descendants or survive the engine's death; lights slice 10 stays gated. Its
   stdin pipe is dropped after the write, which is what lets a child waiting on end of file exit. **stdout
   and stderr are INHERITED**: `src/main.rs:deliver` sets neither, so an executable channel can write onto
   the event's own stdout, which a harness hook reads. NOT ESTABLISHED: no test observes an executable
@@ -803,7 +803,7 @@ Then every remaining leg is still dispatched, and the failure is one entry in th
 - **Required side effects:** One outcome per leg, in the plan's order.
 - **Forbidden side effects:** No leg may be skipped because of a sibling.
 - **Timeout and cancellation:** Legs run sequentially, each under its own bound (5 s for the banner, 10 s
-  or the sync deadline for the HTTP legs, unbounded for an executable channel). There is no aggregate
+  or the sync deadline for the HTTP legs, 5 s for an executable channel). There is no aggregate
   deadline across a dispatch.
 - **Idempotency and duplicates:** One dispatch per leg.
 - **Privacy:** Not applicable.
@@ -926,10 +926,8 @@ ______________________________________________________________________
 
 Recorded here as well as inline, so they can be closed deliberately.
 
-- `NOT ESTABLISHED:` no test pins that an executable channel has no deadline or output ceiling. I grepped
-  `tests/dispatch.rs` and `tests/native.rs` for a hanging or high-volume stub channel and found none. The
-  absence is read from `src/main.rs:deliver`, which calls `Command::spawn` and `child.wait()` directly
-  rather than `system::run_bounded`.
+- S147's direct-child deadline is pinned by `destinations::executable::tests`. Output has no byte ceiling;
+  descendant cleanup after producer death remains a separate prerequisite for lights slice 10.
 - `NOT ESTABLISHED:` no test observes an executable channel writing to the event's stdout or stderr.
   `src/main.rs:deliver` configures neither, so both are inherited; every stub channel in
   `tests/support/mod.rs:Sandbox::without_config` redirects into a file instead.

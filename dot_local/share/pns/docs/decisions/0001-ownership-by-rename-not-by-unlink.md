@@ -31,11 +31,11 @@ Two consequences that follow, and that the code depends on:
 
 | Site                                        | What it owns                                                         |
 | ------------------------------------------- | -------------------------------------------------------------------- |
-| `src/nag.rs:claim_path`                     | One approval record, taken by a fire before it is read for anything  |
-| `src/main.rs:claim_by_rename`, `take_claim` | The missed-notification journal                                      |
-| `src/main.rs:claim_record`, `claim_fire`    | A nag record and the fire lock                                       |
-| `src/main.rs:sweep_markers`                 | Expired wait and lease markers, taken before removal                 |
-| `src/main.rs:claim_ring_lock`               | The ring append lock, taken by exclusive creation rather than rename |
+| `crates/pns-adapters/src/protocols/nag/mod.rs:claim_path`                     | One approval record, taken by a fire before it is read for anything  |
+| `crates/pns-adapters/src/protocols/journal_claims/` | The missed-notification journal                                      |
+| `crates/pns-adapters/src/protocols/nag/claims.rs`    | A nag record and the fire lock                                       |
+| `crates/pns-adapters/src/protocols/markers/sweep.rs`                 | Expired wait and lease markers, taken before removal                 |
+| `crates/pns-adapters/src/persistence/ring.rs:claim_ring_lock`               | The ring append lock, taken by exclusive creation rather than rename |
 
 ## What the rule does NOT fix, stated so nobody re-derives it
 
@@ -51,3 +51,31 @@ The persistence work replaces multi-record durable state with a transactional st
 protocol survives that change, it survives because the path, name, mode or existence is itself the
 interface to something outside pns. Any surviving protocol keeps this rule, and its race behavior is
 tested rather than assumed.
+
+## The file-protocol extraction and bounded repairs
+
+File names, codecs, modes and existing claim arbitration remain filesystem contracts in this step.
+No records move to a database. `FileRecords` implements the existing application ring ports;
+`FileReturnMoment` owns replay holds and the application completes them after dispatch returns.
+Completion still consumes a failed attempt. Leaving a hold on unwind or process death repairs the
+earlier premature removal without introducing retries or a delivery ledger.
+
+Turn markers now use exclusive creation with mode `0600`. Seven days is the approved conservative
+retention choice where the previous implementation gave no duration. Only a readable start epoch
+strictly older than that interval expires. Collection owns and rereads the claimed inode before
+removal; restoration uses an exclusive link so a later prompt keeps its marker. Unknown or future
+clocks preserve state. This policy does not broaden collection to answered markers or Stop claims.
+
+Setup warns about managed-config replacement and secret-bearing diffs before requesting secrets.
+A directory at the config name is refused even with `--force`. If a forced publication fails after
+taking the backup, restoration uses an exclusive hard link, retains the backup, preserves a later
+arrival and reports the actual result. A backup-security failure follows the same restoration path.
+These are deliberate behavior repairs, separate from the surrounding module moves.
+
+## Why the journal and decision ring remain separate
+
+The original journal codec header distinguished their readers: the decision ring is read by a human
+through `pns doctor` and admits no event text; replay needs the journal's original text. Combining them
+would either print private content to a terminal or leave nothing useful to replay. The moved codec
+keeps that distinction. Domain predicates and card composition are imported from `pns-domain` by
+their actual callers, not reexported as part of the adapter's codec API.

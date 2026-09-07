@@ -1,67 +1,18 @@
 use crate::*;
 
-/// The turn's start marker, so the Stop hook can measure the turn that just
-/// finished rather than the whole session.
 pub(crate) fn start_of_turn(payload: &HookPayload) {
-    let Some(marker) = turn_marker(&payload.session_id) else {
-        return;
-    };
-    if let Some(parent) = marker.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    // Only when none is there: a second prompt inside one turn must not
-    // restart the clock.
-    // NO CLOCK IS NO MARKER, never a marker at epoch zero: the same rule
-    // `update_blocked_marker` states beside its own clock. A marker at zero
-    // would measure the turn from 1970, so `consume_turn_marker` would call a
-    // two-second turn long-running and it would earn the watch card and the
-    // pulse; no marker measures nothing, and `session_was_long` reads that as
-    // not long.
-    if !marker.exists()
-        && let Some(now) = now_secs()
-    {
-        let _ = std::fs::write(&marker, now.to_string());
-    }
+    pns_adapters::turn_markers::start_of_turn(&state_dir(), &payload.session_id, now_secs());
 }
-/// The turn's marker path, or None for a session id that cannot become a
-/// filename. The id arrives in the harness payload, and `..` in it would
-/// escape the state directory.
-fn turn_marker(session_id: &str) -> Option<std::path::PathBuf> {
-    if !pns::safety::session_id_is_safe(session_id) {
-        return None;
-    }
-    Some(state_dir().join(format!("session-{session_id}.start")))
-}
-/// How long the finished turn ran, CLAIMING the marker first.
-///
-/// The claim is a rename, which is atomic: two Stops racing the same turn
-/// cannot both read it and both pulse, because only one rename can succeed.
-/// Reading first and unlinking after left that window open, and an unlink
-/// that failed left the marker wedged for every later turn.
-///
-/// It runs BEFORE the reply and the condenser for the same reason. Stop is
-/// asynchronous, so the next prompt can arrive while this one is still
-/// condensing: with the marker still on disk that prompt writes nothing, and
-/// this Stop then deletes the marker its successor was relying on. Claiming
-/// up front also keeps the condenser's own latency out of the elapsed time it
-/// is measuring.
-///
-/// The value is VALIDATED before it reaches arithmetic: a truncated write or
-/// a hand edit must be a decision, not a crash.
-fn consume_turn_marker(session_id: &str) -> Option<u64> {
-    let marker = turn_marker(session_id)?;
-    let claim = marker.with_extension(format!("claim.{}", std::process::id()));
-    std::fs::rename(&marker, &claim).ok()?;
-    let started = std::fs::read_to_string(&claim);
-    let _ = std::fs::remove_file(&claim);
-    let started: u64 = started.ok()?.trim().parse().ok()?;
-    Some(now_secs()?.saturating_sub(started))
-}
+
 /// The Stop hook: what the turn said, and whether it ran long enough to earn
 /// the lights.
 pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
     // FIRST, before anything slow: see consume_turn_marker.
-    let elapsed = consume_turn_marker(&payload.session_id);
+    let elapsed = pns_adapters::turn_markers::consume_turn_marker(
+        &state_dir(),
+        &payload.session_id,
+        now_secs,
+    );
     // AND THE FREE CLEARING SIGNAL WITH IT. A turn cannot end while one of its
     // own approvals is unanswered, so a turn end proves resolution. It costs one
     // function call, no hook declaration and no apply, and it is the backstop
@@ -108,7 +59,11 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
 /// partial `last_assistant_message` is dropped for the same reason, since the
 /// question at a dead pane is why it stopped rather than what it had said.
 pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
-    let elapsed = consume_turn_marker(&payload.session_id);
+    let elapsed = pns_adapters::turn_markers::consume_turn_marker(
+        &state_dir(),
+        &payload.session_id,
+        now_secs,
+    );
     // The same free clear `end_of_turn` takes, for the same reason: StopFailure
     // fires INSTEAD of Stop, so without it a dead turn leaves its approval armed.
     clear_nag(&payload.session_id);

@@ -18,6 +18,18 @@ engine's own parser before anything is written. Everything below is derived from
 `NOT ESTABLISHED:` and names what was looked for and where. Secrets are the centre of this document:
 every behavior carries a Privacy line, and behavior 27 is the exhaustive account.
 
+## Warning before the questions
+
+Given an interactive setup walk
+
+When it reaches the first secret prompt
+
+Then it has already warned that a chezmoi-managed config will be replaced on the next apply, that its
+source should be updated, and that config diffs can expose entered secrets. This is a warning, not
+managed-file detection or an apply. It changes no answer or publication choice.
+`tests/setup/managed_warning.rs:setup_warns_before_secrets_about_managed_replacement_and_secret_diffs`
+pins the text before the prompt using an owned terminal fixture.
+
 ## The questions
 
 The walk asks between six and fifteen prompts, depending on which features are armed. Six is every
@@ -169,7 +181,7 @@ Then it prints `pns setup: HOME is unset or empty; nothing was written` and exit
 
 ### 4. A config already at the name refuses without --force, and the refusal names the flag
 
-Given `$HOME/.config/pns/config.toml` exists as a name (a regular file, a directory, or a symlink, dangling or not)
+Given `$HOME/.config/pns/config.toml` exists as a non-directory name (a regular file or a symlink, dangling or not)
 
 When `pns setup` is run without `--force`
 
@@ -197,7 +209,10 @@ Then it prints `pns setup: <path> already exists; pass --force to replace it, wh
 - Privacy: the refusal names the PATH and nothing of the file's contents. A config full of plugin secrets
   is never read on this arm.
 - Process ownership and cleanup: nothing opened.
-- Compatibility contract: the tests assert the substrings `already exists` and `--force`.
+- Compatibility contract: the tests assert the substrings `already exists` and `--force` for a
+  non-directory. The approved directory repair refuses a directory with or without `--force`, before
+  terminal checks or questions, exits 2, leaves it untouched and does not suggest forcing replacement.
+  `setup_refuses_a_directory_before_questions_without_suggesting_force` pins both arms.
 
 ### 5. A path that does not resolve is refused regardless of --force
 
@@ -922,13 +937,15 @@ Then `keep_aside` claims a stamped backup name, renames the existing config onto
   name a path that does not hold what it says it holds.
 - Failure sources: the clock cannot be read (behavior 25), the name cannot be claimed (behavior 26), or
   the rename fails.
-- Fail direction: a `keep_aside` failure aborts the publish with `?`, so the new config is NOT written
-  and the old one is still at its name. The one asymmetric case is a rename that SUCCEEDS followed by a
-  link that FAILS: the config path is then EMPTY and the old config is at the backup name. The refusal
-  carries the tail `; the config that was there is kept at <backup>` (`src/main.rs:also_kept`), so nobody
-  is left hunting for a file the wizard took the name of. NOT ESTABLISHED: no test exercises `also_kept`;
-  no test in `src/main.rs` or `tests/` references that sentence, so the combined state (backup written,
-  config path empty, refusal naming both) rests on reading the code.
+- Fail direction: a failure before the old config is moved leaves it at its name. After the move, a
+  backup-security failure or failed publication attempts to restore the old config with an exclusive
+  hard link. A later arrival at the config name stays untouched. The backup remains in all outcomes.
+  The refusal says whether the previous config was restored, the current config was left untouched,
+  or restoration failed, and names the backup. Nothing retries the publication.
+  `a_failed_forced_publication_restores_the_previous_config`,
+  `a_backup_security_failure_restores_the_old_config_and_reports_the_failure`,
+  `restoration_preserves_a_later_config_and_the_old_backup`, and
+  `restoration_failure_keeps_the_backup_and_names_the_unrestored_state` pin these outcomes.
 - Thresholds: the move is a `rename`, not a copy. The doc comment states the invariant that buys: "the
   old config is at one of the two names at every instant."
 - Required side effects: exactly one backup, named in the operator-facing line

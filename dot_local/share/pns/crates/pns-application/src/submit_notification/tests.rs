@@ -86,6 +86,7 @@ impl MissedReplay for Recorder {
     }
 }
 impl ReturnMoment for Recorder {
+    fn complete(&self) {}
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
         self.claims.borrow_mut().push((now, take_journal));
         self.note(if take_journal {
