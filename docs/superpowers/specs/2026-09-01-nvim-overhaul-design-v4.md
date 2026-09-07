@@ -1550,9 +1550,10 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    - `xcodebuild`, "pymobiledevice3 detected, but the remote_debugger script is not installed": the
      intended state. `lua/plugins/xcodebuild.lua` records why iOS 17+ secure-tunnel debugging stays
      off: the documented install grants passwordless root to a helper under user-writable
-     `~/Library` that resolves its interpreter and its `pymobiledevice3` entry point off PATH, both
-     user-owned. The check is right about the fact, and the fact is deliberate, so the plugin is
-     not patched and no sudo rule is added.
+     `~/Library`. The helper runs `/bin/bash` and resolves `pymobiledevice3` through PATH; that
+     entry point selects its user-owned Python interpreter by absolute path. The check is right
+     about the fact, and the fact is deliberate, so the plugin is not patched and no sudo rule is
+     added.
 
    The two Snacks `vim.ui.*` lines and the `Snacks.dashboard` line were re-checked under a pty on
    2026-09-05 (`script -q /dev/null nvim`, `:checkhealth snacks` fired from a `UIEnter` autocmd).
