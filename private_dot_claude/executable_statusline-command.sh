@@ -59,35 +59,30 @@ fi
 context_info=""
 context_color='160;169;203' # #a0a9cb, calm
 # Compaction fires at CLAUDE_AUTOCOMPACT_PCT_OVERRIDE percent of the window when
-# the operator set it (75 here), so the gauge warns relative to THAT point:
-# yellow fifteen points before it, red five points before it. Without the
-# override the built-in thresholds of 60 and 80 apply.
+# the operator set it (75 here), so the gauge measures against THAT ceiling:
+# the percent is "how far to compaction" and the denominator is the ceiling in
+# tokens (750k on a 1M window). Without the override the raw window is used.
 compact_pct=""
 if [[ -r "$HOME/.claude/settings.json" ]]; then
   compact_pct=$(jq -r '.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
 fi
-if [[ $compact_pct =~ ^[0-9]+$ ]]; then
-  warn_at=$((compact_pct - 15))
-  alarm_at=$((compact_pct - 5))
-else
-  warn_at=60
-  alarm_at=80
-fi
+[[ $compact_pct =~ ^[0-9]+$ ]] || compact_pct=100
 if [[ -n $used_pct ]]; then
   used_int=${used_pct%.*}
-  context_info=" ctx:${used_int}%"
-  # Name the window so the percent has a denominator: 200k, 1M, or the raw
-  # count when it is neither.
+  gauge_pct=$((used_int * 100 / compact_pct))
+  context_info=" ctx:${gauge_pct}%"
   if [[ -n $window_size ]]; then
-    case "$window_size" in
-      1000000) context_info+="/1M" ;;
-      200000) context_info+="/200k" ;;
-      *) context_info+="/$((window_size / 1000))k" ;;
-    esac
+    ceiling=$((window_size * compact_pct / 100))
+    if ((ceiling >= 1000000)); then
+      context_info+="/$((ceiling / 1000000))M"
+    else
+      context_info+="/$((ceiling / 1000))k"
+    fi
   fi
-  if ((used_int >= alarm_at)); then
-    context_color='247;118;142' # #f7768e, red: compaction is close
-  elif ((used_int >= warn_at)); then
+  # Yellow at four fifths of the way to compaction, red at nine tenths.
+  if ((gauge_pct >= 90)); then
+    context_color='247;118;142' # #f7768e, red
+  elif ((gauge_pct >= 80)); then
     context_color='224;175;104' # #e0af68, yellow
   fi
 fi
