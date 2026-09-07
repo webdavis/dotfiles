@@ -11,7 +11,7 @@ use std::time::Duration;
 use pns::channels::hermes::{SignedPost, delivered, outcome_line, sign};
 use unattended_upgrades::alert::{Alerter, alert_argv};
 use unattended_upgrades::config::Records;
-use unattended_upgrades::record::AGENT;
+use uu_protocol::AGENT;
 
 use crate::system::host;
 
