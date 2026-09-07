@@ -332,7 +332,9 @@ function test_an_empty_artifact_never_replaces_trusted_state() {
   cp "$installed_binary" "$sandbox/previous-binary"
   printf 0 >"$sandbox_home/.stub-artifact-bytes"
   assert_builder_fails
-  assert_same "$(cat "$sandbox/previous-record")" "$(cat "$build_record")"
-  assert_same "$(cat "$sandbox/previous-binary")" "$(cat "$installed_binary")"
+  cmp -s "$sandbox/previous-record" "$build_record"
+  assert_successful_code
+  cmp -s "$sandbox/previous-binary" "$installed_binary"
+  assert_successful_code
   assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
 }
