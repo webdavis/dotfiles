@@ -195,7 +195,7 @@ notification; a lost write response cannot establish whether the physical write 
 | 1    | Usage error                                            | Retains catch-all exit 1            |
 | 2    | Target room absent                                     | Changed from exit 1 on stdout       |
 | 3    | Named scene absent in target room                      | Changed from exit 1 on stdout       |
-| 4    | Transport, response, or controller-reference failure    | Explicit failure handling is new    |
+| 4    | Transport, response, or controller-reference failure    | Uniform exit 4 contract is new      |
 | 5    | Missing or invalid config                              | New                                 |
 
 **L017. An unknown room exits 2 and names the room on stderr.** Deliberate change from bash:297-307,
@@ -205,8 +205,10 @@ which exits 1 and writes its diagnostic to stdout.
 from bash:350-361, which exits 1 and writes its diagnostic to stdout.
 
 **L019. A bridge that does not answer within the timeout exits 4 and says so.** New behavior. The bash
-had no timeout and no transport error handling at all: `openhue` printing nothing and exiting zero on a
-network failure would have made the script report success.
+has no explicit per-call timeout or uniform transport-error contract. `get_static_scene` catches failed
+command pipelines, emits a diagnostic and returns 1 (bash:206-218). `show_status` substitutes `unknown`
+for that failed lookup (bash:411), while scene rotation propagates the failure (bash:379). The Rust
+timeout and uniform exit 4 contract are deliberate changes.
 
 **L020. A config that names no bridge address or no key exits 5 rather than guessing.** New behavior.
 
