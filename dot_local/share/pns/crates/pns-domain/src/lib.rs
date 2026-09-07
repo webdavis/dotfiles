@@ -21,6 +21,7 @@
 
 pub mod count;
 mod decision;
+mod decision_record;
 pub mod home;
 pub mod jobs;
 pub mod lamps;
@@ -42,3 +43,6 @@ pub use presence::{
     Edge, Full, Narrowing, PresenceStatus, RawPresence, Snapshot, Unreadable, chosen, classify,
     idle_secs_from_ns, narrow, unreadable_said,
 };
+
+pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no};
+pub use routing::Delivery;
