@@ -2,8 +2,7 @@ return {
   "mistweaverco/kulala.nvim",
   ft = { "http", "rest" },
   keys = {
-    { "<leader>Ra", desc = "Send all requests" },
-    { "<leader>R", "", desc = "+Rest", ft = "http" },
+    { "<leader>Ra", "<cmd>lua require('kulala').run_all()<cr>", desc = "Send all requests", ft = "http" },
     { "<leader>Rb", "<cmd>lua require('kulala').scratchpad()<cr>", desc = "Open scratchpad", ft = "http" },
     { "<leader>Rc", "<cmd>lua require('kulala').copy()<cr>", desc = "Copy as cURL", ft = "http" },
     { "<leader>RC", "<cmd>lua require('kulala').from_curl()<cr>", desc = "Paste from curl", ft = "http" },

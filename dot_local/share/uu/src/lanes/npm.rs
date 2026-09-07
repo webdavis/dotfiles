@@ -24,8 +24,9 @@
 //! upgraded, and the record is where that has to show up.
 
 use crate::config::NpmLane;
-use crate::lanes::{CommandRunner, LaneAdapter, LaneReport};
+use crate::lanes::{CommandRunner, LaneAdapter};
 use crate::record::RunFacts;
+use uu_domain::LaneReport;
 
 /// The shell that composes the child's PATH, at its POSIX path.
 const SHELL: &str = "/bin/sh";

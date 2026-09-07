@@ -1,0 +1,7 @@
+[package]
+name = "herdr-workspace-jump-application"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+herdr-workspace-jump-domain = { path = "../herdr-workspace-jump-domain" }
