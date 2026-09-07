@@ -6,7 +6,7 @@
 # different plist identity (page), or simply not allowlisted?
 #
 # The allowlist is the launchd page-allowlist: OSQUERY_LAUNCHD_ALLOWLIST (the
-# unified env var name, matching the slice-5 writer osquery-allowlist.sh), an
+# unified env var name, matching the slice-5 writer posture allowlist), an
 # NDJSON file of {label, path, program, sha256} tuples, one per line, default
 # ~/.config/osquery/page-launchd-allowlist.txt. Paths/programs are stored
 # home-relative (~/) so the committed seed file stays user-agnostic; the verdict
@@ -100,7 +100,7 @@ allowlist_verdict() {
   #
   # A PINNED entry carries its own: the on-disk plist must still hash to the pin,
   # which defeats a same-path/same-program rewrite. That is how third-party agents
-  # captured by `allowlist.sh -a` are held.
+  # captured by `posture allowlist add` are held.
   #
   # An UNPINNED entry is an own-agent seed. It has no pin because chezmoi rewrites
   # those plists on every apply, so a pin recorded once is wrong by the next one.

@@ -1,4 +1,4 @@
-use crate::CommandRunner;
+use crate::{CommandIo, CommandRunner};
 use posture_application::{EnrichmentInspection, InspectionFailure};
 use std::ffi::OsStr;
 use std::path::Path;
@@ -25,7 +25,13 @@ impl<R: CommandRunner> SystemInspection<R> {
         merged: bool,
     ) -> Result<Vec<u8>, InspectionFailure> {
         self.runner
-            .run(Path::new(program), args, merged)
+            .run(
+                Path::new(program),
+                args,
+                CommandIo::Inspection {
+                    merge_stderr: merged,
+                },
+            )
             .map(|mut bytes| {
                 if bytes.contains(&0) {
                     self.diagnostics.extend_from_slice(

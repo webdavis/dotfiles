@@ -7,6 +7,10 @@ use std::sync::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 fn timed_probe(script: &'static str) {
+    timed_probe_with(script, CommandIo::Inspection { merge_stderr: true });
+}
+
+fn timed_probe_with(script: &'static str, io: CommandIo) {
     let directory = std::env::temp_dir().join(format!(
         "posture-probe-{}-{}",
         std::process::id(),
@@ -27,9 +31,15 @@ fn timed_probe(script: &'static str) {
                 OsStr::new("fixture"),
                 child_ready.as_os_str(),
             ],
-            true,
+            io,
         );
-        let second = runner.run(Path::new("/fixture/no-second-probe"), &[], false);
+        let second = runner.run(
+            Path::new("/fixture/no-second-probe"),
+            &[],
+            CommandIo::Inspection {
+                merge_stderr: false,
+            },
+        );
         let _ = send.send((result, second));
     });
     let result = receive.recv_timeout(Duration::from_millis(350));
@@ -99,4 +109,12 @@ fn timeout_terminates_the_owned_process_group() {
 #[test]
 fn continuous_output_cannot_extend_the_absolute_deadline() {
     timed_probe("printf '%s\\n' \"$$\" >\"$1\"; while :; do printf 'output'; done");
+}
+
+#[test]
+fn inherited_publication_io_still_terminates_descendants_at_the_total_deadline() {
+    timed_probe_with(
+        "/bin/sh -c 'trap \"\" TERM; while :; do :; done' & printf '%s\\n%s\\n' \"$$\" \"$!\" >\"$1\"; wait",
+        CommandIo::InheritAll,
+    );
 }

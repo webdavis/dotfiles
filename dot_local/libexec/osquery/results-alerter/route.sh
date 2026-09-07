@@ -230,7 +230,7 @@ route_findings() {
           *)
             # A user LaunchAgent. DEFAULT-DENY (operator ruling 2026-07-22): an
             # unallowlisted user LaunchAgent PAGES; the operator seeds known-good
-            # agents via the allowlist writer (osquery-allowlist.sh) to suppress
+            # agents via the allowlist writer (posture allowlist) to suppress
             # them. This is a deliberate hardening over the digest-unknowns of the
             # reverted #52 (c69baab), which silently digested an unknown agent.
             # allowlist_verdict: 0 = full-tuple match (known-good) -> suppress;

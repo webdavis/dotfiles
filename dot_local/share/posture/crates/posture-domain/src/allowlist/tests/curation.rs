@@ -127,11 +127,11 @@ fn malformed_or_multiple_value_line_refuses_the_whole_curation() {
 fn invalid_system_label_refuses_before_source_curation() {
     for label in ["a", "com.apple", "COM.APPLE.agent"] {
         assert_eq!(
-            curate_allowlist(&[], AllowlistChange::Deny(label)),
+            curate_allowlist::<&str>(&[], AllowlistChange::Deny(label)),
             Err(CurationRefusal::InvalidLabel)
         );
         assert_eq!(
-            curate_allowlist(
+            curate_allowlist::<&str>(
                 &[],
                 AllowlistChange::Allow(AllowlistEntry {
                     identity: LaunchdIdentity { label, ..ID },

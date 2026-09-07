@@ -11,8 +11,14 @@ impl CommandRunner for Scripted {
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        merged: bool,
+        io: CommandIo,
     ) -> Result<Vec<u8>, InspectionFailure> {
+        let CommandIo::Inspection {
+            merge_stderr: merged,
+        } = io
+        else {
+            panic!("inspection changed I/O mode")
+        };
         self.calls.push((
             program.display().to_string(),
             args.iter().map(|arg| arg.to_os_string()).collect(),

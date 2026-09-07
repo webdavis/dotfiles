@@ -17,10 +17,25 @@
 //! Every spawned child runs under an explicit deadline with process-group
 //! termination, through one command runner with a scripted double, so no
 //! adapter test runs a real `sudo`, `osqueryctl`, `osqueryi`, `codesign`,
-//! `tailscale` or `pns`. Nothing has moved in yet.
+//! `tailscale` or `pns`. Enrichment and allowlist curation use these boundaries.
 
 mod codesign;
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
-pub use command::{CommandRunner, SystemRunner};
+pub use command::{CommandIo, CommandRunner, SystemRunner};
+
+mod locks;
+pub use locks::AllowlistWriteLock;
+
+mod allowlist_file;
+
+mod publisher;
+pub use publisher::AllowlistPublisher;
+
+mod allowlist_projection;
+
+pub use allowlist_file::AllowlistFile;
+
+mod launchd_table;
+pub use launchd_table::SystemLaunchdTable;

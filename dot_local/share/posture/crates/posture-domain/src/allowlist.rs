@@ -84,12 +84,9 @@ pub fn relativize_allowlist_identity(home: &str, path: &str, program: &str) -> (
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AllowlistLine<'a> {
-    Preserved(&'a str),
-    Object {
-        label: Option<&'a str>,
-        raw: &'a str,
-    },
+pub enum AllowlistLine<'a, Raw = &'a str> {
+    Preserved(Raw),
+    Object { label: Option<&'a str>, raw: Raw },
     Invalid,
 }
 
@@ -100,8 +97,8 @@ pub enum AllowlistChange<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CuratedLine<'a> {
-    Preserved(&'a str),
+pub enum CuratedLine<'a, Raw = &'a str> {
+    Preserved(Raw),
     Added(AllowlistEntry<'a>),
 }
 
@@ -111,10 +108,10 @@ pub enum CurationRefusal {
     InvalidLine(usize),
 }
 
-pub fn curate_allowlist<'a>(
-    lines: &[AllowlistLine<'a>],
+pub fn curate_allowlist<'a, Raw: Copy>(
+    lines: &[AllowlistLine<'a, Raw>],
     change: AllowlistChange<'a>,
-) -> Result<Vec<CuratedLine<'a>>, CurationRefusal> {
+) -> Result<Vec<CuratedLine<'a, Raw>>, CurationRefusal> {
     let label = match change {
         AllowlistChange::Allow(entry) => entry.identity.label,
         AllowlistChange::Deny(label) => label,
@@ -126,10 +123,10 @@ pub fn curate_allowlist<'a>(
     for (index, line) in lines.iter().enumerate() {
         match line {
             AllowlistLine::Invalid => return Err(CurationRefusal::InvalidLine(index + 1)),
-            AllowlistLine::Preserved(raw) => result.push(CuratedLine::Preserved(raw)),
+            AllowlistLine::Preserved(raw) => result.push(CuratedLine::Preserved(*raw)),
             AllowlistLine::Object { label: stored, raw } => {
                 if *stored != Some(label) {
-                    result.push(CuratedLine::Preserved(raw));
+                    result.push(CuratedLine::Preserved(*raw));
                 }
             }
         }

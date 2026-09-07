@@ -16,7 +16,10 @@
 //!
 //! It is responsible for no concrete I/O and no policy: policy lives in
 //! `posture-domain`, and every trait here is implemented from the outside by
-//! `posture-adapters`. Nothing has moved in yet.
+//! `posture-adapters`. Enrichment and allowlist curation use these boundaries.
 
 mod enrich;
 pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};
+
+mod allowlist;
+pub use allowlist::*;

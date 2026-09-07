@@ -1,7 +1,7 @@
 # Allowlist and known-good policy
 
 These scenarios cover posture plan row 2.3, statements S069 to S097, S234, S301 to S303, S305 and S306.
-The existing shell entry points keep running until their cutover.
+The allowlist reader remains in Bash; curation now runs through `posture allowlist`.
 
 | Given                                                              | When                                                                                   | Then                                                                                                               |
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -34,4 +34,43 @@ dot-prefixed descendants are refused.
 
 The supplied vouch function is the shared authority used by allowlist and integrity policy. The
 application and adapters own elapsed time, the shared settle budget, retries, filesystem reads,
-serialization and publication. This row makes no state changes and introduces no live command.
+serialization and publication. Row 2.3 added pure policy. The curation command below now owns the writer
+effects.
+
+## Curation command cutover
+
+Given `allowlist add <label>` or `deny <label>`, the writer takes the blocking kernel lock before
+validation and keeps it through capture, source rewrite, apply and manifest refresh. Lock setup fails
+closed. Children cannot inherit its descriptor. List reads deployed bytes without taking the lock,
+skipping only empty lines and lines whose first byte is `#`, and adds a final newline to entry lines.
+
+Add captures the first launchd row and a complete lowercase SHA-256 (Secure Hash Algorithm 256-bit) plist
+digest before resolving source. It removes matching source objects, preserves every other raw line, then
+appends the new tuple. Both reordered and byte-identical refreshes publish. Deny first checks the literal
+compact label substring; a miss succeeds without parsing or publication. A hit uses the existing
+whole-source curation refusal. Invalid text bytes in an otherwise accepted object remain raw.
+
+Publication writes source, applies one target, then refreshes the manifest. Child input, output and
+errors stay inherited where the Bash publisher inherited them. One fifteen-minute total publication
+budget covers apply and manifest location/refresh; tests inject a short budget. There are no retries.
+Apply failure or timeout restores source and reports that deployment may be partial. A missing or failed
+manifest keeps the new source/deployed state and reports stale integrity data with nonzero exit.
+
+The new spelling selects one action and ignores trailing operands. Missing verbs or labels print usage
+and exit 2; validation and operational refusals exit 1. Success and absent-deny notes remain on stdout.
+List preserves invalid text bytes, removes NUL bytes as Bash read did, and does not validate JSON.
+Mutations reject indented comments, whitespace-only lines and multiple values on one line. Their label
+projection uses the last duplicate label value without rewriting the original object.
+
+Source labels retain the existing decimal spelling and special-number coercion: a NaN label projects to
+`null`, while a NaN query field becomes empty after the selected row is serialized. The query selects the
+first launchd row, retains structured field formatting and preserves duplicate object-key position.
+Unpaired low surrogates become replacement characters for projection; unpaired high surrogates refuse the
+source even in an unused field. Original source bytes remain untouched. The legacy container-stack
+boundary also remains: a source object accepts 9,998 nested arrays or 4,999 nested objects, with scalar
+leaves, and refuses the next depth. Parsing inert fields does not allocate a recursive value tree.
+
+Inspection and source lookup each use a ten-second command budget. Lock waiting precedes these budgets.
+Publication uses mode-600 staging and backup files. On failed apply, source rollback preserves the old
+bytes; if rollback itself fails, the error reports that failure. Manifest failure retains the new bytes.
+No curation command sends a notification or updates an unrelated managed target.
