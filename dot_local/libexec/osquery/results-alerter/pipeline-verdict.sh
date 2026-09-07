@@ -277,7 +277,7 @@ _pipeline_manifest_is_trustworthy() {
 # which is the seam that keeps every fixture out of /var.
 _pipeline_manifest_for() {
   case "$1" in
-    "$HOME"/.local/libexec/osquery/*) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
+    "$HOME"/.local/libexec/osquery/* | "$HOME"/.local/libexec/posture/*) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
     "$HOME"/.local/bin/* | "$HOME"/.local/libexec/*) printf '%s' "${OSQUERY_MANAGED_BIN_MANIFEST:-$MANAGED_BIN_MANIFEST}" ;;
     *) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
   esac
@@ -292,6 +292,8 @@ _pipeline_manifest_has_tuple() {
   # An observed column that could not be read must never be matched against, or an
   # equally empty manifest column would vouch for a file nothing was learned about.
   [[ -n $want_hash && -n $want_mode && -n $want_uid && -n $want_path ]] || return 1
+  # An explicit unbuilt tuple vouches for no content, even a forged event digest.
+  [[ $want_hash =~ ^[0-9a-f]{64}$ ]] || return 1
   # `|| [[ -n $h ]]` so a final line with no trailing newline is still examined.
   while read -r h m u p || [[ -n $h ]]; do
     [[ -n $h && -n $m && -n $u && -n $p ]] || continue
@@ -397,7 +399,7 @@ _pipeline_tuple_settles() {
 _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
-    "$HOME"/.local/libexec/osquery/*) return 0 ;;
+    "$HOME"/.local/libexec/osquery/* | "$HOME"/.local/libexec/posture/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
     "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     "$HOME"/.local/bin/* | "$HOME"/.local/libexec/*) _managed_bin_is_tracked "$target" ;;

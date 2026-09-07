@@ -1,0 +1,114 @@
+id = "herdr-workspace-jump"
+name = "Workspace Jump"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Workspace navigation herdr has no built-in for: create-or-focus by label, and a most-recently-used toggle."
+platforms = ["macos", "linux"]
+
+# Compiled at install time. `herdr plugin link` (local dev) does NOT run this, so
+# the chezmoiscript that links the plugin builds it first.
+[[build]]
+command = ["cargo", "build", "--release", "--locked"]
+
+# One action per workspace. A `plugin_action` keybinding passes its action name
+# and nothing else, and herdr states that actions are manifest-only ("runtime
+# action registration ... not part of v1"), so the label and the working
+# directory are baked into each action's argv, exactly as herdr-smart-nav bakes
+# its four directions.
+#
+# `command` is an argv array that herdr does NOT run through a shell, so `$HOME`
+# would arrive as four literal characters. The paths below use `~`, which the
+# plugin expands itself against HOME.
+
+[[actions]]
+id = "jump_homelab"
+title = "Jump to the homelab workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "homelab",
+  "~/workspaces/Ivy/webdavis/homelab",
+]
+
+[[actions]]
+id = "jump_dotfiles"
+title = "Jump to the dotfiles workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "dotfiles",
+  "~/workspaces/Ivy/webdavis/dotfiles",
+]
+
+[[actions]]
+id = "jump_casually_concerned"
+title = "Jump to the casually-concerned workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "casually-concerned",
+  "~/workspaces/Ivy/casually-concerned",
+]
+
+[[actions]]
+id = "jump_ivy"
+title = "Jump to the Ivy vault workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "Ivy",
+  "~/workspaces/Ivy",
+]
+
+[[actions]]
+id = "jump_justdavis_ansible"
+title = "Jump to the justdavis-ansible workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "justdavis-ansible",
+  "~/workspaces/Ivy/karlmdavis/justdavis-ansible",
+]
+
+[[actions]]
+id = "jump_essential_feed_case_study"
+title = "Jump to the essential-feed-case-study workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "essential-feed-case-study",
+  "~/workspaces/Ivy/webdavis/essential-feed-case-study",
+]
+
+[[actions]]
+id = "jump_netpulse"
+title = "Jump to the netpulse workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "netpulse",
+  "~/workspaces/Ivy/webdavis/netpulse",
+]
+
+[[actions]]
+id = "jump_plantpulse"
+title = "Jump to the plantpulse workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "plantpulse",
+  "~/workspaces/Ivy/hobbies/plantpulse",
+]
+
+# The toggle. herdr ships `last_pane` but no workspace equivalent, and the event
+# hook below is what makes this correct where a key-bound script was not: it
+# fires on EVERY focus change, mouse and picker included, not only the switches
+# routed through the chord.
+[[events]]
+on = "workspace.focused"
+command = ["./target/release/herdr-workspace-jump", "record"]
+
+[[actions]]
+id = "last_workspace"
+title = "Last workspace (most-recently-used toggle)"
+command = ["./target/release/herdr-workspace-jump", "last-workspace"]

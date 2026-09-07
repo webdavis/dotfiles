@@ -11,6 +11,7 @@
 # containing spaces is still read whole by `read -r hash mode uid path`:
 #
 #   <sha256> <mode> <uid> <path>
+#   unbuilt 0755 <uid> <required-binary-path>
 #
 # mode is exactly four octal digits (0755); uid is decimal.
 #
@@ -85,7 +86,9 @@
 #     chown-ed a covered file cannot influence it. (If an operator ever applied as
 #     root, the files really would be root-owned and the manifest would record that,
 #     so the derivation stays self-consistent.)
-# Nothing here reads or executes a user-writable DEPLOYED file.
+# The compiled posture binary instead uses its authorized builder's record.
+# A missing record enumerates it as unbuilt; no live or target-directory bytes
+# are adopted. The record has the same user-writable trust boundary as source.
 # (`chezmoi status`/`verify` are not usable for this: nested inside an apply they
 # fail with "timeout obtaining persistent state lock". `managed` and `cat` read the
 # source state without that lock and work nested; this was verified empirically.)
@@ -121,6 +124,18 @@
 set -euo pipefail
 
 [[ "$(uname)" == Darwin ]] || exit 0
+
+# A builder needs one publication outcome: never install its governing tuple
+# and then report failure from an unrelated manifest. Other callers keep both.
+refresh_scope=all
+case "$#:$*" in
+  0:) ;;
+  1:--pipeline-only) refresh_scope=pipeline ;;
+  *)
+    printf 'usage: %s [--pipeline-only]\n' "${0##*/}" >&2
+    exit 2
+    ;;
+esac
 
 # Keep these defaults in sync with PIPELINE_MANIFEST and MANAGED_BIN_MANIFEST in
 # dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh (the consumer).
@@ -189,7 +204,7 @@ pipeline_paths=()
 managed_bin_paths=()
 while IFS= read -r target; do
   case "$target" in
-    "$home"/.local/libexec/osquery/*) pipeline_paths+=("$target") ;;
+    "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) pipeline_paths+=("$target") ;;
     "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
     # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
     # rather than by its directory. It decides whether an unknown user LaunchAgent
@@ -216,7 +231,7 @@ if [[ ${#pipeline_paths[@]} -eq 0 ]]; then
   printf 'osquery known-good manifests: no managed pipeline files resolved, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
-if [[ ${#managed_bin_paths[@]} -eq 0 ]]; then
+if [[ $refresh_scope == all && ${#managed_bin_paths[@]} -eq 0 ]]; then
   printf 'osquery known-good manifests: no managed ~/.local/bin files resolved, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
@@ -256,8 +271,10 @@ if [[ -r $config_template ]]; then
     state set --bucket=configState --key=configState \
     --value="{\"configTemplateContentsSHA256\":\"$config_template_sha256\"}" 2>/dev/null || true
 fi
+dump_paths=("${pipeline_paths[@]}")
+[[ $refresh_scope == all ]] && dump_paths+=("${managed_bin_paths[@]}")
 if ! chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
-  dump --format=json "${pipeline_paths[@]}" "${managed_bin_paths[@]}" >"$dump_json"; then
+  dump --format=json "${dump_paths[@]}" >"$dump_json"; then
   printf 'osquery known-good manifests: could not dump the managed files, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
@@ -295,6 +312,26 @@ if [[ ! $owner_uid =~ ^[0-9]{1,10}$ ]]; then
   printf 'osquery known-good manifests: id -u did not report a numeric uid, refusing to rewrite any manifest\n' >&2
   exit 1
 fi
+
+# The builder publishes this record before its scoped refresh and installation.
+# Reading only that record retains the tuple on applies that ran no build.
+posture_record_hash() {
+  local record="$home/.local/state/posture-build-record" digest bytes compiler
+  if [[ ! -e $record && ! -L $record ]]; then
+    printf unbuilt
+    return 0
+  fi
+  if [[ -f $record && ! -L $record ]] && {
+    IFS= read -r digest && IFS= read -r bytes && IFS= read -r compiler
+  } <"$record" &&
+    [[ $digest =~ ^sha256\ [0-9a-f]{64}$ && $bytes =~ ^bytes\ [1-9][0-9]{0,6}$ && $compiler == 'rustc '?* ]] &&
+    ((${bytes#bytes } <= 8388608)); then
+    printf '%s' "${digest#sha256 }"
+    return 0
+  fi
+  printf 'osquery known-good manifests: malformed posture build record, refusing to rewrite the pipeline manifest\n' >&2
+  return 1
+}
 
 # refresh_manifest <label> <manifest-path> <paths-array-name>
 #
@@ -353,6 +390,12 @@ refresh_manifest() {
     printf '%s %s %s %s\n' "$refresh_manifest_hash" "$refresh_manifest_mode" "$owner_uid" "$refresh_manifest_target" >>"$fresh"
   done
 
+  # This binary is built, not chezmoi-managed, so it has no cat/dump entry.
+  if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
+    refresh_manifest_hash="$(posture_record_hash)" || return 1
+    printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.local/libexec/posture/posture" >>"$fresh"
+  fi
+
   # Never let an empty render overwrite a good manifest.
   if [[ ! -s $fresh ]]; then
     printf 'osquery known-good manifests: refusing to install an EMPTY %s manifest (no managed files resolved)\n' "$refresh_manifest_label" >&2
@@ -382,4 +425,6 @@ refresh_manifest() {
 }
 
 refresh_manifest 'osquery pipeline' "$pipeline_manifest" pipeline_paths
-refresh_manifest 'managed bin' "$managed_bin_manifest" managed_bin_paths
+if [[ $refresh_scope == all ]]; then
+  refresh_manifest 'managed bin' "$managed_bin_manifest" managed_bin_paths
+fi

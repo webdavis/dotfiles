@@ -46,6 +46,51 @@ local function first_invocation(line)
   return assert(received, "the command overseer defines was never reached"), loaded
 end
 
+-- The same line sent straight to overseer's own declaration, no proxy in the way.
+-- That is the result the proxy has to reproduce exactly.
+local function direct_invocation(line)
+  local received
+  pcall(vim.api.nvim_del_user_command, "OverseerShell")
+  vim.api.nvim_create_user_command("OverseerShell", function(params)
+    received = params.args
+  end, { nargs = "*", bang = true, complete = "shellcmdline" })
+  local ok, err = pcall(vim.cmd, line)
+  pcall(vim.api.nvim_del_user_command, "OverseerShell")
+  assert(ok, err)
+  return received
+end
+
+-- `shellcmdline` expands these while the command line is parsed, so what the
+-- proxy is handed is already a RESULT. Replaying it with expansion still on
+-- rewrote each one a second time.
+local EXPANSION_CASES = {
+  [[OverseerShell! printf '\%s\n' hello]],
+  [[OverseerShell! echo \#]],
+  [[OverseerShell! echo \<cword>]],
+  [[OverseerShell! cat weird\%name.txt]],
+}
+
+-- Run `fn` in a buffer with this name, or in an unnamed one, then put the
+-- previous buffer back: every spec shares one Neovim.
+local function in_buffer(name, fn)
+  local previous = vim.api.nvim_get_current_buf()
+  vim.cmd(name and ("edit " .. name) or "enew")
+  local ok, err = pcall(fn)
+  vim.cmd("bwipeout!")
+  if vim.api.nvim_buf_is_valid(previous) then
+    vim.api.nvim_set_current_buf(previous)
+  end
+  assert(ok, err)
+end
+
+local function assert_no_second_expansion()
+  for _, line in ipairs(EXPANSION_CASES) do
+    local want = direct_invocation(line)
+    local got = first_invocation(line).args
+    assert(got == want, ("%s arrived as [%s], wanted [%s]"):format(line, got, want))
+  end
+end
+
 return {
   ["the first OverseerShell forwards its arguments exactly as typed"] = function()
     -- The regression: with overseer unloaded the placeholder rebuilt this line
@@ -78,6 +123,19 @@ return {
     -- empty string as an argument, so forwarding one unconditionally turned this
     -- call into an error instead of a prompt.
     assert(first_invocation("OverseerShell").args == "", "a bare call invented an argument")
+  end,
+
+  ["the first OverseerShell expands no filename token a second time"] = function()
+    -- The proxy is handed text `shellcmdline` has already expanded, so expanding
+    -- it again rewrote what the operator escaped to keep: `printf '\%s\n'` came
+    -- out carrying the current buffer's path.
+    in_buffer("overseer_spec_current.lua", assert_no_second_expansion)
+  end,
+
+  ["the first OverseerShell expands nothing twice in an unnamed buffer either"] = function()
+    -- Worse than corruption here. With nothing for `%` to expand to, the second
+    -- expansion did not mangle the command, it failed the call with E499.
+    in_buffer(nil, assert_no_second_expansion)
   end,
 
   ["the OverseerShell proxy loads overseer before forwarding"] = function()

@@ -11,9 +11,13 @@ return {
   },
   {
     "wellle/targets.vim",
-    -- Eager only because it has no trigger. Its text objects are Vimscript
-    -- mappings with no <Plug> surface, so a `keys` list would have to name every
-    -- object it declares.
+    -- Eager, and it stays that way. Its surface is operator-pending and visual
+    -- text objects installed by its own plugin file, with no <Plug> mappings to
+    -- put behind a trigger, and no filetype or command of its own. A `keys` list
+    -- would have to name every object it declares (the quote, argument, pair,
+    -- separator and tag families, each in `i`/`a` with the `n`/`l` variants),
+    -- and every one of those is a key someone reaches for mid-edit, where a
+    -- first-press load is exactly the pause a text object must not have.
     lazy = false,
   },
   {

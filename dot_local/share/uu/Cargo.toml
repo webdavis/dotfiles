@@ -18,6 +18,10 @@
 # `dot_local/share/pns`, and the deployed `~/.local/share/uu` beside
 # `~/.local/share/pns`.
 
+[workspace]
+members = ["crates/uu-domain", "crates/uu-protocol"]
+resolver = "3"
+
 [package]
 name = "unattended-upgrades"
 version = "0.1.0"
@@ -28,6 +32,8 @@ name = "uu"
 path = "src/main.rs"
 
 [dependencies]
+uu-domain = { path = "crates/uu-domain" }
+uu-protocol = { path = "crates/uu-protocol" }
 # The one dependency taken for a system FACT rather than a format, matching
 # pns's own reasoning: std answers neither "what is this machine called"
 # (`gethostname`) nor "which UTC calendar day is this second" (`gmtime_r`), and
