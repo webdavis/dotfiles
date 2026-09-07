@@ -1,29 +1,12 @@
 -- Keymaps
 
--- ┏━━━━━━━━━━┓
--- ┃    Do    ┃
--- ┗━━━━━━━━━━┛
+-- ┏━━━━━━━━━━━┓
+-- ┃    LSP    ┃
+-- ┗━━━━━━━━━━━┛
 
 map({
   mode = "n",
-  lhs = "<leader>dx",
-  rhs = function()
-    local file = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
-    -- argv, not `:!`, which hands the path to the shell: a tracked file named
-    -- `a$(...)b` runs the substitution before chmod ever sees it.
-    local result = vim.system({ "chmod", "+x", file }):wait()
-    if result.code ~= 0 then
-      vim.notify("Could not chmod +x *" .. file .. "*: " .. (result.stderr or ""), vim.log.levels.ERROR)
-      return
-    end
-    vim.notify("⚡ Made *" .. file .. "* executable", vim.log.levels.INFO)
-  end,
-  desc = "Action: chmod +x %>",
-})
-
-map({
-  mode = "n",
-  lhs = "<leader>da",
+  lhs = "<leader>la",
   rhs = function()
     vim.lsp.buf.code_action()
   end,
@@ -37,12 +20,29 @@ map({ mode = "n", lhs = "<C-s>", rhs = "write", desc = "Save file" })
 
 map({
   mode = "n",
-  lhs = "<leader>wa",
+  lhs = "<leader>ex",
+  rhs = function()
+    local file = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+    -- argv, not `:!`, which hands the path to the shell: a tracked file named
+    -- `a$(...)b` runs the substitution before chmod ever sees it.
+    local result = vim.system({ "chmod", "+x", file }):wait()
+    if result.code ~= 0 then
+      vim.notify("Could not chmod +x *" .. file .. "*: " .. (result.stderr or ""), vim.log.levels.ERROR)
+      return
+    end
+    vim.notify("⚡ Made *" .. file .. "* executable", vim.log.levels.INFO)
+  end,
+  desc = "File: make the current file executable (chmod +x)",
+})
+
+map({
+  mode = "n",
+  lhs = "<leader>bw",
   rhs = function()
     vim.cmd("wall")
     vim.notify("Saved all files", vim.log.levels.INFO)
   end,
-  desc = "Write all files",
+  desc = "Write all modified buffers",
 })
 
 map({ mode = "n", lhs = '<leader>"', rhs = "new", desc = "Create a new file (split)" })

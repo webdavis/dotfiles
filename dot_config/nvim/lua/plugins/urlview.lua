@@ -14,7 +14,7 @@ return {
     {
       "<leader>Uo",
       "<cmd>UrlView buffer action=system<cr>",
-      desc = "UrlView: open selected URL in the browser",
+      desc = "UrlView: open selected URL in the browser (alias of <leader>UU)",
       silent = true,
     },
     {
