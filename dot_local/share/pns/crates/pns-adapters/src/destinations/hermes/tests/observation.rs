@@ -22,7 +22,9 @@ impl CommandRunner for Notifier {
 
 #[test]
 fn a_stored_observation_retries_silently_with_full_multiline_detail_and_original_hermes_id() {
-    let path = crate::state_fixtures::scratch("observation-retry");
+    let path = crate::state_fixtures::scratch("observation-retry")
+        .canonicalize()
+        .expect("the canonical scratch directory");
     let prefix = "disk drift\n🔒 private\n";
     let detail = format!("{prefix}{}", "x".repeat(1_900 - prefix.chars().count()));
     let input = LedgerSubmission {
