@@ -1,4 +1,5 @@
-use super::number::display_number;
+mod number;
+pub(super) use number::display_number;
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
 

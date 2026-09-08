@@ -297,3 +297,7 @@ proof; their original independent fault evidence is reused.
 | `native_manifest_failure_keeps_both_new_copies_and_reports_stale`                                                      | `crates/posture-cli/tests/allowlist.rs`                            | adapter contract                |
 | `native_deny_literal_miss_skips_a_corrupt_source_and_all_publication`                                                  | `crates/posture-cli/tests/allowlist.rs`                            | adapter contract                |
 | `native_lock_setup_failure_precedes_validation_and_runs_no_commands`                                                   | `crates/posture-cli/tests/allowlist.rs`                            | adapter contract                |
+
+The heartbeat reader shares the input projection and decimal formatter. The 55 formatter cases listed
+here keep their bodies and move to `legacy_json::number::tests`; the exact old-to-new name map is in
+`heartbeat.md`. Their source is now `crates/posture-adapters/src/legacy_json/number/tests.rs`.

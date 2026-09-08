@@ -23,3 +23,12 @@ pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};
 
 mod allowlist;
 pub use allowlist::*;
+
+mod snapshots;
+pub use snapshots::{SnapshotReadFailure, SnapshotsLog};
+
+mod heartbeat;
+pub use heartbeat::{
+    Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
+    SubmissionFailure, WallTime,
+};
