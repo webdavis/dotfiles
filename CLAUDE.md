@@ -448,11 +448,10 @@ Four rules decide the shape below `libexec`, in this order:
    the flat-file version of the same idea), because the alternative is data under `share/` that none of
    the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
-   subdirectory lives in that subdirectory instead. `unattended-upgrades/helpers/log-entries.sh` is
-   shared by the three bash weekly jobs (`uu`, the fourth weekly job, is a standalone Rust binary and
-   shares none of it), while `agent-skills/assert-hermes-superpowers-routing.sh` stays in `agent-skills/`
-   because both of its callers, `update-skills.sh` and `live-reconcile.sh`, are there too. This mirrors
-   the `test/<suite>/helpers/` split.
+   subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
+   keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The
+   standalone Rust `uu` package owns its weekly record formatting and delivery; it does not source shell
+   helpers.
 
 Names are verb-first where a bare noun would not say what happens (`compress-and-truncate-local-logs.sh`,
 `control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:

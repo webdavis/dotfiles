@@ -109,14 +109,12 @@ Enumerated by `grep -rn 'libexec/pns/pns'` over the repository, excluding `.git`
 
 Producer invocations (the contract this file specifies):
 
-| Caller                                                                            | Command line                                                                                                                                   |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dot_bashrc.tmpl:576`                                                             | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`        |
-| `dot_bashrc.tmpl:580`                                                             | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                       |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:517`                | `"$pns_script" --remote-only --channel "$UNATTENDED_LOG_ROUTE" --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&-` |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:556`                | `"$pns_script" --agent "$agent" --state log-channel-broken --project "$(unattended_log_host)" --detail "$(printf ...)" 9>&-`                   |
-| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137` | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`                    |
-| `scripts/cutover-gate.sh:1012`                                                    | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                              |
+| Caller                                                                            | Command line                                                                                                                            |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `dot_bashrc.tmpl:576`                                                             | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"` |
+| `dot_bashrc.tmpl:580`                                                             | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                |
+| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137` | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`             |
+| `scripts/cutover-gate.sh:1012`                                                    | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                       |
 
 Non-producer callers of the same binary, listed because they share the argv[1] dispatch this contract
 lives inside:
@@ -510,8 +508,7 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
 `ReportMode::ReportOutcome`, which is what makes an undelivered log entry visible.
 
 - Success: hermes fires with `mode == "sync"`; neither the banner nor the mobile card does. The engine
-  prints one `pns: ` line naming the outcome, which is the line
-  `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` greps for as `^pns: posted HTTP 2`.
+  prints one `pns: ` line naming the outcome.
 - Failure sources: a gateway that refuses or hangs. The outcome is REPORTED on stdout; the exit code does
   not move.
 - Fail direction: loud but non-fatal. `pns` exits 0 whatever the gateway answered, which is why the
@@ -526,15 +523,10 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
 - Timeout and cancellation: as above; the deadline is ureq's, and the process does not fork for this leg.
 - Idempotency and duplicates: one post per invocation.
 - Privacy: the detail text crosses the network to the configured gateway.
-- Process ownership and cleanup: the caller closes fd 9 (`9>&-`) on several of the weekly-job call sites,
-  because `pns` detaches channels that would otherwise inherit a held flock.
-- Compatibility contract: the stdout line's prefix `pns: ` and the substring `posted HTTP 2` are what the
-  weekly log helper depends on. Naming tests:
+- Process ownership and cleanup: durable delivery completes synchronously before the invocation returns.
+- Compatibility contract: delivery is synchronous and limited to durable legs. Naming tests:
   `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`,
   `tests/dispatch.rs:hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visible`.
-  `NOT ESTABLISHED:` no test in this crate asserts the exact string `pns: posted HTTP 200`; the comment
-  at `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:485-488` points at `tests/native.rs`
-  for the writer's side and records that the reader side is unpinned.
 
 ### 15. Both delivery-scope flags together deliver nothing and say so
 
@@ -886,8 +878,6 @@ Every `NOT ESTABLISHED:` line in this file, collected:
    example `pns doctor --agent x`). The claim rests on reading `src/main.rs:main`.
 1. Behavior 6: no test asserts that a repeated value flag is last-wins. The claim rests on the assignment
    in `src/args.rs:parse_args`.
-1. Behavior 14: no test in this crate asserts the exact stdout string `pns: posted HTTP 200` that
-   `log-entries.sh` greps for; the shell comment itself records the reader side as unpinned.
 1. Behavior 17: no test drives `--channel` from argv through to the wire. The flag's parse and the route
    name's rule are each pinned separately; the assignment at `src/main.rs:3270` is not.
 1. The callers table: the argv `uu` passes through its `[alerts] binary` is not derivable from this
