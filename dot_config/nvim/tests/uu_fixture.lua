@@ -43,9 +43,12 @@ local function repository(path)
   --   gpgsign,   or every fixture commit is signed with the operator's real key,
   --     which on a passphrase-locked key hangs the run on a headless prompt
   --   fsmonitor, or every throwaway repository leaves a daemon behind it
+  --   autocrlf,  or a lock's line endings are rewritten under the code reading
+  --     them, which is the same set git_spec pins for the same reason
   M.git(path, "config", "core.hooksPath", path .. "/.git/hooks")
   M.git(path, "config", "commit.gpgsign", "false")
   M.git(path, "config", "core.fsmonitor", "false")
+  M.git(path, "config", "core.autocrlf", "false")
 end
 
 function M.new()
