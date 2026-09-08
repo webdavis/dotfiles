@@ -6,6 +6,8 @@
 //! from `tuples`, so the channel and the page can never disagree about what a
 //! week did. The sentence itself lives next door in `sections`.
 
+pub(super) mod section;
+
 /// One reading of what is installed: `(name, fingerprint)` pairs, sorted by
 /// name. The fingerprint is a version both subjects report honestly.
 pub type Listing = Vec<(String, String)>;

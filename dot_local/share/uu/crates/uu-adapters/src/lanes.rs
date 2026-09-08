@@ -6,6 +6,7 @@
 //! The record reports each outcome.
 
 mod brew;
+mod changes;
 mod command;
 mod herdr;
 mod npm;

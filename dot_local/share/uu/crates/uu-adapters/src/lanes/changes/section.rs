@@ -2,7 +2,7 @@
 //! keeps third-party text from rendering as something the operator never
 //! wrote.
 
-use super::changes::{Listing, State, tuples};
+use super::{Listing, State, tuples};
 
 /// How many changed names the sentence lists before it counts the rest.
 const NAME_CAP: usize = 12;
@@ -88,7 +88,7 @@ pub fn code(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::changes::tests::listing;
+    use super::super::tests::listing;
     use super::*;
 
     fn section(before: &Listing, after: &Listing) -> String {
