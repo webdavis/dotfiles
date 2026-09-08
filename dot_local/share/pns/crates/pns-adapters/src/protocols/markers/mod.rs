@@ -10,6 +10,8 @@ mod owner;
 mod paths;
 mod read;
 mod shell;
+mod shell_command;
+pub use shell_command::{begin_shell, end_shell};
 mod sweep;
 pub use answered::{marker_path, write_marker};
 pub use blocked::{end_blocked_wait, update_blocked_marker};

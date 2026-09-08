@@ -15,11 +15,10 @@ set -euo pipefail
 # them changes the binary this installs, and only the root manifest used to be
 # read.
 {{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
-{{ range (glob (joinPath $crate "**/*.rs")) }}
+{{ range $pattern := list "crates/*/src/**/*.rs" "crates/*/tests/**/*.rs" "crates/*/build.rs" -}}
+{{ range (glob (joinPath $crate $pattern)) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
-{{- range (glob (joinPath $crate "build.rs")) }}
-#   {{ . }} {{ include . | sha256sum }}
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
 #   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}

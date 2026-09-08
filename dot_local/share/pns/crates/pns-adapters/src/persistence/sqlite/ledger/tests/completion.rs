@@ -15,8 +15,7 @@ fn begin(store: &SqliteStore, identity: &SubmissionIdentity) {
         DecisionRequest {
             observation: false,
             silence_policy: pns_domain::SilencePolicy::Respect,
-            local_only: false,
-            remote_only: false,
+            scope: pns_domain::DeliveryScope::Automatic,
             pane: "",
             now_secs: Some(7),
             long_running: false,

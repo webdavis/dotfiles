@@ -40,6 +40,10 @@ options = ["-i", "2", "-ci", "-s", "-w"]
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
 excludes = ["*.tmpl", "dot_agents/skills/**"]
 
+[formatter.rust-file-size]
+command = "scripts/treefmt/rust-file-size.sh"
+includes = ["dot_local/share/**/*.rs"]
+
 # RULE: skill/agent/command markdown is authored prose with YAML frontmatter;
 # mdformat is never allowed to touch it (see the old treefmt.nix note; the
 # frontmatter plugin travels with the uv-installed mdformat, but the rule

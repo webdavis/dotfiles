@@ -23,9 +23,27 @@ belong to the next run. The native clock supplies seconds and date from one read
 transition cannot put two dates into the same observation. Tests inject clock values and use only owned
 files, including the named-pipe refusal fixture.
 
-The shared-delivery and caller portions remain dependent on the posture route and concrete producer. Pns
-now supplies `submit --json` and the `ledger_committed` diagnostic alongside accepted status and the
-matching request identity. Accepted status alone is insufficient. The observation route is frozen locally
-but remains unmerged. The existing heartbeat script, LaunchAgent, cutover-gate invocation and watchdog
-helper remain in service until that route and the producer are available. The independent last-resort
-banner, occurrence identity and request class are still required parts of that cutover.
+`PnsProducer` sends one request through `pns submit --json`. The request carries the source event,
+occurrence time, and title followed by detail on a new line. A caller-supplied occurrence seed gives the
+same `posture-<32 hex>` identity on repeat submission. Without a seed, each call gets a fresh identity.
+Only `NeedsAttention` gets the `security` class; heartbeat and digest observations retain their silent
+policy input. The constructor accepts the route selected by deployment and supplies no route of its own.
+
+Acceptance requires the original request identity, accepted status and `ledger_committed`. Destination
+outcomes cannot substitute for that receipt. Pns returns exit 2 for a normal protocol refusal, so a
+correlated rejected result remains a refusal rather than an opaque command failure. Its explicit
+`submission_unavailable` diagnostic reports an engine submission failure. A degraded `ledger_unavailable`
+result or a missing commitment leaves the caller's state unchanged without raising an engine alarm.
+
+An unavailable, failed, timed-out or unparseable engine triggers one independent banner attempt. The same
+`IndependentAlarm` port lets the watchdog report directly without submitting to pns. The banner uses
+backslash-first AppleScript escaping and the approved fixed Sosumi sound. It reports command success, not
+proof the operator saw the notification. Neither adapter stores or retries a request, and a forged
+correlated committed receipt remains undetectable at this boundary.
+
+The command runner writes stdin incrementally while draining stdout under its existing deadline. It
+closes stdin after the request, retains total and per-command budget modes, and reaps its owned child
+before returning. Banner composition supplies a separate bounded runner so an exhausted submission budget
+cannot suppress the independent attempt. The existing heartbeat script, LaunchAgent, cutover-gate
+invocation and watchdog helper remain in service until the separate caller and deployment cutover. This
+adapter work does not install a route or retire the Bash queue.

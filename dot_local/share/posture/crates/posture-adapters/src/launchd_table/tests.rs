@@ -11,12 +11,12 @@ struct Query {
     calls: usize,
 }
 impl CommandRunner for Query {
-    fn run(
+    fn run_completed(
         &mut self,
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure> {
+    ) -> Result<crate::CommandOutput, InspectionFailure> {
         self.calls += 1;
         assert_eq!(program, Path::new("/fixture/osqueryi"));
         assert_eq!(
@@ -34,7 +34,9 @@ impl CommandRunner for Query {
                 merge_stderr: false
             }
         );
-        self.output.clone()
+        self.output
+            .clone()
+            .map(|bytes| crate::CommandOutput { bytes, exit: 0 })
     }
 }
 fn table() -> SystemLaunchdTable {

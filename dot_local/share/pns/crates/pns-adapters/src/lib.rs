@@ -91,6 +91,7 @@ mod probes;
 mod process;
 pub use macos::{local_minutes_since_midnight, utc_timestamp};
 pub use probes::SystemProbes;
+pub use process::spawn_shell_event;
 pub use process::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};
 
 pub use destinations::banner::{
@@ -153,6 +154,12 @@ pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_child::{run_recap_bounded, spawn_recap};
 
 pub use persistence::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
+
+mod harness;
+pub use harness::{
+    HookPayload, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
+    transcript_reply,
+};
 
 #[cfg(test)]
 mod state_fixtures;

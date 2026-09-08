@@ -91,8 +91,7 @@ fn decision(now: Option<u64>) -> pns_domain::Decision {
             now_secs: now,
             long_running: false,
             mobile_watch_card: false,
-            local_only: false,
-            remote_only: false,
+            scope: pns_domain::DeliveryScope::Automatic,
             pane_present: true,
         },
     }

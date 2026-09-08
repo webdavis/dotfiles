@@ -615,20 +615,20 @@ and direnv and before starship.
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework), inside a darwin gate, because the engine is macOS-only. The shell is an engine producer like
-the Claude and Codex hooks and the weekly jobs, so both tiers call `~/.local/libexec/pns/pns` rather than
-raising their own banner: the state is `done` or `failed` off the exit code, the detail is the command
-name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus that pane
-on click. Commands at 30s or longer go through the engine's normal presence gate (banner and Discord
-always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means glancing, so 30s
-is enough to earn the phone); at 5 minutes or longer they pass `--long-running`, and the lights are part
-of the engine's own delivery plan from there, pulsing green on success and red otherwise off the same
-exit code the state came from. The shell used to make a second `pns pulse` call of its own, which meant
-the tier was decided twice and could disagree with itself. `pns pulse <exit-code>` still exists, but
-nothing in this repo calls it: it is the operator's manual command for signalling the lights by hand and
-for checking that a `[plugins.hue]` table's bridge and key actually work. Interactive TUIs are skipped by
-a prefix match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`,
-`claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire their own relay
-hooks.
+the Claude and Codex hooks and the weekly jobs, so its begin/end callbacks call
+`~/.local/libexec/pns/pns` rather than raising their own banner: the state is `done` or `failed` off the
+exit code, the detail is the command name and how long it ran, and the pane is `HERDR_PANE_ID`, which is
+what makes the banner focus that pane on click. Commands at 30s or longer go through the engine's normal
+presence gate (banner and Discord always, phone when away; operator ruling 2026-08-06: away means mobile,
+and mobile means glancing, so 30s is enough to earn the phone); at 5 minutes or longer pns selects
+`--long-running`, and the lights are part of the engine's own delivery plan from there, pulsing green on
+success and red otherwise off the same exit code the state came from. The shell used to make a second
+`pns pulse` call of its own, which meant the tier was decided twice and could disagree with itself.
+`pns pulse <exit-code>` still exists, but nothing in this repo calls it: it is the operator's manual
+command for signalling the lights by hand and for checking that a `[plugins.hue]` table's bridge and key
+actually work. Interactive TUIs are skipped by a prefix match on the command line: `vim`, `nvim`, `less`,
+`man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list
+because they fire their own relay hooks.
 
 ## Code Style
 

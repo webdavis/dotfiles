@@ -17,10 +17,17 @@ fn path(home: &str) -> PathBuf {
     super::dir(home).join("run.lock")
 }
 
-/// The lock itself. Held only by virtue of the open file descriptor: the
-/// kernel drops the `flock` the moment it closes, on a normal return or a
-/// crash alike, so there is no stale-lock file to clean up by hand.
-pub struct RunLock(#[allow(dead_code)] std::fs::File);
+/// The run owns the lock until its guard drops. A duplicate descriptor may
+/// outlive the run, so closing this file alone need not release the lock.
+pub struct RunLock(std::fs::File);
+
+impl Drop for RunLock {
+    fn drop(&mut self) {
+        // SAFETY: this guard still owns the open descriptor. Explicitly unlocking
+        // releases its shared flock before any inherited descriptor closes.
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
+}
 
 use uu_application::LockFailure;
 
@@ -52,3 +59,6 @@ pub fn acquire(home: &str) -> Result<RunLock, LockFailure> {
     }
     Ok(RunLock(file))
 }
+
+#[cfg(test)]
+mod tests;
