@@ -12,7 +12,9 @@ mod command;
 mod herdr;
 mod npm;
 mod nvim;
+mod rotate_logs;
 mod skills;
+
 mod spawn;
 mod text;
 mod uv;
