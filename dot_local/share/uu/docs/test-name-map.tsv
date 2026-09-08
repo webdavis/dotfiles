@@ -399,3 +399,59 @@ added	-	lanes::claude_plugins::tests::the_first_reading_is_a_baseline_that_compa
 added	-	bootstrap::a_failed_plugin_bootstrap_prints_its_report_and_exits_one	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	bootstrap::bootstrap_posts_no_record_and_leaves_the_marker_and_streaks_alone	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	claude_plugins::a_weekly_plugin_lane_compares_and_advances_history_under_its_declared_name	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	config::lanes::skills::tests::an_empty_skills_cli_version_or_unknown_field_is_refused_by_name	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	config::lanes::skills::tests::every_skills_path_is_required_and_absolute_and_the_cli_version_is_preserved	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_lock_that_is_missing_unparseable_or_schema_broken_refuses_the_run_by_name	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_roster_that_changed_mid_run_refuses_the_publish	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_roster_tracking_zero_skills_is_refused_as_corruption_not_intent	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_skill_in_both_hermes_registry_and_a_non_empty_hermes_profiles_row_is_refused	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::the_tracked_set_is_the_union_of_the_npx_and_clawhub_tables	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_candidate_without_its_ready_marker_is_incomplete_and_never_published	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_generation_whose_metadata_id_disagrees_with_its_directory_is_refused	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_recovered_complete_candidate_built_from_the_current_roster_is_reused	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_additive_bootstrap_candidate_is_never_reused_as_a_full_weekly_refresh	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_exchange_swaps_two_directories_atomically_and_both_paths_keep_resolving	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_in_flight_exchange_marker_is_finished_on_the_next_run	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_interrupted_garbage_sweep_finishes_without_reusing_its_tree	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::different_updater_content_at_the_same_package_version_refuses_candidate_reuse	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::exactly_one_previous_generation_is_retained_and_older_ones_are_swept	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::failed_prior_generation_retention_keeps_the_marker_and_workspace_out_of_the_sweep	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::publication_cleanup_resumes_after_its_empty_workspace_was_already_removed	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::publication_cleanup_sweeps_the_owned_installer_workspace_after_pruning	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::recovery_keeps_outgoing_ownership_evidence_until_delisted_pruning_finishes	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::replacement_after_startup_does_not_change_the_captured_updater_identity	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::a_candidate_lock_holding_two_documents_is_refused	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::a_skill_the_cli_failed_is_named_and_the_others_proceed	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::an_env_node_child_starts_with_the_explicit_path_and_fails_without_it	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::the_child_environment_keeps_candidate_roots_and_only_the_explicit_interpreter_path	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::the_npx_command_is_run_once_per_repo_group_with_every_skill_of_that_group	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::clawhub::tests::a_present_clawhub_skill_is_refreshed_in_place_by_bare_name	new	ok	E8: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::clawhub::tests::an_absent_clawhub_skill_is_installed_in_a_throwaway_workdir_and_moved_flat	new	ok	E8: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::clawhub::tests::the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped	new	ok	E8: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::overlay::tests::an_on_demand_skill_gets_the_codex_overlay_and_a_core_one_does_not	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::overlay::tests::an_overlay_never_writes_through_a_foreign_symlink	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_candidate_missing_a_tracked_skill_or_its_skill_md_fails_validation_and_is_discarded	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_candidate_whose_overlays_drifted_fails_validation	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_full_candidate_with_a_delisted_npx_lock_key_is_refused_but_additive_preserves_it	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_published_candidate_becomes_current_and_every_store_link_resolves_into_it	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_store_writer_that_changes_after_absorption_is_preserved_and_reported	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_tracked_real_directory_is_replaced_only_after_its_content_is_absorbed	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::additive_publication_preserves_existing_store_entries	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::the_npx_lock_link_points_into_the_current_generation	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_delisted_managed_store_link_is_removed_without_following_foreign_symlinks	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_delisted_outgoing_owned_real_directory_leaves_the_store	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_foreign_real_directory_survives_delisted_pruning	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::failed_pruning_keeps_the_journal_and_resumes_cleanup_on_restart	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::interrupted_publication_validates_the_published_content_and_retains_ownership_on_failure	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::interrupted_workspace_cleanup_keeps_ownership_until_a_successful_retry	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::recovery_after_exchange_prunes_with_outgoing_names_before_sweeping	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::reused_candidates_pass_e9_validation_before_any_exchange	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::convergence::foreign_links_and_real_destination_entries_survive_both_fanout_modes	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::convergence::weekly_fanout_repairs_owned_links_and_prunes_them_in_demapped_profiles	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::a_collision_name_is_never_fanned_out_to_hermes	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::a_hermes_profile_row_plants_exactly_the_listed_profiles_and_an_empty_row_plants_none	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::every_store_skill_reaches_claude_unless_delivery_is_none	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::owned_delisted_content_leaves_both_delivery_sets_while_foreign_content_remains_eligible	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::a_profile_parent_that_is_a_symlink_is_refused	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::a_profile_skills_dir_that_is_a_symlink_is_refused	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::missing_hermes_profile_and_skills_directories_are_created_before_link_delivery	new	ok	E11: skills fan-out, fail-first and actual source fault

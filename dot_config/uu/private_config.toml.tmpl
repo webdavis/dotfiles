@@ -213,3 +213,19 @@ deadline_secs = 21600
 type = "claude-plugins"
 inventory = "{{ .chezmoi.homeDir }}/.claude/plugins/installed_plugins.json"
 deadline_secs = 21600
+
+# Reserved for the complete skills cutover. This build does not register skills.
+# [lanes.skills]
+# type = "skills"
+# lock = "{{ .chezmoi.homeDir }}/.agents/custom-skill-lock.json"
+# agents = "{{ .chezmoi.homeDir }}/.agents"
+# claude_skills = "{{ .chezmoi.homeDir }}/.claude/skills"
+# hermes = "{{ .chezmoi.homeDir }}/.hermes"
+# npx = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npx"
+# skills_cli_version = "1.5.22"
+# clawhub = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/clawhub"
+# hermes_cli = "{{ .chezmoi.homeDir }}/.local/bin/hermes"
+# cua_driver = "/opt/homebrew/bin/cua-driver"
+# routing = "{{ .chezmoi.homeDir }}/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
+# escalate_after_runs = 3
+# deadline_secs = 21600

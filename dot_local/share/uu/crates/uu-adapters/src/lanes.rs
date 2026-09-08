@@ -12,9 +12,14 @@ mod command;
 mod herdr;
 mod npm;
 mod nvim;
+mod skills;
 mod spawn;
 mod text;
 mod uv;
+pub use skills::{
+    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsGenerationStore,
+    SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
+};
 
 pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::failure_reason;
@@ -51,6 +56,7 @@ pub fn run_lane(
     Some(config.lanes.get(name)?.adapter.run(name, facts, runner))
 }
 
+pub use skills::SkillsEnvironment;
 #[cfg(test)]
 pub(crate) mod stubs;
 

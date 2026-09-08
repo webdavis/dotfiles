@@ -220,3 +220,73 @@ for these retained limits.
 - **Given** an existing or imported baseline, **when** bootstrapping repeatedly, **then** keep it without
   comparing or advancing it. A non-regular inventory is refused, and failed publication preserves the
   previous snapshot. State uses the declared lane name under `~/.local/state/uu/lanes/`.
+
+## Skills roster
+
+- **Given** skills settings, **when** parsing the callable component, **then** require every path to be
+  absolute and name invalid or unknown fields. The skills type remains unavailable to run and bootstrap
+  until its complete cutover; the shipped block stays commented.
+- **Given** the custom roster, **when** capturing it, **then** require one version 2 document with typed
+  tables and a nonempty npx/clawhub union. Refuse conflicting Hermes registry/profile ownership and
+  refuse publication if the original roster bytes changed.
+
+## Skills generations
+
+- **Given** a candidate build, **when** starting, **then** capture the updater executable digest before
+  mutation. Ready metadata records its directory id, creation time, roster digest, updater digest and
+  full/additive mode. Recovery offers only compatible full candidates for weekly validation; missing or
+  incompatible metadata stays retained.
+- **Given** an interrupted exchange, **when** recovering, **then** finish the atomic directory swap and
+  retain the outgoing generation and its skill names until pruning finishes. A retention failure keeps
+  the marker and workspace. After pruning, reclaim the owned installer workspace, resume interrupted
+  garbage removal and keep exactly one previous generation.
+
+## Skills npx installs
+
+- **Given** a candidate and npx roster, **when** installing, **then** run one explicit skills add command
+  per repository group, name every failed skill and continue other groups. Reconcile single-document
+  candidate and installer locks; a full refresh drops delisted keys and additive builds preserve existing
+  entries.
+- **Given** an installer child, **when** spawning, **then** clear inherited environment and keep
+  candidate HOME, base directories, temporary files, npm cache and ClawHub config. Capture the real fnm
+  interpreter directory before redirecting HOME. The existing lane deadline still bounds the child.
+
+## Skills ClawHub installs
+
+- **Given** an absent ClawHub skill, **when** installing, **then** use an owned throwaway workdir and
+  move its nested directory flat with origin metadata. Refresh a present skill by bare name. Retry
+  local-change refusals only after stripping our own policy block, then reassert it while preserving
+  updated upstream metadata.
+
+## Skills candidate validation
+
+- **Given** candidate skills, **when** asserting Codex tiers, **then** add the on-demand policy and
+  remove it from core skills while preserving upstream metadata. Refuse overlay symlinks.
+- **Given** a candidate, **when** validating, **then** require every tracked directory and SKILL.md,
+  ClawHub origin metadata, one npx lock document and correct overlays. Full lock keys must equal the npx
+  roster; additive candidates may retain delisted keys. Refuse the whole candidate on any failure and
+  retain its renamed HOME for diagnosis, leaving the current generation alone.
+
+## Skills publication
+
+- **Given** a fresh or recovered candidate, **when** publishing, **then** validate its E9 content and
+  captured roster before the atomic first rename or generation exchange. Recovery validates a published
+  generation before retaining the outgoing copy or reconciling store entries.
+- **Given** a full publication, **when** reconciling the store, **then** remove only exact managed
+  delisted links and quarantine only outgoing-owned delisted real directories. Foreign entries survive.
+  Replace a tracked real directory only after its recorded content was absorbed, and report a writer
+  whose content changed or was never recorded. Additive publication preserves existing entries.
+- **Given** an interrupted publication, **when** pruning or workspace cleanup fails, **then** retain the
+  journal and outgoing ownership until a retry finishes both. Quarantined store content remains available
+  under `.agents/.skills-quarantine/<generation>/<name>`.
+
+## Skills delivery links
+
+- **Given** the reconciled store, **when** delivering skills, **then** Claude receives each surviving
+  skill unless its delivery row says `none`. Hermes receives only its mapped profiles, excluding
+  `humanizer` and `hyperframes`. Preserved foreign skills remain eligible.
+- **Given** a missing destination, **when** either mode delivers links, **then** create its parents
+  first. Refuse a Hermes profile parent or skills child that is a symlink before writing through it.
+- **Given** mapped and existing Hermes profiles, **when** full convergence runs, **then** repair
+  incorrect owned links and remove stale owned links, including in demapped profiles. Additive
+  convergence preserves existing entries. Both modes preserve foreign links and real entries.

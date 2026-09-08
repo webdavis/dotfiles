@@ -38,6 +38,14 @@ pub enum Verdict {
 /// (`Ran::verdict`), because the second case still has stdout worth
 /// recording.
 pub trait CommandRunner {
+    fn run_in(
+        &self,
+        _program: &str,
+        _args: &[&str],
+        _env: &std::collections::BTreeMap<String, String>,
+    ) -> Result<String, String> {
+        Err("runner does not support isolated environments".into())
+    }
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
 
     /// `run`, under a bound of ITS OWN as well as the lane's.

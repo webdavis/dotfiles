@@ -51,3 +51,12 @@ pub use lanes::{CommandRunner, LaneAdapter, Ran, Verdict};
 pub use registration::LaneRegistration;
 
 pub use bootstrap::{BootstrapLane, bootstrap_lane};
+
+pub use config::SkillsConfig;
+pub use lanes::{HermesRegistryEntry, SkillsRoster};
+
+pub use lanes::SkillsEnvironment;
+pub use lanes::{
+    SkillsBuildMode, SkillsCandidate, SkillsGenerationStore, SkillsPublication, SkillsRecovery,
+    exchange_skills_directories,
+};

@@ -15,6 +15,7 @@ use uu_protocol::{DEFERRED_EXIT_CODE, PENDING_EXIT_CODE};
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
 mod bounds;
+mod environment;
 mod overrun;
 
 /// The event handed to a command lane's child cannot exceed this, or
@@ -54,6 +55,22 @@ impl SystemRunner {
             declared,
             started: Instant::now(),
         }
+    }
+
+    fn clean_output(&self, finished: Finished) -> Result<String, String> {
+        let Ended::Exited(status) = finished.ended else {
+            return Err(self.overrun(&finished.ended, &finished.stderr));
+        };
+        if status.success() {
+            return Ok(String::from_utf8_lossy(&finished.stdout).to_string());
+        }
+        // WHAT IT PRINTED, not only how it ended. The spawn captured stderr
+        // either way, the child is gone by the time the record is composed,
+        // and a weekly job's own log may have rotated before anyone reads it.
+        Err(failure_reason(
+            &exit_description(&status),
+            &String::from_utf8_lossy(&finished.stderr),
+        ))
     }
 
     /// What is left of this lane's budget.
@@ -98,21 +115,18 @@ fn exit_description(status: &ExitStatus) -> String {
 }
 
 impl CommandRunner for SystemRunner {
+    fn run_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> Result<String, String> {
+        environment::run(self, program, args, env)
+    }
+
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
         let finished = self.spawn(program, args, Stdio::null())?;
-        let Ended::Exited(status) = finished.ended else {
-            return Err(self.overrun(&finished.ended, &finished.stderr));
-        };
-        if status.success() {
-            return Ok(String::from_utf8_lossy(&finished.stdout).to_string());
-        }
-        // WHAT IT PRINTED, not only how it ended. The spawn captured stderr
-        // either way, the child is gone by the time the record is composed,
-        // and a weekly job's own log may have rotated before anyone reads it.
-        Err(failure_reason(
-            &exit_description(&status),
-            &String::from_utf8_lossy(&finished.stderr),
-        ))
+        self.clean_output(finished)
     }
 
     /// One step under a bound of its own; `bounds` owns the reasoning.
