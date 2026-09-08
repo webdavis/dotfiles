@@ -148,9 +148,14 @@ fn an_unreadable_old_claim_cannot_starve_the_good_batch_behind_it() {
     // handled in ONE run: the good batch delivers, the unreadable one parks.
     let sandbox = Sandbox::new("replay-no-starvation");
     record_every_event(&sandbox);
-    let unreadable = journal_path(&sandbox).with_extension("claim.222");
+    let mut owner = std::process::Command::new("/usr/bin/true")
+        .spawn()
+        .expect("the claim owner");
+    let pid = owner.id();
+    assert!(owner.wait().expect("the exited claim owner").success());
+    let unreadable = journal_path(&sandbox).with_extension(format!("claim.{pid}.0"));
     std::fs::write(&unreadable, b"\xff\xfe not text\n").expect("the unreadable claim");
-    let good = journal_path(&sandbox).with_extension("claim.333");
+    let good = journal_path(&sandbox).with_extension(format!("claim.{pid}.1"));
     std::fs::write(&good, planted_journal(2)).expect("the good claim");
 
     run(&mut present_event(&sandbox));
