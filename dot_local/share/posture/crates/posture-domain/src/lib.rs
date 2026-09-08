@@ -70,3 +70,17 @@ pub use watchdog::{
     AuditMemory, ExitCode, WatchdogPage, audit_fingerprint_input, judge_agent, judge_audit,
     osquery_problem, route_problem, state_problem, watchdog_page,
 };
+
+mod controls;
+pub use controls::{
+    Control, ControlReader, ControlRecord, ControlValue, ControlsInput, ControlsRefusal,
+    ControlsRefusalKind, validate_controls,
+};
+
+mod poll;
+pub use poll::{
+    BaselineUpdate, ControlObservation, ControlPrior, ControlReading, ControlsRead, LuluProfile,
+    PollBaseline, PollPage, PollPlan, StoredControl, Trio, TrioReading, classify_autologin,
+    classify_filevault, classify_lulu_profile, classify_messages, classify_pgrep, plan_poll,
+    trusted_poll_baseline,
+};

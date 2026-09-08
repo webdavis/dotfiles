@@ -1,0 +1,4 @@
+**Security-posture monitoring gap**
+- posture-controls file missing at `/missing-controls.json`: the security posture there is currently UNKNOWN.
+- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**
+- Diagnose: run the posture query and the control probes by hand, then re-check.
