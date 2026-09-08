@@ -16,8 +16,9 @@ pns-hermes = { path = "../pns-hermes" }
 pns-protocol = { path = "../pns-protocol" }
 
 libc = "0.2.189"
-rusqlite = { version = "=0.37.0", default-features = false, features = [
+rusqlite = { version = "=0.39.0", default-features = false, features = [
   "bundled",
+  "fallible_uint",
 ] }
 toml = { version = "1.1.4", default-features = false, features = [
   "parse",

@@ -64,7 +64,7 @@ a SECOND card.
 
 The internal repositories use one `pns.db` in the configured state directory. Each mutation and its
 retention change commit in one explicit transaction. A connection uses write-ahead logging and a
-25-millisecond busy timeout. This bounds the wait for another writer; it is not a disk-operation
+200-millisecond busy timeout. This bounds the wait for another writer; it is not a disk-operation
 execution deadline. Tests inject a shorter timeout and exercise contention from a separate process.
 
 The database and its sidecars are private files. An existing irregular or publicly readable database is
@@ -84,5 +84,7 @@ announce a successful quiet change after a refused mutation. Tick and quiet comp
 memories; the application still owns notification before remembering the complaint.
 
 Schema version 1 includes import completion records from the start, so first-run import does not compete
-with the delivery ledger for a later schema version. The store uses bundled rusqlite 0.37.0. The
-installed compiler rejected 0.40.1; no toolchain change or third-party patch was required.
+with the delivery ledger for a later schema version. The store uses bundled rusqlite 0.39.0 with
+`fallible_uint`, preserving the checked unsigned conversions. Its SQLite 3.51.3 includes the upstream
+[write-ahead log reset fix](https://www.sqlite.org/wal.html#walresetbug). The installed compiler rejected
+rusqlite 0.40.1; no toolchain change or third-party patch was required.
