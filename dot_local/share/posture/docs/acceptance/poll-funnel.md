@@ -120,3 +120,42 @@ The shared projection only separates selected text from the final command-substi
 query streams to retain internal newlines. Existing controls and allowlist projection assertions still
 cover their original cleanup behavior. No process probe, baseline publication or deployed caller is
 activated by this packet.
+
+## Poller state files
+
+Eight new leaves cover baseline reads, the two gap markers and baseline publication. All 469 predecessor
+names and test bodies remain. Sixteen baseline captures pin whole-object trust, scalar types, declaration
+fields and the symlink's own mode. Nine marker captures distinguish literal spaces from internal tabs and
+newlines. Five publication captures distinguish write, rename and chmod failures; twelve fold captures
+pin current rows, retained prior fields and control declaration pairs.
+
+| Full new test name                                                                                                 | Source statements      | Independent source faults                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `osqueryi::tests::query_retains_the_compact_first_projection_for_baseline_publication`                             | S241, S243, S258       | `query-retained-row-erased`                                                                                          |
+| `state_files::tests::baseline::a_baseline_read_preserves_captured_scalars_and_control_declaration_fields`          | S260, S261             | `saved-control-erased`                                                                                               |
+| `state_files::tests::baseline::baseline_trust_refuses_wrong_modes_shapes_and_symlink_own_modes_without_blocking`   | S260                   | `baseline-mode-ignored`, `symlink-referent-mode`, `baseline-first-object-only`                                       |
+| `state_files::tests::encoding::published_baselines_preserve_captured_rows_prior_fields_and_control_declarations`   | S258, S261, S262, S265 | `baseline-prior-overlay-lost`, `baseline-scalar-types-erased`, `control-target-erased`, `control-expectation-erased` |
+| `state_files::tests::markers::marker_coverage_keeps_literal_spaces_and_does_not_cover_newline_or_tab_members`      | S257                   | `marker-whitespace-members`                                                                                          |
+| `state_files::tests::markers::markers_refresh_members_clear_recovery_and_report_unwritable_paths_separately`       | S257, S265             | `marker-stale-members-retained`, `marker-removal-refusal-hidden`                                                     |
+| `state_files::tests::publication::baseline_publication_replaces_sibling_temporary_content_and_finishes_owner_only` | S265                   | `publication-does-not-chmod`                                                                                         |
+| `state_files::tests::publication::publication_failures_preserve_actual_pre_and_post_rename_file_outcomes`          | S265                   | `chmod-refusal-hidden`, `chmod-before-rename`, `temporary-exit-cleanup-lost`                                         |
+
+The initial six-case reader/writer run failed five assertions. Its reject-all reader already passed the
+refusal case; the mode, symlink and whole-document faults independently prove that case. Both
+retained-row and encoded-publication assertions failed before their implementation. All eight new leaves
+pass, as do all 185 adapter leaves, with a maximum measured case of 100 milliseconds. Sixteen production
+faults fail their named leaves, at most 79 milliseconds. Each uses a separate source directory and an
+actual compiler invocation in one serially reused target, with dependency inputs and binary hashes
+retained.
+
+The publication test performs a real refused rename in a private unwritable parent. The chmod closure
+fails after a real rename, proving that the new file remains despite the returned failure. Another fault
+moves chmod before rename and fails that same observation. The fixed temporary is removed when its owner
+exits, matching the existing invocation trap. All named-pipe fixtures and commands are private; the query
+stub prints captured rows and never inspects the machine.
+
+The adapter retains the selected query rows inside `PostureTrio` for publication. It reuses the existing
+field parser and renderer, preserves numbers versus strings and unknown fields, and leaves the public
+reading and SQL unchanged. Application values contain no JSON. Gap submission before marker refresh,
+exposure submission before baseline advancement, caller diagnostics and deployed caller cutover remain
+application work. This packet does not complete the poller delivery.

@@ -61,9 +61,9 @@ descriptions and remedies. A later invalid row refuses the whole set (S254 to S2
 
 The reader returns a typed refusal without printing. The future caller still owns Bash's additional
 shell-redirection diagnostic for an unreadable file, alongside the malformed-file explanation. The
-controls array's typed length replaces the intermediate count string. State-file ownership, publication
-failures and durable acceptance remain in the planned application and adapter rows (S265, S270, S271,
-S278). The Bash callers remain active until those cutovers.
+controls array's typed length replaces the intermediate count string. The poller state adapter below owns
+its file operations. Durable acceptance and the Funnel file adapters remain in the planned application
+and adapter rows (S265, S270, S271, S278). The Bash callers remain active until those cutovers.
 
 The native poller inputs preserve each completed command's output and shell exit status. Existing
 inspection and publication callers still use success-only reads and their original total budget. Poller
@@ -86,5 +86,31 @@ that row while later stream rows still print. These bytes feed the existing doma
 being treated as trusted readings (S241, S243).
 
 These adapters perform read-only observations when invoked. The application still owns validated-control
-ordering, baseline and gap files, durable page submission, and caller cutover. No deployed caller uses
-these inputs yet.
+ordering, calls to the baseline and gap adapter, durable page submission, and caller cutover. No deployed
+caller uses these inputs yet.
+
+The poller state adapter reads exactly one whole baseline object and trusts only mode 0600 with a valid
+trio. A symlink's own mode is checked while the regular-file read follows its target. Missing paths,
+directories, named pipes, unreadable files, malformed or multiple documents and out-of-domain trios
+return no trusted baseline. The saved control value, expectation and target remain separate for the
+domain's independent prior checks (S260, S261). Bash's unreadable-file shell diagnostic remains a caller
+obligation.
+
+Gap markers retain literal-space member boundaries. Internal tabs and newlines never cover separate
+members. Refresh replaces the marker with the current members plus one newline; clearing a missing marker
+succeeds, while other write or removal failures are returned. Read and persistence gaps use separate
+siblings. The application decides when a durable page permits refresh and when recovery permits clearing
+(S257, S265).
+
+Publication starts from the complete selected query rows, retaining scalar types and unknown fields. An
+unreadable trio uses the trusted trio as strings. Refused controls retain the whole prior object under
+the fresh trio; admitted controls retain only their proposed values and declaration pairs. Object
+replacement preserves encounter order. The same private field parser and decimal renderer handle the
+captured legacy values; no JSON representation crosses into application or domain code (S258, S261,
+S262).
+
+The baseline is written with a trailing newline through its fixed private sibling, renamed, then chmodded
+to 0600. A failed write or rename leaves the old baseline; a failed chmod after rename returns failure
+with the new baseline already present. Existing temporary-file modes remain until the final chmod. The
+owner's exit removes a leftover temporary best effort. Durable acceptance before these writes and the
+persistence-gap response to their results remain application responsibilities (S265).

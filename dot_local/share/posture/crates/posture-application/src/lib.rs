@@ -35,3 +35,6 @@ pub use heartbeat::{
 
 mod alarm;
 pub use alarm::{AlarmFailed, IndependentAlarm};
+
+mod poll_state;
+pub use poll_state::{PollGap, SavedPollControl, SavedPollState};
