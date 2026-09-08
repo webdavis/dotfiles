@@ -136,8 +136,8 @@ for these retained limits.
   instance releases its server socket.
 - **Given** `auto_commit = true`, **when** resolving configuration, **then** require an absolute `repo`.
   Its default is false; a non-boolean value is refused with the key and written value.
-- **Given** an enabled auto-commit with no open recovery, **when** its branch or lock preflight is refused,
-  **then** report the reason and check only. Require a branch, a clean source lock, equality of
+- **Given** an enabled auto-commit with no open recovery, **when** its branch or lock preflight is
+  refused, **then** report the reason and check only. Require a branch, a clean source lock, equality of
   committed, indexed and deployed lock bytes, and installed lock-managed revisions matching the lock.
   Local plugins are outside lock management.
 - **Given** an allowed auto-commit, **when** updating, **then** durably save the repository, config,

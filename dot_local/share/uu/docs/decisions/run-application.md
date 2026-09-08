@@ -144,9 +144,10 @@ executable differed on 16.
 
 The `nvim-plugins` registration owns its typed executable, config and optional auto-commit settings. The
 existing command runner preserves the child exit and stdout; the adapter maps Neovim's nonzero exits to
-pending or failure. The outer Neovim configuration owns Lazy calls and Git auto-commit, so the Rust package
-contains no dependency on a deployed Lua path. The required absolute config names both its initializer
-and the entry script. Pure report decisions stay separate from plugin, Git and filesystem operations.
+pending or failure. The outer Neovim configuration owns Lazy calls and Git auto-commit, so the Rust
+package contains no dependency on a deployed Lua path. The required absolute config names both its
+initializer and the entry script. Pure report decisions stay separate from plugin, Git and filesystem
+operations.
 
 Writeback is off by default. The shipped template enables the report lane and records the source
 repository explicitly. Recovery lives at `stdpath("state")/uu/plugins-<config hash>.json`. Each record is
