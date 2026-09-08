@@ -102,3 +102,27 @@ fn a_clear_landing_inside_the_fires_claim_window_still_writes_the_marker() {
         "and the record is dropped rather than left to be re-claimed forever"
     );
 }
+
+#[test]
+fn a_failed_turn_clears_its_approval_before_any_later_nag() {
+    let sandbox = Sandbox::new("nag-cleared-by-stop-failure");
+    sandbox.write_config(&nag_config(300));
+    counted_channels(&sandbox);
+    write_record(&sandbox, "s1", 300, "Bash: cargo test", "wW:p21");
+    let output = hook_with(
+        sandbox.pns_stateful(),
+        &sandbox,
+        "stop-failure",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","message":"owned failure"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!nag_record(&sandbox, "s1").exists());
+    assert!(nag_marker(&sandbox, "s1").exists());
+    assert_eq!(deliveries(&sandbox, "hermes"), 1);
+    support::run(&mut nag(&sandbox));
+    assert_eq!(
+        deliveries(&sandbox, "hermes"),
+        1,
+        "no nag after the failure"
+    );
+}

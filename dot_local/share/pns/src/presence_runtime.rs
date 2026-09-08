@@ -130,35 +130,9 @@ pub(crate) fn presence_snapshot<R: pns::system::CommandRunner>(
 pub(crate) fn home_presence() -> pns::home::HomePresence {
     pns::home::HomePresence::Unknown
 }
-/// The routing narrowed to the room the operator is in, with the decision
-/// appended to its ring.
-///
-/// THE RECORD IS FAIL-QUIET, in `record_decision`'s exact style and for its
-/// exact reason: both callers run where a printed line about the state
-/// directory would be a line in every hook's output or in a tick that runs
-/// three times a minute forever.
-pub(crate) fn narrow_to_presence(
-    state: &Path,
-    routing: pns::channels::hue::Routing,
-    presence: Option<&pns::presence_policy::Snapshot>,
-) -> pns::channels::hue::Routing {
-    let Some(snapshot) = presence else {
-        return routing;
-    };
-    let (narrowed, decision) = pns::presence_policy::narrow(routing, snapshot);
-    let _ = append_ring_line(
-        &state.join(PRESENCE_DECISIONS),
-        &pns_adapters::presence_journal::entry(&pns_adapters::presence_journal::recorded(
-            snapshot, &decision,
-        )),
-        pns::decision_log::KEPT,
-        RING_READ_MAX,
-    );
-    narrowed
-}
 /// The last narrowing this machine decided. `None` is a ring with nothing in
 /// it, which is presence off or never yet consulted.
-pub(crate) fn last_narrowing(state: &Path) -> Option<pns_adapters::presence_journal::Entry> {
+pub(crate) fn last_narrowing(state: &Path) -> Option<pns_domain::PresenceDecision> {
     let contents =
         pns_adapters::readable_state_file(&state.join(PRESENCE_DECISIONS), RING_READ_MAX).ok()?;
     pns_adapters::presence_journal::last(&contents)

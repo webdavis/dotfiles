@@ -18,3 +18,15 @@ pub(super) mod process;
 pub(super) mod records;
 
 pub(super) mod nag;
+
+pub(super) mod jobs;
+
+pub(super) mod lights;
+
+pub(super) mod lamps;
+
+pub(super) mod lamp_house;
+
+pub(super) mod recap;
+
+pub(crate) mod setup;

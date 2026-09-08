@@ -63,7 +63,7 @@ impl UniFiRouter {
 /// because site ids are per-install; both calls ride one agent and one
 /// deadline each.
 impl Router for UniFiRouter {
-    fn clients_json(&self) -> Option<String> {
+    fn clients(&self) -> Option<Vec<pns_domain::home::Client>> {
         let get = |path: &str| {
             self.agent
                 .get(format!("{}{path}", self.base))
@@ -78,8 +78,9 @@ impl Router for UniFiRouter {
         };
         let sites = get("/proxy/network/integration/v1/sites")?;
         let site = first_site_id(&sites)?;
-        get(&format!(
+        let clients = get(&format!(
             "/proxy/network/integration/v1/sites/{site}/clients?limit=200"
-        ))
+        ))?;
+        super::parse_clients(&clients)
     }
 }

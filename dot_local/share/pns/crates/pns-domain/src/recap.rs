@@ -6,9 +6,11 @@
 pub mod budget;
 pub mod external;
 pub mod night;
+mod options;
 pub mod prompt;
 pub mod sanitize;
 pub mod sections;
+pub use options::Recap;
 
 #[cfg(test)]
 mod tests {

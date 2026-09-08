@@ -5,20 +5,7 @@ use parse::{active_modes, mode_names};
 /// Where macOS keeps the Focus state, under the operator's own home.
 const FOCUS_DB: &str = "Library/DoNotDisturb/DB";
 
-/// One reading of the Focus store: the verdict the event path acts on, and
-/// what the mode catalog beside it did.
-///
-/// THE CATALOG'S FAILURE RIDES OUT ON THE ANSWER rather than being read a
-/// second time by the doctor. A second read is a second moment, and the doctor
-/// would then be reporting on a file the decision never saw.
-pub struct FocusReading {
-    /// Whether a mode `[focus] silence` named is asserted right now.
-    pub silenced: bool,
-    /// Why the mode catalog could not be read, when it could not. `Some` means
-    /// NO display name resolved, so only a raw `modeIdentifier` in the config
-    /// could have matched anything.
-    pub catalog: Option<std::io::ErrorKind>,
-}
+pub use pns_application::FocusReading;
 
 /// Whether a macOS Focus the config NAMED is asserted right now, or the error
 /// the assertion store's own read failed with.

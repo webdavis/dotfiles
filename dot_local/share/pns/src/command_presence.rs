@@ -29,14 +29,7 @@ enum Launch {
     Operator,
 }
 
-/// The daemon's own spelling, passed by the registration in
-/// `ensure_presence_poll` and by nothing else.
-///
-/// A FLAG RATHER THAN AN ENVIRONMENT VARIABLE, because the argv is what the
-/// spool already records and what one parser already reads: an inherited
-/// variable would also mark every unrelated process a poll ever started, and
-/// the poll is the thing being described, not its ancestry.
-const PRESENCE_DAEMON_FLAG: &str = "--daemon";
+use pns_application::PRESENCE_DAEMON_FLAG;
 
 /// Who launched this poll, or `None` for an argument tail this does not serve.
 fn presence_launch(arguments: &[String]) -> Option<Launch> {
@@ -129,81 +122,6 @@ fn reported(polled: Polled, launch: Launch) -> (i32, Option<&'static str>) {
         _ => (0, None),
     }
 }
-/// The spool name the room sensor's poll is registered under.
-const PRESENCE_JOB: &str = "presence";
-
-/// How long that registration runs for. FIVE MINUTES, which is ten of the
-/// daemon's own config reads at the production tick: long enough that a missed
-/// sweep changes nothing, short enough that a daemon which stopped leaves
-/// nothing polling the bridge behind it.
-const PRESENCE_LEASE_SECS: u64 = 300;
-
-/// The room sensor's settings, or `None` when its table is absent, switched
-/// off, or refused.
-///
-/// A REFUSAL READS AS OFF here, deliberately unlike `daemon_enabled`'s
-/// carry-on-enabled fallback. That one keeps a whole service alive through a
-/// typo; this one governs a sensor whose every unknown already means Unknown,
-/// so the fail-closed reading costs a narrowing and the doctor is what names
-/// the refusal.
-pub(crate) fn presence_settings() -> Option<pns::config::Presence> {
-    match load_config(&config_path(&std::env::var("HOME").unwrap_or_default())) {
-        Ok(LoadOutcome::Loaded(config)) => pns::config::parse_presence(&config).ok().flatten(),
-        _ => None,
-    }
-}
-
-/// Keep the poll registered while the sensor is on, and cancelled while it is
-/// not.
-///
-/// THE SETTINGS ARRIVE AS AN ARGUMENT rather than being read here, which is
-/// what makes the sweep a function of the spool alone: the config read is the
-/// caller's, and this can be driven a state directory at a time.
-///
-/// THE PENDING DUE IS KEPT, `schedule_lights_tick`'s rule for its own reason:
-/// re-registering replaces the job by name, so a sweep that pushed `due` out
-/// every thirty seconds would keep moving a five-second poll away from itself.
-/// Only the LEASE is refreshed.
-pub(crate) fn ensure_presence_poll(
-    state: &Path,
-    presence: Option<&pns::config::Presence>,
-    now: u64,
-) {
-    let Some(presence) = presence else {
-        // The failure is dropped for `record_decision`'s reason: a cancel that
-        // did not land costs one more poll, and the lease ends it regardless.
-        let _ = pns_adapters::job_spool::cancel(state, PRESENCE_JOB);
-        return;
-    };
-    let pending = match pns_adapters::job_spool::peek(
-        &pns_adapters::job_spool::spool_dir(state).join(PRESENCE_JOB),
-        PRESENCE_JOB,
-    ) {
-        pns_adapters::job_spool::Peeked::Job(job) => Some(job.due),
-        _ => None,
-    };
-    // DUE NOW when nothing is pending, so the first sweep after the switch
-    // goes on is followed by a reading on the next tick rather than one
-    // interval later.
-    let due = pending.filter(|due| *due > now).unwrap_or(now);
-    let job = pns_domain::jobs::Job {
-        id: PRESENCE_JOB.to_string(),
-        due,
-        until: due.max(now.saturating_add(PRESENCE_LEASE_SECS)),
-        every: Some(presence.poll_secs),
-        unless_marker: None,
-        args: vec![
-            "presence".to_string(),
-            "poll".to_string(),
-            PRESENCE_DAEMON_FLAG.to_string(),
-        ],
-    };
-    // The failure is DROPPED here for `schedule_lights_tick`'s reason: a
-    // registration that did not land must never cost the daemon a line a
-    // second, and the next sweep tries again.
-    let _ = pns_adapters::job_spool::schedule(state, &job, now);
-}
-
 #[cfg(test)]
 #[path = "command_presence/tests/publication.rs"]
 mod publication_tests;
@@ -215,3 +133,12 @@ mod locking_tests;
 #[cfg(test)]
 #[path = "command_presence/tests/daemon.rs"]
 mod daemon_tests;
+
+#[cfg(test)]
+fn ensure_presence_poll(state: &Path, presence: Option<&pns::config::Presence>, now: u64) {
+    pns_application::ensure_presence_poll(
+        &pns_adapters::FileJobSpool::new(state.to_path_buf()),
+        presence.map(|presence| presence.poll_secs),
+        now,
+    );
+}

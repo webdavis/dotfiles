@@ -18,7 +18,6 @@ pub mod channels;
 pub mod config;
 pub mod config_text;
 pub mod decision_log;
-pub mod doctor;
 pub mod engine;
 pub mod home;
 pub mod hooks;
@@ -34,7 +33,6 @@ pub mod probes;
 pub mod recap;
 pub mod registry;
 pub mod routing;
-pub mod setup;
 pub mod system;
 
 // WHAT HAS MOVED INTO `pns-domain`, re-exported so every caller keeps its old

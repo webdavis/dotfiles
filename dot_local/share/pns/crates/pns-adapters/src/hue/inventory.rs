@@ -1,3 +1,4 @@
+use super::{TYPED_COMMAND_DEADLINE, UreqBridge, hue_settings};
 use pns_domain::lamps::{Inventory, Lamp};
 
 /// The `.data[]` array of a CLIP response, empty for anything unrecognized:
@@ -108,4 +109,31 @@ fn children_of(entry: &serde_json::Value) -> Vec<&str> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// What the bridge says it holds, or nothing at all.
+///
+/// A BRIDGE THAT ANSWERS NOTHING IS NOT A REFUSAL. The declarations are still
+/// names a mute can enforce once the transport is back, so the command works
+/// with the bridge down at the cost of a narrower vocabulary.
+pub fn bridge_inventory(config: &crate::Config) -> Option<pns_domain::lamps::Inventory> {
+    let settings = crate::enabled_hue_table(config)?;
+    let hue = hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())?;
+    // THE HUMAN'S OWN DEADLINE, not the transport's. Nothing else here dials a
+    // bridge with somebody standing at a terminal waiting on the answer, and
+    // three calls at the transport's ten seconds is half a minute before a mute
+    // typed at bedtime says anything at all. A bridge on the same LAN answers
+    // these in milliseconds, so a second apiece is generous; past it the
+    // vocabulary narrows to the declarations, which is what a bridge that
+    // answered nothing leaves anyway.
+    let bridge = UreqBridge {
+        base: format!("https://{}/clip/v2/resource", hue.bridge),
+        key: hue.key,
+        deadline: TYPED_COMMAND_DEADLINE,
+    };
+    Some(inventory(
+        &crate::Bridge::get(&bridge, "room")?,
+        &crate::Bridge::get(&bridge, "light")?,
+        &crate::Bridge::get(&bridge, "zone")?,
+    ))
 }

@@ -93,21 +93,7 @@ is no pane to key the lease to; run it inside the pane, or name one with --pane"
 pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
 pns loop end [--pane <id>]";
 
-/// What the operator typed at `pns lights quiet`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QuietCommand {
-    /// No argument at all: say what is quiet and mute nothing. There is no
-    /// untimed form, for `pns quiet`'s reason: a mute the operator forgets is
-    /// a lamp that has silently stopped working.
-    Report,
-    Mute {
-        place: String,
-        seconds: u64,
-    },
-    Unmute {
-        place: String,
-    },
-}
+pub use pns_domain::lights::mute::QuietCommand;
 
 /// The typed command, or the refusal that quotes back what was typed.
 ///

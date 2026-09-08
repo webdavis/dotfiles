@@ -32,9 +32,9 @@ pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
-pub use plugins::{DEFAULT_SUBMIT_DEADLINE_SECS, armed_mobile, submit_deadline};
+pub use plugins::{DEFAULT_SUBMIT_DEADLINE_SECS, armed_mobile, enabled_hue_table, submit_deadline};
 mod recap;
-pub use recap::Recap;
+pub use pns_domain::recap::Recap;
 use recap::{MAX_SUMMARIZER_DEADLINE_SECS, parse_recap};
 mod recap_values;
 use recap_values::{argv, seconds, threshold};
@@ -43,6 +43,7 @@ use recap_sources::{note_glob, repositories};
 mod focus;
 use focus::parse_focus;
 mod daemon;
+pub use daemon::DaemonConfig;
 use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
 mod nag;
 use nag::{NAG_OFF, backstop_outlasts_the_nag, parse_nag};
@@ -60,8 +61,8 @@ use lights_bounds::{
 };
 pub use lights_bounds::{MAX_REFRESH_SECS, MIN_REFRESH_SECS};
 mod lights_targets;
-pub use lights_targets::BEHAVIOUR_WORDS;
 use lights_targets::parse_targets;
+pub use pns_domain::lamps::config::BEHAVIOUR_WORDS;
 mod presence;
 
 pub use presence::parse_presence;
@@ -158,3 +159,9 @@ mod router_tests;
 
 #[cfg(test)]
 mod selection_tests;
+
+mod setup;
+pub use setup::{SetupRenderer, compose_config};
+
+mod setup_publisher;
+pub use setup_publisher::FileConfigPublisher;

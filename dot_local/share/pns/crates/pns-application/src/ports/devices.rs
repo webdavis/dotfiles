@@ -1,18 +1,14 @@
 //! The two appliances on the network a use case asks questions of.
 
-/// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
-pub trait Bridge {
-    fn get(&self, path: &str) -> Option<String>;
-    /// Fire and forget: `run` discards every outcome, so a bridge that
-    /// refuses tells no one. Returning a result would be a seam with no
-    /// consumer.
-    fn put(&self, path: &str, body: &str);
+/// The router's complete, decoded client listing. A missing or malformed
+/// response is unknown, while a parsed empty listing is evidence of absence.
+pub trait Router {
+    fn clients(&self) -> Option<Vec<pns_domain::home::Client>>;
 }
 
-/// The seam one probe reads the router through. The production impl carries
-/// the deadline and the self-signed-TLS stance; a fake answers from a string.
-pub trait Router {
-    /// The clients listing as the router returned it, or `None` when it could
-    /// not be fetched.
-    fn clients_json(&self) -> Option<String>;
+/// The staleness episode this machine last reported. Writes are best effort;
+/// a failed write may repeat a warning but cannot change a home verdict.
+pub trait StalenessMemory {
+    fn remembered(&self) -> Option<String>;
+    fn remember(&self, episode: Option<&str>);
 }

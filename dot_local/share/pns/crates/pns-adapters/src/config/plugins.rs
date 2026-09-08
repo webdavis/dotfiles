@@ -98,3 +98,12 @@ pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
 /// off switch, because an unbounded wait is the defect and "off" would be a
 /// key whose only function is to restore it.
 pub(super) const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
+
+/// Hue's settings, only when the operator enabled it explicitly.
+pub fn enabled_hue_table(config: &Config) -> Option<toml::Table> {
+    config
+        .plugins
+        .get("hue")
+        .filter(|hue| hue.enabled)
+        .map(|hue| hue.settings.clone())
+}

@@ -29,71 +29,29 @@ pub(crate) fn loop_mode(verb: &str) -> i32 {
         }
     };
     let state = state_dir();
-    match command {
-        pns::lights::LoopCommand::Begin(pane) => {
-            // NO CLOCK IS NO LEASE, never a lease at epoch zero: the timeout is
-            // measured against this number, and a zero would be expired the
-            // moment it was written.
-            let (Some(marker), Some(now)) = (
-                pns_adapters::marker_files::lease_marker(&state, &pane),
-                now_secs(),
-            ) else {
-                eprintln!("pns: loop: the clock cannot be read; the lease was not taken");
-                return 1;
-            };
-            if let Err(error) = publish_state_line(&marker, &now.to_string()) {
-                // LOUD, because a human is waiting on the answer: a lease that
-                // was not taken is a lamp that never lights, and reporting
-                // success for one is the worst outcome available.
-                eprintln!("pns: loop: the lease could not be written: {error}");
-                return 1;
-            }
-            // AND THE TICK IS REGISTERED FOR THE WHOLE LEASE, because nothing
-            // else will register it in time. The tick's own lease is refreshed
-            // by EVENT traffic, so a lease taken by hand in a pane that then
-            // goes quiet, which is exactly the overnight run this verb exists
-            // for, would be read by a tick that expired minutes into it.
+    let leases = pns_adapters::FileLoopLeases::new(state.clone());
+    let operation = pns_application::AcquireLoopLease { leases: &leases };
+    let result = match command {
+        pns::lights::LoopCommand::Begin(pane) => operation.begin(&pane, now_secs(), |now| {
             let home = std::env::var("HOME").unwrap_or_default();
             if let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home))
                 && let Some(lights) = config.lights.as_deref()
             {
-                schedule_lights_tick(&state, lights, now, lights.looping.lease_timeout_secs);
+                pns_application::schedule_lights_tick(
+                    &pns_adapters::FileJobSpool::new(state.clone()),
+                    lights,
+                    now,
+                    lights.looping.lease_timeout_secs,
+                );
             }
-        }
-        pns::lights::LoopCommand::End(pane) => {
-            if let Err(refusal) = end_lease(&state, &pane) {
-                eprintln!("{refusal}");
-                return 1;
-            }
-        }
-    }
-    0
-}
-
-/// Give a lease back, or say why it could not be given back.
-///
-/// LOUD, because a human is waiting on the answer and the lamp is a liveness
-/// signal: reporting that a loop has ended while its lease is still on disk
-/// leaves the loop lamp breathing for the whole timeout with nothing behind it,
-/// and the operator has been told the opposite.
-///
-/// A LEASE THAT IS NOT THERE IS NOT A FAILURE. `pns loop end` on a machine that
-/// never began, or a second one after the first, is a removal of a file that is
-/// already gone, which is exactly the state the command is for.
-fn end_lease(state: &Path, pane: &str) -> Result<(), String> {
-    let Some(marker) = pns_adapters::marker_files::lease_marker(state, pane) else {
-        return Ok(());
+        }),
+        pns::lights::LoopCommand::End(pane) => operation.end(&pane),
     };
-    match std::fs::remove_file(&marker) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "pns: loop: the lease could not be given back ({error}); the loop lamp \
-             keeps breathing until it times out"
-        )),
+    match result {
+        Ok(()) => 0,
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            1
+        }
     }
 }
-
-#[cfg(test)]
-#[path = "command_loop/tests.rs"]
-mod command_loop_tests;

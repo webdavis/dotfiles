@@ -15,7 +15,7 @@ use crate::*;
 /// the episode decision to fall out of step. The consequence is deliberate: a
 /// hand-run `pns home` no longer consumes an episode silently, it delivers it.
 pub(crate) fn home_mode() {
-    use pns::home::{HomePresence, SetupFailure, report, setup_report};
+    use pns::home::{SetupFailure, report, setup_report};
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
@@ -66,66 +66,24 @@ pub(crate) fn home_mode() {
         return;
     };
     let router = pns::home::UniFiRouter::new(settings.router_url, key);
-    // STILL WIRING: the library decides what is stale, what its episode is
-    // called and whether that is news; this reads the memory, prints, and
-    // writes the memory back.
-    let reading = pns::home::read_home(&router, &settings.device);
-    // ONE DERIVATION, ONE DECISION. The episode is spelled once and the news
-    // decided once, then the SAME value is what gets printed and what gets
-    // remembered: two derivations of one fact, one in the print and one in
-    // the write, can only stay in step for as long as neither grows a
-    // condition of its own.
-    let staleness = pns::home::stale_identifiers(&reading);
-    let episode = staleness.as_ref().map(pns::home::episode_id);
-    let news = pns::home::is_new_staleness(remembered_staleness().as_deref(), episode.as_deref());
-    // ONE VALUE FEEDS BOTH SURFACES. The sentence the terminal prints and the
-    // sentence the alert carries come out of this same Option, so there is no
-    // second condition that could deliver what was not printed, or print what
-    // was not delivered. It is Some only for a HOME reading with a
-    // disagreement that is news, which is what keeps away, unreadable and
-    // already-told runs silent without a guard of their own.
-    let alert = staleness.as_ref().filter(|_| news);
-    println!("{}", report(&reading, alert));
-    // THE WARNING, DELIVERED. An ordinary event ABOUT the reading, handed to
-    // the one event path: presence, surface and the leg plan decide where it
-    // lands exactly as they do for a finished agent turn. Nothing narrows it
-    // and it is not long-running, so it raises no pulse.
-    //
-    // DISPATCH BEFORE REMEMBER, AND THE ORDER IS LOAD-BEARING. Tidied into
-    // remember-then-dispatch it would silently LOSE an alert: a crash, a
-    // wedged channel or a kill between the two leaves the episode recorded
-    // and never delivered, and the next run reads it as already told. This
-    // way round the same interruption re-alerts instead, and two overlapping
-    // hand runs that both read the memory before either writes both alert.
-    // Duplicates are the direction to fail in.
-    //
-    // THE COST, ACCEPTED: the delivery OUTCOME is not consulted before the
-    // write either, so a post the gateway rejected consumes the episode just
-    // as a delivered one does. Fire-and-forget is this engine's contract for
-    // every producer, and the printed line above has already told the one
-    // human who typed the command.
-    if let Some(staleness) = alert {
+    pns_application::ReadHomeProbe {
+        router: &router,
+        memory: &pns_adapters::HomeStaleness,
+        notifier: &HomeNotification,
+    }
+    .run(&settings.device, alert_route, |reading, alert| {
+        println!("{}", report(reading, alert));
+    });
+}
+
+struct HomeNotification;
+impl pns_application::RaiseNotification for HomeNotification {
+    fn raise(&self, event: &pns_domain::EventArgs) {
         run_event(
-            &pns::args::EventArgs {
-                agent: "pns".to_string(),
-                state: "stale".to_string(),
-                detail: pns::home::stale_warning(staleness),
-                channel: alert_route,
-                ..Default::default()
-            },
+            event,
             &system_probes(),
             &HookPayload::default(),
             Attempt::First,
         );
-    }
-    // ONLY A HOME READING HAS AN OPINION ABOUT THE IDENTIFIERS. NotHome and
-    // Unknown both hand `stale_identifiers` a None, and writing that back
-    // would read "the disagreement resolved" out of a trip to the shops or a
-    // five-second router timeout: the same invention as reading a failed
-    // fetch as NotHome, one layer up. Away and unreadable leave the memory
-    // untouched, so the warning stays once per STATE rather than once per
-    // homecoming.
-    if matches!(reading.presence, HomePresence::Home { .. }) {
-        remember_staleness(episode.as_deref());
     }
 }

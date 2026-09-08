@@ -102,8 +102,11 @@ const CLAIM_INFIX: &str = ".claim.";
 /// `RECORD_SUFFIX` and this does not, and neither does the claim taken from it.
 pub const FIRE_LOCK: &str = "fire.lock";
 
-#[cfg(test)]
-mod tests;
-
 mod claims;
 pub use claims::{claim_fire, claim_record, record_entries, release_fire};
+
+mod records;
+pub use records::FileNagRecords;
+
+#[cfg(test)]
+mod tests;

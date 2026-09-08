@@ -148,3 +148,19 @@ fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
         .iter()
         .filter(move |entry| crate::quiet::is_muted(Some(entry.expiry), now))
 }
+
+/// What the operator typed at `pns lights quiet`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuietCommand {
+    /// No argument at all: say what is quiet and mute nothing. There is no
+    /// untimed form, for `pns quiet`'s reason: a mute the operator forgets is
+    /// a lamp that has silently stopped working.
+    Report,
+    Mute {
+        place: String,
+        seconds: u64,
+    },
+    Unmute {
+        place: String,
+    },
+}

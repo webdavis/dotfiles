@@ -71,7 +71,7 @@ fn read_ring(path: &Path) -> Result<Option<String>, String> {
             if error.kind() == std::io::ErrorKind::NotFound {
                 Ok(None)
             } else {
-                Err(format!("{:?}: {error}", error.kind()))
+                Err(error.kind().to_string())
             }
         })
 }
@@ -115,3 +115,27 @@ pub const ACTIVITY_KEPT: usize = 150;
 /// 260: the recap renders one line per event among a hundred, and the full text
 /// of every event already reached the durable log the recap's tail points at.
 pub const ACTIVITY_MAX_CHARS: usize = 120;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn doctor_ring_reads_keep_absence_and_error_kind_without_exposing_paths() {
+        let state = crate::state_fixtures::scratch("doctor-record-kinds");
+        let records = FileRecords::new(state.clone());
+        assert_eq!(DecisionRing::read(&records), Ok(None));
+        assert_eq!(Journal::read(&records), Ok(None));
+        std::fs::create_dir(state.join(DECISIONS)).unwrap();
+        std::fs::create_dir(state.join(MISSED_NOTIFICATIONS)).unwrap();
+        assert_eq!(
+            DecisionRing::read(&records),
+            Err(std::io::ErrorKind::InvalidInput.to_string())
+        );
+        assert_eq!(
+            Journal::read(&records),
+            Err(std::io::ErrorKind::InvalidInput.to_string())
+        );
+        assert!(state.join(DECISIONS).is_dir());
+        assert!(state.join(MISSED_NOTIFICATIONS).is_dir());
+    }
+}

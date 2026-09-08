@@ -23,22 +23,21 @@
 // THE LAMP RESOLUTION POLICY moved to `pns-domain`, one file per question it
 // answers. What stays here parses: the `[plugins.hue]` settings, the quiet
 // window off a config string, and the bridge's own JSON listing.
-use pns_domain::lamps::{Fixture, Muting, Routing, Showing, resolve};
 
 mod inventory;
 mod settings;
-pub use inventory::{grouped_light_ids_for_rooms, inventory};
+pub use inventory::{bridge_inventory, grouped_light_ids_for_rooms, inventory};
 pub use settings::{DEFAULT_ROOMS, HueSettings, hue_settings, quiet_window};
 mod bodies;
 mod bridge;
-mod render;
+mod typed;
+pub use typed::TypedLampBridge;
 
 pub use bodies::{breath_arm_body, clear_body, fade_body, pulse_body};
 pub use bridge::{
-    BRIDGE_DEADLINE, Bridge, HuePulse, Reading, TYPED_COMMAND_DEADLINE, UreqBridge, clear_held,
-    fixture_path, resolve_on_bridge, signal_fixtures,
+    BRIDGE_DEADLINE, Bridge, HuePulse, TYPED_COMMAND_DEADLINE, UreqBridge, clear_held,
+    resolve_on_bridge, signal_fixtures,
 };
-pub use render::{held_render, pulse_render};
 
 #[cfg(test)]
 mod tests;

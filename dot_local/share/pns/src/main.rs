@@ -11,14 +11,9 @@
 //! still open: `home` is a diagnostic that always exits 0, and a word
 //! trailing `lights tick` is dropped rather than refused.
 
-use pns_adapters::LIGHTS_QUIET_SAID;
 pub(crate) use std::collections::BTreeMap;
-pub(crate) use std::io::{IsTerminal, Read, Write};
-pub(crate) use std::os::unix::fs::OpenOptionsExt;
-pub(crate) use std::os::unix::process::CommandExt;
 pub(crate) use std::path::Path;
-pub(crate) use std::process::{Command, Stdio};
-pub(crate) use std::time::{Duration, UNIX_EPOCH};
+pub(crate) use std::time::Duration;
 
 pub(crate) use pns::args::parse_args;
 pub(crate) use pns::channels::banner::BannerChannel;
@@ -26,8 +21,7 @@ pub(crate) use pns::channels::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
 };
 pub(crate) use pns::channels::hue::{
-    BRIDGE_DEADLINE, HuePulse, TYPED_COMMAND_DEADLINE, UreqBridge, hue_settings, quiet_now,
-    quiet_window,
+    BRIDGE_DEADLINE, HuePulse, UreqBridge, hue_settings, quiet_window,
 };
 pub(crate) use pns::channels::moshi::{
     DEFAULT_MOSHI_URL, MOSHI_TYPE, MoshiChannel, UreqPost, mobile_backend, moshi_secret,
@@ -37,14 +31,11 @@ pub(crate) use pns::channels::{Delivery, native_first};
 pub(crate) use pns::config::{LoadOutcome, config_path, load_config};
 pub(crate) use pns::engine::{Overrides, decide};
 pub(crate) use pns::hooks::{
-    HookPayload, condenser_prompt, condenser_verdict, flattened, moshi_subcommand, parse_payload,
-    transcript_reply,
+    HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
 };
 pub(crate) use pns::registry::{roster, select_plugins};
 pub(crate) use pns::render;
-pub(crate) use pns::system::{
-    PROBE_READ_MAX, SystemCommandRunner, SystemProbes, local_minutes_since_midnight, run_bounded,
-};
+pub(crate) use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight};
 
 mod channel_dispatch;
 mod channel_settings;
@@ -59,56 +50,41 @@ mod command_pulse;
 mod command_quiet;
 mod command_recap;
 mod command_setup;
-mod daemon_child_runtime;
 mod daemon_runtime;
-mod daemon_spool_runtime;
-mod doctor_reports;
 mod event_flow;
-mod focus_runtime;
 mod hook_dispatch;
 mod hook_observations;
 mod hook_payload;
 mod invocation;
-mod lamp_diagnostics;
 mod lamp_event_lease;
 mod lamp_pulse;
-mod lights_breath_runtime;
-mod lights_house_runtime;
 mod lights_tick_runtime;
-mod lights_tick_writes;
 mod moshi_submission;
 mod nag_schedule_runtime;
 mod presence_runtime;
 mod recap_delivery_runtime;
-mod recap_sources_runtime;
 mod return_replay;
 mod runtime_environment;
-mod setup_walk;
-mod turn_condenser;
 mod turn_lifecycle;
 mod turn_text;
 
 pub(crate) use channel_dispatch::dispatch_legs;
 pub(crate) use channel_settings::{
-    Mobile, disabled_backend_warnings, enabled_hue_table, plugin_settings, read_mobile,
+    Mobile, disabled_backend_warnings, plugin_settings, read_mobile,
 };
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_home::home_mode;
-pub(crate) use command_lights::{ad_hoc_quiet, lights_mode};
+pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;
 pub(crate) use command_nag::nag_mode;
-pub(crate) use command_presence::{ensure_presence_poll, presence_mode, presence_settings};
+pub(crate) use command_presence::presence_mode;
 pub(crate) use command_pulse::pulse_mode;
 pub(crate) use command_quiet::{muted_now, quiet_mode};
 pub(crate) use command_recap::recap_mode;
 pub(crate) use command_setup::setup_mode;
-pub(crate) use daemon_child_runtime::{Bounded, child_bound, reap, spawn_job};
 pub(crate) use daemon_runtime::daemon_run;
-pub(crate) use daemon_spool_runtime::drain_spool;
-pub(crate) use doctor_reports::{daemon_line, decision_section, missed_line, read_pairing};
 pub(crate) use event_flow::{Attempt, run_event};
-pub(crate) use focus_runtime::focus_line;
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
     arm_quota_stale_wait, config_change_detail, model_switch_detail, quota_observation_detail,
@@ -116,50 +92,27 @@ pub(crate) use hook_observations::{
 };
 pub(crate) use hook_payload::{payload_is_whole, read_payload};
 pub(crate) use invocation::{USAGE, event_mode, is_producer_argv, second_argument};
-pub(crate) use lamp_diagnostics::{hue_resolves, lights_report, pulse_outcome};
-pub(crate) use lamp_event_lease::{
-    LIGHTS_JOB, ORDINARY_LEASE_SECS, clear_held_lamps, register_lights_tick, schedule_lights_tick,
-};
-pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_unless_quiet, routing_complaints};
-pub(crate) use lights_breath_runtime::{Breathing, drive_breaths};
-pub(crate) use lights_house_runtime::lights_house;
+pub(crate) use lamp_event_lease::clear_held_lamps;
+pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_unless_quiet};
 pub(crate) use lights_tick_runtime::lights_tick;
-pub(crate) use lights_tick_writes::{run_tick_writes, tick_bridge_deadline};
-pub(crate) use moshi_submission::{blocking_event, gate_mode, moshi_hook_bin};
-pub(crate) use nag_schedule_runtime::{BLOCKED_STATE, NAG_OFF, arm_nag, clear_nag, nag_after_secs};
-pub(crate) use pns_adapters::config_publication::publish_config;
+pub(crate) use moshi_submission::{blocking_event, gate_mode};
+pub(crate) use nag_schedule_runtime::{NAG_OFF, arm_nag, clear_nag, nag_after_secs};
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
-pub(crate) use pns_adapters::marker_files::{
-    blocked_lamp, sweep_leases, sweep_legacy_state, sweep_shell_markers,
-};
 pub(crate) use pns_adapters::marker_files::{end_blocked_wait, update_blocked_marker};
+pub(crate) use pns_adapters::record_news;
 pub(crate) use pns_adapters::return_window::mark_present;
-pub(crate) use pns_adapters::{DECISIONS, MISSED_NOTIFICATIONS};
-pub(crate) use pns_adapters::{HeldLock, claim_lock};
-pub(crate) use pns_adapters::{RING_READ_MAX, append_ring_line, publish_state_line};
-pub(crate) use pns_adapters::{
-    held_lamps, read_held, read_news, record_news, remember_held, say_lights_once,
-};
-pub(crate) use pns_adapters::{remember_staleness, remembered_staleness};
+pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, git_branch, spawn_recap};
+pub(crate) use pns_adapters::{RING_READ_MAX, publish_state_line};
 pub(crate) use presence_runtime::{
-    home_presence, last_narrowing, narrow_to_presence, presence_snapshot, presence_status,
-    system_probes,
-};
-pub(crate) use recap_delivery_runtime::post_recap;
-pub(crate) use recap_sources_runtime::{
-    found, merged_pull_requests, notes_matching, read_sources, truncated,
+    home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
 pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
     env_deadline, executable_in_path, now_secs, overrides_from_env, resolve_path, state_dir,
 };
-pub(crate) use setup_walk::walk;
-pub(crate) use turn_condenser::condense;
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;
-
-pub(crate) use pns_adapters::marker_files::{marker_path, write_marker};
 
 fn main() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
@@ -276,6 +229,9 @@ fn main() {
     event_mode(&argv);
 }
 
+pub(crate) use pns_adapters::enabled_hue_table;
+pub(crate) use pns_domain::lamps::tick_bridge_deadline;
+
 #[cfg(test)]
 mod runtime_test_support;
 
@@ -283,3 +239,10 @@ mod runtime_test_support;
 pub(crate) use command_presence::{Polled, write_presence_reading};
 #[cfg(test)]
 pub(crate) use pns_adapters::LIGHTS_HELD;
+
+#[cfg(test)]
+mod lights_breath_runtime;
+#[cfg(test)]
+mod lights_tick_writes;
+#[cfg(test)]
+use pns_adapters::{held_lamps, read_held};

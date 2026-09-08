@@ -1,5 +1,8 @@
 use super::*;
 use crate::device_identity;
+use pns_application::{Router, read_home};
+use pns_domain::home::DeviceIdentity;
+use pns_domain::home::home_reading;
 use pns_domain::home::{Client, DeviceKey, HomePresence, KeyOutcome, stale_identifiers};
 mod fixtures;
 use fixtures::*;

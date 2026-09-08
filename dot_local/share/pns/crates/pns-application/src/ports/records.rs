@@ -130,22 +130,12 @@ pub trait LampRecords {
 
 /// The daemon's spool of scheduled jobs.
 ///
-/// `claim` IS WHAT MAKES A JOB RUN ONCE. Two daemons reading the same spool
-/// both see a job; only the one whose claim succeeds may run it, and on macOS
-/// that has to be a rename rather than a delete, because concurrent unlink
-/// reports success to every racer on APFS.
+/// Reading a pending job preserves its due time when a lamp refreshes its lease.
+/// The daemon's claim and read-again operations belong to `DaemonSpool`.
 pub trait JobSpool {
-    fn schedule(&self, id: &str, line: &str, now: u64) -> Result<(), String>;
+    fn pending(&self, id: &str) -> Option<Job>;
+    fn schedule(&self, job: &Job, now: u64) -> Result<(), String>;
     fn cancel(&self, id: &str) -> Result<bool, String>;
-    fn due(&self, now: u64) -> Vec<String>;
-    fn claim(&self, id: &str) -> bool;
-
-    /// Publish a daemon-held occurrence only if its id is still absent.
-    /// `Ok(false)` preserves a newer client registration; `Ok(true)` published
-    /// this occurrence. Errors stay distinct from either successful outcome.
-    /// This is `hand_back` in `src/daemon/spool.rs`, consumed by both the wait
-    /// and re-arm paths in `src/daemon_spool_runtime.rs`.
-    fn hand_back(&self, job: &Job) -> Result<bool, String>;
 }
 
 /// The marker behind the blocked lamp: one wait, started and cleared.
