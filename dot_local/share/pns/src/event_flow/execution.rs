@@ -123,6 +123,7 @@ pub(super) fn execute(
         &selection,
         &overrides,
         pns_domain::DecisionRequest {
+            observation: event.state == "observation",
             local_only: event.local_only,
             remote_only: event.remote_only,
             pane: &event.pane,

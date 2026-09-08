@@ -26,6 +26,7 @@ pub struct DecisionRequest<'a> {
     pub now_secs: Option<u64>,
     pub long_running: bool,
     pub mobile_watch_card: bool,
+    pub observation: bool,
     pub silence_policy: SilencePolicy,
 }
 

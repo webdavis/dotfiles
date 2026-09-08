@@ -143,6 +143,7 @@ fn decision_retention(records: &impl DecisionRing) {
             &selection,
             &overrides,
             pns_domain::DecisionRequest {
+                observation: false,
                 silence_policy: pns_domain::SilencePolicy::Respect,
                 local_only: false,
                 remote_only: false,

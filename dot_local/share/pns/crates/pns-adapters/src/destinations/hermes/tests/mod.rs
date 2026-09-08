@@ -81,3 +81,5 @@ fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
         mode,
     }
 }
+
+mod observation;
