@@ -89,3 +89,5 @@ fn killing_a_descendant_at_the_deadline_does_not_turn_partial_output_into_an_ans
 }
 
 mod lifecycle;
+
+mod descriptors;

@@ -238,8 +238,11 @@ so a child that does not read its stdin cannot block the caller.
 - **U2: bounded commands retain cleanup after producer death.** The shared adapter process runner starts
   a cleanup child before launching a command. The command joins that child's process group; completion,
   the original deadline or loss of the producer's pipe terminates the group. The producer reaps its
-  direct command and cleanup child while alive. Startup refusal occurs before command side effects. Probe
-  failures still return no reading, and launched executable channels remain silent. Descendants that
+  direct command and cleanup child while alive. Startup refusal occurs before command side effects.
+  Cleanup queries the fork child's actual descriptor table in bounded batches, keeping only its owner
+  and readiness pipe ends. Failed queries or closes refuse launch; the configured descriptor ceiling
+  does not determine startup work. Probe failures still return no reading, and launched executable
+  channels remain silent. Descendants that
   deliberately create a different process group or session are outside this guarantee. The recap's
   explicit owner (U1), specialized Moshi submission (P4) and daemon supervision retain separate lifecycle
   contracts. Arbitrarily detached descendants remain outside the shared runner's guarantee.
