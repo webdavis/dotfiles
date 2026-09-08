@@ -32,3 +32,6 @@ pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,
 };
+
+mod alarm;
+pub use alarm::{AlarmFailed, IndependentAlarm};

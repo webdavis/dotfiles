@@ -54,3 +54,8 @@ mod probes;
 pub use probes::ControlProbes;
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
+
+mod pns_producer;
+pub use pns_producer::PnsProducer;
+mod last_resort_banner;
+pub use last_resort_banner::LastResortBanner;
