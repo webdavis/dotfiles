@@ -1,0 +1,4 @@
+[package]
+name = "lights-protocol"
+version.workspace = true
+edition.workspace = true
