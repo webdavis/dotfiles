@@ -9,10 +9,13 @@
 //! the other way round.
 
 pub(super) mod clock;
+pub(super) mod decision_outcomes;
 pub(super) mod delivery;
+pub(super) mod delivery_health;
 pub(super) mod devices;
 pub(super) mod environment;
 pub(super) mod harness;
+pub(super) mod ledger;
 pub(super) mod notification;
 pub(super) mod process;
 pub(super) mod records;
@@ -30,7 +33,3 @@ pub(super) mod lamp_house;
 pub(super) mod recap;
 
 pub(crate) mod setup;
-
-pub(super) mod ledger;
-
-pub(super) mod decision_outcomes;

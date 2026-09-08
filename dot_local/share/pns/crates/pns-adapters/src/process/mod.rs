@@ -1,4 +1,6 @@
 mod bounded;
+mod group;
+pub(crate) use group::Group;
 mod wait;
 pub use bounded::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};
 

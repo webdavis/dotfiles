@@ -24,6 +24,7 @@ fn record<T>(now: u64, legs: &[(Leg, Delivery)], use_record: impl FnOnce(&Record
         &Registry::new().all(),
         &overrides,
         DecisionRequest {
+            silence_policy: pns_domain::SilencePolicy::Respect,
             local_only: false,
             remote_only: false,
             pane: "",

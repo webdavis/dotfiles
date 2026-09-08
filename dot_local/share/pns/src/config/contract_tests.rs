@@ -49,7 +49,7 @@ const CONFIG_VALUES: &str = include_str!("../../../../../dot_config/pns/config-v
 /// DEFAULT rather than commented, which this does not catch. That case
 /// still reads as a changed value in the template's own diff, where a
 /// whole table going commented reads as a comment reflow.
-const LIVE_TABLES: [&str; 23] = [
+const LIVE_TABLES: [&str; 24] = [
     "plugins.mobile",
     "plugins.hermes",
     "plugins.macos-banner",
@@ -57,6 +57,7 @@ const LIVE_TABLES: [&str; 23] = [
     "plugins.presence",
     "plugins.router",
     "daemon",
+    "delivery",
     "recap",
     "nag",
     "lights",

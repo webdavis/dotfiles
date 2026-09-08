@@ -5,7 +5,9 @@ fn a_live_initial_lease_blocks_retries_until_its_exact_boundary_and_preserves_or
         let store = SqliteStore::new(state());
         let input = submission();
         created(&store, &input);
-        let claim = store.claim_retry(lease(now, now + 10)).unwrap();
+        let claim = store
+            .claim_retry(lease(now, now + 10), Default::default())
+            .unwrap();
         if now == 19 {
             assert!(claim.is_none(), "live initial dispatch owns the leg");
             continue;
@@ -28,7 +30,7 @@ fn invalid_or_overflow_edge_lease_windows_do_not_create_or_claim_rows() {
             LedgerFailure::InvalidLease
         );
         assert_eq!(
-            store.claim_retry(window).unwrap_err(),
+            store.claim_retry(window, Default::default()).unwrap_err(),
             LedgerFailure::InvalidLease
         );
     }
@@ -39,7 +41,7 @@ fn invalid_or_overflow_edge_lease_windows_do_not_create_or_claim_rows() {
     assert!(matches!(legs, PreparedSubmission::Created { .. }));
     assert!(
         store
-            .claim_retry(lease(u64::MAX - 2, u64::MAX))
+            .claim_retry(lease(u64::MAX - 2, u64::MAX), Default::default())
             .unwrap()
             .is_none()
     );
@@ -49,7 +51,10 @@ fn a_stale_generation_cannot_acknowledge_a_released_leg() {
     let store = SqliteStore::new(state());
     let input = submission();
     let legs = created(&store, &input);
-    let retry = store.claim_retry(lease(20, 30)).unwrap().unwrap();
+    let retry = store
+        .claim_retry(lease(20, 30), Default::default())
+        .unwrap()
+        .unwrap();
     assert_eq!(
         store.record(&legs[0].claim, &acknowledged(), 21),
         Err(LedgerFailure::LostClaim)

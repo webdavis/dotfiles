@@ -17,6 +17,7 @@ pub fn decide(
         now_secs,
         long_running,
         mobile_watch_card,
+        silence_policy,
     } = request;
     let reading = surface_reading(snapshot, overrides, now_secs);
     let session_visibility = operator_visibility(snapshot, pane);
@@ -57,25 +58,14 @@ pub fn decide(
         phone_card: !overrides.skip_phone && (overrides.force_phone || delivery.phone_card),
         ..delivery
     };
-    // THE TWO MUTES, applied LAST and therefore beating `PNS_FORCE_PHONE`
-    // above them. Force is a producer's per-event opinion set in the
-    // environment; the operator's mute is their own typed, expiring
-    // instruction, and a macOS Focus they named in `[focus] silence` is the
-    // same instruction with the operating system as its author. A mute any
-    // producer can override is not a mute.
-    //
-    // ONE CONDITION FOR BOTH, so every downstream property (the journal, the
-    // deferred replay, beating force, the decision log) follows from one rule
-    // rather than from two that could drift. The durable log is not a field of
-    // `DeliveryPlan`, so the record survives both of them structurally.
-    //
-    // A FULL STRUCT LITERAL WITH NO `..delivery`, deliberately: it is what
-    // forces a future field of `DeliveryPlan` to state its own answer here
-    // rather than inherit an unmuted one. Do not tidy it into a struct update.
+    // A configured class can preserve the banner and phone already selected
+    // above. Silence still suppresses the pulse; caller scope and presence
+    // remain authoritative, and the durable log stays outside this plan.
     let delivery = if overrides.silenced() {
         crate::surface::DeliveryPlan {
-            banner: false,
-            phone_card: false,
+            banner: silence_policy == super::SilencePolicy::BypassBannerAndPhone && delivery.banner,
+            phone_card: silence_policy == super::SilencePolicy::BypassBannerAndPhone
+                && delivery.phone_card,
             pulse: false,
         }
     } else {

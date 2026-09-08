@@ -32,3 +32,23 @@ pub(in crate::persistence::sqlite) fn create(
     )?;
     Ok(())
 }
+
+pub(in crate::persistence::sqlite) fn retain_request(
+    transaction: &Transaction<'_>,
+) -> Result<(), StoreError> {
+    transaction.execute_batch("ALTER TABLE ledger_events ADD COLUMN producer_request TEXT;")?;
+    Ok(())
+}
+
+pub(in crate::persistence::sqlite) fn retain_deadletters(
+    transaction: &Transaction<'_>,
+) -> Result<(), StoreError> {
+    transaction.execute_batch("ALTER TABLE ledger_legs ADD COLUMN deadlettered_at BLOB CHECK(deadlettered_at IS NULL OR length(deadlettered_at) = 8);
+        ALTER TABLE ledger_legs ADD COLUMN deadletter_reason TEXT CHECK(deadletter_reason IN ('attempts','age'));
+        CREATE TABLE delivery_health(id INTEGER PRIMARY KEY CHECK(id = 1), previous_pending INTEGER,
+          growth INTEGER NOT NULL DEFAULT 0 CHECK(growth BETWEEN 0 AND 2),
+          generation INTEGER NOT NULL DEFAULT 0 CHECK(generation >= 0),
+          acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged >= 0 AND acknowledged <= generation));
+        INSERT INTO delivery_health(id) VALUES (1);")?;
+    Ok(())
+}

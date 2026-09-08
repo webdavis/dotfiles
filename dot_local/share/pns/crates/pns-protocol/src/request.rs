@@ -21,7 +21,7 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 14] = [
+const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
     "producer",
@@ -34,6 +34,7 @@ const KNOWN_FIELDS: [&str; 14] = [
     "context",
     "scope",
     "route",
+    "class",
     "interaction",
     "extensions",
 ];
@@ -125,6 +126,9 @@ pub struct Request {
     pub scope: DeliveryScope,
     #[serde(default)]
     pub route: Option<Name>,
+    /// An operator-configured delivery class, independent of producer and route.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class: Option<Name>,
     #[serde(default)]
     pub interaction: Interaction,
     /// Producer-specific data, carried verbatim and never read here.
@@ -157,6 +161,7 @@ impl Request {
             context: Context::default(),
             scope: DeliveryScope::default(),
             route: None,
+            class: None,
             interaction: Interaction::default(),
             extensions: Map::new(),
         }

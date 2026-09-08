@@ -6,13 +6,10 @@
 //! free-form here: this layer proves the shape, the registry interprets the
 //! contents, and neither knows the other's plugin names.
 //!
-//! `[recap]`, `[focus]`, `[daemon]` and `[lights]` are the four top-level
-//! tables that are not plugins: four booleans, two counts, one argument list,
-//! one list of Focus mode names and the lamp policy's own scalars and maps,
-//! all read by THIS layer. Because it reads them, it can judge them, so an
-//! unknown key inside any of them, a count that is not a threshold, and a
-//! summarizer that is not a list of command words are refused rather than
-//! passed along the way a plugin's settings are.
+//! The top-level policy tables are read by this layer rather than a plugin.
+//! Their booleans, thresholds, command arguments, Focus and delivery-class
+//! names, and lamp settings are validated here. Unknown keys, invalid counts
+//! and malformed command lists are refused rather than passed through.
 //!
 //! Failure directions, each pinned by a test: a MALFORMED file is a loud
 //! error and never a silent empty config, because a typo that turns every
@@ -40,9 +37,12 @@ mod recap_values;
 use recap_values::{argv, seconds, threshold};
 mod recap_sources;
 use recap_sources::{note_glob, repositories};
+mod delivery;
+use delivery::parse_delivery;
 mod focus;
 use focus::parse_focus;
 mod daemon;
+mod retry;
 pub use daemon::DaemonConfig;
 use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
 mod nag;

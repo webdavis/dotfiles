@@ -3,16 +3,17 @@ use super::{
 };
 use crate::destinations::{Delivery, Event};
 use crate::hermes_secret;
+use pns_application::{DeliveryRequest, NotificationDestination};
 use pns_domain::routing::ReportMode;
-use std::cell::RefCell;
+use std::sync::Mutex;
 use std::time::Duration;
 
 /// url, body, signature, deadline: one recorded post.
-type RecordedPost = (String, String, String, Option<Duration>);
+type RecordedPost = (String, String, String, Option<Duration>, Option<String>);
 
 struct RecordingPost {
     outcome: PostOutcome,
-    posts: RefCell<Vec<RecordedPost>>,
+    posts: Mutex<Vec<RecordedPost>>,
 }
 
 impl SignedPost for RecordingPost {
@@ -21,13 +22,15 @@ impl SignedPost for RecordingPost {
         url: &str,
         body: &str,
         signature_hex: &str,
+        idempotency_key: Option<&str>,
         deadline: Option<Duration>,
     ) -> PostOutcome {
-        self.posts.borrow_mut().push((
+        self.posts.lock().unwrap().push((
             url.to_string(),
             body.to_string(),
             signature_hex.to_string(),
             deadline,
+            idempotency_key.map(str::to_owned),
         ));
         self.outcome
     }
@@ -50,7 +53,7 @@ fn channel_with_settings(settings: &str, outcome: PostOutcome) -> HermesChannel<
     HermesChannel {
         post: RecordingPost {
             outcome,
-            posts: RefCell::new(Vec::new()),
+            posts: Mutex::new(Vec::new()),
         },
         key: hermes_secret(&settings.parse().unwrap()),
         url: "http://127.0.0.1:9/test".to_string(),
@@ -66,3 +69,15 @@ mod posting;
 mod values;
 
 mod routes;
+
+mod request;
+
+fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
+    DeliveryRequest {
+        producer: "test",
+        request_id: Some("original-42"),
+        event,
+        route: "",
+        mode,
+    }
+}

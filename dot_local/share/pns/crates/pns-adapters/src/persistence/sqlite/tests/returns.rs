@@ -16,7 +16,7 @@ fn the_return_edge_and_waiting_journal_are_claimed_together_and_completion_prese
     let store = SqliteStore::new(state.clone());
     let _keep_wal_open = store.connect().unwrap();
     store.mark_present(10).unwrap();
-    store.record_journal(&event("old"), Some(11)).unwrap();
+    store.record_journal(&event("old"), Some(11), None).unwrap();
     let first =
         ReturnMoment::claim(&store, Some(12), true).expect("the first return owns both records");
     assert_eq!(first.since, Some(10));
@@ -31,7 +31,9 @@ fn the_return_edge_and_waiting_journal_are_claimed_together_and_completion_prese
         ReturnMoment::claim(&store, Some(13), true).is_none(),
         "one owner must finish its previous batch"
     );
-    store.record_journal(&event("later"), Some(13)).unwrap();
+    store
+        .record_journal(&event("later"), Some(13), None)
+        .unwrap();
     ReturnMoment::complete(&store);
     assert!(Journal::read(&store).unwrap().unwrap().contains("later"));
     assert!(!Journal::read(&store).unwrap().unwrap().contains("old"));
@@ -49,7 +51,7 @@ fn claiming_only_the_return_edge_never_takes_the_journal_and_an_unknown_clock_ne
     let store = SqliteStore::new(state());
     let _keep_wal_open = store.connect().unwrap();
     store.mark_present(u64::MAX).unwrap();
-    store.record_journal(&event("pending"), None).unwrap();
+    store.record_journal(&event("pending"), None, None).unwrap();
     for now in [None, Some(0), Some(u64::MAX - 1)] {
         let claim = store.claim_return(now, false).unwrap().unwrap();
         assert_eq!(claim.since, Some(u64::MAX));
@@ -63,7 +65,7 @@ fn an_unfinished_return_is_preserved_when_its_store_drops_and_another_live_owner
     let state = state();
     let store = SqliteStore::new(state.clone());
     let connection = store.connect().unwrap();
-    store.record_journal(&event("held"), Some(1)).unwrap();
+    store.record_journal(&event("held"), Some(1), None).unwrap();
     assert_eq!(
         store
             .claim_return(Some(2), true)
@@ -76,12 +78,8 @@ fn an_unfinished_return_is_preserved_when_its_store_drops_and_another_live_owner
     drop(store);
     let other = SqliteStore::new(state);
     assert!(
-        other
-            .claim_return(Some(3), true)
-            .unwrap()
-            .unwrap()
-            .waiting
-            .is_empty()
+        other.claim_return(Some(3), true).unwrap().is_none(),
+        "another live owner holds the whole return moment"
     );
     assert_eq!(
         connection
@@ -98,7 +96,9 @@ fn a_busy_return_claim_fails_closed_without_advancing_the_edge_or_consuming_the_
     store.busy_timeout = Duration::from_millis(5);
     let mut connection = store.connect().unwrap();
     store.mark_present(1).unwrap();
-    store.record_journal(&event("pending"), Some(2)).unwrap();
+    store
+        .record_journal(&event("pending"), Some(2), None)
+        .unwrap();
     let transaction = connection
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .unwrap();
@@ -116,12 +116,12 @@ fn pruning_later_arrivals_cannot_evict_the_batch_an_active_return_still_owns() {
     let store = SqliteStore::new(state());
     let connection = store.connect().unwrap();
     store
-        .record_journal(&event("owned batch"), Some(1))
+        .record_journal(&event("owned batch"), Some(1), None)
         .unwrap();
     store.claim_return(Some(2), true).unwrap().unwrap();
     for n in 0..26 {
         store
-            .record_journal(&event(&format!("later {n}")), Some(n + 3))
+            .record_journal(&event(&format!("later {n}")), Some(n + 3), None)
             .unwrap();
     }
     assert_eq!(
@@ -145,3 +145,5 @@ fn pruning_later_arrivals_cannot_evict_the_batch_an_active_return_still_owns() {
 }
 
 mod shared_owner;
+
+mod replay;

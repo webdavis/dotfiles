@@ -688,26 +688,65 @@ existing historical limitations, rather than product delivery guarantees.
 | `support::guard_tests::no_ci_signal_resolves_the_local_ceiling`                       |
 | `support::guard_tests::the_live_ceiling_follows_this_process_environment`             |
 
-## Atomic delivery completion and shared return ownership
+## Durable return handoff, plan 11.4
 
-The storage continuation adds nine cases to the existing 1,793 outcomes. The six completion cases
-exercise one ledger-and-decision transaction; the three ownership cases exercise shared callbacks and
-failure before commit. Each addition has an independently compiled source fault below. The existing
-activity-retention case seeds its first 149 records in one transaction, then calls the real writer at
-both retention boundaries. Its retained-151 fault still fails the same assertion. Retry-outcome and
-legacy-separator cases retain their assertions and keep fixture connections open between operations.
+Eleven new leaves cover the S158, S242 and S243 successor behavior below. The original S159 predicate and
+submission-tail change is a separate part of the same delivery batch. Numbers refer to
+`specs/persistence-and-process-lifecycle.md`. The historical schema names advance current/future values
+from 3/4 to 4/5 and retain their existing privacy, rollback and refusal assertions.
 
-| Added test                                                                                                                                    | Independent faults caught                                                                                                                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `persistence::sqlite::ledger::tests::completion::refusals::a_malformed_decision_rolls_back_completion_and_keeps_the_owned_attempt_unfinished` | `decision-error-is-discarded`                                                                                                                                                                                             |
-| `persistence::sqlite::ledger::tests::completion::visibility::an_observer_sees_ledger_and_decision_completion_in_one_snapshot`                 | `completion-split-across-commits`                                                                                                                                                                                         |
-| `persistence::sqlite::ledger::tests::completion::refusals::a_decision_write_refusal_rolls_back_completion_without_losing_claim_ownership`     | `decision-error-is-discarded`                                                                                                                                                                                             |
-| `persistence::sqlite::ledger::tests::completion::visibility::a_suspended_worker_cannot_revise_after_a_competing_generation_finishes`          | `stale-claim-revises-decision`                                                                                                                                                                                            |
-| `persistence::sqlite::ledger::tests::completion::verdicts::a_pruned_or_absent_decision_does_not_block_owned_completion_or_reappear`           | `pruned-decision-refuses-completion`                                                                                                                                                                                      |
-| `persistence::sqlite::ledger::tests::completion::verdicts::completing_an_owned_leg_preserves_its_identity_and_exact_printable_verdict`        | `decision-write-omitted`, `acknowledged-prints-failed`, `failed-prints-silent`, `unlaunched-prints-failed`, `unknown-prints-acknowledged`, `wrong-original-producer`, `wrong-original-request`, `wrong-owned-destination` |
-| `persistence::sqlite::tests::returns::shared_owner::a_refused_completion_keeps_the_shared_owner_until_its_transaction_can_commit`             | `completion-forgets-before-commit`                                                                                                                                                                                        |
-| `persistence::sqlite::tests::returns::shared_owner::an_interrupted_return_owner_refuses_claim_and_completion_without_changing_its_records`    | `claim-ignores-poison`, `completion-ignores-poison`                                                                                                                                                                       |
-| `persistence::sqlite::tests::returns::shared_owner::concurrent_callers_share_one_return_owner_until_that_batch_completes`                     | `claim-unlocks-before-transaction`                                                                                                                                                                                        |
+| Added leaf                                                                                                                               | Behavior |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `persistence::sqlite::ledger::tests::journal::a_completed_original_cannot_be_rejournaled_and_duplicate_pending_identity_is_not_appended` | 47       |
+| `persistence::sqlite::ledger::tests::journal::mixed_legacy_and_keyed_journal_appends_preserve_bytes_and_identity_across_pruning`         | 47       |
+| `persistence::sqlite::ledger::tests::journal::only_an_acknowledged_decorative_leg_clears_its_original_keyed_miss`                        | 47       |
+| `persistence::sqlite::ledger::tests::journal::refusing_keyed_miss_removal_rolls_back_completion_and_preserves_the_claim`                 | 47       |
+| `persistence::sqlite::tests::returns::replay::a_queued_replay_retains_original_identity_and_never_retries_its_acknowledged_leg`          | 46       |
+| `persistence::sqlite::tests::returns::replay::an_abandoned_replay_keeps_its_batch_and_window_separate_from_later_arrivals`               | 46       |
+| `persistence::sqlite::tests::returns::replay::an_empty_journal_digest_still_has_one_owned_return_batch`                                  | 46       |
+| `replay_missed::tests::handoff::a_replay_keeps_the_original_batch_identity_and_window_after_adoption`                                    | 46       |
+| `replay_missed::tests::handoff::a_replay_not_owned_by_the_ledger_preserves_its_journal`                                                  | 46       |
+| `replay_missed::tests::handoff::an_adopted_queued_replay_completes_without_publishing_or_dispatching_again`                              | 46       |
+| `return_replay::tests::only_a_persisted_or_existing_submission_transfers_the_replay_journal`                                             | 46       |
 
-The event runner moves verbatim from `src/event_flow.rs` into its private `execution.rs` child, with only
-the parent visibility adjusted. Its existing pulse-ordering test retains its full name and body.
+The retained leaf `abandoned_legacy_batches_keep_their_order_and_survive_pending_ring_pruning` now claims
+the abandoned batch separately before the later pending window. The killed-owner successor
+`a_committed_journal_hold_is_adopted_after_its_owned_process_exits` retains the batch's original near
+edge. The retained live-owner leaf now refuses the whole return instead of returning an empty successful
+claim. Their source preimages and updated bodies are preserved in the delivery evidence; unchanged name
+counts alone do not establish unchanged behavior.
+
+The historical `replay_refusals::the_claim_never_survives_the_run_whether_the_replay_delivered_or_not` is
+replaced by
+`replay_refusals::a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_interruption`.
+It preserves the completed and interrupted arms, and now observes the ledger event joined to the exact
+held request identity before interrupting dispatch. Its owned fixture deadline is 650 milliseconds. A
+failed destination can still leave a completed journal handoff because its retry is owned by the ledger.
+The unpersisted-handoff case above distinguishes that from failure before ownership. Existing
+file-protocol fixtures explicitly supply their simulated durable handoff; production replay uses SQLite
+and the shared submission runtime.
+
+The schema-5 storage continuation adds
+`persistence::sqlite::ledger::tests::metadata::schema_four_rows_stay_without_metadata_while_original_request_metadata_survives_and_controls_duplicates`,
+mapped to persistence-and-process-lifecycle statement 48. It observes a schema-4 row, exact retained
+metadata after reopening, duplicate conflict direction and an actual retry claim. Independent omitted
+write, ignored equality and skipped migration faults each fail this leaf. Existing schema tests retain
+their names and assertions, with the current/future version fixtures advanced to 5/6. Constructor-only
+None additions preserve the existing legacy and aggregate fixtures.
+
+## Configured delivery classes
+
+This behavior change preserves existing leaf names. Existing `DecisionRequest` fixture constructors
+explicitly use `SilencePolicy::Respect`; their assertions are unchanged. The new leaves map as follows:
+
+| Added leaf                                                                                                           | Contract                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `request::tests::classes::a_delivery_class_round_trips_but_absence_keeps_the_original_request_bytes`                 | protocol-v1/S011: typed class, bounds, correlated refusal and unchanged unmarked bytes                                    |
+| `config::tests::delivery::delivery_classes_default_explicitly_and_only_valid_configured_names_can_bypass`            | quiet-behavior 7: explicit default, exact membership and malformed-policy refusal                                         |
+| `decision::tests::delivery_class::a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_silence` | quiet-behavior 7: selected surface only, pulse stays off, scope and skip preserved                                        |
+| `submit_notification::tests::gates::an_original_class_exception_does_not_unmute_an_unmarked_return_summary`          | quiet-behavior 7: original exception does not replay an aggregate through silence                                         |
+| `delivery_class::json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_hermes`                     | protocol-v1/S011 and quiet-behavior 7: real JSON edge, retained metadata, duplicate conflict and unchanged Hermes payload |
+| `delivery_class::malformed_class_or_configuration_never_grants_a_mute_exception`                                     | protocol-v1/S011 and quiet-behavior 7: refusal before effects and invalid-config failure direction                        |
+
+The focused class tests run with private state, inert executable destinations and bounded owned children.
+They establish this policy only; the final combined repository sweep remains the delivery gate.

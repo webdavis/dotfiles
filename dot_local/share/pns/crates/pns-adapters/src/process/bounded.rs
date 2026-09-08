@@ -1,3 +1,4 @@
+use super::group::Group;
 use super::wait::wait_until;
 use pns_application::CommandRunner;
 use std::process::Command;
@@ -32,8 +33,8 @@ impl CommandRunner for SystemCommandRunner {
 /// Run a command with a deadline, returning its stdout on success.
 ///
 /// There is no wait-with-timeout in the standard library and macOS ships no
-/// `timeout(1)`, so the wait happens on a thread and the child is killed when
-/// the window closes. Every spawn on a notification path is bounded: the
+/// `timeout(1)`, so a cleanup child owns the command's process group until
+/// completion, deadline, or producer death. Every spawn on a notification path is bounded: the
 /// notification is worth less than the turn it reports on.
 ///
 /// BOUNDED IN BYTES AS WELL AS IN TIME, which it was not. The read was a
@@ -61,21 +62,32 @@ pub fn run_bounded(
     max_bytes: u64,
 ) -> Option<String> {
     let expires_at = std::time::Instant::now() + deadline;
-    let child = command
+    command
         .stdin(if stdin_text.is_some() {
             std::process::Stdio::piped()
         } else {
             std::process::Stdio::null()
         })
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
+        .stderr(std::process::Stdio::null());
 
-    finish_bounded(child, stdin_text, expires_at, max_bytes)
+    finish_bounded(&mut command, stdin_text, expires_at, max_bytes)
+        .ok()
+        .flatten()
 }
 
 pub fn finish_bounded(
+    command: &mut Command,
+    stdin_text: Option<&str>,
+    expires_at: std::time::Instant,
+    max_bytes: u64,
+) -> std::io::Result<Option<String>> {
+    let group = Group::start(expires_at)?;
+    let child = group.spawn(command)?;
+    Ok(collect(child, stdin_text, expires_at, max_bytes))
+}
+
+fn collect(
     mut child: std::process::Child,
     stdin_text: Option<&str>,
     expires_at: std::time::Instant,
@@ -114,7 +126,8 @@ pub fn finish_bounded(
     let output = receiver
         .recv_timeout(expires_at.saturating_duration_since(std::time::Instant::now()))
         .ok()
-        .filter(|bytes: &Vec<u8>| bytes.len() as u64 <= max_bytes);
+        .filter(|bytes: &Vec<u8>| bytes.len() as u64 <= max_bytes)
+        .filter(|_| std::time::Instant::now() < expires_at);
     // Closed stdout is not an exited process: a child can close it and sleep,
     // so the wait is polled against the SAME deadline rather than blocking.
     let status = match output.is_some() {

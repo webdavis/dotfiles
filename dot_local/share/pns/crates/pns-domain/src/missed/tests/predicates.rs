@@ -50,22 +50,30 @@ fn a_plan_that_decorated_nothing_with_nobody_watching_the_pane_is_missed() {
     // through no surface at all.
     assert!(was_missed(
         &decided(Surface::Desk, Visibility::Hidden, NOTHING),
-        &Overrides::default()
+        &Overrides::default(),
+        &[]
     ));
 }
 
 #[test]
-fn a_plan_that_decorated_something_is_not_missed_whichever_decoration_it_was() {
-    // THE PLAN AFTER ARBITRATION, never the matrix underneath it: the
-    // banner and the card are two separate ways the operator was told,
-    // and either one on its own is a delivery.
+fn an_acknowledged_decoration_is_not_missed_whichever_surface_it_reached() {
+    // Either surface counts only with its actual acknowledged outcome.
+    let outcomes = [(
+        crate::routing::Leg {
+            name: "a-surface",
+            mode: crate::routing::ReportMode::Silent,
+            decorative: true,
+        },
+        crate::routing::Delivery::Delivered("accepted".into()),
+    )];
     let banner = DeliveryPlan {
         banner: true,
         ..NOTHING
     };
     assert!(!was_missed(
         &decided(Surface::Desk, Visibility::Hidden, banner),
-        &Overrides::default()
+        &Overrides::default(),
+        &outcomes
     ));
     let card = DeliveryPlan {
         phone_card: true,
@@ -73,7 +81,8 @@ fn a_plan_that_decorated_something_is_not_missed_whichever_decoration_it_was() {
     };
     assert!(!was_missed(
         &decided(Surface::Away, Visibility::Hidden, card),
-        &Overrides::default()
+        &Overrides::default(),
+        &outcomes
     ));
 }
 
@@ -86,7 +95,8 @@ fn an_event_suppressed_while_the_pane_was_on_screen_is_not_missed() {
         assert!(
             !was_missed(
                 &decided(surface, Visibility::Visible, NOTHING),
-                &Overrides::default()
+                &Overrides::default(),
+                &[]
             ),
             "{surface:?} watching the origin pane"
         );
@@ -101,7 +111,8 @@ fn an_away_event_is_missed_even_when_the_session_reported_the_pane_visible() {
     // this clause is that rule restated rather than a second rule.
     assert!(was_missed(
         &decided(Surface::Away, Visibility::Visible, NOTHING),
-        &Overrides::default()
+        &Overrides::default(),
+        &[]
     ));
 }
 
@@ -118,7 +129,7 @@ fn a_card_skipped_because_another_route_already_raised_one_is_not_missed() {
     for surface in [Surface::Desk, Surface::Mobile, Surface::Away] {
         for visibility in [Visibility::Visible, Visibility::Hidden, Visibility::Unknown] {
             assert!(
-                !was_missed(&decided(surface, visibility, NOTHING), &skipped),
+                !was_missed(&decided(surface, visibility, NOTHING), &skipped, &[]),
                 "{surface:?} / {visibility:?}"
             );
         }
@@ -129,8 +140,8 @@ fn a_card_skipped_because_another_route_already_raised_one_is_not_missed() {
 fn a_muted_event_the_surface_would_have_decorated_is_the_journals_queue() {
     // THE MUTE'S QUEUE, which is what this file mostly holds: the mute
     // zeroes the plan LAST, after the matrix already decided to decorate,
-    // so the predicate never reads `muted` itself and reads the plan the
-    // mute left behind instead.
+    // so the predicate needs no second mute policy; there is no acknowledged
+    // decoration in the outcomes.
     let muted = Overrides {
         muted: true,
         ..Overrides::default()
@@ -138,12 +149,14 @@ fn a_muted_event_the_surface_would_have_decorated_is_the_journals_queue() {
     // A desk with the pane out of sight would have had a banner.
     assert!(was_missed(
         &decided(Surface::Desk, Visibility::Hidden, NOTHING),
-        &muted
+        &muted,
+        &[]
     ));
     // Away would have had a card.
     assert!(was_missed(
         &decided(Surface::Away, Visibility::Hidden, NOTHING),
-        &muted
+        &muted,
+        &[]
     ));
     // THE BACK TAP ROW, and the reason the predicate reads `visibility`
     // rather than `session_visibility`: the operator tapped the phone with
@@ -159,7 +172,7 @@ fn a_muted_event_the_surface_would_have_decorated_is_the_journals_queue() {
         },
         ..decided(Surface::Mobile, Visibility::Hidden, NOTHING)
     };
-    assert!(was_missed(&back_tap, &muted));
+    assert!(was_missed(&back_tap, &muted, &[]));
 }
 
 // --- the replay condition ----------------------------------------------
@@ -222,11 +235,8 @@ fn an_away_decision_never_says_replay_however_much_it_carded() {
 
 #[test]
 fn a_decision_that_decorated_nothing_says_no_replay() {
-    // ONE CLAUSE, TWO PROPERTIES. A mute zeroes the plan, so a muted run
-    // cannot flush the queue it is filling; and a run whose plan decorated
-    // nothing is exactly a run that JOURNALS, so no event can ever replay
-    // its own miss. The two are mutually exclusive by construction rather
-    // than by an ordering rule at the record site.
+    // A mute zeroes the plan and does not attempt replay. Delivery outcomes
+    // determine misses separately; this predicate only gates the attempt.
     for surface in [Surface::Desk, Surface::Mobile] {
         for visibility in [Visibility::Visible, Visibility::Hidden, Visibility::Unknown] {
             assert!(
@@ -267,3 +277,15 @@ fn an_away_decision_never_moves_the_windows_near_edge() {
         );
     }
 }
+
+#[test]
+fn outcome_contract_a_promised_card_without_delivery_is_still_missed() {
+    assert!(was_missed(
+        &decided(Surface::Away, Visibility::Hidden, CARD),
+        &Overrides::default(),
+        &[]
+    ));
+}
+
+#[path = "outcomes.rs"]
+mod outcomes;

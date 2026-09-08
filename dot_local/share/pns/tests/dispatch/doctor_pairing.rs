@@ -42,6 +42,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     assert_eq!(lines[summary + 6], LIGHTS_OFF_LINE, "{printed}");
     assert_eq!(
         lines[summary + 7],
+        "pns doctor: delivery ledger: 2 pending leg(s), 0 deadlettered, growth streak 0, \
+         alarm acknowledged; recording gaps none in recent daemon log",
+        "delivery health precedes decision history: {printed}"
+    );
+    assert_eq!(
+        lines[summary + 8],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

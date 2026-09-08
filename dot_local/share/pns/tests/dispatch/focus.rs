@@ -79,12 +79,12 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
 
     assert_eq!(
         events(&sandbox, "macos-banner").len(),
-        1,
-        "a Focus nobody named silences nothing"
+        2,
+        "the live send and its unconfirmed-send replay both bypass the unnamed Focus"
     );
     assert!(
         journal(&sandbox).is_empty(),
-        "and a delivered event is not a miss"
+        "the replay ledger owns the unconfirmed send after journal handoff"
     );
     let ring = decisions(&sandbox);
     assert!(
@@ -97,8 +97,8 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     // door are a Focus holding them and not a surface that never offered them.
     assert_eq!(
         events(&sandbox, "mobile").len(),
-        1,
-        "the forced card fired here"
+        2,
+        "the forced live card and replay fired here"
     );
     assert!(
         ring[0].contains("plan=banner:yes,card:yes,pulse:yes"),

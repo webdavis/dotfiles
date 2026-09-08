@@ -68,7 +68,7 @@ fn a_second_process_cannot_write_during_a_transaction_and_a_killed_writer_leaves
     let started = Instant::now();
     assert!(
         store
-            .record_journal(&EventArgs::default(), Some(2))
+            .record_journal(&EventArgs::default(), Some(2), None)
             .is_err(),
         "another process owns the write transaction"
     );
@@ -89,6 +89,7 @@ fn a_second_process_cannot_write_during_a_transaction_and_a_killed_writer_leaves
                 ..EventArgs::default()
             },
             Some(3),
+            None,
         )
         .unwrap();
     assert!(
@@ -112,6 +113,7 @@ fn a_committed_journal_hold_is_adopted_after_its_owned_process_exits() {
                     ..EventArgs::default()
                 },
                 Some(1),
+                None,
             )
             .unwrap();
         assert_eq!(
@@ -142,7 +144,10 @@ fn a_committed_journal_hold_is_adopted_after_its_owned_process_exits() {
     }
     assert_eq!(Journal::read(&store).unwrap(), None);
     let claim = store.claim_return(Some(3), true).unwrap().unwrap();
-    assert_eq!(claim.since, Some(2));
+    assert_eq!(
+        claim.since, None,
+        "adoption retains the window that opened before the interrupted return"
+    );
     assert_eq!(claim.waiting.len(), 1);
     assert_eq!(claim.waiting[0].detail, "held before exit");
     store.complete_return().unwrap();

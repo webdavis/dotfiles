@@ -57,6 +57,7 @@ where
         selection,
         overrides,
         pns_domain::DecisionRequest {
+            silence_policy: pns_domain::SilencePolicy::Respect,
             local_only,
             remote_only,
             pane,

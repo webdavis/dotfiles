@@ -6,6 +6,7 @@ use pns_application::{
 };
 mod claims;
 mod completion;
+mod health;
 mod outcomes;
 mod prepare;
 mod read;
@@ -84,9 +85,12 @@ impl DeliveryLedger for SqliteStore {
     fn claim_retry(
         &self,
         lease: LeaseWindow,
+        limits: pns_domain::retry::RetryLimits,
     ) -> Result<Option<RetryDelivery<Self::Claim>>, LedgerFailure> {
         validate_lease(lease)?;
-        self.ledger_result(self.transaction(|transaction| claims::next(transaction, lease)))
+        self.ledger_result(
+            self.existing_transaction(|transaction| claims::next(transaction, lease, limits)),
+        )
     }
     fn inspect(
         &self,

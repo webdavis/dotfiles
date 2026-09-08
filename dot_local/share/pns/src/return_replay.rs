@@ -7,16 +7,10 @@ use crate::*;
 /// event path whose stdout a harness hook reads must not gain a line about the
 /// state directory, and nothing here is worth a word to the operator anyway.
 ///
-/// A completed failed attempt still consumes its batch. A crash or unwind
-/// before completion leaves its claimed rows for later adoption. This keeps the
-/// legacy fire-and-forget policy without deleting before the attempt runs.
-/// The accepted failure policy remains: The engine's
-/// contract is fire-and-forget for every producer; every journaled event
-/// already reached the durable log in full, so nothing is lost that a human
-/// cannot recover; re-journaling against a wedged channel is an unbounded
-/// retry that grows the file every event; and `dispatch_legs`' outcomes cannot
-/// tell delivery from perception in any case, because an executable channel
-/// that ran answers `Silent` by design.
+/// The journal remains owned until the existing delivery ledger accepts the
+/// aggregate under its persisted replay identity. A queued replay is then the
+/// ledger's responsibility, including failed or interrupted destination attempts.
+/// A later return adopts that same identity and never rebuilds a queued card.
 ///
 /// NOTHING IS PRINTED. The event path prints only what a reporting leg said,
 /// and this rides an event whose stdout a hook reads.
@@ -44,21 +38,15 @@ use crate::*;
 pub(crate) fn replay_missed(
     recap: pns::config::Recap,
     decision: &pns::engine::Decision,
-    home: &str,
-    mobile: &Mobile,
-    hermes_key: Option<String>,
     durable_route: bool,
+    delivery: crate::delivery_runtime::DeliveryRuntime<'_>,
 ) {
     // THE DECISION IS THE USE CASE'S; the child spawn and the leg walk are
     // this side's. `[recap]`'s other fields (the summarizer, its deadline, the
     // repositories, the threading) never cross: they are the publisher's.
     let catch_up = CatchUp {
-        moment: pns_adapters::SqliteStore::for_records(state_dir()),
-        recap: &recap,
-        home,
-        mobile,
-        hermes_key,
-        legs: &decision.legs,
+        moment: delivery.store,
+        delivery,
     };
     pns_application::ReplayMissedNotifications { ports: &catch_up }.run(
         decision,
@@ -72,49 +60,56 @@ pub(crate) fn replay_missed(
 }
 /// THE COMPOSITION ROOT'S SIDE OF ONE CATCH-UP.
 struct CatchUp<'a> {
-    moment: pns_adapters::SqliteStore,
-    recap: &'a pns::config::Recap,
-    home: &'a str,
-    mobile: &'a Mobile,
-    hermes_key: Option<String>,
-    legs: &'a [pns::routing::Leg],
+    moment: &'a pns_adapters::SqliteStore,
+    delivery: crate::delivery_runtime::DeliveryRuntime<'a>,
 }
 
 impl pns_application::ReturnMoment for CatchUp<'_> {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<pns_application::Claim> {
-        pns_application::ReturnMoment::claim(&self.moment, now, take_journal)
+        pns_application::ReturnMoment::claim(self.moment, now, take_journal)
     }
     fn complete(&self) {
-        pns_application::ReturnMoment::complete(&self.moment);
+        pns_application::ReturnMoment::complete(self.moment);
     }
 }
 
 impl pns_application::ActivityRing for CatchUp<'_> {
     fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        pns_application::ActivityRing::record(&self.moment, event, now);
+        pns_application::ActivityRing::record(self.moment, event, now);
     }
     fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
-        pns_application::ActivityRing::entries_between(&self.moment, since, until)
+        pns_application::ActivityRing::entries_between(self.moment, since, until)
     }
 }
 
 impl pns_application::RecapPublisher for CatchUp<'_> {
     fn publish(&self, since: u64, until: u64) -> bool {
-        let _ = self.recap;
         spawn_recap(since, until)
     }
 }
 
 impl pns_application::ReplayDelivery for CatchUp<'_> {
-    fn deliver(&self, event: &pns::args::EventArgs, legs: &[pns::routing::Leg]) {
-        let _ = self.legs;
-        let _ = dispatch_legs(
-            legs,
-            false,
-            event,
-            self.home,
-            self.mobile,
-            self.hermes_key.clone(),
-        );
+    fn deliver(
+        &self,
+        identity: &pns_application::SubmissionIdentity,
+        event: &pns::args::EventArgs,
+        legs: &[pns::routing::Leg],
+    ) -> pns_application::ReplayHandoff {
+        replay_handoff(self.delivery.submit(identity, event, legs, false, None))
     }
 }
+
+fn replay_handoff(
+    result: Result<pns_application::Submitted, pns_application::LedgerFailure>,
+) -> pns_application::ReplayHandoff {
+    match result {
+        Ok(pns_application::Submitted::Existing(_))
+        | Ok(pns_application::Submitted::Attempted {
+            sequence: Some(_), ..
+        }) => pns_application::ReplayHandoff::Queued,
+        _ => pns_application::ReplayHandoff::Retained,
+    }
+}
+
+#[cfg(test)]
+mod tests;

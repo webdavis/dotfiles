@@ -118,7 +118,14 @@ Config {
         review_notes: None,
     },
     focus_silence: [],
+    bypass_silence_classes: [
+        "security",
+    ],
     daemon_enabled: true,
+    retry_limits: RetryLimits {
+        max_attempts: 20,
+        max_age_secs: 604800,
+    },
     nag_after_secs: 300,
     lights: Some(
         Lights {

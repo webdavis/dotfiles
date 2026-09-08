@@ -7,6 +7,7 @@ struct History {
     journal: Result<Option<String>, String>,
     reads: RefCell<Vec<&'static str>>,
     imports: Result<Vec<(String, String)>, String>,
+    health: Result<crate::DeliveryHealth, String>,
 }
 impl Default for History {
     fn default() -> Self {
@@ -15,6 +16,7 @@ impl Default for History {
             journal: Ok(None),
             reads: RefCell::new(Vec::new()),
             imports: Ok(Vec::new()),
+            health: Err("fixture unreadable".into()),
         }
     }
 }
@@ -28,7 +30,12 @@ impl DecisionRing for History {
     }
 }
 impl Journal for History {
-    fn journal(&self, _: &EventArgs, _: Option<u64>) {
+    fn journal(
+        &self,
+        _: &EventArgs,
+        _: Option<u64>,
+        _identity: Option<&crate::SubmissionIdentity>,
+    ) {
         panic!("doctor must not journal its own send")
     }
     fn read(&self) -> Result<Option<String>, String> {
@@ -98,6 +105,7 @@ fn report(
                 focus: || "focus fixture".into(),
                 daemon: || "daemon fixture".into(),
                 lamps: || LightsReport::Off,
+                delivery_health: || history.health.clone(),
                 imports: || {
                     history.imports.clone().map(|rows| {
                         rows.into_iter()
@@ -132,3 +140,5 @@ mod focus;
 mod panic;
 
 mod imports;
+
+mod delivery_health;

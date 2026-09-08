@@ -100,10 +100,9 @@ fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it()
 }
 
 #[test]
-fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
-    // The historical name remains in the baseline. Completed replay attempts
-    // consume their holds; the interrupted arm below now preserves its batch
-    // under the approved process-death recovery policy.
+fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_interruption() {
+    // The ledger owns later attempts before a completed handoff releases its
+    // journal. Interruption leaves the same batch available for adoption.
     let delivered = Sandbox::new("replay-claim-delivered");
     record_every_event(&delivered);
     std::fs::write(journal_path(&delivered), planted_journal(2)).expect("the journal");
@@ -125,23 +124,41 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
         &format!(
             "payload=$(cat)\nprintf '%s\\n' \"$payload\" >>\"{root}/macos-banner.events\"\n\
              case \"$payload\" in\n  *'\"state\":\"missed\"'*) : >\"{root}/inside.the.replay\"; \
-             for _ in $(seq 1 200); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.05; done ;;\nesac",
+             for _ in $(seq 1 40); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.01; done; : >\"{root}/channel.finished\" ;;\nesac",
             root = killed.display()
         ),
     );
     std::fs::write(journal_path(&killed), planted_journal(2)).expect("the journal");
     let mut command = present_event(&killed);
-    let mut child = command
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+    // The guard releases the inert descendant on assertion failure too. Files
+    // keep an inherited pipe from holding the fixture open after interruption.
+    struct Interrupted {
+        child: std::process::Child,
+        release: std::path::PathBuf,
+    }
+    impl Drop for Interrupted {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            let _ = std::fs::write(&self.release, "");
+        }
+    }
+    let child = command
+        .stdout(std::fs::File::create(killed.path("child.stdout")).expect("stdout"))
+        .stderr(std::fs::File::create(killed.path("child.stderr")).expect("stderr"))
         .spawn()
         .expect("the engine starts");
+    let mut child = Interrupted {
+        child,
+        release: killed.path("the.test.is.over"),
+    };
     let inside = killed.path("inside.the.replay");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(650);
     while !inside.exists() {
         assert!(
             std::time::Instant::now() < deadline,
-            "the replay never reached a channel"
+            "the replay never reached a channel: {}",
+            std::fs::read_to_string(killed.path("child.stderr")).unwrap_or_default()
         );
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
@@ -151,13 +168,31 @@ fn the_claim_never_survives_the_run_whether_the_replay_delivered_or_not() {
         2,
         "both journal rows are held during delivery"
     );
-    assert!(held_before.iter().all(|(_, owner, _)| *owner == child.id()));
-    let _ = child.kill();
-    let _ = child.wait();
-    // RELEASED BEFORE THE ASSERTIONS. The channel is a CHILD OF THE ENGINE
-    // and outlives the kill, so a stub left sleeping holds a deleted sandbox
-    // open for as long as it sleeps; it waits on this file instead and ends
-    // with the test rather than on a timer of its own.
+    assert!(
+        held_before
+            .iter()
+            .all(|(_, owner, _)| *owner == child.child.id())
+    );
+    let queued: i64 = database(&killed)
+        .query_row(
+            "SELECT count(*) FROM return_claims c JOIN ledger_events e
+             ON e.producer='pns-return' AND e.request_id=c.request_id
+             JOIN ledger_legs l ON l.event=e.seq
+             JOIN ledger_attempts a ON a.leg=l.id AND a.generation=l.generation
+             WHERE c.owner=?1 AND e.state='missed' AND l.destination='macos-banner'
+             AND l.acknowledged=0 AND a.finished IS NULL AND a.outcome=0",
+            [child.child.id()],
+            |row| row.get(0),
+        )
+        .expect("the actual replay ownership record");
+    assert_eq!(
+        queued, 1,
+        "the ledger must own this exact held replay before dispatch"
+    );
+    let _ = child.child.kill();
+    let _ = child.child.wait();
+    // The process guardian kills the channel after producer death. The release
+    // also ends the inert polling loop if it observes the marker first.
     std::fs::write(killed.path("the.test.is.over"), "").expect("the release");
     // AND THE MARKER IS ALREADY BACK, which is the OTHER half of what this
     // process was killed to prove. The window's near edge is restored inside

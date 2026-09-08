@@ -13,8 +13,10 @@ impl SignedPost for Post {
         url: &str,
         body: &str,
         signature: &str,
+        idempotency_key: Option<&str>,
         deadline: Option<Duration>,
     ) -> PostOutcome {
+        assert_eq!(idempotency_key, None);
         self.calls
             .borrow_mut()
             .push((url.into(), body.into(), signature.into(), deadline));

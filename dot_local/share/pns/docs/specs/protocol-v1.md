@@ -1,9 +1,9 @@
-# Request and result protocol version 1
+# Request, result and egress protocol version 1
 
-These requirements belong to the separate `protocol-v1/S001` through `protocol-v1/S022` namespace. They
-record the new wire behavior delivered by plan row 7.1, already implemented in 61faeb0c. They are not the
-legacy inventory's S-statements or a claim that these requirements were recorded before the inherited
-draft.
+These requirements belong to the separate `protocol-v1/S001` through `protocol-v1/S029` namespace.
+Requirements S001 through S022 record row 7.1, already implemented in 61faeb0c; S023 through S027 add row
+7.2's egress contract. They are not the legacy inventory's S-statements or a claim that these
+requirements were recorded before the inherited draft.
 
 The source boundary is `crates/pns-protocol`. It depends on serde and serde_json, with private modules
 and curated exports. It performs no policy decisions, transport, persistence, process creation, delivery,
@@ -128,9 +128,15 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer, event and signal are required and
 must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
-optional session, times and route become None; detail is empty, context fields are None, scope is
+optional session, times, route and class become None; detail is empty, context fields are None, scope is
 automatic, interaction is none, and extensions is an empty object. Request::new supplies those same
 defaults.
+
+`class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
+controls. A wrong type or invalid name is refused before effects, retaining the correlated request
+identifier. An absent or null class is omitted when encoding, preserving the exact canonical bytes of
+unmarked version 1 requests. A present class survives canonical encoding and the original producer
+request retained by the ledger; changed class metadata under the same identity conflicts.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
@@ -260,3 +266,102 @@ items_over_cap or depth_over_cap. Such input is refused, never accepted after si
 Source: [`crates/pns-protocol/src/bounds.rs`](../../crates/pns-protocol/src/bounds.rs#L27),
 [`crates/pns-protocol/src/bounds.rs`](../../crates/pns-protocol/src/bounds.rs#L35),
 [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/envelope.rs#L67).
+
+## protocol-v1/S023: Egress envelope and correlation
+
+Given a rendered event and an original request identifier, when encoded, then the envelope has schema
+`pns.egress/1`, that unchanged `request_id`, and the rendered `body`. Decoding returns those same values.
+No identifier is generated or replaced. Unknown names and unsupported majors are refused with S001's
+typed errors, retaining a valid identifier under S019's rules.
+
+Source: `crates/pns-protocol/src/egress.rs`.
+
+## protocol-v1/S024: Legacy executable body
+
+Given the same rendered event and reporting mode, when the version 1 body is serialized, then its bytes
+equal the legacy executable-channel JSON (legacy S126). Its ten keys retain sorted order; `mode` is
+`async` for a silent leg and `sync` for a reporting leg. Quotes, escapes, Unicode and empty strings
+remain unchanged. Schema and request identifier surround the body and are not added to it. The existing
+executable stdin line and trailing newline remain unchanged; adopting an envelope does not authorize
+replacing that input with a nested object. The executable adapter sets only `PNS_REQUEST_ID` and
+`PNS_PRODUCER` on the child command from the original delivery request, overriding any inherited values.
+Event text stays on stdin; no serialized envelope is placed in the environment.
+
+Source: `tests/egress.rs`, `crates/pns-protocol/src/egress.rs`.
+
+## protocol-v1/S025: Required egress fields
+
+Given egress input, when decoded, then `request_id` is a valid S009 identifier and `body` contains all
+ten fields. Agent, branch, detail, message, pane, preview, project, state and title are strings; mode is
+exactly `async` or `sync`. Missing or mistyped fields and unknown modes are refused as `field_invalid`.
+No missing body field is defaulted.
+
+Source: `crates/pns-protocol/src/egress/tests.rs`.
+
+## protocol-v1/S026: Egress boundary validation
+
+Given an egress envelope, when encoded or decoded, then all shared byte and structural limits apply to
+the complete envelope, including the body. Over-limit content is refused without truncation. Duplicate
+keys at any depth are refused before correlation, as in S008. The egress entry points use the same
+validation as request and result envelopes.
+
+Source: `crates/pns-protocol/src/egress.rs`, `crates/pns-protocol/src/envelope.rs`.
+
+## protocol-v1/S027: Additive egress fields
+
+Given a known-major egress envelope with unknown fields at the top level or in its body, when decoded,
+then those fields are ignored within the shared limits. Known text fields remain inert data. The codec
+performs no command execution, sanitization, logging, delivery or other external side effect.
+
+Source: `crates/pns-protocol/src/egress/tests.rs`.
+
+## protocol-v1/S028: JSON submission adapter
+
+Given `pns submit --json`, when stdin contains one bounded request, then the adapter invokes the existing
+submission callback once with the complete decoded request, including ignored field names. It reads no
+more than 65,537 bytes. Requests through 65,536 bytes retain the decoder's existing bounds; an extra byte
+is refused. Invalid arguments are rejected with `submit_usage` before reading stdin. An input read error
+is rejected with `input_unreadable`, without exposing the input error or submitting partial input.
+Decoder refusals retain their existing diagnostic codes and recovered request identifier.
+
+The adapter writes the callback's result as one JSON line and returns its status to the composition root.
+It preserves destination outcomes and diagnostic codes. An unencodable result or failed output write is
+an output error; it does not fabricate acceptance or silently discard destination facts.
+
+## protocol-v1/S029: Durable submission receipt
+
+An `accepted` result with `ledger_committed` in diagnostics means the ledger committed the request before
+dispatch and owns its delivery. A retained identical request qualifies through the existing ledger row.
+The request identifier remains the producer's original identifier. A successful live send alone does not
+qualify: when storage is unavailable and delivery runs without a committed row, the result is `degraded`
+and does not contain `ledger_committed`. A decoded refusal is `rejected`.
+
+Posture advances its own state only on a matching `accepted` result containing `ledger_committed`.
+Acceptance is durable ownership, not proof of a destination acknowledgement. Per-destination outcomes
+state the attempts separately, and retries retain the original identifier. Main dispatch, receipt
+classification and the event workflow are composed by the existing root callback.
+
+## protocol-v1/S030: Root submission composition
+
+The JSON command encodes the decoded request before reading configuration, probing or delivering. If
+canonical encoding exceeds a protocol bound, it returns a correlated rejection and causes no event side
+effects. Otherwise, the ledger retains those canonical bytes beside the original producer and request
+identifier. Source event names, occurrence time, session and extensions remain metadata. The normalized
+signal selects the existing event state; observation and progress use the marker-neutral observation
+path. Scope and context enter the same decision workflow as legacy events. Elapsed time selects the
+existing 300-second long-running tier without suppressing a short JSON request.
+
+JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
+stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
+remain unchanged. Accepted and degraded results exit zero; rejected requests and output errors exit two.
+Destination results carry typed verdicts without echoing private transport text. Unknown top-level field
+names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
+entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
+migration or the posture route. The configured class policy is specified in `quiet-behavior.md`, behavior
+7\.
+
+When legacy identity generation or the system clock is unavailable, the same application delivery body
+attempts the planned channels without inventing an identifier or lease time. Native transports omit the
+unavailable idempotency identifier, and legacy executables receive no request-identifier environment
+variable. The versioned egress envelope still requires a valid request identifier. Unretained attempts
+never produce a committed-ownership receipt.

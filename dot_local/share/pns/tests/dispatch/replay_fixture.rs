@@ -11,7 +11,9 @@ use super::*;
 /// away event is the one row that must NOT flush the queue.
 pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
     let mut command = logged_event(sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_IDLE_SECS", "0").env("PNS_SKIP_PHONE", "1");
+    // The caller already saw this event, so the test isolates its planted queue.
+    // Executable stubs report no acknowledgement and cannot establish perception.
     sandbox.stub_herdr(&mut command, false);
     command
         .args(["--agent", "claude", "--state", "done"])
@@ -86,7 +88,10 @@ pub(super) fn focus_config(silence: &str) -> String {
 /// existed to run it through the process.
 pub(super) fn focus_event(sandbox: &Sandbox) -> std::process::Command {
     let mut command = present_event(sandbox);
-    command.env("PNS_FORCE_PHONE", "1").arg("--long-running");
+    command
+        .env_remove("PNS_SKIP_PHONE")
+        .env("PNS_FORCE_PHONE", "1")
+        .arg("--long-running");
     command
 }
 

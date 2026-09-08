@@ -68,3 +68,31 @@ fn a_silenced_blocked_event_pulses_nothing() {
         "{steps:?}"
     );
 }
+
+#[test]
+fn an_original_class_exception_does_not_unmute_an_unmarked_return_summary() {
+    let event = event();
+    let mut decision = delivered_decision();
+    decision.plan.pulse = false;
+    for (muted, focus_active) in [(false, false), (true, false), (false, true), (true, true)] {
+        let overrides = Overrides {
+            muted,
+            focus_active,
+            ..Overrides::default()
+        };
+        let steps = run(submission(&event, &decision, &overrides));
+        assert_eq!(
+            steps.contains(&"replay".to_string()),
+            !muted && !focus_active,
+            "{steps:?}"
+        );
+        assert!(
+            steps.contains(&"activity".to_string()),
+            "original event is still recorded"
+        );
+        assert!(
+            steps.contains(&"edge".to_string()),
+            "presence still advances the return edge"
+        );
+    }
+}

@@ -8,11 +8,13 @@ impl SqliteStore {
             super::decisions::append(transaction, &crate::decision_codec::line(record), None)
         })
     }
-    pub fn record_journal(&self, event: &EventArgs, now: Option<u64>) -> Result<(), StoreError> {
-        self.append(
-            Ring::Journal,
-            &crate::journal_codec::entry(event, now, pns_domain::render::PREVIEW_MAX_CHARS),
-        )
+    pub fn record_journal(
+        &self,
+        event: &EventArgs,
+        now: Option<u64>,
+        _identity: Option<&pns_application::SubmissionIdentity>,
+    ) -> Result<(), StoreError> {
+        self.transaction(|transaction| super::journal::append(transaction, event, now, _identity))
     }
     pub fn record_activity(&self, event: &EventArgs, now: Option<u64>) -> Result<(), StoreError> {
         self.append(
@@ -33,8 +35,13 @@ impl DecisionRing for SqliteStore {
     }
 }
 impl Journal for SqliteStore {
-    fn journal(&self, event: &EventArgs, now: Option<u64>) {
-        if let Err(error) = self.record_journal(event, now) {
+    fn journal(
+        &self,
+        event: &EventArgs,
+        now: Option<u64>,
+        _identity: Option<&pns_application::SubmissionIdentity>,
+    ) {
+        if let Err(error) = self.record_journal(event, now, _identity) {
             self.report("journal", &error);
         }
     }

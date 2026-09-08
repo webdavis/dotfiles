@@ -22,7 +22,12 @@ fn competing_claim(retry: bool, name: &str) {
         let path = std::path::PathBuf::from(path);
         let store = SqliteStore::new(path.clone());
         if retry {
-            assert!(store.claim_retry(lease(20, 50)).unwrap().is_some());
+            assert!(
+                store
+                    .claim_retry(lease(20, 50), Default::default())
+                    .unwrap()
+                    .is_some()
+            );
         } else {
             created(&store, &input);
         }
@@ -64,7 +69,10 @@ fn competing_claim(retry: bool, name: &str) {
     }
     let now = if retry { 21 } else { 11 };
     assert!(
-        store.claim_retry(lease(now, 60)).unwrap().is_none(),
+        store
+            .claim_retry(lease(now, 60), Default::default())
+            .unwrap()
+            .is_none(),
         "live claimant excludes competing retry"
     );
     assert!(
@@ -76,7 +84,7 @@ fn competing_claim(retry: bool, name: &str) {
     );
     drop(child);
     let recovered = store
-        .claim_retry(lease(now, 60))
+        .claim_retry(lease(now, 60), Default::default())
         .unwrap()
         .expect("process death must retain and release unknown work");
     assert_eq!(recovered.identity, input.identity);
@@ -97,7 +105,12 @@ fn competing_claim(retry: bool, name: &str) {
     store
         .record(&recovered.claim, &acknowledged(), now)
         .unwrap();
-    assert!(store.claim_retry(lease(100, 110)).unwrap().is_none());
+    assert!(
+        store
+            .claim_retry(lease(100, 110), Default::default())
+            .unwrap()
+            .is_none()
+    );
 }
 #[test]
 fn an_initial_claim_excludes_a_competing_process_and_survives_its_owners_death() {

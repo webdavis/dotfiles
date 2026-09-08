@@ -14,6 +14,7 @@ fn state() -> std::path::PathBuf {
 use pns_domain::{Event, routing::ReportMode};
 fn submission() -> LedgerSubmission {
     LedgerSubmission {
+        producer_request: None,
         identity: SubmissionIdentity {
             producer: "osquery".into(),
             request_id: "original-id".into(),
@@ -75,3 +76,11 @@ mod atomicity;
 mod processes;
 
 mod completion;
+
+mod journal;
+
+mod metadata;
+
+mod limits;
+
+mod health;

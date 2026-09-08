@@ -16,6 +16,10 @@ use pns_application::{RECAP_USAGE, recap_bounds};
 /// swallows a typo is a recap the operator believes was posted. The spawner
 /// never reads the code.
 pub(crate) fn recap_mode() -> i32 {
+    pns_adapters::run_recap_bounded(recap)
+}
+
+fn recap() -> i32 {
     let arguments: Vec<String> = std::env::args_os()
         .skip(2)
         .map(|argument| argument.to_string_lossy().into_owned())

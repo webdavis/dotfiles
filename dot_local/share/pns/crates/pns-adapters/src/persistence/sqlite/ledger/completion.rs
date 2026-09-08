@@ -10,8 +10,8 @@ pub(super) fn revise_decision(
     claim: &DeliveryClaim,
     completion: &LedgerCompletion,
 ) -> Result<(), StoreError> {
-    let (identity, destination) = transaction.query_row(
-        "SELECT e.producer, e.request_id, l.destination FROM ledger_legs l
+    let (identity, destination, decorative) = transaction.query_row(
+        "SELECT e.producer, e.request_id, l.destination, l.decorative FROM ledger_legs l
          JOIN ledger_events e ON e.seq = l.event WHERE l.id = ?1",
         [claim.leg],
         |row| {
@@ -21,6 +21,7 @@ pub(super) fn revise_decision(
                     request_id: row.get(1)?,
                 },
                 row.get::<_, String>(2)?,
+                row.get::<_, bool>(3)?,
             ))
         },
     )?;
@@ -43,5 +44,8 @@ pub(super) fn revise_decision(
     };
     // Pruning removes only the diagnostic history, not dispatch ownership.
     decisions::revise(transaction, &identity, &destination, &delivery)?;
+    if decorative && matches!(completion, LedgerCompletion::Acknowledged { .. }) {
+        super::super::journal::acknowledge(transaction, &identity)?;
+    }
     Ok(())
 }

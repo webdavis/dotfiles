@@ -4,6 +4,7 @@ mod error;
 pub use error::StoreError;
 mod history;
 mod import;
+mod journal;
 pub use import::ImportFailure;
 mod lamps;
 mod ledger;

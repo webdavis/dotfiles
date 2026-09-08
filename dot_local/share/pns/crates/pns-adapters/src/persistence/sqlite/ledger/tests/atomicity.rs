@@ -55,7 +55,7 @@ fn a_version_one_database_upgrades_without_changing_its_existing_records() {
     let connection = rusqlite::Connection::open(path.join("pns.db")).unwrap();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path.join("pns.db"), std::fs::Permissions::from_mode(0o600)).unwrap();
-    connection.execute_batch("CREATE TABLE decisions(seq INTEGER PRIMARY KEY,line TEXT NOT NULL); INSERT INTO decisions(line) VALUES ('old record'); PRAGMA user_version = 1;").unwrap();
+    connection.execute_batch("CREATE TABLE return_claims(id INTEGER PRIMARY KEY AUTOINCREMENT,owner INTEGER NOT NULL); CREATE TABLE journal(seq INTEGER PRIMARY KEY,line TEXT NOT NULL,claim INTEGER REFERENCES return_claims(id)); CREATE TABLE decisions(seq INTEGER PRIMARY KEY,line TEXT NOT NULL); INSERT INTO decisions(line) VALUES ('old record'); PRAGMA user_version = 1;").unwrap();
     let store = SqliteStore::new(path);
     created(&store, &submission());
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_version_one_database_upgrades_without_changing_its_existing_records() {
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        3
+        crate::persistence::sqlite::migrations::VERSION
     );
 }
 #[test]

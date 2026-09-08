@@ -70,6 +70,7 @@ fn a_completed_import_never_replays_old_files_over_newer_records_or_duplicates_h
                 ..EventArgs::default()
             },
             Some(9),
+            None,
         )
         .unwrap();
     store.set_quiet_expiry(None).unwrap();

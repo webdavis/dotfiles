@@ -129,7 +129,14 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
         before,
         "the journal was touched"
     );
-    assert_eq!(stored_records::text(&sandbox, "journal").as_bytes(), before);
+    let retained = stored_records::text(&sandbox, "journal");
+    assert!(
+        retained.as_bytes().starts_with(&before),
+        "the planted queue changed"
+    );
+    let waiting = journal(&sandbox);
+    assert_eq!(waiting.len(), 3, "the unconfirmed live send adds one miss");
+    assert_eq!(field(waiting.last().unwrap(), "detail"), "x");
     assert!(
         stored_records::claims(&sandbox).is_empty(),
         "the queue was claimed"
@@ -192,8 +199,9 @@ fn a_switched_off_replay_card_still_journals_the_misses_it_makes() {
     record_every_event(&sandbox);
     sandbox.write_config(&card_switched_off());
 
-    // AWAY CARDS THE PHONE, so this one was perceived and journals nothing.
-    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "away"]));
+    // An acknowledged native banner leaves no miss even with replay disabled.
+    run(acknowledged_banner(&sandbox)
+        .args(["--agent", "claude", "--state", "done", "--detail", "seen"]));
     assert!(
         journal(&sandbox).is_empty(),
         "a delivered event journaled itself: {:?}",
@@ -223,7 +231,7 @@ fn a_muted_event_queues_its_own_miss_and_replays_nothing() {
     mute(&sandbox);
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
 
-    run(&mut present_event(&sandbox));
+    run(present_event(&sandbox).env_remove("PNS_SKIP_PHONE"));
 
     let waiting = journal(&sandbox);
     assert_eq!(

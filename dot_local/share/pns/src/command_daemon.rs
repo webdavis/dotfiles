@@ -11,6 +11,7 @@ use pns_application::{ScheduleJob, Until};
 pub(crate) fn daemon_mode(verb: &str) -> i32 {
     match verb {
         "run" => daemon_run(),
+        "retry" => crate::daemon_runtime::daemon_retry(),
         "schedule" => daemon_schedule(),
         "cancel" => daemon_cancel(),
         _ => {

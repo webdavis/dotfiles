@@ -83,8 +83,10 @@ libc = "0.2.189"
 # at a time. The traffic runs one way: no member ever depends back on `pns`.
 pns-adapters = { path = "crates/pns-adapters" }
 pns-application = { path = "crates/pns-application" }
+pns-cli = { path = "crates/pns-cli" }
 pns-domain = { path = "crates/pns-domain" }
 pns-hermes = { path = "crates/pns-hermes" }
+pns-protocol = { path = "crates/pns-protocol" }
 serde_json = "1.0.151"
 # Parse only: the default `display` feature pulls toml_writer, and nothing here
 # ever writes TOML back out. `serde` stays because `toml::Table` and

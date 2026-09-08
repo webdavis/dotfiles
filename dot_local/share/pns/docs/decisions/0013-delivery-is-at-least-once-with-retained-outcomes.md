@@ -43,7 +43,30 @@ in flight. Unknown history does not mean the owner is dead. Retry eligibility is
 lease or by a completed attempt's due time. Only a created submission receives initial dispatch claims.
 The retry method returns one claimed leg with its original payload and routing facts.
 
-Completing a claim commits its ledger outcome and any retained decision-leg revision together. The claim
-supplies the original identity and destination. A pruned decision stays pruned; a malformed retained
-decision or failed update rolls back completion and preserves ownership. Silent remains unconfirmed.
-Standalone decision revision is available for delivery that could not be queued.
+Return summaries use the same ledger and submission path. The return claim stores one request key and its
+original window before the summary is composed. An adopted claim keeps those values and its original
+journal rows; later arrivals remain a separate batch. An empty journal can still own a digest card. Once
+the ledger contains that replay, adoption completes the journal handoff without composing or publishing
+another summary. A refused or unpersisted submission leaves the claimed journal recoverable. The shared
+delivery runtime supplies the same finite lease and retry policy used by original events. The aggregate
+keeps its legacy default route and creates no additional logical decision record.
+
+Schema version 4 adds nullable original producer/request keys to journal rows and the saved replay key
+and window to return claims. Legacy journal rows remain readable without an identity. An acknowledged
+decorative leg removes only its matching original miss in the existing completion transaction. A failed
+removal rolls back the ledger completion too. A late event tail checks those retained acknowledgements
+before appending, so it cannot recreate an already delivered miss. Durable-log acknowledgement alone,
+failed delivery and printable silence do not clear the missed event. This linkage complements the
+outcome-based missed predicate owned by the original submission tail.
+
+Schema version 5 retains the original producer request as one nullable encoded value on its existing
+ledger event. The protocol boundary owns encoding and bounds; the application has no JSON dependency.
+Including that value in submission equality prevents changed source metadata from reusing an identity
+merely because its rendered notification is the same. Older rows and aggregate returns have no such
+request and stay null. Retry claims leave the value intact and use the stored rendering and route.
+
+The optional request class is part of that canonical producer value. Its configured exception applies
+only when planning the original banner and phone delivery. Existing mute and Focus inputs remain true, so
+pulse and unmarked return summaries stay quiet. Missing class metadata preserves the prior canonical
+bytes, and retry follows the stored legs rather than applying a later class configuration. The renderer
+writes the default security class explicitly, making the exception visible to the operator.

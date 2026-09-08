@@ -34,7 +34,14 @@ fn assert_hanging_event_is_bounded(event: String) {
     let (send, receive) = mpsc::channel();
     let started = Instant::now();
     let worker = std::thread::spawn(move || {
-        let outcome = deliver_executable(&channel, &event, Duration::from_millis(50));
+        let outcome = deliver_executable(
+            &channel,
+            &event,
+            Some("fixture-id"),
+            "fixture",
+            Duration::from_millis(50),
+            false,
+        );
         send.send(outcome).unwrap();
     });
     let result = receive.recv_timeout(Duration::from_millis(600));
@@ -68,3 +75,5 @@ fn assert_hanging_event_is_bounded(event: String) {
     assert_eq!(wait_error, Some(libc::ECHILD));
     assert!(started.elapsed() < Duration::from_secs(1));
 }
+
+mod egress;

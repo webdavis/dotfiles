@@ -21,7 +21,7 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
     assert_eq!(&lines[8..10], ["focus fixture", "daemon fixture"]);
     assert!(lines[10].starts_with("pns doctor: the nag "));
     assert!(lines[11].starts_with("pns doctor: lights:"));
-    assert!(lines[12].contains("decision"));
+    assert!(lines[13].contains("decision"));
     assert!(lines.last().unwrap().contains("missed"));
     assert_eq!(&*history.reads.borrow(), &["decisions", "journal"]);
 }

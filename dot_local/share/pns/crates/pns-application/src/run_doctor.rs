@@ -16,7 +16,7 @@ pub struct RunDoctor<'a, R, C> {
     pub nag_after_secs: u64,
 }
 
-pub struct DoctorActions<D, P, PR, PA, F, DA, L, I> {
+pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H> {
     pub deliver: D,
     pub pulse: P,
     pub presence: PR,
@@ -25,12 +25,13 @@ pub struct DoctorActions<D, P, PR, PA, F, DA, L, I> {
     pub daemon: DA,
     pub lamps: L,
     pub imports: I,
+    pub delivery_health: H,
 }
 
 impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
-    pub fn run<D, P, PR, PA, F, DA, L, I>(
+    pub fn run<D, P, PR, PA, F, DA, L, I, H>(
         &self,
-        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I>,
+        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H>,
         mut print: impl FnMut(&str),
     ) -> i32
     where
@@ -42,6 +43,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         DA: FnOnce() -> String,
         L: FnOnce() -> LightsReport,
         I: FnOnce() -> Result<Vec<ImportFailure>, String>,
+        H: FnOnce() -> Result<crate::DeliveryHealth, String>,
     {
         let checks = self.checks;
         let event = pns_domain::EventArgs {
@@ -151,6 +153,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
+        print(&crate::delivery_health_line((actions.delivery_health)()));
         for line in sections::decision_section(self.records, self.clock.now_secs()) {
             print(&line);
         }

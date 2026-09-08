@@ -54,6 +54,7 @@ pub(super) fn decide(
         selection,
         overrides,
         DecisionRequest {
+            silence_policy: crate::SilencePolicy::Respect,
             local_only,
             remote_only,
             pane,

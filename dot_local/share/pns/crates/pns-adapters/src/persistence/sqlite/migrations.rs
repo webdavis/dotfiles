@@ -1,7 +1,7 @@
 use super::StoreError;
 use rusqlite::{Connection, TransactionBehavior};
 
-pub(super) const VERSION: u32 = 3;
+pub(super) const VERSION: u32 = 6;
 
 pub(super) fn validate(connection: &Connection) -> Result<u32, StoreError> {
     let version: u32 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -44,6 +44,15 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), StoreError> {
     }
     if version < 3 {
         super::decisions::migrate(&transaction)?;
+    }
+    if version < 4 {
+        super::returns::schema::migrate(&transaction)?;
+    }
+    if version < 5 {
+        super::ledger::schema::retain_request(&transaction)?;
+    }
+    if version < 6 {
+        super::ledger::schema::retain_deadletters(&transaction)?;
     }
     transaction.pragma_update(None, "user_version", VERSION)?;
     transaction.commit()?;

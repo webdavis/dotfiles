@@ -313,3 +313,6 @@ use nag_state::{
     write_record_at,
 };
 use quota_messages::{QUOTA_TYPES, quota_payload};
+
+#[path = "hooks/delivery_class.rs"]
+mod delivery_class;

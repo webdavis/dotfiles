@@ -12,10 +12,10 @@ pub(super) fn submission(
     }
     let event = &input.event;
     transaction.execute(
-        "INSERT INTO ledger_events(producer,request_id,agent,state,project,branch,detail,title,message,preview,pane)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+        "INSERT INTO ledger_events(producer,request_id,agent,state,project,branch,detail,title,message,preview,pane,producer_request)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![input.identity.producer,input.identity.request_id,event.agent,event.state,event.project,
-            event.branch,event.detail,event.title,event.message,event.preview,event.pane],
+            event.branch,event.detail,event.title,event.message,event.preview,event.pane,input.producer_request],
     )?;
     let sequence = transaction.last_insert_rowid();
     let mut legs = Vec::new();

@@ -22,17 +22,17 @@ than guessed at.
 There is no single writing process. Every family of state below is written by some subset of these, and
 the table names which:
 
-| Writer            | What it is                                                                                                                                                              | Lifetime                                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| harness hook      | `pns hook <event>`, spawned by Claude Code or Codex per event (`src/main.rs:hook_mode`)                                                                                 | milliseconds, one event                                          |
-| harness gate      | `pns gate <harness>-hook` and the bare `pns <harness>-hook` form (`src/main.rs:gate_mode`)                                                                              | milliseconds, one submission                                     |
-| producer          | `pns [<producer flags>]`, the argv form the shell notifier and any external alert path use (`src/main.rs:event_mode`, `USAGE`)                                          | milliseconds, one event                                          |
-| interactive shell | `dot_bashrc.tmpl`'s bash-preexec pair, writing `lights-shell/<pid>` directly with no `pns` process at all (`src/lights.rs:any_working`, `src/main.rs:LIGHTS_SHELL_DIR`) | one command                                                      |
-| daemon            | `pns daemon run`, the clock under launchd (`src/main.rs:daemon_run`)                                                                                                    | long-lived                                                       |
-| daemon child      | the daemon re-executing this binary with a job's argv (`src/main.rs:spawn_job`), for example the lights tick and `pns nag`                                              | bounded, see the process table                                   |
-| detached recap    | `pns recap --since --until`, started by an event and never waited on (`src/main.rs:spawn_recap`)                                                                        | unbounded, see finding U1                                        |
-| typed command     | `pns quiet`, `pns lights quiet`, \`pns loop begin                                                                                                                       | end`, `pns nag`, `pns doctor`, `pns setup`, `pns daemon schedule |
-| external toucher  | whatever touches `phone-attention.marker`; only its mtime is read (`src/system.rs:marker_mtime_secs`)                                                                   | not this crate's                                                 |
+| Writer            | What it is                                                                                                                                                              | Lifetime                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| harness hook      | `pns hook <event>`, spawned by Claude Code or Codex per event (`src/main.rs:hook_mode`)                                                                                 | milliseconds, one event                                                    |
+| harness gate      | `pns gate <harness>-hook` and the bare `pns <harness>-hook` form (`src/main.rs:gate_mode`)                                                                              | milliseconds, one submission                                               |
+| producer          | `pns [<producer flags>]`, the argv form the shell notifier and any external alert path use (`src/main.rs:event_mode`, `USAGE`)                                          | milliseconds, one event                                                    |
+| interactive shell | `dot_bashrc.tmpl`'s bash-preexec pair, writing `lights-shell/<pid>` directly with no `pns` process at all (`src/lights.rs:any_working`, `src/main.rs:LIGHTS_SHELL_DIR`) | one command                                                                |
+| daemon            | `pns daemon run`, the clock under launchd (`src/main.rs:daemon_run`)                                                                                                    | long-lived                                                                 |
+| daemon child      | the daemon re-executing this binary with a job's argv (`src/main.rs:spawn_job`), for example the lights tick and `pns nag`                                              | bounded, see the process table                                             |
+| detached recap    | `pns recap --since --until`, started by an event and never waited on (`src/main.rs:spawn_recap`)                                                                        | fixed 30-second whole-operation deadline, independent of producer survival |
+| typed command     | `pns quiet`, `pns lights quiet`, \`pns loop begin                                                                                                                       | end`, `pns nag`, `pns doctor`, `pns setup`, `pns daemon schedule           |
+| external toucher  | whatever touches `phone-attention.marker`; only its mtime is read (`src/system.rs:marker_mtime_secs`)                                                                   | not this crate's                                                           |
 
 `NOT ESTABLISHED:` which program touches `phone-attention.marker`. The crate only reads the link's own
 mtime and never writes it (`src/system.rs`, the `PhoneMarkerProbe` impl); no writer of that path exists
@@ -203,24 +203,24 @@ ______________________________________________________________________
 
 ## Table 2: Process table
 
-Every child this crate starts. "Group" means the child is placed in a process group of its own with
-`process_group(0)` and, where it is killed, signalled by negative pid. WHICH commands may be spawned at
-all is a separate, operator-approved roster recorded in
+Every child this crate starts. A bounded command joins the process group of its cleanup child; daemon
+jobs and detached recaps create their own groups. Group termination signals a negative process id. WHICH
+commands may be spawned at all is a separate, operator-approved roster recorded in
 `docs/decisions/0002-what-the-binary-may-spawn.md`; this table adds what that record does not carry,
 which is each spawn's deadline, termination behavior, group handling and cleanup path.
 
-| #   | Command                                                                                                                           | Owner (spawning process)                                | Deadline                                                                                                                                                                                                        | On deadline                                                                                                   | Group killed?                                                                                                      | How its error is observed                                                                                                      | Cleanup path                                                                                         |
-| --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| P1  | `current_exe()` + the job's own argv (`src/main.rs:spawn_job`)                                                                    | the daemon                                              | `child_bound(tick, id)` = `tick * CHILD_TICKS` (30 ticks), or for the `lights` job `max(tick*30, MAX_REFRESH_SECS + tick_bridge_deadline + tick)` = 37s at the production tick (`src/main.rs:child_bound`)      | `SIGKILL` to the group, then `child.kill()` on the direct child, then `wait()` (`src/main.rs:reap`)           | YES (`src/main.rs:kill_group`, negative pid, refusing pid \<= 1)                                                   | a failed spawn is printed on stderr; a running child's own stderr is INHERITED into the daemon's log (`src/main.rs:spawn_job`) | `reap` on every pass, `try_wait` and never `wait`                                                    |
-| P2  | `current_exe() recap --since <n> --until <n>` (`src/main.rs:spawn_recap`)                                                         | any event process                                       | NONE in this process. The child is never waited on. `PNS_REMOTE_TIMEOUT` is set to `RECAP_DEADLINE_SECS` = 30 only when the environment named none, which bounds the child's own network legs and not the child | not applicable                                                                                                | its own group, but nothing ever kills it                                                                           | only whether the spawn succeeded, as a bool that the card reads (`src/main.rs:spawn_recap`)                                    | none. Reparented when the parent exits. **UNBOUNDED (finding U1)**                                   |
-| P3  | `<channels_dir>/<leg>.sh` with event stdin (`src/channel_dispatch.rs:deliver`)                                                    | any event process                                       | Five seconds across input and wait (`system::finish_bounded`)                                                                                                                                                   | `Delivery::Silent`, same as any launched executable                                                           | direct child killed and reaped; descendants uncontained                                                            | never: "The exit status of a channel that DID run is still dropped"; only launch failure becomes `Delivery::Unlaunched`        | `channel_dispatch::tests` hanging child and blocked input                                            |
-| P4  | `moshi_hook_bin() <subcommand>` with the payload on stdin (`src/main.rs:spawn_moshi_hook`)                                        | the harness hook or gate                                | `submit_deadline()`: `PNS_MOSHI_SUBMIT_DEADLINE_MS`, else `[plugins.mobile] submit_deadline_secs`, else `DEFAULT_SUBMIT_DEADLINE_SECS` = 5s (`src/main.rs:submit_deadline`)                                     | `child.kill()` then `child.wait()`, and the call returns 0, which is no opinion (`src/main.rs:answer_within`) | NO, deliberately: "THE KILL REACHES THE DIRECT CHILD ONLY ... that day the kill has to widen to the process group" | the child's exit code becomes this process's exit code (`src/main.rs:moshi_decision`)                                          | `answer_within` reaps on the kill path; a child that finishes is reaped by `moshi_decision`'s `wait` |
-| P5  | any probe: `terminal-notifier`, `/usr/sbin/ioreg`, `/usr/bin/pgrep`, `/bin/ps`, `herdr` (`src/system.rs:SystemCommandRunner`)     | any process holding a probe set, and the banner channel | `PROBE_DEADLINE` = 5s, and `PROBE_READ_MAX` = 1 MiB of stdout                                                                                                                                                   | `child.kill()` then `child.wait()`, and the runner answers `None` (`src/system.rs:run_bounded`)               | no                                                                                                                 | `None` reads as unknown, and unknown never suppresses                                                                          | `run_bounded`'s kill-and-wait on every non-answer path                                               |
-| P6  | `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with the prompt on stdin (`src/main.rs:condense`)         | the `stop` hook                                         | `PNS_CONDENSER_DEADLINE_MS`, else `CONDENSER_DEADLINE` = 30s; read cap `PROBE_READ_MAX` = 1 MiB                                                                                                                 | as P5                                                                                                         | no                                                                                                                 | `None` falls back to trimming the reply (`src/main.rs:condense`)                                                               | as P5                                                                                                |
-| P7  | `git -C <cwd> branch --show-current` (`src/main.rs:git_branch`)                                                                   | any event process with a cwd                            | `GIT_DEADLINE` = 5s; read cap 1 MiB                                                                                                                                                                             | as P5                                                                                                         | no                                                                                                                 | `None` becomes an empty branch                                                                                                 | as P5                                                                                                |
-| P8  | `moshi-hook status --json`, then `moshi-hook status` (`src/main.rs:read_pairing`)                                                 | `pns doctor`                                            | `MOSHI_JSON_DEADLINE` = 5s and `MOSHI_STATUS_DEADLINE` = 8s, run one after the other, so the worst case is 13s; read cap `PAIRING_READ_MAX` = 2 * `doctor::ANSWER_MAX` = 2 MiB                                  | as P5                                                                                                         | no                                                                                                                 | `None` on either leg becomes a "did not answer" reading in the pairing report                                                  | as P5                                                                                                |
-| P9  | `gh pr list --repo <r> --state merged --search <window> --json number,title,body --limit 50` (`src/main.rs:merged_pull_requests`) | the detached recap (P2)                                 | `GH_DEADLINE` = 30s; read cap `GH_READ_MAX` = 512 KiB                                                                                                                                                           | as P5                                                                                                         | no                                                                                                                 | `None` aborts the whole fetch and the recap posts without it                                                                   | as P5                                                                                                |
-| P10 | the operator's configured summarizer argv (`src/main.rs:summarize`)                                                               | the detached recap (P2)                                 | the caller's remaining episode budget; a zero budget starts NO process at all; read cap `recap::MAX_ANSWER_BYTES + 1` = 16 KiB + 1                                                                              | as P5                                                                                                         | no                                                                                                                 | `None` posts the plain list instead                                                                                            | as P5                                                                                                |
+| #   | Command                                                                                                                           | Owner (spawning process)                                | Deadline                                                                                                                                                                                                   | On deadline                                                                                                   | Group killed?                                                                                                      | How its error is observed                                                                                                      | Cleanup path                                                                                         |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| P1  | `current_exe()` + the job's own argv (`src/main.rs:spawn_job`)                                                                    | the daemon                                              | `child_bound(tick, id)` = `tick * CHILD_TICKS` (30 ticks), or for the `lights` job `max(tick*30, MAX_REFRESH_SECS + tick_bridge_deadline + tick)` = 37s at the production tick (`src/main.rs:child_bound`) | `SIGKILL` to the group, then `child.kill()` on the direct child, then `wait()` (`src/main.rs:reap`)           | YES (`src/main.rs:kill_group`, negative pid, refusing pid \<= 1)                                                   | a failed spawn is printed on stderr; a running child's own stderr is INHERITED into the daemon's log (`src/main.rs:spawn_job`) | `reap` on every pass, `try_wait` and never `wait`                                                    |
+| P2  | `current_exe() recap --since <n> --until <n>` (`recap_child::spawn_recap`)                                                        | any event process                                       | fixed `RECAP_DEADLINE_SECS` = 30 across config, source reads, summarization and delivery                                                                                                                   | guardian terminates the recap group at the deadline or recap death                                            | recap and guardian share a group separate from the producer                                                        | spawn success remains a bool; setup refusal exits 1 before reading sources                                                     | recap stops and reaps its guardian on normal completion; producer never waits                        |
+| P3  | `<channels_dir>/<leg>.sh` with event stdin (`src/channel_dispatch.rs:deliver`)                                                    | any event process                                       | Five seconds across input and wait (`system::finish_bounded`)                                                                                                                                              | `Delivery::Silent`, same as any launched executable                                                           | owned group killed on completion, deadline or producer death; direct children reaped                               | never: "The exit status of a channel that DID run is still dropped"; only launch failure becomes `Delivery::Unlaunched`        | `channel_dispatch::tests` hanging child and blocked input                                            |
+| P4  | `moshi_hook_bin() <subcommand>` with the payload on stdin (`src/main.rs:spawn_moshi_hook`)                                        | the harness hook or gate                                | `submit_deadline()`: `PNS_MOSHI_SUBMIT_DEADLINE_MS`, else `[plugins.mobile] submit_deadline_secs`, else `DEFAULT_SUBMIT_DEADLINE_SECS` = 5s (`src/main.rs:submit_deadline`)                                | `child.kill()` then `child.wait()`, and the call returns 0, which is no opinion (`src/main.rs:answer_within`) | NO, deliberately: "THE KILL REACHES THE DIRECT CHILD ONLY ... that day the kill has to widen to the process group" | the child's exit code becomes this process's exit code (`src/main.rs:moshi_decision`)                                          | `answer_within` reaps on the kill path; a child that finishes is reaped by `moshi_decision`'s `wait` |
+| P5  | any probe: `terminal-notifier`, `/usr/sbin/ioreg`, `/usr/bin/pgrep`, `/bin/ps`, `herdr` (`src/system.rs:SystemCommandRunner`)     | any process holding a probe set, and the banner channel | `PROBE_DEADLINE` = 5s, and `PROBE_READ_MAX` = 1 MiB of stdout                                                                                                                                              | `child.kill()` then `child.wait()`, and the runner answers `None` (`src/system.rs:run_bounded`)               | yes, as P3                                                                                                         | `None` reads as unknown, and unknown never suppresses                                                                          | `run_bounded`'s kill-and-wait on every non-answer path                                               |
+| P6  | `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with the prompt on stdin (`src/main.rs:condense`)         | the `stop` hook                                         | `PNS_CONDENSER_DEADLINE_MS`, else `CONDENSER_DEADLINE` = 30s; read cap `PROBE_READ_MAX` = 1 MiB                                                                                                            | as P5                                                                                                         | yes, as P3                                                                                                         | `None` falls back to trimming the reply (`src/main.rs:condense`)                                                               | as P5                                                                                                |
+| P7  | `git -C <cwd> branch --show-current` (`src/main.rs:git_branch`)                                                                   | any event process with a cwd                            | `GIT_DEADLINE` = 5s; read cap 1 MiB                                                                                                                                                                        | as P5                                                                                                         | yes, as P3                                                                                                         | `None` becomes an empty branch                                                                                                 | as P5                                                                                                |
+| P8  | `moshi-hook status --json`, then `moshi-hook status` (`src/main.rs:read_pairing`)                                                 | `pns doctor`                                            | `MOSHI_JSON_DEADLINE` = 5s and `MOSHI_STATUS_DEADLINE` = 8s, run one after the other, so the worst case is 13s; read cap `PAIRING_READ_MAX` = 2 * `doctor::ANSWER_MAX` = 2 MiB                             | as P5                                                                                                         | yes, as P3                                                                                                         | `None` on either leg becomes a "did not answer" reading in the pairing report                                                  | as P5                                                                                                |
+| P9  | `gh pr list --repo <r> --state merged --search <window> --json number,title,body --limit 50` (`src/main.rs:merged_pull_requests`) | the detached recap (P2)                                 | `GH_DEADLINE` = 30s; read cap `GH_READ_MAX` = 512 KiB                                                                                                                                                      | as P5                                                                                                         | yes, as P3                                                                                                         | `None` aborts the whole fetch and the recap posts without it                                                                   | as P5                                                                                                |
+| P10 | the operator's configured summarizer argv (`src/main.rs:summarize`)                                                               | the detached recap (P2)                                 | the caller's remaining episode budget; a zero budget starts NO process at all; read cap `recap::MAX_ANSWER_BYTES + 1` = 16 KiB + 1                                                                         | as P5                                                                                                         | yes, as P3                                                                                                         | `None` posts the plain list instead                                                                                            | as P5                                                                                                |
 
 Two threads, not processes, are also started and are named here so they are not mistaken for children:
 `src/system.rs:run_bounded` spawns one reader thread per bounded call (it writes stdin, drops the pipe,
@@ -229,19 +229,20 @@ so a child that does not read its stdin cannot block the caller.
 
 ### Unbounded spawns (findings)
 
-- **U1: the detached recap child (P2) is unbounded and unsupervised.** `src/main.rs:spawn_recap` sets no
-  deadline and never waits, and the doc comment states the choice rather than hiding it: "NEVER WAITED
-  ON, so this process exits exactly when it would have"; "A CHILD THAT DIES COSTS ONE RECAP AND NOTHING
-  ELSE, which is why nothing supervises it". The only bound in play is on the child's own network legs,
-  and only when the environment asked for none: "AN UNBOUNDED DEADLINE IS A TERMINAL'S CHOICE, NEVER A
-  BACKGROUND CHILD'S." Its process group is its own
-  (`tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own`), so a harness killing the hook
-  by group does not take it with it, and nothing else will ever kill it.
-- **U2: plan 14.2 bounds the executable channel's direct child.** `src/channel_dispatch.rs:deliver`
-  shares `system::finish_bounded` with the probe runner. Input and wait have one five-second budget;
-  expiry kills and reaps the direct child. Descendants are not contained, and killing pns removes the
-  owner of this deadline. The daemon's separate process-group bound still applies to daemon jobs.
-  Producer-death cleanup remains a prerequisite for lights slice 10.
+- **U1: the detached recap has a finite owner.** `command_recap::recap_mode` arms the adapter's fixed
+  30-second deadline before config, storage and repository reads. The guardian shares the recap's
+  separate process group, so a producer exit or producer-group kill does not interrupt it. At the
+  deadline, the guardian terminates that group. Ordinary completion stops and reaps the guardian before
+  closing its owner pipe, preserving the recap's exit status. Setup refusal performs no source read.
+  Individual source and delivery deadlines remain in force inside the whole-operation bound.
+- **U2: bounded commands retain cleanup after producer death.** The shared adapter process runner starts
+  a cleanup child before launching a command. The command joins that child's process group; completion,
+  the original deadline or loss of the producer's pipe terminates the group. The producer reaps its
+  direct command and cleanup child while alive. Startup refusal occurs before command side effects. Probe
+  failures still return no reading, and launched executable channels remain silent. Descendants that
+  deliberately create a different process group or session are outside this guarantee. The recap's
+  explicit owner (U1), specialized Moshi submission (P4) and daemon supervision retain separate lifecycle
+  contracts. Arbitrarily detached descendants remain outside the shared runner's guarantee.
 
 ______________________________________________________________________
 
@@ -1125,43 +1126,46 @@ other test here and stop in production."
 - Compatibility contract: the job re-executes `current_exe()` "AND NEVER A STORED PATH ... so nothing in
   the spool can name another program" (`src/main.rs:spawn_job`).
 
-### 23. The recap is detached; an executable channel has a direct-child deadline
+### 23. The recap is detached and finite; executable delivery owns its process group
 
 Given an event that earns a recap, or a leg whose destination is an executable channel
 
 When the child is started
 
-Then in the recap's case nothing waits on it and nothing ever kills it. The channel's input and wait
-share a five-second deadline while pns is alive.
+Then the producer never waits for the recap, whose own guardian bounds the whole operation at 30 seconds.
+The channel's input and wait share a five-second deadline; its guardian retains ownership when the
+producer dies. Neither bound depends on a live producer thread.
 
-Finding U1 remains open. Plan 14.2 repairs U2's direct-child deadline; descendant cleanup remains open.
-
-- Success: `tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own` proves the group, which
-  is the detachment half and not a bound.
-- Failure sources: for the recap, a `current_exe()` that cannot be resolved, or a spawn that fails; for a
-  channel, a missing or non-executable file.
+- Success: `the_recap_child_runs_in_a_process_group_of_its_own` preserves the existing real-command
+  detachment contract. `a_finished_recap_preserves_its_status_and_reaps_the_guardian` preserves normal
+  completion.
+- Failure sources: for the recap, unresolved `current_exe`, failed spawn, ownership setup refusal, or any
+  source or delivery that exceeds its budget; for a channel, a missing or non-executable file.
+  `recap_setup_refusal_precedes_any_source_read` pins the new refusal boundary.
 - Fail direction: fail-open both ways. A recap spawn that failed answers `false`, and "A spawn that
   failed must never leave a card pointing at a recap nobody is writing." A channel that will not launch
   answers `Delivery::Unlaunched` and takes down neither its siblings nor the caller.
-- Thresholds: the recap child gets `PNS_REMOTE_TIMEOUT` = `RECAP_DEADLINE_SECS` = "30" ONLY when the
-  environment named no deadline, because "`PNS_REMOTE_TIMEOUT=0` is curl's `-m 0`, no deadline at all,
-  which nobody is behind to interrupt here: a wedged gateway would keep this process alive for good, and
-  every later window would add another." The executable channel has a five-second direct-child budget and
-  no byte ceiling on inherited output.
+- Thresholds: the whole recap always has a fixed 30-second deadline, including repository reads before
+  the summarizer's own episode clock starts. `the_whole_recap_deadline_includes_source_reads` exercises
+  that boundary with an injected short test duration. The inherited network-leg fallback still sets
+  `PNS_REMOTE_TIMEOUT` to 30 only when the environment named no deadline. The executable channel keeps
+  its five-second input/wait budget and no byte ceiling on inherited output.
 - Required side effects: the recap child gets `stdin`, `stdout` and `stderr` all null and its own process
   group; the channel gets the event on stdin, newline-terminated, "as the bash's `jq -cn` emitted it".
 - Forbidden side effects: the recap child must NOT stay in the parent's group: "A hook the harness times
   out is killed by GROUP, and so is a shell prompt taking `SIGINT`; a child left in the parent's group
   goes with it, after the marker has already moved on, so the window can never fire again."
-- Timeout and cancellation: the executable direct child is killed and reaped at its deadline, still
-  answering `Delivery::Silent`. This cleanup does not survive pns death or contain descendants. The
-  daemon's separate process-group deadline is described by behavior 22.
+- Timeout and cancellation: recap expiry terminates its group; its ordinary bounded source commands then
+  lose their owner pipes and their guardians terminate those groups too. Executable delivery keeps
+  `Delivery::Silent` after launch and retains its own group cleanup after pns death. The daemon's
+  separate process-group deadline is described by behavior 22.
 - Idempotency and duplicates: the recap child re-reads the activity ring itself, so "nothing is
   serialized between them and nothing is lost if the child never starts."
 - Privacy: the channel receives the fully rendered event, which is the operator's own text, over a pipe
   rather than argv.
-- Process ownership and cleanup: the recap child is reparented when its parent exits; nothing reaps it.
-  "A CHILD THAT DIES COSTS ONE RECAP AND NOTHING ELSE, which is why nothing supervises it."
+- Process ownership and cleanup: the recap is reparented when its producer exits. Its guardian is owned
+  by the recap, not that producer, and is stopped and reaped before normal recap return. A killed recap
+  releases the close-on-exec owner pipe, and the guardian terminates the remaining recap group.
 - Compatibility contract: the channel is looked up at `<channels_dir>/<leg-name>.sh` and given one JSON
   line on stdin.
 
@@ -1359,11 +1363,11 @@ contracts run against a concrete in-memory repository and SQLite.
 ### 30. Refused writes do not become completed mutations
 
 Given an owned write transaction, when another process attempts a mutation, then its wait is bounded by
-the configured busy timeout, 200 milliseconds in composition, matching the prior ring writer's bounded
-wait. This is a lock-wait budget, not a disk-operation deadline. A failed append or replacement rolls
-back its whole transaction. A killed writer leaves no uncommitted row, and a later writer can proceed.
-Delivery-facing record methods return without changing hook streams and report a bounded, non-secret miss
-through the existing daemon log when possible. Explicit mutations return failure and retain prior state.
+the configured busy timeout, 200 milliseconds in composition. This is a lock-wait budget, not a
+disk-operation deadline. A failed append or replacement rolls back its whole transaction. A killed writer
+leaves no uncommitted row, and a later writer can proceed. Delivery-facing record methods return without
+changing hook streams and report a bounded, non-secret miss through the existing daemon log when
+possible. Explicit mutations return failure and retain prior state.
 
 ### 31. Return claims keep ownership until completed
 
@@ -1374,11 +1378,6 @@ displaced, and pending retention cannot prune its held batch. Drop or process ex
 batch recoverable by the existing dead-owner check. Completion removes only that owner's batch,
 preserving later arrivals. The existing completed-attempt rule, including a failed delivery attempt,
 remains unchanged.
-
-A shared repository holds its return-ownership guard through each claim or completion transaction. Failed
-completion retains the claim. If an interrupted owner poisons the guard, both operations return
-`InvalidState` before changing durable rows; the adapter reports the failure through its existing
-fail-quiet diagnostic path.
 
 ### 32. Semantic lamp and quiet records retain their failure directions
 
@@ -1472,12 +1471,6 @@ application decides how to continue delivery; no storage method sends anything. 
 fails, the transaction preserves the unknown outcome and its original claim so recording can be retried.
 No receipt claims that a destination acknowledged an event merely because recording failed.
 
-Completion updates the ledger attempt and its retained decision-leg verdict in one immediate transaction.
-The accepted claim identifies the original producer, request and destination. A stale or foreign claim
-changes neither record. A missing or pruned decision does not block completion or recreate history; a
-malformed decision or failed update rolls back both writes and preserves the claim. Acknowledged, failed,
-unlaunched and unknown completions retain Delivered, Failed, Unlaunched and Silent respectively.
-
 ### 41. The ledger upgrades the existing database atomically
 
 Given schema version 1, when the store opens, then an explicit transaction adds the version-2 ledger
@@ -1528,3 +1521,67 @@ receipt, then each method returns its failure and attempts a bounded daemon-log 
 record family. Event-facing callers remain fail-quiet. No method creates a new legacy file authority or
 claims the missed write succeeded. Quiet commands keep their explicit write refusal and read-back report;
 malformed quiet and lamp inputs keep their existing complaint text and fail-open or fail-dark direction.
+
+### 46. A return transfers its original batch to the delivery ledger
+
+Given a return eligible for a visible card, when it claims a journal or digest-only window, then one
+owned batch records a stable request identity and the original window. A live owner excludes another
+claimant. After its owner exits, adoption keeps that identity, window and batch; later arrivals stay
+pending separately. The aggregate uses the existing submission runtime with no new decision record and
+its legacy default route. A persisted attempt or an existing ledger submission transfers ownership;
+unpersisted delivery and refusal retain the journal. An adopted queued batch completes without another
+digest publication or dispatch. The ledger retries only unacknowledged legs with the original payload,
+identity and route. These are the successors to S242 and S243's completed-attempt consumption policy.
+
+### 47. Confirmed original delivery removes only its keyed miss
+
+Given a journal entry linked to an original producer and request, when an acknowledged decorative leg
+completes, then its ledger outcome and removal of that miss commit together. Refusal rolls back both.
+Acknowledgement of a durable log, failed delivery and unknown outcomes leave the miss available. Other
+identities and legacy unkeyed rows remain unchanged. Repeating a pending identity appends nothing, and a
+late tail cannot recreate a miss whose decorative delivery was already acknowledged. Unrelated appends
+and pruning preserve those identities and the legacy newline rules. Schema version 4 upgrades these
+fields within the existing migration transaction. This extends S158's journal identity and supports the
+S159 outcome-based predicate at the submission boundary.
+
+### 48. Original producer request metadata participates in ledger identity
+
+Given a submission carrying the bounded encoded request supplied by the protocol boundary, when its
+ledger row commits, then the exact value survives reopening and retry claims. An identical request and
+resolved plan return the existing submission without a dispatch claim. Changed metadata with the same
+producer/request identity is refused even when the rendered notification is unchanged. Missing metadata
+also conflicts with an existing value. Schema version 5 adds one nullable column in the existing
+migration transaction; earlier rows and legacy or aggregate submissions retain unknown metadata as null.
+They are never backfilled. Application and storage do not parse the request or change its bytes, and
+retries continue using the original resolved rendering and route. Existing storage failures retain the
+bounded diagnostic and fail-open delivery policy; metadata does not enter diagnostic summaries.
+
+### 49. Retry exhaustion retains deadletters and their original delivery facts
+
+Given an eligible unacknowledged leg, the daemon stops retrying after 20 retry claims, including
+interrupted claims. Generation 1 is the initial send and does not consume that retry budget. Attempts are
+checked first and the limit is inclusive. The original generation's positive start epoch expires only
+when its age exceeds 604800 seconds; zero and future epochs do not expire blindly. `[delivery]`
+`max_attempts` and `max_age_secs` override these defaults with nonnegative integer values.
+
+Schema 6 marks exhausted legs in place with their reason and time, retaining the original identity,
+canonical producer request, payload, route and attempt history. Active leases and acknowledged siblings
+are unchanged. Terminal legs cannot be claimed or completed by an old claimant. The operator controls
+deadletter disposition; automatic deletion is forbidden. The terminal transition and its pending health
+alarm commit atomically, and an exhausted row does not prevent claiming a later eligible row.
+
+### 50. Delivery health survives interruption and stays readable independently
+
+The existing daemon retry pass counts pending delivery legs separately from deadlettered legs. Two
+consecutive increases raise one local sound-enabled alarm, as do newly deadlettered legs. Previous count,
+capped growth streak and alarm generation are retained in the same database. A failed alarm remains
+eligible on the next pass; only a confirmed native banner acknowledges its generation, and an old
+acknowledgement cannot clear a newer finding. Alarm failure is logged and does not block another eligible
+delivery attempt. Missing storage is not replaced with a healthy empty ledger by a retry pass.
+
+The doctor's ledger snapshot opens read-only without create, migration or immutable mode. Committed rows
+still in the write-ahead log count. Missing, corrupt, incompatible or locked storage is unreadable, never
+an empty backlog. Doctor reports pending legs, deadletters, growth, pending alarm ownership and
+recording-gap diagnostics in the last 65536 bytes of the existing daemon log. Its existing send grade is
+unchanged. Retry delay remains fixed. Permanent HTTP status classification and the legacy linear delay
+with jitter remain separate work.

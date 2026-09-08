@@ -10,9 +10,10 @@
 //! own three-part suppression here, which meant two places could disagree
 //! about the same event.
 
-use super::{Delivery, Event};
+use super::Delivery;
 use pns_application::CommandRunner;
-use pns_domain::routing::ReportMode;
+use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
+use pns_domain::registry::Routing;
 
 /// The bundle id the click activates when the pane's terminal is unknown.
 pub const DEFAULT_TERMINAL_BUNDLE_ID: &str = "com.mitchellh.ghostty";
@@ -92,7 +93,21 @@ pub struct BannerChannel<R: CommandRunner> {
     pub herdr_path: Option<String>,
 }
 
-impl<R: CommandRunner> BannerChannel<R> {
+impl<R: CommandRunner + Send + Sync> NotificationDestination for BannerChannel<R> {
+    fn id(&self) -> &DestinationId {
+        const ID: DestinationId = DestinationId::new("macos-banner");
+        &ID
+    }
+
+    fn capabilities(&self) -> Routing {
+        Routing {
+            local: true,
+            presence_gated: false,
+            durable: false,
+            event_dispatched: true,
+        }
+    }
+
     /// WHETHER THE SPAWN ANSWERED, which is the whole of what this channel can
     /// know: a banner has no second surface to report itself on, and the
     /// runner answers nothing for a notifier that is not installed and for one
@@ -101,7 +116,8 @@ impl<R: CommandRunner> BannerChannel<R> {
     /// NO EVENT HEARS IT. `ReportOutcome` is produced only under
     /// `--remote-only`, which selects durable plugins, and this one is not
     /// durable, so the sentence is unreachable from an event's stdout.
-    pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
+    fn deliver(&self, request: &DeliveryRequest<'_>) -> Delivery {
+        let event = request.event;
         let activate = if self.terminal_id.is_empty() {
             DEFAULT_TERMINAL_BUNDLE_ID
         } else {

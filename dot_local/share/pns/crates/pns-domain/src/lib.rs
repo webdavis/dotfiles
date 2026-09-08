@@ -42,7 +42,7 @@ pub mod surface;
 
 pub use decision::{
     DEFAULT_DESK_IDLE_SECS, Decision, DecisionRequest, EnvironmentSnapshot, GateInputs, Overrides,
-    SurfaceReading, decide, surface_reading,
+    SilencePolicy, SurfaceReading, decide, surface_reading,
 };
 pub use presence::{
     Edge, Full, Narrowing, PresenceStatus, RawPresence, Snapshot, Unreadable, chosen, classify,
@@ -72,3 +72,5 @@ pub use setup::{
 
 mod condenser;
 pub use condenser::{condenser_prompt, condenser_verdict};
+
+pub mod retry;

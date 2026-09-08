@@ -27,13 +27,16 @@ pub(super) fn started(
 pub(super) fn next(
     transaction: &Transaction<'_>,
     lease: LeaseWindow,
+    limits: pns_domain::retry::RetryLimits,
 ) -> Result<Option<RetryDelivery<DeliveryClaim>>, StoreError> {
     let mut query = transaction.prepare(
-        "SELECT id,event,owner,lease_until,due,generation FROM ledger_legs
-         WHERE acknowledged = 0 ORDER BY event,position",
+        "SELECT id,event,owner,lease_until,due,generation,
+          (SELECT started FROM ledger_attempts WHERE leg = ledger_legs.id AND generation = 1) FROM ledger_legs
+         WHERE acknowledged = 0 AND deadlettered_at IS NULL ORDER BY event,position",
     )?;
     let mut rows = query.query([])?;
     let mut selected = None;
+    let mut exhausted = Vec::new();
     while let Some(row) = rows.next()? {
         let owner: Option<u32> = row.get(2)?;
         let eligible = match owner {
@@ -44,13 +47,39 @@ pub(super) fn next(
             None => u64::from_be_bytes(row.get(4)?) <= lease.now,
         };
         if eligible {
+            let generation: u64 = row.get(5)?;
+            let created = u64::from_be_bytes(row.get(6)?);
+            // Generation 1 is the initial send. Each later claim consumes one
+            // retry even when its process dies before recording an outcome.
+            if let Some(reason) = limits.exhausted(generation - 1, created, lease.now) {
+                exhausted.push((row.get::<_, i64>(0)?, reason));
+                continue;
+            }
+            if selected.is_some() {
+                continue;
+            }
             selected = Some((
                 row.get::<_, i64>(0)?,
                 row.get::<_, i64>(1)?,
                 row.get::<_, i64>(5)?,
             ));
-            break;
         }
+    }
+    drop(rows);
+    drop(query);
+    for (leg, reason) in &exhausted {
+        let reason = match reason {
+            pns_domain::retry::DeadletterReason::Attempts => "attempts",
+            pns_domain::retry::DeadletterReason::Age => "age",
+        };
+        transaction.execute(
+            "UPDATE ledger_legs SET deadlettered_at = ?1, deadletter_reason = ?2,
+            owner = NULL, token = NULL, lease_until = NULL WHERE id = ?3",
+            params![lease.now.to_be_bytes(), reason, leg],
+        )?;
+    }
+    if !exhausted.is_empty() {
+        super::health::raise_alarm(transaction)?;
     }
     let Some((leg, event, generation)) = selected else {
         return Ok(None);

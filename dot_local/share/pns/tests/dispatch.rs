@@ -11,6 +11,8 @@ mod captured_events;
 mod quiet_records;
 #[path = "support/stored_records.rs"]
 mod stored_records;
+#[path = "dispatch/submit_json.rs"]
+mod submit_json;
 mod support;
 
 use captured_events::events;

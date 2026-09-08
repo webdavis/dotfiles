@@ -107,7 +107,7 @@ pub use destinations::moshi::{
 };
 
 mod destinations;
-pub use destinations::{deliver_executable, event_json, native_first, resolve_path};
+pub use destinations::{ExecutableDestination, event_json, resolve_path};
 
 mod unifi;
 pub use unifi::{HomeStaleness, UniFiRouter, first_site_id, parse_clients};
@@ -150,7 +150,7 @@ mod recap_child;
 pub use codex::condense;
 pub use git::git_branch;
 pub use moshi_hook::MoshiApprovalForwarder;
-pub use recap_child::spawn_recap;
+pub use recap_child::{run_recap_bounded, spawn_recap};
 
 pub use persistence::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
 

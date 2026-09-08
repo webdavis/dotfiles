@@ -62,6 +62,7 @@ fn abandoned_legacy_batches_keep_their_order_and_survive_pending_ring_pruning() 
                     ..EventArgs::default()
                 },
                 Some(n + 9),
+                None,
             )
             .unwrap();
     }
@@ -71,12 +72,23 @@ fn abandoned_legacy_batches_keep_their_order_and_survive_pending_ring_pruning() 
     );
     let claimed = store.claim_return(Some(40), true).unwrap().unwrap();
     assert_eq!(claimed.since, Some(8));
-    assert_eq!(claimed.waiting.len(), 26);
+    assert_eq!(claimed.waiting.len(), 1);
     assert_eq!(claimed.waiting[0].detail, "abandoned");
-    assert_eq!(claimed.waiting[1].detail, "new 1");
+    assert_eq!(
+        crate::journal_codec::entries(&Journal::read(&store).unwrap().unwrap())[0].detail,
+        "new 1"
+    );
     assert_eq!(fs::read(&first).unwrap(), entry("abandoned").as_bytes());
     store.complete_return().unwrap();
     store.import_legacy().unwrap();
+    let later = store.claim_return(Some(41), true).unwrap().unwrap();
+    assert_eq!(
+        later.waiting.len(),
+        25,
+        "later arrivals retain their separate batch"
+    );
+    assert_eq!(later.waiting[0].detail, "new 1");
+    store.complete_return().unwrap();
     assert!(
         store
             .claim_return(Some(41), true)

@@ -47,7 +47,10 @@ fn a_suspended_worker_cannot_revise_after_a_competing_generation_finishes() {
         resumed.recv_timeout(Duration::from_millis(650)).unwrap();
         SqliteStore::new(path).record(&claim, &retry(40), 22)
     });
-    let successor = store.claim_retry(lease(20, 30)).unwrap().unwrap();
+    let successor = store
+        .claim_retry(lease(20, 30), Default::default())
+        .unwrap()
+        .unwrap();
     let result = store.record(&successor.claim, &acknowledged(), 21);
     release.send(()).unwrap();
     let stale = worker.join().unwrap();

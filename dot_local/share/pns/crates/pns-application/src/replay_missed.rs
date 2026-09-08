@@ -39,9 +39,14 @@ where
     P: ReturnMoment + ActivityRing + RecapPublisher + ReplayDelivery,
 {
     /// Deliver the catch-up for this event, or decline and say nothing.
-    pub fn run(&self, decision: &Decision, recap: RecapPolicy, durable_route: bool) {
+    pub fn run(
+        &self,
+        decision: &Decision,
+        recap: RecapPolicy,
+        durable_route: bool,
+    ) -> Option<crate::ReplayHandoff> {
         if !missed::should_replay(decision) {
-            return;
+            return None;
         }
 
         // NOWHERE THE OPERATOR WOULD SEE IT IS NOT A REPLAY, and that is a
@@ -49,19 +54,27 @@ where
         // channel alone would claim the queue, post it into a log that already
         // holds all of it, and delete it, with nothing the operator ever sees.
         if !decision.legs.iter().any(|leg| leg.decorative) {
-            return;
+            return None;
         }
 
         // CLAIMED BEFORE ANYTHING IS READ. Two events arriving together must
         // not both replay the same window, and the claim is what decides which
         // one does.
-        let Some(claim) =
-            ReturnMoment::claim(self.ports, decision.inputs.now_secs, recap.replay_card)
-        else {
-            return;
-        };
+        let claim = ReturnMoment::claim(self.ports, decision.inputs.now_secs, recap.replay_card)?;
 
-        let window = match (claim.since, decision.inputs.now_secs) {
+        if claim
+            .replay
+            .as_ref()
+            .is_some_and(|batch| batch.state == crate::ReplayState::Queued)
+        {
+            ReturnMoment::complete(self.ports);
+            return Some(crate::ReplayHandoff::Queued);
+        }
+        let until = claim
+            .replay
+            .as_ref()
+            .map_or(decision.inputs.now_secs, |batch| batch.until);
+        let window = match (claim.since, until) {
             (Some(since), Some(until)) if since <= until => Some((since, until)),
             _ => None,
         };
@@ -81,7 +94,7 @@ where
 
         if !recap.replay_card {
             ReturnMoment::complete(self.ports);
-            return;
+            return None;
         }
         // A CARD WITH NOTHING IN IT IS NOISE. With no digest to point at and
         // nothing waiting, there is no sentence to write.
@@ -94,13 +107,17 @@ where
             )
         } else if claim.waiting.is_empty() {
             ReturnMoment::complete(self.ports);
-            return;
+            return None;
         } else {
             missed::summary(&claim.waiting)
         };
 
-        ReplayDelivery::deliver(
+        let Some(batch) = claim.replay else {
+            return Some(crate::ReplayHandoff::Retained);
+        };
+        let handoff = ReplayDelivery::deliver(
             self.ports,
+            &batch.identity,
             &EventArgs {
                 agent: "pns".to_string(),
                 state: "missed".to_string(),
@@ -109,7 +126,10 @@ where
             },
             &decision.legs,
         );
-        ReturnMoment::complete(self.ports);
+        if handoff == crate::ReplayHandoff::Queued {
+            ReturnMoment::complete(self.ports);
+        }
+        Some(handoff)
     }
 }
 

@@ -54,6 +54,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
+            "pns doctor: delivery ledger unreadable; backlog and deadletters unknown",
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],

@@ -4,37 +4,33 @@ use pns_domain::Overrides;
 // --- what each attempt is allowed to write ------------------------------
 
 #[test]
-fn a_nudge_writes_its_decision_line_and_stops() {
+fn a_nudge_does_not_repeat_the_first_submission_tail() {
     let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
     let taken = Submission {
         attempt: Attempt::Nudge,
         ..submission(&event, &decision, &overrides)
     };
-    assert_eq!(run(taken), ["decision(nag)"]);
+    assert!(run(taken).is_empty());
 }
 
 #[test]
-fn an_observation_writes_its_decision_line_and_stops() {
+fn an_observation_does_not_repeat_the_first_submission_tail() {
     let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
     let taken = Submission {
         attempt: Attempt::Observation,
         ..submission(&event, &decision, &overrides)
     };
-    assert_eq!(run(taken), ["decision"]);
+    assert!(run(taken).is_empty());
 }
 
 #[test]
-fn only_a_nudge_marks_its_decision_line_as_one() {
+fn no_attempt_appends_a_duplicate_decision() {
     let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
-    for (attempt, expected) in [
-        (Attempt::First, "decision"),
-        (Attempt::Observation, "decision"),
-        (Attempt::Nudge, "decision(nag)"),
-    ] {
+    for attempt in [Attempt::First, Attempt::Observation, Attempt::Nudge] {
         let taken = Submission {
             attempt,
             ..submission(&event, &decision, &overrides)
         };
-        assert_eq!(run(taken).first().map(String::as_str), Some(expected));
+        assert!(!run(taken).iter().any(|step| step.starts_with("decision")));
     }
 }
