@@ -19,11 +19,12 @@ packages:
       taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-        - cirruslabs/cli
+
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
         - nikitabobko/tap
+        - openai/tools
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
@@ -43,11 +44,12 @@ packages:
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-        - cirruslabs/cli
+
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
         - nikitabobko/tap
+        - openai/tools
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
@@ -79,7 +81,6 @@ packages:
         - carapace
         - ccusage
         - chezmoi
-        - cirruslabs/cli/softnet
         - cloudflared
         - cmake
         - cmake-docs
@@ -135,6 +136,7 @@ packages:
         - ollama
         - onefetch
         - openai-whisper
+        - openai/tools/softnet
         - openhue/cli/openhue-cli
         - opus
         - oven-sh/bun/bun
