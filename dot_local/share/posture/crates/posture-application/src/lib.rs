@@ -20,7 +20,10 @@
 
 mod converge;
 mod enrich;
-pub use converge::{ConvergeStaging, StagingRefusal};
+pub use converge::{
+    ConvergePlan, ConvergeRefusal, ConvergeStaging, DesiredTree, LiveTree, StagingRefusal,
+    prepare_converge,
+};
 pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};
 
 mod allowlist;

@@ -48,3 +48,6 @@ pub use snapshots_log::SnapshotsFile;
 
 mod clock;
 pub use clock::SystemClock;
+
+mod live_tree;
+pub use live_tree::InstalledTree;

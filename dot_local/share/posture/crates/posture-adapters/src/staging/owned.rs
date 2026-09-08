@@ -38,3 +38,9 @@ impl Drop for StagedTree {
         let _ = fs::remove_dir_all(&self.root);
     }
 }
+
+impl posture_application::DesiredTree for StagedTree {
+    fn source(&self, file: ConvergeFile) -> PathBuf {
+        self.source(file)
+    }
+}

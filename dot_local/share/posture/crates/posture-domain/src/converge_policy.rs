@@ -35,3 +35,20 @@ impl ConvergeFile {
             .find(|file| file.relative_path() == path)
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConvergeDirectory {
+    Target,
+    Packs,
+}
+
+impl ConvergeDirectory {
+    pub const ALL: [Self; 2] = [Self::Target, Self::Packs];
+
+    pub fn relative_path(self) -> &'static str {
+        match self {
+            Self::Target => "",
+            Self::Packs => "packs",
+        }
+    }
+}
