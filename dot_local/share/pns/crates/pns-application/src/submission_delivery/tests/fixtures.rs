@@ -23,7 +23,8 @@ pub(super) struct Store {
     pub allow_retry: bool,
     pub retry: Mutex<Option<RetryDelivery<u64>>>,
     pub panic_on_delivery: bool,
-    pub completed: Mutex<Vec<(u64, LedgerCompletion, u64)>>,
+    pub completed: Mutex<Vec<(u64, Delivery, u64)>>,
+    pub backoffs: Mutex<Vec<pns_domain::retry::RetryBackoff>>,
     pub notices: Mutex<Vec<String>>,
     pub steps: Mutex<Vec<String>>,
 }
@@ -80,14 +81,16 @@ impl DeliveryLedger for Store {
     fn record(
         &self,
         claim: &u64,
-        completion: &LedgerCompletion,
+        delivery: &Delivery,
         at: u64,
+        backoff: pns_domain::retry::RetryBackoff,
     ) -> Result<(), LedgerFailure> {
         self.note(format!("ledger:{claim}"));
         self.completed
             .lock()
             .unwrap()
-            .push((*claim, completion.clone(), at));
+            .push((*claim, delivery.clone(), at));
+        self.backoffs.lock().unwrap().push(backoff);
         if self.fail_writes {
             Err(LedgerFailure::Unavailable("record failed".into()))
         } else {

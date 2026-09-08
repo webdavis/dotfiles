@@ -16,9 +16,9 @@ existing non-secret daemon diagnostic when possible.
 
 Each initial leg belongs to the active writer. The retry scan leases only unacknowledged work whose owner
 is gone or whose lease has expired. An owned generation token prevents an old worker from settling a
-later lease. The caller chooses the finite lease and next retry instant; the store performs no inline
-retry. Pending rows are the queue, so the daemon does not need a second job record describing the same
-delivery.
+later lease. The caller chooses the finite lease and configured retry policy. The store computes each
+completed retry's due time from its owned generation and performs no inline retry. Pending rows are the
+queue, so the daemon does not need a second job record describing the same delivery.
 
 An acknowledged leg stays in the ledger as audit history and never returns to the retry queue.
 Unconfirmed outcomes retain their failed, unlaunched or unknown distinction. Every leased generation
@@ -70,3 +70,15 @@ only when planning the original banner and phone delivery. Existing mute and Foc
 pulse and unmarked return summaries stay quiet. Missing class metadata preserves the prior canonical
 bytes, and retry follows the stored legs rather than applying a later class configuration. The renderer
 writes the default security class explicitly, making the exception visible to the operator.
+
+Schema version 7 retains a terminal HTTP status on the affected leg and attempt. Only 401, 403, 404 and
+413 terminate a queued Hermes retry. That completion, the dead-letter marker and its pending local alarm
+commit together. The record, original request metadata, route and earlier attempts remain inspectable;
+terminal failure never acknowledges delivery or clears a missed event. The initial send remains pending
+for its first daemon retry. Other non-success responses remain retryable.
+
+Queued failures use the completion time plus `retry_base_secs` times the retry count, plus one bounded
+random offset. The base defaults to 60 seconds. `retry_random_secs` defaults to the base when omitted;
+zero disables jitter. The sample retains the legacy 15-bit range and inclusive maximum. Initial sends
+consume no retry count or delay, while interrupted retry claims still consume a generation. Arithmetic
+saturates at the unsigned timestamp ceiling. Lease expiry and retry delay are separate policies.

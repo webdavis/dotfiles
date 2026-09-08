@@ -48,7 +48,12 @@ fn retry_age_uses_the_original_positive_epoch_and_a_strict_ceiling() {
         .unwrap()
         .expect("exact age limit remains allowed");
     store
-        .record(&retry.claim, &super::retry(at_limit + 1), at_limit)
+        .record(
+            &retry.claim,
+            &reported(&super::retry(at_limit + 1)),
+            at_limit,
+            Default::default(),
+        )
         .unwrap();
     assert!(
         store
@@ -71,7 +76,9 @@ fn retry_age_preserves_zero_future_and_full_unsigned_original_epochs() {
         else {
             panic!("new input");
         };
-        store.record(&legs[0].claim, &retry(1), 1).unwrap();
+        store
+            .record(&legs[0].claim, &reported(&retry(1)), 1, Default::default())
+            .unwrap();
         assert!(
             store
                 .claim_retry(

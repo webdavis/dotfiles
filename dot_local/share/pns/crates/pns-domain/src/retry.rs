@@ -27,3 +27,28 @@ impl RetryLimits {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryBackoff {
+    pub base_secs: u64,
+    pub random_secs: u64,
+}
+impl Default for RetryBackoff {
+    fn default() -> Self {
+        Self {
+            base_secs: 60,
+            random_secs: 60,
+        }
+    }
+}
+impl RetryBackoff {
+    pub fn retry_at(self, now: u64, retries: u64, sample: u16) -> u64 {
+        // Preserve the legacy 15-bit sample and inclusive configured maximum.
+        let offset = u64::from(sample & 0x7fff) % self.random_secs.saturating_add(1);
+        now.saturating_add(self.base_secs.saturating_mul(retries))
+            .saturating_add(offset)
+    }
+}
+
+#[cfg(test)]
+mod tests;

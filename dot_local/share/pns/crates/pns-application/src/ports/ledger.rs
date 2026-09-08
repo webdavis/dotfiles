@@ -33,6 +33,10 @@ pub enum UnconfirmedDelivery {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LedgerCompletion {
+    Rejected {
+        status: u16,
+        detail: String,
+    },
     Acknowledged {
         detail: String,
     },
@@ -100,8 +104,9 @@ pub trait DeliveryLedger {
     fn record(
         &self,
         claim: &Self::Claim,
-        completion: &LedgerCompletion,
+        delivery: &pns_domain::Delivery,
         at: u64,
+        backoff: pns_domain::retry::RetryBackoff,
     ) -> Result<(), LedgerFailure>;
     fn claim_retry(
         &self,

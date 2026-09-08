@@ -10,8 +10,8 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
     let store = SqliteStore::for_records(state_dir());
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
-    let limits = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => config.retry_limits,
+    let (limits, backoff) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => (config.retry_limits, config.retry_backoff),
         _ => Default::default(),
     };
     let (mobile, hermes_key) = match &loaded {
@@ -40,7 +40,7 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
                 decisions: &store,
                 destinations: &destinations,
             }
-            .attempt_retry(retry, window, &now_secs, &delivery_notice);
+            .attempt_retry(retry, window, backoff, &now_secs, &delivery_notice);
         },
     )
 }
@@ -57,6 +57,11 @@ fn retry_once(
 ) -> Result<(), String> {
     let window = lease(now).map_err(|_| "delivery retry clock overflow".to_string())?;
     let claimed = store.claim_retry(window, limits);
+    let claimed = claimed.map(|retry| {
+        if let Some(retry) = retry {
+            attempt(retry, window);
+        }
+    });
     let health = match &claimed {
         Ok(_) => store.sample_delivery_health(),
         Err(_) => Err(pns_application::LedgerFailure::Unavailable(
@@ -69,11 +74,7 @@ fn retry_once(
     if alarm.is_err() {
         store.report_delivery_health_failure();
     }
-    let retry = claimed.map_err(|_| "delivery retry storage unavailable".to_string())?;
-    let Some(retry) = retry else {
-        return alarm;
-    };
-    attempt(retry, window);
+    claimed.map_err(|_| "delivery retry storage unavailable".to_string())?;
     alarm
 }
 

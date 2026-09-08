@@ -100,9 +100,12 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
                         Some((_, Delivery::Delivered(said))) => {
                             pns_domain::doctor::Outcome::Sent(said.clone())
                         }
-                        Some((_, Delivery::Failed(said) | Delivery::Unlaunched(said))) => {
-                            pns_domain::doctor::Outcome::Failed(said.clone())
-                        }
+                        Some((
+                            _,
+                            Delivery::Failed(said)
+                            | Delivery::Rejected { detail: said, .. }
+                            | Delivery::Unlaunched(said),
+                        )) => pns_domain::doctor::Outcome::Failed(said.clone()),
                         // Silent BY DESIGN, which is an executable channel that
                         // RAN: it was handed the event and has no second surface
                         // to answer on.

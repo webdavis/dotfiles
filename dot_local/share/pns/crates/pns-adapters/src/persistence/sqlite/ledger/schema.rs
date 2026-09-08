@@ -52,3 +52,11 @@ pub(in crate::persistence::sqlite) fn retain_deadletters(
         INSERT INTO delivery_health(id) VALUES (1);")?;
     Ok(())
 }
+
+pub(in crate::persistence::sqlite) fn retain_http_status(
+    transaction: &Transaction<'_>,
+) -> Result<(), StoreError> {
+    transaction.execute_batch("ALTER TABLE ledger_legs ADD COLUMN http_status INTEGER CHECK(http_status IN (401,403,404,413));
+        ALTER TABLE ledger_attempts ADD COLUMN http_status INTEGER CHECK(http_status IN (401,403,404,413));")?;
+    Ok(())
+}

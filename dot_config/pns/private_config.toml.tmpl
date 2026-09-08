@@ -156,6 +156,11 @@ bypass_silence_classes = ["security"]
 max_attempts = 20
 # Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.
 max_age_secs = 604800
+# Queued retries wait this many seconds times their retry count.
+retry_base_secs = 60
+# Add one bounded random delay per failed retry. Zero disables it.
+# When omitted, it follows retry_base_secs.
+retry_random_secs = 60
 
 # The return recap: what you missed while you were away. THE UNCOMMENTED
 # LINES ARE THE DEFAULTS, written out so they can be seen; each switch

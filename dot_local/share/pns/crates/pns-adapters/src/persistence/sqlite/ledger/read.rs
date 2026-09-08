@@ -34,7 +34,7 @@ pub(super) fn record(
         .query_map([sequence], leg)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut query = connection.prepare(
-        "SELECT l.destination, a.generation, COALESCE(a.finished, a.started), a.outcome, a.detail, a.retry_at
+        "SELECT l.destination, a.generation, COALESCE(a.finished, a.started), a.outcome, a.detail, a.retry_at, a.http_status
          FROM ledger_attempts a JOIN ledger_legs l ON l.id = a.leg WHERE l.event = ?1
          ORDER BY a.generation, l.position")?;
     let attempts = query
@@ -73,6 +73,12 @@ pub(super) fn leg(row: &Row<'_>) -> rusqlite::Result<LedgerLeg> {
 }
 fn completion(row: &Row<'_>) -> rusqlite::Result<LedgerCompletion> {
     let detail = row.get(4)?;
+    if let Some(status) = row.get::<_, Option<u16>>(6)? {
+        if !matches!(status, 401 | 403 | 404 | 413) || row.get::<_, u8>(3)? != 2 {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        return Ok(LedgerCompletion::Rejected { status, detail });
+    }
     let outcome = match row.get::<_, u8>(3)? {
         1 => return Ok(LedgerCompletion::Acknowledged { detail }),
         0 => UnconfirmedDelivery::Unknown,

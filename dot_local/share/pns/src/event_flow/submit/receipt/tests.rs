@@ -6,6 +6,13 @@ use pns_domain::routing::ReportMode;
 fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
     let replies = [
         (
+            Delivery::Rejected {
+                status: 401,
+                detail: "private detail".into(),
+            },
+            DeliveryOutcome::Failed,
+        ),
+        (
             Delivery::Delivered("private detail".into()),
             DeliveryOutcome::Delivered,
         ),

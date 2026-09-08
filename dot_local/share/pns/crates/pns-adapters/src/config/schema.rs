@@ -58,7 +58,13 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("focus", &["silence"]),
     (
         "delivery",
-        &["bypass_silence_classes", "max_attempts", "max_age_secs"],
+        &[
+            "bypass_silence_classes",
+            "max_attempts",
+            "max_age_secs",
+            "retry_base_secs",
+            "retry_random_secs",
+        ],
     ),
     ("daemon", &["enabled"]),
     ("nag", &["after_secs"]),

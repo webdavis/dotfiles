@@ -66,15 +66,16 @@ impl DeliveryLedger for SqliteStore {
     fn record(
         &self,
         claim: &Self::Claim,
-        completion: &LedgerCompletion,
+        delivery: &pns_domain::Delivery,
         at: u64,
+        backoff: pns_domain::retry::RetryBackoff,
     ) -> Result<(), LedgerFailure> {
         let recorded = self.ledger_result(self.transaction(|transaction| {
-            let recorded = outcomes::record(transaction, claim, completion, at)?;
-            if recorded {
+            let completion = outcomes::record(transaction, claim, delivery, at, backoff)?;
+            if let Some(ref completion) = completion {
                 completion::revise_decision(transaction, claim, completion)?;
             }
-            Ok(recorded)
+            Ok(completion.is_some())
         }))?;
         if recorded {
             Ok(())

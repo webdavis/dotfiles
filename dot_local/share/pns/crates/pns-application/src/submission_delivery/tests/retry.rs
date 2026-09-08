@@ -31,13 +31,7 @@ fn a_daemon_retry_carries_the_original_payload_route_identity_and_claim_once() {
     assert_eq!(store.steps(), ["claim", "deliver:beta", "ledger:901"]);
     assert_eq!(
         *store.completed.lock().unwrap(),
-        [(
-            901,
-            LedgerCompletion::Acknowledged {
-                detail: "accepted".into()
-            },
-            125
-        )]
+        [(901, Delivery::Delivered("accepted".into()), 125)]
     );
     assert_eq!(
         workflow
@@ -79,15 +73,7 @@ fn a_missing_retry_destination_is_recorded_unlaunched_without_an_inline_retry() 
     let completions = store.completed.lock().unwrap();
     assert!(matches!(
         &completions[0],
-        (
-            902,
-            LedgerCompletion::Retry {
-                outcome: UnconfirmedDelivery::Unlaunched,
-                retry_at: 130,
-                ..
-            },
-            100
-        )
+        (902, Delivery::Unlaunched(_), 100)
     ));
 }
 
@@ -121,13 +107,11 @@ fn every_registered_destination_is_guarded_and_recorded_even_when_it_panics() {
     );
     let completed = store.completed.lock().unwrap();
     assert_eq!(completed.len(), 2);
-    assert!(completed.iter().all(|(_, completion, _)| matches!(
-        completion,
-        LedgerCompletion::Retry {
-            outcome: UnconfirmedDelivery::Failed,
-            ..
-        }
-    )));
+    assert!(
+        completed
+            .iter()
+            .all(|(_, completion, _)| matches!(completion, Delivery::Failed(_)))
+    );
 }
 
 #[test]
@@ -160,4 +144,38 @@ fn an_aggregate_replay_is_queued_without_creating_an_original_decision() {
         ]
     );
     assert_eq!(store.completed.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn an_owned_retry_forwards_its_typed_rejection_and_configured_backoff_to_the_ledger() {
+    let original = submission();
+    let store = Store::default();
+    let rejected = Delivery::Rejected {
+        status: 413,
+        detail: "literal status detail".into(),
+    };
+    let registry = destinations(&store, rejected.clone());
+    let workflow = SubmissionDelivery {
+        ledger: &store,
+        decisions: &store,
+        destinations: &registry,
+    };
+    let backoff = pns_domain::retry::RetryBackoff {
+        base_secs: 7,
+        random_secs: 3,
+    };
+    workflow.attempt_retry(
+        RetryDelivery {
+            claim: 903,
+            identity: original.identity,
+            event: original.event,
+            leg: original.legs[0].clone(),
+        },
+        lease(),
+        backoff,
+        &|| Some(125),
+        &|message| store.notice(message),
+    );
+    assert_eq!(*store.completed.lock().unwrap(), [(903, rejected, 125)]);
+    assert_eq!(*store.backoffs.lock().unwrap(), [backoff]);
 }
