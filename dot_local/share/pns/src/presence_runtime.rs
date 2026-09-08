@@ -3,7 +3,6 @@ use crate::*;
 /// The lamp-narrowing ring: one line per narrowing decision, `KEPT` deep,
 /// beside `decisions`. Its own file rather than a field on the decision ring,
 /// because the tick writes it too and the tick decides no event at all.
-const PRESENCE_DECISIONS: &str = "presence-decisions";
 /// The probe set for ONE invocation. Built here and shared, never per
 /// consumer: see `SystemProbes`.
 pub(crate) fn system_probes() -> SystemProbes<SystemCommandRunner> {
@@ -133,8 +132,9 @@ pub(crate) fn home_presence() -> pns::home::HomePresence {
 /// The last narrowing this machine decided. `None` is a ring with nothing in
 /// it, which is presence off or never yet consulted.
 pub(crate) fn last_narrowing(state: &Path) -> Option<pns_domain::PresenceDecision> {
-    let contents =
-        pns_adapters::readable_state_file(&state.join(PRESENCE_DECISIONS), RING_READ_MAX).ok()?;
+    let contents = pns_adapters::SqliteStore::for_records(state.to_path_buf())
+        .presence_history()
+        .ok()??;
     pns_adapters::presence_journal::last(&contents)
 }
 

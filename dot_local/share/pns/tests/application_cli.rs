@@ -1,3 +1,5 @@
+#[path = "support/stored_records.rs"]
+mod stored_records;
 mod support;
 
 use support::{Sandbox, run, stderr, stdout};
@@ -86,7 +88,9 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     std::fs::create_dir_all(sandbox.state()).unwrap();
     let quiet = run(sandbox.pns_stateful().args(["quiet", "1h"]));
     assert!(stdout(&quiet).starts_with("pns: quiet for another"));
-    std::fs::write(sandbox.path("state/lights-held"), "light/owned\n").unwrap();
+    pns_adapters::SqliteStore::for_records(sandbox.state())
+        .remember_held(&[pns_domain::lights::phase::HeldEntry::bare("light/owned")])
+        .expect("the held lamp after quiet initialized the database");
     let mut command = sandbox.pns_stateful();
     sandbox.stub_herdr(&mut command, false);
     let mut child = command.args(["lights", "tick"]).spawn().unwrap();
@@ -108,6 +112,12 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     };
     assert!(status.success());
     assert!(dialled, "the held lamp was not addressed");
-    assert!(!sandbox.path("state/lights-held").exists());
+    assert_eq!(
+        stored_records::database(&sandbox)
+            .query_row("SELECT count(*) FROM held_lamps", [], |row| row
+                .get::<_, u64>(0))
+            .expect("the actual held rows"),
+        0
+    );
     assert!(!sandbox.fired("hermes") && !sandbox.fired("mobile"));
 }

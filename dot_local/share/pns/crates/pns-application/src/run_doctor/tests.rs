@@ -6,6 +6,7 @@ struct History {
     decisions: Result<Option<String>, String>,
     journal: Result<Option<String>, String>,
     reads: RefCell<Vec<&'static str>>,
+    imports: Result<Vec<(String, String)>, String>,
 }
 impl Default for History {
     fn default() -> Self {
@@ -13,6 +14,7 @@ impl Default for History {
             decisions: Ok(None),
             journal: Ok(None),
             reads: RefCell::new(Vec::new()),
+            imports: Ok(Vec::new()),
         }
     }
 }
@@ -96,6 +98,13 @@ fn report(
                 focus: || "focus fixture".into(),
                 daemon: || "daemon fixture".into(),
                 lamps: || LightsReport::Off,
+                imports: || {
+                    history.imports.clone().map(|rows| {
+                        rows.into_iter()
+                            .map(|(record, reason)| ImportFailure { record, reason })
+                            .collect()
+                    })
+                },
             },
             |line| lines.push(line.to_string()),
         );
@@ -121,3 +130,5 @@ fn sent() -> Vec<(Leg, Delivery)> {
 mod composition;
 mod focus;
 mod panic;
+
+mod imports;

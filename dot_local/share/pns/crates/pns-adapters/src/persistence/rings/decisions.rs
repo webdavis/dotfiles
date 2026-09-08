@@ -1,4 +1,6 @@
 use pns_domain::{ABSENT, Record, count, printable, tri, verdicts, yes_no};
+mod revise;
+pub(crate) use revise::revise_leg;
 /// One decision as one line: `<epoch> <key=value ...>`.
 ///
 /// NO FREE TEXT REACHES IT. The detail, the branch, the project and the pane

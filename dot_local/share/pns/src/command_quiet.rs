@@ -1,5 +1,5 @@
 use crate::*;
-use pns_adapters::{QUIET_UNTIL, read_quiet_expiry};
+use pns_adapters::SqliteStore;
 
 /// The `quiet` mode: the operator's own mute, typed and timed.
 ///
@@ -9,7 +9,7 @@ use pns_adapters::{QUIET_UNTIL, read_quiet_expiry};
 /// reported on; this is hand typed, is never a hook, and a subcommand that
 /// silently swallows a typo is a mute the operator believes is on.
 ///
-/// THE REPORT IS READ BACK OFF THE FILE after whatever was asked for, rather
+/// THE REPORT IS READ BACK FROM THE REPOSITORY after whatever was asked for, rather
 /// than rendered from what this run intended, so the line cannot claim a mute
 /// that never landed. A FAILED SET REPORTS TOO, for the mirror of the same
 /// reason: it knows only that its own write did not happen, and a previous
@@ -19,7 +19,7 @@ pub(crate) fn quiet_mode() -> i32 {
         .skip(2)
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
-    let quiet_until = state_dir().join(QUIET_UNTIL);
+    let records = SqliteStore::for_records(state_dir());
     // A SET THAT DID NOT HAPPEN, carried to the exit code rather than
     // returned on the spot, so the report below runs on this path too.
     let mut set_failed = false;
@@ -29,10 +29,10 @@ pub(crate) fn quiet_mode() -> i32 {
         // that has silently stopped working, and making this form the report
         // also means no invocation can mute by accident.
         [] => {}
-        // Unlinking is also how a file nothing can parse is cleared, which is
-        // the remedy the corrupt-state complaint names.
+        // Clearing also replaces an imported record nothing could parse. The
+        // standing-state report below still decides what actually happened.
         [word] if word == "off" => {
-            let _ = std::fs::remove_file(&quiet_until);
+            let _ = records.set_quiet_expiry(None);
         }
         [duration] => match pns::quiet::parse_duration(duration) {
             Ok(seconds) => {
@@ -56,7 +56,7 @@ pub(crate) fn quiet_mode() -> i32 {
                     // success for a mute that is not in effect is the worst
                     // outcome available.
                     Some(expiry) => {
-                        if let Err(error) = publish_state_line(&quiet_until, &expiry.to_string()) {
+                        if let Err(error) = records.set_quiet_expiry(Some(expiry)) {
                             eprintln!(
                                 "pns: state error (quiet-until could not be written: {error}); \
                                  the mute was not set"
@@ -82,7 +82,7 @@ pub(crate) fn quiet_mode() -> i32 {
     }
     println!(
         "{}",
-        pns::quiet::status_line(read_quiet_expiry(), now_secs())
+        pns::quiet::status_line(read_quiet_expiry(&records), now_secs())
     );
     if set_failed { 1 } else { 0 }
 }
@@ -97,5 +97,24 @@ const QUIET_USAGE: &str =
 /// mid-run costs one event either way, and one decision on one reading is the
 /// engine's stated contract.
 pub(crate) fn muted_now(now_secs: Option<u64>) -> bool {
-    pns::quiet::is_muted(read_quiet_expiry(), now_secs)
+    pns::quiet::is_muted(
+        read_quiet_expiry(&SqliteStore::for_records(state_dir())),
+        now_secs,
+    )
+}
+
+fn read_quiet_expiry(records: &SqliteStore) -> Option<u64> {
+    match records.quiet_expiry() {
+        Ok(expiry) => expiry,
+        Err(pns_adapters::StoreError::InvalidState(complaint)) => {
+            eprintln!("{complaint}");
+            None
+        }
+        Err(error) => {
+            eprintln!(
+                "pns: state error (quiet-until could not be read: {error}); nothing is muted, clear it with pns quiet off"
+            );
+            None
+        }
+    }
 }

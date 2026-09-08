@@ -22,7 +22,7 @@ fn a_nudge_is_not_a_new_event() {
     );
     let ring = state_lines(&sandbox, "activity");
     let journal = state_lines(&sandbox, "missed-notifications");
-    let present = std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+    let present = stored_records::present(&sandbox);
     assert_eq!(ring.len(), 1, "the approval's own card rang once");
 
     support::run(&mut nag(&sandbox));
@@ -38,7 +38,7 @@ fn a_nudge_is_not_a_new_event() {
         "and no journal entry, so a suppressed nudge is LOST rather than replayed later"
     );
     assert_eq!(
-        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+        stored_records::present(&sandbox),
         present,
         "and it never claims the return moment: a nudge is not evidence of presence"
     );

@@ -65,7 +65,7 @@ pub(super) fn window_claim_suffix(now: Option<u64>) -> String {
 /// no edge, until that process happens to exit. The bound is deliberately five
 /// minutes, four orders of magnitude past what holding one costs, so a real
 /// holder can never be stolen from and a stranded one can never wedge for long.
-pub(super) fn window_claim_is_free(owner: &str, now: Option<u64>) -> bool {
+pub(crate) fn window_claim_is_free(owner: &str, now: Option<u64>) -> bool {
     let mut named = owner.split('.');
     let took_it = named.next().unwrap_or_default();
     if took_it == std::process::id().to_string() || owner_is_gone(owner) {

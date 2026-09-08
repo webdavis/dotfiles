@@ -68,7 +68,7 @@ pub(crate) fn home_mode() {
     let router = pns::home::UniFiRouter::new(settings.router_url, key);
     pns_application::ReadHomeProbe {
         router: &router,
-        memory: &pns_adapters::HomeStaleness,
+        memory: &pns_adapters::SqliteStore::for_records(state_dir()),
         notifier: &HomeNotification,
     }
     .run(&settings.device, alert_route, |reading, alert| {

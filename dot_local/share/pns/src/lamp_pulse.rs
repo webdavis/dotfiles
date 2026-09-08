@@ -29,7 +29,7 @@ pub(crate) fn fire_pulse_unless_quiet(
         },
         |lights, now, minutes| {
             pns_application::signal_mapped(
-                &pns_adapters::FileLampState::new(state_dir()),
+                &pns_adapters::SqliteStore::for_records(state_dir()),
                 now,
                 minutes,
                 |reading, held| fire_lights(&settings, lights, behaviour, reading, held, presence),
@@ -95,7 +95,7 @@ fn fire_lights(
     };
     pns_application::SignalLamps {
         bridge: &pns_adapters::TypedLampBridge(&bridge),
-        presence: &pns_adapters::FileLampState::new(state_dir()),
+        presence: &pns_adapters::SqliteStore::for_records(state_dir()),
     }
     .run(lights, behaviour, reading, held, presence)
 }
@@ -111,7 +111,7 @@ fn run_pulse_writes<B: pns_adapters::Bridge>(
 ) -> Vec<String> {
     pns_application::SignalLamps {
         bridge: &pns_adapters::TypedLampBridge(bridge),
-        presence: &pns_adapters::FileLampState::new(state.to_path_buf()),
+        presence: &pns_adapters::SqliteStore::for_records(state.to_path_buf()),
     }
     .run(lights, behaviour, reading, held, presence)
 }

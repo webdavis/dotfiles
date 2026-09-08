@@ -274,7 +274,9 @@ mod tests {
             None,
             || clock.elapsed_ms(),
             |waited| {
-                let _ = std::fs::remove_file(state.join(LIGHTS_HELD));
+                pns_adapters::SqliteStore::for_records(state.clone())
+                    .remember_held(&[])
+                    .expect("the other writer cleared the held lamps");
                 clock.slept(waited);
             },
         );

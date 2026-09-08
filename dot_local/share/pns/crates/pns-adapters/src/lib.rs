@@ -152,5 +152,7 @@ pub use git::git_branch;
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_child::spawn_recap;
 
+pub use persistence::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
+
 #[cfg(test)]
 mod state_fixtures;

@@ -49,7 +49,7 @@ pub use presence::{
 };
 
 pub use decision_record::Record;
-pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no};
+pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdict, verdicts, yes_no};
 pub use routing::Delivery;
 
 pub use notification::{Event, EventArgs};

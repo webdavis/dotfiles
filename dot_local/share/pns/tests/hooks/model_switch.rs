@@ -46,8 +46,7 @@ fn an_observation_still_delivers_and_is_logged() {
         event["detail"],
         "automatic session model change: claude-sonnet-4-5 to claude-opus-4-6"
     );
-    let recorded =
-        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    let recorded = stored_records::text(&sandbox, "decisions");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(lines.len(), 1, "one event, one line: {recorded:?}");
     assert!(
@@ -152,11 +151,9 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     assert!(output.status.success(), "auto still exits 0");
     assert_eq!(deliveries(&sandbox, "hermes"), 1, "auto delivers");
     let deliveries_after_auto = deliveries(&sandbox, "hermes");
-    let decisions_after_auto =
-        std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default();
+    let decisions_after_auto = stored_records::text(&sandbox, "decisions");
     let activity_after_auto = state_lines(&sandbox, "activity");
-    let present_after_auto =
-        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+    let present_after_auto = stored_records::present(&sandbox);
 
     // The four other documented words, then the shapes the reference does
     // not list: a `source` that is missing, empty, of the wrong type, spelled
@@ -197,7 +194,7 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
             "{source}: delivers nothing"
         );
         assert_eq!(
-            std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default(),
+            stored_records::text(&sandbox, "decisions"),
             decisions_after_auto,
             "{source}: writes no decision line"
         );
@@ -207,7 +204,7 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
             "{source}: writes no activity line"
         );
         assert_eq!(
-            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+            stored_records::present(&sandbox),
             present_after_auto,
             "{source}: moves no presence edge"
         );

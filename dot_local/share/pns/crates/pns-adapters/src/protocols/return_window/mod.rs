@@ -57,3 +57,5 @@ impl ReturnMoment for FileReturnMoment {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) use adoption::window_claim_is_free;
