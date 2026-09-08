@@ -1,0 +1,4 @@
+**Tailscale Funnel is exposing a local service to the PUBLIC internet.**
+- Did you set this up? If not, close it now: **tailscale funnel reset**
+- Exposed to the public internet:
+- `example.test:443`

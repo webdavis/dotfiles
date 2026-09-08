@@ -17,6 +17,7 @@ pub enum AlertSignal {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alert {
+    pub occurrence_id: Option<String>,
     pub event: &'static str,
     pub signal: AlertSignal,
     pub occurred_at: Option<u64>,
@@ -66,6 +67,7 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
         // This daily observation advances no state. The sink owns durable delivery;
         // a refusal does not turn the heartbeat into a retry loop or a security page.
         let _ = self.sink.submit(&Alert {
+            occurrence_id: None,
             event: "heartbeat",
             signal: AlertSignal::Observation,
             occurred_at: time.map(|time| time.seconds),

@@ -32,3 +32,12 @@ pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,
 };
+
+mod alarm;
+pub use alarm::{AlarmFailed, IndependentAlarm};
+
+mod poll_state;
+pub use poll_state::{PollGap, SavedPollControl, SavedPollState};
+
+mod poll;
+pub use poll::{Poll, PollFailure, PollMarkers, PollStateFailure};

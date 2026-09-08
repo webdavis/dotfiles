@@ -23,7 +23,7 @@ mod codesign;
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
-pub use command::{CommandIo, CommandRunner, SystemRunner};
+pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner};
 
 mod locks;
 pub use locks::AllowlistWriteLock;
@@ -46,3 +46,19 @@ pub use snapshots_log::SnapshotsFile;
 
 mod clock;
 pub use clock::SystemClock;
+
+mod controls_file;
+pub use controls_file::read_controls;
+
+mod probes;
+pub use probes::ControlProbes;
+mod osqueryi;
+pub use osqueryi::{PostureQuery, PostureTrio};
+
+mod pns_producer;
+pub use pns_producer::PnsProducer;
+mod last_resort_banner;
+pub use last_resort_banner::LastResortBanner;
+
+mod state_files;
+pub use state_files::PollStateFiles;

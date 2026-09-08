@@ -1,0 +1,67 @@
+[
+  {
+    "name": "normal",
+    "baseline_json": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "state": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}\n",
+    "mode": 384,
+    "temporary_kind": "missing",
+    "temporary": null,
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.01910249999491498,
+    "stderr": ""
+  },
+  {
+    "name": "existing-temporary",
+    "baseline_json": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "state": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}\n",
+    "mode": 384,
+    "temporary_kind": "missing",
+    "temporary": null,
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.008674666984006763,
+    "stderr": ""
+  },
+  {
+    "name": "temporary-directory",
+    "baseline_json": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "state": "old\n",
+    "mode": 384,
+    "temporary_kind": "directory",
+    "temporary": null,
+    "fields": [
+      "1"
+    ],
+    "seconds": 0.0036783330142498016,
+    "stderr": "/private/tmp/pstate-adsjqro1/captures/publish-temporary-directory/run.sh: line 7: /private/tmp/pstate-adsjqro1/captures/publish-temporary-directory/state.tmp: Is a directory\n"
+  },
+  {
+    "name": "rename-refused",
+    "baseline_json": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "state": "old\n",
+    "mode": 384,
+    "temporary_kind": "file",
+    "temporary": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}\n",
+    "fields": [
+      "1"
+    ],
+    "seconds": 0.003875959024298936,
+    "stderr": ""
+  },
+  {
+    "name": "chmod-refused",
+    "baseline_json": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "state": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}\n",
+    "mode": 420,
+    "temporary_kind": "missing",
+    "temporary": null,
+    "fields": [
+      "1"
+    ],
+    "seconds": 0.007208249997347593,
+    "stderr": ""
+  }
+]

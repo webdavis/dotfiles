@@ -1,0 +1,129 @@
+[
+  {
+    "name": "missing",
+    "input": null,
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [
+      "CRIT title body Sosumi"
+    ],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.0036273750010877848,
+    "stderr": ""
+  },
+  {
+    "name": "covered",
+    "input": "a b\n",
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.006398374971468002,
+    "stderr": ""
+  },
+  {
+    "name": "new-member",
+    "input": "a\n",
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [
+      "CRIT title body Sosumi"
+    ],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.00664725003298372,
+    "stderr": ""
+  },
+  {
+    "name": "recovery",
+    "input": "a b\n",
+    "members": "b",
+    "accepted": true,
+    "output": "b\n",
+    "calls": [],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.006915625010151416,
+    "stderr": ""
+  },
+  {
+    "name": "internal-newline",
+    "input": "a\nb\n",
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [
+      "CRIT title body Sosumi"
+    ],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.007292209018487483,
+    "stderr": ""
+  },
+  {
+    "name": "tab",
+    "input": "a\tb\n",
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [
+      "CRIT title body Sosumi"
+    ],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.005412791040726006,
+    "stderr": ""
+  },
+  {
+    "name": "extra-spaces",
+    "input": "  a   b  \n",
+    "members": "a b",
+    "accepted": true,
+    "output": "a b\n",
+    "calls": [],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.0064511660020798445,
+    "stderr": ""
+  },
+  {
+    "name": "unaccepted",
+    "input": null,
+    "members": "a b",
+    "accepted": false,
+    "output": null,
+    "calls": [
+      "CRIT title body Sosumi"
+    ],
+    "fields": [
+      "1"
+    ],
+    "seconds": 0.003951749997213483,
+    "stderr": ""
+  },
+  {
+    "name": "covered-refusal",
+    "input": "a b\n",
+    "members": "a b",
+    "accepted": false,
+    "output": "a b\n",
+    "calls": [],
+    "fields": [
+      "0"
+    ],
+    "seconds": 0.006511665997095406,
+    "stderr": ""
+  }
+]

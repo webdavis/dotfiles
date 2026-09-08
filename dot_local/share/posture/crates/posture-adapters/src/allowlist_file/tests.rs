@@ -57,16 +57,18 @@ struct Resolve {
     target: PathBuf,
 }
 impl CommandRunner for Resolve {
-    fn run(
+    fn run_completed(
         &mut self,
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure> {
+    ) -> Result<crate::CommandOutput, InspectionFailure> {
         assert_eq!(program, Path::new("/fixture/chezmoi"));
         assert_eq!(args, [OsStr::new("source-path"), self.target.as_os_str()]);
         assert_eq!(io, CommandIo::CaptureStdout);
-        self.answer.clone()
+        self.answer
+            .clone()
+            .map(|bytes| crate::CommandOutput { bytes, exit: 0 })
     }
 }
 fn adapter(target: PathBuf) -> AllowlistFile {
