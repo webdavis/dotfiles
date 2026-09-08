@@ -46,3 +46,6 @@ pub use snapshots_log::SnapshotsFile;
 
 mod clock;
 pub use clock::SystemClock;
+
+mod controls_file;
+pub use controls_file::read_controls;

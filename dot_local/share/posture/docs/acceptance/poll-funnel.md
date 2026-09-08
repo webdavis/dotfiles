@@ -58,3 +58,26 @@ The scope excludes process discovery/arguments/deadlines, actual baseline files 
 submission ordering against a real durable port. The proposed-state assertions cover the domain part of
 those decisions; S265, S270, S271 and S278 still require the planned application and adapters. The poller
 and Funnel deliveries remain open until their consumers and operational gates are complete.
+
+## Controls-file reader
+
+The reader adds four adapter leaves while preserving all 455 predecessor names and bodies, including the
+31 policy rows above. Twenty-four raw Bash captures pin scalar and compound field bytes, duplicate keys,
+malformed documents and later invalid rows. Six filesystem captures cover missing paths, directories,
+named pipes, broken and regular symlinks, and an unreadable regular file.
+
+| Full new test name                                                                                    | Source statements | Independent source faults        |
+| ----------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------- |
+| `controls_file::tests::controls_files_match_bash_valid_scalar_and_compound_field_bytes`               | S254, S266        | `command-bytes`                  |
+| `controls_file::tests::controls_files_refuse_every_captured_invalid_document_without_partial_records` | S254, S255        | `valid-prefix`, `first-document` |
+| `controls_file::tests::controls_files_report_missing_kinds_and_read_refusal_without_blocking`         | S254              | `missing-kind`                   |
+| `controls_file::tests::controls_files_follow_a_regular_symlink_without_rewriting_its_target`          | S254              | `reject-symlink`                 |
+
+All four leaves fail their assertions against the initial reject-all reader. Each source fault then fails
+its named leaf against a separately compiled source variant, with the healthy source unchanged. The
+shared projection move preserves the existing field-selection and rendering logic; its 19 existing
+allowlist projection leaves retain their names and bodies. The final adapter suite passes all 167 leaves.
+
+The unreadable-file capture includes Bash's shell-redirection diagnostic. The reader returns the captured
+malformed-file refusal without printing, so caller diagnostic parity remains part of the poller cutover.
+This packet does not run probes, publish state or activate a caller.

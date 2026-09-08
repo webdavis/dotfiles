@@ -47,9 +47,21 @@ The process and file adapters supply the readings; this policy does not perform 
   with the captured truncation suffix, and wrap it in a code span. Preserve exact rendered page bytes,
   including the shell's trailing-newline removal at submission (S276).
 
-The wire adapter must validate whole documents and project scalar fields according to the retained Bash
-behavior. Domain admission does not prove JSON (JavaScript Object Notation) parsing or a process result.
-The controls array's typed length replaces the intermediate count string; malformed input is refused
-before constructing it. Process arguments, deadlines, LuLu archive/path reads, state-file ownership,
-publication failures and durable acceptance remain in the planned application and adapter rows (S250,
-S252, S253, S265, S270, S271, S278). The Bash callers remain active until those cutovers.
+The controls-file reader validates exactly one complete JSON (JavaScript Object Notation) array before
+returning any controls (S254, S255). It follows a symlink to a regular file. A missing path, directory,
+broken symlink or named pipe returns the missing-file refusal; a failed regular-file read returns the
+malformed-file refusal. The reader leaves the file and symlink unchanged.
+
+Field projection preserves the captured Bash bytes before domain admission: numeric identifiers, boolean
+and compound text, object encounter order with last duplicate values, omitted false/null fields, leading
+zeroes, non-finite numbers, byte-order marks and malformed character replacement. A high surrogate
+without its required partner refuses the document; an isolated low surrogate becomes a replacement
+character. Command substitution removes null characters and trailing newlines before the domain sanitizes
+descriptions and remedies. A later invalid row refuses the whole set (S254 to S256).
+
+The reader returns a typed refusal without printing. The future caller still owns Bash's additional
+shell-redirection diagnostic for an unreadable file, alongside the malformed-file explanation. The
+controls array's typed length replaces the intermediate count string. Process arguments, deadlines, LuLu
+archive/path reads, state-file ownership, publication failures and durable acceptance remain in the
+planned application and adapter rows (S250, S252, S253, S265, S270, S271, S278). The Bash callers remain
+active until those cutovers.
