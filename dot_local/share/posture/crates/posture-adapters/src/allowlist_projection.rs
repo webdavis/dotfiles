@@ -1,7 +1,5 @@
-mod input;
-mod number;
 mod query;
-use input::ProjectionInput;
+use crate::legacy_json::ProjectionInput;
 use posture_application::SourceLine;
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;

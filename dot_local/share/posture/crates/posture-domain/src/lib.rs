@@ -51,3 +51,9 @@ pub use known_good::{
 
 mod enrich;
 pub use enrich::{CodeTrust, Enrichment, classify_signing, is_interpreter};
+
+mod canary;
+pub use canary::{CanaryEpoch, CanaryFreshness, canary_freshness};
+
+mod heartbeat;
+pub use heartbeat::{HeartbeatText, heartbeat_text};

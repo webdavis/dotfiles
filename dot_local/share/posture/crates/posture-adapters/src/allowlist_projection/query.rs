@@ -1,4 +1,5 @@
-use super::{ProjectionInput, command_text, number::display_number};
+use super::command_text;
+use crate::legacy_json::{ProjectionInput, display_number};
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde_json::value::RawValue;
 use std::fmt;
