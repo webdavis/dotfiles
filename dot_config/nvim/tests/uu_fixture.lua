@@ -27,6 +27,13 @@ local function repository(path)
   M.git(path, "init", "-b", "fixture")
   M.git(path, "config", "user.name", "Owned Fixture")
   M.git(path, "config", "user.email", "fixture@example.invalid")
+  -- The operator's global config sets `core.hooksPath`, which SHADOWS the hooks
+  -- a fixture installs: the hook never runs, so a spec asserting it ran fails
+  -- here while passing in CI, where no global config exists. The repository's
+  -- own setting is what outranks the global one, and unlike an environment
+  -- variable no other spec can clear it (git_spec unsets every `GIT_*` name for
+  -- the whole process before any fixture exists).
+  M.git(path, "config", "core.hooksPath", path .. "/.git/hooks")
 end
 
 function M.new()
