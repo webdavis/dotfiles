@@ -420,3 +420,8 @@ added	-	lanes::skills::generation::tests::publication_cleanup_resumes_after_its_
 added	-	lanes::skills::generation::tests::publication_cleanup_sweeps_the_owned_installer_workspace_after_pruning	new	ok	E6: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::generation::tests::recovery_keeps_outgoing_ownership_evidence_until_delisted_pruning_finishes	new	ok	E6: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::generation::tests::replacement_after_startup_does_not_change_the_captured_updater_identity	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::a_candidate_lock_holding_two_documents_is_refused	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::a_skill_the_cli_failed_is_named_and_the_others_proceed	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::an_env_node_child_starts_with_the_explicit_path_and_fails_without_it	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::the_child_environment_keeps_candidate_roots_and_only_the_explicit_interpreter_path	new	ok	E7: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::npx::tests::the_npx_command_is_run_once_per_repo_group_with_every_skill_of_that_group	new	ok	E7: skills behavior, fail-first and actual source fault

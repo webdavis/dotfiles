@@ -56,6 +56,7 @@ pub fn run_lane(
     Some(config.lanes.get(name)?.adapter.run(name, facts, runner))
 }
 
+pub use skills::SkillsEnvironment;
 #[cfg(test)]
 pub(crate) mod stubs;
 

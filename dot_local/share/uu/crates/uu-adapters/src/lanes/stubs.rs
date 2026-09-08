@@ -27,6 +27,7 @@ pub(crate) struct ScriptedRunner {
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
     inputs: RefCell<Vec<String>>,
+    environments: RefCell<Vec<std::collections::BTreeMap<String, String>>>,
     /// Every bounded call, with the bound it was given: what a lane test
     /// asserts a step's own deadline against without a real clock.
     deadlines: RefCell<Vec<(Vec<String>, Duration)>>,
@@ -46,6 +47,7 @@ impl ScriptedRunner {
             stdout: String::new(),
             calls: RefCell::new(Vec::new()),
             inputs: RefCell::new(Vec::new()),
+            environments: RefCell::new(Vec::new()),
             deadlines: RefCell::new(Vec::new()),
         }
     }
@@ -90,6 +92,9 @@ impl ScriptedRunner {
         self
     }
 
+    pub(crate) fn environments(&self) -> Vec<std::collections::BTreeMap<String, String>> {
+        self.environments.borrow().clone()
+    }
     pub(crate) fn calls(&self) -> Vec<Vec<String>> {
         self.calls.borrow().clone()
     }
@@ -107,6 +112,16 @@ impl ScriptedRunner {
 }
 
 impl CommandRunner for ScriptedRunner {
+    fn run_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> Result<String, String> {
+        self.environments.borrow_mut().push(env.clone());
+        self.run(program, args)
+    }
+
     fn run_with_deadline(
         &self,
         program: &str,

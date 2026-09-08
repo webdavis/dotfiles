@@ -240,3 +240,13 @@ for these retained limits.
   retain the outgoing generation and its skill names until pruning finishes. A retention failure keeps
   the marker and workspace. After pruning, reclaim the owned installer workspace, resume interrupted
   garbage removal and keep exactly one previous generation.
+
+## Skills npx installs
+
+- **Given** a candidate and npx roster, **when** installing, **then** run one explicit skills add command
+  per repository group, name every failed skill and continue other groups. Reconcile single-document
+  candidate and installer locks; a full refresh drops delisted keys and additive builds preserve existing
+  entries.
+- **Given** an installer child, **when** spawning, **then** clear inherited environment and keep
+  candidate HOME, base directories, temporary files, npm cache and ClawHub config. Capture the real fnm
+  interpreter directory before redirecting HOME. The existing lane deadline still bounds the child.

@@ -57,12 +57,34 @@ pub enum Spawned {
 /// finished leaves it orphaned. Joining instead is the unbounded hang this
 /// exists to end, so that orphan is the accepted price.
 pub fn bounded_spawn(program: &str, args: &[&str], stdin: Stdio, budget: Duration) -> Spawned {
+    spawn_with_environment(program, args, stdin, budget, None)
+}
+pub fn bounded_spawn_in(
+    program: &str,
+    args: &[&str],
+    stdin: Stdio,
+    budget: Duration,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Spawned {
+    spawn_with_environment(program, args, stdin, budget, Some(env.clone()))
+}
+fn spawn_with_environment(
+    program: &str,
+    args: &[&str],
+    stdin: Stdio,
+    budget: Duration,
+    env: Option<std::collections::BTreeMap<String, String>>,
+) -> Spawned {
     let (send, receive) = std::sync::mpsc::channel();
     let owned_program = program.to_string();
     let owned_args: Vec<String> = args.iter().map(|word| (*word).to_string()).collect();
     std::thread::spawn(move || {
         let started = Instant::now();
-        let spawned = Command::new(&owned_program)
+        let mut command = Command::new(&owned_program);
+        if let Some(env) = env {
+            command.env_clear().envs(env);
+        }
+        let spawned = command
             .args(&owned_args)
             .stdin(stdin)
             .stdout(Stdio::piped())

@@ -7,5 +7,7 @@ pub use generation::{
     exchange_skills_directories,
 };
 
+mod npx;
+pub use npx::SkillsEnvironment;
 #[cfg(test)]
 mod tests;
