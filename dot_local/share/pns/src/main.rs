@@ -123,6 +123,10 @@ fn main() {
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
     let first = argv.first().cloned().unwrap_or_default();
+    if matches!(first.as_str(), "--version" | "-V") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
     if first == "pulse" {
@@ -223,7 +227,7 @@ fn main() {
         eprint!("{USAGE}");
         std::process::exit(2);
     }
-    event_mode(&argv);
+    std::process::exit(event_mode(&argv));
 }
 
 pub(crate) use pns_adapters::enabled_hue_table;

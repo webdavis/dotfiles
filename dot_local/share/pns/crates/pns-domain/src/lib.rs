@@ -22,6 +22,7 @@
 pub mod count;
 mod decision;
 mod decision_record;
+mod elapsed;
 pub mod home;
 pub mod jobs;
 pub mod lamps;
@@ -52,6 +53,7 @@ pub use decision_record::Record;
 pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdict, verdicts, yes_no};
 pub use routing::Delivery;
 
+pub use elapsed::elapsed_event;
 pub use notification::{Event, EventArgs};
 
 mod focus;

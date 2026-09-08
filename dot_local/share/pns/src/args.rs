@@ -1,7 +1,8 @@
-//! pns's CLI contract, ported verbatim: lenient, warning, never fatal.
+//! pns's legacy CLI contract is lenient; elapsed timing is validated separately.
 //!
-//! The engine sits on an always-exit-0 notification path, so argument
-//! problems WARN and degrade rather than abort. Four rules carry the
+//! Legacy arguments sit on an always-exit-0 notification path, so their
+//! problems WARN and degrade rather than abort. Elapsed timing refuses invalid
+//! input before notification. Four rules carry the
 //! contract: a value-taking flag whose next token is missing or is itself a
 //! RECOGNIZED flag is warned about and ignored WITHOUT consuming that token
 //! (consuming it would silently drop the real flag, e.g. leak an event a
@@ -22,7 +23,7 @@ pub use pns_domain::EventArgs;
 /// predicates in this module. It used to be `pub` so a test could assert the
 /// hand-typed usage text mentioned every flag, a declaration-parity check
 /// rather than one about this parser's behavior; that test is gone.
-const VALUE_FLAGS: [&str; 7] = [
+const VALUE_FLAGS: [&str; 8] = [
     "--agent",
     "--state",
     "--project",
@@ -30,6 +31,7 @@ const VALUE_FLAGS: [&str; 7] = [
     "--detail",
     "--pane",
     "--channel",
+    "--elapsed",
 ];
 
 /// Every flag that takes no value. It is a LIST rather than a chain of
@@ -59,14 +61,29 @@ pub fn is_help_flag(token: &str) -> bool {
     token == "--help" || token == "-h"
 }
 
-/// Parse argv (without the program name). Returns the arguments plus the
-/// warnings to print to stderr, one per ignored flag.
-pub fn parse_args<I>(argv: I) -> (EventArgs, Vec<String>)
+pub struct ParsedArgs {
+    pub event: EventArgs,
+    pub warnings: Vec<String>,
+    elapsed: Result<Option<u64>, String>,
+}
+
+impl ParsedArgs {
+    pub fn into_event(self) -> Result<Option<EventArgs>, String> {
+        match self.elapsed? {
+            Some(seconds) => Ok(pns_domain::elapsed_event(self.event, seconds)),
+            None => Ok(Some(self.event)),
+        }
+    }
+}
+
+/// Parse argv, retaining legacy warnings and a separate elapsed refusal.
+pub fn parse_args<I>(argv: I) -> ParsedArgs
 where
     I: IntoIterator<Item = String>,
 {
     let mut parsed = EventArgs::default();
     let mut warnings = Vec::new();
+    let mut elapsed = Ok(None);
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
@@ -79,6 +96,24 @@ where
             // `--help` as `--state`'s value by the time this token is asked
             // about again.
             flag if is_help_flag(flag) => parsed.help = true,
+            "--elapsed" => {
+                let value = if tokens.peek().is_some_and(|next| !is_producer_flag(next)) {
+                    tokens.next()
+                } else {
+                    None
+                };
+                let seconds = value
+                    .as_deref()
+                    .filter(|value| {
+                        !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+                    })
+                    .and_then(|value| value.parse::<u64>().ok());
+                if elapsed.is_ok() {
+                    elapsed = seconds.map(Some).ok_or_else(|| {
+                        "--elapsed requires a nonnegative whole number of seconds".to_owned()
+                    });
+                }
+            }
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
                 // should be: warn and leave the token for its own arm.
@@ -100,138 +135,15 @@ where
             _ => {}
         }
     }
-    (parsed, warnings)
+    if elapsed != Ok(None) && parsed.long_running {
+        elapsed = Err("--elapsed cannot be combined with --long-running".to_owned());
+    }
+    ParsedArgs {
+        event: parsed,
+        warnings,
+        elapsed,
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::parse_args;
-
-    fn args(tokens: &[&str]) -> (super::EventArgs, Vec<String>) {
-        parse_args(tokens.iter().map(|t| t.to_string()))
-    }
-
-    #[test]
-    fn every_value_flag_lands_in_its_field() {
-        let (parsed, warnings) = args(&[
-            "--agent",
-            "claude",
-            "--state",
-            "done",
-            "--project",
-            "dotfiles",
-            "--branch",
-            "main",
-            "--detail",
-            "a summary",
-            "--pane",
-            "wW:p21",
-            "--local-only",
-        ]);
-        assert_eq!(parsed.agent, "claude");
-        assert_eq!(parsed.state, "done");
-        assert_eq!(parsed.project, "dotfiles");
-        assert_eq!(parsed.branch, "main");
-        assert_eq!(parsed.detail, "a summary");
-        assert_eq!(parsed.pane, "wW:p21");
-        assert!(parsed.local_only);
-        assert!(!parsed.remote_only);
-        assert!(warnings.is_empty());
-    }
-
-    #[test]
-    fn the_channel_flag_names_a_route_and_is_protected_like_every_value_flag() {
-        let (parsed, warnings) = args(&["--channel", "log", "--agent", "brew"]);
-        assert_eq!(parsed.channel, "log");
-        assert_eq!(parsed.agent, "brew");
-        assert!(warnings.is_empty());
-        // And it is never eaten as another flag's value.
-        let (parsed, warnings) = args(&["--detail", "--channel", "log"]);
-        assert_eq!(parsed.detail, "");
-        assert_eq!(parsed.channel, "log");
-        assert_eq!(warnings.len(), 1);
-    }
-
-    #[test]
-    fn a_recognized_flag_is_never_consumed_as_a_value() {
-        // `--pane --local-only`: eating the narrowing flag as the pane value
-        // would deliver an event the caller asked to keep local.
-        let (parsed, warnings) = args(&["--pane", "--local-only", "--agent", "claude"]);
-        assert_eq!(parsed.pane, "");
-        assert!(parsed.local_only, "the narrowing flag must still apply");
-        assert_eq!(parsed.agent, "claude");
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("--pane"), "the warning names the flag");
-    }
-
-    #[test]
-    fn the_long_running_flag_is_protected_from_being_eaten_like_every_other_one() {
-        // It was handled but left out of the predicate, so `--detail
-        // --long-running` swallowed it as the detail text: the notification
-        // carried a flag name as its summary AND lost the tier that decides
-        // the lights, both in silence.
-        let (parsed, warnings) = args(&["--detail", "--long-running"]);
-        assert_eq!(parsed.detail, "");
-        assert!(parsed.long_running, "the tier must still apply");
-        assert_eq!(warnings.len(), 1);
-        assert!(
-            warnings[0].contains("--detail"),
-            "the warning names the flag"
-        );
-    }
-
-    #[test]
-    fn a_trailing_value_flag_is_warned_and_ignored() {
-        let (parsed, warnings) = args(&["--agent", "claude", "--detail"]);
-        assert_eq!(parsed.agent, "claude");
-        assert_eq!(parsed.detail, "");
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("--detail"));
-    }
-
-    #[test]
-    fn an_unrecognized_token_is_still_taken_as_a_value() {
-        // The bash deliberately kept this leniency: only RECOGNIZED flags are
-        // protected from being eaten.
-        let (parsed, warnings) = args(&["--agent", "--bogus"]);
-        assert_eq!(parsed.agent, "--bogus");
-        assert!(warnings.is_empty());
-    }
-
-    #[test]
-    fn unknown_arguments_are_skipped_in_silence() {
-        let (parsed, warnings) = args(&["stray", "--agent", "claude", "--wat"]);
-        assert_eq!(parsed.agent, "claude");
-        assert!(warnings.is_empty());
-    }
-
-    #[test]
-    fn help_in_flag_position_is_recognized_wherever_it_sits() {
-        for tokens in [
-            &["--help"][..],
-            &["-h"][..],
-            &["--agent", "claude", "--help"][..],
-            &["--local-only", "--help"][..],
-            &["stray", "--help"][..],
-        ] {
-            let (parsed, _) = args(tokens);
-            assert!(parsed.help, "{tokens:?} should set help");
-        }
-    }
-
-    #[test]
-    fn help_in_value_position_is_still_just_a_value() {
-        // H-F, PINNED: `--help` sitting where a flag's value belongs is a
-        // value, under the same leniency `an_unrecognized_token_is_still_taken_as_a_value`
-        // pins for `--bogus`. Adding `--help` to `is_producer_flag` would flip
-        // this into a warn-and-drop, which is the wrong fix.
-        let (parsed, warnings) = args(&["--agent", "--help", "--state", "done"]);
-        assert_eq!(parsed.agent, "--help");
-        assert!(!parsed.help);
-        assert!(warnings.is_empty());
-
-        let (parsed, _) = args(&["--agent", "claude", "--state", "--help"]);
-        assert_eq!(parsed.state, "--help");
-        assert!(!parsed.help);
-    }
-}
+mod tests;

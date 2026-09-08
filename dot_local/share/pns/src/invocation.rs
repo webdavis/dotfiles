@@ -23,9 +23,10 @@ pns: usage:
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
+  pns --version, -V                the package version
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route>
+                --detail <text> --pane <id> --channel <route> --elapsed <secs>
                 --local-only --remote-only --long-running
 ";
 /// Whether argv is a PRODUCER invocation rather than a mistyped subcommand.
@@ -61,20 +62,28 @@ pub(crate) fn second_argument() -> String {
 }
 /// One notification from argv, or a usage print when `--help`/`-h` reached
 /// the parse in FLAG position.
-pub(crate) fn event_mode(argv: &[String]) {
-    let (event, warnings) = parse_args(argv.iter().cloned());
+pub(crate) fn event_mode(argv: &[String]) -> i32 {
+    let parsed = parse_args(argv.iter().cloned());
     // HELP WINS BEFORE ANYTHING ELSE ON THIS PATH: no config load, no probe.
     // It used to reach EVERYTHING when it fell through this same parser as an
     // unknown token, which notified about an empty event and raised a banner
     // titled "pns · done". Nothing about printing the commands needs the
     // machine read.
-    if event.help {
+    if parsed.event.help {
         print!("{USAGE}");
-        return;
+        return 0;
     }
-    for warning in &warnings {
+    for warning in &parsed.warnings {
         eprintln!("pns: {warning}");
     }
+    let event = match parsed.into_event() {
+        Ok(Some(event)) => event,
+        Ok(None) => return 0,
+        Err(error) => {
+            eprintln!("pns: {error}");
+            return 2;
+        }
+    };
     // ARGV CARRIES NO PAYLOAD, which is the honest no-identity case.
     run_event(
         &event,
@@ -82,4 +91,5 @@ pub(crate) fn event_mode(argv: &[String]) {
         &HookPayload::default(),
         Attempt::First,
     );
+    0
 }
