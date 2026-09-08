@@ -257,3 +257,12 @@ for these retained limits.
   move its nested directory flat with origin metadata. Refresh a present skill by bare name. Retry
   local-change refusals only after stripping our own policy block, then reassert it while preserving
   updated upstream metadata.
+
+## Skills candidate validation
+
+- **Given** candidate skills, **when** asserting Codex tiers, **then** add the on-demand policy and
+  remove it from core skills while preserving upstream metadata. Refuse overlay symlinks.
+- **Given** a candidate, **when** validating, **then** require every tracked directory and SKILL.md,
+  ClawHub origin metadata, one npx lock document and correct overlays. Full lock keys must equal the npx
+  roster; additive candidates may retain delisted keys. Refuse the whole candidate on any failure and
+  retain its renamed HOME for diagnosis, leaving the current generation alone.

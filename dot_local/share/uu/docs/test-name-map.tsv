@@ -428,3 +428,8 @@ added	-	lanes::skills::npx::tests::the_npx_command_is_run_once_per_repo_group_wi
 added	-	lanes::skills::clawhub::tests::a_present_clawhub_skill_is_refreshed_in_place_by_bare_name	new	ok	E8: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::clawhub::tests::an_absent_clawhub_skill_is_installed_in_a_throwaway_workdir_and_moved_flat	new	ok	E8: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::clawhub::tests::the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped	new	ok	E8: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::overlay::tests::an_on_demand_skill_gets_the_codex_overlay_and_a_core_one_does_not	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::overlay::tests::an_overlay_never_writes_through_a_foreign_symlink	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_candidate_missing_a_tracked_skill_or_its_skill_md_fails_validation_and_is_discarded	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_candidate_whose_overlays_drifted_fails_validation	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::validate::tests::a_full_candidate_with_a_delisted_npx_lock_key_is_refused_but_additive_preserves_it	new	ok	E9: skills behavior, fail-first and actual source fault
