@@ -426,8 +426,8 @@ rollback and refusal assertions remain.
 | `persistence::sqlite::tests::decision_outcomes::appending_keyed_decisions_preserves_legacy_separator_and_pruning_bytes`                  | 43       |
 | `persistence::sqlite::tests::decision_outcomes::a_refused_revision_reports_failure_and_preserves_the_prior_outcome`                      | 43       |
 | `persistence::sqlite::tests::write_reports::direct_record_writes_report_each_failed_store_without_creating_a_legacy_authority`           | 45       |
-| `run_doctor::tests::imports::doctor_names_retained_import_failures_after_history_without_changing_delivery_health`                       | 44       |
-| `run_doctor::tests::imports::doctor_reports_an_unavailable_import_check_without_claiming_healthy_state_or_failing_delivery`              | 44       |
+| `doctor::tests::imports::doctor_names_retained_import_failures_after_history_without_changing_delivery_health`                       | 44       |
+| `doctor::tests::imports::doctor_reports_an_unavailable_import_check_without_claiming_healthy_state_or_failing_delivery`              | 44       |
 | `persistence::sqlite::tests::decision_outcomes::a_retry_refuses_malformed_duplicate_or_missing_leg_fields_without_changing_the_row`      | 43       |
 
 The acceptance fixtures read actual database rows for decisions, journals, quiet state and lamps. Legacy

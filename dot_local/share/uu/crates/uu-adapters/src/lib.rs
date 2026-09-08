@@ -29,7 +29,7 @@ mod registration;
 mod schedule;
 
 mod delivery;
-mod run_adapters;
+mod adapters;
 mod runner;
 mod state;
 mod system;
@@ -42,7 +42,7 @@ pub use config::{
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
-pub use run_adapters::{
+pub use adapters::{
     ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock,
 };
 pub use schedule::{DEFAULT_LABEL, render_plist};
