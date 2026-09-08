@@ -113,7 +113,7 @@ pub(crate) fn run() {
     // The gate moshi's OWN extension calls. pi and omp spawn
     // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
     // for a subcommand, so the binary answers the bare harness word itself.
-    if pns::hooks::is_harness_subcommand(&first) {
+    if pns_adapters::is_harness_subcommand(&first) {
         std::process::exit(gate_mode(&first));
     }
     // The same gate, spelled the way an operator reads it. Both forms end in

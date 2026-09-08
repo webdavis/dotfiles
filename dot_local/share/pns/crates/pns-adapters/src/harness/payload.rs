@@ -1,15 +1,5 @@
-//! The harness hooks: what a Claude Code or Codex event carries, and how a
-//! turn becomes the event the engine already knows how to route.
-//!
-//! Everything here is PURE. The payload arrives as text, the transcript
-//! arrives as text, and each is turned
-//! into a decision without touching the world. The spawns and the files live
-//! in adapters, which is what lets the whole turn-to-notification
-//! path be tested without a harness, a transcript or a network.
-
-mod message;
-pub use message::flattened;
-use message::{elicitation_request, reported_error, tool_request};
+use super::flattened;
+use super::message::{elicitation_request, reported_error, tool_request};
 
 /// The fields any harness hook payload may carry. Everything is optional
 /// because every harness sends a different subset and a missing field is a
@@ -131,66 +121,3 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         file_path: text("file_path"),
     }
 }
-
-/// The assistant text of the transcript's LAST turn.
-///
-/// The transcript is one JSON object per line. The last USER line marks where
-/// the turn began, and every assistant text block after it is the turn's
-/// answer, joined the way the harness renders it. A line that will not parse
-/// is skipped rather than fatal: the tail is cut mid-line by design, so the
-/// first line is routinely half an object.
-pub fn transcript_reply(transcript_tail: &str) -> String {
-    let entries: Vec<serde_json::Value> = transcript_tail
-        .lines()
-        .filter_map(|line| serde_json::from_str(line).ok())
-        .filter(|entry: &serde_json::Value| entry.is_object())
-        .collect();
-    let last_user = entries.iter().rposition(|entry| {
-        entry.get("type").and_then(serde_json::Value::as_str) == Some("user")
-            && matches!(
-                entry.pointer("/message/content"),
-                Some(serde_json::Value::String(_))
-            ) | (entry
-                .pointer("/message/content/0/type")
-                .and_then(serde_json::Value::as_str)
-                == Some("text"))
-    });
-    entries
-        .iter()
-        .skip(last_user.map_or(0, |index| index + 1))
-        .filter(|entry| entry.get("type").and_then(serde_json::Value::as_str) == Some("assistant"))
-        .filter_map(|entry| entry.pointer("/message/content")?.as_array())
-        .flatten()
-        .filter(|block| block.get("type").and_then(serde_json::Value::as_str) == Some("text"))
-        .filter_map(|block| block.get("text")?.as_str())
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-/// Whether a blocking event is handed to moshi for a round trip.
-///
-/// Only the harnesses pns registers itself for: the name arrives from a config
-/// file, so it is MATCHED rather than pasted into a subcommand handed to a
-/// third-party binary.
-pub fn moshi_subcommand(agent: &str) -> Option<String> {
-    matches!(agent, "claude" | "codex").then(|| format!("{agent}-hook"))
-}
-
-/// Whether a subcommand handed to us by moshi's OWN generated extension may be
-/// passed through to moshi-hook.
-///
-/// pi and omp reach the gate directly (`helperBinary pi-hook`), so the word
-/// arrives from a file moshi generates while moshi-hook's positional is a
-/// PATH. Shape only, not a roster: the harness list is moshi's and grows. An
-/// unvetted word here is this repo handing a third-party binary a filesystem
-/// argument nobody chose.
-pub fn is_harness_subcommand(subcommand: &str) -> bool {
-    let (name, suffix) = match subcommand.split_once('-') {
-        Some(parts) => parts,
-        None => return false,
-    };
-    suffix == "hook" && !name.is_empty() && name.chars().all(|c| c.is_ascii_lowercase())
-}
-
-#[cfg(test)]
-mod tests;

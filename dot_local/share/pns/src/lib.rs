@@ -19,7 +19,6 @@ pub mod config_text;
 pub mod decision_log;
 pub mod engine;
 pub mod home;
-pub mod hooks;
 pub mod lights;
 pub mod presence;
 pub mod presence_file;

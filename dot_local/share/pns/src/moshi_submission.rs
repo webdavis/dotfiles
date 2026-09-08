@@ -11,7 +11,7 @@ use crate::*;
 /// operator answered. See `moshi_decision` for why, and `answer_within` for
 /// why the wait on it is bounded.
 pub(crate) fn gate_mode(subcommand: &str) -> i32 {
-    if !pns::hooks::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
+    if !pns_adapters::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
         return 0;
     }
     let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {

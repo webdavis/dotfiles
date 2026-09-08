@@ -154,5 +154,11 @@ pub use recap_child::{run_recap_bounded, spawn_recap};
 
 pub use persistence::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
 
+mod harness;
+pub use harness::{
+    HookPayload, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
+    transcript_reply,
+};
+
 #[cfg(test)]
 mod state_fixtures;

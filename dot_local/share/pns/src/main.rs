@@ -23,12 +23,12 @@ pub(crate) use pns::channels::hue::{
 pub(crate) use pns::channels::moshi::{MOSHI_TYPE, mobile_backend, moshi_secret};
 pub(crate) use pns::config::{LoadOutcome, config_path, load_config};
 pub(crate) use pns::engine::Overrides;
-pub(crate) use pns::hooks::{
-    HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
-};
 pub(crate) use pns::registry::{roster, select_plugins};
 pub(crate) use pns::render;
 pub(crate) use pns::system::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight};
+pub(crate) use pns_adapters::{
+    HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
+};
 
 mod channel_dispatch;
 mod channel_settings;
