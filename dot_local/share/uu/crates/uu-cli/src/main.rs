@@ -1,6 +1,6 @@
 //! The uu binary: the composition root, and the only place with a main.
 //!
-//! ARGUMENT PARSING AND DISPATCH, and nothing else. `cli` holds the three
+//! ARGUMENT PARSING AND DISPATCH, and nothing else. `cli` holds the four
 //! things uu does. `uu-adapters` owns bookkeeping, outbound boundaries,
 //! process execution and the questions only the running machine can answer.
 //!
@@ -30,6 +30,7 @@ fn dispatch() -> i32 {
     match words.as_slice() {
         ["run"] => cli::run_mode(None),
         ["run", lane] => cli::run_mode(Some(lane)),
+        ["bootstrap", lane] => cli::bootstrap_mode(lane),
         ["doctor"] => cli::doctor_mode(),
         ["schedule", "render"] => cli::schedule_mode(),
         [] => usage("no command given"),
@@ -44,6 +45,7 @@ fn usage(problem: &str) -> i32 {
         "uu: {problem}\n\
          usage:\n  \
            uu run [<lane>]     run every enabled lane, or just one\n  \
+           uu bootstrap <lane> seed a lane without a weekly run\n  \
            uu doctor           what this config turns on, and what it cannot reach\n  \
            uu schedule render  the launchd job for the configured day and time\n\
          lane types: {}",

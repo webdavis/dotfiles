@@ -190,3 +190,12 @@ for these retained limits.
 - **Given** a completed keymap capture, **when** recording, **then** write mode, left-hand side and
   right-hand side or description as three tab-separated fields, and compare additions and removals by
   mode and left-hand side. A first dump explicitly has no previous comparison.
+
+## Bootstrap
+
+- **Given** `uu bootstrap <lane>`, **when** its config and registered capability are available, **then**
+  hold the same run lock while calling that capability and print its report lines. Return zero only for
+  completion. Never post a record or alert, stamp success, prune state or change either streak.
+- **Given** an undeclared lane, an absent config or a type without bootstrap capability, **when**
+  requested by name, **then** refuse with exit one and name the missing declaration or unsupported type.
+  A refused lock never invokes the capability. Usage lists bootstrap beside the other commands.

@@ -368,3 +368,10 @@ added	-	lanes::nvim::smoke_test::tests::the_smoke_test_copies_config_and_mason_w
 added	-	lanes::nvim::smoke_test::tests::the_smoke_test_runs_nvim_through_env_with_the_four_base_directories_redirected	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
 added	-	lanes::nvim::smoke_test::tests::verifier_stderr_fails_even_after_a_successful_exit_and_valid_completion	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
 added	-	runner::tests::a_successful_child_keeps_raw_stderr_for_startup_verification	not-present	ok	C7 behavior contract; actual named source-fault evidence retained
+added	-	bootstrap::bootstrap_of_a_configless_named_lane_is_refused_without_creating_history	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::bootstrap_of_a_lane_whose_type_has_no_bootstrap_step_is_refused_naming_the_type	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::bootstrap_of_an_undeclared_lane_is_refused_like_a_run_of_one	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::tests::a_parsed_bootstrap_capability_receives_its_declared_name_and_private_home	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::tests::a_refused_bootstrap_lock_never_invokes_the_capability	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::tests::bootstrap_holds_the_run_lock_for_the_capability_and_releases_it_afterward	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::usage_lists_bootstrap_beside_run_doctor_and_schedule	not-present	ok	E1 behavior contract; actual named fail-first and source-fault evidence retained

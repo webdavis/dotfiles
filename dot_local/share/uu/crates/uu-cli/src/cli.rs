@@ -1,10 +1,12 @@
-//! The three things uu does, one module each, and the two answers all three
+//! The four things uu does, one module each, and the two answers all four
 //! need first.
 
+mod bootstrap;
 mod doctor;
 mod run;
 mod schedule;
 
+pub(super) use bootstrap::bootstrap_mode;
 pub(super) use doctor::doctor_mode;
 pub(super) use run::run_mode;
 pub(super) use schedule::schedule_mode;

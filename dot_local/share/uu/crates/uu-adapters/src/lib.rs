@@ -18,6 +18,7 @@
 //!   stays clean: a notification must never fail the work it reports on.
 
 mod alert;
+mod bootstrap;
 mod config;
 mod deadline;
 mod lanes;
@@ -47,3 +48,5 @@ pub use system::{home, now_epoch, resolve};
 
 pub use lanes::{CommandRunner, LaneAdapter, Ran, Verdict};
 pub use registration::LaneRegistration;
+
+pub use bootstrap::{BootstrapLane, bootstrap_lane};
