@@ -14,6 +14,8 @@ mod fixtures {
         ));
         std::fs::create_dir_all(&directory).expect("the scratch directory");
         directory
+            .canonicalize()
+            .expect("the canonical scratch directory")
     }
     /// A published state file's mode, which is the only thing the test below
     /// grades.

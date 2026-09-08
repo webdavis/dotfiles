@@ -4,11 +4,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 fn state() -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "pns-sql-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ))
+    std::env::temp_dir()
+        .canonicalize()
+        .expect("the canonical temp directory")
+        .join(format!(
+            "pns-sql-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
 }
 #[test]
 fn a_new_store_commits_its_schema_in_a_private_wal_database() {

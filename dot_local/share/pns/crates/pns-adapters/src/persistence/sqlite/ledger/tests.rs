@@ -2,11 +2,14 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 fn state() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "pns-ledger-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ))
+    std::env::temp_dir()
+        .canonicalize()
+        .expect("the canonical temp directory")
+        .join(format!(
+            "pns-ledger-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
 }
 use pns_domain::{Event, routing::ReportMode};
 fn submission() -> LedgerSubmission {

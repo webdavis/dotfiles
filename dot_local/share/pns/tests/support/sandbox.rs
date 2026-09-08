@@ -39,7 +39,9 @@ impl Sandbox {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("channels")).expect("sandbox");
         let sandbox = Sandbox {
-            root,
+            root: root
+                .canonicalize()
+                .expect("the canonical sandbox directory"),
             created: Instant::now(),
             excused: Cell::new(false),
         };
