@@ -39,6 +39,7 @@ return {
     "wojciech-kulik/xcodebuild.nvim",
     commit = "633eb71c0b354581837025581b7261dbe5361226",
     dependencies = {
+      "webdavis/pns.nvim",
       "MunifTanjim/nui.nvim", -- required: health.lua marks it optional = false
       "folke/snacks.nvim", -- the picker every other surface in this config uses, selected in opts below
       "stevearc/oil.nvim", -- file-tree sync into the Xcode project
