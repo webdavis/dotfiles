@@ -4,3 +4,4 @@
 # against main is the diff that matters in this workflow.
 default_scope = "branch"
 auto_open = false
+editor = "nvim +{line} {file}"
