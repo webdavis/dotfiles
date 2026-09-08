@@ -6,8 +6,9 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// A writer gets one bounded wait. Delivery callers report the miss and continue.
-const BUSY_TIMEOUT: Duration = Duration::from_millis(25);
+// Match the prior ring lock's 200 attempts spaced one millisecond apart.
+// SQLite owns this bounded wait; refused delivery writes still report and continue.
+const BUSY_TIMEOUT: Duration = Duration::from_millis(200);
 
 pub struct SqliteStore {
     pub(super) state: PathBuf,
