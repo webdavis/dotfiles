@@ -17,3 +17,6 @@
 
 pub mod legacy;
 pub mod submit;
+
+mod shell;
+pub use shell::shell_mode;

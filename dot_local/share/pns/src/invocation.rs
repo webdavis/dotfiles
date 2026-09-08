@@ -37,6 +37,9 @@ pub(crate) fn run() {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    if first == "shell" {
+        std::process::exit(pns_cli::shell_mode(&argv[1..]));
+    }
     if first == "submit" {
         std::process::exit(event_flow::submit_mode(&argv[1..]));
     }

@@ -14,6 +14,8 @@ pns: usage:
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
   pns presence poll                one bridge read, published for the sensor
+  pns shell begin --pid <pid> --command <line>
+  pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>

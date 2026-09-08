@@ -62,8 +62,23 @@ stdout, no stderr, configuration load or probes. `0.1.0` is the first emitted ve
 binaries carried that package version internally but answered `--version` with usage and exit 2. The
 plugin's health check is advisory and its reporting call still emits elapsed seconds.
 
-This delivery supplies the flag prerequisite only. The shell begin/end and Bash notifier migration remain
-owned by the rest of plan row 8.3; the existing shell callers still use their legacy tier.
+`pns shell begin --pid <pid> --command <line>` publishes the calling shell's epoch marker.
+`pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>` clears that marker
+synchronously, then starts the existing producer route in a separate process group with null streams.
+Only the immediate parent process may name its marker. Invalid arguments refuse before filesystem or
+notification work. A marker write failure costs the marker; Bash still returns success from preexec.
+A failed removal still permits the command report, as the old prompt did.
+
+The domain owns the same command-prefix skip list and word boundary, both elapsed tiers, and the
+`done`/`failed` payload. Only the command word before the first literal space enters detail, never its
+arguments. Failed detail retains `(<secs>s, exit <code>)`. Project and pane come from the shell's
+logical `PWD` basename and `HERDR_PANE_ID`. Interactive commands and elapsed times below 30 seconds
+load no configuration and deliver nothing.
+
+Bash retains PS0 timing, immediate status capture, first-command history fallback and the EXIT callback.
+The callback clears its timer before pns runs; a first prompt calls nothing. EXIT uses end with elapsed
+zero. Delivery starts only after marker removal, so an earlier command cannot erase a later command's
+marker. The external `lights-shell/<pid>` protocol and dead-owner sweep remain unchanged.
 
 ## The usage text, verbatim
 
@@ -82,6 +97,8 @@ pns: usage:
   pns quiet [<duration>|off]       the operator's mute
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
+  pns shell begin --pid <pid> --command <line>
+  pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>

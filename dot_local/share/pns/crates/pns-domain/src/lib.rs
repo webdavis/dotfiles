@@ -74,3 +74,6 @@ mod condenser;
 pub use condenser::{condenser_prompt, condenser_verdict};
 
 pub mod retry;
+
+mod shell;
+pub use shell::{shell_event, shell_is_interactive};
