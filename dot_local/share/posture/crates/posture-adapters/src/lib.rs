@@ -39,3 +39,10 @@ pub use allowlist_file::AllowlistFile;
 
 mod launchd_table;
 pub use launchd_table::SystemLaunchdTable;
+
+mod legacy_json;
+mod snapshots_log;
+pub use snapshots_log::SnapshotsFile;
+
+mod clock;
+pub use clock::SystemClock;
