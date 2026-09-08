@@ -29,7 +29,9 @@ fn bytes(capture: &serde_json::Value) -> Vec<u8> {
         .as_str()
         .unwrap()
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
@@ -52,7 +54,7 @@ fn controls_files_match_bash_valid_scalar_and_compound_field_bytes() {
             "{}",
             capture["name"]
         );
-        for (control, expected) in controls.iter().zip(fields[1..].chunks_exact(6)) {
+        for (control, expected) in controls.iter().zip(fields[1..].as_chunks::<6>().0) {
             assert_eq!(
                 control.id(),
                 expected[0].as_str().unwrap(),
