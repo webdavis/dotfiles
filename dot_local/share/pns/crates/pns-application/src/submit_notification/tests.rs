@@ -1,4 +1,5 @@
 use super::{Attempt, Submission, SubmitNotification};
+use crate::SubmissionIdentity;
 use crate::ports::delivery::{LampSignal, MissedReplay};
 use crate::ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, Journal, LampRecords, LightsTick, LoopLease,
@@ -8,9 +9,13 @@ use pns_domain::EventArgs;
 use pns_domain::Record;
 use pns_domain::Snapshot;
 use pns_domain::lamps::config::Behaviour;
+use pns_domain::routing::{Delivery, Leg, ReportMode};
 use pns_domain::surface::{DeliveryPlan, Surface, Visibility};
 use pns_domain::{Decision, GateInputs, Overrides};
 use std::cell::RefCell;
+use std::sync::LazyLock;
+
+type Journaled = (*const EventArgs, Option<u64>, Option<SubmissionIdentity>);
 
 /// EVERY PORT RECORDS INTO ONE LOG, which is what makes the ORDER assertable.
 /// Ten separate spies could each prove they were called and none of them could
@@ -19,6 +24,8 @@ use std::cell::RefCell;
 struct Recorder {
     steps: RefCell<Vec<String>>,
     replays: RefCell<Vec<(Option<u64>, Vec<pns_domain::routing::Leg>)>>,
+    journaled: RefCell<Vec<Journaled>>,
+    misses: RefCell<Vec<bool>>,
     claims: RefCell<Vec<(Option<u64>, bool)>>,
 }
 
@@ -44,7 +51,10 @@ impl DecisionRing for Recorder {
     }
 }
 impl Journal for Recorder {
-    fn journal(&self, _event: &EventArgs, _now: Option<u64>) {
+    fn journal(&self, event: &EventArgs, now: Option<u64>, identity: Option<&SubmissionIdentity>) {
+        self.journaled
+            .borrow_mut()
+            .push((std::ptr::from_ref(event), now, identity.cloned()));
         self.note("journal");
     }
     fn read(&self) -> Result<Option<String>, String> {
@@ -103,7 +113,8 @@ impl LampSignal for Recorder {
     }
 }
 impl LightsTick for Recorder {
-    fn register(&self, _decision: &Decision, _overrides: &Overrides) {
+    fn register(&self, _decision: &Decision, actual_miss: bool) {
+        self.misses.borrow_mut().push(actual_miss);
         self.note("tick");
     }
 }
@@ -167,16 +178,32 @@ fn submission<'a>(
     decision: &'a Decision,
     overrides: &'a Overrides,
 ) -> Submission<'a> {
+    static IDENTITY: LazyLock<SubmissionIdentity> = LazyLock::new(|| SubmissionIdentity {
+        producer: "fixture".into(),
+        request_id: "original-fixture-request".into(),
+    });
+    static ACK: LazyLock<Vec<(Leg, Delivery)>> = LazyLock::new(|| {
+        vec![(
+            Leg {
+                name: "a-surface",
+                mode: ReportMode::Silent,
+                decorative: true,
+            },
+            Delivery::Delivered("accepted".into()),
+        )]
+    });
     Submission {
+        identity: Some(&IDENTITY),
         event,
         decision,
         overrides,
-        legs: &[],
+        legs: if decision.plan.banner || decision.plan.phone_card {
+            &ACK
+        } else {
+            &[]
+        },
         attempt: Attempt::First,
         session_id: "session",
-        permission_mode: "",
-        agent_id: "",
-        tool_name: "",
         lamps_live: true,
         lights_declared: true,
         presence: None,
@@ -193,3 +220,5 @@ mod arguments;
 mod attempts;
 mod gates;
 mod order;
+
+mod outcomes;

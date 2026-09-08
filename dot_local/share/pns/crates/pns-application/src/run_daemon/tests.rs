@@ -107,3 +107,5 @@ fn presence_registration_keeps_a_future_due_and_cancels_when_the_sensor_is_off()
     assert!(world.pending.borrow().is_none());
     assert_eq!(world.log.borrow().last().unwrap(), "cancel(presence)");
 }
+
+mod retries;

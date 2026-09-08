@@ -22,6 +22,7 @@ pub trait SignedPost {
         url: &str,
         body: &str,
         signature_hex: &str,
+        idempotency_key: Option<&str>,
         deadline: Option<Duration>,
     ) -> PostOutcome;
 }
@@ -56,9 +57,10 @@ impl SignedPost for UreqSignedPost {
         url: &str,
         body: &str,
         signature_hex: &str,
+        idempotency_key: Option<&str>,
         deadline: Option<Duration>,
     ) -> PostOutcome {
-        let sent = ureq::Agent::config_builder()
+        let mut request = ureq::Agent::config_builder()
             // None is no deadline at all, so the option passes straight
             // through rather than being defaulted back into one.
             .timeout_global(deadline)
@@ -67,8 +69,11 @@ impl SignedPost for UreqSignedPost {
             .new_agent()
             .post(url)
             .content_type("application/json")
-            .header("X-Webhook-Signature", signature_hex)
-            .send(body);
+            .header("X-Webhook-Signature", signature_hex);
+        if let Some(key) = idempotency_key {
+            request = request.header("Idempotency-Key", key);
+        }
+        let sent = request.send(body);
         match sent {
             Ok(response) => PostOutcome::Status(response.status().as_u16()),
             Err(ureq::Error::StatusCode(code)) => PostOutcome::Status(code),

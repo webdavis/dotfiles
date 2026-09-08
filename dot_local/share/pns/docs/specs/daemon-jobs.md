@@ -9,11 +9,10 @@ fires it, bounds the child it started, kills that child's process group and reap
 the validation, the `claim` and `lease` protocol, the marker cancellation, the heartbeat, the enable
 switch and the shutdown behavior are all in scope, along with the three jobs the crate registers for
 itself (the lights `tick`, the nag, and the room sensor's `presence` poll). Out of scope: what a fired
-job then does (that is the event path, covered by `routing-and-delivery.md`), the lamp policy the
-lights tick applies, and the `quiet window`,
-`dim window` and `quiet hours` the tick reads. Everything below is derived from the crate at
-`dot_local/share/pns` and its tests only. Where the code does not settle a question the line begins
-`NOT ESTABLISHED:` and names what was looked for and where.
+job then does (that is the event path, covered by `routing-and-delivery.md`), the lamp policy the lights
+tick applies, and the `quiet window`, `dim window` and `quiet hours` the tick reads. Everything below is
+derived from the crate at `dot_local/share/pns` and its tests only. Where the code does not settle a
+question the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 The whole design rests on one property, stated in the module comment at `src/daemon.rs` head: the
 communication between a client and the daemon is a DIRECTORY. A short-lived process registers work by
@@ -21,25 +20,33 @@ writing one file; the daemon reads the directory on its tick. There is no connec
 reply and nothing for a hook to wait on, so a daemon that is dead, wedged or mid-restart changes nothing
 about the write.
 
+Retained delivery retries run as one supervised `pns daemon retry` child at a time, after each spool
+pass. They use the same child deadline and reaping as scheduled jobs. The internal child id
+`.delivery-retry` cannot collide with a valid spool filename. The child samples its clock and claims one
+retained leg; a slow destination must not block the daemon's heartbeat or another scheduled job. An extra
+argument to the retry verb is refused before any ledger work. The process test
+`a_hung_child_does_not_stall_the_tick_and_is_killed` waits for a hanging retry before registering a
+second job, then verifies that the second job still runs.
+
 ## The jobs
 
-| Job identifier                                                           | What schedules it                                                                                                                                                                                                                                                                                                                                                             | Lease                                                                                                                                                                                                                                                                                                                                                                                                                                     | What it runs                                                                                                                                                                                                 | Bound on the child                                                                                                                                  | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lights` (`src/main.rs:LIGHTS_JOB`)                                      | Three callers, all through `src/main.rs:schedule_lights_tick`: every event decision on a machine with a `[lights]` table (`src/main.rs:register_lights_tick`), `pns loop begin` (`src/main.rs:loop_mode`, `LoopCommand::Begin` arm), and the tick itself when work is still in flight (`src/main.rs`, the `!active.is_empty() \|\| standing.in_flight` tail of `lights_tick`) | `until = due.max(now + lease)`. The lease is 300s for an ordinary event (`src/main.rs:ORDINARY_LEASE_SECS`), 43200s (twelve hours) for a journalled one (`src/main.rs:JOURNALLED_LEASE_SECS`), `lights.looping.lease_timeout_secs` for `pns loop begin` (default 3900, accepted range 60 to 86400, `src/config.rs:DEFAULT_LEASE_TIMEOUT_SECS`, `MIN_LEASE_TIMEOUT_SECS`, `MAX_THRESHOLD_SECS`), and 300s again for the tick's own renewal | `pns lights tick`, argv `["lights", "tick"]`, repeating at `every = lights.refresh_secs` (default 12, accepted range 10 to 30, `src/config.rs:DEFAULT_REFRESH_SECS`, `MIN_REFRESH_SECS`, `MAX_REFRESH_SECS`) | `max(tick * 30, MAX_REFRESH_SECS + tick_bridge_deadline(MAX_REFRESH_SECS) + tick)`, which is 37s at the production tick (`src/main.rs:child_bound`) | `tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer`; `tests/dispatch.rs:a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold`; `tests/dispatch.rs:a_tick_with_nothing_in_flight_lets_its_own_lease_lapse`; `tests/dispatch.rs:a_lease_taken_by_hand_schedules_the_tick_that_reads_it`; `src/main.rs:a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it`; `src/main.rs:a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone` |
-| `nag:<session-id>` (`src/nag.rs:job_id`, prefix `src/nag.rs:JOB_PREFIX`) | `src/main.rs:arm_nag`, on a blocked approval from the `claude` agent when `[nag] after_secs` is non-zero                                                                                                                                                                                                                                                                      | `until = due + after_secs`, where `due = now + after_secs`. One whole schedule past the due second, deliberately: `until == due` is a zero-length lease and a busy tick loses the nudge                                                                                                                                                                                                                                                   | `pns nag`, argv `["nag"]` (`src/main.rs:NAG_MODE_WORD`), one-shot (`every: None`), cancelled by `unless_marker = "nag-<session-id>"` (`src/nag.rs:marker_name`, prefix `src/nag.rs:MARKER_PREFIX`)           | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm)                                                                | `tests/hooks.rs:the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`; `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` (which asserts `id=nag:s1`, `marker=nag-s1` and `args=["nag"]` in the record)                                                                                                                                                                                                                                                                     |
-| `presence` (`src/main.rs:PRESENCE_JOB`) | One caller, `src/main.rs:ensure_presence_poll`, from the `SWITCH_TICKS` block of `src/main.rs:daemon_run`: the daemon registers its own sensor, because no event asks for a room reading. `presence_settings()` returning `None` (the table absent, switched off, or refused) CANCELS it instead | `until = due.max(now + 300)` (`src/main.rs:PRESENCE_LEASE_SECS`), refreshed by every sweep while the table is on. The pending `due` is kept, so a thirty-second sweep never pushes a five-second poll away from itself | `pns presence poll --daemon`, argv `["presence", "poll", "--daemon"]` (the flag is the daemon's own spelling, and it is what makes a poll that stood down for a live holder stay silent and exit 0: the same stand-down typed by hand says so and exits 1), repeating at `every = [plugins.presence] poll_secs` (default 5, accepted range 2 to 60, `src/config.rs:DEFAULT_PRESENCE_POLL_SECS`, `MIN_PRESENCE_POLL_SECS`, `MAX_PRESENCE_POLL_SECS`) | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm), which is past the two `hue::BRIDGE_DEADLINE` calls one poll can take | `src/main.rs:an_armed_sensor_registers_the_poll_at_its_own_interval`; `src/main.rs:a_sensor_that_is_off_cancels_the_poll_it_had_registered`; `src/main.rs:a_sweep_refreshes_the_lease_without_moving_a_poll_that_is_already_due`; `src/main.rs:a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses`; `src/main.rs:a_bridge_that_did_not_answer_leaves_the_last_reading_where_it_was` |
-| Any id the operator types (`pns daemon schedule --id <id>`)              | `src/main.rs:daemon_schedule` through `src/main.rs:parse_schedule`                                                                                                                                                                                                                                                                                                            | `--until <epoch>` or `--until +<secs>` as typed, else `due + 60` (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`)                                                                                                                                                                                                                                                                                                                                 | Everything after `--`, re-executed as `pns <args>`                                                                                                                                                           | `tick * 30` (`src/main.rs:child_bound`, non-lights arm)                                                                                             | `tests/daemon.rs:a_scheduled_job_runs_once_and_its_effect_is_observable`; `tests/daemon.rs:a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops`; `tests/daemon.rs:a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`; `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end`                                                                                                                                                                                                             |
+| Job identifier                                                           | What schedules it                                                                                                                                                                                                                                                                                                                                                             | Lease                                                                                                                                                                                                                                                                                                                                                                                                                                     | What it runs                                                                                                                                                                                                                                                                                                                                                                                                                                        | Bound on the child                                                                                                                                         | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lights` (`src/main.rs:LIGHTS_JOB`)                                      | Three callers, all through `src/main.rs:schedule_lights_tick`: every event decision on a machine with a `[lights]` table (`src/main.rs:register_lights_tick`), `pns loop begin` (`src/main.rs:loop_mode`, `LoopCommand::Begin` arm), and the tick itself when work is still in flight (`src/main.rs`, the `!active.is_empty() \|\| standing.in_flight` tail of `lights_tick`) | `until = due.max(now + lease)`. The lease is 300s for an ordinary event (`src/main.rs:ORDINARY_LEASE_SECS`), 43200s (twelve hours) for a journalled one (`src/main.rs:JOURNALLED_LEASE_SECS`), `lights.looping.lease_timeout_secs` for `pns loop begin` (default 3900, accepted range 60 to 86400, `src/config.rs:DEFAULT_LEASE_TIMEOUT_SECS`, `MIN_LEASE_TIMEOUT_SECS`, `MAX_THRESHOLD_SECS`), and 300s again for the tick's own renewal | `pns lights tick`, argv `["lights", "tick"]`, repeating at `every = lights.refresh_secs` (default 12, accepted range 10 to 30, `src/config.rs:DEFAULT_REFRESH_SECS`, `MIN_REFRESH_SECS`, `MAX_REFRESH_SECS`)                                                                                                                                                                                                                                        | `max(tick * 30, MAX_REFRESH_SECS + tick_bridge_deadline(MAX_REFRESH_SECS) + tick)`, which is 37s at the production tick (`src/main.rs:child_bound`)        | `tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer`; `tests/dispatch.rs:a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold`; `tests/dispatch.rs:a_tick_with_nothing_in_flight_lets_its_own_lease_lapse`; `tests/dispatch.rs:a_lease_taken_by_hand_schedules_the_tick_that_reads_it`; `src/main.rs:a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it`; `src/main.rs:a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone` |
+| `nag:<session-id>` (`src/nag.rs:job_id`, prefix `src/nag.rs:JOB_PREFIX`) | `src/main.rs:arm_nag`, on a blocked approval from the `claude` agent when `[nag] after_secs` is non-zero                                                                                                                                                                                                                                                                      | `until = due + after_secs`, where `due = now + after_secs`. One whole schedule past the due second, deliberately: `until == due` is a zero-length lease and a busy tick loses the nudge                                                                                                                                                                                                                                                   | `pns nag`, argv `["nag"]` (`src/main.rs:NAG_MODE_WORD`), one-shot (`every: None`), cancelled by `unless_marker = "nag-<session-id>"` (`src/nag.rs:marker_name`, prefix `src/nag.rs:MARKER_PREFIX`)                                                                                                                                                                                                                                                  | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm)                                                                       | `tests/hooks.rs:the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`; `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` (which asserts `id=nag:s1`, `marker=nag-s1` and `args=["nag"]` in the record)                                                                                                                                                                                                                                                                     |
+| `presence` (`src/main.rs:PRESENCE_JOB`)                                  | One caller, `src/main.rs:ensure_presence_poll`, from the `SWITCH_TICKS` block of `src/main.rs:daemon_run`: the daemon registers its own sensor, because no event asks for a room reading. `presence_settings()` returning `None` (the table absent, switched off, or refused) CANCELS it instead                                                                              | `until = due.max(now + 300)` (`src/main.rs:PRESENCE_LEASE_SECS`), refreshed by every sweep while the table is on. The pending `due` is kept, so a thirty-second sweep never pushes a five-second poll away from itself                                                                                                                                                                                                                    | `pns presence poll --daemon`, argv `["presence", "poll", "--daemon"]` (the flag is the daemon's own spelling, and it is what makes a poll that stood down for a live holder stay silent and exit 0: the same stand-down typed by hand says so and exits 1), repeating at `every = [plugins.presence] poll_secs` (default 5, accepted range 2 to 60, `src/config.rs:DEFAULT_PRESENCE_POLL_SECS`, `MIN_PRESENCE_POLL_SECS`, `MAX_PRESENCE_POLL_SECS`) | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm), which is past the two `hue::BRIDGE_DEADLINE` calls one poll can take | `src/main.rs:an_armed_sensor_registers_the_poll_at_its_own_interval`; `src/main.rs:a_sensor_that_is_off_cancels_the_poll_it_had_registered`; `src/main.rs:a_sweep_refreshes_the_lease_without_moving_a_poll_that_is_already_due`; `src/main.rs:a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses`; `src/main.rs:a_bridge_that_did_not_answer_leaves_the_last_reading_where_it_was`                                                                                                                                         |
+| Any id the operator types (`pns daemon schedule --id <id>`)              | `src/main.rs:daemon_schedule` through `src/main.rs:parse_schedule`                                                                                                                                                                                                                                                                                                            | `--until <epoch>` or `--until +<secs>` as typed, else `due + 60` (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`)                                                                                                                                                                                                                                                                                                                                 | Everything after `--`, re-executed as `pns <args>`                                                                                                                                                                                                                                                                                                                                                                                                  | `tick * 30` (`src/main.rs:child_bound`, non-lights arm)                                                                                                    | `tests/daemon.rs:a_scheduled_job_runs_once_and_its_effect_is_observable`; `tests/daemon.rs:a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops`; `tests/daemon.rs:a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`; `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end`                                                                                                                                                                                                             |
 
 There is no registry of job ids. The daemon knows only what is in the spool directory, and any of the
 four routes above writes the same record shape (`src/daemon.rs:Job`, `src/daemon.rs:render`). The
 `lights`, `nag:<session-id>` and `presence` jobs are the only ids the crate itself ever writes.
 
-**The open fact behind the `presence` poll.** The poll reads the bridge's `grouped_motion` roll-up,
-which is the only per-room motion resource that exists on the operator's bridge: as of 2026-09-03 it
-serves zero `motion_area_configuration` and zero `convenience_area_motion`, so whether a MotionAware
-area's motion joins its ROOM's roll-up or arrives only as `convenience_area_motion` owned by a
-`motion_area_configuration` cannot be established. It is one GET once an area exists, and the answer
-is whether the area's room gains a `grouped_motion` service:
+**The open fact behind the `presence` poll.** The poll reads the bridge's `grouped_motion` roll-up, which
+is the only per-room motion resource that exists on the operator's bridge: as of 2026-09-03 it serves
+zero `motion_area_configuration` and zero `convenience_area_motion`, so whether a MotionAware area's
+motion joins its ROOM's roll-up or arrives only as `convenience_area_motion` owned by a
+`motion_area_configuration` cannot be established. It is one GET once an area exists, and the answer is
+whether the area's room gains a `grouped_motion` service:
 
 ```bash
 bridge="$(yq -r .bridge ~/.config/openhue/config.yaml)"
@@ -48,9 +55,9 @@ curl -sk -H "hue-application-key: $key" "https://$bridge/clip/v2/resource/room" 
   | jq -r '.data[] | [.metadata.name, ([.services[] | select(.rtype == "grouped_motion") | .rid] | join(","))] | @tsv'
 ```
 
-A watched room with an empty second column reports nothing and this poll can never name it, whatever
-the app shows. NOT ESTABLISHED, and deliberately not coded around: a second code path for a shape
-nobody has seen is a guess.
+A watched room with an empty second column reports nothing and this poll can never name it, whatever the
+app shows. NOT ESTABLISHED, and deliberately not coded around: a second code path for a shape nobody has
+seen is a guess.
 
 ## The processes and threads
 
@@ -264,7 +271,8 @@ Given a started daemon
 
 When each turn of the loop begins
 
-Then it sleeps for one whole tick before doing anything, then increments its counter, then possibly re-reads the switch, then runs one pass
+Then it sleeps for one whole tick before doing anything, then increments its counter, then possibly
+re-reads the switch, then runs one pass
 
 - Success: `src/main.rs:daemon_run`'s loop body is `sleep(tick)`, `ticks = ticks.wrapping_add(1)`, the
   `SWITCH_TICKS` block (the switch, then `ensure_presence_poll`), then
@@ -455,7 +463,8 @@ Given a named pipe (or a symlink, or a directory) in the spool
 
 When the drain reaches it
 
-Then it is left exactly where it was found, never opened, and named on stderr once rather than once a tick
+Then it is left exactly where it was found, never opened, and named on stderr once rather than once a
+tick
 
 - Success: `src/daemon.rs:peek` answers `Peeked::Irregular` off `symlink_metadata(...).is_file()` before
   any open, and `src/main.rs:drain_spool` prints only when `reported.insert(entry.clone())` is true,
@@ -588,7 +597,8 @@ Then nothing is renamed, nothing is rewritten and the entry is left exactly wher
 
 ### 15. A claim is taken by rename, and the rename is the ownership test
 
-Given two daemons (or a daemon and a hand-run `pns daemon` process) reaching one due job in the same second
+Given two daemons (or a daemon and a hand-run `pns daemon` process) reaching one due job in the same
+second
 
 When each tries to claim it
 
@@ -632,7 +642,8 @@ Then exactly one wins, and the loser reads nothing at all
 
 ### 16. `decide` checks the lease, then the marker, then a running child, then the due second
 
-Given a job, a second, whether its marker exists and whether a child THIS job already fired is still running
+Given a job, a second, whether its marker exists and whether a child THIS job already fired is still
+running
 
 When `decide` is asked
 
@@ -823,7 +834,8 @@ Given a fired job with `every` set
 
 When it re-arms
 
-Then the next due is `now + every`, `until` is carried over unchanged, and a next due past `until` leaves nothing behind
+Then the next due is `now + every`, `until` is carried over unchanged, and a next due past `until` leaves
+nothing behind
 
 - Success: `src/daemon.rs:rearm` is
   `let due = now.saturating_add(job.every?); (due <= job.until).then(|| Job { due, ..job.clone() })`.
@@ -859,7 +871,8 @@ Given a job about to run
 
 When `spawn_job` starts it
 
-Then it runs `std::env::current_exe()` with the record's argv, stdin and stdout null, stderr inherited, and `process_group(0)`
+Then it runs `std::env::current_exe()` with the record's argv, stdin and stdout null, stderr inherited,
+and `process_group(0)`
 
 - Success: `src/main.rs:spawn_job`.
 - Failure sources: `current_exe` failing; `spawn` failing (a missing binary, a process limit).
@@ -902,7 +915,8 @@ Given children the daemon started
 
 When a pass reaps
 
-Then each is polled with `try_wait`, exited and errored children are dropped from the list, and any that outlived its deadline has its whole process GROUP killed
+Then each is polled with `try_wait`, exited and errored children are dropped from the list, and any that
+outlived its deadline has its whole process GROUP killed
 
 - Success: `src/main.rs:reap` uses `retain_mut`. `Ok(Some(_)) | Err(_)` drops the entry; `Ok(None)` past
   `expires_at` kills the group, then the direct child, then waits, then drops the entry; `Ok(None)`
@@ -971,7 +985,8 @@ Given a job being spawned
 
 When its deadline is computed
 
-Then it is `tick * CHILD_TICKS` for every job but `lights`, and the larger of that and one whole lights interval for `lights`
+Then it is `tick * CHILD_TICKS` for every job but `lights`, and the larger of that and one whole lights
+interval for `lights`
 
 - Success: `src/main.rs:child_bound` returns `tick * CHILD_TICKS` when `id != LIGHTS_JOB`, and otherwise
   `(tick * CHILD_TICKS).max(MAX_REFRESH_SECS + tick_bridge_deadline(MAX_REFRESH_SECS) + tick)`. Pinned
@@ -1068,7 +1083,9 @@ Then it writes nothing at all
 
 Given the operator or a rider registering a job
 
-When `pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <args>` runs
+When
+`pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <args>`
+runs
 
 Then the record is validated and published by rename, with no daemon involved
 
@@ -1247,7 +1264,8 @@ Given `pns doctor`
 
 When it reports the daemon
 
-Then it prints one line derived from the config switch, the heartbeat's age and a count of the spool, and it never moves the exit code
+Then it prints one line derived from the config switch, the heartbeat's age and a count of the spool, and
+it never moves the exit code
 
 - Success: `src/main.rs:daemon_line` reads the heartbeat only when `symlink_metadata` says it is a
   regular file, parses it, and hands the four inputs to `src/doctor.rs:daemon_line`. The six lines,

@@ -56,6 +56,24 @@ impl SqliteStore {
         Ok(connection)
     }
 
+    pub(super) fn read_only(&self) -> Result<Connection, StoreError> {
+        for name in ["pns.db", "pns.db-wal", "pns.db-shm", "pns.db-journal"] {
+            private_regular_file(&self.state.join(name))?;
+        }
+        let connection = Connection::open_with_flags(
+            self.state.join("pns.db"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )?;
+        connection.busy_timeout(self.busy_timeout)?;
+        let version = migrations::validate(&connection)?;
+        if version != migrations::VERSION {
+            return Err(StoreError::UnsupportedSchema(version));
+        }
+        Ok(connection)
+    }
+
     pub(super) fn open(&self) -> Result<Connection, StoreError> {
         fs::DirBuilder::new()
             .recursive(true)
@@ -63,6 +81,24 @@ impl SqliteStore {
             .create(&self.state)?;
         let path = self.state.join("pns.db");
         let created = create_database(&path)?;
+        let connection = self.open_existing()?;
+        if created {
+            fs::File::open(&self.state)?.sync_all()?;
+        }
+        Ok(connection)
+    }
+    pub(super) fn existing_transaction<T>(
+        &self,
+        operation: impl FnOnce(&Transaction<'_>) -> Result<T, StoreError>,
+    ) -> Result<T, StoreError> {
+        let mut connection = self.open_existing()?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let value = operation(&transaction)?;
+        transaction.commit()?;
+        Ok(value)
+    }
+    fn open_existing(&self) -> Result<Connection, StoreError> {
+        let path = self.state.join("pns.db");
         for name in ["pns.db", "pns.db-wal", "pns.db-shm", "pns.db-journal"] {
             private_regular_file(&self.state.join(name))?;
         }
@@ -78,9 +114,6 @@ impl SqliteStore {
         connection.pragma_update(None, "synchronous", "FULL")?;
         connection.pragma_update(None, "foreign_keys", true)?;
         migrations::migrate(&mut connection)?;
-        if created {
-            fs::File::open(&self.state)?.sync_all()?;
-        }
         Ok(connection)
     }
 }

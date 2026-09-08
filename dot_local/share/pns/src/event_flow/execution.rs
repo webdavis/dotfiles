@@ -1,14 +1,24 @@
 use super::*;
 
-pub(super) fn run_event_pulsing(
+pub(super) fn execute(
     event: &pns::args::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
     payload: &HookPayload,
     attempt: Attempt,
     pulse: PulseSink<'_>,
-) {
+    producer: Option<&super::submit::ProducerRequest>,
+) -> Result<pns_application::Submitted, pns_application::LedgerFailure> {
+    let json = producer.is_some();
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
+    let silence_policy = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => config.silence_policy(
+            producer
+                .and_then(|request| request.class.as_ref())
+                .map(pns_protocol::Name::as_str),
+        ),
+        _ => pns_domain::SilencePolicy::Respect,
+    };
     // Read off the config before selection consumes it: the pulse needs hue's
     // settings, the plan needs the mobile card toggle, the catch-up needs the
     // whole `[recap]` table, and the two network channels need their secrets.
@@ -81,7 +91,10 @@ pub(super) fn run_event_pulsing(
     // straight out of the core fallback: hermes needs a key stood up before it
     // can carry anything, so it is not in the core and no recap is promised
     // against it.
-    let durable_route = selection.iter().any(|plugin| plugin.name == "hermes");
+    let durable_route = selection.iter().any(|plugin| matches!(
+        plugin.kind,
+        pns_domain::registry::PluginKind::Channel(routing) if routing.durable && routing.event_dispatched
+    ));
 
     // THE SAME CLOCK `forward_to_moshi` READS, off this probe set's own
     // memoized cell: see R4-1. On the blocked path that read came first and
@@ -105,16 +118,19 @@ pub(super) fn run_event_pulsing(
         ..overrides_from_env()
     };
 
-    let decision = decide(
+    let decision = pns_application::decide(
         probes,
         &selection,
         &overrides,
-        event.local_only,
-        event.remote_only,
-        &event.pane,
-        now_secs,
-        event.long_running,
-        mobile.watch_card,
+        pns_domain::DecisionRequest {
+            local_only: event.local_only,
+            remote_only: event.remote_only,
+            pane: &event.pane,
+            now_secs,
+            long_running: event.long_running,
+            mobile_watch_card: mobile.watch_card,
+            silence_policy,
+        },
     );
 
     // THE LAMPS' OWN READINGS, TAKEN HERE AND NOT AT THE PULSE BELOW. The
@@ -139,65 +155,87 @@ pub(super) fn run_event_pulsing(
         home_presence(),
     );
 
-    let outcomes = if decision.legs.is_empty() {
-        // A verdict that must be SAID, but only for the contradiction the
-        // caller asked for: a silent exit is indistinguishable from delivery.
-        if event.local_only && event.remote_only {
-            println!(
-                "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
-            );
-        }
-        Vec::new()
-    } else {
-        // CLONED rather than moved: the catch-up below dispatches on the
-        // same two secrets, and reading the config a second time would be a
-        // second answer to a question already asked.
-        let outcomes = dispatch_legs(
-            &decision.legs,
-            decision.pane_dropped,
-            event,
-            &home,
-            &mobile,
-            hermes_key.clone(),
+    let store = pns_adapters::SqliteStore::for_records(state_dir());
+    let identity = producer
+        .map(|producer| producer.identity.clone())
+        .or_else(|| {
+            delivery_runtime::fresh_identity()
+                .map_err(|_| {
+                    delivery_runtime::delivery_notice("identity unavailable");
+                })
+                .ok()
+        });
+    if decision.legs.is_empty() && event.local_only && event.remote_only {
+        println!(
+            "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
         );
-        for (leg, delivered) in &outcomes {
-            // THE ONE PLACE a delivery reaches the operator, and the one place
-            // the `pns: ` prefix is written. A channel says WHAT happened; the
-            // leg's mode says whether anyone hears it, and this says how it is
-            // labelled, so a second caller that labels its lines by plugin
-            // name does not have to unpick a prefix out of the middle of one.
-            if let Some(line) = delivered.clone().line_for(leg.mode) {
+    }
+    let initial = pns_domain::Record {
+        event,
+        decision: &decision,
+        overrides: &overrides,
+        legs: &[],
+        nag: attempt == Attempt::Nudge,
+        permission_mode: &payload.permission_mode,
+        agent_id: &payload.agent_id,
+        tool_name: &payload.tool_name,
+    };
+    let submitted = delivery_runtime::DeliveryRuntime {
+        store: &store,
+        selection: &selection,
+        home: &home,
+        mobile: &mobile,
+        hermes_key: hermes_key.clone(),
+        json,
+    }
+    .submit_request(
+        &delivery_runtime::SubmissionInput {
+            identity: identity.as_ref(),
+            producer_request: producer.map(|producer| producer.encoded.as_str()),
+            event,
+            legs: &decision.legs,
+            pane_dropped: decision.pane_dropped,
+            record: Some(&initial),
+        },
+        &|| now_secs,
+    );
+    let submitted =
+        submitted.inspect_err(|_| delivery_runtime::delivery_notice("submission refused"))?;
+    let outcomes = match &submitted {
+        pns_application::Submitted::Attempted { outcomes, .. } => decision
+            .legs
+            .iter()
+            .zip(outcomes)
+            .map(|(leg, (_, delivered))| (*leg, delivered.clone()))
+            .collect::<Vec<_>>(),
+        pns_application::Submitted::Existing(_) => return Ok(submitted),
+    };
+    for (leg, delivered) in &outcomes {
+        if let Some(line) = delivered.clone().line_for(leg.mode) {
+            if json {
+                eprintln!("pns: {line}");
+            } else {
                 println!("pns: {line}");
             }
         }
-        outcomes
-    };
+    }
 
-    // THE RECORD GOES HERE, after every channel and before the pulse. After,
-    // because the leg verdicts are part of it and because a crash in recording
-    // must not cost a channel; before, because the pulse talks to a bridge
-    // under a ten-second deadline and would take the record with it. THE
-    // ACCEPTED PRICE, stated: a decision is lost if a channel hangs to its
-    // deadline and the process is killed before this runs.
-    //
-    // BOTH BRANCHES RECORD. "Nothing fired" is exactly what an operator opens
-    // the report to ask about.
-    // THE ORDER IS THE USE CASE'S, in `pns-application`. Every step below the
-    // decision line was placed against the ones around it for a reason, and a
-    // reordering that still compiles is a defect no type here can catch.
     let records = EventRecords {
-        moment: pns_adapters::SqliteStore::for_records(state_dir()),
+        moment: store,
         home: &home,
+        selection: &selection,
         hue_table: hue_table.as_ref(),
         lights: lights.as_deref(),
         mobile: &mobile,
         hermes_key: hermes_key.clone(),
         recap,
         durable_route,
+        json,
         pulse,
     };
     let lamps_live = lights.is_some() && hue_table.is_some();
     pns_application::SubmitNotification { ports: &records }.record(&pns_application::Submission {
+        identity: identity.as_ref(),
         event,
         decision: &decision,
         overrides: &overrides,
@@ -208,11 +246,9 @@ pub(super) fn run_event_pulsing(
             Attempt::Observation => pns_application::Attempt::Observation,
         },
         session_id: &payload.session_id,
-        permission_mode: &payload.permission_mode,
-        agent_id: &payload.agent_id,
-        tool_name: &payload.tool_name,
         lamps_live,
         lights_declared: lights.is_some(),
         presence: presence_at_decision.as_ref(),
     });
+    Ok(submitted)
 }

@@ -77,11 +77,15 @@ fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_show
 #[test]
 fn a_delivered_event_journals_nothing_at_all() {
     // NO FILE ON A MACHINE THAT NEVER MISSED ONE, which is what makes the
-    // journal's presence meaningful. Away cards the phone, so this event
-    // reached the operator and there is nothing to replay.
+    // journal's presence meaningful. The native banner acknowledges its send,
+    // so there is nothing to replay.
     let sandbox = Sandbox::new("journal-delivered");
-    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
-    assert!(sandbox.fired("mobile"), "the card really fired");
+    run(acknowledged_banner(&sandbox)
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(
+        sandbox.path("notifier.args").exists(),
+        "the native banner ran"
+    );
     assert!(
         journal(&sandbox).is_empty(),
         "a delivered event left a journal behind"
@@ -218,6 +222,7 @@ fn the_journal_is_created_readable_and_writable_by_its_owner_alone() {
                     ..Default::default()
                 },
                 Some(1_756_499_000),
+                None,
             )
             .expect("seed through the real journal writer");
     }

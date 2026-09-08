@@ -1,89 +1,82 @@
-use crate::*;
+use crate::{Mobile, executable_in_path};
+use pns_adapters::{
+    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, HermesChannel, MoshiChannel,
+    SystemCommandRunner, UreqPost, channel_url, refused_backend_line, remote_deadline,
+    resolve_path,
+};
+use pns_application::{Destinations, NotificationDestination};
+use pns_domain::{Event, EventArgs, registry::Selection, render};
+use pns_hermes::UreqSignedPost;
+use std::time::Duration;
+
+mod registration;
 
 const EXECUTABLE_DEADLINE: Duration = Duration::from_secs(5);
 
-/// Every leg to its destination, in the registry's delivery order, each
-/// paired with what its channel had to say for itself.
-///
-/// IT RETURNS ITS OUTCOMES RATHER THAN PRINTING THEM. An event prints only what
-/// a reporting leg said; a hand-run check labels every outcome with its
-/// plugin's name and prints the lot. Two callers spelling one report two ways
-/// is exactly what a returned value is for.
-///
-/// THE LEGS AND THE SCRUB ARRIVE AS VALUES, not as a `Decision`: a caller that
-/// took no decision has none to hand over.
-pub(crate) fn dispatch_legs(
-    legs: &[pns::routing::Leg],
-    pane_dropped: bool,
-    event: &pns::args::EventArgs,
+pub(crate) fn destinations(
+    selection: &Selection,
+    route: &str,
     home: &str,
     mobile: &Mobile,
     hermes_key: Option<String>,
-) -> Vec<(pns::routing::Leg, Delivery)> {
-    // Sanitized ONCE here rather than per channel: a channel may be written in
-    // any language and cannot be expected to share the guard. Warned about
-    // only now, because a scrub nobody was going to receive is not news.
-    let pane = if pane_dropped {
+) -> Destinations<Box<dyn NotificationDestination>> {
+    destinations_with_output(selection, route, home, mobile, hermes_key, false)
+}
+
+pub(crate) fn destinations_with_output(
+    selection: &Selection,
+    route: &str,
+    home: &str,
+    mobile: &Mobile,
+    hermes_key: Option<String>,
+    json: bool,
+) -> Destinations<Box<dyn NotificationDestination>> {
+    let override_dir = std::env::var("PNS_CHANNELS_DIR")
+        .ok()
+        .filter(|dir| !dir.is_empty());
+    let channels = resolve_path(
+        override_dir.as_deref(),
+        &format!("{home}/.local/libexec/pns/channels"),
+    );
+    let forced = override_dir.as_ref().map(|_| channels.as_path());
+    let native = vec![
+        registration::choose(
+            moshi_channel(mobile.token.clone()),
+            forced,
+            mobile.refusal.as_deref().map(refused_backend_line),
+            json,
+        ),
+        registration::choose(banner_channel(), forced, None, json),
+        registration::choose(
+            hermes_channel(
+                hermes_key,
+                hermes_url_for(route, std::env::var("PNS_HERMES_URL").ok().as_deref()),
+            ),
+            forced,
+            None,
+            json,
+        ),
+    ];
+    registration::assemble(selection, native, &channels, json)
+}
+
+/// The parsed arguments plus the sanitized pane, rendered into the one event
+/// every channel is handed.
+pub(crate) fn rendered_event(event: &EventArgs, pane_dropped: bool) -> Event {
+    if pane_dropped {
         eprintln!("pns: dropped a pane id with shell metacharacters; no channel will focus a pane");
+    }
+    rendered_event_quiet(event, pane_dropped)
+}
+
+pub(crate) fn rendered_event_quiet(event: &EventArgs, pane_dropped: bool) -> Event {
+    let pane = if pane_dropped {
         ""
     } else {
         event.pane.as_str()
     };
-    let rendered = rendered_event(event, pane);
-
-    let channels_dir_override = std::env::var("PNS_CHANNELS_DIR")
-        .ok()
-        .filter(|dir| !dir.is_empty());
-    let channels_dir = resolve_path(
-        channels_dir_override.as_deref(),
-        &format!("{home}/.local/libexec/pns/channels"),
-    );
-    let banner = banner_channel();
-    let moshi = moshi_channel(mobile.token.clone());
-    let hermes = hermes_channel(hermes_key, hermes_url_for(&event.channel));
-
-    // NO `?` AND NO EARLY RETURN: one channel's failure costs the others
-    // nothing, and every channel above was constructed before the first
-    // delivery, so a leg cannot be lost to a sibling's refusal.
-    legs.iter()
-        .map(|leg| {
-            // THE MOBILE LEG IS GATED ON THE BACKEND VERDICT, ahead of the
-            // dispatch that picks a seam and so ahead of BOTH of them. The
-            // gate used to sit on the TOKEN, which only feeds the native
-            // channel: with an executable channel of the same name installed,
-            // the card went out under a backend nobody named while stderr
-            // said "no card is pushed". A sentence that is printed has to be
-            // true wherever the leg is dispatched.
-            //
-            // IT SITS HERE RATHER THAN IN `deliver_leg` because this is the
-            // one site that dispatches any leg at all, so the two are the
-            // same fence; a refused leg also runs nothing, so there is no
-            // panic to catch below and nothing to unwind.
-            if leg.name == "mobile"
-                && let Some(reason) = mobile.refusal.as_deref()
-            {
-                return (*leg, Delivery::Failed(refused_backend_line(reason)));
-            }
-            let delivered = pns_application::deliver_guarded(leg.name, || {
-                deliver_leg(
-                    leg,
-                    &rendered,
-                    &banner,
-                    &moshi,
-                    &hermes,
-                    native_first(channels_dir_override.is_some()),
-                    &channels_dir,
-                )
-            });
-            (*leg, delivered)
-        })
-        .collect()
-}
-/// The parsed arguments plus the sanitized pane, rendered into the one event
-/// every channel is handed.
-fn rendered_event(event: &pns::args::EventArgs, pane: &str) -> pns::channels::Event {
     let message = render::message(&event.branch, &event.detail, &event.state);
-    pns::channels::Event {
+    Event {
         agent: event.agent.clone(),
         state: event.state.clone(),
         project: event.project.clone(),
@@ -137,12 +130,10 @@ fn hermes_channel(key: Option<String>, url: String) -> HermesChannel<UreqSignedP
 /// route named goes. An unusable name is said out loud and falls back
 /// LOUD-WARD: a misrouted notification on the default route beats a silently
 /// dropped one.
-fn hermes_url_for(channel: &str) -> String {
-    let env_override = std::env::var("PNS_HERMES_URL")
-        .ok()
-        .filter(|url| !url.is_empty());
+fn hermes_url_for(channel: &str, env_override: Option<&str>) -> String {
+    let env_override = env_override.filter(|url| !url.is_empty());
     if let Some(url) = env_override {
-        return url;
+        return url.to_string();
     }
     if channel.is_empty() {
         return DEFAULT_HERMES_URL.to_string();
@@ -162,28 +153,6 @@ fn url_from_env(variable: &str, default: &str) -> String {
         .filter(|url| !url.is_empty())
         .unwrap_or_else(|| default.to_string())
 }
-/// One leg to its destination: the native plugin when it wins, else the
-/// executable channel of that name.
-fn deliver_leg(
-    leg: &pns::routing::Leg,
-    rendered: &pns::channels::Event,
-    banner: &BannerChannel<SystemCommandRunner>,
-    moshi: &MoshiChannel<UreqPost>,
-    hermes: &HermesChannel<UreqSignedPost>,
-    native_wins: bool,
-    channels_dir: &Path,
-) -> Delivery {
-    if native_wins {
-        match leg.name {
-            "macos-banner" => return banner.deliver(rendered, leg.mode),
-            "mobile" => return moshi.deliver(rendered, leg.mode),
-            "hermes" => return hermes.deliver(rendered, leg.mode),
-            _ => {}
-        }
-    }
-    pns_adapters::deliver_executable(
-        &channels_dir.join(format!("{}.sh", leg.name)),
-        &pns::channels::event_json(rendered, leg.mode),
-        EXECUTABLE_DEADLINE,
-    )
-}
+
+#[cfg(test)]
+mod tests;

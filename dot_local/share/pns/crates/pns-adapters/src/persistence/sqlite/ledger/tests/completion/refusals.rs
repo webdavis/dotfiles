@@ -25,7 +25,12 @@ fn a_malformed_decision_rolls_back_completion_and_keeps_the_owned_attempt_unfini
     );
     assert_eq!(store.inspect(&input.identity).unwrap().unwrap(), before);
     assert_eq!(line(&store), decision);
-    assert!(store.claim_retry(lease(19, 30)).unwrap().is_none());
+    assert!(
+        store
+            .claim_retry(lease(19, 30), Default::default())
+            .unwrap()
+            .is_none()
+    );
     assert!(
         std::fs::read_to_string(&store.log)
             .unwrap()

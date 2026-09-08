@@ -108,6 +108,14 @@ fn presence_config(body: &str) -> Config {
 /// is what lets one walk cover a level with no heading of its own.
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
+    (
+        super::TOP_LEVEL,
+        "delivery",
+        "{ bypass_silence_classes = [\"custom\"], max_attempts = 3 }",
+    ),
+    ("delivery", "bypass_silence_classes", "[\"custom\"]"),
+    ("delivery", "max_attempts", "3"),
+    ("delivery", "max_age_secs", "7"),
     (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
     (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
     (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
@@ -199,6 +207,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
 ];
 
 mod daemon;
+mod delivery;
 mod focus;
 mod lights_bounds;
 mod lights_defaults;
@@ -218,3 +227,36 @@ mod recap_threshold;
 mod roster;
 mod schema;
 mod vocabulary;
+
+#[test]
+fn delivery_retry_settings_are_accepted_and_bad_limits_are_refused() {
+    assert!(
+        parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").is_ok(),
+        "delivery retry limits must load"
+    );
+    let parsed = parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").unwrap();
+    assert_eq!(
+        (
+            parsed.retry_limits.max_attempts,
+            parsed.retry_limits.max_age_secs
+        ),
+        (3, 7)
+    );
+    assert_eq!(
+        parse_config("").unwrap().retry_limits,
+        pns_domain::retry::RetryLimits {
+            max_attempts: 20,
+            max_age_secs: 604800
+        }
+    );
+    assert_eq!(
+        parse_config("[delivery]\nmax_attempts = 0\nmax_age_secs = 0")
+            .unwrap()
+            .retry_limits
+            .max_attempts,
+        0
+    );
+    for value in ["-1", "1.5", "true", "\"20\""] {
+        assert!(parse_config(&format!("[delivery]\nmax_attempts = {value}\n")).is_err());
+    }
+}

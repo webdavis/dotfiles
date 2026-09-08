@@ -5,7 +5,7 @@ use pns_domain::lamps::LIGHTS_JOB;
 /// events constantly, so five minutes covers an agent's thinking gap without
 /// covering a stall.
 pub const ORDINARY_LEASE_SECS: u64 = 300;
-/// And after a journalled one, which is an operator who is away or muted. The
+/// And after a missed event, including an unacknowledged decoration. The
 /// glow has to survive the whole absence, and the absence is precisely when no
 /// further event arrives to refresh this.
 const JOURNALLED_LEASE_SECS: u64 = 12 * 60 * 60;
@@ -25,9 +25,8 @@ const JOURNALLED_LEASE_SECS: u64 = 12 * 60 * 60;
 /// TWO LEASE LENGTHS, off ONE question: was this event journalled. An ordinary
 /// event means the operator is here and a working loop emits events
 /// constantly, so five minutes covers an agent's thinking gap without covering
-/// a stall. A journalled one means they are away or muted, which is exactly
-/// when no further event will arrive to refresh this, and the glow has to
-/// survive the whole absence.
+/// a stall. A missed event keeps the longer lease even when its planned card failed.
+/// The caller passes the same outcome answer it used to journal the event.
 ///
 /// THE DUE SECOND IS KEPT WHEN ONE IS ALREADY PENDING, and that is not
 /// decoration: re-registering replaces the job by name, so an event storm that
@@ -39,7 +38,7 @@ pub fn register_lights_tick(
     spool: &impl JobSpool,
     lights: Option<&pns_domain::lamps::config::Lights>,
     decision: &pns_domain::Decision,
-    overrides: &pns_domain::Overrides,
+    actual_miss: bool,
 ) {
     // THE DECISION'S OWN CLOCK, like record_news and renew_loop_lease beside
     // this call: a fresh wall-clock read here would be a second reading of the
@@ -48,7 +47,7 @@ pub fn register_lights_tick(
     let (Some(lights), Some(now)) = (lights, decision.inputs.now_secs) else {
         return;
     };
-    let lease = if pns_domain::missed::was_missed(decision, overrides) {
+    let lease = if actual_miss {
         JOURNALLED_LEASE_SECS
     } else {
         ORDINARY_LEASE_SECS

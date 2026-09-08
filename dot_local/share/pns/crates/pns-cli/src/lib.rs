@@ -11,6 +11,8 @@
 //! composition root historically accretes, so they are named here as the
 //! things this file may not grow.
 //!
-//! Nothing has moved in yet, and the `pns` binary target still lives in the
-//! legacy package at the workspace root: every caller invokes it by that name,
-//! so it may not disappear between two pull requests.
+//! The JSON submission adapter lives here. The `pns` binary target still
+//! lives in the legacy package at the workspace root; its callback composes
+//! the existing submission workflow.
+
+pub mod submit;

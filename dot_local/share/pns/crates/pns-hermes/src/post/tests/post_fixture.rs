@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const DEADLINE: Duration = Duration::from_millis(400);
 
-pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::Result<()> {
+pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::Result<Vec<u8>> {
     let deadline = Instant::now() + DEADLINE;
     listener.set_nonblocking(true)?;
     let (mut stream, _) = poll(deadline, || listener.accept())?;
@@ -48,7 +48,7 @@ pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::R
     // Hold the socket until the client hangs up. Every drain uses the same
     // absolute deadline, so trickled bytes cannot renew the server's lifetime.
     while poll(deadline, || stream.read(&mut chunk))? > 0 {}
-    Ok(())
+    Ok(request)
 }
 
 fn poll<T>(deadline: Instant, mut operation: impl FnMut() -> io::Result<T>) -> io::Result<T> {

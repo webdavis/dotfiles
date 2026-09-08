@@ -16,20 +16,14 @@ pub(crate) use std::path::Path;
 pub(crate) use std::time::Duration;
 
 pub(crate) use pns::args::parse_args;
-pub(crate) use pns::channels::banner::BannerChannel;
-pub(crate) use pns::channels::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, UreqSignedPost, channel_url, hermes_secret, remote_deadline,
-};
+pub(crate) use pns::channels::Delivery;
+pub(crate) use pns::channels::hermes::hermes_secret;
 pub(crate) use pns::channels::hue::{
     BRIDGE_DEADLINE, HuePulse, UreqBridge, hue_settings, quiet_window,
 };
-pub(crate) use pns::channels::moshi::{
-    DEFAULT_MOSHI_URL, MOSHI_TYPE, MoshiChannel, UreqPost, mobile_backend, moshi_secret,
-    refused_backend_line,
-};
-pub(crate) use pns::channels::{Delivery, native_first};
+pub(crate) use pns::channels::moshi::{MOSHI_TYPE, mobile_backend, moshi_secret};
 pub(crate) use pns::config::{LoadOutcome, config_path, load_config};
-pub(crate) use pns::engine::{Overrides, decide};
+pub(crate) use pns::engine::Overrides;
 pub(crate) use pns::hooks::{
     HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
 };
@@ -51,6 +45,7 @@ mod command_quiet;
 mod command_recap;
 mod command_setup;
 mod daemon_runtime;
+mod delivery_runtime;
 mod event_flow;
 mod hook_dispatch;
 mod hook_observations;
@@ -68,7 +63,6 @@ mod runtime_environment;
 mod turn_lifecycle;
 mod turn_text;
 
-pub(crate) use channel_dispatch::dispatch_legs;
 pub(crate) use channel_settings::{
     Mobile, disabled_backend_warnings, plugin_settings, read_mobile,
 };
@@ -126,6 +120,9 @@ fn main() {
     if matches!(first.as_str(), "--version" | "-V") {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
+    }
+    if first == "submit" {
+        std::process::exit(event_flow::submit_mode(&argv[1..]));
     }
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.

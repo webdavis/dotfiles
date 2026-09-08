@@ -3,7 +3,16 @@ use super::*;
 #[test]
 fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     let ordinary = registering_event("lights-tick-lease-ordinary");
-    run(logged_event(&ordinary).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let config = std::fs::read_to_string(ordinary.path(".config/pns/config.toml")).unwrap();
+    ordinary.write_config(&format!(
+        "{config}\n[plugins.macos-banner]\nenabled = true\n"
+    ));
+    run(acknowledged_banner(&ordinary)
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    assert!(
+        ordinary.path("notifier.args").exists(),
+        "the native send was acknowledged"
+    );
     let short = lights_job(&ordinary);
     assert_eq!(
         short.args,

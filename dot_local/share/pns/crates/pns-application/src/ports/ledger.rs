@@ -15,6 +15,8 @@ pub struct LedgerLeg {
 #[derive(Debug, PartialEq)]
 pub struct LedgerSubmission {
     pub identity: SubmissionIdentity,
+    // The protocol boundary supplies bounded encoded data; policy does not parse it.
+    pub producer_request: Option<String>,
     pub event: Event,
     pub legs: Vec<LedgerLeg>,
 }
@@ -92,6 +94,9 @@ pub trait DeliveryLedger {
         submission: &LedgerSubmission,
         lease: LeaseWindow,
     ) -> Result<PreparedSubmission<Self::Claim>, LedgerFailure>;
+    // Commit the claimed completion and its retained decision-leg verdict as
+    // one operation. A stale claim changes neither record; a pruned decision
+    // does not prevent the ledger completion from being retained.
     fn record(
         &self,
         claim: &Self::Claim,
@@ -101,6 +106,7 @@ pub trait DeliveryLedger {
     fn claim_retry(
         &self,
         lease: LeaseWindow,
+        _limits: pns_domain::retry::RetryLimits,
     ) -> Result<Option<RetryDelivery<Self::Claim>>, LedgerFailure>;
     fn inspect(
         &self,

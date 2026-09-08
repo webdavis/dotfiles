@@ -2,6 +2,7 @@ use super::{SqliteStore, StoreError};
 use pns_application::{Claim, ReturnMoment};
 use rusqlite::{Connection, OptionalExtension, Transaction};
 mod journal;
+pub(super) mod schema;
 
 impl SqliteStore {
     pub fn claim_return(
@@ -16,18 +17,30 @@ impl SqliteStore {
         if ownership.is_some() {
             return Ok(None);
         }
-        let (claim, owned) = self.transaction(|transaction| {
+        let Some((claim, owned)) = self.transaction(|transaction| {
             let since = read_edge(transaction)?;
-            let (waiting, owned) = if take_journal {
-                journal::claim(transaction)?
+            let Some((claim, owned)) = (if take_journal {
+                journal::claim(transaction, since, now)?
             } else {
-                (Vec::new(), None)
+                Some((
+                    Claim {
+                        since,
+                        waiting: Vec::new(),
+                        replay: None,
+                    },
+                    None,
+                ))
+            }) else {
+                return Ok(None);
             };
             if let Some(edge) = since.max(now) {
                 write_edge(transaction, edge)?;
             }
-            Ok((Claim { since, waiting }, owned))
-        })?;
+            Ok(Some((claim, owned)))
+        })?
+        else {
+            return Ok(None);
+        };
         *ownership = owned;
         Ok(Some(claim))
     }

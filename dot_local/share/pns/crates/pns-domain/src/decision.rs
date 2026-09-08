@@ -11,6 +11,14 @@ pub use arbitration::decide;
 pub use overrides::{DEFAULT_DESK_IDLE_SECS, Overrides};
 pub use reading::surface_reading;
 
+/// Whether the configured request class may pass mute and named Focus.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SilencePolicy {
+    #[default]
+    Respect,
+    BypassBannerAndPhone,
+}
+
 pub struct DecisionRequest<'a> {
     pub local_only: bool,
     pub remote_only: bool,
@@ -18,6 +26,7 @@ pub struct DecisionRequest<'a> {
     pub now_secs: Option<u64>,
     pub long_running: bool,
     pub mobile_watch_card: bool,
+    pub silence_policy: SilencePolicy,
 }
 
 #[derive(Default)]

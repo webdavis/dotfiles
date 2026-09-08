@@ -7,7 +7,12 @@ fn acknowledged_legs_are_retained_and_never_leased_again() {
     for leg in &legs {
         store.record(&leg.claim, &acknowledged(), 11).unwrap();
     }
-    assert!(store.claim_retry(lease(100, 110)).unwrap().is_none());
+    assert!(
+        store
+            .claim_retry(lease(100, 110), Default::default())
+            .unwrap()
+            .is_none()
+    );
     let history = store.inspect(&input.identity).unwrap().unwrap();
     assert_eq!(history.attempts.len(), 2);
     assert!(
@@ -41,11 +46,19 @@ fn retry_outcomes_keep_their_details_and_are_due_only_at_the_exact_retry_instant
             };
             store.record(&legs[0].claim, &completion, 11).unwrap();
             store.record(&legs[1].claim, &acknowledged(), 12).unwrap();
-            assert!(store.claim_retry(lease(29, 40)).unwrap().is_none());
+            assert!(
+                store
+                    .claim_retry(lease(29, 40), Default::default())
+                    .unwrap()
+                    .is_none()
+            );
             let record = store.inspect(&input.identity).unwrap().unwrap();
             assert_eq!(record.attempts[0].completion, completion);
             assert_eq!(record.attempts[0].at, 11);
-            let retried = store.claim_retry(lease(due, 40)).unwrap().unwrap();
+            let retried = store
+                .claim_retry(lease(due, 40), Default::default())
+                .unwrap()
+                .unwrap();
             assert_eq!(retried.leg, input.legs[0]);
             store.record(&retried.claim, &acknowledged(), due).unwrap();
         }
@@ -75,10 +88,16 @@ fn retry_claims_follow_event_sequence_and_retained_attempt_order_without_replaci
     created(&store, &input);
     store.record(&first[0].claim, &retry(20), 11).unwrap();
     store.record(&first[1].claim, &acknowledged(), 11).unwrap();
-    let a = store.claim_retry(lease(20, 30)).unwrap().unwrap();
+    let a = store
+        .claim_retry(lease(20, 30), Default::default())
+        .unwrap()
+        .unwrap();
     assert_eq!(a.identity.request_id, "original-id");
     store.record(&a.claim, &retry(40), 21).unwrap();
-    let b = store.claim_retry(lease(22, 32)).unwrap().unwrap();
+    let b = store
+        .claim_retry(lease(22, 32), Default::default())
+        .unwrap()
+        .unwrap();
     assert_eq!(b.identity.request_id, "later");
     let original = submission();
     let record = store.inspect(&original.identity).unwrap().unwrap();

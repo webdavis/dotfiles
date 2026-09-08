@@ -13,6 +13,17 @@ pub(super) fn logged_event(sandbox: &Sandbox) -> std::process::Command {
     command
 }
 
+pub(super) fn acknowledged_banner(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = logged_event(sandbox);
+    command
+        .env_remove("PNS_CHANNELS_DIR")
+        .env("PNS_IDLE_SECS", "0")
+        .arg("--local-only");
+    sandbox.stub_notifier(&mut command);
+    sandbox.stub_herdr(&mut command, false);
+    command
+}
+
 /// The ring, oldest first, which is the order an append leaves it in.
 pub(super) fn decisions(sandbox: &Sandbox) -> Vec<String> {
     stored_records::lines(sandbox, "decisions")

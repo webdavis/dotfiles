@@ -8,11 +8,14 @@ fn every_event_is_recorded_in_the_activity_ring_delivered_or_not() {
     // to leave a line here while leaving the journal empty.
     let sandbox = Sandbox::new("activity-records-delivered");
 
-    run(logged_event(&sandbox)
+    run(acknowledged_banner(&sandbox)
         .args(["--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a delivered summary"]));
 
-    assert!(sandbox.fired("mobile"), "the away card really fired");
+    assert!(
+        sandbox.path("notifier.args").exists(),
+        "the native banner ran"
+    );
     assert!(
         journal(&sandbox).is_empty(),
         "so nothing was missed and the journal stayed empty"

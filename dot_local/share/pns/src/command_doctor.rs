@@ -18,7 +18,7 @@ use pns_application::DOCTOR_OPENING;
 /// on" when the operator asked "what will reach me".
 ///
 /// EVERY SEND GOES THROUGH THE ENGINE'S OWN WIRING, down to the constructors
-/// and `dispatch_legs`, so a doctor cannot report green through a path an
+/// and the destination registry, so a doctor cannot report green through a path an
 /// event would not use.
 pub(crate) fn doctor_mode() -> i32 {
     // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A
@@ -130,7 +130,40 @@ pub(crate) fn doctor_mode() -> i32 {
     .run(
         pns_application::DoctorActions {
             deliver: |legs: &[pns_domain::routing::Leg], event: &pns_domain::EventArgs| {
-                dispatch_legs(legs, false, event, &home, &mobile, hermes_key)
+                let destinations =
+                    channel_dispatch::destinations(&selection, "", &home, &mobile, hermes_key);
+                let identity = match delivery_runtime::fresh_identity() {
+                    Ok(identity) => identity,
+                    Err(_) => {
+                        return legs
+                            .iter()
+                            .map(|leg| {
+                                (
+                                    *leg,
+                                    Delivery::Unlaunched("delivery identity unavailable".into()),
+                                )
+                            })
+                            .collect();
+                    }
+                };
+                let rendered = channel_dispatch::rendered_event(event, false);
+                legs.iter()
+                    .map(|leg| {
+                        let request = pns_application::DeliveryRequest {
+                            producer: &identity.producer,
+                            request_id: Some(&identity.request_id),
+                            event: &rendered,
+                            route: "",
+                            mode: leg.mode,
+                        };
+                        (
+                            *leg,
+                            pns_application::deliver_guarded(leg.name, || {
+                                destinations.deliver(leg.name, &request)
+                            }),
+                        )
+                    })
+                    .collect()
             },
             pulse: || {
                 pns_application::doctor_pulse(
@@ -159,6 +192,11 @@ pub(crate) fn doctor_mode() -> i32 {
                     now_secs(),
                     pns_adapters::job_spool::job_count(&state),
                 )
+            },
+            delivery_health: || {
+                pns_adapters::SqliteStore::new(state_dir())
+                    .delivery_health()
+                    .map_err(|_| "delivery ledger unreadable".into())
             },
             imports: || {
                 pns_adapters::SqliteStore::for_records(state_dir())

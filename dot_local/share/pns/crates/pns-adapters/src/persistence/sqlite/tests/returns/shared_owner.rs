@@ -5,7 +5,9 @@ use crate::StoreError;
 fn an_interrupted_return_owner_refuses_claim_and_completion_without_changing_its_records() {
     let store = SqliteStore::new(state());
     let connection = store.connect().unwrap();
-    store.record_journal(&event("owned"), Some(1)).unwrap();
+    store
+        .record_journal(&event("owned"), Some(1), None)
+        .unwrap();
     store.claim_return(Some(2), true).unwrap().unwrap();
     let interrupted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _guard = store.claim.lock().unwrap();
@@ -36,7 +38,9 @@ fn an_interrupted_return_owner_refuses_claim_and_completion_without_changing_its
 #[test]
 fn concurrent_callers_share_one_return_owner_until_that_batch_completes() {
     let store = SqliteStore::new(state());
-    store.record_journal(&event("one batch"), Some(1)).unwrap();
+    store
+        .record_journal(&event("one batch"), Some(1), None)
+        .unwrap();
     let ready = std::sync::Barrier::new(2);
     let results = std::thread::scope(|scope| {
         let first = scope.spawn(|| {
@@ -82,7 +86,9 @@ fn a_refused_completion_keeps_the_shared_owner_until_its_transaction_can_commit(
     let mut store = SqliteStore::new(state());
     store.busy_timeout = Duration::from_millis(5);
     let mut observer = store.connect().unwrap();
-    store.record_journal(&event("retained"), Some(1)).unwrap();
+    store
+        .record_journal(&event("retained"), Some(1), None)
+        .unwrap();
     store.claim_return(Some(2), true).unwrap().unwrap();
     let writer = observer
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)

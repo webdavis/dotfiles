@@ -10,7 +10,12 @@ struct MemoryRecords {
     activity: RefCell<Vec<Entry>>,
 }
 impl Journal for MemoryRecords {
-    fn journal(&self, event: &EventArgs, now: Option<u64>) {
+    fn journal(
+        &self,
+        event: &EventArgs,
+        now: Option<u64>,
+        _identity: Option<&pns_application::SubmissionIdentity>,
+    ) {
         let mut rows = self.journal.borrow_mut();
         rows.push(crate::journal_codec::entry(event, now, 260));
         if rows.len() > 25 {
@@ -54,13 +59,13 @@ fn event(detail: String) -> EventArgs {
 fn journal_retention(records: &impl Journal) {
     assert_eq!(records.read().unwrap(), None);
     for n in 0..25 {
-        records.journal(&event(n.to_string()), Some(n));
+        records.journal(&event(n.to_string()), Some(n), None);
     }
     let first = records.read().unwrap().unwrap();
     let first = crate::journal_codec::entries(&first);
     assert_eq!(first.len(), 25);
     assert_eq!(first.first().unwrap().detail, "0");
-    records.journal(&event("25".into()), Some(25));
+    records.journal(&event("25".into()), Some(25), None);
     let pruned = crate::journal_codec::entries(&records.read().unwrap().unwrap());
     assert_eq!(pruned.len(), 25);
     assert_eq!(pruned.first().unwrap().detail, "1");
@@ -138,6 +143,7 @@ fn decision_retention(records: &impl DecisionRing) {
             &selection,
             &overrides,
             pns_domain::DecisionRequest {
+                silence_policy: pns_domain::SilencePolicy::Respect,
                 local_only: false,
                 remote_only: false,
                 pane: "",

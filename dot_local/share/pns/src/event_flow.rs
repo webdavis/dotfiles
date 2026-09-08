@@ -1,7 +1,9 @@
 use crate::*;
 
 mod records;
+mod submit;
 use records::EventRecords;
+pub(crate) use submit::submit_mode;
 
 /// Whether this is the event's FIRST delivery, a NUDGE about one already
 /// recorded, or an OBSERVATION.
@@ -70,7 +72,15 @@ type PulseSink<'a> = &'a dyn Fn(
     Option<&pns::presence_policy::Snapshot>,
 );
 mod execution;
-use execution::run_event_pulsing;
+fn run_event_pulsing(
+    event: &pns::args::EventArgs,
+    probes: &SystemProbes<SystemCommandRunner>,
+    payload: &HookPayload,
+    attempt: Attempt,
+    pulse: PulseSink<'_>,
+) {
+    let _ = execution::execute(event, probes, payload, attempt, pulse, None);
+}
 
 #[cfg(test)]
 #[path = "event_flow/tests.rs"]

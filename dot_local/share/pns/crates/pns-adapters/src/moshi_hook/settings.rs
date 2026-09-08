@@ -22,7 +22,7 @@ pub(super) fn submit_deadline() -> Duration {
 fn configured_submit_deadline() -> Duration {
     let home = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home)) {
-        Ok(LoadOutcome::Loaded(config)) => config,
+        Ok(LoadOutcome::Loaded(config)) => *config,
         _ => crate::config::Config::default(),
     };
     crate::config::submit_deadline(&config).unwrap_or_else(|error| {

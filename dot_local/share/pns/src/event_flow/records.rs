@@ -10,28 +10,27 @@ use super::*;
 pub(super) struct EventRecords<'a> {
     pub(super) moment: pns_adapters::SqliteStore,
     pub(super) home: &'a str,
+    pub(super) selection: &'a pns_domain::registry::Selection,
     pub(super) hue_table: Option<&'a toml::Table>,
     pub(super) lights: Option<&'a pns::config::Lights>,
     pub(super) mobile: &'a Mobile,
     pub(super) hermes_key: Option<String>,
     pub(super) recap: pns::config::Recap,
     pub(super) durable_route: bool,
+    pub(super) json: bool,
     /// The pulse seam, carried because the readings it is handed are taken
     /// hundreds of lines above the call.
     pub(super) pulse: PulseSink<'a>,
 }
 
-impl pns_application::DecisionRing for EventRecords<'_> {
-    fn record(&self, record: &pns::decision_log::Record) {
-        pns_application::DecisionRing::record(&self.moment, record);
-    }
-    fn read(&self) -> Result<Option<String>, String> {
-        pns_application::DecisionRing::read(&self.moment)
-    }
-}
 impl pns_application::Journal for EventRecords<'_> {
-    fn journal(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        pns_application::Journal::journal(&self.moment, event, now);
+    fn journal(
+        &self,
+        event: &pns::args::EventArgs,
+        now: Option<u64>,
+        identity: Option<&pns_application::SubmissionIdentity>,
+    ) {
+        pns_application::Journal::journal(&self.moment, event, now, identity);
     }
     fn read(&self) -> Result<Option<String>, String> {
         pns_application::Journal::read(&self.moment)
@@ -85,12 +84,12 @@ impl pns_application::ReturnMoment for EventRecords<'_> {
 }
 
 impl pns_application::LightsTick for EventRecords<'_> {
-    fn register(&self, decision: &pns::engine::Decision, overrides: &pns::engine::Overrides) {
+    fn register(&self, decision: &pns::engine::Decision, actual_miss: bool) {
         pns_application::register_lights_tick(
             &pns_adapters::FileJobSpool::new(state_dir()),
             self.lights,
             decision,
-            overrides,
+            actual_miss,
         );
     }
 }
@@ -110,10 +109,15 @@ impl pns_application::MissedReplay for EventRecords<'_> {
         replay_missed(
             self.recap.clone(),
             decision,
-            self.home,
-            self.mobile,
-            self.hermes_key.clone(),
             self.durable_route,
+            delivery_runtime::DeliveryRuntime {
+                store: &self.moment,
+                selection: self.selection,
+                home: self.home,
+                mobile: self.mobile,
+                hermes_key: self.hermes_key.clone(),
+                json: self.json,
+            },
         );
     }
 }

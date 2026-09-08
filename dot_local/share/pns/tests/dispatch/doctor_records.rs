@@ -8,7 +8,12 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     let sandbox = Sandbox::new("doctor-decision-section");
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
     for turn in 1..=2 {
-        run(logged_event(&sandbox).args(["--agent", &format!("c{turn}"), "--state", "done"]));
+        run(logged_event(&sandbox).env("PNS_SKIP_PHONE", "1").args([
+            "--agent",
+            &format!("c{turn}"),
+            "--state",
+            "done",
+        ]));
     }
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);

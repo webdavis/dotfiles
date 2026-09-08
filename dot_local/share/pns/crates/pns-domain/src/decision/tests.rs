@@ -1,3 +1,4 @@
+mod delivery_class;
 mod fixtures;
 mod focus;
 mod guard;

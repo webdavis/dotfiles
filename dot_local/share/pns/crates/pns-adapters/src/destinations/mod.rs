@@ -45,17 +45,11 @@ pub fn event_json(event: &Event, mode: ReportMode) -> String {
 /// is named here for every destination that produces one.
 pub use pns_domain::Delivery;
 
-/// True when native plugins take precedence for dispatch: only when the
-/// channels directory was NOT explicitly overridden.
-pub fn native_first(channels_dir_overridden: bool) -> bool {
-    !channels_dir_overridden
-}
-
 pub(crate) mod banner;
 mod executable;
 pub(crate) mod hermes;
 pub(crate) mod moshi;
-pub use executable::{deliver_executable, resolve_path};
+pub use executable::{ExecutableDestination, resolve_path};
 
 #[cfg(test)]
 #[path = "tests/post.rs"]

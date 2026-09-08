@@ -270,6 +270,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
+            "pns doctor: delivery ledger unreadable; backlog and deadletters unknown",
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],

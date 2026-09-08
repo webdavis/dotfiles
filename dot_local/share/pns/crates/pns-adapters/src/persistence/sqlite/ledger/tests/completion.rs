@@ -13,6 +13,7 @@ fn begin(store: &SqliteStore, identity: &SubmissionIdentity) {
         &Registry::new().all(),
         &overrides,
         DecisionRequest {
+            silence_policy: pns_domain::SilencePolicy::Respect,
             local_only: false,
             remote_only: false,
             pane: "",

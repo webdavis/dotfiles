@@ -41,6 +41,7 @@ impl ReturnMoment for FileReturnMoment {
                 Some(Claim {
                     since,
                     waiting: waiting.entries,
+                    replay: None,
                 })
             }
         }

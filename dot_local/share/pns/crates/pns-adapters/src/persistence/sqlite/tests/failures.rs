@@ -16,6 +16,7 @@ fn a_failed_prune_rolls_back_the_new_record_and_preserves_the_whole_prior_ring()
                     ..EventArgs::default()
                 },
                 Some(n),
+                None,
             )
             .unwrap();
     }
@@ -28,7 +29,8 @@ fn a_failed_prune_rolls_back_the_new_record_and_preserves_the_whole_prior_ring()
                     detail: "new".into(),
                     ..EventArgs::default()
                 },
-                Some(26)
+                Some(26),
+                None
             )
             .is_err()
     );
@@ -55,10 +57,10 @@ fn a_busy_delivery_record_returns_and_logs_the_miss_without_disclosing_event_tex
     };
     let started = Instant::now();
     assert!(
-        store.record_journal(&event, Some(1)).is_err(),
+        store.record_journal(&event, Some(1), None).is_err(),
         "a refused write must be returned as failure"
     );
-    Journal::journal(&store, &event, Some(1));
+    Journal::journal(&store, &event, Some(1), None);
     assert!(
         started.elapsed() < Duration::from_millis(500),
         "the hot path must not wait out SQLite's default five seconds"

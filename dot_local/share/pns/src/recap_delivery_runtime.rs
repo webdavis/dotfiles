@@ -3,7 +3,7 @@ use crate::*;
 /// One recap posted to one route, and what the route had to say about it.
 ///
 /// IT SAYS WHAT HAPPENED, which is what `ReportMode::ReportOutcome` was for
-/// and what it never actually did: `dispatch_legs` RETURNS its outcomes and
+/// and what it never actually did: the destination registry RETURNS its outcomes and
 /// prints nothing, so the mode only ever moved the deadline. MEASURED against
 /// a dead endpoint, `pns recap --since ... --until ...` printed nothing and
 /// exited 0, which is exactly the drill an operator runs by hand to check a
@@ -19,12 +19,16 @@ pub(crate) fn deliver_recap(
     home: &str,
     hermes_key: Option<String>,
 ) -> Vec<(pns::routing::Leg, Delivery)> {
-    // ONE LEG AND ONE DESTINATION, built by hand the way `doctor_mode` builds
-    // its own: no decision was taken here, so there is no plan to derive legs
-    // from. NOT DECORATIVE, because nothing about this was chosen to put
-    // something in front of the operator; the card already did that.
+    use pns_application::NotificationDestination;
+    let selection = roster().all();
+    let mobile = Mobile::default();
+    let destinations =
+        channel_dispatch::destinations(&selection, channel, home, &mobile, hermes_key.clone());
+    let Some(destination) = destinations.durable() else {
+        return Vec::new();
+    };
     let leg = pns::routing::Leg {
-        name: "hermes",
+        name: destination.id().as_str(),
         mode: pns::routing::ReportMode::ReportOutcome,
         decorative: false,
     };
@@ -35,9 +39,41 @@ pub(crate) fn deliver_recap(
         channel: channel.to_string(),
         ..Default::default()
     };
-    // NO MOBILE VERDICT TO CARRY: the one leg is hermes, so the mobile table
-    // was never read on this path and the default states exactly that.
-    let outcomes = dispatch_legs(&[leg], false, &event, home, &Mobile::default(), hermes_key);
+    let identity = delivery_runtime::fresh_identity()
+        .map_err(|_| {
+            delivery_runtime::delivery_notice("identity unavailable");
+        })
+        .ok();
+    let result = delivery_runtime::DeliveryRuntime {
+        store: &pns_adapters::SqliteStore::for_records(state_dir()),
+        selection: &selection,
+        home,
+        mobile: &mobile,
+        hermes_key,
+        json: false,
+    }
+    .submit_request(
+        &delivery_runtime::SubmissionInput {
+            identity: identity.as_ref(),
+            producer_request: None,
+            event: &event,
+            legs: &[leg],
+            pane_dropped: false,
+            record: None,
+        },
+        &now_secs,
+    )
+    .map_err(|_| ());
+    let delivered = match result {
+        Ok(pns_application::Submitted::Attempted { outcomes, .. }) => outcomes
+            .into_iter()
+            .next()
+            .map(|(_, delivered)| delivered)
+            .unwrap_or_else(|| Delivery::Unlaunched("no durable delivery was attempted".into())),
+        Ok(pns_application::Submitted::Existing(_)) => return Vec::new(),
+        Err(()) => Delivery::Failed("delivery state unavailable".into()),
+    };
+    let outcomes = vec![(leg, delivered)];
     for (leg, delivered) in &outcomes {
         if let Some(line) = delivered.clone().line_for(leg.mode) {
             println!("pns: {line}");
