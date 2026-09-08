@@ -28,13 +28,14 @@ mod record;
 mod registration;
 mod schedule;
 
-mod delivery;
 mod adapters;
+mod delivery;
 mod runner;
 mod state;
 mod system;
 mod watchdog;
 
+pub use adapters::{ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock};
 pub use config::{
     BrewLane, ClaudePluginsLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane,
     NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path,
@@ -42,9 +43,6 @@ pub use config::{
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
-pub use adapters::{
-    ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock,
-};
 pub use schedule::{DEFAULT_LABEL, render_plist};
 pub use state::{marker_path, read_marker};
 pub use system::{home, now_epoch, resolve};

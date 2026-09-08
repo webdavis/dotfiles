@@ -79,8 +79,8 @@ mod clear_nag;
 pub use clear_nag::clear_nag;
 
 mod daemon_tick;
-pub use ports::jobs::{DaemonNotice, DaemonSpool, JobChildren, SpoolReading};
 pub use daemon_tick::RunDaemonTick;
+pub use ports::jobs::{DaemonNotice, DaemonSpool, JobChildren, SpoolReading};
 
 mod schedule_job;
 pub use schedule_job::{ScheduleJob, Until, cancel_job};
@@ -129,11 +129,11 @@ pub use build_return_recap::{BuildReturnRecap, RECAP_USAGE, recap_bounds, recap_
 pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summarizer};
 pub use post_return_recap::post_return_recap;
 
-mod presence_registration;
 mod daemon;
+mod presence_registration;
+pub use daemon::{RunDaemon, daemon_tick};
 pub use ports::jobs::DaemonSettings;
 pub use presence_registration::{PRESENCE_DAEMON_FLAG, ensure_presence_poll};
-pub use daemon::{RunDaemon, daemon_tick};
 
 mod doctor;
 pub use doctor::{DOCTOR_OPENING, DoctorActions, RunDoctor, doctor_pulse};
