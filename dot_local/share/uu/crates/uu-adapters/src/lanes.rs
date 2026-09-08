@@ -194,3 +194,5 @@ mod tests {
         assert_eq!(ran.verdict, Verdict::Deferred("exit 75".to_string()));
     }
 }
+
+pub use skills::capture_skills_updater;

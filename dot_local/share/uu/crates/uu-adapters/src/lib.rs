@@ -62,3 +62,5 @@ pub use lanes::{
 };
 
 pub use lanes::SkillsForkWatch;
+
+pub use lanes::capture_skills_updater;
