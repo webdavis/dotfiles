@@ -67,14 +67,13 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
 
 #[test]
 fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it() {
-    // NOWHERE TO SEND IS NOT A REPLAY. Both narrowing flags suppress every
-    // channel while the plan still says banner, so the replay condition is
-    // true and the dispatch would reach nothing: claiming the journal here
-    // would eat the queue for a typing mistake.
+    // Contradictory scope flags refuse before state access, leaving the
+    // waiting journal unimported and unclaimed.
     let sandbox = Sandbox::new("replay-no-legs");
     record_every_event(&sandbox);
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
+    let files_before = state_files(&sandbox);
 
     let output = run(present_event(&sandbox).args(["--local-only", "--remote-only"]));
 
@@ -92,10 +91,10 @@ fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it()
         before,
         "the queue was consumed with nowhere to send it"
     );
-    assert_eq!(stored_records::text(&sandbox, "journal").as_bytes(), before);
-    assert!(
-        stored_records::claims(&sandbox).is_empty(),
-        "the queue was claimed"
+    assert_eq!(
+        state_files(&sandbox),
+        files_before,
+        "the refusal initialized storage or claimed the queue"
     );
 }
 
