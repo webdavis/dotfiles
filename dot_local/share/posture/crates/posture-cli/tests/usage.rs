@@ -16,7 +16,6 @@ const WORDS: &[&[&str]] = &[
     &["funnel"],
     &["watchdog"],
     &["digest"],
-    &["heartbeat"],
     &["converge"],
     &["allowlist"],
     &["ssh"],
