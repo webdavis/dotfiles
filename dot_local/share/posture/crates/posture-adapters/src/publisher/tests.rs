@@ -15,12 +15,12 @@ struct Scripted {
     manifest: Result<Vec<u8>, InspectionFailure>,
 }
 impl CommandRunner for Scripted {
-    fn run(
+    fn run_completed(
         &mut self,
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure> {
+    ) -> Result<crate::CommandOutput, InspectionFailure> {
         assert_eq!(
             fs::read(&self.source).unwrap(),
             b"new source\n",
@@ -44,10 +44,14 @@ impl CommandRunner for Scripted {
             assert_eq!(io, CommandIo::InheritAll);
             // Simulate a partial apply even when it returns failure.
             fs::copy(&self.source, &self.deployed).unwrap();
-            self.apply.clone()
+            self.apply
+                .clone()
+                .map(|bytes| crate::CommandOutput { bytes, exit: 0 })
         } else if args.first() == Some(&OsStr::new("source-path")) {
             assert_eq!(io, CommandIo::CaptureStdout);
-            self.locate.clone()
+            self.locate
+                .clone()
+                .map(|bytes| crate::CommandOutput { bytes, exit: 0 })
         } else {
             assert_eq!(io, CommandIo::InheritAll);
             assert_eq!(program, Path::new("/bin/bash"));
@@ -55,7 +59,9 @@ impl CommandRunner for Scripted {
             if self.manifest.is_ok() {
                 fs::write(self.tree.join("refreshed"), b"done").unwrap();
             }
-            self.manifest.clone()
+            self.manifest
+                .clone()
+                .map(|bytes| crate::CommandOutput { bytes, exit: 0 })
         }
     }
 }

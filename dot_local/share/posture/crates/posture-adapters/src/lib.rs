@@ -23,7 +23,7 @@ mod codesign;
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
-pub use command::{CommandIo, CommandRunner, SystemRunner};
+pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner};
 
 mod locks;
 pub use locks::AllowlistWriteLock;

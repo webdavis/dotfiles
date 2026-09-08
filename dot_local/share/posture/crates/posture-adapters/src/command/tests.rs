@@ -78,3 +78,5 @@ fn an_exhausted_budget_never_starts_another_probe() {
 mod lifecycle;
 
 mod terminal;
+
+mod outcomes;

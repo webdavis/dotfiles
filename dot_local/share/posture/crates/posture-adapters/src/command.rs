@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::io::{self, Read};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
+use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 mod child;
@@ -23,28 +24,60 @@ pub trait CommandRunner {
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure>;
+    ) -> Result<Vec<u8>, InspectionFailure> {
+        let completed = self.run_completed(program, args, io)?;
+        if completed.exit == 0 {
+            Ok(completed.bytes)
+        } else {
+            Err(InspectionFailure::Failed)
+        }
+    }
+    fn run_completed(
+        &mut self,
+        program: &Path,
+        args: &[&OsStr],
+        io: CommandIo,
+    ) -> Result<CommandOutput, InspectionFailure>;
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CommandOutput {
+    pub bytes: Vec<u8>,
+    pub exit: i32,
 }
 
 pub struct SystemRunner {
-    expires: Instant,
+    budget: Budget,
+}
+enum Budget {
+    Total(Instant),
+    PerCommand(Duration),
 }
 impl SystemRunner {
+    pub fn per_command(budget: Duration) -> Self {
+        Self {
+            budget: Budget::PerCommand(budget),
+        }
+    }
     pub fn new(budget: Duration) -> Self {
         Self {
-            expires: Instant::now() + budget,
+            budget: Budget::Total(Instant::now() + budget),
         }
     }
 }
 
 impl CommandRunner for SystemRunner {
-    fn run(
+    fn run_completed(
         &mut self,
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure> {
-        if Instant::now() >= self.expires {
+    ) -> Result<CommandOutput, InspectionFailure> {
+        let expires = match self.budget {
+            Budget::Total(expires) => expires,
+            Budget::PerCommand(duration) => Instant::now() + duration,
+        };
+        if Instant::now() >= expires {
             return Err(InspectionFailure::TimedOut);
         }
         let interactive = !matches!(io, CommandIo::Inspection { .. });
@@ -98,7 +131,7 @@ impl CommandRunner for SystemRunner {
         let mut output = Vec::new();
         let mut eof = reader.is_none();
         loop {
-            if Instant::now() >= self.expires {
+            if Instant::now() >= expires {
                 return Err(InspectionFailure::TimedOut);
             }
             let mut bytes = [0_u8; 4096];
@@ -116,11 +149,14 @@ impl CommandRunner for SystemRunner {
                 if let Some(foreground) = &mut foreground {
                     foreground.restore()?;
                 }
-                return if status.success() {
-                    Ok(output)
-                } else {
-                    Err(InspectionFailure::Failed)
-                };
+                let exit = status
+                    .code()
+                    .or_else(|| status.signal().map(|signal| 128 + signal))
+                    .ok_or(InspectionFailure::Failed)?;
+                return Ok(CommandOutput {
+                    bytes: output,
+                    exit,
+                });
             }
             std::thread::sleep(Duration::from_millis(1));
         }

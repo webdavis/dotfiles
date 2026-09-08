@@ -7,12 +7,12 @@ struct Scripted {
     calls: Vec<(String, Vec<OsString>, bool)>,
 }
 impl CommandRunner for Scripted {
-    fn run(
+    fn run_completed(
         &mut self,
         program: &Path,
         args: &[&OsStr],
         io: CommandIo,
-    ) -> Result<Vec<u8>, InspectionFailure> {
+    ) -> Result<crate::CommandOutput, InspectionFailure> {
         let CommandIo::Inspection {
             merge_stderr: merged,
         } = io
@@ -24,7 +24,10 @@ impl CommandRunner for Scripted {
             args.iter().map(|arg| arg.to_os_string()).collect(),
             merged,
         ));
-        Ok(self.next.clone())
+        Ok(crate::CommandOutput {
+            bytes: self.next.clone(),
+            exit: 0,
+        })
     }
 }
 
