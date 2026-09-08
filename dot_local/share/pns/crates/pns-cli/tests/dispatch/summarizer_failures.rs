@@ -24,15 +24,34 @@ fn a_summarizer_that_answers_with_nothing_falls_to_the_plain_list_and_says_so() 
 }
 
 #[test]
-fn a_summarizer_still_thinking_at_its_deadline_falls_to_the_plain_list_and_says_so() {
-    // THE DEADLINE IS THE OPERATOR'S, and past it the window is worth more than
-    // the wording. Nobody is waiting on this process, so the deadline exists to
-    // stop a wedged backend holding a recap for good rather than to hurry it.
-    assert_fell_back_to_the_plain_list(&recap_summarized_badly(
-        "recap-summarizer-past-deadline",
-        "summarizer_deadline_secs = 1\n",
-        "sleep 30",
-    ));
+fn a_summarizer_past_a_short_deadline_returns_no_partial_answer() {
+    use pns_application::Summarizer;
+    let summarizer = pns_adapters::ProcessSummarizer;
+    // A complete answer distinguishes a deadline refusal from always returning
+    // None. The unchanged CLI cases below own the plain-list notice and body.
+    assert_eq!(
+        summarizer.summarize(
+            &["/bin/echo".into(), "a complete answer".into()],
+            std::time::Duration::from_millis(300),
+            "the window",
+        ),
+        Some(vec!["a complete answer".into()]),
+    );
+    let started = std::time::Instant::now();
+    assert_eq!(
+        summarizer.summarize(
+            &[
+                "/bin/sh".into(),
+                "-c".into(),
+                "printf 'a partial answer\\n'; exec /bin/sleep 30".into(),
+            ],
+            std::time::Duration::from_millis(40),
+            "the window",
+        ),
+        None,
+        "the owned process exceeded its deadline; partial text is not an answer",
+    );
+    assert!(started.elapsed() < std::time::Duration::from_millis(500));
 }
 
 #[test]

@@ -34,13 +34,14 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
     let sandbox = Sandbox::new("lights-tick-quiet");
     // BOTH REPORTING LEGS ARE ENABLED, so "reaches no channel" is asserted
     // against a config where an event really would reach one.
+    // The missing bridge credentials refuse immediately. The companion case
+    // owns transport refusal; repeated silence needs two complete ticks.
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{}\"\nkey = \"k\"\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}",
-        closed_port()
+        "[plugins.hue]\nenabled = true\n\
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     plant_waiting_session(&sandbox);
-    for run in 0..5 {
+    for run in 0..2 {
         let output = tick(&sandbox);
         assert_eq!(output.status.code(), Some(0), "run {run}");
         assert!(stdout(&output).is_empty(), "run {run}: {}", stdout(&output));

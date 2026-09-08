@@ -170,8 +170,8 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
     // rest of this machine's life.
     let sandbox = Sandbox::new("journal-unwritable");
     mute(&sandbox);
-    // Import the mute before the writer refuses access, so this isolates
-    // journal write failure from the separate unreadable-mute policy.
+    // Import the mute first, then reject the journal INSERT immediately. This
+    // isolates publication failure from unreadable-mute policy and busy waits.
     pns_adapters::SqliteStore::for_records(sandbox.path("state"))
         .quiet_expiry()
         .unwrap();
@@ -180,12 +180,16 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
     )
     .unwrap();
-    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    writer
+        .execute_batch(
+            "CREATE TRIGGER refuse_journal BEFORE INSERT ON journal
+             BEGIN SELECT RAISE(ABORT, 'owned journal refusal'); END;",
+        )
+        .unwrap();
     let output = logged_event(&sandbox)
         .args(["--agent", "claude", "--state", "done", "--detail", "x"])
         .output()
         .expect("the engine runs");
-    writer.execute_batch("ROLLBACK").unwrap();
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
     assert!(sandbox.fired("hermes"), "every channel still fires");

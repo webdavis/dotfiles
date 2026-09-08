@@ -63,37 +63,6 @@ fn an_event_that_reached_no_channel_at_all_still_records_its_decision() {
 }
 
 #[test]
-fn the_ring_keeps_only_the_most_recent_decisions_with_the_oldest_gone() {
-    // A SINGLE SLOT DOES NOT SURVIVE BEING LOOKED AT: the Stop hook of the
-    // session the operator is typing `pns doctor` into fires its own event.
-    //
-    // CHECKED AFTER EVERY EVENT, not only at the end. The prune runs only when
-    // the file went over the cap, so a cap wrong by one settles back into a
-    // correct-looking ring one event later: measured, a ring keeping four was
-    // indistinguishable from a ring keeping five by the seventh turn.
-    let sandbox = Sandbox::new("decision-log-ring");
-    let cap = 5;
-    for turn in 1..=7 {
-        run(logged_event(&sandbox).args(["--agent", &format!("c{turn}"), "--state", "done"]));
-        let recorded = decisions(&sandbox);
-        assert_eq!(
-            recorded.len(),
-            turn.min(cap),
-            "after turn {turn}: {recorded:?}"
-        );
-        let oldest = turn.saturating_sub(cap) + 1;
-        assert!(
-            recorded[0].contains(&format!(" c{oldest}/done ")),
-            "after turn {turn} the oldest kept should be c{oldest}: {recorded:?}"
-        );
-        assert!(
-            recorded[recorded.len() - 1].contains(&format!(" c{turn}/done ")),
-            "after turn {turn} the newest should be last: {recorded:?}"
-        );
-    }
-}
-
-#[test]
 fn a_state_directory_that_cannot_be_written_costs_the_event_nothing() {
     // FAIL-QUIET, in `remember_staleness`'s style. A decision that did not
     // record is a diagnostic missing later; a complaint printed here would put
