@@ -1,18 +1,18 @@
 # Remaining work
 
-The open task list for the pns, posture, uu, lights, Neovim and tailnet-pin program. Ordered, one
-task at a time, with stopping points that leave the tree in a state worth applying.
+The open task list for the pns, posture, uu, lights, Neovim and tailnet-pin program. Ordered, one task at
+a time, with stopping points that leave the tree in a state worth applying.
 
 Updated as tasks complete. Last updated 2026-09-08.
 
 ## Where things stand
 
-`main` is at `7898b061`. Eighty-six pull requests merged between 2026-09-06 and 2026-09-08 and none
-of them have been applied, so the next `chezmoi apply` deploys all of it at once.
+`main` is at `7898b061`. Eighty-six pull requests merged between 2026-09-06 and 2026-09-08 and none of
+them have been applied, so the next `chezmoi apply` deploys all of it at once.
 
-Five branches exist only on this machine and are not pushed anywhere. Three of them are finished,
-tested batches that were waiting on a push approval that went unanswered. Rescuing them is most of
-the work before the first stopping point.
+Five branches exist only on this machine and are not pushed anywhere. Three of them are finished, tested
+batches that were waiting on a push approval that went unanswered. Rescuing them is most of the work
+before the first stopping point.
 
 ## Before the first stopping point
 
@@ -25,11 +25,11 @@ the work before the first stopping point.
 
 ### STOP POINT A
 
-Everything above is additive. posture has not cut over, so the existing osquery pipeline keeps
-running untouched. This is the recommended place to stop and apply.
+Everything above is additive. posture has not cut over, so the existing osquery pipeline keeps running
+untouched. This is the recommended place to stop and apply.
 
-At the apply: KeePassXC must be unlocked, Neovim needs `:Lazy restore`, and herdr needs a config
-reload for the new keybindings.
+At the apply: KeePassXC must be unlocked, Neovim needs `:Lazy restore`, and herdr needs a config reload
+for the new keybindings.
 
 ## pns closure and the rescued lanes
 
@@ -77,8 +77,8 @@ The foundation is complete and nothing has cut over, so there is no runtime risk
 
 ## posture cutovers
 
-Every task in this section needs the pns-keyed gateway route to exist first. Adding it is an
-operator step, and it gates the whole section.
+Every task in this section needs the pns-keyed gateway route to exist first. Adding it is an operator
+step, and it gates the whole section.
 
 - [ ] 28. posture 6.1: heartbeat cutover
 - [ ] 29. posture 6.2: digest cutover
@@ -143,7 +143,7 @@ Each of these gates work that cannot start without it.
 ## Open questions
 
 - posture 0.2, the pns priority-route, could not be confirmed as done because the hermes config is
-  age-encrypted and unreadable. It is one of four pns prerequisites the posture plan names as gating
-  the cutovers, so it should be settled before task 28.
-- `webdavis/pns.nvim` is its own repository and was not audited. Task 3 finishes its integration
-  here, but unfinished work inside that repository would not have shown up.
+  age-encrypted and unreadable. It is one of four pns prerequisites the posture plan names as gating the
+  cutovers, so it should be settled before task 28.
+- `webdavis/pns.nvim` is its own repository and was not audited. Task 3 finishes its integration here,
+  but unfinished work inside that repository would not have shown up.
