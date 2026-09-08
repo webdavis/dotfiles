@@ -64,20 +64,24 @@ fn version_is_one_bare_semver_line_without_config_or_probes() {
 #[test]
 fn elapsed_below_thirty_is_silent_before_state_or_delivery() {
     for seconds in [0, 10, 29] {
-        let sandbox = Sandbox::new(&format!("elapsed-quiet-{seconds}"));
-        let output = run(command(&sandbox).args([
-            "--agent",
-            "nvim",
-            "--state",
-            "done",
-            "--elapsed",
-            &seconds.to_string(),
-        ]));
-        assert_eq!(output.status.code(), Some(0));
-        assert!(output.stdout.is_empty(), "{}", stdout(&output));
-        assert!(output.stderr.is_empty(), "{}", stderr(&output));
-        assert!(!sandbox.fired("hermes"));
-        assert!(!sandbox.state().exists());
+        for scope in [&[][..], &["--local-only", "--remote-only"][..]] {
+            let sandbox = Sandbox::new(&format!("elapsed-quiet-{seconds}"));
+            let output = run(command(&sandbox)
+                .args([
+                    "--agent",
+                    "nvim",
+                    "--state",
+                    "done",
+                    "--elapsed",
+                    &seconds.to_string(),
+                ])
+                .args(scope));
+            assert_eq!(output.status.code(), Some(0));
+            assert!(output.stdout.is_empty(), "{}", stdout(&output));
+            assert!(output.stderr.is_empty(), "{}", stderr(&output));
+            assert!(!sandbox.fired("hermes"));
+            assert!(!sandbox.state().exists());
+        }
     }
 }
 

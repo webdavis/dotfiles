@@ -25,8 +25,11 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
                 .route
                 .as_ref()
                 .map_or_else(String::new, |route| route.as_str().into()),
-            local_only: request.scope == DeliveryScope::LocalOnly,
-            remote_only: request.scope == DeliveryScope::RemoteOnly,
+            scope: match request.scope {
+                DeliveryScope::Automatic => pns_domain::DeliveryScope::Automatic,
+                DeliveryScope::LocalOnly => pns_domain::DeliveryScope::LocalOnly,
+                DeliveryScope::RemoteOnly => pns_domain::DeliveryScope::RemoteOnly,
+            },
             long_running: request
                 .elapsed_secs
                 .is_some_and(|seconds| seconds >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),

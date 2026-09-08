@@ -24,7 +24,13 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs)) -> i32 {
     let event = match parsed.into_event() {
         Ok(Some(event)) => event,
         Ok(None) => return 0,
-        Err(error) => {
+        Err(argv::Refusal::Scope) => {
+            println!(
+                "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
+            );
+            return 0;
+        }
+        Err(argv::Refusal::Elapsed(error)) => {
             eprintln!("pns: {error}");
             return 2;
         }
@@ -32,3 +38,6 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs)) -> i32 {
     submit(event);
     0
 }
+
+#[cfg(test)]
+mod tests;

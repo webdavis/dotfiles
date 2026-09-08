@@ -11,8 +11,7 @@ pub fn decide(
     request: DecisionRequest<'_>,
 ) -> Decision {
     let DecisionRequest {
-        local_only,
-        remote_only,
+        scope,
         pane,
         now_secs,
         long_running,
@@ -42,8 +41,7 @@ pub fn decide(
         now_secs,
         long_running,
         mobile_watch_card,
-        local_only,
-        remote_only,
+        scope,
         pane_present: !pane.is_empty(),
     };
     let delivery = crate::surface::plan(
@@ -72,7 +70,7 @@ pub fn decide(
         delivery
     };
     Decision {
-        legs: crate::routing::channel_plan(selection, local_only, remote_only, delivery),
+        legs: crate::routing::channel_plan(selection, scope, delivery),
         plan: delivery,
         pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
         inputs: world,

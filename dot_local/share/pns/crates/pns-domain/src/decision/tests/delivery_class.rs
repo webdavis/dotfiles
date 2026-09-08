@@ -5,7 +5,7 @@ use crate::{DecisionRequest, EnvironmentSnapshot, Overrides, SilencePolicy};
 fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_silence() {
     for (muted, focus_active) in [(true, false), (false, true), (true, true)] {
         for (idle, expected) in [(2, "macos-banner"), (9_000, "mobile")] {
-            let decide = |silence_policy, skip_phone, local_only, remote_only, visible| {
+            let decide = |silence_policy, skip_phone, scope, visible| {
                 crate::decide(
                     &EnvironmentSnapshot {
                         idle: Some(idle),
@@ -24,8 +24,7 @@ fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_sil
                         ..Default::default()
                     },
                     DecisionRequest {
-                        local_only,
-                        remote_only,
+                        scope,
                         pane: "wW:p1",
                         now_secs: Some(1_000_000),
                         long_running: true,
@@ -37,8 +36,7 @@ fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_sil
             let selected = decide(
                 SilencePolicy::BypassBannerAndPhone,
                 false,
-                false,
-                false,
+                crate::DeliveryScope::Automatic,
                 false,
             );
             assert_eq!(
@@ -48,36 +46,29 @@ fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_sil
             );
             assert!(!selected.plan.pulse, "class does not unmute lights");
             assert_eq!(
-                names(&decide(SilencePolicy::Respect, false, false, false, false)),
+                names(&decide(
+                    SilencePolicy::Respect,
+                    false,
+                    crate::DeliveryScope::Automatic,
+                    false
+                )),
                 ["hermes"]
             );
             assert_eq!(
                 names(&decide(
                     SilencePolicy::BypassBannerAndPhone,
                     false,
-                    false,
-                    true,
+                    crate::DeliveryScope::RemoteOnly,
                     false
                 )),
                 ["hermes"]
-            );
-            assert!(
-                names(&decide(
-                    SilencePolicy::BypassBannerAndPhone,
-                    false,
-                    true,
-                    true,
-                    false
-                ))
-                .is_empty()
             );
             if idle > 120 {
                 assert_eq!(
                     names(&decide(
                         SilencePolicy::BypassBannerAndPhone,
                         true,
-                        false,
-                        false,
+                        crate::DeliveryScope::Automatic,
                         false
                     )),
                     ["hermes"],
@@ -88,8 +79,7 @@ fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_sil
                     names(&decide(
                         SilencePolicy::BypassBannerAndPhone,
                         false,
-                        false,
-                        false,
+                        crate::DeliveryScope::Automatic,
                         true
                     )),
                     ["hermes"],

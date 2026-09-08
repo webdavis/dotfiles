@@ -20,7 +20,15 @@ pub struct Event {
     pub pane: String,
 }
 
-/// The parsed event arguments. Every field defaults to empty or false, so a
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DeliveryScope {
+    #[default]
+    Automatic,
+    LocalOnly,
+    RemoteOnly,
+}
+
+/// The parsed event arguments. Scope defaults to automatic; other fields default to empty or false, so a
 /// bare invocation is valid and renders an empty event.
 #[derive(Debug, Default, PartialEq)]
 pub struct EventArgs {
@@ -35,8 +43,7 @@ pub struct EventArgs {
     /// (alert) route. Names, not URLs: the caller says WHERE, the config
     /// says HOW to get there.
     pub channel: String,
-    pub local_only: bool,
-    pub remote_only: bool,
+    pub scope: crate::DeliveryScope,
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,

@@ -38,14 +38,23 @@ fn normalized_signal_scope_and_elapsed_choose_policy_without_using_source_event_
             ("project", "branch", "w:p", "priority")
         );
     }
-    for (scope, local, remote) in [
-        (DeliveryScope::Automatic, false, false),
-        (DeliveryScope::LocalOnly, true, false),
-        (DeliveryScope::RemoteOnly, false, true),
+    for (scope, expected) in [
+        (
+            DeliveryScope::Automatic,
+            pns_domain::DeliveryScope::Automatic,
+        ),
+        (
+            DeliveryScope::LocalOnly,
+            pns_domain::DeliveryScope::LocalOnly,
+        ),
+        (
+            DeliveryScope::RemoteOnly,
+            pns_domain::DeliveryScope::RemoteOnly,
+        ),
     ] {
         request.scope = scope;
         let (event, _) = event(&request);
-        assert_eq!((event.local_only, event.remote_only), (local, remote));
+        assert_eq!(event.scope, expected);
     }
     for (elapsed, long) in [
         (None, false),

@@ -78,7 +78,11 @@ fn the_alert_path_plans_phone_then_banner_then_log() {
     // last: the plan is computed from one reading of where the operator
     // is, and hermes posts over the network under its own deadline.
     assert_eq!(
-        channel_plan(&three_enabled(), false, false, reaching(true, true)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::Automatic,
+            reaching(true, true)
+        ),
         vec![
             decorative("mobile", ReportMode::Silent),
             decorative("macos-banner", ReportMode::Silent),
@@ -97,8 +101,7 @@ fn a_selected_sensor_is_never_a_leg_on_the_alert_path() {
     assert_eq!(
         channel_plan(
             &sensor_and_three_enabled(),
-            false,
-            false,
+            pns_domain::DeliveryScope::Automatic,
             reaching(true, true)
         ),
         vec![
@@ -112,7 +115,11 @@ fn a_selected_sensor_is_never_a_leg_on_the_alert_path() {
 #[test]
 fn a_suppressed_phone_drops_only_the_presence_gated_leg() {
     assert_eq!(
-        channel_plan(&three_enabled(), false, false, reaching(true, false)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::Automatic,
+            reaching(true, false)
+        ),
         vec![
             decorative("macos-banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent)
@@ -126,11 +133,19 @@ fn local_only_plans_the_local_surfaces_alone_whatever_the_phone_verdict_was() {
     // only with the phone wanted and a narrowing that quietly reads the
     // phone verdict as well still answers correctly here.
     assert_eq!(
-        channel_plan(&three_enabled(), true, false, reaching(true, true)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::LocalOnly,
+            reaching(true, true)
+        ),
         vec![decorative("macos-banner", ReportMode::Silent)]
     );
     assert_eq!(
-        channel_plan(&three_enabled(), true, false, reaching(true, false)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::LocalOnly,
+            reaching(true, false)
+        ),
         vec![decorative("macos-banner", ReportMode::Silent)]
     );
 }
@@ -144,8 +159,7 @@ fn a_selected_sensor_is_never_a_leg_under_local_only_either() {
     assert_eq!(
         channel_plan(
             &sensor_and_three_enabled(),
-            true,
-            false,
+            pns_domain::DeliveryScope::LocalOnly,
             reaching(true, true)
         ),
         vec![decorative("macos-banner", ReportMode::Silent)]
@@ -153,8 +167,7 @@ fn a_selected_sensor_is_never_a_leg_under_local_only_either() {
     assert_eq!(
         channel_plan(
             &sensor_and_three_enabled(),
-            true,
-            false,
+            pns_domain::DeliveryScope::LocalOnly,
             reaching(true, false)
         ),
         vec![decorative("macos-banner", ReportMode::Silent)]
@@ -168,11 +181,19 @@ fn remote_only_plans_the_durable_legs_alone_and_sync_which_keeps_a_lost_entry_vi
     // would drop this plan back to the ordinary async pair, and a log
     // entry nobody waited for is the invisible loss sync exists to stop.
     assert_eq!(
-        channel_plan(&three_enabled(), false, true, reaching(true, true)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::RemoteOnly,
+            reaching(true, true)
+        ),
         vec![logged("hermes", ReportMode::ReportOutcome)]
     );
     assert_eq!(
-        channel_plan(&three_enabled(), false, true, reaching(true, false)),
+        channel_plan(
+            &three_enabled(),
+            pns_domain::DeliveryScope::RemoteOnly,
+            reaching(true, false)
+        ),
         vec![logged("hermes", ReportMode::ReportOutcome)]
     );
 }
@@ -185,8 +206,7 @@ fn a_selected_sensor_is_never_a_leg_under_remote_only_either() {
     assert_eq!(
         channel_plan(
             &sensor_and_three_enabled(),
-            false,
-            true,
+            pns_domain::DeliveryScope::RemoteOnly,
             reaching(true, true)
         ),
         vec![logged("hermes", ReportMode::ReportOutcome)]
@@ -194,23 +214,10 @@ fn a_selected_sensor_is_never_a_leg_under_remote_only_either() {
     assert_eq!(
         channel_plan(
             &sensor_and_three_enabled(),
-            false,
-            true,
+            pns_domain::DeliveryScope::RemoteOnly,
             reaching(true, false)
         ),
         vec![logged("hermes", ReportMode::ReportOutcome)]
-    );
-}
-
-#[test]
-fn both_narrowing_flags_plan_nothing_at_all() {
-    assert_eq!(
-        channel_plan(&three_enabled(), true, true, reaching(true, true)),
-        vec![]
-    );
-    assert_eq!(
-        channel_plan(&three_enabled(), true, true, reaching(true, false)),
-        vec![]
     );
 }
 
@@ -219,16 +226,13 @@ fn no_enabled_plugins_plan_nothing_under_every_flag() {
     // An unconfigured machine has an empty plan, not a crash and not a
     // built-in fallback: the caller reports the empty verdict.
     let none = select(&crate::registry::roster(), "");
-    for (local, remote, phone) in [
-        (false, false, true),
-        (false, false, false),
-        (true, false, true),
-        (false, true, true),
+    for (scope, phone) in [
+        (pns_domain::DeliveryScope::Automatic, true),
+        (pns_domain::DeliveryScope::Automatic, false),
+        (pns_domain::DeliveryScope::LocalOnly, true),
+        (pns_domain::DeliveryScope::RemoteOnly, true),
     ] {
-        assert_eq!(
-            channel_plan(&none, local, remote, reaching(true, phone)),
-            vec![]
-        );
+        assert_eq!(channel_plan(&none, scope, reaching(true, phone)), vec![]);
     }
 }
 
@@ -242,11 +246,19 @@ fn a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected()
         "[plugins.hue]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
     );
     assert_eq!(
-        channel_plan(&enabled, false, false, reaching(true, true)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::Automatic,
+            reaching(true, true)
+        ),
         vec![logged("hermes", ReportMode::Silent)]
     );
     assert_eq!(
-        channel_plan(&enabled, true, false, reaching(true, true)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::LocalOnly,
+            reaching(true, true)
+        ),
         Vec::new(),
         "not even the local-only path, which hue would otherwise match"
     );
@@ -266,7 +278,11 @@ fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
         "the fallback roster must know the sensor's name"
     );
     assert_eq!(
-        channel_plan(&all, false, false, reaching(true, true)),
+        channel_plan(
+            &all,
+            pns_domain::DeliveryScope::Automatic,
+            reaching(true, true)
+        ),
         vec![
             decorative("mobile", ReportMode::Silent),
             decorative("macos-banner", ReportMode::Silent),
@@ -309,19 +325,35 @@ fn the_presence_gate_means_one_thing_under_every_flag() {
     let enabled = select(&registry, both);
 
     assert_eq!(
-        channel_plan(&enabled, true, false, reaching(true, true)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::LocalOnly,
+            reaching(true, true)
+        ),
         vec![decorative("buzz", ReportMode::Silent)]
     );
     assert_eq!(
-        channel_plan(&enabled, true, false, reaching(true, false)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::LocalOnly,
+            reaching(true, false)
+        ),
         vec![]
     );
     assert_eq!(
-        channel_plan(&enabled, false, true, reaching(true, true)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::RemoteOnly,
+            reaching(true, true)
+        ),
         vec![decorative("pager", ReportMode::ReportOutcome)]
     );
     assert_eq!(
-        channel_plan(&enabled, false, true, reaching(true, false)),
+        channel_plan(
+            &enabled,
+            pns_domain::DeliveryScope::RemoteOnly,
+            reaching(true, false)
+        ),
         vec![]
     );
 }
@@ -346,26 +378,22 @@ fn no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg() 
     // than a fixture that could stay agreeable while the roster moved.
     let registry = crate::registry::roster();
     let every_plugin = registry.all();
-    for local_only in [false, true] {
-        for remote_only in [false, true] {
-            for banner in [false, true] {
-                for card in [false, true] {
-                    let plan = channel_plan(
-                        &every_plugin,
-                        local_only,
-                        remote_only,
-                        reaching(banner, card),
-                    );
-                    for planned in plan {
-                        assert!(
-                            !(matches!(planned.name, "mobile" | "macos-banner")
-                                && planned.mode == ReportMode::ReportOutcome),
-                            "the plan handed {} a reporting leg with local_only={local_only}, \
-                             remote_only={remote_only}, banner={banner}, card={card}: its \
+    for scope in [
+        pns_domain::DeliveryScope::Automatic,
+        pns_domain::DeliveryScope::LocalOnly,
+        pns_domain::DeliveryScope::RemoteOnly,
+    ] {
+        for banner in [false, true] {
+            for card in [false, true] {
+                let plan = channel_plan(&every_plugin, scope, reaching(banner, card));
+                for planned in plan {
+                    assert!(
+                        !(matches!(planned.name, "mobile" | "macos-banner")
+                            && planned.mode == ReportMode::ReportOutcome),
+                        "the plan handed {} a reporting leg with scope={scope:?}, banner={banner}, card={card}: its \
                              sentence would reach an event's stdout",
-                            planned.name
-                        );
-                    }
+                        planned.name
+                    );
                 }
             }
         }

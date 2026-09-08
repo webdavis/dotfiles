@@ -39,21 +39,26 @@ fn an_event_that_reached_no_channel_at_all_still_records_its_decision() {
     let sandbox = Sandbox::new("decision-log-empty-plan");
     let output = run(logged_event(&sandbox)
         .args(["--agent", "claude", "--state", "done"])
-        .args(["--local-only", "--remote-only"]));
-    assert!(!sandbox.fired("hermes"), "both flags suppress everything");
+        .env("PNS_IDLE_SECS", "9000")
+        .arg("--local-only"));
+    assert!(
+        !sandbox.fired("hermes"),
+        "the local scope has no visible surface"
+    );
 
     let recorded = decisions(&sandbox);
     assert_eq!(recorded.len(), 1, "got {recorded:?}");
-    for expected in [" local_only=yes ", " remote_only=yes ", " legs=none"] {
+    for expected in [" local_only=yes ", " remote_only=no ", " legs=none"] {
         assert!(
             recorded[0].contains(expected),
             "{expected:?} missing from {}",
             recorded[0]
         );
     }
-    assert!(
-        stdout(&output).contains("post SKIPPED"),
-        "and the contradiction is still said out loud"
+    assert_eq!(
+        stdout(&output),
+        "",
+        "a valid empty plan is not an argv refusal"
     );
 }
 

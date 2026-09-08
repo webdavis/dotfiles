@@ -49,7 +49,7 @@ fn shell_tiers_keep_both_boundaries_and_their_neighbors() {
         assert_eq!(event.state, "done");
         assert_eq!(event.project, "project");
         assert_eq!(event.pane, "t1:p2");
-        assert!(!event.local_only && !event.remote_only);
+        assert_eq!(event.scope, crate::DeliveryScope::Automatic);
     }
 }
 

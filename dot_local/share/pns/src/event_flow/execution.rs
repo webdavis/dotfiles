@@ -123,8 +123,7 @@ pub(super) fn execute(
         &selection,
         &overrides,
         pns_domain::DecisionRequest {
-            local_only: event.local_only,
-            remote_only: event.remote_only,
+            scope: event.scope,
             pane: &event.pane,
             now_secs,
             long_running: event.long_running,
@@ -165,11 +164,6 @@ pub(super) fn execute(
                 })
                 .ok()
         });
-    if decision.legs.is_empty() && event.local_only && event.remote_only {
-        println!(
-            "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
-        );
-    }
     let initial = pns_domain::Record {
         event,
         decision: &decision,

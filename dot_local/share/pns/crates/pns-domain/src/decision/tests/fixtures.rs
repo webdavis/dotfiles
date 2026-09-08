@@ -36,14 +36,12 @@ pub(super) fn names(decision: &Decision) -> Vec<&str> {
     decision.legs.iter().map(|leg| leg.name).collect()
 }
 
-// Retain the existing case call shape so the behavioral bodies stay unchanged.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn decide(
     probes: &EnvironmentSnapshot,
     selection: &Selection,
     overrides: &Overrides,
-    local_only: bool,
-    remote_only: bool,
+    scope: crate::DeliveryScope,
     pane: &str,
     now_secs: Option<u64>,
     long_running: bool,
@@ -55,8 +53,7 @@ pub(super) fn decide(
         overrides,
         DecisionRequest {
             silence_policy: crate::SilencePolicy::Respect,
-            local_only,
-            remote_only,
+            scope,
             pane,
             now_secs,
             long_running,
@@ -76,8 +73,7 @@ pub(super) fn decide_with(
         probes,
         &three_selection(),
         overrides,
-        false,
-        false,
+        crate::DeliveryScope::Automatic,
         pane,
         Some(1_000_000),
         false,

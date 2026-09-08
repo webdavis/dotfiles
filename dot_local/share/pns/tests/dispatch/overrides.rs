@@ -43,11 +43,20 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
     let output = run(sandbox
         .pns()
         .args(["--agent", "x", "--state", "done", "--detail", "y"])
-        .args(["--local-only", "--remote-only"]));
+        .args(["--local-only", "--remote-only"])
+        .args(["--pane", "w:p; invalid"]));
     assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
     assert!(!sandbox.fired("macos-banner"));
-    assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
+    assert_eq!(
+        stdout(&output),
+        "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n"
+    );
+    assert_eq!(stderr(&output), "", "no pane warning before refusal");
+    assert!(
+        !sandbox.state().exists(),
+        "refused argv reached domain state"
+    );
 }
 
 // --- presence ---------------------------------------------------------------

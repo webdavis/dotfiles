@@ -2,7 +2,8 @@ use super::parse_args;
 
 fn args(tokens: &[&str]) -> (super::EventArgs, Vec<String>) {
     let parsed = parse_args(tokens.iter().map(|t| t.to_string()));
-    (parsed.event, parsed.warnings)
+    let warnings = parsed.warnings.clone();
+    (parsed.into_event().ok().flatten().unwrap(), warnings)
 }
 
 #[test]
@@ -28,8 +29,7 @@ fn every_value_flag_lands_in_its_field() {
     assert_eq!(parsed.branch, "main");
     assert_eq!(parsed.detail, "a summary");
     assert_eq!(parsed.pane, "wW:p21");
-    assert!(parsed.local_only);
-    assert!(!parsed.remote_only);
+    assert_eq!(parsed.scope, super::DeliveryScope::LocalOnly);
     assert!(warnings.is_empty());
 }
 
@@ -52,7 +52,11 @@ fn a_recognized_flag_is_never_consumed_as_a_value() {
     // would deliver an event the caller asked to keep local.
     let (parsed, warnings) = args(&["--pane", "--local-only", "--agent", "claude"]);
     assert_eq!(parsed.pane, "");
-    assert!(parsed.local_only, "the narrowing flag must still apply");
+    assert_eq!(
+        parsed.scope,
+        super::DeliveryScope::LocalOnly,
+        "the narrowing flag must still apply"
+    );
     assert_eq!(parsed.agent, "claude");
     assert_eq!(warnings.len(), 1);
     assert!(warnings[0].contains("--pane"), "the warning names the flag");

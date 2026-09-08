@@ -13,7 +13,7 @@
 //! while the same word sitting where a flag's value belongs is still just a
 //! value, under the second rule.
 
-use pns_domain::EventArgs;
+use pns_domain::{DeliveryScope, EventArgs};
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
@@ -57,14 +57,26 @@ pub(super) struct ParsedArgs {
     pub event: EventArgs,
     pub warnings: Vec<String>,
     elapsed: Result<Option<u64>, String>,
+    scope: Option<DeliveryScope>,
+}
+
+pub(super) enum Refusal {
+    Scope,
+    Elapsed(String),
 }
 
 impl ParsedArgs {
-    pub fn into_event(self) -> Result<Option<EventArgs>, String> {
-        match self.elapsed? {
-            Some(seconds) => Ok(pns_domain::elapsed_event(self.event, seconds)),
-            None => Ok(Some(self.event)),
-        }
+    pub fn into_event(self) -> Result<Option<EventArgs>, Refusal> {
+        let elapsed = self.elapsed.map_err(Refusal::Elapsed)?;
+        let event = match elapsed {
+            Some(seconds) => pns_domain::elapsed_event(self.event, seconds),
+            None => Some(self.event),
+        };
+        let Some(mut event) = event else {
+            return Ok(None);
+        };
+        event.scope = self.scope.ok_or(Refusal::Scope)?;
+        Ok(Some(event))
     }
 }
 
@@ -75,14 +87,16 @@ where
 {
     let mut parsed = EventArgs::default();
     let mut help = false;
+    let mut local_only = false;
+    let mut remote_only = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
             "--long-running" => parsed.long_running = true,
-            "--local-only" => parsed.local_only = true,
-            "--remote-only" => parsed.remote_only = true,
+            "--local-only" => local_only = true,
+            "--remote-only" => remote_only = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
             // --help` never lands here, the value arm below already took
@@ -136,6 +150,12 @@ where
         event: parsed,
         warnings,
         elapsed,
+        scope: match (local_only, remote_only) {
+            (false, false) => Some(DeliveryScope::Automatic),
+            (true, false) => Some(DeliveryScope::LocalOnly),
+            (false, true) => Some(DeliveryScope::RemoteOnly),
+            (true, true) => None,
+        },
     }
 }
 
