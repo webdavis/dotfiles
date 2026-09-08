@@ -149,8 +149,7 @@ fn returning() -> Decision {
             now_secs: Some(2_000),
             long_running: false,
             mobile_watch_card: false,
-            local_only: false,
-            remote_only: false,
+            scope: pns_domain::DeliveryScope::Automatic,
         },
     }
 }

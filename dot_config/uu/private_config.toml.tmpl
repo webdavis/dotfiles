@@ -229,3 +229,28 @@ deadline_secs = 21600
 # routing = "{{ .chezmoi.homeDir }}/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
 # escalate_after_runs = 3
 # deadline_secs = 21600
+
+# Available after the rotation cutover; keep the existing hourly writer until then.
+# Rotate only these logs, preserving their open descriptors. Weekly rotation keeps
+# five generations; a log can grow past the threshold until the next weekly run.
+# [lanes.rotate-logs]
+# type = "rotate-logs"
+# rotate_at_bytes = 10485760
+# archives_kept = 5
+# compressor = "/usr/bin/gzip"
+# logs = [
+#   "{{ .chezmoi.homeDir }}/.local/log/atuin-daemon.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/graphify/dotfiles-post-commit.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/happy-daemon.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/alert-drainer.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/firewall-gatekeeper-monitor.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/tailscale-monitor.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/osquery/uptime-watchdog.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/pns-daemon.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/uu/uu.log",
+#   "{{ .chezmoi.homeDir }}/.local/log/yt-dlp/pot-provider.log",
+# ]
+# deadline_secs = 21600

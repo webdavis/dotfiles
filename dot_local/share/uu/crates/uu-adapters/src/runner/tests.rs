@@ -237,3 +237,5 @@ fn a_successful_child_keeps_raw_stderr_for_startup_verification() {
     assert_eq!(ran.verdict, Verdict::Clean);
     assert_eq!(ran.stderr, "startup error\n");
 }
+
+mod file_output;

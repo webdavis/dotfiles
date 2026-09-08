@@ -227,7 +227,9 @@ pub fn plan(
 }
 
 #[cfg(test)]
+#[path = "surface/tests/matrix.rs"]
 mod matrix;
 
 #[cfg(test)]
+#[path = "surface/tests/rules.rs"]
 mod rules;

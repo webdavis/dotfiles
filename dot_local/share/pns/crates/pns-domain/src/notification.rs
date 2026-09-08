@@ -20,7 +20,15 @@ pub struct Event {
     pub pane: String,
 }
 
-/// The parsed event arguments. Every field defaults to empty or false, so a
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DeliveryScope {
+    #[default]
+    Automatic,
+    LocalOnly,
+    RemoteOnly,
+}
+
+/// The parsed event arguments. Scope defaults to automatic; other fields default to empty or false, so a
 /// bare invocation is valid and renders an empty event.
 #[derive(Debug, Default, PartialEq)]
 pub struct EventArgs {
@@ -35,18 +43,8 @@ pub struct EventArgs {
     /// (alert) route. Names, not URLs: the caller says WHERE, the config
     /// says HOW to get there.
     pub channel: String,
-    pub local_only: bool,
-    pub remote_only: bool,
+    pub scope: crate::DeliveryScope,
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,
-    /// Set when `--help`/`-h` reached this parse in FLAG position. `event_mode`
-    /// checks this before touching the config or a probe.
-    ///
-    /// THE ONE FIELD HERE THAT IS ABOUT A COMMAND LINE rather than about an
-    /// event, and it is carried rather than split out because splitting it
-    /// would change every construction site of this struct for one bool. PR
-    /// 8.1 owns the producer argv adapter and is where lifting it into a parse
-    /// result belongs, if it is ever worth the churn.
-    pub help: bool,
 }
