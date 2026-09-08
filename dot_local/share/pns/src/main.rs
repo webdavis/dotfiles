@@ -100,10 +100,7 @@ pub(crate) use nag_schedule_runtime::{NAG_OFF, arm_nag, clear_nag, nag_after_sec
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
 pub(crate) use pns_adapters::marker_files::{end_blocked_wait, update_blocked_marker};
-pub(crate) use pns_adapters::record_news;
-pub(crate) use pns_adapters::return_window::mark_present;
 pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, git_branch, spawn_recap};
-pub(crate) use pns_adapters::{RING_READ_MAX, publish_state_line};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
@@ -244,5 +241,3 @@ pub(crate) use pns_adapters::LIGHTS_HELD;
 mod lights_breath_runtime;
 #[cfg(test)]
 mod lights_tick_writes;
-#[cfg(test)]
-use pns_adapters::{held_lamps, read_held};

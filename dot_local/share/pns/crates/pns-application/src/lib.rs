@@ -132,3 +132,13 @@ pub use delivery_panic::deliver_guarded;
 pub use ports::setup::{ConfigPublisher, ConfigRenderer, Terminal};
 mod run_setup;
 pub use run_setup::{RunSetup, SETUP_USAGE};
+
+pub use ports::ledger::{
+    ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, SubmissionIdentity,
+    SubmissionRecord, UnconfirmedDelivery,
+};
+
+pub use ports::decision_outcomes::DecisionOutcomes;
+
+pub use run_doctor::ImportFailure;

@@ -168,11 +168,9 @@ fn an_unrecognised_config_source_delivers_nothing_and_writes_nothing() {
         "a documented source delivers"
     );
     let deliveries_after = deliveries(&sandbox, "hermes");
-    let decisions_after =
-        std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default();
+    let decisions_after = stored_records::text(&sandbox, "decisions");
     let activity_after = state_lines(&sandbox, "activity");
-    let present_after =
-        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default();
+    let present_after = stored_records::present(&sandbox);
 
     let cases = [
         ("missing", r#"{"session_id":"s2"}"#.to_string()),
@@ -205,7 +203,7 @@ fn an_unrecognised_config_source_delivers_nothing_and_writes_nothing() {
             "{case}: delivers nothing"
         );
         assert_eq!(
-            std::fs::read_to_string(sandbox.path("state/decisions")).unwrap_or_default(),
+            stored_records::text(&sandbox, "decisions"),
             decisions_after,
             "{case}: writes no decision line"
         );
@@ -215,7 +213,7 @@ fn an_unrecognised_config_source_delivers_nothing_and_writes_nothing() {
             "{case}: writes no activity line"
         );
         assert_eq!(
-            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
+            stored_records::present(&sandbox),
             present_after,
             "{case}: moves no presence edge"
         );

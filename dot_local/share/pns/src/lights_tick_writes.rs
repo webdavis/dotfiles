@@ -13,7 +13,7 @@ fn run_tick_writes<B: pns_adapters::Bridge>(
     elapsed_ms: impl FnMut() -> u64,
     sleep: impl FnMut(Duration),
 ) -> Vec<String> {
-    let records = pns_adapters::FileLampState::new(state.to_path_buf());
+    let records = pns_adapters::SqliteStore::for_records(state.to_path_buf());
     pns_application::ReconcileLights {
         bridge: &pns_adapters::TypedLampBridge(bridge),
         held: &records,

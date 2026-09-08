@@ -79,7 +79,7 @@ fn lights_quiet() -> i32 {
         }
     };
     match (pns_application::SetLightsQuiet {
-        mutes: &pns_adapters::FileLampState::new(state),
+        mutes: &pns_adapters::SqliteStore::for_records(state),
     })
     .run(&command, now, |warning| eprintln!("{warning}"))
     {

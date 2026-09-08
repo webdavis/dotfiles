@@ -65,17 +65,18 @@ pub fn verdicts(legs: &[(Leg, Delivery)]) -> String {
         return ABSENT.to_string();
     }
     legs.iter()
-        .map(|(leg, delivery)| {
-            let verdict = match delivery {
-                Delivery::Delivered(_) => "delivered",
-                Delivery::Failed(_) => "failed",
-                Delivery::Unlaunched(_) => "unlaunched",
-                Delivery::Silent => "silent",
-            };
-            format!("{}:{verdict}", leg.name)
-        })
+        .map(|(leg, delivery)| format!("{}:{}", leg.name, verdict(delivery)))
         .collect::<Vec<String>>()
         .join(",")
+}
+
+pub fn verdict(delivery: &Delivery) -> &'static str {
+    match delivery {
+        Delivery::Delivered(_) => "delivered",
+        Delivery::Failed(_) => "failed",
+        Delivery::Unlaunched(_) => "unlaunched",
+        Delivery::Silent => "silent",
+    }
 }
 
 /// The only text a line carries, filtered to what may be PRINTED.

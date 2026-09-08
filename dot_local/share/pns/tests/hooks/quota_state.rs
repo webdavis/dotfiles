@@ -61,7 +61,11 @@ fn no_quota_type_arms_unread_news() {
             "{notification_type}: the positive control fired"
         );
         assert!(
-            !sandbox.path("state/lights-news").exists(),
+            stored_records::database(&sandbox)
+                .query_row("SELECT count(*) FROM lamp_news", [], |row| row
+                    .get::<_, u64>(0))
+                .expect("the actual news rows")
+                == 0,
             "{notification_type}: arms no unread-news lamp"
         );
     }
@@ -116,7 +120,6 @@ fn a_quota_observation_journals_no_missed_notification() {
         .as_secs()
         + 600;
     std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
-    let journal = sandbox.path("state/missed-notifications");
 
     let output = hook_with(
         with_state_dir(&sandbox),
@@ -131,7 +134,10 @@ fn a_quota_observation_journals_no_missed_notification() {
         1,
         "the positive control fired: hermes is the durable log and rides even a muted event"
     );
-    assert!(!journal.exists(), "an observation writes no journal entry");
+    assert!(
+        stored_records::text(&sandbox, "journal").is_empty(),
+        "an observation writes no journal entry"
+    );
 
     // THE CONTROL, run AFTER on the SAME sandbox: proves a First `stop`
     // event under this exact muted config DOES journal a miss, so the
@@ -143,7 +149,7 @@ fn a_quota_observation_journals_no_missed_notification() {
         r#"{"session_id":"s-control"}"#,
     );
     assert!(
-        journal.exists(),
+        !stored_records::text(&sandbox, "journal").is_empty(),
         "the control: a First `stop` event under this config journals a miss"
     );
 }
@@ -178,7 +184,7 @@ fn a_quota_observation_replays_no_journal_entry() {
     // of this one would catch the mutation for the wrong reason and never
     // reach the journal check at all.
     assert_eq!(
-        std::fs::read_to_string(&journal).unwrap_or_default(),
+        stored_records::text(&sandbox, "journal"),
         seeded,
         "an observation replays no journal entry"
     );
@@ -195,7 +201,7 @@ fn a_quota_observation_replays_no_journal_entry() {
     control.env("PNS_IDLE_SECS", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
-        !journal.exists(),
+        stored_records::text(&sandbox, "journal").is_empty(),
         "the control: a First `stop` event under this env consumes the journal"
     );
 }
@@ -311,8 +317,8 @@ fn no_quota_type_moves_the_presence_edge() {
             "{notification_type}: the positive control fired"
         );
         assert_eq!(
-            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
-            "1",
+            stored_records::present(&sandbox),
+            Some(1),
             "{notification_type}: an observation never claims the return moment"
         );
 
@@ -323,8 +329,8 @@ fn no_quota_type_moves_the_presence_edge() {
         control.env("PNS_IDLE_SECS", "0");
         hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
         assert_ne!(
-            std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
-            "1",
+            stored_records::present(&sandbox),
+            Some(1),
             "{notification_type}: the control: a First `done` event advances the presence edge"
         );
     }

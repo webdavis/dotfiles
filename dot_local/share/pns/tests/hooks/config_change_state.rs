@@ -156,8 +156,8 @@ fn a_config_change_moves_no_presence_edge() {
         "the positive control fired"
     );
     assert_eq!(
-        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
-        "1",
+        stored_records::present(&sandbox),
+        Some(1),
         "an observation never claims the return moment"
     );
 
@@ -165,8 +165,8 @@ fn a_config_change_moves_no_presence_edge() {
     control.env("PNS_IDLE_SECS", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert_ne!(
-        std::fs::read_to_string(sandbox.path("state/last-present")).unwrap_or_default(),
-        "1",
+        stored_records::present(&sandbox),
+        Some(1),
         "the control: a First `stop` event under this env advances the presence edge"
     );
 }
@@ -219,7 +219,6 @@ fn a_config_change_observation_journals_no_missed_notification() {
         .as_secs()
         + 600;
     std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n")).expect("the mute");
-    let journal = sandbox.path("state/missed-notifications");
 
     let output = hook_with(
         with_state_dir(&sandbox),
@@ -234,7 +233,10 @@ fn a_config_change_observation_journals_no_missed_notification() {
         1,
         "the positive control fired: hermes is the durable log and rides even a muted event"
     );
-    assert!(!journal.exists(), "an observation writes no journal entry");
+    assert!(
+        stored_records::text(&sandbox, "journal").is_empty(),
+        "an observation writes no journal entry"
+    );
 
     hook_with(
         with_state_dir(&sandbox),
@@ -243,7 +245,7 @@ fn a_config_change_observation_journals_no_missed_notification() {
         r#"{"session_id":"s-control"}"#,
     );
     assert!(
-        journal.exists(),
+        !stored_records::text(&sandbox, "journal").is_empty(),
         "the control: a First `stop` event under this config journals a miss"
     );
 }
@@ -270,7 +272,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
 
     assert!(output.status.success());
     assert_eq!(
-        std::fs::read_to_string(&journal).unwrap_or_default(),
+        stored_records::text(&sandbox, "journal"),
         seeded,
         "an observation replays no journal entry"
     );
@@ -284,7 +286,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
     control.env("PNS_IDLE_SECS", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
-        !journal.exists(),
+        stored_records::text(&sandbox, "journal").is_empty(),
         "the control: a First `stop` event under this env consumes the journal"
     );
 }

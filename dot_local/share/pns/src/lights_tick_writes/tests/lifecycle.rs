@@ -240,7 +240,7 @@ mod tests {
         // clear BY NAME off this file, so arming after a failed publish is a
         // bulb held by nothing until somebody finds the wall switch.
         let state = scratch("tick-record-unwritable");
-        std::fs::create_dir(state.join(LIGHTS_HELD)).expect("a directory where the record goes");
+        std::fs::create_dir(state.join("pns.db")).expect("an unavailable repository");
         let bridge = scripted(true);
         let complaints = run_tick_writes(
             &bridge,

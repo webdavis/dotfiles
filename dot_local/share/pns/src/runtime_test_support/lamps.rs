@@ -144,11 +144,26 @@ mod fixtures {
         pns::channels::hue::Muting::Places(vec![place.to_string()])
     }
 
+    pub(crate) fn read_held(state: &std::path::Path) -> Option<Vec<pns::lights::HeldEntry>> {
+        pns_adapters::SqliteStore::for_records(state.to_path_buf())
+            .read_held()
+            .ok()
+    }
+    pub(crate) fn held_lamps(state: &std::path::Path) -> Option<Vec<String>> {
+        read_held(state).map(|entries| entries.into_iter().map(|entry| entry.path).collect())
+    }
+
     /// What the held record says right now.
     pub(crate) fn recorded(state: &std::path::Path) -> Option<String> {
-        std::fs::read_to_string(state.join(LIGHTS_HELD))
-            .ok()
-            .map(|line| line.trim().to_string())
+        read_held(state)
+            .filter(|entries| !entries.is_empty())
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(pns_adapters::lights_codec::render_held_token)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
     }
     /// A bridge holding two rooms with one lamp each, which is the smallest
     /// listing a narrowing can be observed against: with one room, keeping the

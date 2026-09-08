@@ -101,5 +101,6 @@ ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
 # recompute a signature INDEPENDENTLY of the signer under test.
 [dev-dependencies]
 hmac = "0.13.0"
+rusqlite = { version = "=0.37.0", default-features = false, features = ["bundled"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"

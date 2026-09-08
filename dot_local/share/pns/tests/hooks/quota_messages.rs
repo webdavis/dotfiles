@@ -193,8 +193,7 @@ fn every_quota_type_is_logged_as_an_observation_with_no_nag() {
         );
         assert!(output.status.success(), "{notification_type}");
 
-        let recorded =
-            std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+        let recorded = stored_records::text(&sandbox, "decisions");
         let lines: Vec<&str> = recorded.lines().collect();
         assert_eq!(
             lines.len(),

@@ -35,7 +35,7 @@ pub(crate) fn lights_tick() -> i32 {
         return 0;
     };
     let state = state_dir();
-    let records = pns_adapters::FileLampState::new(state.clone());
+    let records = pns_adapters::SqliteStore::for_records(state.clone());
     let probes = system_probes();
     pns_application::MaintainLamps {
         records: &records,

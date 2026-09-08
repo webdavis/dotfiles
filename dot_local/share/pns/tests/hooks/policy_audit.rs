@@ -7,7 +7,6 @@ fn a_policy_settings_change_is_recorded_to_a_bounded_audit_trail() {
     let sandbox = Sandbox::new("config-change-policy-audit-write");
     sandbox.write_config(&nag_config(300));
     counted_channels(&sandbox);
-    let audit = sandbox.path("state/policy-settings-audit");
 
     let output = hook_with(
         with_state_dir(&sandbox),
@@ -22,7 +21,7 @@ fn a_policy_settings_change_is_recorded_to_a_bounded_audit_trail() {
         1,
         "the ordinary observation card still fires, on top of the audit line"
     );
-    let recorded = std::fs::read_to_string(&audit).expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(
         lines.len(),
@@ -65,7 +64,7 @@ fn a_non_policy_config_change_writes_no_policy_audit_entry() {
         "the four ordinary cards fired"
     );
     assert!(
-        !sandbox.path("state/policy-settings-audit").exists(),
+        stored_records::text(&sandbox, "policy_audit").is_empty(),
         "only a policy_settings change writes the audit trail"
     );
 
@@ -83,7 +82,7 @@ fn a_non_policy_config_change_writes_no_policy_audit_entry() {
     );
     assert!(control.status.success());
     assert!(
-        sandbox.path("state/policy-settings-audit").exists(),
+        !stored_records::text(&sandbox, "policy_audit").is_empty(),
         "the control: a policy_settings event under this same setup writes the trail"
     );
 }
@@ -111,8 +110,7 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
     );
 
     assert!(output.status.success());
-    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-        .expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(
         lines.len(),
@@ -137,25 +135,12 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
 
 #[test]
 fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
-    // THE HIGH FINDING, driven ON DEMAND rather than hoped for.
-    // `append_ring_line`'s read, prune and publish were not one atomic step:
-    // with the ring already at its twenty-entry cap, a SLOW event could
-    // append its line and read the twenty-one-entry window, a FAST sibling
-    // could then append its own, read a twenty-two-entry window, prune and
-    // publish it, and the slow one would finally wake and publish its own
-    // now-stale twenty-one-entry window last, silently dropping the fast
-    // sibling's line and resurrecting a planted entry the fast sibling had
-    // already, correctly, dropped. Sol's own words: "the audit ring is not
-    // atomic across concurrent events."
-    //
-    // THE RACE WINDOW IS NORMALLY MICROSECONDS, so two ordinary processes
-    // hit this by luck, not by design: measured across three hundred
-    // concurrent real events with no help, in an earlier draft of this test,
-    // it never once reproduced. `PNS_RING_LOCK_TEST_DELAY_MS` stalls one
-    // process exactly where sol's own scenario stalls it (see its doc
-    // comment in `append_ring_line`), which is the only way to drive this
-    // interleaving deterministically rather than accept a test that would
-    // pass by timing luck.
+    // The old file-ring bug read a window, let a sibling publish, then
+    // published its stale window and lost the sibling's line. Its delay
+    // variable exercised that file-lock interleaving; SQLite has no such
+    // delay. Import the seed first, then start two owned hook processes
+    // before either receives input. Both must commit within one deadline,
+    // keeping both new lines and exactly the newest twenty entries.
     const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
     let sandbox = Sandbox::new("config-change-policy-audit-two-racers");
     sandbox.write_config(&nag_config(300));
@@ -166,42 +151,40 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
         .collect();
     std::fs::write(sandbox.path("state/policy-settings-audit"), planted).expect("the audit trail");
 
-    // THE SLOW ONE STARTS FIRST AND STALLS AFTER ITS OWN READ, so its
-    // snapshot is the ring's state BEFORE the fast sibling's append.
-    let mut slow_command = with_state_dir(&sandbox);
-    slow_command.env("PNS_RING_LOCK_TEST_DELAY_MS", "150");
-    let mut slow = slow_command
-        .args(["hook", "config-change"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the engine runs");
-    slow.stdin
-        .take()
-        .expect("stdin")
-        .write_all(config_change_payload("s1", "policy_settings", Some("racer-slow")).as_bytes())
-        .expect("payload");
-
-    // A SMALL HEAD START ON THE SLOW ONE'S OWN STALL, not its whole run, so
-    // the fast sibling's append, read, prune and publish all land while the
-    // slow one is still asleep.
-    std::thread::sleep(std::time::Duration::from_millis(20));
-    let fast = hook_with(
-        with_state_dir(&sandbox),
-        &sandbox,
-        "config-change",
-        &config_change_payload("s1", "policy_settings", Some("racer-fast")),
-    );
-    assert!(fast.status.success());
-
     assert!(
-        slow.wait().expect("the slow event ends").success(),
-        "the stalled event still runs to completion"
+        pns_adapters::SqliteStore::for_records(sandbox.state())
+            .import_legacy()
+            .expect("the initial audit import")
+            .is_empty()
     );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(650);
+    let mut slow_command = with_state_dir(&sandbox);
+    slow_command.args(["hook", "config-change"]);
+    let mut slow =
+        captured_child::CapturedChild::spawn(&mut slow_command).expect("the first owned hook");
+    let mut fast_command = with_state_dir(&sandbox);
+    fast_command.args(["hook", "config-change"]);
+    let mut fast =
+        captured_child::CapturedChild::spawn(&mut fast_command).expect("the second owned hook");
+    assert!(slow.child.try_wait().expect("first child state").is_none());
+    assert!(fast.child.try_wait().expect("second child state").is_none());
+    for (child, file) in [(&mut slow, "racer-slow"), (&mut fast, "racer-fast")] {
+        child
+            .child
+            .stdin
+            .take()
+            .expect("piped input")
+            .write_all(config_change_payload("s1", "policy_settings", Some(file)).as_bytes())
+            .expect("the bounded payload");
+    }
+    for child in [slow, fast] {
+        let output = child
+            .output_within(deadline.saturating_duration_since(std::time::Instant::now()))
+            .expect("both audit writers finish within the shared deadline");
+        assert!(output.status.success(), "{:?}", output);
+    }
 
-    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-        .expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(
         lines.len(),
@@ -210,12 +193,11 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
     );
     assert!(
         lines.iter().any(|line| line.contains("racer-fast")),
-        "the sibling that read and published FIRST is not clobbered by the one that \
-         published last: {recorded:?}"
+        "the fast sibling survives the concurrent prune: {recorded:?}"
     );
     assert!(
         lines.iter().any(|line| line.contains("racer-slow")),
-        "the stalled event still lands once it wakes: {recorded:?}"
+        "the slow sibling survives the concurrent prune: {recorded:?}"
     );
     assert!(
         !lines.iter().any(|line| line.ends_with("file=planted-0")),
@@ -256,8 +238,7 @@ fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
     );
 
     assert!(output.status.success());
-    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-        .expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     assert!(
         recorded.contains("/etc/claude/first.json"),
         "the earlier policy change survives an oversized path: {} bytes recorded",
@@ -283,9 +264,7 @@ fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
         &config_change_payload("s2", "policy_settings", Some("/etc/claude/second.json")),
     );
     assert!(control.status.success());
-    let recorded_after_control =
-        std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-            .expect("the audit trail");
+    let recorded_after_control = stored_records::text(&sandbox, "policy_audit");
     assert!(
         recorded_after_control.contains("/etc/claude/second.json"),
         "the control: an ordinary policy_settings event under this same setup \
@@ -315,8 +294,7 @@ fn a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry() {
     );
 
     assert!(output.status.success());
-    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-        .expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     assert_eq!(
         recorded.lines().count(),
         1,
@@ -351,8 +329,7 @@ fn an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_t
         event["detail"], "policy settings changed: /etc/claude/policy.json",
         "the mark is gone from the card's own rendered path"
     );
-    let recorded = std::fs::read_to_string(sandbox.path("state/policy-settings-audit"))
-        .expect("the audit trail");
+    let recorded = stored_records::text(&sandbox, "policy_audit");
     assert!(
         recorded.contains("/etc/claude/policy.json") && !recorded.contains('\u{061c}'),
         "the mark is gone from the durable line too, not only from the card: {recorded:?}"

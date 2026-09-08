@@ -1,7 +1,7 @@
 use crate::*;
 
 pub(crate) fn clear_held_lamps(settings: Option<&toml::Table>) {
-    pns_application::clear_held_lamps(&pns_adapters::FileLampState::new(state_dir()), || {
+    pns_application::clear_held_lamps(&pns_adapters::SqliteStore::for_records(state_dir()), || {
         let hue = settings.and_then(|settings| {
             hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
         })?;

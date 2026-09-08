@@ -135,9 +135,11 @@ pub(crate) fn spool_entries(sandbox: &Sandbox) -> Vec<String> {
 }
 
 pub(crate) fn state_lines(sandbox: &Sandbox, file: &str) -> Vec<String> {
-    std::fs::read_to_string(sandbox.path(&format!("state/{file}")))
-        .unwrap_or_default()
-        .lines()
-        .map(str::to_string)
-        .collect()
+    let table = match file {
+        "activity" => "activity",
+        "decisions" => "decisions",
+        "missed-notifications" => "journal",
+        _ => panic!("unrecognized stored record fixture: {file}"),
+    };
+    stored_records::lines(sandbox, table)
 }

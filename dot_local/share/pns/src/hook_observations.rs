@@ -106,7 +106,8 @@ pub(crate) fn config_change_detail(source: &str, file_path: &str) -> Option<Stri
 pub(crate) fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
     let session = config_field(session_id, CONFIG_SESSION_MAX_CHARS);
     let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
-    pns_adapters::record_policy_settings_change(&state_dir(), &session, &path, now);
+    let _ = pns_adapters::SqliteStore::for_records(state_dir())
+        .record_policy_settings_change(&session, &path, now);
 }
 /// The three quota-notification labels this binary recognises, and nothing
 /// else: an exact allowlist, matching the exact matcher declared beside it in

@@ -59,3 +59,30 @@ a SECOND card.
 1. No use case panics on ordinary external failure. A panic is acceptable only for a compiled-in
    invariant whose violation is a programmer error, and never for anything reachable from operator input
    or runtime conditions.
+
+## Transactional repositories
+
+The internal repositories use one `pns.db` in the configured state directory. Each mutation and its
+retention change commit in one explicit transaction. A connection uses write-ahead logging and a
+25-millisecond busy timeout. This bounds the wait for another writer; it is not a disk-operation
+execution deadline. Tests inject a shorter timeout and exercise contention from a separate process.
+
+The database and its sidecars are private files. An existing irregular or publicly readable database is
+refused. A future schema version is refused without rewriting it, and a failed schema transaction leaves
+the previous version intact.
+
+The delivery-facing record ports keep their existing return types. Their adapter catches a storage
+failure and appends a bounded, non-secret diagnostic to the existing daemon log when possible. Hook
+stdout and stderr stay unchanged. Explicit state commands and claim operations retain a fallible
+repository result, so a failed write cannot be reported as a completed mutation. A database failure never
+starts an alternative file writer after cutover.
+
+The lamp house port preserves one existing best-effort detail: a failed streak publication still returns
+the computed next streak. Its bounded read-only fallback does not retry the write or imply that the value
+was stored. Held-lamp and quiet-window publications remain fallible so a caller cannot arm lamps or
+announce a successful quiet change after a refused mutation. Tick and quiet complaints use separate
+memories; the application still owns notification before remembering the complaint.
+
+Schema version 1 includes import completion records from the start, so first-run import does not compete
+with the delivery ledger for a later schema version. The store uses bundled rusqlite 0.37.0. The
+installed compiler rejected 0.40.1; no toolchain change or third-party patch was required.

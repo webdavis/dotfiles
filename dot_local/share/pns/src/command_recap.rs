@@ -44,7 +44,7 @@ pub(crate) fn recap_mode() -> i32 {
         ),
     };
     let body = pns_application::BuildReturnRecap {
-        activity: &pns_adapters::FileRecords::new(state_dir()),
+        activity: &pns_adapters::SqliteStore::for_records(state_dir()),
         merges: &pns_adapters::GitHubMerges,
         notes: &pns_adapters::ReviewNotes { home: home.clone() },
         summarizer: &pns_adapters::ProcessSummarizer,

@@ -98,8 +98,7 @@ fn an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed()
     command.env("PNS_STATE_DIR", sandbox.path("state"));
     let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
     assert_eq!(output.status.code(), Some(42));
-    let recorded =
-        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    let recorded = stored_records::text(&sandbox, "decisions");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(lines.len(), 1, "one event, one line: {recorded:?}");
     assert!(
@@ -115,7 +114,7 @@ fn an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed()
         "and what the durable leg had to say: {recorded:?}"
     );
     assert!(
-        !sandbox.path("state/missed-notifications").exists(),
+        stored_records::text(&sandbox, "journal").is_empty(),
         "an approval the operator was handed is not one they missed"
     );
 }
@@ -131,8 +130,7 @@ fn the_decision_log_carries_the_payloads_mode_agent_and_tool() {
     let mut command = approval(&sandbox, 42);
     command.env("PNS_STATE_DIR", sandbox.path("state"));
     hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
-    let recorded =
-        std::fs::read_to_string(sandbox.path("state/decisions")).expect("the decision ring");
+    let recorded = stored_records::text(&sandbox, "decisions");
     assert!(
         recorded.contains(" mode=default agent=agent_01 tool=Bash "),
         "got {recorded:?}"

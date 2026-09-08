@@ -8,7 +8,7 @@ use super::*;
 /// them writes into the same state directory for the same event, and ten
 /// zero-sized types would be ten names for one moment.
 pub(super) struct EventRecords<'a> {
-    pub(super) moment: pns_adapters::return_window::FileReturnMoment,
+    pub(super) moment: pns_adapters::SqliteStore,
     pub(super) home: &'a str,
     pub(super) hue_table: Option<&'a toml::Table>,
     pub(super) lights: Option<&'a pns::config::Lights>,
@@ -23,34 +23,26 @@ pub(super) struct EventRecords<'a> {
 
 impl pns_application::DecisionRing for EventRecords<'_> {
     fn record(&self, record: &pns::decision_log::Record) {
-        pns_application::DecisionRing::record(&pns_adapters::FileRecords::new(state_dir()), record);
+        pns_application::DecisionRing::record(&self.moment, record);
     }
     fn read(&self) -> Result<Option<String>, String> {
-        pns_application::DecisionRing::read(&pns_adapters::FileRecords::new(state_dir()))
+        pns_application::DecisionRing::read(&self.moment)
     }
 }
 impl pns_application::Journal for EventRecords<'_> {
     fn journal(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        pns_application::Journal::journal(&pns_adapters::FileRecords::new(state_dir()), event, now);
+        pns_application::Journal::journal(&self.moment, event, now);
     }
     fn read(&self) -> Result<Option<String>, String> {
-        pns_application::Journal::read(&pns_adapters::FileRecords::new(state_dir()))
+        pns_application::Journal::read(&self.moment)
     }
 }
 impl pns_application::ActivityRing for EventRecords<'_> {
     fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
-        pns_application::ActivityRing::record(
-            &pns_adapters::FileRecords::new(state_dir()),
-            event,
-            now,
-        );
+        pns_application::ActivityRing::record(&self.moment, event, now);
     }
     fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
-        pns_application::ActivityRing::entries_between(
-            &pns_adapters::FileRecords::new(state_dir()),
-            since,
-            until,
-        )
+        pns_application::ActivityRing::entries_between(&self.moment, since, until)
     }
 }
 
@@ -68,7 +60,7 @@ impl pns_application::LoopLease for EventRecords<'_> {
 
 impl pns_application::LampRecords for EventRecords<'_> {
     fn news(&self, behaviour: pns::config::Behaviour, now: Option<u64>) {
-        record_news(&state_dir(), behaviour, now);
+        let _ = self.moment.record_news(behaviour, now);
     }
     fn clear_held(&self) {
         clear_held_lamps(self.hue_table);
@@ -80,12 +72,14 @@ impl pns_application::ReturnMoment for EventRecords<'_> {
         pns_application::ReturnMoment::complete(&self.moment);
     }
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<pns_application::Claim> {
-        // SubmitNotification already checked presence. The file adapter
+        // SubmitNotification already checked presence. The repository
         // retains the absent-clock and newer-edge checks for this exact now.
         if take_journal {
             return pns_application::ReturnMoment::claim(&self.moment, now, true);
         }
-        mark_present(now);
+        if let Some(now) = now {
+            let _ = self.moment.mark_present(now);
+        }
         None
     }
 }

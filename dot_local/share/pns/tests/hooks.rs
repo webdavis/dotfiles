@@ -4,6 +4,8 @@
 
 #[path = "hooks/captured_child.rs"]
 mod captured_child;
+#[path = "support/stored_records.rs"]
+mod stored_records;
 mod support;
 
 use std::io::Write;

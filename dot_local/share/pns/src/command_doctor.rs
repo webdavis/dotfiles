@@ -122,7 +122,7 @@ pub(crate) fn doctor_mode() -> i32 {
 
     pns_application::RunDoctor {
         checks: &checks,
-        records: &pns_adapters::FileRecords::new(state_dir()),
+        records: &pns_adapters::SqliteStore::for_records(state_dir()),
         clock: &now_secs,
         replay_card,
         nag_after_secs,
@@ -159,6 +159,11 @@ pub(crate) fn doctor_mode() -> i32 {
                     now_secs(),
                     pns_adapters::job_spool::job_count(&state),
                 )
+            },
+            imports: || {
+                pns_adapters::SqliteStore::for_records(state_dir())
+                    .import_failures()
+                    .map_err(|error| error.to_string())
             },
             lamps: || {
                 pns_application::doctor_lamps(lights.as_deref(), || {
