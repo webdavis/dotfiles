@@ -57,3 +57,16 @@ pub use canary::{CanaryEpoch, CanaryFreshness, canary_freshness};
 
 mod heartbeat;
 pub use heartbeat::{HeartbeatText, heartbeat_text};
+
+mod audit;
+pub use audit::{
+    AuditBounds, AuditFile, AuditFinding, AuditKind, AuditManifest, AuditRefusal, AuditReport,
+    AuditRow, audit_scan,
+};
+
+mod watchdog;
+pub use watchdog::{
+    Agent, AgentExit, AgentJudgment, AgentReading, AgentState, AuditFingerprint, AuditJudgment,
+    AuditMemory, ExitCode, WatchdogPage, audit_fingerprint_input, judge_agent, judge_audit,
+    osquery_problem, route_problem, state_problem, watchdog_page,
+};
