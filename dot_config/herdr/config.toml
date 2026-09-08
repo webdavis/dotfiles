@@ -57,12 +57,13 @@ prefix = "ctrl+d"
 goto = "prefix+g"
 rename_tab = "prefix+comma"
 
-# nav tiers: plain = tabs, ctrl = workspaces, alt = agents.
-next_agent = "prefix+alt+n"
-previous_agent = "prefix+alt+p"
-focus_agent = "prefix+alt+1..9"
-next_workspace = "prefix+}"
-previous_workspace = "prefix+{"
+# nav tiers: alt = workspaces, {/} = step agents, ctrl = agent count.
+next_agent = "prefix+}"
+previous_agent = "prefix+{"
+focus_agent = "prefix+ctrl+1..9"
+next_workspace = "prefix+alt+n"
+previous_workspace = "prefix+alt+p"
+switch_workspace = "prefix+alt+1..9"
 
 new_worktree = "prefix+alt+w"
 open_worktree = "prefix+alt+o"
