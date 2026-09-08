@@ -77,6 +77,12 @@ pub use controls::{
     ControlsRefusalKind, validate_controls,
 };
 
+mod funnel;
+pub use funnel::{
+    AllowFunnel, FunnelAlert, FunnelBaseline, FunnelPlan, FunnelReading, FunnelState,
+    classify_funnel, funnel_baseline, plan_funnel, render_funnel_exposure,
+};
+
 mod poll;
 pub use poll::{
     BaselineUpdate, ControlObservation, ControlPrior, ControlReading, ControlsRead, LuluProfile,

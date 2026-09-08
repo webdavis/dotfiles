@@ -1,8 +1,8 @@
-# Controls and poller policy
+# Controls, poller and Funnel policy
 
 The domain evaluates supplied readings and returns pages and proposed state. These contracts cover plan
-row 2.7. The application must store each required page before publishing the proposed baseline. The
-process and file adapters supply the readings; this policy does not perform those effects.
+rows 2.7 and 2.8. The application must store each required page before publishing the proposed baseline.
+The process and file adapters supply the readings; this policy does not perform those effects.
 
 - Given a controls document, admit the whole nonempty array or return one refusal. Require a unique
   nonempty identifier made of lowercase ASCII (American Standard Code for Information Interchange)
@@ -34,10 +34,22 @@ process and file adapters supply the readings; this policy does not perform thos
   deviation and recovery are silent. Combine exposures in built-in then declaration order, with the
   existing critical title, count and Sosumi sound. A missing controls file and first firewall-off produce
   separate gap and exposure pages in that order (S263, S264, S267).
+- Given the projected `AllowFunnel` values of exactly one document, omit absent, null and false. Boolean
+  true entries at any depth make Funnel active; every other non-map value or nonboolean map entry makes
+  it unreadable, even beside an active entry. A map containing only false entries is inactive.
+  Deduplicate and sort active keys (S268, S269).
+- Given Funnel state, distinguish absent from corrupt. Only one object with exact `active` or `inactive`
+  is trusted; a failed-publication marker removes that trust. Page on opening or an untrusted active
+  read. Corrupt state gets a gap on a tick with no exposure page, then a proposed repair. A failed read
+  retains the prior state, and a valid read clears the read gap. Steady active and closing are silent
+  (S272 to S275, S277).
+- Given exposed keys, strip backticks, flatten carriage return/newline/tab, cap each at 200 characters
+  with the captured truncation suffix, and wrap it in a code span. Preserve exact rendered page bytes,
+  including the shell's trailing-newline removal at submission (S276).
 
 The wire adapter must validate whole documents and project scalar fields according to the retained Bash
 behavior. Domain admission does not prove JSON (JavaScript Object Notation) parsing or a process result.
 The controls array's typed length replaces the intermediate count string; malformed input is refused
 before constructing it. Process arguments, deadlines, LuLu archive/path reads, state-file ownership,
 publication failures and durable acceptance remain in the planned application and adapter rows (S250,
-S252, S253, S265). The Bash callers remain active until those cutovers.
+S252, S253, S265, S270, S271, S278). The Bash callers remain active until those cutovers.

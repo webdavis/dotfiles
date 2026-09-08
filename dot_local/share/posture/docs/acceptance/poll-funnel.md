@@ -1,11 +1,11 @@
-# Controls and poller acceptance map
+# Poll and Funnel acceptance map
 
-All 424 predecessor leaves retain their exact names and bodies. These 25 first tests cover the typed
-policy in row 2.7. The retained poller fixture functions were orphan harness helpers, not runnable tests;
-no predecessor assertion is replaced. The retained capture inventory names each helper and separates the
-later process and publication obligations.
+All 424 predecessor leaves retain their exact names and bodies. These 31 first tests cover the typed
+policy in rows 2.7 and 2.8. The retained poller and Funnel fixture functions were orphan harness helpers,
+not runnable tests; no predecessor assertion is replaced. The retained capture inventory names each
+helper and separates the later process and publication obligations.
 
-Each row has an unchanged-source green control and an actual failing production-source fault. The 32
+Each row has an unchanged-source green control and an actual failing production-source fault. The 39
 faults use independent source copies and targets, with compiler commands, dependency files and binary
 hashes in the delivery receipt. No fixture-only fault is counted.
 
@@ -22,6 +22,12 @@ hashes in the delivery receipt. No fixture-only fault is counted.
 | `controls::tests::each_reserved_or_duplicate_id_refuses_the_whole_control_set`                              | S255, S256        | `reserved-id-admitted`, `duplicate-id-admitted`       |
 | `controls::tests::only_the_exact_verify_tier_is_admitted`                                                   | S254              | `verify-tier-inert`                                   |
 | `controls::tests::targets_are_required_only_for_the_two_rule_readers_in_both_directions`                    | S254              | `required-target-inert`, `unexpected-target-admitted` |
+| `funnel::tests::a_true_entry_at_any_projected_depth_is_active_and_invalid_values_win`                       | S268, S269        | `funnel-false-active`                                 |
+| `funnel::tests::absent_null_and_false_allow_funnel_are_inactive_but_wrong_shapes_gap`                       | S269              | `wrong-funnel-shape-inactive`                         |
+| `funnel::tests::baseline_trust_distinguishes_absence_corruption_and_failed_publication`                     | S272, S273, S274  | `persist-failure-baseline-trusted`                    |
+| `funnel::tests::exposed_keys_are_sorted_unique_inert_spans_with_exact_200_character_edges`                  | S276              | `funnel-cap-199`, `funnel-cap-201`                    |
+| `funnel::tests::failed_reads_keep_the_active_baseline_and_corrupt_idle_state_gets_one_gap`                  | S273, S275, S277  | `failed-funnel-read-advances`                         |
+| `funnel::tests::funnel_pages_on_open_or_untrusted_active_but_not_steady_active_or_close`                    | S275              | `steady-funnel-pages-again`                           |
 | `poll::tests::baseline::baseline_requires_exact_mode_one_object_and_every_trio_scalar_domain`               | S260              | `baseline-mode-ignored`, `trio-upper-bound-admitted`  |
 | `poll::tests::baseline::control_priors_are_rearmed_independently_when_expect_target_or_domain_changes`      | S261              | `changed-target-not-rearmed`                          |
 | `poll::tests::classify::all_five_filevault_forms_preserve_deferred_enablement_as_off`                       | S248              | `deferred-filevault-called-on`                        |
@@ -39,13 +45,16 @@ hashes in the delivery receipt. No fixture-only fault is counted.
 
 Bash captures pin missing controls plus first firewall-off as two pages, both before a baseline exists.
 The page text is copied into crate-owned fixtures. Twenty-four controls captures cover whole refusal,
-reader and target admission, and sanitized descriptions. The Rust tests exercise typed inputs; the future
-JSON decoder remains an adapter obligation.
+reader and target admission, and sanitized descriptions. Funnel false/null/42/true-map captures are
+inactive/inactive/gap/active; invalid beside active and multiple documents also gap. The Rust tests
+exercise the typed projections of these inputs. They do not claim the future JSON decoder is tested.
 
 A first classifier test accidentally used `unknown` as a no-match input for the literal needle `no`. Its
-failure is retained; `unreadable` corrects the fixture while preserving substring matching.
+failure is retained; `unreadable` corrects the fixture while preserving substring matching. An initial
+capture stopped before the Funnel run because its harness required `BATS_TEST_DIRNAME`; the corrected
+private environment and subsequent complete capture are retained separately.
 
 The scope excludes process discovery/arguments/deadlines, actual baseline files and write failures, and
 submission ordering against a real durable port. The proposed-state assertions cover the domain part of
-those decisions; S265 still requires the planned application and adapters. The poller delivery remains
-open until its consumers and operational gates are complete.
+those decisions; S265, S270, S271 and S278 still require the planned application and adapters. The poller
+and Funnel deliveries remain open until their consumers and operational gates are complete.
