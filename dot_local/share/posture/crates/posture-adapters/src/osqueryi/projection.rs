@@ -1,7 +1,9 @@
-use crate::legacy_json::{ProjectionFields, ProjectionInput, command_text, selected_text};
+use crate::legacy_json::{
+    ProjectionFields, ProjectionInput, command_text, compact_row, selected_text,
+};
 use serde_json::value::RawValue;
 
-pub(super) fn values(bytes: &[u8]) -> Option<[String; 3]> {
+pub(super) fn values(bytes: &[u8]) -> Option<([String; 3], String)> {
     let text = command_text(String::from_utf8_lossy(bytes).into_owned());
     let bytes = text.as_bytes();
     let input = ProjectionInput::new(bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes))?;
@@ -21,7 +23,12 @@ pub(super) fn values(bytes: &[u8]) -> Option<[String; 3]> {
             rows.push(*row);
         }
     }
-    Some(["firewall", "gatekeeper", "screenlock"].map(|name| {
+    let baseline_rows = rows
+        .iter()
+        .map(|row| compact_row(&input, row))
+        .collect::<Option<Vec<_>>>()?
+        .join("\n");
+    let values = ["firewall", "gatekeeper", "screenlock"].map(|name| {
         let mut output = String::new();
         for row in &rows {
             // A scalar selected row reports a jq error, but later stream rows still print.
@@ -41,7 +48,8 @@ pub(super) fn values(bytes: &[u8]) -> Option<[String; 3]> {
             }
         }
         command_text(output)
-    }))
+    });
+    Some((values, baseline_rows))
 }
 fn empty(input: &ProjectionInput, value: &RawValue) -> bool {
     matches!(value.get(), "null" | "false") || input.number(value) == Some("null")

@@ -64,6 +64,12 @@ enum Part<'a> {
     Text(String),
 }
 fn rendered(input: &ProjectionInput, value: &RawValue) -> Option<String> {
+    render(input, value, false)
+}
+pub(crate) fn compact_row(input: &ProjectionInput, value: &RawValue) -> Option<String> {
+    render(input, value, true)
+}
+fn render(input: &ProjectionInput, value: &RawValue, first_projection: bool) -> Option<String> {
     let mut output = String::new();
     let mut pending = vec![Part::Value(value, 0)];
     while let Some(part) = pending.pop() {
@@ -74,8 +80,8 @@ fn rendered(input: &ProjectionInput, value: &RawValue) -> Option<String> {
             continue;
         };
         if let Some(number) = input.number(value) {
-            output.push_str(&if number == "null" {
-                "null".to_owned()
+            output.push_str(&if first_projection || number == "null" {
+                number.to_owned()
             } else {
                 display_number(number)?
             });
@@ -118,18 +124,30 @@ fn rendered(input: &ProjectionInput, value: &RawValue) -> Option<String> {
             output.push_str(close);
             continue;
         }
-        output.push('\n');
-        pending.push(Part::Text(format!("\n{}{close}", "  ".repeat(depth))));
+        if !first_projection {
+            output.push('\n');
+        }
+        pending.push(Part::Text(if first_projection {
+            close.to_owned()
+        } else {
+            format!("\n{}{close}", "  ".repeat(depth))
+        }));
         for (index, (key, child)) in children.into_iter().enumerate().rev() {
             pending.push(Part::Value(child, depth + 1));
-            let mut prefix = "  ".repeat(depth + 1);
+            let mut prefix = if first_projection {
+                String::new()
+            } else {
+                "  ".repeat(depth + 1)
+            };
             if let Some(key) = key {
                 prefix.push_str(&serde_json::to_string(&key).ok()?);
-                prefix.push_str(": ");
+                prefix.push_str(if first_projection { ":" } else { ": " });
             }
             pending.push(Part::Text(prefix));
             if index > 0 {
-                pending.push(Part::Text(",\n".into()));
+                pending.push(Part::Text(
+                    if first_projection { "," } else { ",\n" }.into(),
+                ));
             }
         }
     }

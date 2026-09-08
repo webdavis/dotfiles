@@ -9,6 +9,8 @@ use std::path::PathBuf;
 pub struct PostureTrio {
     pub values: [String; 3],
     pub exit: i32,
+    // The state adapter retains the first projection without losing scalar types or extra fields.
+    pub(crate) baseline_rows: String,
 }
 impl PostureTrio {
     pub fn reading(&self) -> TrioReading<'_> {
@@ -39,13 +41,15 @@ impl<R: CommandRunner> PostureQuery<R> {
                 merge_stderr: false,
             },
         )?;
+        let (values, baseline_rows) = if completed.exit == 0 {
+            projection::values(&completed.bytes).unwrap_or_default()
+        } else {
+            Default::default()
+        };
         Ok(PostureTrio {
-            values: if completed.exit == 0 {
-                projection::values(&completed.bytes).unwrap_or_default()
-            } else {
-                Default::default()
-            },
+            values,
             exit: completed.exit,
+            baseline_rows,
         })
     }
 }

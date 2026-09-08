@@ -108,3 +108,24 @@ fn a_failed_query_keeps_its_status_and_discards_healthy_printed_values() {
         assert_eq!(sut.runner.calls.len(), 1);
     }
 }
+
+#[test]
+fn query_retains_the_compact_first_projection_for_baseline_publication() {
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("baseline-captures.json")).unwrap();
+    for case in cases {
+        let mut query = PostureQuery {
+            program: "/fixture/osqueryi".into(),
+            runner: Scripted {
+                case: serde_json::json!({"input":case["query"],"exit":0}),
+                calls: vec![],
+            },
+        };
+        assert_eq!(
+            query.read().unwrap().baseline_rows,
+            case["selected"],
+            "{}",
+            case["name"]
+        );
+    }
+}

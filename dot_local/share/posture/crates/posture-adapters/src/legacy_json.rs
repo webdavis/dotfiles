@@ -1,6 +1,6 @@
 mod value;
 pub(super) use value::{
-    Fields as ProjectionFields, command_text, field as projected_field, selected_text,
+    Fields as ProjectionFields, command_text, compact_row, field as projected_field, selected_text,
 };
 
 mod number;
