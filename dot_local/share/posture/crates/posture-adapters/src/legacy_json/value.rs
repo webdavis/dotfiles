@@ -32,6 +32,10 @@ pub(crate) fn field(input: &ProjectionInput, fields: &Fields<'_>, name: &str) ->
     let Some((_, value)) = fields.0.iter().find(|(key, _)| key == name) else {
         return Some(String::new());
     };
+    Some(command_text(selected_text(input, value)?))
+}
+
+pub(crate) fn selected_text(input: &ProjectionInput, value: &RawValue) -> Option<String> {
     // jq serializes the selected row before extracting these fields. NaN becomes null in
     // that round trip, whereas a source label read directly fromjson remains the text null.
     let value = if let Some(number) = input.number(value) {
@@ -47,7 +51,7 @@ pub(crate) fn field(input: &ProjectionInput, fields: &Fields<'_>, name: &str) ->
     } else {
         rendered(input, value)?
     };
-    Some(command_text(value))
+    Some(value)
 }
 
 pub(crate) fn command_text(mut value: String) -> String {

@@ -54,10 +54,11 @@ failure is retained; `unreadable` corrects the fixture while preserving substrin
 capture stopped before the Funnel run because its harness required `BATS_TEST_DIRNAME`; the corrected
 private environment and subsequent complete capture are retained separately.
 
-The scope excludes process discovery/arguments/deadlines, actual baseline files and write failures, and
-submission ordering against a real durable port. The proposed-state assertions cover the domain part of
-those decisions; S265, S270, S271 and S278 still require the planned application and adapters. The poller
-and Funnel deliveries remain open until their consumers and operational gates are complete.
+The policy packet excludes process discovery/arguments/deadlines, actual baseline files and write
+failures, and submission ordering against a real durable port. The proposed-state assertions cover the
+domain part of those decisions; S265, S270, S271 and S278 still require the planned application and
+adapters. The poller and Funnel deliveries remain open until their consumers and operational gates are
+complete.
 
 ## Controls-file reader
 
@@ -81,3 +82,41 @@ allowlist projection leaves retain their names and bodies. The final adapter sui
 The unreadable-file capture includes Bash's shell-redirection diagnostic. The reader returns the captured
 malformed-file refusal without printing, so caller diagnostic parity remains part of the poller cutover.
 This packet does not run probes, publish state or activate a caller.
+
+## Native poller inputs
+
+Ten new adapter leaves cover the completed-output runner, eight control readers and combined query. Ten
+Bash control captures pin commands, status/output pairs, profile preflight and rule resolution. Nineteen
+query captures pin first-row selection and stream/scalar bytes. Native commands are replaced only by
+inert response doubles during capture; the process-owner tests use private child processes and injected
+short deadlines.
+
+| Full new test name                                                                            | Source statements                                     | Independent source faults                                                                                          |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `command::tests::outcomes::completed_probes_retain_nonzero_status_and_ordered_output`         | S243, S246, S247                                      | `completed-exit-erased`, `signal-exit-erased`                                                                      |
+| `command::tests::outcomes::a_poll_probe_gets_a_new_budget_after_the_previous_probe_times_out` | S244                                                  | `per-probe-budget-shared`                                                                                          |
+| `command::tests::outcomes::a_total_inspection_budget_is_not_restarted_by_a_later_probe`       | Existing inspection/publication total-budget contract | `total-budget-reset-sequential`                                                                                    |
+| `probes::tests::all_eight_control_probes_keep_captured_arguments_output_and_profile_order`    | S245, S247, S250                                      | `probe-user-scope-lost`                                                                                            |
+| `probes::tests::failed_control_exits_never_believe_healthy_output_or_pid_mismatches`          | S246 to S249                                          | `probe-failed-exit-believed`                                                                                       |
+| `probes::tests::lulu_reads_keep_profile_refusal_resolution_order_and_exact_archive_matches`   | S250 to S253                                          | `profile-guard-ignored`, `archive-substring-believed`                                                              |
+| `probes::tests::probe_launch_and_deadline_failures_remain_indeterminate`                      | S244, S246                                            | `probe-failure-called-known`                                                                                       |
+| `osqueryi::tests::the_trio_uses_one_captured_query_and_keeps_first_row_scalar_bytes`          | S241, S243                                            | `query-wrong-table`                                                                                                |
+| `osqueryi::tests::query_streams_and_legacy_scalars_keep_captured_diagnostic_values`           | S241, S243, captured projection bytes                 | `query-stream-prefix-only`, `query-field-newlines-lost`, `query-command-nul-retained`, `query-scalar-stops-stream` |
+| `osqueryi::tests::a_failed_query_keeps_its_status_and_discards_healthy_printed_values`        | S243, S244                                            | `query-failed-exit-believed`                                                                                       |
+
+The initial two runner assertions and seven input assertions fail against their minimal predecessor
+bodies. Further captures exposed scalar-stream continuation and command-output null-byte removal; their
+actual failed assertions are retained. Sixteen independent production faults fail the named leaves or the
+unchanged `command::tests::a_failed_child_does_not_supply_a_successful_reading` regression
+(`success-only-exit-ignored`). Each variant is compiled from its own source directory using one released
+target serially, with compiler command, dependency inputs and binary hashes recorded.
+
+The old zero-budget leaf did not catch restarting a nonzero budget. That surviving fault is retained, not
+counted as a kill. The new sequential total-budget leaf catches the same source fault after a first owned
+timeout. Existing test bodies remain unchanged; four test doubles implement the completed-result method
+while their original success/error scripts and assertions remain intact.
+
+The shared projection only separates selected text from the final command-substitution cleanup, allowing
+query streams to retain internal newlines. Existing controls and allowlist projection assertions still
+cover their original cleanup behavior. No process probe, baseline publication or deployed caller is
+activated by this packet.

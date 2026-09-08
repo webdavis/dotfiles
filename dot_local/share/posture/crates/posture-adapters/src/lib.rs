@@ -49,3 +49,8 @@ pub use clock::SystemClock;
 
 mod controls_file;
 pub use controls_file::read_controls;
+
+mod probes;
+pub use probes::ControlProbes;
+mod osqueryi;
+pub use osqueryi::{PostureQuery, PostureTrio};

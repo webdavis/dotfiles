@@ -1,5 +1,7 @@
 mod value;
-pub(super) use value::{Fields as ProjectionFields, command_text, field as projected_field};
+pub(super) use value::{
+    Fields as ProjectionFields, command_text, field as projected_field, selected_text,
+};
 
 mod number;
 pub(super) use number::display_number;

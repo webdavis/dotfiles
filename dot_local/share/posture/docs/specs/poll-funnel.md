@@ -61,7 +61,30 @@ descriptions and remedies. A later invalid row refuses the whole set (S254 to S2
 
 The reader returns a typed refusal without printing. The future caller still owns Bash's additional
 shell-redirection diagnostic for an unreadable file, alongside the malformed-file explanation. The
-controls array's typed length replaces the intermediate count string. Process arguments, deadlines, LuLu
-archive/path reads, state-file ownership, publication failures and durable acceptance remain in the
-planned application and adapter rows (S250, S252, S253, S265, S270, S271, S278). The Bash callers remain
-active until those cutovers.
+controls array's typed length replaces the intermediate count string. State-file ownership, publication
+failures and durable acceptance remain in the planned application and adapter rows (S265, S270, S271,
+S278). The Bash callers remain active until those cutovers.
+
+The native poller inputs preserve each completed command's output and shell exit status. Existing
+inspection and publication callers still use success-only reads and their original total budget. Poller
+commands get a separate 20-second budget per invocation through the same owned-child runner; tests inject
+short budgets. Launch failures and exhausted deadlines remain typed failures (S243 to S247).
+
+Control reads use the eight captured absolute command paths and argument lists. Process lookup scopes
+OverSight to the supplied user identifier and the LuLu extension to root. A batch containing a rule
+reader checks LuLu preferences once before any control. An active or unreadable profile prevents both
+launcher resolution and archive reads, while ordinary controls still run. Rule reads convert to standard
+output, require a successful nonempty document, and match the exact escaped path element. Resolved rules
+search the resolved binary, never the launcher. They establish path existence only (S245 to S253).
+
+The trio input makes one combined query and retains its completed status. A nonzero exit clears all three
+values regardless of printed data. The projection preserves the captured Bash byte stream: the first row
+of each array, last duplicate field value, compound encounter order, non-finite and leading-zero numbers,
+byte-order marks and command-substitution trimming. Multiple valid array documents contribute
+newline-separated values. An invalid document clears the first projection; a scalar selected row skips
+that row while later stream rows still print. These bytes feed the existing domain classifiers without
+being treated as trusted readings (S241, S243).
+
+These adapters perform read-only observations when invoked. The application still owns validated-control
+ordering, baseline and gap files, durable page submission, and caller cutover. No deployed caller uses
+these inputs yet.
