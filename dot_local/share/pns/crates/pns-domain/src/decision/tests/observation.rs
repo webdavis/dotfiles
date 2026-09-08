@@ -1,11 +1,10 @@
 use super::fixtures::{elsewhere, names, three_selection, watching};
-use crate::{DecisionRequest, EnvironmentSnapshot, Overrides, SilencePolicy};
+use crate::{DecisionRequest, DeliveryScope, EnvironmentSnapshot, Overrides, SilencePolicy};
 
 fn request() -> DecisionRequest<'static> {
     DecisionRequest {
         observation: true,
-        local_only: false,
-        remote_only: false,
+        scope: DeliveryScope::Automatic,
         pane: "t1:p1",
         now_secs: Some(1_000_000),
         long_running: true,
@@ -49,21 +48,16 @@ fn observations_keep_only_banner_and_hermes_on_every_surface_despite_phone_overr
 
 #[test]
 fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
-    for (local_only, remote_only, expected) in [
-        (false, false, vec!["macos-banner", "hermes"]),
-        (true, false, vec!["macos-banner"]),
-        (false, true, vec!["hermes"]),
-        (true, true, vec![]),
+    for (scope, expected) in [
+        (DeliveryScope::Automatic, vec!["macos-banner", "hermes"]),
+        (DeliveryScope::LocalOnly, vec!["macos-banner"]),
+        (DeliveryScope::RemoteOnly, vec!["hermes"]),
     ] {
         let selected = crate::decide(
             &EnvironmentSnapshot::default(),
             &three_selection(),
             &Overrides::default(),
-            DecisionRequest {
-                local_only,
-                remote_only,
-                ..request()
-            },
+            DecisionRequest { scope, ..request() },
         );
         assert_eq!(names(&selected), expected);
     }

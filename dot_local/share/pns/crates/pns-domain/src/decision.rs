@@ -20,8 +20,7 @@ pub enum SilencePolicy {
 }
 
 pub struct DecisionRequest<'a> {
-    pub local_only: bool,
-    pub remote_only: bool,
+    pub scope: crate::DeliveryScope,
     pub pane: &'a str,
     pub now_secs: Option<u64>,
     pub long_running: bool,
@@ -104,9 +103,8 @@ pub struct GateInputs {
     pub long_running: bool,
     /// The config's opt-in for carding a phone that is already watching.
     pub mobile_watch_card: bool,
-    /// The caller's narrowing flags.
-    pub local_only: bool,
-    pub remote_only: bool,
+    /// The caller's delivery scope.
+    pub scope: crate::DeliveryScope,
     /// An origin pane was given. Its VALUE is never carried: the decision
     /// used it for exactly this and for the safety check beside it.
     pub pane_present: bool,
