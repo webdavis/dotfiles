@@ -19,5 +19,8 @@ pub use read::{Peeked, claim, job_count, marker_exists, peek, spool_entries};
 mod publish;
 pub use publish::{cancel, hand_back, publish_heartbeat, schedule};
 
+mod records;
+pub use records::FileJobSpool;
+
 #[cfg(test)]
 mod tests;

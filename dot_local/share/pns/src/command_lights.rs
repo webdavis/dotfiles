@@ -1,5 +1,4 @@
 use crate::*;
-use pns_adapters::{LIGHTS_QUIET, muted_state, publish_muted};
 
 pub(crate) fn lights_mode(verb: &str) -> i32 {
     match verb {
@@ -45,7 +44,11 @@ fn lights_quiet() -> i32 {
         Ok(LoadOutcome::Loaded(config)) => config
             .lights
             .as_deref()
-            .map(|lights| mutable_names(lights, config, &arguments))
+            .map(|lights| {
+                pns_application::quiet_names(lights, &arguments, || {
+                    pns_adapters::bridge_inventory(config)
+                })
+            })
             .unwrap_or_default(),
         // A CONFIG THIS CANNOT READ NAMES NO PLACE, so every mute is refused by
         // name rather than stored against a map nobody could load. The report
@@ -75,161 +78,20 @@ fn lights_quiet() -> i32 {
             return 2;
         }
     };
-    let (entries, complaints) = muted_state(&state);
-    // SAID BEFORE ANYTHING IS WRITTEN, because the write below republishes the
-    // whole file: an operator whose file was unreadable is losing whatever it
-    // held, and that is a line they get to see rather than a silent repair.
-    for complaint in &complaints {
-        eprintln!("{complaint}");
-    }
-    let rebuilt = match &command {
-        pns::lights::QuietCommand::Report => Ok(entries.clone()),
-        pns::lights::QuietCommand::Unmute { place } => {
-            pns::lights::muted_after(&entries, place, None, now)
-        }
-        pns::lights::QuietCommand::Mute { place, seconds } => {
-            match now.map(|now| now.saturating_add(*seconds)) {
-                Some(expiry) => pns::lights::muted_after(&entries, place, Some(expiry), now),
-                // THE CLOCK IS WHAT A MUTE IS MADE OF, so a run that cannot
-                // read one says the mute was not set rather than writing an
-                // expiry it guessed. `pns quiet`'s own wording, one file over.
-                None => Err(
-                    "pns: state error (the clock cannot be read); the mute was not set".to_string(),
-                ),
+    match (pns_application::SetLightsQuiet {
+        mutes: &pns_adapters::FileLampState::new(state),
+    })
+    .run(&command, now, |warning| eprintln!("{warning}"))
+    {
+        Ok(lines) => {
+            for line in lines {
+                println!("{line}");
             }
+            0
         }
-    };
-    // A REFUSED REBUILD IS A MUTE THAT WAS NOT SET, and nothing is written or
-    // reported after one: the file on disk is exactly what it was, and a report
-    // built from a list this run refused to publish would describe a house that
-    // does not exist.
-    let kept = match rebuilt {
-        Ok(kept) => kept,
         Err(refusal) => {
             eprintln!("{refusal}");
-            return 1;
+            1
         }
-    };
-    if !matches!(command, pns::lights::QuietCommand::Report)
-        && let Err(error) = publish_muted(&state.join(LIGHTS_QUIET), &kept)
-    {
-        // LOUD, because a human is waiting on the answer: reporting a mute that
-        // is not in effect is the worst outcome available.
-        eprintln!(
-            "pns: state error (lights-quiet could not be written: {error}); \
-             the mute was not set"
-        );
-        // AND NO REPORT AFTER IT. `kept` is what the file WOULD have held: for
-        // a failed mute it would say the place is quiet when it is not, and for
-        // a failed `off` it would say nothing is quiet while the old mute is
-        // still on disk and still taking the lamp. The disk is the answer and
-        // this run did not change it.
-        return 1;
     }
-    for line in pns::lights::muted_report(&kept, now) {
-        println!("{line}");
-    }
-    0
 }
-
-/// Every name `pns lights quiet` will take, for the command as it was typed.
-///
-/// THE GRAMMAR IS LAMP, ROOM AND ZONE, which are the BRIDGE'S nouns as much as
-/// the config's: a lamp that inherits its room's declaration has a real name no
-/// declaration writes, and refusing it sends the operator away from the room
-/// they are standing in. So the bridge's own listing widens the vocabulary.
-///
-/// AND THE DIAL IS ON THE MISS PATH ALONE. A place a declaration already holds
-/// is a name a mute can enforce whatever the bridge says, so the ordinary
-/// command, muting a room the config routes, costs no network at all. Only a
-/// word neither this run's declarations nor `off` can account for is worth
-/// asking a bridge about, and `off` is allowed over any name because it can
-/// only remove.
-fn mutable_names(
-    lights: &pns::config::Lights,
-    config: &pns::config::Config,
-    arguments: &[String],
-) -> Vec<String> {
-    let declared = pns::channels::hue::mutable_names(lights, None);
-    if !asks_the_bridge(&declared, arguments) {
-        return declared;
-    }
-    pns::channels::hue::mutable_names(lights, bridge_inventory(config).as_ref())
-}
-
-/// Whether the typed command holds a word only a bridge listing could account
-/// for.
-///
-/// THE FIRST ARGUMENT IS THE PLACE in every form that names one (`<place>`,
-/// `<place> <duration>`, `<place> off`), and the bare report names none. A
-/// second word of `off` needs no listing either: `off` is allowed over any
-/// name, because it can only remove a mute the operator can see.
-fn asks_the_bridge(declared: &[String], arguments: &[String]) -> bool {
-    arguments.first().is_some_and(|place| {
-        !declared.contains(place) && arguments.get(1).is_none_or(|word| word != "off")
-    })
-}
-
-/// What the bridge says it holds, or nothing at all.
-///
-/// A BRIDGE THAT ANSWERS NOTHING IS NOT A REFUSAL. The declarations are still
-/// names a mute can enforce once the transport is back, so the command works
-/// with the bridge down at the cost of a narrower vocabulary.
-fn bridge_inventory(config: &pns::config::Config) -> Option<pns::channels::hue::Inventory> {
-    let settings = enabled_hue_table(config)?;
-    let hue = hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())?;
-    // THE HUMAN'S OWN DEADLINE, not the transport's. Nothing else here dials a
-    // bridge with somebody standing at a terminal waiting on the answer, and
-    // three calls at the transport's ten seconds is half a minute before a mute
-    // typed at bedtime says anything at all. A bridge on the same LAN answers
-    // these in milliseconds, so a second apiece is generous; past it the
-    // vocabulary narrows to the declarations, which is what a bridge that
-    // answered nothing leaves anyway.
-    let bridge = UreqBridge {
-        base: format!("https://{}/clip/v2/resource", hue.bridge),
-        key: hue.key,
-        deadline: TYPED_COMMAND_DEADLINE,
-    };
-    Some(pns::channels::hue::inventory(
-        &pns::channels::hue::Bridge::get(&bridge, "room")?,
-        &pns::channels::hue::Bridge::get(&bridge, "light")?,
-        &pns::channels::hue::Bridge::get(&bridge, "zone")?,
-    ))
-}
-
-/// What an ad-hoc quiet is muting right now, and that same complaint.
-///
-/// A READING THIS CANNOT TAKE MUTES EVERYTHING, which is the fail direction
-/// every lamp-path input takes and the OPPOSITE of what both halves used to do.
-/// A record nobody can parse and a clock nobody can read each answered with an
-/// empty list, which is a house with every lamp loud: exactly the 3am the mute
-/// was armed to prevent, on the one night the machine could not tell anybody
-/// why.
-///
-/// THE COMPLAINT IS STILL THE OTHER HALF. Going dark silently would be a lamp
-/// that stopped working for a reason nobody can see, so the caller says it
-/// once through `say_lights_once` and the state is repaired by the next
-/// `pns lights quiet` write, which republishes the whole file.
-pub(crate) fn ad_hoc_quiet(
-    state: &Path,
-    now: Option<u64>,
-) -> (pns::channels::hue::Muting, Vec<String>) {
-    let (entries, complaints) = muted_state(state);
-    if !complaints.is_empty() {
-        return (pns::channels::hue::Muting::Everything, complaints);
-    }
-    let Some(now) = now else {
-        return (
-            pns::channels::hue::Muting::Everything,
-            vec![pns::lights::NO_CLOCK_FOR_THE_MUTE.to_string()],
-        );
-    };
-    (
-        pns::channels::hue::Muting::Places(pns::lights::muted_places(&entries, Some(now))),
-        complaints,
-    )
-}
-
-#[cfg(test)]
-#[path = "command_lights/tests.rs"]
-mod command_lights_tests;

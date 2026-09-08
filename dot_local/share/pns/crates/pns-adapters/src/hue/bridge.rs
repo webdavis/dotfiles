@@ -1,24 +1,24 @@
 //! The bridge transport and the writes addressed to its fixtures.
 
 use super::{clear_body, grouped_light_ids_for_rooms, inventory};
-use crate::hue::{Fixture, Muting, Routing, resolve};
+use pns_domain::lamps::{Fixture, Routing, fixture_path, resolve};
 use std::time::Duration;
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
-/// DECLARED in `pns-application`, where the lamp use cases that consume it
-/// live; named here for the adapters that implement it.
-pub use pns_application::Bridge;
+pub trait Bridge {
+    fn get(&self, path: &str) -> Option<String>;
+    /// Fire and forget: `run` discards every outcome, so a bridge that
+    /// refuses tells no one. Returning a result would be a seam with no
+    /// consumer.
+    fn put(&self, path: &str, body: &str);
+}
 
-/// The CLIP resource path this fixture is written to.
-///
-/// WHICH IS THE WHOLE POINT OF THE DISTINCTION. Addressing either as the
-/// other is a PUT to a resource id of the wrong type, which the bridge
-/// answers by doing nothing and telling no one, because `put` is fire and
-/// forget.
-pub fn fixture_path(fixture: &Fixture) -> String {
-    match fixture {
-        Fixture::Grouped(id) => format!("grouped_light/{id}"),
-        Fixture::Light(id) => format!("light/{id}"),
+impl<B: Bridge + ?Sized> Bridge for &B {
+    fn get(&self, path: &str) -> Option<String> {
+        (**self).get(path)
+    }
+    fn put(&self, path: &str, body: &str) {
+        (**self).put(path, body);
     }
 }
 
@@ -49,15 +49,6 @@ pub fn clear_held<B: Bridge>(bridge: &B, held: &[String]) {
     for path in held {
         bridge.put(path, &body);
     }
-}
-
-/// What one lamp is judged against: the minute it is being asked about, and the
-/// names the operator's own mute is covering.
-pub struct Reading<'reading> {
-    pub minutes_now: Option<u16>,
-    /// AN EMPTY `Places` IS THE ORDINARY CASE, and a machine that has never run
-    /// `pns lights quiet` reads an absent file as exactly that.
-    pub muted: &'reading Muting,
 }
 
 /// The signal: one PUT per wanted room, and the bridge does the rest.

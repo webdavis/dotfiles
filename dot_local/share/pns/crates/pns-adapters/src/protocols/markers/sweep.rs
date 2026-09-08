@@ -132,7 +132,12 @@ pub(super) fn sweep_blocked(state: &Path, now: u64, give_up_after_secs: u64) -> 
 ///
 /// ITS OWN FUNCTION SO ITS TEST SPAWNS NOTHING: the rest of the house asks
 /// herdr and the idle probes, and this half never depends on either.
-pub fn blocked_lamp(state: &Path, lights: &pns_domain::lamps::config::Lights, now: u64) -> bool {
+#[cfg(test)]
+pub(super) fn blocked_lamp(
+    state: &Path,
+    lights: &pns_domain::lamps::config::Lights,
+    now: u64,
+) -> bool {
     let give_up_after_secs = lights.blocked.give_up_after_secs;
     pns_domain::lights::held::any_blocked(
         &sweep_blocked(state, now, give_up_after_secs),

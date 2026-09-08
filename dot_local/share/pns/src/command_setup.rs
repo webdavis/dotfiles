@@ -1,4 +1,5 @@
 use crate::*;
+use pns_application::SETUP_USAGE;
 
 /// The `setup` mode: the first-run walk, and the only writer of the config.
 ///
@@ -36,59 +37,12 @@ pub(crate) fn setup_mode() -> i32 {
         eprintln!("pns setup: HOME is unset or empty; nothing was written");
         return 2;
     };
-    // THE CONFIG IS CHECKED BEFORE THE TERMINAL IS, because it is the more
-    // specific answer: an operator who already has one is told that, whether
-    // or not they are sitting in front of the questions.
-    let path = config_path(&home);
-    // `symlink_metadata`, NOT `exists`: `exists` follows a symlink and asks
-    // what it resolves to, so a dangling one at the config name reads as
-    // nothing at all here and the whole walk runs before the publish refuses
-    // it with a claim that it "appeared while the questions were being
-    // answered", which would not be true.
-    if let Err(refusal) = pns_adapters::config_publication::check_config_path(&path, force) {
-        eprintln!("{refusal}");
-        return 2;
+    pns_application::RunSetup {
+        terminal: &pns_adapters::ConsoleTerminal,
+        renderer: &pns_adapters::SetupRenderer,
+        publisher: &pns_adapters::FileConfigPublisher {
+            path: config_path(&home),
+        },
     }
-    if !std::io::stdin().is_terminal() {
-        eprintln!(
-            "pns setup: this is a walk through questions and stdin is not a terminal; \
-             nothing was written"
-        );
-        return 2;
-    }
-    let answers = match walk() {
-        Ok(answers) => answers,
-        Err(reason) => {
-            eprintln!("pns setup: {reason}; nothing was written");
-            return 2;
-        }
-    };
-    let composed = pns::setup::compose_config(&answers);
-    // THROUGH THE ENGINE'S OWN PARSER BEFORE IT IS PUBLISHED. A wizard that
-    // writes a config pns then refuses is worse than no wizard: it leaves a
-    // machine falling back to the core with a complaint nobody is standing in
-    // front of, and it does it while the operator is being told it worked.
-    if let Err(error) = pns::config::parse_config(&composed) {
-        eprintln!(
-            "pns setup: what it composed does not load ({}); nothing was written",
-            error.detail()
-        );
-        return 2;
-    }
-    match publish_config(&path, &composed, force) {
-        Ok(backup) => {
-            if let Some(backup) = backup {
-                println!("pns setup: kept the old config at {}", backup.display());
-            }
-            println!("pns setup: wrote {}", path.display());
-            0
-        }
-        Err(refusal) => {
-            eprintln!("pns setup: {refusal}");
-            1
-        }
-    }
+    .run(force, |line| eprintln!("{line}"))
 }
-/// What a setup typed wrong is told.
-const SETUP_USAGE: &str =
-    "pns: usage: pns setup [--force]; --force replaces an existing config, keeping it beside";

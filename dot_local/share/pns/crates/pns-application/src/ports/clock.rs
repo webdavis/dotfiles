@@ -16,3 +16,9 @@
 pub trait Clock {
     fn now_secs(&self) -> Option<u64>;
 }
+
+impl<F: Fn() -> Option<u64>> Clock for F {
+    fn now_secs(&self) -> Option<u64> {
+        self()
+    }
+}

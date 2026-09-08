@@ -56,3 +56,17 @@ pub use notification::{Event, EventArgs};
 
 mod focus;
 pub use focus::silenced as focus_silenced;
+
+mod presence_decision;
+pub use presence_decision::PresenceDecision;
+
+pub mod doctor;
+
+mod setup;
+pub use setup::{
+    Answers, answered as setup_answer, hue_is_armed, list as setup_list,
+    means_yes as setup_affirmed, router_backend as setup_router_backend, router_is_armed,
+};
+
+mod condenser;
+pub use condenser::{condenser_prompt, condenser_verdict};

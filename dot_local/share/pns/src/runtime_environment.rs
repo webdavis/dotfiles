@@ -1,15 +1,7 @@
 use crate::*;
 pub(crate) use pns_adapters::{now_secs, state_dir};
 
-/// A deadline override in milliseconds, for tests that must prove expiry
-/// without waiting out the production window.
-pub(crate) fn env_deadline(variable: &str) -> Option<Duration> {
-    std::env::var(variable)
-        .ok()?
-        .parse()
-        .ok()
-        .map(Duration::from_millis)
-}
+pub(crate) use pns_adapters::env_deadline;
 /// Every override the engine reads, out of the process environment.
 pub(crate) fn overrides_from_env() -> Overrides {
     Overrides::from_env(

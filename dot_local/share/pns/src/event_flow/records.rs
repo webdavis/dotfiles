@@ -92,7 +92,12 @@ impl pns_application::ReturnMoment for EventRecords<'_> {
 
 impl pns_application::LightsTick for EventRecords<'_> {
     fn register(&self, decision: &pns::engine::Decision, overrides: &pns::engine::Overrides) {
-        register_lights_tick(self.lights, decision, overrides);
+        pns_application::register_lights_tick(
+            &pns_adapters::FileJobSpool::new(state_dir()),
+            self.lights,
+            decision,
+            overrides,
+        );
     }
 }
 

@@ -45,3 +45,20 @@ fn a_record_claim_never_overwrites_a_batch_that_owner_already_holds() {
     assert_eq!(std::fs::read(record).unwrap(), b"new approval");
     assert_eq!(std::fs::read(claim).unwrap(), b"prior approval");
 }
+
+#[test]
+fn the_fire_claim_expires_only_after_its_full_minute() {
+    let state = scratch("nag-fire-age-boundary");
+    let lock = claim_fire(&state, 0).expect("first owner");
+    let at = std::fs::metadata(&lock)
+        .unwrap()
+        .modified()
+        .unwrap()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert!(claim_fire(&state, at.saturating_sub(1)).is_none());
+    assert!(claim_fire(&state, at + 59).is_none());
+    assert!(claim_fire(&state, at + 60).is_none());
+    assert_eq!(claim_fire(&state, at + 61), Some(lock));
+}

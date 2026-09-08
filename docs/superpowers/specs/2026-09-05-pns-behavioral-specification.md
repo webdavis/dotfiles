@@ -2668,9 +2668,12 @@ S240. Staleness is `armed > now || now > armed + 2 * after_secs`; a nudge is an 
       also `the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`
            at tests/hooks.rs:3995
 
-S241. The per-record rename in `claim_record` is not killed by any test; the code says so.
-      Source: `src/main.rs:5031 claim_record`.
-      Pin: UNPINNED. Kept on the measurement.
+S241. The per-record claim has one owner independently of the fire lock; a prior claim held by
+      that owner is never overwritten by a later approval.
+      Source: `pns-adapters/src/protocols/nag/claims.rs claim_record_as`.
+      Pin: `two_record_claimers_have_one_owner_even_without_the_fire_lock`
+      also `a_record_claim_never_overwrites_a_batch_that_owner_already_holds`.
+      The independent read-in-place fault is caught by the first test.
 
 ## 12. Missed notifications and the replay
 
@@ -3014,7 +3017,10 @@ S267. Composition is `compose_config(&Answers)`, pure, rendered through `config_
 S268. The composed text goes through `parse_config` before anything is written; a refusal prints
       `pns setup: what it composed does not load (<detail>); nothing was written` and exits 2.
       Source: `src/main.rs:8685-8793 setup_mode`.
-      Pin: UNPINNED end to end; the unit tests parse both ends of the walk on every run.
+      Pin: `setup_validates_the_composed_text_before_any_publication`
+      at pns-application/src/run_setup/tests/lifecycle.rs.
+      A retained real-terminal control also refuses invalid composed TOML without creating the
+      config; removing validation publishes those invalid bytes.
 
 S269. The backup is `config.toml.<UTC stamp>.backup`, moved (never copied) before the new file is
       linked, chmodded 0600 only when a regular file; no clock means no backup and a refusal; a
@@ -3036,9 +3042,13 @@ S269. The backup is `config.toml.<UTC stamp>.backup`, moved (never copied) befor
       also `a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one`
            at src/main.rs:13201
 
-S270. The `also_kept` tail (backup written, link failed, config path empty) has no test.
-      Source: `src/main.rs:9234 also_kept`.
-      Pin: UNPINNED. Recorded in `docs/specs/setup-and-publication.md`.
+S270. After a failed forced publication, restoration reports whether the old config was
+      restored, a later config was left untouched, or restoration failed. A failed restoration
+      keeps the backup and names the unrestored state.
+      Source: `pns-adapters/src/protocols/config_publication/restore.rs restore_after_failure`.
+      Pin: `restoration_preserves_a_later_config_and_the_old_backup`
+      also `restoration_failure_keeps_the_backup_and_names_the_unrestored_state`
+      also `a_backup_security_failure_restores_the_old_config_and_reports_the_failure`.
 
 ## 16. The home probe
 

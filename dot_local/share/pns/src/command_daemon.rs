@@ -1,4 +1,5 @@
 use crate::*;
+use pns_application::{ScheduleJob, Until};
 
 // --- the daemon -------------------------------------------------------------
 
@@ -37,27 +38,7 @@ fn daemon_schedule() -> i32 {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     };
-    let Some(now) = now_secs() else {
-        eprintln!("pns daemon: this machine has no clock to schedule against");
-        return 1;
-    };
-    let due = now.saturating_add(request.in_secs);
-    let job = pns_domain::jobs::Job {
-        id: request.id,
-        due,
-        until: match request.until {
-            Some(Until::Epoch(epoch)) => epoch,
-            Some(Until::FromNow(seconds)) => now.saturating_add(seconds),
-            // A LEASE IS NEVER ABSENT, only unstated: a job with no expiry is
-            // the parked job the whole design refuses, so an unstated one gets
-            // a small slack past its due second.
-            None => due.saturating_add(DEFAULT_LEASE_SLACK_SECS),
-        },
-        every: request.every,
-        unless_marker: request.marker,
-        args: request.args,
-    };
-    match pns_adapters::job_spool::schedule(&state_dir(), &job, now) {
+    match request.run(&pns_adapters::FileJobSpool::new(state_dir()), now_secs()) {
         Ok(()) => 0,
         Err(refusal) => {
             eprintln!("pns daemon: {refusal}");
@@ -66,34 +47,13 @@ fn daemon_schedule() -> i32 {
     }
 }
 
-/// How long past its due second an unstated lease runs. A minute: long enough
-/// that a busy tick or a slow boot still delivers, short enough that a machine
-/// asleep through the moment wakes to a job whose point has passed.
-const DEFAULT_LEASE_SLACK_SECS: u64 = 60;
-
-/// `--until` in its two spellings.
-enum Until {
-    Epoch(u64),
-    FromNow(u64),
-}
-
-/// Everything `schedule` was asked for, before a clock is read.
-struct ScheduleRequest {
-    id: String,
-    in_secs: u64,
-    every: Option<u64>,
-    until: Option<Until>,
-    marker: Option<String>,
-    args: Vec<String>,
-}
-
 /// The typed request, or None for anything this will not run.
 ///
 /// UNKNOWN IS AN ERROR, never a silent skip: `pns`'s own event parser is
 /// lenient because it sits on a notification path that must not fail, and this
 /// one sits in front of an operator who typed a command and will believe it
 /// did what they wrote.
-fn parse_schedule(argv: &[String]) -> Option<ScheduleRequest> {
+fn parse_schedule(argv: &[String]) -> Option<ScheduleJob> {
     let mut id = None;
     let mut in_secs = 0;
     let mut every = None;
@@ -122,7 +82,7 @@ fn parse_schedule(argv: &[String]) -> Option<ScheduleRequest> {
             _ => return None,
         }
     }
-    (!args.is_empty()).then_some(ScheduleRequest {
+    (!args.is_empty()).then_some(ScheduleJob {
         id: id?,
         in_secs,
         every,
@@ -146,7 +106,7 @@ fn daemon_cancel() -> i32 {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     }
-    match pns_adapters::job_spool::cancel(&state_dir(), id) {
+    match pns_application::cancel_job(&pns_adapters::FileJobSpool::new(state_dir()), id) {
         Ok(true) => {
             println!("pns daemon: cancelled `{id}`");
             0

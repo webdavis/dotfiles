@@ -73,13 +73,19 @@ fn a_complaint_that_cleared_is_forgotten_so_its_return_is_news_again() {
     // its complaint keeps the same complaint silent when it comes back.
     let state = scratch("lights-said-forget");
     let marker = state.join(LIGHTS_SAID);
-    say_lights_once(
-        &state,
+    pns_application::report_lamp_complaints(
+        &FileLampState::new(state.clone()),
+        pns_application::LampComplaint::Tick,
         &["lights: `HCL9` (lamp) is not on the bridge".to_string()],
-        LIGHTS_SAID,
+        |line| eprintln!("{line}"),
     );
     assert!(marker.exists(), "the first complaint is remembered");
-    say_lights_once(&state, &[], LIGHTS_SAID);
+    pns_application::report_lamp_complaints(
+        &FileLampState::new(state.clone()),
+        pns_application::LampComplaint::Tick,
+        &[],
+        |line| eprintln!("{line}"),
+    );
     assert!(
         !marker.exists(),
         "a clear tick forgets, or the same complaint returning would never \

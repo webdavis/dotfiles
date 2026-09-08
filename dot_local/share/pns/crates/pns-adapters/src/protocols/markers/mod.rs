@@ -2,7 +2,9 @@ pub use paths::{blocked_dir, lease_dir};
 use std::path::Path;
 mod answered;
 mod blocked;
+mod lease_control;
 mod leases;
+pub use lease_control::FileLoopLeases;
 mod legacy;
 mod owner;
 mod paths;
@@ -17,7 +19,12 @@ pub use owner::owner_is_gone;
 pub use paths::{blocked_marker, lease_marker, sweep_claim};
 pub use read::read_epoch;
 pub use shell::sweep_shell_markers;
-pub use sweep::{blocked_lamp, sweep_leases};
+#[cfg(test)]
+use sweep::blocked_lamp;
+pub use sweep::sweep_leases;
 
 #[cfg(test)]
 mod tests;
+
+mod records;
+pub use records::FileLampMarkers;

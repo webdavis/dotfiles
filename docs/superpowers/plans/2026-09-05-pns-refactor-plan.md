@@ -482,8 +482,8 @@ fields never cross the boundary; `RecapPolicy` carries the three the decision re
 PR 6.1d's audit as the daemon vocabulary this row wants) ports. `arm_nag`'s own port, `NagSchedule`, is
 declared in PR 6.1c, because PR 6.3 arms the nag before this row is reached; this row implements it and
 moves the body. Tests: the nag section of `tests/hooks.rs` as acceptance. Unpinned first: S061 (the
-`stop-failure` clear), S183 (`fire.lock` age-out), S241 (the per-record rename; the code says no test can
-kill it, so this one is written as a two-process test or recorded as accepted in the decision record).
+`stop-failure` clear), S183 (`fire.lock` age-out), S241 (the per-record rename, now covered by the file-protocol claim race and its independent
+read-in-place fault).
 Sizes: `run_nag.rs` ~230, `arm_nag.rs` ~150, tests ~300. Statements: S042, S060, S073 (nag half), S182,
 S236 to S241.
 
@@ -548,9 +548,12 @@ under 400 each; application ~250 plus two of ~150. Statements: S032, S033, S138,
 `unresolvable_ancestor` (`src/main.rs:8647-9354`) into `pns-application/src/run_setup.rs` over a
 `Terminal` port (ask, ask hidden, is a terminal) and a `ConfigPublisher` port; `Hushed` and the pty work
 are the terminal adapter (PR 14.6), the pending-file and hard-link publish is the persistence adapter (PR
-11.1). `src/setup.rs` (`Answers`, `compose_config`, `backup_path`) moves to `pns-domain/src/setup.rs`.
+11.1). `Answers` and arming decisions move to `pns-domain/src/setup.rs`; composition stays with the
+TOML (Tom's Obvious, Minimal Language) renderer in `pns-adapters/src/config/setup.rs`, through
+`ConfigRenderer`. `backup_path` belongs to the existing publication adapter.
 Tests: `setup.rs` tests by name, `tests/setup.rs` as acceptance. Unpinned first: S268 (the composed text
-parsed before writing, end to end), S270 (`also_kept`). Sizes: `run_setup.rs` ~220, `walk.rs` ~180,
+parsed before writing, end to end), S270 (the publication adapter's restoration and retained-backup
+outcomes, which supersede the old `also_kept` tail). Sizes: `run_setup.rs` ~220, `walk.rs` ~180,
 adapters measured at their PRs. Statements: S043, S044, S190, S263 to S270.
 
 **PR 6.13 `SignalLamps` (the event path's pulse and clear).** Moves `fire_pulse_unless_quiet`,
@@ -561,6 +564,21 @@ adapters measured at their PRs. Statements: S043, S044, S190, S263 to S270.
 `run_pulse_writes`'s `main.rs` tests by name. Unpinned first: S110 (the fresh clock at the gate: written
 as a fake-clock test that advances between decide and gate). Sizes: ~260 plus tests ~300. Statements:
 S025, S026, S107, S109, S110, S218 to S221.
+
+The combined 6.5 through 6.13, 13.6 and 14.6 delivery keeps command arguments and output in the
+executable. Application operations own the workflow, including `cancel_job` beside `ScheduleJob`,
+`RunDaemon`, `MaintainLamps`, `RunDoctor` and `RunSetup`. File and process adapters implement the ports.
+`Router` supplies typed client facts to `ReadHomeProbe`; application code parses no router JSON. Lamp
+ports distinguish physical writes, held state, mutes, clocks and complaint memory. The recap accepts the
+existing delivery operation at its composition boundary. The same `deliver_guarded` operation preserves
+the panic outcome for doctor and destination dispatch.
+
+The measured application payload keeps every touched Rust file below 250 implementation and 400 total
+lines. `main.rs` has 234 implementation lines; step 15 still owns its final reduction. The old test-only
+setup vocabulary copy is removed after its consumer moves in 13.6. The remaining root config scanner
+serves the external template checks until 13.7. The summarizer retains its inherited environment. Moving
+daemon ownership does not resolve the observed producer-death case in S203, where descendants can survive
+their producer.
 
 ### Step 7: the versioned protocols, test-first, in `pns-protocol`
 

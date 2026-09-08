@@ -64,13 +64,7 @@ pub(crate) fn dispatch_legs(
             {
                 return (*leg, Delivery::Failed(refused_backend_line(reason)));
             }
-            // A PANIC IS ONE LEG'S FAILURE, never the run's. Without this an
-            // unwinding channel takes the remaining legs and, in a hand-run
-            // check, the rest of the census with it, and a census that ended
-            // early is read as a report that finished. The default hook still
-            // prints its own trace to stderr, which is left alone: silencing
-            // it process-wide would hide every other panic in the binary.
-            let delivered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let delivered = pns_application::deliver_guarded(leg.name, || {
                 deliver_leg(
                     leg,
                     &rendered,
@@ -80,14 +74,6 @@ pub(crate) fn dispatch_legs(
                     native_first(channels_dir_override.is_some()),
                     &channels_dir,
                 )
-            }))
-            .unwrap_or_else(|_| {
-                // NO PAYLOAD TEXT: a panic message is written for a developer
-                // and may quote anything the channel was holding.
-                Delivery::Failed(format!(
-                    "the {} channel PANICKED; nothing was sent",
-                    leg.name
-                ))
             });
             (*leg, delivered)
         })

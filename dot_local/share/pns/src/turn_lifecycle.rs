@@ -83,18 +83,6 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
         Attempt::First,
     );
 }
-/// The branch the work happened on, or none. Bounded like every other spawn:
-/// a wedged git must not hold a notification.
-fn git_branch(cwd: &str) -> String {
-    if cwd.is_empty() || !std::path::Path::new(cwd).is_dir() {
-        return String::new();
-    }
-    let mut command = Command::new("git");
-    command.args(["-C", cwd, "branch", "--show-current"]);
-    run_bounded(command, None, GIT_DEADLINE, PROBE_READ_MAX)
-        .map(|branch| branch.trim().to_string())
-        .unwrap_or_default()
-}
 /// The project an event belongs to: the last segment of the working directory.
 pub(crate) fn project_of(cwd: &str) -> String {
     cwd.rsplit('/')
@@ -109,6 +97,3 @@ fn pulse_threshold_secs() -> u64 {
         .and_then(|raw| raw.parse().ok())
         .unwrap_or(pns::pulse::DEFAULT_LONG_SESSION_SECS)
 }
-/// A branch lookup is a local read; anything slower than this is a wedged
-/// repository, not an answer worth waiting for.
-const GIT_DEADLINE: Duration = Duration::from_secs(5);

@@ -52,12 +52,12 @@ pub use pns_domain::home::{
 };
 
 pub use pns_adapters::RouterSettings;
-pub use pns_adapters::{UniFiRouter, first_site_id, parse_clients, read_home};
+pub use pns_adapters::{UniFiRouter, first_site_id, parse_clients};
 
 /// The seam one probe reads the router through. DECLARED in
 /// `pns-application`, beside the home-probe use case that consumes it;
 /// named here for the adapter that implements it.
-pub use pns_application::Router;
+pub use pns_application::{Router, read_home};
 
 /// The one line for the verdict itself. PURE for the same reason as its
 /// caller: a swap of the two sentences below survived every suite before

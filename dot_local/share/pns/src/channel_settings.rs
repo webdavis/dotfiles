@@ -1,13 +1,5 @@
 use crate::*;
 
-/// Hue's settings, only when the operator enabled it explicitly.
-pub(crate) fn enabled_hue_table(config: &pns::config::Config) -> Option<toml::Table> {
-    config
-        .plugins
-        .get("hue")
-        .filter(|hue| hue.enabled)
-        .map(|hue| hue.settings.clone())
-}
 /// Whether a card fires while the operator is watching the pane on mobile.
 ///
 /// DEFAULT OFF (operator ruling 2026-08-12): a card about the pane already on

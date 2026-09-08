@@ -143,3 +143,9 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::PhoneInputProbe
             .get_or_init(|| phone_reading(&*self.runner, &self.tty_dir))
     }
 }
+
+impl<R: CommandRunner> pns_application::Clock for SystemProbes<R> {
+    fn now_secs(&self) -> Option<u64> {
+        SystemProbes::now_secs(self)
+    }
+}

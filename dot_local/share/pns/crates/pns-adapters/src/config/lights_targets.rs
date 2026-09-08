@@ -1,15 +1,5 @@
 use super::*;
 
-/// The five words, in the spelling a config uses, and the order the refusal
-/// lists them in.
-pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
-    ("done", Behaviour::Done),
-    ("failed", Behaviour::Failed),
-    ("blocked", Behaviour::Blocked),
-    ("unread", Behaviour::Unread),
-    ("loop", Behaviour::Looping),
-];
-
 /// `[lights.lamp]`, `[lights.room]` and `[lights.zone]`: one table per declared
 /// name, at one of the three levels.
 ///

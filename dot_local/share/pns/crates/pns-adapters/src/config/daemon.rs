@@ -29,3 +29,25 @@ pub(super) fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
     }
     Ok(enabled)
 }
+
+pub struct DaemonConfig {
+    pub home: String,
+}
+impl pns_application::DaemonSettings for DaemonConfig {
+    fn enabled(&self) -> Result<bool, String> {
+        match load_config(&config_path(&self.home)) {
+            Ok(LoadOutcome::Loaded(config)) => Ok(config.daemon_enabled),
+            Ok(LoadOutcome::Missing) => Ok(true),
+            Err(error) => Err(error.detail().to_string()),
+        }
+    }
+    fn presence_interval(&self) -> Option<u64> {
+        match load_config(&config_path(&self.home)) {
+            Ok(LoadOutcome::Loaded(config)) => parse_presence(&config)
+                .ok()
+                .flatten()
+                .map(|presence| presence.poll_secs),
+            _ => None,
+        }
+    }
+}

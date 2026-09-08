@@ -4,8 +4,8 @@
 
 pub use crate::hue::{
     Bridge, DEFAULT_ROOMS, HuePulse, breath_arm_body, clear_body, clear_held, fade_body,
-    grouped_light_ids_for_rooms, held_render, hue_settings, inventory, pulse_body, pulse_render,
-    quiet_window, resolve_on_bridge,
+    grouped_light_ids_for_rooms, hue_settings, inventory, pulse_body, quiet_window,
+    resolve_on_bridge,
 };
 pub use pns_domain::lamps::config::Behaviour;
 pub use pns_domain::lamps::{
@@ -144,3 +144,5 @@ pub const CLIP_ZONES: &str = r#"{"data":[
        "children":[{"rid":"17295316-360e-4259-b8fd-928caf1f9c3e","rtype":"light"}]},
       {"id":"zone-3","type":"zone","metadata":{"name":"Outdoors"},"children":[]}
     ]}"#;
+
+pub use pns_domain::lamps::{held_render, pulse_render};

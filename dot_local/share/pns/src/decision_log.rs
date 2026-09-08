@@ -23,9 +23,7 @@
 /// section that reads it back.
 pub use pns_domain::KEPT;
 
-mod report;
-
-pub use report::section;
+pub use pns_domain::doctor::decision_section as section;
 
 /// One decision, as everything needed to write its line. THE STRUCT IS THE
 /// SCHEMA, and every field is a value the composition root already holds.

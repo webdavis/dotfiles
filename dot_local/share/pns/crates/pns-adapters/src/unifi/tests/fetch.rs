@@ -4,8 +4,8 @@ use super::*;
 
 struct FakeRouter(Option<&'static str>);
 impl Router for FakeRouter {
-    fn clients_json(&self) -> Option<String> {
-        self.0.map(str::to_string)
+    fn clients(&self) -> Option<Vec<Client>> {
+        self.0.and_then(parse_clients)
     }
 }
 
