@@ -92,7 +92,9 @@ mod fixtures;
 mod settings_tests;
 
 #[cfg(test)]
+#[path = "home/tests/router.rs"]
 mod router_tests;
 
 #[cfg(test)]
+#[path = "home/tests/staleness.rs"]
 mod staleness_tests;

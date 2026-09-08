@@ -195,19 +195,25 @@ fn unmutable(place: &str, known: &[String]) -> String {
 mod fixtures;
 
 #[cfg(test)]
+#[path = "lights/tests/streak.rs"]
 mod streak_tests;
 
 #[cfg(test)]
+#[path = "lights/tests/unread.rs"]
 mod unread_tests;
 
 #[cfg(test)]
+#[path = "lights/tests/loop.rs"]
 mod loop_tests;
 
 #[cfg(test)]
+#[path = "lights/tests/phase.rs"]
 mod phase_tests;
 
 #[cfg(test)]
+#[path = "lights/tests/mute.rs"]
 mod mute_tests;
 
 #[cfg(test)]
+#[path = "lights/tests/quiet_command.rs"]
 mod quiet_command_tests;
