@@ -69,7 +69,7 @@ just test-unit          # Unit suite only (the fast commit gate)
 just test-bashunit      # One suite's `<name>.test.sh` files alone (default test/unit)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
+just test-rust          # Rust tests for herdr, pns, uu, posture and lights, plus workspace checks
 just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
@@ -166,11 +166,12 @@ the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts unde
 deployed state and the manifests derived from the same source state. The by-name form existed to dodge
 the vault, which is no longer a goal now that the operator applies with it unlocked.
 
-Fourteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Fifteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
 `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`,
-`~/.config/pns/config.toml`, `~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`,
-`~/.hermes/.env`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.config/pns/config.toml`, `~/.config/lights/config.toml`, `~/.config/uu/config.toml`,
+`~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 

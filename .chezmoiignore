@@ -65,6 +65,11 @@ tmp.*
 # Same, for the uu crate.
 .local/share/uu/target
 
+# Lights build output and development fixtures.
+.local/share/lights/target
+.local/share/lights/docs
+.local/share/lights/crates/*/tests/fixtures
+
 # Same, for the posture crate, and the same rule for its docs as for pns's: the
 # test baseline, the acceptance examples and the decision records travel with
 # the crate in git and never reach $HOME.
@@ -77,6 +82,9 @@ tmp.*
 
 {{- if eq .chezmoi.os "linux" }}
 Library
+.local/libexec/lights
+.local/share/lights
+.config/lights
 .local/libexec/macos-defaults/macos-defaults-drift.sh
 .local/libexec/macos-defaults/macos-defaults-apply.sh
 .local/libexec/macos-defaults/macos-defaults-capture.sh
