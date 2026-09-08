@@ -21,6 +21,9 @@
 
 mod finding;
 
+mod converge_policy;
+pub use converge_policy::ConvergeFile;
+
 pub use finding::{Detector, EnrichmentPaths};
 
 mod gate;

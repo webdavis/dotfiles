@@ -20,6 +20,8 @@
 //! `tailscale` or `pns`. Enrichment and allowlist curation use these boundaries.
 
 mod codesign;
+mod staging;
+pub use staging::{DesiredStaging, StagedTree};
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
