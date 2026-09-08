@@ -43,10 +43,11 @@ impl SkillsGenerationStore {
                 std::fs::remove_dir_all(path).map_err(|e| e.to_string())?;
                 continue;
             }
-            if let Ok(m) = Metadata::read(&path) {
-                if path.file_name().and_then(|s| s.to_str()) == Some(&m.id) && m.id != previous_id {
-                    garbage::destroy(&path)?;
-                }
+            if let Ok(m) = Metadata::read(&path)
+                && path.file_name().and_then(|s| s.to_str()) == Some(&m.id)
+                && m.id != previous_id
+            {
+                garbage::destroy(&path)?;
             }
         }
         Ok(())

@@ -148,10 +148,10 @@ impl SkillsGenerationStore {
             let candidate = SkillsCandidate {
                 home: entry.path().join("home"),
             };
-            if let Ok(m) = self.compatible(&candidate) {
-                if m.mode == SkillsBuildMode::Full {
-                    return Ok(SkillsRecovery::Candidate(candidate));
-                }
+            if let Ok(m) = self.compatible(&candidate)
+                && m.mode == SkillsBuildMode::Full
+            {
+                return Ok(SkillsRecovery::Candidate(candidate));
             }
         }
         Ok(SkillsRecovery::None)

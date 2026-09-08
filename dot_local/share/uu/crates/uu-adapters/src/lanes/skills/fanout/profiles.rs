@@ -15,10 +15,10 @@ pub(super) fn universe(roster: &SkillsRoster, hermes: &Path) -> Result<BTreeSet<
     if !hermes.is_symlink() && !directory.is_symlink() && directory.is_dir() {
         for entry in std::fs::read_dir(directory).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
-            if entry.path().join("skills").exists() || entry.path().join("skills").is_symlink() {
-                if let Some(name) = entry.file_name().to_str() {
-                    profiles.insert(name.into());
-                }
+            if (entry.path().join("skills").exists() || entry.path().join("skills").is_symlink())
+                && let Some(name) = entry.file_name().to_str()
+            {
+                profiles.insert(name.into());
             }
         }
     }
