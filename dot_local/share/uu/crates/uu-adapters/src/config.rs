@@ -17,6 +17,8 @@
 //! key is refused rather than left as a record path that can never land.
 
 mod lanes;
+pub use lanes::RotateLogsLane;
+
 pub use lanes::SkillsConfig;
 mod records;
 pub use records::Records;
