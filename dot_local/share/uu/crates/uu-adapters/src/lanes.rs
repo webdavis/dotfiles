@@ -12,9 +12,11 @@ mod command;
 mod herdr;
 mod npm;
 mod nvim;
+mod skills;
 mod spawn;
 mod text;
 mod uv;
+pub use skills::{HermesRegistryEntry, SkillsRoster};
 
 pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::failure_reason;

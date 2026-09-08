@@ -17,7 +17,9 @@ mod command;
 mod herdr;
 mod npm;
 mod nvim;
+mod skills;
 mod uv;
+pub use skills::SkillsConfig;
 
 use std::collections::BTreeMap;
 use std::time::Duration;

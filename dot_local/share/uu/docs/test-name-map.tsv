@@ -399,3 +399,10 @@ added	-	lanes::claude_plugins::tests::the_first_reading_is_a_baseline_that_compa
 added	-	bootstrap::a_failed_plugin_bootstrap_prints_its_report_and_exits_one	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	bootstrap::bootstrap_posts_no_record_and_leaves_the_marker_and_streaks_alone	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	claude_plugins::a_weekly_plugin_lane_compares_and_advances_history_under_its_declared_name	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	config::lanes::skills::tests::an_empty_skills_cli_version_or_unknown_field_is_refused_by_name	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	config::lanes::skills::tests::every_skills_path_is_required_and_absolute_and_the_cli_version_is_preserved	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_lock_that_is_missing_unparseable_or_schema_broken_refuses_the_run_by_name	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_roster_that_changed_mid_run_refuses_the_publish	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_roster_tracking_zero_skills_is_refused_as_corruption_not_intent	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::a_skill_in_both_hermes_registry_and_a_non_empty_hermes_profiles_row_is_refused	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::roster::tests::the_tracked_set_is_the_union_of_the_npx_and_clawhub_tables	new	ok	E5: skills behavior, fail-first and actual source fault

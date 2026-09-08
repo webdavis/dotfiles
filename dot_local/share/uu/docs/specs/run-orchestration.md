@@ -220,3 +220,12 @@ for these retained limits.
 - **Given** an existing or imported baseline, **when** bootstrapping repeatedly, **then** keep it without
   comparing or advancing it. A non-regular inventory is refused, and failed publication preserves the
   previous snapshot. State uses the declared lane name under `~/.local/state/uu/lanes/`.
+
+## Skills roster
+
+- **Given** skills settings, **when** parsing the callable component, **then** require every path to be
+  absolute and name invalid or unknown fields. The skills type remains unavailable to run and bootstrap
+  until its complete cutover; the shipped block stays commented.
+- **Given** the custom roster, **when** capturing it, **then** require one version 2 document with typed
+  tables and a nonempty npx/clawhub union. Refuse conflicting Hermes registry/profile ownership and
+  refuse publication if the original roster bytes changed.

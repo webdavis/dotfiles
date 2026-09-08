@@ -51,3 +51,6 @@ pub use lanes::{CommandRunner, LaneAdapter, Ran, Verdict};
 pub use registration::LaneRegistration;
 
 pub use bootstrap::{BootstrapLane, bootstrap_lane};
+
+pub use config::SkillsConfig;
+pub use lanes::{HermesRegistryEntry, SkillsRoster};
