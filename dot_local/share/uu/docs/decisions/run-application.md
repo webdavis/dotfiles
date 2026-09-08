@@ -149,7 +149,7 @@ package contains no dependency on a deployed Lua path. The required absolute con
 initializer and the entry script. Pure report decisions stay separate from plugin, Git and filesystem
 operations.
 
-Writeback is off by default. The shipped template enables the report lane and records the source
+Auto-commit is off by default. The shipped template enables the report lane and records the source
 repository explicitly. Recovery lives at `stdpath("state")/uu/plugins-<config hash>.json`. Each record is
 a versioned JSON (JavaScript Object Notation) file with restrictive permissions, file and
 parent-directory synchronization and atomic replacement. This filesystem protocol belongs beside the lock

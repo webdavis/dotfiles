@@ -14,10 +14,17 @@ function M.read(path)
   return text
 end
 
+-- Reading NO global or system config is one move that covers every setting the
+-- operator's own git carries, rather than neutralizing them one at a time. It
+-- goes on each command rather than in the process environment: `git_spec`
+-- unsets every `GIT_*` name process-wide before any fixture exists, and a
+-- per-command table survives that where an exported variable does not.
+local NO_USER_CONFIG = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_SYSTEM = "/dev/null" }
+
 function M.git(repo, ...)
   local args = { "git", "-C", repo }
   vim.list_extend(args, { ... })
-  local result = vim.system(args, { text = true }):wait()
+  local result = vim.system(args, { text = true, env = NO_USER_CONFIG }):wait()
   assert(result.code == 0, table.concat(args, " ") .. ": " .. result.stderr)
   return (result.stdout:gsub("\n$", ""))
 end
@@ -27,13 +34,18 @@ local function repository(path)
   M.git(path, "init", "-b", "fixture")
   M.git(path, "config", "user.name", "Owned Fixture")
   M.git(path, "config", "user.email", "fixture@example.invalid")
-  -- The operator's global config sets `core.hooksPath`, which SHADOWS the hooks
-  -- a fixture installs: the hook never runs, so a spec asserting it ran fails
-  -- here while passing in CI, where no global config exists. The repository's
-  -- own setting is what outranks the global one, and unlike an environment
-  -- variable no other spec can clear it (git_spec unsets every `GIT_*` name for
-  -- the whole process before any fixture exists).
+  -- The code under test runs git through its OWN runner, which passes no
+  -- environment, so it reads the operator's global config whatever this file
+  -- does. Only the repository's own settings outrank that, so the three that
+  -- reach into a fixture are pinned here:
+  --   hooksPath, or the operator's hooks shadow the ones a spec installs and a
+  --     spec asserting its own hook ran fails here while passing in CI
+  --   gpgsign,   or every fixture commit is signed with the operator's real key,
+  --     which on a passphrase-locked key hangs the run on a headless prompt
+  --   fsmonitor, or every throwaway repository leaves a daemon behind it
   M.git(path, "config", "core.hooksPath", path .. "/.git/hooks")
+  M.git(path, "config", "commit.gpgsign", "false")
+  M.git(path, "config", "core.fsmonitor", "false")
 end
 
 function M.new()
