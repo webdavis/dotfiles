@@ -1,0 +1,4 @@
+**Firewall is OFF (first observation)**
+- **Now:** **OFF**
+- The monitor has no prior baseline and the firewall is already off, a pre-existing exposure. Did you turn it off? If not, **investigate now**.
+- Re-enable it: System Settings → Network → Firewall

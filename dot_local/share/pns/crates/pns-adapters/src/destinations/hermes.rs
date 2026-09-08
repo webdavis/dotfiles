@@ -10,6 +10,8 @@
 //! in-process over the exact body bytes.
 
 use super::{Delivery, Event};
+use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
+use pns_domain::registry::Routing;
 use pns_domain::routing::ReportMode;
 use pns_hermes::{SignedPost, delivered, outcome_line, sign, skipped_line};
 use std::time::Duration;
@@ -18,16 +20,23 @@ use std::time::Duration;
 /// webhook route.
 pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns";
 
-/// The gateway body: agent, state, project, and the FULL message as the
-/// detail, because Discord has no length ceiling for the preview to serve.
-pub fn hermes_body(event: &Event) -> String {
-    serde_json::json!({
+/// The gateway body carries the original request id, agent, state, project
+/// and the FULL message as detail, because Discord has no preview ceiling.
+pub fn hermes_body(event: &Event, request_id: &str) -> String {
+    body_with_id(event, Some(request_id))
+}
+
+fn body_with_id(event: &Event, request_id: Option<&str>) -> String {
+    let mut body = serde_json::json!({
         "agent": event.agent,
         "state": event.state,
         "project": event.project,
         "detail": event.message,
-    })
-    .to_string()
+    });
+    if let Some(id) = request_id {
+        body["request_id"] = serde_json::json!(id);
+    }
+    body.to_string()
 }
 
 /// The URL for a NAMED route on the same gateway the default posts to: the
@@ -83,9 +92,23 @@ pub struct HermesChannel<P: SignedPost> {
     pub sync_deadline: Option<Duration>,
 }
 
-impl<P: SignedPost> HermesChannel<P> {
-    pub fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery {
-        let body = hermes_body(event);
+impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
+    fn id(&self) -> &DestinationId {
+        const ID: DestinationId = DestinationId::new("hermes");
+        &ID
+    }
+
+    fn capabilities(&self) -> Routing {
+        Routing {
+            local: false,
+            presence_gated: false,
+            durable: true,
+            event_dispatched: true,
+        }
+    }
+
+    fn deliver(&self, request: &DeliveryRequest<'_>) -> Delivery {
+        let body = body_with_id(request.event, request.request_id);
         let Some(signature) = self.key.as_deref().and_then(|key| sign(key, &body)) else {
             // NOT SET UP IS A FAILED VERDICT, because from the record's point
             // of view it reads the same as a refusal: the entry is not there.
@@ -94,11 +117,13 @@ impl<P: SignedPost> HermesChannel<P> {
             return Delivery::Failed(skipped_line());
         };
 
-        let deadline = match mode {
+        let deadline = match request.mode {
             ReportMode::ReportOutcome => self.sync_deadline,
             ReportMode::Silent => Some(ASYNC_DEADLINE),
         };
-        let outcome = self.post.post(&self.url, &body, &signature, deadline);
+        let outcome = self
+            .post
+            .post(&self.url, &body, &signature, request.request_id, deadline);
         let line = outcome_line(outcome);
         if delivered(outcome) {
             Delivery::Delivered(line)

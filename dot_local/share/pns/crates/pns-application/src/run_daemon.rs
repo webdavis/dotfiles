@@ -6,12 +6,11 @@ pub struct RunDaemon<'a, S, C> {
     pub clock: &'a C,
 }
 impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
-    /// The loop. It sleeps, drains the spool, and reaps what it started.
+    /// The loop. It sleeps, drains the spool, reaps children and retries one retained delivery.
     ///
-    /// IT HOLDS NO DURABLE STATE. Restarting re-reads the directory, which is the
-    /// whole recovery path, and reboot works the same way because the state
-    /// directory survives it and the lease drops whatever went stale. There is no
-    /// in-memory schedule to diverge from the disk.
+    /// IT HOLDS NO DURABLE STATE. Restarting re-reads the job directory and the
+    /// retry callback claims from the delivery ledger. Their retained state and
+    /// leases survive the loop; no in-memory schedule can diverge from disk.
     ///
     /// SIGTERM NEEDS NO HANDLER. launchd stops a job with SIGTERM and the default
     /// disposition terminates the process; a loop sleeping one second dies inside
@@ -20,6 +19,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
     pub fn run<J, K, L>(
         &self,
         prepare: impl FnOnce() -> Result<(J, K, L), String>,
+        mut retry: impl FnMut(u64, &mut K) -> Result<(), String>,
         mut notice: impl FnMut(DaemonNotice),
     ) -> i32
     where
@@ -79,6 +79,15 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
                 children: &mut children,
             }
             .run(now, &mut reported, &mut notice);
+            // One supervised retry child at a time keeps slow destinations out of
+            // this loop. The ledger owns the retained request and its claim.
+            if let Some(now) = now
+                && let Err(error) = retry(now, &mut children)
+            {
+                notice(DaemonNotice::Error(format!(
+                    "pns daemon: delivery retry failed: {error}"
+                )));
+            }
         }
     }
     /// Whether the clock is switched on.

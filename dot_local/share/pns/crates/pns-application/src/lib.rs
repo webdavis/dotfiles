@@ -18,35 +18,48 @@
 //! already: the environment probes, the surface and visibility they are read
 //! into, and the plugin selection.
 
+mod delivery_health;
+pub use delivery_health::{delivery_health_line, report_delivery_health};
+mod destinations;
 mod environment_reading;
 mod ports;
 mod replay_missed;
 mod request_approval;
 mod selection;
+mod submission_delivery;
 mod submit_notification;
 
+pub use destinations::{DeliveryRequest, DestinationId, Destinations, Recorded};
 pub use environment_reading::{decide, operator_surface};
 
 pub use ports::clock::Clock;
+pub use ports::decision_outcomes::DecisionOutcomes;
 pub use ports::delivery::{
     ApprovalForwarder, LampSignal, MissedReplay, NotificationDestination, RecapPublisher,
-    ReplayDelivery,
+    ReplayDelivery, ReplayHandoff,
 };
+pub use ports::delivery_health::DeliveryHealth;
 pub use ports::devices::{Router, StalenessMemory};
 pub use ports::environment::{
     IdleProbe, PhoneInputProbe, PhoneMarkerProbe, ProbeStart, ScreenLockProbe, SessionViewProbe,
     Wants,
 };
 pub use ports::harness::HarnessPayload;
+pub use ports::ledger::{
+    ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, SubmissionIdentity,
+    SubmissionRecord, UnconfirmedDelivery,
+};
 pub use ports::notification::{PhoneSuppression, RaiseNotification};
 pub use ports::process::CommandRunner;
 pub use ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, JobSpool, Journal, LampRecords, LightsTick,
-    LoopLease, ReturnMoment,
+    LoopLease, ReplayBatch, ReplayState, ReturnMoment,
 };
 pub use replay_missed::{RecapPolicy, ReplayMissedNotifications};
 pub use request_approval::RequestApproval;
 pub use selection::{ConfigOutcome, select_plugins};
+pub use submission_delivery::{SubmissionDelivery, Submitted};
 pub use submit_notification::{Attempt, Submission, SubmitNotification};
 
 pub use ports::nag::{Claimed, NagRecords, NagSchedule};
@@ -132,3 +145,5 @@ pub use delivery_panic::deliver_guarded;
 pub use ports::setup::{ConfigPublisher, ConfigRenderer, Terminal};
 mod run_setup;
 pub use run_setup::{RunSetup, SETUP_USAGE};
+
+pub use run_doctor::ImportFailure;

@@ -20,6 +20,8 @@
 mod alert;
 mod bootstrap;
 mod config;
+pub use config::RotateLogsLane;
+
 mod deadline;
 mod lanes;
 mod record;

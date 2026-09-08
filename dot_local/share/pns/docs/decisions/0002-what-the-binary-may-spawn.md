@@ -1,6 +1,6 @@
 # 0002: The binary's spawn roster is a closed, operator-approved list
 
-Status: accepted. The roster is recorded in the header comment of `dot_local/share/pns/Cargo.toml`, and
+Status: accepted. The roster is recorded in the header comment of `crates/pns-cli/Cargo.toml`, and
 this record exists so the list survives the crate being split into a workspace.
 
 ## The list

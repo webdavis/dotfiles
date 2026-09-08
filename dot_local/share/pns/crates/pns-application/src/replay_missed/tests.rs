@@ -18,6 +18,9 @@ struct Recorder {
     claims: RefCell<Vec<(Option<u64>, bool)>>,
     publications: RefCell<Vec<(u64, u64)>>,
     delivery_legs: RefCell<Vec<Vec<Leg>>>,
+    handoff: crate::ReplayHandoff,
+    completed: std::cell::Cell<usize>,
+    identities: RefCell<Vec<crate::SubmissionIdentity>>,
 }
 
 impl Recorder {
@@ -31,6 +34,9 @@ impl Recorder {
             claims: RefCell::new(Vec::new()),
             publications: RefCell::new(Vec::new()),
             delivery_legs: RefCell::new(Vec::new()),
+            handoff: crate::ReplayHandoff::Queued,
+            completed: std::cell::Cell::new(0),
+            identities: RefCell::new(Vec::new()),
         }
     }
     fn note(&self, step: &str) {
@@ -42,13 +48,16 @@ impl Recorder {
 }
 
 impl ReturnMoment for Recorder {
-    fn complete(&self) {}
+    fn complete(&self) {
+        self.completed.set(self.completed.get() + 1);
+    }
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
         self.note(&format!("claim(journal={take_journal})"));
         self.claims.borrow_mut().push((now, take_journal));
         self.claim.as_ref().map(|held| Claim {
             since: held.since,
             waiting: held.waiting.clone(),
+            replay: held.replay.clone(),
         })
     }
 }
@@ -67,10 +76,17 @@ impl RecapPublisher for Recorder {
     }
 }
 impl ReplayDelivery for Recorder {
-    fn deliver(&self, event: &EventArgs, legs: &[Leg]) {
+    fn deliver(
+        &self,
+        identity: &crate::SubmissionIdentity,
+        event: &EventArgs,
+        legs: &[Leg],
+    ) -> crate::ReplayHandoff {
+        self.identities.borrow_mut().push(identity.clone());
         self.note("deliver");
         self.delivered.borrow_mut().push(event.detail.clone());
         self.delivery_legs.borrow_mut().push(legs.to_vec());
+        self.handoff
     }
 }
 
@@ -120,8 +136,7 @@ fn returning(legs: Vec<Leg>) -> Decision {
             now_secs: Some(2_000),
             long_running: false,
             mobile_watch_card: false,
-            local_only: false,
-            remote_only: false,
+            scope: pns_domain::DeliveryScope::Automatic,
         },
     }
 }
@@ -135,7 +150,18 @@ fn policy() -> RecapPolicy {
 }
 
 fn claim_of(since: Option<u64>, waiting: Vec<Entry>) -> Claim {
-    Claim { since, waiting }
+    Claim {
+        since,
+        waiting,
+        replay: Some(crate::ReplayBatch {
+            identity: crate::SubmissionIdentity {
+                producer: "pns-return".into(),
+                request_id: "original-batch".into(),
+            },
+            until: Some(2_000),
+            state: crate::ReplayState::Unsubmitted,
+        }),
+    }
 }
 
 #[test]
@@ -345,3 +371,5 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
     assert_eq!(*posted.delivered.borrow(), ["2 events. recap in #pns"]);
     assert_eq!(*failed.delivered.borrow(), ["2 events"]);
 }
+
+mod handoff;

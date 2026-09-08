@@ -105,8 +105,9 @@ pub(super) const FOCUS: Table = Table {
     name: "focus",
     prose: "# The macOS Focus modes that pns reads as your own instruction not to be\n\
                  # interrupted. While one of them is active, banners, cards and light\n\
-                 # pulses are held back and handed over when it ends; approvals never are,\n\
-                 # and neither is the durable log. A name matches however you capitalised\n\
+                 # pulses are held back and handed over when it ends. Approvals and the\n\
+                 # durable log are unchanged. [delivery] classes can exempt banners and\n\
+                 # phone cards. A Focus name matches however you capitalised\n\
                  # it, a mode's raw modeIdentifier works too, and an empty entry is refused\n\
                  # by name. An unreadable Focus store reads as no Focus, never as silence.\n\
                  # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\

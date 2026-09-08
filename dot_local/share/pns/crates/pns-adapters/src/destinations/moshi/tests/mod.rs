@@ -1,22 +1,24 @@
 use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, herdr_link, webhook_body};
 use crate::destinations::{Delivery, Event};
 use crate::moshi_secret;
+use pns_application::NotificationDestination;
 use pns_domain::routing::ReportMode;
-use std::cell::RefCell;
+use request::delivery_request;
+use std::sync::Mutex;
 
 struct RecordingHttp {
     /// What the endpoint answers. Scripted, the way hermes's recorded post
     /// already carries its outcome: a push that was refused is reachable
     /// no other way, and it is the direction a doctor exists to find.
     answers: bool,
-    posts: RefCell<Vec<(String, String)>>,
+    posts: Mutex<Vec<(String, String)>>,
 }
 
 impl RecordingHttp {
     fn answering(answers: bool) -> Self {
         RecordingHttp {
             answers,
-            posts: RefCell::new(Vec::new()),
+            posts: Mutex::new(Vec::new()),
         }
     }
 }
@@ -24,7 +26,8 @@ impl RecordingHttp {
 impl HttpPost for RecordingHttp {
     fn post_json(&self, url: &str, body: &str) -> bool {
         self.posts
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push((url.to_string(), body.to_string()));
         self.answers
     }
@@ -103,12 +106,10 @@ fn the_link_needs_no_escaping_because_the_guard_already_bounded_its_charset() {
 
 #[test]
 fn the_body_carries_token_title_and_the_preview_as_the_message() {
-    // THE KEY COUNT IS A GUARD, not a formality: nothing rides along with
-    // the secret that was not put there deliberately. It is now asked of
-    // BOTH arms, because the link arm is exactly the edit that could
-    // smuggle a fourth key in unnoticed.
-    for (link, keys) in [(None, 3), (Some("moshi://herdr?pane=wW:p21"), 4)] {
-        let body = webhook_body("tok-1", "a title", "a preview", link);
+    // The key count guards both token-bearing bodies: only the declared
+    // fields belong beside the request id, with or without an action.
+    for (link, keys) in [(None, 4), (Some("moshi://herdr?pane=wW:p21"), 4)] {
+        let body = webhook_body("tok-1", "a title", "a preview", link, "original-42");
         let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed["token"], "tok-1");
         assert_eq!(parsed["title"], "a title");
@@ -126,21 +127,27 @@ fn a_link_rides_as_the_one_url_action_and_no_link_leaves_the_slot_absent() {
     // ONE `data` object holding ONE `type` is what makes url and image
     // mutually exclusive here: a structural limit of the field, not a rule
     // moshi documents.
-    let linked = webhook_body("tok-1", "t", "p", Some("moshi://herdr?pane=wW:p21"));
+    let linked = webhook_body(
+        "tok-1",
+        "t",
+        "p",
+        Some("moshi://herdr?pane=wW:p21"),
+        "original-42",
+    );
     let parsed: serde_json::Value = serde_json::from_str(&linked).unwrap();
     assert_eq!(parsed["data"]["type"], "url");
     assert_eq!(parsed["data"]["url"], "moshi://herdr?pane=wW:p21");
     assert_eq!(
         parsed["data"].as_object().unwrap().len(),
-        2,
-        "one type and one url, never a second action beside them"
+        3,
+        "one type and one url beside the request id, never a second action"
     );
 
-    let plain = webhook_body("tok-1", "t", "p", None);
+    let plain = webhook_body("tok-1", "t", "p", None, "original-42");
     let parsed: serde_json::Value = serde_json::from_str(&plain).unwrap();
     assert!(
-        parsed.get("data").is_none(),
-        "no pane means no action key at all, not an empty one: {plain}"
+        parsed["data"].get("type").is_none() && parsed["data"].get("url").is_none(),
+        "no pane means no action keys; only the request id remains: {plain}"
     );
 }
 
@@ -159,14 +166,14 @@ fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
         },
     ] {
         assert_eq!(
-            channel.deliver(&event(), ReportMode::Silent),
+            channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             Delivery::Failed(
                 "push SKIPPED -- no moshi token in the config ([plugins.mobile] token); \
                      nothing was sent"
                     .to_string()
             )
         );
-        assert!(channel.http.posts.borrow().is_empty());
+        assert!(channel.http.posts.lock().unwrap().is_empty());
     }
 }
 
@@ -191,7 +198,7 @@ fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_th
             url: "https://example.invalid/hook".to_string(),
         };
         assert_eq!(
-            channel.deliver(&event(), ReportMode::Silent),
+            channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             verdict,
             "answered: {answered}"
         );
@@ -201,8 +208,8 @@ fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_th
 #[test]
 fn a_token_posts_once_to_the_url_with_the_preview_never_the_message() {
     let channel = channel_with_settings("token = \"tok-1\"\n");
-    channel.deliver(&event(), ReportMode::Silent);
-    let posts = channel.http.posts.borrow();
+    channel.deliver(&delivery_request(&event(), ReportMode::Silent));
+    let posts = channel.http.posts.lock().unwrap();
     assert_eq!(posts.len(), 1);
     assert_eq!(
         posts[0].0, "https://example.invalid/hook",
@@ -236,17 +243,17 @@ fn the_posted_card_links_to_the_origin_pane_and_a_paneless_one_ships_plain() {
         ("wW:p21 evil&workspace=x", None),
     ] {
         let channel = channel_with_settings("token = \"tok-1\"\n");
-        channel.deliver(
+        channel.deliver(&delivery_request(
             &Event {
                 pane: pane.to_string(),
                 ..event()
             },
             ReportMode::Silent,
-        );
-        let posts = channel.http.posts.borrow();
+        ));
+        let posts = channel.http.posts.lock().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&posts[0].1).unwrap();
         assert_eq!(
-            parsed.get("data").map(|data| data["url"].clone()),
+            parsed["data"].get("url").cloned(),
             action.map(serde_json::Value::from),
             "pane: {pane:?}"
         );
@@ -289,3 +296,5 @@ fn a_closed_port_is_a_quiet_false_never_a_report() {
 }
 
 mod transport;
+
+mod request;

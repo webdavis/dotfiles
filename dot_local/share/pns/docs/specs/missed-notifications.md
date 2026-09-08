@@ -22,7 +22,8 @@ Given two or more short-lived `pns` processes reaching for the same state file a
 
 When one of them has to become the single owner of that file's contents
 
-Then ownership is decided by `rename(2)` onto a name carrying the claimant's process id, or by an exclusive `create_new` open, and never by unlinking the contended path.
+Then ownership is decided by `rename(2)` onto a name carrying the claimant's process id, or by an
+exclusive `create_new` open, and never by unlinking the contended path.
 
 This is the invariant the whole area is built on, and it is measured rather than assumed. The code states
 it in five places:
@@ -86,73 +87,36 @@ only on a path the removing process owns (`FileReturnMoment::complete` removes i
 
 ______________________________________________________________________
 
-### 2. An event the operator could not have perceived is journalled
+### 2. An event with no acknowledged decoration is journaled
 
-Given an event whose plan called for neither a banner nor a phone card, on which nobody was watching the origin pane, and which was not skipped because another route already carried it
+Given an event whose origin pane the operator is not watching, and which was not skipped because another
+route already carried it
 
-When the event path reaches the record site
+When the first delivery attempt finishes
 
-Then one entry is appended to `missed-notifications`, and nothing is printed.
+Then the journal receives the event if no decorative leg reported `Delivery::Delivered`.
 
-`src/missed_notifications.rs:was_missed` is the whole predicate, and it is three clauses over values the
-record site already holds:
-`!overrides.skip_phone && !watching && !decision.plan.banner && !decision.plan.phone_card`, where
-`watching` is `visibility == Visible && surface != Away`. The surface half is what saves the Away row:
-"an away operator is watching nothing, and a desk display showing the origin pane to an empty chair is
-exactly the reading that must not suppress" (`tests/dispatch.rs` counterpart in the module's own unit
-tests:
-`src/missed_notifications.rs:an_away_event_is_missed_even_when_the_session_reported_the_pane_visible`).
-`PNS_SKIP_PHONE` is set exactly when a moshi approval forward really happened, so that card is already on
-the phone and replaying it later "would be actively wrong"
-(`src/missed_notifications.rs:a_card_skipped_because_another_route_already_raised_one_is_not_missed`).
+`crates/pns-domain/src/missed/perception.rs:was_missed` uses actual outcomes. A failed, unlaunched or
+unconfirmed silent decoration remains a miss, even when the plan requested a card. An acknowledged
+durable log alone does not count as perception. One acknowledged decorative leg is enough; destination
+names, report mode and the lights pulse do not decide this predicate. The existing watching and
+skip-phone exclusions remain. A visible pane on an empty desk is not watched.
 
-The predicate is deliberately plan-level and not delivery-level. `src/missed_notifications.rs:was_missed`
-names the two limits that follow: an event narrowed with both `--local-only` and `--remote-only` reaches
-no channel while its plan still says banner, so it is not journalled; and an event whose plan called for
-a card on a machine with no phone channel configured is not journalled either.
+`SubmitNotification::record` passes the original submission identity and the decision's existing clock to
+the journal, then passes the same miss value to `LightsTick::register`. It takes no new presence reading.
+Nudges and observations return before this tail. A storage refusal leaves live delivery intact and
+reports through the existing private state diagnostic, without adding hook output.
 
-- Success:
-  `tests/dispatch.rs:a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_shown` (a
-  muted event: `hermes` still fired, `mobile` did not, exactly one entry, all five fields present, `at`
-  past 1700000000). The negative half is `tests/dispatch.rs:a_delivered_event_journals_nothing_at_all`,
-  which asserts the file does not exist at all on a machine that never missed one.
-- Failure sources: an unwritable state directory; something at the journal's path that is not a regular
-  file; a ring lock held past every attempt; a read-back that fails. All are swallowed.
-- Fail direction: the notification still goes out. `src/main.rs:record_missed` is fail-quiet by design:
-  "An event path whose stdout a harness hook reads must not gain a line about the state directory, and a
-  journal entry that did not land costs a replay, never a card."
-  `tests/dispatch.rs:a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing` asserts exit
-  0, `hermes` fired, empty stdout and empty stderr (the whole stream, not a substring).
-  `tests/dispatch.rs:a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event` asserts
-  the same and that the FIFO is still a FIFO.
-- Thresholds: not applicable. The predicate is boolean over already-held values, with no clock and no
-  count in it.
-- Required side effects: exactly one appended line (the separator rides in the same write, so two racing
-  appends cannot interleave, `src/main.rs:append_ring_line`). The file is created 0600.
-- Forbidden side effects: nothing is printed on stdout or stderr; no second clock read is taken (the
-  epoch is `decision.inputs.now_secs`, "two readings of one moment can disagree",
-  `src/main.rs:record_missed`); the record site never learns that `[recap] replay_card` exists (see
-  behavior 17).
-- Timeout and cancellation: the ring lock is bounded at `RING_LOCK_ATTEMPTS` (200) attempts with a 1 ms
-  sleep between them, and a holder older than `RING_LOCK_STALE_SECS` (5 seconds) is read as an orphan
-  (`src/main.rs:claim_ring_lock`). Giving up returns `WouldBlock` and costs the one entry.
-- Idempotency and duplicates: one event writes at most one entry, at one site, reached only on
-  `Attempt::First` (behavior 3). A miss and a replay are mutually exclusive by construction: the replay
-  predicate requires `plan.banner || plan.phone_card`, which the miss predicate negates
-  (`src/missed_notifications.rs:should_replay`: "a run whose plan decorated nothing is exactly a run that
-  JOURNALS, so a miss and a replay are mutually exclusive by construction: no event can deliver the entry
-  it just wrote").
-- Privacy: the entry holds the operator's own text. The file is created 0600
-  (`src/main.rs:STATE_FILE_MODE`), the module's own header states "no pns command ever prints an entry,
-  and the only thing that reads an entry back is the replayer", and
-  `tests/dispatch.rs:the_journal_is_created_readable_and_writable_by_its_owner_alone` asserts the mode
-  after both the create and the prune.
-- Process ownership and cleanup: the append leaves the ring lock removed on drop (`src/main.rs:HeldLock`)
-  and leaves no pending file behind (`src/main.rs:publish_state_line` removes its pending file if the
-  rename fails).
-- Compatibility contract: `src/missed_notifications.rs:entries` parses by key and never by position, and
-  a missing field reads as empty, so a shorter entry from another build degrades to a thinner card rather
-  than to no card.
+The plan still controls whether a return may attempt replay. A failed live decoration can therefore be
+journaled and included in that return's aggregate. The batch stays retained until the delivery ledger
+accepts ownership; confirmed original delivery removes only its matching keyed miss. See behaviors 46 and
+47 in `persistence-and-process-lifecycle.md` for those transactions.
+
+Coverage includes `failed_unlaunched_and_unconfirmed_decorations_remain_missed`,
+`one_acknowledged_decoration_among_failures_prevents_a_miss`,
+`a_durable_acknowledgement_alone_does_not_prevent_a_miss`,
+`the_journal_receives_the_original_identity_event_and_clock` and
+`an_unconfirmed_decoration_journals_and_passes_the_same_miss_to_lamps`.
 
 ______________________________________________________________________
 
@@ -162,7 +126,8 @@ Given a nudge (`Attempt::Nudge`) or an observation (`Attempt::Observation`) rath
 
 When the event path passes the decision record
 
-Then it returns before the journal, before the activity ring, before `mark_present`, before `replay_missed` and before the pulse.
+Then it returns before the journal, before the activity ring, before `mark_present`, before
+`replay_missed` and before the pulse.
 
 `src/main.rs` states the reason at the gate: "The recap counts activity-ring lines toward `min_events`,
 so a nudge or an observation that rang would inflate the operator's own recap with pns's noise; neither
@@ -193,7 +158,8 @@ Given an event being journalled
 
 When `src/missed_notifications.rs:entry` builds the line
 
-Then it is a single JSON object on one line carrying `at`, `agent`, `state`, `project`, `branch` and `detail`, each text field flattened and capped at the caller's `max_chars`, and nothing else.
+Then it is a single JSON object on one line carrying `at`, `agent`, `state`, `project`, `branch` and
+`detail`, each text field flattened and capped at the caller's `max_chars`, and nothing else.
 
 The journal passes `render::PREVIEW_MAX_CHARS` (260) because "what a card renders without a cut is
 exactly what a replay needs"; the activity ring passes `ACTIVITY_MAX_CHARS` (120) because "a recap line
@@ -295,11 +261,12 @@ Then the operation is refused, the path is left exactly as it was found, and the
 Three separate guards implement this. `src/main.rs:append_ring_line` checks `symlink_metadata` before the
 open, "so a state directory that does not exist yet fails the lock's own exclusive create" and an
 irregular file is "Refused and never repaired: deleting something this tool did not put there, on a path
-it only ever appends to, is a bigger action than skipping one record." `src/system.rs:readable_state_file`
-refuses a non-regular file and a file over `read_max` without reading it, because "A FIFO parks the open
-forever, for READING as much as for writing, which wedges the hook that appended or the command a human
-is waiting on." `src/main.rs:claim_by_rename` verifies after the rename and renames back: "anything that
-is not a regular file goes straight back to the journal's own path, untouched and unread."
+it only ever appends to, is a bigger action than skipping one record."
+`src/system.rs:readable_state_file` refuses a non-regular file and a file over `read_max` without reading
+it, because "A FIFO parks the open forever, for READING as much as for writing, which wedges the hook
+that appended or the command a human is waiting on." `src/main.rs:claim_by_rename` verifies after the
+rename and renames back: "anything that is not a regular file goes straight back to the journal's own
+path, untouched and unread."
 
 - Success:
   `tests/dispatch.rs:a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event`,
@@ -313,8 +280,8 @@ is not a regular file goes straight back to the journal's own path, untouched an
   well. It is never read and never removed."
 - Fail direction: the notification still goes out. All three FIFO tests assert exit 0, the live event
   delivered, and empty stdout and stderr.
-- Thresholds: `readable_state_file` refuses at `found.len() > read_max`, so a file of exactly `RING_READ_MAX`
-  (262,144 bytes) is read and one byte more is refused.
+- Thresholds: `readable_state_file` refuses at `found.len() > read_max`, so a file of exactly
+  `RING_READ_MAX` (262,144 bytes) is read and one byte more is refused.
 - Required side effects: the path still holds what it held. Every FIFO test asserts
   `symlink_metadata(...).file_type().is_fifo()` afterwards.
 - Forbidden side effects: no unlink of a path this tool did not write. No `chmod` of a file found in
@@ -340,7 +307,8 @@ Given a journal on disk
 
 When `pns doctor` runs
 
-Then it prints one line naming how many notifications are waiting, and it leaves the file byte for byte as it found it.
+Then it prints one line naming how many notifications are waiting, and it leaves the file byte for byte
+as it found it.
 
 `src/main.rs:missed_line` reads through `readable_state_file` and hands the contents to
 `src/missed_notifications.rs:waiting_line`, which "COUNTS AND NEVER PARSES, and that is the privacy rule
@@ -417,7 +385,8 @@ Given an event whose surface is not Away and whose plan raised a banner or a pho
 
 When the replay path runs
 
-Then it takes one claim covering both halves of the return (the window's near edge and the journal), and a racer that finds the moment held says nothing at all.
+Then it takes one claim covering both halves of the return (the window's near edge and the journal), and
+a racer that finds the moment held says nothing at all.
 
 `src/main.rs:Moment` is the model, and it is deliberately one value rather than a claim per file: "ONE
 ARBITRATION OVER BOTH HALVES of what a return delivers ... with a claim each the loser of one could still
@@ -486,7 +455,9 @@ Given the rename of `last-present` failed
 
 When `src/main.rs:stranded_window_claim` scans the state directory
 
-Then it answers `Live` for the first claim whose owner is neither this process, nor gone, nor older than the staleness bound; `Abandoned(path)` for the last free one it found; and `None` when there is no claim at all.
+Then it answers `Live` for the first claim whose owner is neither this process, nor gone, nor older than
+the staleness bound; `Abandoned(path)` for the last free one it found; and `None` when there is no claim
+at all.
 
 The scan matches `last-present.claim.` and nothing looser, "which is `stranded_claims`' rule: the journal
 and the turn marker claim themselves in this directory too, and a wider match would hand one of their
@@ -602,7 +573,8 @@ Given a journal at `missed-notifications` and a run that owns the return moment
 
 When `src/main.rs:claim_journal` runs
 
-Then any stranded claim is adopted first (behavior 13), then the journal itself is renamed to `missed-notifications.claim.<pid>`, verified, held (behavior 12), read, and only then given up.
+Then any stranded claim is adopted first (behavior 13), then the journal itself is renamed to
+`missed-notifications.claim.<pid>`, verified, held (behavior 12), read, and only then given up.
 
 `src/main.rs:claim_journal` names the property the ordering exists for: "NOTHING UNDELIVERED IS EVER
 DESTROYED ... What this run cannot read, it leaves; what it cannot give up, it leaves; what it leaves
@@ -630,8 +602,8 @@ calling test process's own id.
 - Success: `tests/dispatch.rs:a_present_event_delivers_one_extra_notification_carrying_the_whole_journal`
   asserts the journal is gone after a delivering run.
   `tests/dispatch.rs:the_claim_never_survives_the_run_whether_the_replay_delivered_or_not` asserts no
-  completed replay leaves no hold; its retained historical name also covers an interrupted replay,
-  which now preserves one held batch byte for byte while the near edge remains restored.
+  completed replay leaves no hold; its retained historical name also covers an interrupted replay, which
+  now preserves one held batch byte for byte while the near edge remains restored.
 - Failure sources: the rename fails (`Nothing`); the claimed path turns out not to be a regular file
   (`Refused`, renamed back); a claim already exists at this run's own name (`LeftForAdoption`); the read
   fails (`LeftForAdoption`, behavior 12).
@@ -640,15 +612,15 @@ calling test process's own id.
   exit 0, the live event alone, empty stdout and stderr, and a FIFO still at the path.
 - Thresholds: `RING_READ_MAX` (256 KiB) is the read ceiling for the claimed batch
   (`src/main.rs:take_claim` passes it).
-- Required side effects: the hold is visible throughout dispatch. `ReturnMoment::complete` consumes
-  it only after the attempt returns, including a failed delivery. An interrupted attempt remains
-  recoverable under the existing owner-liveness adoption rule.
+- Required side effects: the hold is visible throughout dispatch. `ReturnMoment::complete` consumes it
+  only after the attempt returns, including a failed delivery. An interrupted attempt remains recoverable
+  under the existing owner-liveness adoption rule.
 - Forbidden side effects: nothing undelivered is destroyed.
   `tests/dispatch.rs:a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed` plants a
   journal with an undecodable byte and asserts exactly one leftover, byte for byte what was waiting.
-- Timeout and cancellation: the read completes before dispatch, but deletion waits for completion.
-  If dispatch unwinds or the process exits before returning, the hold remains. This does not add
-  invocation retries or change the consume-after-completed-failure policy.
+- Timeout and cancellation: the read completes before dispatch, but deletion waits for completion. If
+  dispatch unwinds or the process exits before returning, the hold remains. This does not add invocation
+  retries or change the consume-after-completed-failure policy.
 - Idempotency and duplicates: exactly one run may deliver a given batch. The one named race:
   `src/main.rs:claim_journal` states "an append that opened the journal path before the rename writes
   into the claimed inode, and is replayed or lost depending on which side of the read it lands. That is
@@ -671,8 +643,8 @@ Given a claim this run has taken
 
 When `src/main.rs:take_claim` runs
 
-Then the claim is renamed to `missed-notifications.held.<pid>.<seq>` first and read second. The
-held file stays on disk until the application completes its replay attempt.
+Then the claim is renamed to `missed-notifications.held.<pid>.<seq>` first and read second. The held file
+stays on disk until the application completes its replay attempt.
 
 The hold name deliberately sits outside the prefix the adoption scan matches, "so nothing can take this
 batch a second time while it is being read. It comes back into that scan only once the process named in
@@ -696,12 +668,12 @@ the coupling; the adoption parses the pid segment alone."
   claim and a good one in the same run and asserts the good one delivers while exactly one held file
   parks.
 - Failure sources: a hold already exists at this name (`LeftForAdoption`); the rename fails (`Nothing`);
-  the read fails (`LeftForAdoption`). A later completion-remove failure leaves the file for adoption;
-  it does not undo an attempt that has already returned.
+  the read fails (`LeftForAdoption`). A later completion-remove failure leaves the file for adoption; it
+  does not undo an attempt that has already returned.
 - Fail direction: the notification still goes out; a failed hold only costs the replay.
 - Thresholds: `RING_READ_MAX` (256 KiB).
-- Required side effects: on a successful read the entries are in memory and the held file is still
-  owned on disk. `a_read_claim_stays_on_disk_for_its_live_owner_until_completion` pins this boundary.
+- Required side effects: on a successful read the entries are in memory and the held file is still owned
+  on disk. `a_read_claim_stays_on_disk_for_its_live_owner_until_completion` pins this boundary.
 - Forbidden side effects: no read before the rename lands. No remove of a file whose read failed.
 - Timeout and cancellation: not applicable; two renames and one bounded read.
 - Idempotency and duplicates: the hold is what makes a second delivery impossible while a live owner is
@@ -723,7 +695,8 @@ Given a claim or a hold left in the state directory by a run that did not finish
 
 When the next return moment claims the journal
 
-Then `src/main.rs:stranded_claims` collects them oldest first, and each is taken through `take_claim` before the journal's own name is claimed.
+Then `src/main.rs:stranded_claims` collects them oldest first, and each is taken through `take_claim`
+before the journal's own name is claimed.
 
 Two different admission rules apply, and the difference matters:
 
@@ -1034,7 +1007,8 @@ Given an event `was_missed` returns true for
 
 When the lights tick is registered
 
-Then the lease is `JOURNALLED_LEASE_SECS` (twelve hours) rather than `ORDINARY_LEASE_SECS` (five minutes).
+Then the lease is `JOURNALLED_LEASE_SECS` (twelve hours) rather than `ORDINARY_LEASE_SECS` (five
+minutes).
 
 `src/main.rs:JOURNALLED_LEASE_SECS`: "a journalled one ... is an operator who is away or muted. The glow
 has to survive the whole absence, and the absence is precisely when no further event arrives to refresh

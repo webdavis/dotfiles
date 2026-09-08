@@ -1,0 +1,3 @@
+**Security-posture monitor degraded**
+- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor.
+- Check the state directory free space and permissions. **Check now.**

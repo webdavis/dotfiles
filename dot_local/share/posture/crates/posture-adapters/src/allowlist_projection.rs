@@ -1,7 +1,5 @@
-mod input;
-mod number;
 mod query;
-use input::ProjectionInput;
+use crate::legacy_json::{ProjectionInput, command_text};
 use posture_application::SourceLine;
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
@@ -21,11 +19,6 @@ pub(super) fn source_line(raw: Vec<u8>) -> SourceLine {
         .and_then(|value| input.scalar(value))
         .map(command_text);
     SourceLine::Object { label, raw }
-}
-fn command_text(mut value: String) -> String {
-    value.retain(|character| character != '\0');
-    value.truncate(value.trim_end_matches('\n').len());
-    value
 }
 pub(super) use query::identity as query_identity;
 

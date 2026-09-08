@@ -4,7 +4,9 @@ use pns_domain::{
     doctor::{Check, LightsReport, Outcome, PairingReport},
     routing::Leg,
 };
+mod imports;
 mod sections;
+pub use imports::ImportFailure;
 
 pub struct RunDoctor<'a, R, C> {
     pub checks: &'a [Check],
@@ -14,7 +16,7 @@ pub struct RunDoctor<'a, R, C> {
     pub nag_after_secs: u64,
 }
 
-pub struct DoctorActions<D, P, PR, PA, F, DA, L> {
+pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H> {
     pub deliver: D,
     pub pulse: P,
     pub presence: PR,
@@ -22,12 +24,14 @@ pub struct DoctorActions<D, P, PR, PA, F, DA, L> {
     pub focus: F,
     pub daemon: DA,
     pub lamps: L,
+    pub imports: I,
+    pub delivery_health: H,
 }
 
 impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
-    pub fn run<D, P, PR, PA, F, DA, L>(
+    pub fn run<D, P, PR, PA, F, DA, L, I, H>(
         &self,
-        mut actions: DoctorActions<D, P, PR, PA, F, DA, L>,
+        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H>,
         mut print: impl FnMut(&str),
     ) -> i32
     where
@@ -38,6 +42,8 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         F: FnOnce() -> String,
         DA: FnOnce() -> String,
         L: FnOnce() -> LightsReport,
+        I: FnOnce() -> Result<Vec<ImportFailure>, String>,
+        H: FnOnce() -> Result<crate::DeliveryHealth, String>,
     {
         let checks = self.checks;
         let event = pns_domain::EventArgs {
@@ -147,6 +153,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
+        print(&crate::delivery_health_line((actions.delivery_health)()));
         for line in sections::decision_section(self.records, self.clock.now_secs()) {
             print(&line);
         }
@@ -154,6 +161,10 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // second to last: an unreplayed journal is not a failure, so it sits under
         // the one section that already cannot move the exit code.
         print(&sections::missed_line(self.records, self.replay_card));
+        // Import failures are recoverable history, not a destination health grade.
+        for line in imports::lines((actions.imports)()) {
+            print(&line);
+        }
         // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
         // not health: an empty log on a fresh machine is not a failure, and
         // neither is one nothing could read. The pairing IS health and does move

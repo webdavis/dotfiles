@@ -20,3 +20,5 @@ mod audit;
 pub use audit::record_policy_settings_change;
 
 pub use lamp_state::FileLampState;
+
+pub(crate) use audit::POLICY_SETTINGS_AUDIT_KEPT;

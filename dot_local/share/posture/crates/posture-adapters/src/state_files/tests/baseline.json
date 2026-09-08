@@ -1,0 +1,242 @@
+[
+  {
+    "name": "valid",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}"
+    ],
+    "seconds": 0.03128895797999576,
+    "stderr": ""
+  },
+  {
+    "name": "numeric",
+    "input": "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "2",
+      "0",
+      "1",
+      "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1}"
+    ],
+    "seconds": 0.023302083020098507,
+    "stderr": ""
+  },
+  {
+    "name": "wrong-mode",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 416,
+    "fields": [
+      "0",
+      "640",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}"
+    ],
+    "seconds": 0.029206749983131886,
+    "stderr": ""
+  },
+  {
+    "name": "multiple",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}} {}",
+    "mode": 384,
+    "fields": [
+      "0",
+      "600",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.023189417028333992,
+    "stderr": ""
+  },
+  {
+    "name": "wrong-shape",
+    "input": "[]",
+    "mode": 384,
+    "fields": [
+      "0",
+      "600",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.023208291037008166,
+    "stderr": ""
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "mode": 384,
+    "fields": [
+      "0",
+      "600",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.022981665970291942,
+    "stderr": ""
+  },
+  {
+    "name": "out-of-domain",
+    "input": "{\"firewall\":3,\"gatekeeper\":0,\"screenlock\":1}",
+    "mode": 384,
+    "fields": [
+      "0",
+      "600",
+      "3",
+      "0",
+      "1",
+      "{\"firewall\":3,\"gatekeeper\":0,\"screenlock\":1}"
+    ],
+    "seconds": 0.022161457978654653,
+    "stderr": ""
+  },
+  {
+    "name": "duplicate",
+    "input": "{\"firewall\":0,\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1,\"extra\":NaN}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1,\"extra\":null}"
+    ],
+    "seconds": 0.022949416015762836,
+    "stderr": ""
+  },
+  {
+    "name": "legacy-numbers",
+    "input": "{\"firewall\":01,\"gatekeeper\":001,\"screenlock\":00,\"extra\":Infinity}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "1",
+      "1",
+      "0",
+      "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"extra\":1.7976931348623157e+308}"
+    ],
+    "seconds": 0.02278604102320969,
+    "stderr": ""
+  },
+  {
+    "name": "bom",
+    "input": "\ufeff{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}"
+    ],
+    "seconds": 0.02299320901511237,
+    "stderr": ""
+  },
+  {
+    "name": "unreadable",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 0,
+    "fields": [
+      "0",
+      "0",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.018801791011355817,
+    "stderr": "/private/tmp/pstate-adsjqro1/captures/baseline-unreadable/run.sh: line 11: /private/tmp/pstate-adsjqro1/captures/baseline-unreadable/state: Permission denied\n"
+  },
+  {
+    "name": "missing",
+    "input": null,
+    "mode": null,
+    "fields": [
+      "0",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.0027376250363886356,
+    "stderr": ""
+  },
+  {
+    "name": "directory",
+    "input": null,
+    "mode": null,
+    "fields": [
+      "0",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.0023620420251972973,
+    "stderr": ""
+  },
+  {
+    "name": "fifo",
+    "input": null,
+    "mode": null,
+    "fields": [
+      "0",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "seconds": 0.0025862500187940896,
+    "stderr": ""
+  },
+  {
+    "name": "symlink",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 384,
+    "fields": [
+      "0",
+      "755",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"extra\":{\"z\":0,\"a\":1}}"
+    ],
+    "seconds": 0.02544583403505385,
+    "stderr": ""
+  },
+  {
+    "name": "targeted-prior",
+    "input": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"old:target\":\"/Applications/Old.app/Contents/MacOS/Old\",\"extra\":{\"z\":0,\"a\":1}}",
+    "mode": 384,
+    "fields": [
+      "1",
+      "600",
+      "1",
+      "1",
+      "1",
+      "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"old:target\":\"/Applications/Old.app/Contents/MacOS/Old\",\"extra\":{\"z\":0,\"a\":1}}"
+    ],
+    "seconds": 0.03377799998270348,
+    "stderr": ""
+  }
+]

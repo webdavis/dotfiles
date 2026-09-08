@@ -34,9 +34,10 @@ use std::process::{Command, Stdio};
 /// A spawn that failed must never leave a card pointing at a recap nobody is
 /// writing.
 ///
-/// A CHILD THAT DIES COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
-/// supervises it: the activity ring is not consumed, the marker has already
-/// moved, and the card already carried the counts.
+/// A CHILD THAT DIES COSTS ONE RECAP AND NOTHING ELSE: the activity ring is
+/// not consumed, the marker has already moved, and the card carried the counts.
+/// The recap arms its own finite lifetime before reading sources; that owner
+/// survives this producer's exit or group termination.
 pub fn spawn_recap(since: u64, until: u64) -> bool {
     let Ok(binary) = std::env::current_exe() else {
         return false;
@@ -56,11 +57,30 @@ pub fn spawn_recap(since: u64, until: u64) -> bool {
     // which nobody is behind to interrupt here: a wedged gateway would keep
     // this process alive for good, and every later window would add another.
     if remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()).is_none() {
-        child.env("PNS_REMOTE_TIMEOUT", RECAP_DEADLINE_SECS);
+        child.env("PNS_REMOTE_TIMEOUT", RECAP_DEADLINE_SECS.to_string());
     }
     child.spawn().is_ok()
 }
 /// The deadline a detached recap falls back to when the environment asked for
 /// none. Generous, because nobody is waiting on this process; finite, because
 /// nobody is watching it either.
-const RECAP_DEADLINE_SECS: &str = "30";
+const RECAP_DEADLINE_SECS: u64 = 30;
+
+/// Bound the complete recap operation, including work before summarization.
+pub fn run_recap_bounded(operation: impl FnOnce() -> i32) -> i32 {
+    recap_with_deadline(
+        std::time::Instant::now() + std::time::Duration::from_secs(RECAP_DEADLINE_SECS),
+        operation,
+    )
+}
+
+fn recap_with_deadline(expires_at: std::time::Instant, operation: impl FnOnce() -> i32) -> i32 {
+    let Ok(_lifetime) = crate::process::Group::for_recap(expires_at) else {
+        return 1;
+    };
+    operation()
+}
+
+#[cfg(test)]
+#[path = "recap_child/tests.rs"]
+mod tests;

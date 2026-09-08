@@ -3,8 +3,10 @@
 //! The request and result envelopes define the planned `pns submit --json`
 //! boundary. Each carries a schema identifier with a major version, a request
 //! identifier and typed outcomes or signals. Requests retain producer-specific
-//! data under `extensions`. Both envelopes enforce the same byte, field,
-//! text, collection and nesting limits.
+//! data under `extensions`. The egress envelope carries that request's id
+//! and the rendered event, whose body preserves the executable-channel JSON.
+//! All envelopes enforce the same byte, field, text, collection and nesting
+//! limits.
 //!
 //! It is responsible for no behavior behind those envelopes. It holds no
 //! policy, no transport, no persistence, and no view of the domain model: an
@@ -30,12 +32,14 @@
 //!   are advisory, while dropping destination outcomes would hide deliveries.
 
 mod bounds;
+mod egress;
 mod envelope;
 mod identifiers;
 mod request;
 mod result;
 
 pub use bounds::{MAX_BYTES, MAX_DEPTH, MAX_FIELDS, MAX_ITEMS, MAX_TEXT_CHARS, Violation};
+pub use egress::{EgressEnvelope, EgressMode, RenderedEvent, decode as decode_egress};
 pub use envelope::{Rejected, Rejection};
 pub use identifiers::{InvalidIdentifier, NAME_MAX_CHARS, Name, REQUEST_ID_MAX_CHARS, RequestId};
 pub use request::{

@@ -1,0 +1,624 @@
+[
+  {
+    "name": "ordinary-eight",
+    "responses": [
+      {
+        "out": "<plist/>\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "FileVault is On.\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "System Integrity Protection status: disabled.\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 1,
+        "err": "autoLoginUser) does not exist\n"
+      },
+      {
+        "out": "",
+        "exit": 0,
+        "err": "Guest account disabled.\n"
+      },
+      {
+        "out": "123\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 1,
+        "err": ""
+      },
+      {
+        "out": "<string>/A &amp; &lt;B&gt;</string>\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "/resolved & path\n",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "<string>/resolved &amp; path</string>\n",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "on",
+      "disabled",
+      "off",
+      "disabled",
+      "running",
+      "stopped",
+      "present",
+      "present"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/fdesetup",
+        "status"
+      ],
+      [
+        "/usr/bin/csrutil",
+        "status"
+      ],
+      [
+        "/usr/bin/defaults",
+        "read",
+        "/Library/Preferences/com.apple.loginwindow",
+        "autoLoginUser"
+      ],
+      [
+        "/usr/sbin/sysadminctl",
+        "-guestAccount",
+        "status"
+      ],
+      [
+        "/usr/bin/pgrep",
+        "-x",
+        "-U",
+        "501",
+        "OverSight"
+      ],
+      [
+        "/usr/bin/pgrep",
+        "-x",
+        "-U",
+        "0",
+        "com.objective-see.lulu.extension"
+      ],
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/rules.plist"
+      ],
+      [
+        "/usr/bin/readlink",
+        "-f",
+        "/launcher with space"
+      ],
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/rules.plist"
+      ]
+    ],
+    "seconds": 0.2859442920307629,
+    "stderr": "",
+    "controls": [
+      [
+        "fdesetup_status",
+        ""
+      ],
+      [
+        "csrutil_status",
+        ""
+      ],
+      [
+        "defaults_autologin",
+        ""
+      ],
+      [
+        "sysadminctl_guest",
+        ""
+      ],
+      [
+        "pgrep_oversight",
+        ""
+      ],
+      [
+        "pgrep_lulu_extension",
+        ""
+      ],
+      [
+        "lulu_rule_present",
+        "/A & <B>"
+      ],
+      [
+        "lulu_rule_resolved_present",
+        "/launcher with space"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "failed-ordinary",
+    "responses": [
+      {
+        "out": "FileVault is On.\n",
+        "exit": 2,
+        "err": ""
+      },
+      {
+        "out": "System Integrity Protection status: enabled.\n",
+        "exit": 2,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 2,
+        "err": "permission denied\n"
+      },
+      {
+        "out": "",
+        "exit": 2,
+        "err": "Guest account enabled.\n"
+      },
+      {
+        "out": "123\n",
+        "exit": 1,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "indeterminate",
+      "indeterminate",
+      "indeterminate",
+      "indeterminate",
+      "indeterminate",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/fdesetup",
+        "status"
+      ],
+      [
+        "/usr/bin/csrutil",
+        "status"
+      ],
+      [
+        "/usr/bin/defaults",
+        "read",
+        "/Library/Preferences/com.apple.loginwindow",
+        "autoLoginUser"
+      ],
+      [
+        "/usr/sbin/sysadminctl",
+        "-guestAccount",
+        "status"
+      ],
+      [
+        "/usr/bin/pgrep",
+        "-x",
+        "-U",
+        "501",
+        "OverSight"
+      ],
+      [
+        "/usr/bin/pgrep",
+        "-x",
+        "-U",
+        "0",
+        "com.objective-see.lulu.extension"
+      ]
+    ],
+    "seconds": 0.16702691605314612,
+    "stderr": "",
+    "controls": [
+      [
+        "fdesetup_status",
+        ""
+      ],
+      [
+        "csrutil_status",
+        ""
+      ],
+      [
+        "defaults_autologin",
+        ""
+      ],
+      [
+        "sysadminctl_guest",
+        ""
+      ],
+      [
+        "pgrep_oversight",
+        ""
+      ],
+      [
+        "pgrep_lulu_extension",
+        ""
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "profile-active",
+    "responses": [
+      {
+        "out": "<key>currentProfile</key><string></string>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "FileVault is On.\n",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "profile_active",
+      "indeterminate",
+      "on",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/fdesetup",
+        "status"
+      ]
+    ],
+    "seconds": 0.058865749975666404,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ],
+      [
+        "fdesetup_status",
+        ""
+      ],
+      [
+        "lulu_rule_resolved_present",
+        "/b"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "profile-unreadable",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 2,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "indeterminate",
+      "indeterminate",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ]
+    ],
+    "seconds": 0.031693541968706995,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ],
+      [
+        "lulu_rule_resolved_present",
+        "/b"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "profile-empty",
+    "responses": [
+      {
+        "out": "",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "indeterminate",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ]
+    ],
+    "seconds": 0.03267787501681596,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "archive-empty",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/rules.plist"
+      ]
+    ],
+    "seconds": 0.05903295800089836,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "archive-failed",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "<string>/a</string>",
+        "exit": 2,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/rules.plist"
+      ]
+    ],
+    "seconds": 0.06178362498758361,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "archive-longer-path",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "<string>/a/more</string>",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "absent"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/rules.plist"
+      ]
+    ],
+    "seconds": 0.06663737498456612,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "resolution-empty",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/readlink",
+        "-f",
+        "/a"
+      ]
+    ],
+    "seconds": 0.07250095799099654,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_resolved_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  },
+  {
+    "name": "resolution-failed",
+    "responses": [
+      {
+        "out": "<plist/>",
+        "exit": 0,
+        "err": ""
+      },
+      {
+        "out": "/resolved\n",
+        "exit": 2,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "no_profile",
+      "indeterminate"
+    ],
+    "calls": [
+      [
+        "/usr/bin/plutil",
+        "-convert",
+        "xml1",
+        "-o",
+        "-",
+        "/fixture/preferences.plist"
+      ],
+      [
+        "/usr/bin/readlink",
+        "-f",
+        "/a"
+      ]
+    ],
+    "seconds": 0.0586544590187259,
+    "stderr": "",
+    "controls": [
+      [
+        "lulu_rule_resolved_present",
+        "/a"
+      ]
+    ],
+    "uid": 501
+  }
+]

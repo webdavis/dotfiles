@@ -1,9 +1,10 @@
 //! Carrying a signal outward: the destinations, and the approval round trip.
 
-use pns_domain::Event;
+use crate::{DeliveryRequest, DestinationId};
 use pns_domain::EventArgs;
 use pns_domain::lamps::config::Behaviour;
-use pns_domain::routing::{Delivery, Leg, ReportMode};
+use pns_domain::registry::Routing;
+use pns_domain::routing::{Delivery, Leg};
 use pns_domain::{Decision, Snapshot};
 
 /// One destination a rendered event can reach.
@@ -20,8 +21,10 @@ use pns_domain::{Decision, Snapshot};
 /// event. Statements: S126, S128.
 /// Checked against `dispatch_legs` (`src/main.rs:3434`), which walks the legs
 /// and pairs each with what its destination answered.
-pub trait NotificationDestination {
-    fn deliver(&self, event: &Event, mode: ReportMode) -> Delivery;
+pub trait NotificationDestination: Send + Sync {
+    fn id(&self) -> &DestinationId;
+    fn capabilities(&self) -> Routing;
+    fn deliver(&self, request: &DeliveryRequest<'_>) -> Delivery;
 }
 
 /// Submit the original harness payload and complete that submission, bounded.
@@ -95,13 +98,23 @@ pub trait RecapPublisher {
 /// legs the plan already chose; which destination each leg names, and how the
 /// event becomes a card, are the dispatcher's.
 ///
-/// It returns after the attempt completes. The caller then releases the
-/// journal holds even when delivery failed; durable outcomes and retry policy
-/// belong to the delivery ledger, not this legacy replay capability.
+/// Queued proves durable ledger ownership, including an existing submission.
+/// A failed or unpersisted handoff retains the journal. The ledger owns retry.
 ///
 /// Checked against `replay_missed`'s closing call into `dispatch_legs`
 /// (`src/main.rs`), which passes the synthesized event, the decision's legs
 /// and `pane_dropped` false. Statements: S106.
 pub trait ReplayDelivery {
-    fn deliver(&self, event: &EventArgs, legs: &[Leg]);
+    fn deliver(
+        &self,
+        identity: &crate::SubmissionIdentity,
+        event: &EventArgs,
+        legs: &[Leg],
+    ) -> ReplayHandoff;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayHandoff {
+    Queued,
+    Retained,
 }

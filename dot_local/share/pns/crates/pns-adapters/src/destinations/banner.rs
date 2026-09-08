@@ -10,9 +10,10 @@
 //! own three-part suppression here, which meant two places could disagree
 //! about the same event.
 
-use super::{Delivery, Event};
+use super::Delivery;
 use pns_application::CommandRunner;
-use pns_domain::routing::ReportMode;
+use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
+use pns_domain::registry::Routing;
 
 /// The bundle id the click activates when the pane's terminal is unknown.
 pub const DEFAULT_TERMINAL_BUNDLE_ID: &str = "com.mitchellh.ghostty";
@@ -61,24 +62,24 @@ pub fn verbatim_argument(text: &str) -> String {
 /// The exact terminal-notifier argv, order pinned: title, message, sound,
 /// activate, execute. The title and the message are both operator-facing text,
 /// so both go out through [`verbatim_argument`].
-pub fn notifier_args(title: &str, preview: &str, activate: &str, exec_cmd: &str) -> Vec<String> {
-    let encoded_title = verbatim_argument(title);
-    let encoded_preview = verbatim_argument(preview);
-    [
-        "-title",
-        encoded_title.as_str(),
-        "-message",
-        encoded_preview.as_str(),
-        "-sound",
-        "default",
-        "-activate",
-        activate,
-        "-execute",
-        exec_cmd,
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect()
+pub fn notifier_args(
+    title: &str,
+    preview: &str,
+    sound: Option<&str>,
+    activate: &str,
+    exec_cmd: &str,
+) -> Vec<String> {
+    let mut args = vec![
+        "-title".to_string(),
+        verbatim_argument(title),
+        "-message".to_string(),
+        verbatim_argument(preview),
+    ];
+    if let Some(sound) = sound {
+        args.extend(["-sound".to_string(), sound.to_string()]);
+    }
+    args.extend(["-activate", activate, "-execute", exec_cmd].map(String::from));
+    args
 }
 
 /// The native banner plugin: a spawn, and the click that focuses the pane.
@@ -92,7 +93,21 @@ pub struct BannerChannel<R: CommandRunner> {
     pub herdr_path: Option<String>,
 }
 
-impl<R: CommandRunner> BannerChannel<R> {
+impl<R: CommandRunner + Send + Sync> NotificationDestination for BannerChannel<R> {
+    fn id(&self) -> &DestinationId {
+        const ID: DestinationId = DestinationId::new("macos-banner");
+        &ID
+    }
+
+    fn capabilities(&self) -> Routing {
+        Routing {
+            local: true,
+            presence_gated: false,
+            durable: false,
+            event_dispatched: true,
+        }
+    }
+
     /// WHETHER THE SPAWN ANSWERED, which is the whole of what this channel can
     /// know: a banner has no second surface to report itself on, and the
     /// runner answers nothing for a notifier that is not installed and for one
@@ -101,7 +116,8 @@ impl<R: CommandRunner> BannerChannel<R> {
     /// NO EVENT HEARS IT. `ReportOutcome` is produced only under
     /// `--remote-only`, which selects durable plugins, and this one is not
     /// durable, so the sentence is unreachable from an event's stdout.
-    pub fn deliver(&self, event: &Event, _mode: ReportMode) -> Delivery {
+    fn deliver(&self, request: &DeliveryRequest<'_>) -> Delivery {
+        let event = request.event;
         let activate = if self.terminal_id.is_empty() {
             DEFAULT_TERMINAL_BUNDLE_ID
         } else {
@@ -110,6 +126,7 @@ impl<R: CommandRunner> BannerChannel<R> {
         let args = notifier_args(
             &event.title,
             &event.preview,
+            (event.state != "observation").then_some("default"),
             activate,
             &click_command(self.herdr_path.as_deref(), &event.pane),
         );

@@ -1,0 +1,236 @@
+{
+  "errors": [],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "type": "room",
+      "children": [],
+      "metadata": {
+        "name": "3F - Studio",
+        "archetype": "office"
+      },
+      "services": [
+        {
+          "rid": "00000000-0000-0000-0000-000000000002",
+          "rtype": "grouped_light"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "type": "grouped_light",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "on": {
+        "on": true
+      },
+      "dimming": {
+        "brightness": 42.75
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "type": "room",
+      "children": [],
+      "metadata": {
+        "name": "3F - Master Bedroom",
+        "archetype": "office"
+      },
+      "services": [
+        {
+          "rid": "00000000-0000-0000-0000-000000000004",
+          "rtype": "grouped_light"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "type": "grouped_light",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000003",
+        "rtype": "room"
+      },
+      "on": {
+        "on": false
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000020",
+      "type": "room",
+      "children": [],
+      "metadata": {
+        "name": "2F - Kitchen",
+        "archetype": "office"
+      },
+      "services": [
+        {
+          "rid": "00000000-0000-0000-0000-000000000021",
+          "rtype": "grouped_light"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000021",
+      "type": "grouped_light",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000020",
+        "rtype": "room"
+      },
+      "on": {
+        "on": false
+      },
+      "dimming": {
+        "brightness": 50
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000005",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000003",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "Read"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000003",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "static"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000006",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "Read"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "static"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000007",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "Dimmed"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "dynamic_palette"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000008",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "Energize"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "inactive"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000009",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "Concentrate"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "inactive"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000010",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "CC Halo Amber"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "inactive"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000011",
+      "type": "scene",
+      "owner": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "metadata": {
+        "name": "CC Halo Daylight"
+      },
+      "group": {
+        "rid": "00000000-0000-0000-0000-000000000001",
+        "rtype": "room"
+      },
+      "status": {
+        "active": "inactive"
+      },
+      "actions": [],
+      "speed": 0.5,
+      "auto_dynamic": false
+    }
+  ]
+}

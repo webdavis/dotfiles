@@ -67,3 +67,56 @@ fn an_absent_or_due_lights_tick_starts_one_refresh_out_with_a_valid_lease() {
         assert_eq!(jobs[0].unless_marker, None);
     }
 }
+
+fn decision(now: Option<u64>) -> pns_domain::Decision {
+    use pns_domain::surface::{DeliveryPlan, Surface, Visibility};
+    use pns_domain::{Decision, GateInputs};
+    Decision {
+        legs: Vec::new(),
+        pane_dropped: false,
+        plan: DeliveryPlan {
+            banner: true,
+            phone_card: true,
+            pulse: true,
+        },
+        inputs: GateInputs {
+            desk_input_age: None,
+            phone_input_age: None,
+            marker_age: None,
+            screen_locked: None,
+            desk_fresh_secs: None,
+            surface: Surface::Away,
+            session_visibility: Visibility::Hidden,
+            visibility: Visibility::Hidden,
+            now_secs: now,
+            long_running: false,
+            mobile_watch_card: false,
+            scope: pns_domain::DeliveryScope::Automatic,
+            pane_present: true,
+        },
+    }
+}
+
+#[test]
+fn registration_uses_the_actual_miss_answer_for_both_lease_lengths() {
+    let lights = pns_domain::lamps::config::Lights::default();
+    for (actual_miss, expected) in [(true, 43_300), (false, 400)] {
+        let spool = Spool::default();
+        register_lights_tick(&spool, Some(&lights), &decision(Some(100)), actual_miss);
+        let jobs = spool.written.borrow();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].until, expected);
+        assert_eq!(jobs[0].due, 100 + lights.refresh_secs);
+    }
+}
+
+#[test]
+fn no_clock_or_no_lights_does_not_register_either_lease() {
+    let lights = pns_domain::lamps::config::Lights::default();
+    for actual_miss in [false, true] {
+        let spool = Spool::default();
+        register_lights_tick(&spool, Some(&lights), &decision(None), actual_miss);
+        register_lights_tick(&spool, None, &decision(Some(100)), actual_miss);
+        assert!(spool.written.borrow().is_empty());
+    }
+}

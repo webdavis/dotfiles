@@ -24,6 +24,13 @@ impl World {
         }
     }
     pub fn run(&self, prepare: bool) -> i32 {
+        self.run_with_retry(prepare, |_| Ok(()))
+    }
+    pub fn run_with_retry(
+        &self,
+        prepare: bool,
+        mut retry: impl FnMut(u64) -> Result<(), String>,
+    ) -> i32 {
         RunDaemon {
             settings: self,
             clock: self,
@@ -42,6 +49,7 @@ impl World {
                     self.log.borrow_mut().push("sleep".into())
                 }))
             },
+            |now, _| retry(now),
             |notice| {
                 self.log.borrow_mut().push(match notice {
                     DaemonNotice::Output(line) => format!("out:{line}"),
