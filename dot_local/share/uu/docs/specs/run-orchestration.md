@@ -229,3 +229,14 @@ for these retained limits.
 - **Given** the custom roster, **when** capturing it, **then** require one version 2 document with typed
   tables and a nonempty npx/clawhub union. Refuse conflicting Hermes registry/profile ownership and
   refuse publication if the original roster bytes changed.
+
+## Skills generations
+
+- **Given** a candidate build, **when** starting, **then** capture the updater executable digest before
+  mutation. Ready metadata records its directory id, creation time, roster digest, updater digest and
+  full/additive mode. Recovery offers only compatible full candidates for weekly validation; missing or
+  incompatible metadata stays retained.
+- **Given** an interrupted exchange, **when** recovering, **then** finish the atomic directory swap and
+  retain the outgoing generation and its skill names until pruning finishes. A retention failure keeps
+  the marker and workspace. After pruning, reclaim the owned installer workspace, resume interrupted
+  garbage removal and keep exactly one previous generation.

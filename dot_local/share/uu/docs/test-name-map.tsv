@@ -406,3 +406,17 @@ added	-	lanes::skills::roster::tests::a_roster_that_changed_mid_run_refuses_the_
 added	-	lanes::skills::roster::tests::a_roster_tracking_zero_skills_is_refused_as_corruption_not_intent	new	ok	E5: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::roster::tests::a_skill_in_both_hermes_registry_and_a_non_empty_hermes_profiles_row_is_refused	new	ok	E5: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::roster::tests::the_tracked_set_is_the_union_of_the_npx_and_clawhub_tables	new	ok	E5: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_candidate_without_its_ready_marker_is_incomplete_and_never_published	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_generation_whose_metadata_id_disagrees_with_its_directory_is_refused	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::a_recovered_complete_candidate_built_from_the_current_roster_is_reused	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_additive_bootstrap_candidate_is_never_reused_as_a_full_weekly_refresh	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_exchange_swaps_two_directories_atomically_and_both_paths_keep_resolving	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_in_flight_exchange_marker_is_finished_on_the_next_run	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::an_interrupted_garbage_sweep_finishes_without_reusing_its_tree	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::different_updater_content_at_the_same_package_version_refuses_candidate_reuse	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::exactly_one_previous_generation_is_retained_and_older_ones_are_swept	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::failed_prior_generation_retention_keeps_the_marker_and_workspace_out_of_the_sweep	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::publication_cleanup_resumes_after_its_empty_workspace_was_already_removed	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::publication_cleanup_sweeps_the_owned_installer_workspace_after_pruning	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::recovery_keeps_outgoing_ownership_evidence_until_delisted_pruning_finishes	new	ok	E6: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::generation::tests::replacement_after_startup_does_not_change_the_captured_updater_identity	new	ok	E6: skills behavior, fail-first and actual source fault

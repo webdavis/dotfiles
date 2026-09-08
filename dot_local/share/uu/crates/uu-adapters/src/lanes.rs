@@ -16,7 +16,10 @@ mod skills;
 mod spawn;
 mod text;
 mod uv;
-pub use skills::{HermesRegistryEntry, SkillsRoster};
+pub use skills::{
+    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsGenerationStore,
+    SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
+};
 
 pub use spawn::{CommandRunner, Ran, Verdict};
 pub use text::failure_reason;
