@@ -8,18 +8,12 @@ packages:
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename
       repo: iurysza/herdr-tab-smart-rename
-    - id: herdr-sidebar
-      repo: alexarthurs/herdr-sidebar/plugins/herdr-sidebar
     - id: persiyanov.reviewr
       repo: persiyanov/herdr-reviewr
-    - id: herdr-workflows
-      repo: aorumbayev/herdr-workflows
     - id: herdr-bar
       repo: jeffarese/herdr-bar
     - id: chmarax.herdr-nvim
       repo: ChmaraX/herdr-nvim
-    - id: herdr-file-viewer
-      repo: smarzban/herdr-file-viewer
   macos:
     homebrew:
       taps:
@@ -28,7 +22,6 @@ packages:
         - cirruslabs/cli
         - eugene1g/safehouse
         - felixkratz/formulae
-        - lmilojevicc/tap
         - mediosz/tap
         - nikitabobko/tap
         - openhue/cli
@@ -53,7 +46,6 @@ packages:
         - cirruslabs/cli
         - eugene1g/safehouse
         - felixkratz/formulae
-        - lmilojevicc/tap
         - mediosz/tap
         - nikitabobko/tap
         - openhue/cli
@@ -131,7 +123,6 @@ packages:
         - just
         - lazydocker
         - librsvg
-        - lmilojevicc/tap/seshagy
         - luacheck
         - mas
         - mosh
