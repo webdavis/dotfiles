@@ -20,7 +20,7 @@ before the first stopping point.
 - [ ] 2. Commit and push the failure-reporting spec
 - [ ] 3. Push `feat/nvim-pns-wiring` (Neovim task 26, pns.nvim), PR, merge
 - [ ] 4. Push `feat/uu-tooling-e12-e17` (7 commits), PR, merge
-- [ ] 5. Merge main into PR #448 (herdr), merge
+- [x] 5. Merge main into PR #448 (herdr), merge
 - [ ] 6. Pre-apply verification: build pns and posture, headless Neovim start, zero stderr
 
 ### STOP POINT A
