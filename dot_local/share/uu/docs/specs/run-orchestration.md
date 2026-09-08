@@ -276,6 +276,17 @@ for these retained limits.
   delisted links and quarantine only outgoing-owned delisted real directories. Foreign entries survive.
   Replace a tracked real directory only after its recorded content was absorbed, and report a writer
   whose content changed or was never recorded. Additive publication preserves existing entries.
-- **Given** an interrupted publication, **when** pruning or workspace cleanup fails, **then** retain
-  the journal and outgoing ownership until a retry finishes both. Quarantined store content remains
-  available under `.agents/.skills-quarantine/<generation>/<name>`.
+- **Given** an interrupted publication, **when** pruning or workspace cleanup fails, **then** retain the
+  journal and outgoing ownership until a retry finishes both. Quarantined store content remains available
+  under `.agents/.skills-quarantine/<generation>/<name>`.
+
+## Skills delivery links
+
+- **Given** the reconciled store, **when** delivering skills, **then** Claude receives each surviving
+  skill unless its delivery row says `none`. Hermes receives only its mapped profiles, excluding
+  `humanizer` and `hyperframes`. Preserved foreign skills remain eligible.
+- **Given** a missing destination, **when** either mode delivers links, **then** create its parents
+  first. Refuse a Hermes profile parent or skills child that is a symlink before writing through it.
+- **Given** mapped and existing Hermes profiles, **when** full convergence runs, **then** repair
+  incorrect owned links and remove stale owned links, including in demapped profiles. Additive
+  convergence preserves existing entries. Both modes preserve foreign links and real entries.

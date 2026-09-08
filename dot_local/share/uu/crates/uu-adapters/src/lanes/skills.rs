@@ -10,6 +10,7 @@ pub use generation::{
 mod npx;
 pub use npx::SkillsEnvironment;
 mod clawhub;
+mod fanout;
 mod overlay;
 mod publish;
 #[cfg(test)]

@@ -446,3 +446,12 @@ added	-	lanes::skills::publish::tests::recovery::interrupted_publication_validat
 added	-	lanes::skills::publish::tests::recovery::interrupted_workspace_cleanup_keeps_ownership_until_a_successful_retry	new	ok	E10: publication and recovery, fail-first and actual source fault
 added	-	lanes::skills::publish::tests::recovery::recovery_after_exchange_prunes_with_outgoing_names_before_sweeping	new	ok	E10: publication and recovery, fail-first and actual source fault
 added	-	lanes::skills::publish::tests::recovery::reused_candidates_pass_e9_validation_before_any_exchange	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::convergence::foreign_links_and_real_destination_entries_survive_both_fanout_modes	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::convergence::weekly_fanout_repairs_owned_links_and_prunes_them_in_demapped_profiles	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::a_collision_name_is_never_fanned_out_to_hermes	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::a_hermes_profile_row_plants_exactly_the_listed_profiles_and_an_empty_row_plants_none	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::every_store_skill_reaches_claude_unless_delivery_is_none	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::eligibility::owned_delisted_content_leaves_both_delivery_sets_while_foreign_content_remains_eligible	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::a_profile_parent_that_is_a_symlink_is_refused	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::a_profile_skills_dir_that_is_a_symlink_is_refused	new	ok	E11: skills fan-out, fail-first and actual source fault
+added	-	lanes::skills::fanout::tests::guards::missing_hermes_profile_and_skills_directories_are_created_before_link_delivery	new	ok	E11: skills fan-out, fail-first and actual source fault
