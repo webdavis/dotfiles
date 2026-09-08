@@ -11,6 +11,7 @@ mod npx;
 pub use npx::SkillsEnvironment;
 mod clawhub;
 mod overlay;
+mod publish;
 #[cfg(test)]
 mod tests;
 mod validate;

@@ -5,17 +5,17 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub(super) fn segment(s: &str) -> bool {
+pub(in crate::lanes::skills) fn segment(s: &str) -> bool {
     !s.is_empty() && s != "." && s != ".." && !s.contains('/') && !s.chars().any(char::is_control)
 }
-pub(super) fn directory(p: &Path) -> Result<(), String> {
+pub(in crate::lanes::skills) fn directory(p: &Path) -> Result<(), String> {
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
         .create(p)
         .map_err(|e| e.to_string())
 }
-pub(super) fn write(p: &Path, value: &Value) -> Result<(), String> {
+pub(in crate::lanes::skills) fn write(p: &Path, value: &Value) -> Result<(), String> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let temporary = p.with_extension(format!(
         "{}-{}.tmp",
@@ -34,18 +34,18 @@ pub(super) fn write(p: &Path, value: &Value) -> Result<(), String> {
     };
     result().map_err(|e: std::io::Error| e.to_string())
 }
-pub(super) fn document(p: &Path) -> Result<Value, String> {
+pub(in crate::lanes::skills) fn document(p: &Path) -> Result<Value, String> {
     let bytes = std::fs::read(p).map_err(|e| format!("metadata {}: {e}", p.display()))?;
     serde_json::from_slice(&bytes).map_err(|e| format!("metadata {}: {e}", p.display()))
 }
-pub(super) fn field(v: &Value, key: &str) -> Result<String, String> {
+pub(in crate::lanes::skills) fn field(v: &Value, key: &str) -> Result<String, String> {
     v.get(key)
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| format!("metadata has no valid `{key}`"))
 }
-pub(super) struct Metadata {
+pub(in crate::lanes::skills) struct Metadata {
     pub id: String,
     pub roster_hash: String,
     pub updater_hash: String,
@@ -82,7 +82,7 @@ impl Metadata {
     }
 }
 
-pub(super) fn remove_empty(path: &Path) -> Result<(), String> {
+pub(in crate::lanes::skills) fn remove_empty(path: &Path) -> Result<(), String> {
     match std::fs::remove_dir(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

@@ -6,8 +6,12 @@ impl SkillsGenerationStore {
     pub(super) fn recover_publication(&self) -> Result<SkillsPublication, String> {
         let marker = metadata::document(&self.marker())?;
         let new = field(&marker, "new")?;
-        let old = field(&marker, "old")?;
-        if !segment(&new) || !segment(&old) || new == old {
+        let old = marker
+            .get("old")
+            .and_then(|v| v.as_str())
+            .ok_or("exchange lost outgoing identity")?
+            .to_owned();
+        if !segment(&new) || (!old.is_empty() && !segment(&old)) || new == old {
             return Err("invalid exchange identity".into());
         }
         let outgoing = marker
@@ -23,6 +27,18 @@ impl SkillsGenerationStore {
             })
             .collect::<Result<BTreeSet<_>, _>>()?;
         let workspace = self.generations().join(&new).join("home/.agents");
+        if old.is_empty() {
+            if !self.current().exists() && !self.current().is_symlink() {
+                std::fs::rename(&workspace, self.current()).map_err(|e| e.to_string())?;
+            }
+            if Metadata::read(&self.current())?.id != new {
+                return Err("first publication identity changed".into());
+            }
+            return Ok(SkillsPublication {
+                outgoing_names: outgoing,
+                previous_id: old,
+            });
+        }
         let live = Metadata::read(&self.current())?;
         if live.id == old && Metadata::read(&workspace)?.id == new {
             exchange_skills_directories(&workspace, &self.current())?;

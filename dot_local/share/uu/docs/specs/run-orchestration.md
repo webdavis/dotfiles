@@ -266,3 +266,16 @@ for these retained limits.
   ClawHub origin metadata, one npx lock document and correct overlays. Full lock keys must equal the npx
   roster; additive candidates may retain delisted keys. Refuse the whole candidate on any failure and
   retain its renamed HOME for diagnosis, leaving the current generation alone.
+
+## Skills publication
+
+- **Given** a fresh or recovered candidate, **when** publishing, **then** validate its E9 content and
+  captured roster before the atomic first rename or generation exchange. Recovery validates a published
+  generation before retaining the outgoing copy or reconciling store entries.
+- **Given** a full publication, **when** reconciling the store, **then** remove only exact managed
+  delisted links and quarantine only outgoing-owned delisted real directories. Foreign entries survive.
+  Replace a tracked real directory only after its recorded content was absorbed, and report a writer
+  whose content changed or was never recorded. Additive publication preserves existing entries.
+- **Given** an interrupted publication, **when** pruning or workspace cleanup fails, **then** retain
+  the journal and outgoing ownership until a retry finishes both. Quarantined store content remains
+  available under `.agents/.skills-quarantine/<generation>/<name>`.

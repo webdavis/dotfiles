@@ -433,3 +433,16 @@ added	-	lanes::skills::overlay::tests::an_overlay_never_writes_through_a_foreign
 added	-	lanes::skills::validate::tests::a_candidate_missing_a_tracked_skill_or_its_skill_md_fails_validation_and_is_discarded	new	ok	E9: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::validate::tests::a_candidate_whose_overlays_drifted_fails_validation	new	ok	E9: skills behavior, fail-first and actual source fault
 added	-	lanes::skills::validate::tests::a_full_candidate_with_a_delisted_npx_lock_key_is_refused_but_additive_preserves_it	new	ok	E9: skills behavior, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_published_candidate_becomes_current_and_every_store_link_resolves_into_it	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_store_writer_that_changes_after_absorption_is_preserved_and_reported	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::a_tracked_real_directory_is_replaced_only_after_its_content_is_absorbed	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::additive_publication_preserves_existing_store_entries	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::links::the_npx_lock_link_points_into_the_current_generation	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_delisted_managed_store_link_is_removed_without_following_foreign_symlinks	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_delisted_outgoing_owned_real_directory_leaves_the_store	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::pruning::a_foreign_real_directory_survives_delisted_pruning	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::failed_pruning_keeps_the_journal_and_resumes_cleanup_on_restart	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::interrupted_publication_validates_the_published_content_and_retains_ownership_on_failure	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::interrupted_workspace_cleanup_keeps_ownership_until_a_successful_retry	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::recovery_after_exchange_prunes_with_outgoing_names_before_sweeping	new	ok	E10: publication and recovery, fail-first and actual source fault
+added	-	lanes::skills::publish::tests::recovery::reused_candidates_pass_e9_validation_before_any_exchange	new	ok	E10: publication and recovery, fail-first and actual source fault
