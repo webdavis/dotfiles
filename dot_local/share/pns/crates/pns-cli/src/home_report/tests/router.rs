@@ -1,4 +1,4 @@
-use super::fixtures::*;
+use super::*;
 
 #[test]
 fn an_unknown_type_with_control_bytes_is_escaped_like_every_other_spelled_value() {

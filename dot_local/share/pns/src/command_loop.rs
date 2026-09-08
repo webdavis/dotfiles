@@ -17,7 +17,7 @@ pub(crate) fn loop_mode(verb: &str) -> i32 {
         .skip(3)
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
-    let command = match pns::lights::loop_command(
+    let command = match pns_cli::loop_command(
         verb,
         &arguments,
         std::env::var("HERDR_PANE_ID").ok().as_deref(),
@@ -32,7 +32,7 @@ pub(crate) fn loop_mode(verb: &str) -> i32 {
     let leases = pns_adapters::FileLoopLeases::new(state.clone());
     let operation = pns_application::AcquireLoopLease { leases: &leases };
     let result = match command {
-        pns::lights::LoopCommand::Begin(pane) => operation.begin(&pane, now_secs(), |now| {
+        pns_cli::LoopCommand::Begin(pane) => operation.begin(&pane, now_secs(), |now| {
             let home = std::env::var("HOME").unwrap_or_default();
             if let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home))
                 && let Some(lights) = config.lights.as_deref()
@@ -45,7 +45,7 @@ pub(crate) fn loop_mode(verb: &str) -> i32 {
                 );
             }
         }),
-        pns::lights::LoopCommand::End(pane) => operation.end(&pane),
+        pns_cli::LoopCommand::End(pane) => operation.end(&pane),
     };
     match result {
         Ok(()) => 0,

@@ -61,7 +61,7 @@ fn lights_quiet() -> i32 {
     // HOW LONG A BARE MUTE LASTS, off the operator's OWN schedule rather than
     // any one room's dim window: a mute typed at bedtime is about their night.
     // A window nobody can parse states no schedule, which the refusal covers.
-    let until_quiet_ends = pns::lights::bare_mute_secs(
+    let until_quiet_ends = pns_domain::lights::mute::bare_mute_secs(
         match &loaded {
             Ok(LoadOutcome::Loaded(config)) => enabled_hue_table(config)
                 .and_then(|settings| quiet_window(&settings).ok().flatten())
@@ -70,7 +70,7 @@ fn lights_quiet() -> i32 {
         },
         now.and_then(local_minutes_since_midnight),
     );
-    let command = match pns::lights::quiet_command(&arguments, &known, until_quiet_ends) {
+    let command = match pns_cli::quiet_command(&arguments, &known, until_quiet_ends) {
         Ok(command) => command,
         Err(refusal) => {
             eprintln!("{refusal}");

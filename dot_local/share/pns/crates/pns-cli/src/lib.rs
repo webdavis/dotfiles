@@ -20,3 +20,9 @@ pub mod submit;
 
 mod shell;
 pub use shell::shell_mode;
+
+mod home_report;
+mod lights_command;
+
+pub use home_report::{report as home_report, setup_report as home_setup_report};
+pub use lights_command::{LoopCommand, loop_command, quiet_command};

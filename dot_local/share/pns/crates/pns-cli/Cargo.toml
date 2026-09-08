@@ -19,3 +19,10 @@ pns-adapters = { path = "../pns-adapters" }
 pns-application = { path = "../pns-application" }
 pns-domain = { path = "../pns-domain" }
 pns-protocol = { path = "../pns-protocol" }
+
+[dev-dependencies]
+toml = { version = "1.1.4", default-features = false, features = [
+  "parse",
+  "serde",
+  "std",
+] }

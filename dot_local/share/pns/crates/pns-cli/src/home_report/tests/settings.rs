@@ -1,6 +1,6 @@
 //! The home probe, pinned: settings.
 
-use super::fixtures::*;
+use super::*;
 
 // --- the settings --------------------------------------------------------
 
@@ -8,7 +8,7 @@ use super::fixtures::*;
 fn no_router_plugin_table_at_all_is_not_configured_naming_the_table() {
     // hermes rides along so this is a MISS on the router's own name and
     // not a config the parser dropped whole.
-    let config = crate::config::parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+    let config = pns_adapters::parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
     assert_eq!(
         enabled_router_table(&config),
         Err(SetupFailure::NoRouterPlugin)
@@ -23,7 +23,7 @@ fn a_router_table_switched_off_is_told_apart_from_no_table_at_all() {
     // Selection is the operator's, and a probe they turned off must not
     // read as one they never wrote: the first is fixed by flipping a flag
     // they are looking at, the second by writing a table.
-    let config = crate::config::parse_config(
+    let config = pns_adapters::parse_config(
         "[plugins.router]\nenabled = false\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
     )
     .unwrap();

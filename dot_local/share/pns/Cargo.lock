@@ -315,6 +315,7 @@ dependencies = [
  "pns-application",
  "pns-domain",
  "pns-protocol",
+ "toml",
 ]
 
 [[package]]

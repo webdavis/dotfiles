@@ -1,9 +1,30 @@
-use super::{DeviceKey, verdict_line};
-use super::{HomeReading, KeyOutcome, Staleness, UNIFI_TYPE, stale_warning};
-pub use pns_adapters::{
-    SetupFailure, device_identity, enabled_router_table, router_api_key, router_settings,
-    stale_alert_channel,
+use pns_adapters::SetupFailure;
+use pns_domain::home::{
+    DeviceKey, HomePresence, HomeReading, KeyOutcome, Staleness, UNIFI_TYPE, stale_warning,
 };
+
+/// The one line for the verdict itself. PURE for the same reason as its
+/// caller: a swap of the two sentences below survived every suite before
+/// this was a function of its own.
+fn verdict_line(presence: &HomePresence) -> String {
+    match presence {
+        // The matched value is DEBUG-QUOTED, the same escape `spell` gives a
+        // config value: the value came from the router's own listing, so a
+        // client name carrying a quote or a control byte would otherwise reach
+        // a terminal verbatim. A plain name reads exactly as it did before.
+        HomePresence::Home { matched_by, value } => format!(
+            "home: on the home network (matched by {} {value:?})",
+            matched_by.config_key()
+        ),
+        HomePresence::NotHome => {
+            "home: NOT on the home network (no configured identifier matched a client)".to_string()
+        }
+        HomePresence::Unknown => {
+            "home: unknown (router unreachable or its answer unreadable)".to_string()
+        }
+    }
+}
+
 /// What `pns home` says for one reading: the verdict, then one EVIDENCE line
 /// per configured key, then the staleness warning for whatever the caller
 /// hands in as news. PURE, so the words and the reading cannot drift apart
@@ -96,3 +117,6 @@ pub fn setup_report(failure: &SetupFailure) -> String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

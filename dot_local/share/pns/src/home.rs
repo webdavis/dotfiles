@@ -44,7 +44,7 @@
 //! Unknown is the reading that changes nothing.
 
 // THE HOME-PROBE POLICY moved to `pns-domain`, one file per question it
-// answers. What stays here presents the reading and setup guidance.
+// answers. What stays here is the existing import surface and its policy tests.
 pub use pns_domain::home::{
     Client, DeviceIdentity, DeviceKey, HomePresence, HomeReading, KeyOutcome, KeyReading,
     Staleness, UNIFI_TYPE, episode_id, home_reading, is_new_staleness, stale_identifiers,
@@ -59,41 +59,13 @@ pub use pns_adapters::{UniFiRouter, first_site_id, parse_clients};
 /// named here for the adapter that implements it.
 pub use pns_application::{Router, read_home};
 
-/// The one line for the verdict itself. PURE for the same reason as its
-/// caller: a swap of the two sentences below survived every suite before
-/// this was a function of its own.
-pub(super) fn verdict_line(presence: &HomePresence) -> String {
-    match presence {
-        // The matched value is DEBUG-QUOTED, the same escape `spell` gives a
-        // config value: the value came from the router's own listing, so a
-        // client name carrying a quote or a control byte would otherwise reach
-        // a terminal verbatim. A plain name reads exactly as it did before.
-        HomePresence::Home { matched_by, value } => format!(
-            "home: on the home network (matched by {} {value:?})",
-            matched_by.config_key()
-        ),
-        HomePresence::NotHome => {
-            "home: NOT on the home network (no configured identifier matched a client)".to_string()
-        }
-        HomePresence::Unknown => {
-            "home: unknown (router unreachable or its answer unreadable)".to_string()
-        }
-    }
-}
-
-mod setup;
-pub use setup::*;
+pub use pns_adapters::{
+    SetupFailure, device_identity, enabled_router_table, router_api_key, router_settings,
+    stale_alert_channel,
+};
 
 #[cfg(test)]
 mod fixtures;
-
-#[cfg(test)]
-#[path = "home/tests/settings.rs"]
-mod settings_tests;
-
-#[cfg(test)]
-#[path = "home/tests/router.rs"]
-mod router_tests;
 
 #[cfg(test)]
 #[path = "home/tests/staleness.rs"]

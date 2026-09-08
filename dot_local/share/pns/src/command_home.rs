@@ -15,7 +15,8 @@ use crate::*;
 /// the episode decision to fall out of step. The consequence is deliberate: a
 /// hand-run `pns home` no longer consumes an episode silently, it delivers it.
 pub(crate) fn home_mode() {
-    use pns::home::{SetupFailure, report, setup_report};
+    use pns_adapters::SetupFailure;
+    use pns_cli::{home_report as report, home_setup_report as setup_report};
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
@@ -36,7 +37,7 @@ pub(crate) fn home_mode() {
     // disabled one, a `type` nothing answers and a mistyped value each send
     // the operator to a different edit, and one message covering two of them
     // sends half of them to the wrong one.
-    let router_table = match pns::home::enabled_router_table(&config) {
+    let router_table = match pns_adapters::enabled_router_table(&config) {
         Ok(table) => table,
         Err(failure) => {
             println!("{}", setup_report(&failure));
@@ -48,11 +49,11 @@ pub(crate) fn home_mode() {
     // typed on this path; this one names the key in the file, and it is said
     // on every run of the diagnostic instead of only on the run that happens
     // to have something to deliver.
-    let (alert_route, complaint) = pns::home::stale_alert_channel(router_table);
+    let (alert_route, complaint) = pns_adapters::stale_alert_channel(router_table);
     if let Some(complaint) = complaint {
         eprintln!("{complaint}");
     }
-    let settings = match pns::home::router_settings(router_table) {
+    let settings = match pns_adapters::router_settings(router_table) {
         Ok(settings) => settings,
         Err(failure) => {
             println!("{}", setup_report(&failure));
@@ -61,11 +62,11 @@ pub(crate) fn home_mode() {
     };
     // The key stays its own read, so it never joins the settings in a type
     // that could be dumped whole.
-    let Some(key) = pns::home::router_api_key(router_table) else {
+    let Some(key) = pns_adapters::router_api_key(router_table) else {
         println!("{}", setup_report(&SetupFailure::NoApiKey));
         return;
     };
-    let router = pns::home::UniFiRouter::new(settings.router_url, key);
+    let router = pns_adapters::UniFiRouter::new(settings.router_url, key);
     pns_application::ReadHomeProbe {
         router: &router,
         memory: &pns_adapters::SqliteStore::for_records(state_dir()),
