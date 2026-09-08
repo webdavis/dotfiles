@@ -7,6 +7,8 @@ use super::*;
 #[test]
 fn the_daemon_does_not_write_a_log_line_per_tick() {
     let sandbox = Sandbox::new("daemon-does-not-chatter");
+    pns_application::DecisionRing::read(&pns_adapters::SqliteStore::new(sandbox.state()))
+        .expect("a healthy delivery store before daemon startup");
     let guard = DaemonGuard::start(&sandbox, TICK_MS);
     // FIRST, THE EVIDENCE A TICK HAPPENED AT ALL: "said nothing" is vacuous
     // about a daemon that never got going, so wait for its own heartbeat
@@ -38,6 +40,8 @@ fn the_daemon_does_not_write_a_log_line_per_tick() {
 #[test]
 fn a_daemon_that_ran_a_job_says_nothing_about_having_run_it() {
     let sandbox = Sandbox::new("daemon-quiet-on-success");
+    pns_application::DecisionRing::read(&pns_adapters::SqliteStore::new(sandbox.state()))
+        .expect("a healthy delivery store before daemon startup");
     sandbox.write_config(ONE_CHANNEL);
     count_fires(&sandbox);
     let scheduled = schedule(&sandbox, &["--id", "drill", "--in", "0"], &EVENT);
