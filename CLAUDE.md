@@ -493,7 +493,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
 | `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
 | `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)  |
-| `com.webdavis.report-plugin-updates`               | weekly record of what Claude Code auto-updated       |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |

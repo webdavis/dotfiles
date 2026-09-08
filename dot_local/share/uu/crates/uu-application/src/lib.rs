@@ -1,3 +1,4 @@
+mod bootstrap;
 mod delivery;
 mod pending;
 mod ports;
@@ -10,3 +11,5 @@ pub use ports::{
     RunPresentation, RunRecord, RunState, StateWriteFailure, Streak, StreakKind, StreakSnapshot,
 };
 pub use run::{LaneSettings, Run, RunOutcome, RunRequest};
+
+pub use bootstrap::{BootstrapOutcome, bootstrap};

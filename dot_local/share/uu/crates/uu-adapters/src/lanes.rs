@@ -6,6 +6,8 @@
 //! The record reports each outcome.
 
 mod brew;
+mod changes;
+mod claude_plugins;
 mod command;
 mod herdr;
 mod npm;
@@ -29,6 +31,9 @@ pub trait LaneAdapter: std::fmt::Debug {
     where
         Self: Sized;
     fn run(&self, name: &str, facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport;
+    fn bootstrap_capability(&self) -> Option<&dyn crate::BootstrapLane> {
+        None
+    }
     fn diagnostic_program(&self) -> Option<&str> {
         None
     }

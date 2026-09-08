@@ -208,8 +208,7 @@ done
 
 log() { printf '[update-skills] %s\n' "$*"; }
 
-# ── The weekly RECORD (task #89). Sourced, not duplicated: report-plugin-updates.sh
-# posts the same entry shape and the two must not drift. A missing library is
+# ── The weekly RECORD (task #89). The entry shape lives in log-entries.sh. A missing library is
 # LOUD and never fatal -- this job's work matters more than its bookkeeping, but
 # a silently absent record is exactly the invisibility the record exists to end.
 UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/../helpers/log-entries.sh"
@@ -297,9 +296,8 @@ __update_skills_record() {
 # old -> new transition. Reading the marker rather than the roster also makes the
 # lane self-describing: a skill IS clawhub-tracked exactly when it carries one.
 #
-# The RENDERING lives in helpers/log-entries.sh, shared with
-# report-plugin-updates.sh: the two weekly jobs must report in the same shape,
-# and two copies of that logic would drift into two different-looking logs.
+# The RENDERING lives in helpers/log-entries.sh; this job keeps one copy of
+# the entry logic until its uu cutover.
 
 # __update_skills_change_snapshot <lane> -- one "<name><TAB><fingerprint>" line
 # per tracked skill in that lane, the input shape unattended_log_change_line

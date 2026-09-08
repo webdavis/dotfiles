@@ -386,49 +386,31 @@ size). Hermes's larger native catalog (`~/.hermes/skills/<category>/`) remains H
 
 ## Plugin update record
 
-Claude Code updates marketplaces and their installed plugins at startup by itself (see the
-`extraKnownMarketplaces` entries in `docs/runbooks/claude-code-settings.md`), so nothing here installs or
-upgrades a plugin. What Claude Code does not do is leave a record, so
-`~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh` is the record: read-only, weekly,
-one entry to the same `#unattended-upgrades` channel and in the same shape as the weekly Homebrew upgrade
-and the weekly skills update (`dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` holds the
-shared entry shape and the reasoning behind it).
+Claude Code updates marketplaces and their installed plugins at startup (see `extraKnownMarketplaces` in
+`docs/runbooks/claude-code-settings.md`). The `claude-plugins` lane in `uu` records those changes in the
+combined weekly entry. It does not install or upgrade plugins.
 
-- **Source of truth:** `~/.claude/plugins/installed_plugins.json`, the file Claude Code maintains (schema
-  version 2, verified against the live file 2026-08-03; the script records that provenance in a comment
-  and does not read a version field). Only USER-scope install records are read. The two sibling files
-  were checked and rejected: `known_marketplaces.json` records marketplaces rather than plugin versions,
-  and `plugin-catalog-cache.json` lists what is available, not what is installed.
-- **Fingerprint:** `version` when the marketplace publishes a real one, else `gitCommitSha`, else the
-  literal `unknown`. An empty `version`, or one that is already the literal `unknown`, falls through the
-  same way an absent one does. `lastUpdated` was rejected as a further fallback because six plugins
-  carried their marketplace's own `lastUpdated` to the second, so a plain marketplace refresh would have
-  reported all six as changed every week.
-- **What reaches the channel:** plugin ids and fingerprints, nothing else. Never an `installPath` (an
-  absolute home path), never a marketplace source URL.
-- **State:** `~/.local/state/report-plugin-updates/`, holding the previous reading, the success marker
-  and the ISO-week guard. The snapshot moves only AFTER an entry is delivered, so a change the gateway
-  refused is reported by the next run instead of being lost.
-- **Schedule:** `com.webdavis.report-plugin-updates`, Monday 13:00, `RunAtLoad=false`, logging to
-  `~/.local/log/plugins/report-updates.log`. It passes `--scheduled`, and only a scheduled run posts,
-  moves the snapshot or advances the marker. A plain manual run prints the comparison and changes
-  nothing; `--seed-baseline` is the one other writing mode, described below.
-- **The baseline is seeded at APPLY time**, by the loader chezmoiscript calling `--seed-baseline`, not by
-  the first scheduled run. The apply that deploys this record is the apply that turns the marketplace
-  auto-updates on, so a baseline first recorded the following Monday would absorb everything Claude Code
-  changed in between and report it never. Seeding is idempotent, an existing baseline is left alone, so a
-  routine apply cannot re-baseline over a change nobody has reported yet. It is also best effort and
-  never pages: a machine with no readable inventory yet seeds nothing, says so, and leaves the baseline
-  to the first scheduled run.
-- **A first run with no baseline** records one and posts nothing. **A quiet week still posts**, naming
-  zero changes, because a clean week and a dead LaunchAgent otherwise produce identical silence. **An
-  inventory it cannot read posts no record at all** and alerts on the priority route instead, since the
-  only change list it could build from a file it cannot read is a false "nothing changed". That set
-  includes a file holding more than one top-level JSON document (jq accepts a stream, and both copies
-  would reach the reading) and an install record whose shape it cannot interpret (dropping one out of the
-  reading announces the plugin as REMOVED). An inventory with no USER-scope records is NOT in that set:
-  it is a real reading of a real machine, and its removals are reported.
-- **The snapshot is replaced by rename**, never written in place, so a run interrupted halfway cannot
-  leave a short file that the next run reads as a batch of new plugins. A snapshot path that exists and
-  is not a regular file refuses the run, and a reading that cannot be persisted alerts, because both
-  otherwise produce a machine that reports nothing while looking healthy.
+- **Source:** the configured `inventory` path, normally `~/.claude/plugins/installed_plugins.json`. Only
+  user-scope records are tracked. Invalid record shapes fail the whole reading; an inventory containing
+  only other scopes is a valid empty reading.
+- **Fingerprint:** a nonempty `version` other than `unknown`, then a nonempty `gitCommitSha`, then
+  `unknown`. `lastUpdated` is not a fingerprint because marketplace refreshes can change it without a
+  plugin update. Records contain plugin identifiers and fingerprints, never installation paths or
+  marketplace source URLs.
+- **State:** `~/.local/state/uu/lanes/claude-plugins/snapshot.tsv`. An existing uu snapshot wins.
+  Otherwise, the lane validates and atomically imports the old
+  `~/.local/state/report-plugin-updates/installed-plugins.snapshot`, including an empty snapshot,
+  preserving its bytes and leaving the legacy file alone. It seeds fresh only when both are absent.
+  Failed reads, validation and publication fail the lane without reseeding.
+- **Delivery timing:** the lane advances its snapshot during the run, before uu delivers the combined
+  record. This differs from the retired bash reporter: a refused record can leave that comparison absent
+  from the next run. Snapshot publication is atomic, and a publication failure is reported.
+- **Bootstrap:** `~/.local/libexec/uu/uu bootstrap claude-plugins` takes the run lock, seeds or imports
+  the baseline, and prints its report. It sends no record or alert and changes no success marker or
+  streak. Repeated bootstrap keeps existing history without consuming its pending comparison.
+- **Apply ordering:** script 69 invokes bootstrap after uu is deployed. This is the same apply that
+  enables marketplace auto-updates, so nothing between the settings write and the seed may start Claude
+  Code. Seed failure is nonfatal and leaves the next run to retry.
+- **Cutover:** before a full apply, the operator stops the old `com.webdavis.report-plugin-updates` job.
+  After confirming migration, the operator trashes the old plist, reporter, plugin-report log and legacy
+  state. Source retirement does not unload an already running job.

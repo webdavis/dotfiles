@@ -8,9 +8,7 @@
 //! That window is a monitoring gap, so it is kept as short as the ordering
 //! allows.
 
-mod changes;
 mod repairs;
-mod sections;
 mod steps;
 mod upgrade_record;
 
@@ -21,9 +19,9 @@ use crate::lanes::{CommandRunner, LaneAdapter};
 use uu_domain::LaneReport;
 use uu_domain::RunFacts;
 
-use changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
+use super::changes::section::change_section;
+use super::changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
 use repairs::{converge_osquery, mas_declarations, refresh_tailscaled};
-use sections::change_section;
 use steps::{bounded_step, step};
 
 /// How long ONE App Store step may take. The store hangs indefinitely on a

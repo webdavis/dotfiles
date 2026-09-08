@@ -12,6 +12,7 @@
 //! lives in `lanes::npm`.
 
 mod brew;
+mod claude_plugins;
 mod command;
 mod herdr;
 mod npm;
@@ -28,6 +29,7 @@ use crate::{LaneRegistration, lanes::LaneAdapter};
 use uu_domain::DEFAULT_LANE_DEADLINE;
 
 pub use brew::BrewLane;
+pub use claude_plugins::ClaudePluginsLane;
 pub use command::CommandLane;
 pub use herdr::HerdrLane;
 pub use npm::NpmLane;
@@ -230,6 +232,10 @@ mod tests {
         // advertise a lane nobody can turn on.
         let fixtures: &[(&str, &str)] = &[
             ("brew", "[lanes.brew]\n"),
+            (
+                "claude-plugins",
+                "[lanes.claude-plugins]\ninventory = \"/fixture/inventory.json\"\n",
+            ),
             (
                 "nvim-mason",
                 "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",

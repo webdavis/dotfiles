@@ -18,6 +18,7 @@
 //!   stays clean: a notification must never fail the work it reports on.
 
 mod alert;
+mod bootstrap;
 mod config;
 mod deadline;
 mod lanes;
@@ -33,8 +34,9 @@ mod system;
 mod watchdog;
 
 pub use config::{
-    BrewLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane, NvimMasonLane,
-    NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path, load_config,
+    BrewLane, ClaudePluginsLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane,
+    NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path,
+    load_config,
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
@@ -47,3 +49,5 @@ pub use system::{home, now_epoch, resolve};
 
 pub use lanes::{CommandRunner, LaneAdapter, Ran, Verdict};
 pub use registration::LaneRegistration;
+
+pub use bootstrap::{BootstrapLane, bootstrap_lane};

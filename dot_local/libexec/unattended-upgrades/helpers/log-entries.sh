@@ -1,9 +1,7 @@
 # shellcheck shell=bash
-# log-entries.sh, the shared entry shape for the weekly UNATTENDED jobs. TWO
-# callers source it, both one level down from this helpers/ directory:
-# agent-skills/update-skills.sh and claude/report-plugin-updates.sh. (uu, which
-# now carries the Homebrew weekly upgrade as its brew lane, is a standalone Rust
-# binary and shares none of this.) Sourced, never executed, so it carries no
+# log-entries.sh, the entry shape retained for agent-skills/update-skills.sh
+# until its uu cutover. uu carries the Homebrew and Claude Code plugin lanes
+# and is a standalone Rust binary that shares none of this. Sourced, never executed, so it carries no
 # shebang and no executable bit, the same shape as
 # macos-defaults/helpers/defaults-records.sh in the sibling tree. Each caller
 # sources it by relative path,

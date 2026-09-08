@@ -207,3 +207,9 @@ deadline_secs = 21600
 # config = "{{ .chezmoi.homeDir }}/.config/nvim"
 # cache = "{{ .chezmoi.homeDir }}/.cache/uu/nvim-smoke-test"
 # deadline_secs = 21600
+
+# Record user-scope Claude Code plugin changes; Claude Code performs the updates itself.
+[lanes.claude-plugins]
+type = "claude-plugins"
+inventory = "{{ .chezmoi.homeDir }}/.claude/plugins/installed_plugins.json"
+deadline_secs = 21600
