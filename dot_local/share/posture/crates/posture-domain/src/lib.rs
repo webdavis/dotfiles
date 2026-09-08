@@ -22,7 +22,9 @@
 mod finding;
 
 mod converge_policy;
-pub use converge_policy::{ConvergeDirectory, ConvergeFile};
+pub use converge_policy::{
+    CommandTrustRefusal, ConvergeDirectory, ConvergeFile, ParentPid, RestartBounds, command_trust,
+};
 
 pub use finding::{Detector, EnrichmentPaths};
 

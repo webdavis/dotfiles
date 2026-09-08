@@ -52,3 +52,6 @@ impl ConvergeDirectory {
         }
     }
 }
+
+mod control;
+pub use control::{CommandTrustRefusal, ParentPid, RestartBounds, command_trust};

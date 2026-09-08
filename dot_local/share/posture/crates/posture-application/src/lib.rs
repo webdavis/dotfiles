@@ -21,8 +21,9 @@
 mod converge;
 mod enrich;
 pub use converge::{
-    ConvergePlan, ConvergeRefusal, ConvergeStaging, DesiredTree, LiveTree, StagingRefusal,
-    prepare_converge,
+    ConvergeEvent, ConvergeFailure, ConvergePlan, ConvergeRefusal, ConvergeStaging, DesiredTree,
+    LiveTree, OsqueryControl, PrivilegedInstall, ProcessTable, RestartClock, RestartFailure,
+    Restarted, StagingRefusal, VendorPlist, converge, prepare_converge, restart_daemon,
 };
 pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};
 

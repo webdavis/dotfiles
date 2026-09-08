@@ -4,6 +4,14 @@ use posture_domain::{
 };
 use std::path::{Path, PathBuf};
 
+mod repair;
+mod restart;
+pub use repair::{ConvergeEvent, ConvergeFailure, PrivilegedInstall, converge};
+pub use restart::{
+    OsqueryControl, ProcessTable, RestartClock, RestartFailure, Restarted, VendorPlist,
+    restart_daemon,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StagingRefusal {
     RelativeDirectory(PathBuf),
@@ -59,14 +67,7 @@ pub fn prepare_converge<S: ConvergeStaging>(
     live: &mut impl LiveTree,
 ) -> Result<ConvergePlan<S::Prepared>, ConvergeRefusal> {
     let desired = staging.prepare().map_err(ConvergeRefusal::Staging)?;
-    let directories = ConvergeDirectory::ALL
-        .map(|directory| (directory, directory_drift(live.directory(directory))));
-    // Inspect both directories before allowing either one into a repair plan (S326).
-    for (directory, verdict) in directories {
-        if verdict == Drift::Irregular {
-            return Err(ConvergeRefusal::IrregularDirectory(directory));
-        }
-    }
+    let directories = directory_verdicts(live)?;
     let files = ConvergeFile::ALL.map(|file| {
         let (entry, content) = live.file(file, &desired.source(file));
         (file, file_drift(entry, content))
@@ -76,6 +77,20 @@ pub fn prepare_converge<S: ConvergeStaging>(
         directories,
         files,
     })
+}
+
+fn directory_verdicts(
+    live: &mut impl LiveTree,
+) -> Result<[(ConvergeDirectory, Drift); 2], ConvergeRefusal> {
+    let directories = ConvergeDirectory::ALL
+        .map(|directory| (directory, directory_drift(live.directory(directory))));
+    // Inspect both directories before allowing either one into a repair plan (S326).
+    for (directory, verdict) in directories {
+        if verdict == Drift::Irregular {
+            return Err(ConvergeRefusal::IrregularDirectory(directory));
+        }
+    }
+    Ok(directories)
 }
 
 #[cfg(test)]
