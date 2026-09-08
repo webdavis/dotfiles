@@ -396,3 +396,6 @@ added	-	lanes::claude_plugins::tests::extra::an_imported_snapshot_preserves_esca
 added	-	lanes::claude_plugins::tests::extra::an_invalid_uu_snapshot_fails_without_importing_legacy_or_reseeding	not-present	ok	E3 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	lanes::claude_plugins::tests::repeated_bootstrap_never_consumes_the_imported_comparison	not-present	ok	E3 behavior contract; actual named fail-first and source-fault evidence retained
 added	-	lanes::claude_plugins::tests::the_first_reading_is_a_baseline_that_compares_nothing	not-present	ok	E3 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::a_failed_plugin_bootstrap_prints_its_report_and_exits_one	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	bootstrap::bootstrap_posts_no_record_and_leaves_the_marker_and_streaks_alone	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained
+added	-	claude_plugins::a_weekly_plugin_lane_compares_and_advances_history_under_its_declared_name	not-present	ok	E4 behavior contract; actual named fail-first and source-fault evidence retained

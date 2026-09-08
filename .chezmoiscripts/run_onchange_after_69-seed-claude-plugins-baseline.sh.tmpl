@@ -1,0 +1,18 @@
+#!/bin/bash
+# run_onchange_after_69-seed-claude-plugins-baseline.sh
+# The builder's retry marker makes a deferred seed run again when build state changes.
+# Read its modification time, never its contents, as loader 71 does.
+# build-retry-marker: {{ $rm := printf "%s/.cache/uu-build/uu.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+
+{{- if eq .chezmoi.os "darwin" }}
+set -euo pipefail
+
+# ORDERING REQUIREMENT: this apply also enables marketplace auto-updates through
+# private_dot_claude/modify_settings.json, before run_after scripts. Seed in the
+# same apply, after uu is deployed. Nothing between that settings write and this
+# command may start Claude Code, which could update plugins before the baseline.
+# An existing baseline is kept; a validated legacy baseline is imported intact.
+"$HOME/.local/libexec/uu/uu" bootstrap claude-plugins ||
+  printf 'uu: the Claude Code plugin baseline could not be seeded; the next run will retry, and changes before a first baseline may go unreported\n' >&2
+exit 0
+{{- end }}

@@ -90,8 +90,8 @@ Overwritten from the template on every apply, whatever the live file holds.
   chezmoi converges on every apply, and `.chezmoiignore` drops that directory on Linux, where declaring
   it would be a startup refresh that always fails. The write is per marketplace key, so a marketplace
   added with `claude plugin marketplace add` keeps its own entry. What those silent startup updates
-  changed is recorded weekly by `~/.local/libexec/unattended-upgrades/claude/report-plugin-updates.sh`;
-  see the plugin update record in `docs/runbooks/agent-skills-store.md`.
+  changed is recorded weekly by the `claude-plugins` lane in `uu`; see the plugin update record in
+  `docs/runbooks/agent-skills-store.md`.
 
 `plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That
 script writes a binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are

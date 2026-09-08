@@ -233,6 +233,10 @@ mod tests {
         let fixtures: &[(&str, &str)] = &[
             ("brew", "[lanes.brew]\n"),
             (
+                "claude-plugins",
+                "[lanes.claude-plugins]\ninventory = \"/fixture/inventory.json\"\n",
+            ),
+            (
                 "nvim-mason",
                 "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
             ),

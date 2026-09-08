@@ -272,3 +272,6 @@ fn a_deferred_only_run_posts_a_record_body_stated_deferred_not_completed() {
 
 #[path = "run/bootstrap.rs"]
 mod bootstrap;
+
+#[path = "run/claude_plugins.rs"]
+mod claude_plugins;
