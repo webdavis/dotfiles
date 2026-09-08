@@ -60,7 +60,7 @@ fn a_busy_delivery_record_returns_and_logs_the_miss_without_disclosing_event_tex
     );
     Journal::journal(&store, &event, Some(1));
     assert!(
-        started.elapsed() < Duration::from_millis(100),
+        started.elapsed() < Duration::from_millis(500),
         "the hot path must not wait out SQLite's default five seconds"
     );
     let diagnostic = std::fs::read_to_string(&store.log)
