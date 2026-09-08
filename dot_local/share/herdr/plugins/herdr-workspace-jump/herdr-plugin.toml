@@ -100,6 +100,16 @@ command = [
   "~/workspaces/Ivy/hobbies/plantpulse",
 ]
 
+[[actions]]
+id = "jump_fitness"
+title = "Jump to the fitness workspace"
+command = [
+  "./target/release/herdr-workspace-jump",
+  "jump",
+  "fitness",
+  "~/workspaces/Ivy/hobbies/fitness",
+]
+
 # The toggle. herdr ships `last_pane` but no workspace equivalent, and the event
 # hook below is what makes this correct where a key-bound script was not: it
 # fires on EVERY focus change, mouse and picker included, not only the switches
