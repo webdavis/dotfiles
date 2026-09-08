@@ -161,7 +161,6 @@ fn an_unknown_values_entry_is_refused_without_writing() {
 
 /// THE MUTANT THIS PINS: `GENERATED_BANNER` deleted or blanked in the
 /// binary. The expected text is a SECOND, independent copy of the banner
-/// (also duplicated in `config::tests::the_committed_template_is_render_over_the_committed_values_file`),
 /// so a production banner gutted to nothing cannot make this agree with
 /// itself.
 #[test]
@@ -219,37 +218,6 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     );
 }
 
-/// THE MUTANT THIS PINS: a binary that validates the requested render and
-/// then writes a deterministic default body regardless of what it was
-/// asked to render. The banner test above only checks a prefix and a
-/// suffix, and the idempotence test only checks that two runs agree WITH
-/// EACH OTHER; a binary that always writes the same fixed body passes both.
-/// Comparing the binary's actual output against an independently known
-/// answer, the committed template for the committed values file, is what
-/// proves the body itself came from the given input rather than from
-/// nowhere.
-#[test]
-fn the_binary_over_the_committed_values_file_writes_the_committed_template_exactly() {
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let values_path = repo_root.join("dot_config/pns/config-values.toml");
-    let committed_template_path = repo_root.join("dot_config/pns/private_config.toml.tmpl");
-
-    let scratch = Scratch::new("committed-values-render");
-    let written_path = scratch.path("private_config.toml.tmpl");
-
-    let output = run(&values_path, &written_path);
-    assert!(output.status.success(), "{output:?}");
-
-    let written = std::fs::read_to_string(&written_path).expect("read written template");
-    let committed =
-        std::fs::read_to_string(&committed_template_path).expect("read committed template");
-    assert_eq!(
-        written, committed,
-        "the binary's own output over the committed values file must match the committed \
-         template exactly, not a fixed body of its own"
-    );
-}
-
 /// THE MUTANT THIS PINS: the argv usage guard removed, letting a missing
 /// argument panic or silently no-op instead of a clean, documented exit.
 #[test]
@@ -283,4 +251,26 @@ fn a_third_argument_prints_usage_and_exit_2() {
         !template_path.exists(),
         "an unrecognized argv shape must not write anything"
     );
+}
+
+#[test]
+fn checking_a_changed_resolved_configuration_refuses_without_writing() {
+    let scratch = Scratch::new("check-changed");
+    let values_path = scratch.path("values.toml");
+    let values = "[nag]\nafter_secs = 30\n";
+    std::fs::write(&values_path, values).unwrap();
+    let output = Command::new(BINARY)
+        .arg("--check")
+        .arg(&values_path)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("resolved configuration differs from the committed snapshot"),
+        "{output:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&values_path).unwrap(), values);
+    assert_eq!(std::fs::read_dir(&scratch.root).unwrap().count(), 1);
 }

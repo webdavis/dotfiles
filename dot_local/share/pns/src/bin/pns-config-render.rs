@@ -17,11 +17,10 @@
 
 use std::process::ExitCode;
 
-use pns::config::{identity_placeholder, parse_config, strip_chezmoi_actions};
+use pns::config::{Config, identity_placeholder, parse_config, strip_chezmoi_actions};
 use pns::config_text::render;
 
-/// The one banner, duplicated by hand in this crate's tests rather than
-/// imported: see `config::tests::the_committed_template_is_render_over_the_committed_values_file`.
+/// The banner is independently written in the binary acceptance test.
 const BANNER: &str = "\
 # GENERATED FILE: this is `render`'s own text over the committed
 # `dot_config/pns/config-values.toml`, produced by `just pns-config-render`.
@@ -47,22 +46,25 @@ const SECRET_BEARING_KEYS: [&str; 5] = [
     "plugins.router.api_key",
 ];
 
-fn main() -> ExitCode {
-    let mut arguments = std::env::args().skip(1);
-    let (Some(values_path), Some(template_path)) = (arguments.next(), arguments.next()) else {
-        eprintln!("usage: pns-config-render <values-file> <template-file>");
-        return ExitCode::from(2);
-    };
-    if arguments.next().is_some() {
-        eprintln!("usage: pns-config-render <values-file> <template-file>");
-        return ExitCode::from(2);
-    }
+const RESOLVED_CONFIG_SNAPSHOT: &str =
+    include_str!("../../tests/fixtures/resolved-config.snapshot");
 
-    match run(&values_path, &template_path) {
-        Ok(()) => {
+fn main() -> ExitCode {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let result = match arguments.as_slice() {
+        [mode, values_path] if mode == "--check" => check(values_path),
+        [values_path, template_path] => run(values_path, template_path).map(|()| {
             println!("wrote {template_path}");
-            ExitCode::SUCCESS
+        }),
+        _ => {
+            eprintln!(
+                "usage: pns-config-render <values-file> <template-file>\n       pns-config-render --check <values-file>"
+            );
+            return ExitCode::from(2);
         }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("pns-config-render: refused: {message}");
             ExitCode::FAILURE
@@ -71,6 +73,24 @@ fn main() -> ExitCode {
 }
 
 fn run(values_path: &str, template_path: &str) -> Result<(), String> {
+    let (rendered, _) = rendered_configuration(values_path)?;
+    let template = format!("{BANNER}{rendered}{FOOTER}");
+    std::fs::write(template_path, template)
+        .map_err(|error| format!("writing {template_path}: {error}"))
+}
+
+fn check(values_path: &str) -> Result<(), String> {
+    let (_, config) = rendered_configuration(values_path)?;
+    pns::registry::roster()
+        .enabled(&config.plugin_switches())
+        .map_err(|error| format!("the render names an unregistered plugin: {error:?}"))?;
+    if format!("{config:#?}\n") != RESOLVED_CONFIG_SNAPSHOT {
+        return Err("resolved configuration differs from the committed snapshot".into());
+    }
+    Ok(())
+}
+
+fn rendered_configuration(values_path: &str) -> Result<(String, Config), String> {
     let values_text = std::fs::read_to_string(values_path)
         .map_err(|error| format!("reading {values_path}: {error}"))?;
     let values: toml::Table = values_text
@@ -87,12 +107,9 @@ fn run(values_path: &str, template_path: &str) -> Result<(), String> {
     // first.
     let stubbed = strip_chezmoi_actions(&rendered, identity_placeholder)
         .map_err(|error| format!("the render carries a malformed secret action: {error}"))?;
-    parse_config(&stubbed)
+    let config = parse_config(&stubbed)
         .map_err(|error| format!("the render does not self-parse: {}", error.detail()))?;
-
-    let template = format!("{BANNER}{rendered}{FOOTER}");
-    std::fs::write(template_path, template)
-        .map_err(|error| format!("writing {template_path}: {error}"))
+    Ok((rendered, config))
 }
 
 /// Refuses by name when one of `SECRET_BEARING_KEYS` is present but is not a
@@ -127,59 +144,5 @@ fn lookup<'a>(table: &'a toml::Table, dotted: &str) -> Option<&'a toml::Value> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{lookup, refuse_literal_secrets};
-
-    #[test]
-    fn a_literal_string_at_a_secret_bearing_path_is_refused_by_name() {
-        let mut hue = toml::Table::new();
-        hue.insert(
-            "bridge".to_string(),
-            toml::Value::String("192.168.1.9".to_string()),
-        );
-        let mut plugins = toml::Table::new();
-        plugins.insert("hue".to_string(), toml::Value::Table(hue));
-        let mut values = toml::Table::new();
-        values.insert("plugins".to_string(), toml::Value::Table(plugins));
-
-        let error = refuse_literal_secrets(&values)
-            .expect_err("a literal bridge address is not a secret marker");
-        assert!(error.contains("plugins.hue.bridge"), "{error}");
-    }
-
-    #[test]
-    fn a_proper_secret_marker_table_is_accepted() {
-        let mut marker = toml::Table::new();
-        marker.insert(
-            "keepassxc".to_string(),
-            toml::Value::String("Some Entry".to_string()),
-        );
-        marker.insert(
-            "field".to_string(),
-            toml::Value::String("Password".to_string()),
-        );
-        let mut mobile = toml::Table::new();
-        mobile.insert("token".to_string(), toml::Value::Table(marker));
-        let mut plugins = toml::Table::new();
-        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
-        let mut values = toml::Table::new();
-        values.insert("plugins".to_string(), toml::Value::Table(plugins));
-
-        refuse_literal_secrets(&values).expect("a well-shaped secret marker is accepted");
-    }
-
-    #[test]
-    fn an_absent_secret_bearing_key_is_accepted() {
-        refuse_literal_secrets(&toml::Table::new()).expect("nothing present, nothing to refuse");
-    }
-
-    #[test]
-    fn lookup_stops_at_a_non_table_segment_rather_than_panicking() {
-        let mut values = toml::Table::new();
-        values.insert(
-            "plugins".to_string(),
-            toml::Value::String("not a table".to_string()),
-        );
-        assert_eq!(lookup(&values, "plugins.hue.bridge"), None);
-    }
-}
+#[path = "pns-config-render/tests.rs"]
+mod tests;
