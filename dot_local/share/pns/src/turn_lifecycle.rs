@@ -26,7 +26,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
         false => condense(&reply),
     };
     run_event(
-        &pns::args::EventArgs {
+        &pns_domain::EventArgs {
             agent: agent.to_string(),
             state,
             project: project_of(&payload.cwd),
@@ -68,7 +68,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
     // fires INSTEAD of Stop, so without it a dead turn leaves its approval armed.
     clear_nag(&payload.session_id);
     run_event(
-        &pns::args::EventArgs {
+        &pns_domain::EventArgs {
             agent: agent.to_string(),
             state: "failed".to_string(),
             project: project_of(&payload.cwd),

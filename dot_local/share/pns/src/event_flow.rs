@@ -42,7 +42,7 @@ pub(crate) enum Attempt {
 /// which is honestly no identity rather than fields nothing can fill. The
 /// lamps' needs marker and the decision line are its readers.
 pub(crate) fn run_event(
-    event: &pns::args::EventArgs,
+    event: &pns_domain::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
     payload: &HookPayload,
     attempt: Attempt,
@@ -73,7 +73,7 @@ type PulseSink<'a> = &'a dyn Fn(
 );
 mod execution;
 fn run_event_pulsing(
-    event: &pns::args::EventArgs,
+    event: &pns_domain::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
     payload: &HookPayload,
     attempt: Attempt,

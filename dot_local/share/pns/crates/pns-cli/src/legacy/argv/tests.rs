@@ -108,7 +108,7 @@ fn help_in_flag_position_is_recognized_wherever_it_sits() {
         &["--local-only", "--help"][..],
         &["stray", "--help"][..],
     ] {
-        let (parsed, _) = args(tokens);
+        let parsed = parse_args(tokens.iter().map(|token| token.to_string()));
         assert!(parsed.help, "{tokens:?} should set help");
     }
 }
@@ -119,13 +119,13 @@ fn help_in_value_position_is_still_just_a_value() {
     // value, under the same leniency `an_unrecognized_token_is_still_taken_as_a_value`
     // pins for `--bogus`. Adding `--help` to `is_producer_flag` would flip
     // this into a warn-and-drop, which is the wrong fix.
-    let (parsed, warnings) = args(&["--agent", "--help", "--state", "done"]);
-    assert_eq!(parsed.agent, "--help");
+    let parsed = parse_args(["--agent", "--help", "--state", "done"].map(str::to_owned));
+    assert_eq!(parsed.event.agent, "--help");
     assert!(!parsed.help);
-    assert!(warnings.is_empty());
+    assert!(parsed.warnings.is_empty());
 
-    let (parsed, _) = args(&["--agent", "claude", "--state", "--help"]);
-    assert_eq!(parsed.state, "--help");
+    let parsed = parse_args(["--agent", "claude", "--state", "--help"].map(str::to_owned));
+    assert_eq!(parsed.event.state, "--help");
     assert!(!parsed.help);
 }
 

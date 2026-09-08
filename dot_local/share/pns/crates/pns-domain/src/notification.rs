@@ -40,13 +40,4 @@ pub struct EventArgs {
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,
-    /// Set when `--help`/`-h` reached this parse in FLAG position. `event_mode`
-    /// checks this before touching the config or a probe.
-    ///
-    /// THE ONE FIELD HERE THAT IS ABOUT A COMMAND LINE rather than about an
-    /// event, and it is carried rather than split out because splitting it
-    /// would change every construction site of this struct for one bool. PR
-    /// 8.1 owns the producer argv adapter and is where lifting it into a parse
-    /// result belongs, if it is ever worth the churn.
-    pub help: bool,
 }

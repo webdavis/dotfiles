@@ -41,7 +41,7 @@ pub(crate) fn gate_mode(subcommand: &str) -> i32 {
 /// after which it silently does nothing. A payload too large to have arrived
 /// whole is the one thing not forwarded: see `payload_is_whole`.
 pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32 {
-    let event = pns::args::EventArgs {
+    let event = pns_domain::EventArgs {
         agent: agent.to_string(),
         state: "blocked".to_string(),
         project: project_of(&payload.cwd),
@@ -109,13 +109,13 @@ impl pns_application::PhoneSuppression for MoshiRaiseNotification<'_> {
 }
 
 impl pns_application::NagSchedule for MoshiRaiseNotification<'_> {
-    fn arm(&self, session_id: &str, event: &pns::args::EventArgs) {
+    fn arm(&self, session_id: &str, event: &pns_domain::EventArgs) {
         arm_nag(session_id, event);
     }
 }
 
 impl pns_application::RaiseNotification for MoshiRaiseNotification<'_> {
-    fn raise(&self, event: &pns::args::EventArgs) {
+    fn raise(&self, event: &pns_domain::EventArgs) {
         run_event(event, self.probes, self.payload, Attempt::First);
     }
 }

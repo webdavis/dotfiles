@@ -74,7 +74,7 @@ impl pns_application::ReturnMoment for CatchUp<'_> {
 }
 
 impl pns_application::ActivityRing for CatchUp<'_> {
-    fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
+    fn record(&self, event: &pns_domain::EventArgs, now: Option<u64>) {
         pns_application::ActivityRing::record(self.moment, event, now);
     }
     fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
@@ -92,7 +92,7 @@ impl pns_application::ReplayDelivery for CatchUp<'_> {
     fn deliver(
         &self,
         identity: &pns_application::SubmissionIdentity,
-        event: &pns::args::EventArgs,
+        event: &pns_domain::EventArgs,
         legs: &[pns::routing::Leg],
     ) -> pns_application::ReplayHandoff {
         replay_handoff(self.delivery.submit(identity, event, legs, false, None))

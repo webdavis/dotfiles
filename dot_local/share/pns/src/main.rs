@@ -15,7 +15,6 @@ pub(crate) use std::collections::BTreeMap;
 pub(crate) use std::path::Path;
 pub(crate) use std::time::Duration;
 
-pub(crate) use pns::args::parse_args;
 pub(crate) use pns::channels::Delivery;
 pub(crate) use pns::channels::hermes::hermes_secret;
 pub(crate) use pns::channels::hue::{

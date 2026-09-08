@@ -85,7 +85,7 @@ mod tests {
         let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
         let handed: RefCell<Option<pns::presence_policy::Snapshot>> = RefCell::new(None);
         run_event_pulsing(
-            &pns::args::EventArgs {
+            &pns_domain::EventArgs {
                 agent: "claude".to_string(),
                 state: "done".to_string(),
                 project: "pns".to_string(),

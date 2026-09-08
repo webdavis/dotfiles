@@ -87,7 +87,6 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         local_only: true,
         remote_only: true,
         long_running: true,
-        help: false,
     };
     let decision = decision(GateInputs {
         pane_present: true,

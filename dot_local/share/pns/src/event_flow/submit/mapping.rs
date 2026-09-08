@@ -30,7 +30,6 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             long_running: request
                 .elapsed_secs
                 .is_some_and(|seconds| seconds >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
-            ..pns_domain::EventArgs::default()
         },
         attempt,
     )

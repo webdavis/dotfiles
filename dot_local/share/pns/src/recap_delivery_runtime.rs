@@ -32,7 +32,7 @@ pub(crate) fn deliver_recap(
         mode: pns::routing::ReportMode::ReportOutcome,
         decorative: false,
     };
-    let event = pns::args::EventArgs {
+    let event = pns_domain::EventArgs {
         agent: "pns".to_string(),
         state: "recap".to_string(),
         detail: body.to_string(),

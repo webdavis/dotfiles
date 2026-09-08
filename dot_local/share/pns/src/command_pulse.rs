@@ -24,7 +24,10 @@ pub(crate) fn pulse_mode() -> i32 {
         .skip(2)
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
-    if tail.iter().any(|token| pns::args::is_help_flag(token)) {
+    if tail
+        .iter()
+        .any(|token| pns_cli::legacy::is_help_flag(token))
+    {
         println!("{PULSE_USAGE}");
         return 0;
     }

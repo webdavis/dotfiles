@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) fn execute(
-    event: &pns::args::EventArgs,
+    event: &pns_domain::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
     payload: &HookPayload,
     attempt: Attempt,

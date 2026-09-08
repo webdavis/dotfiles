@@ -8,7 +8,7 @@ pub(crate) fn clear_nag(session_id: &str) {
     );
 }
 
-pub(crate) fn arm_nag(session_id: &str, event: &pns::args::EventArgs) {
+pub(crate) fn arm_nag(session_id: &str, event: &pns_domain::EventArgs) {
     let state = state_dir();
     pns_application::ArmNag {
         records: &pns_adapters::FileNagRecords::new(state.clone()),

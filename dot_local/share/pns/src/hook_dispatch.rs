@@ -77,7 +77,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // message of its own, so its detail resolves through `parse_payload`'s
         // existing chain to the tool request.
         "asked" | "plan-ready" | "denied" => run_event(
-            &pns::args::EventArgs {
+            &pns_domain::EventArgs {
                 agent,
                 state: event.to_string(),
                 project: project_of(&payload.cwd),
@@ -105,7 +105,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         "model-switch" if payload.source == "auto" => {
             if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
                 run_event(
-                    &pns::args::EventArgs {
+                    &pns_domain::EventArgs {
                         agent,
                         state: event.to_string(),
                         project: project_of(&payload.cwd),
@@ -143,7 +143,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                     arm_quota_stale_wait(&payload.session_id, &probes);
                 }
                 run_event(
-                    &pns::args::EventArgs {
+                    &pns_domain::EventArgs {
                         agent,
                         state: event.to_string(),
                         project: project_of(&payload.cwd),
@@ -185,7 +185,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                     );
                 }
                 run_event(
-                    &pns::args::EventArgs {
+                    &pns_domain::EventArgs {
                         agent,
                         state: event.to_string(),
                         project: project_of(&payload.cwd),

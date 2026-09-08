@@ -13,11 +13,7 @@
 //! while the same word sitting where a flag's value belongs is still just a
 //! value, under the second rule.
 
-/// The parsed event arguments. THE VALUE MOVED to `pns-domain`, beside the
-/// rendered `Event` it becomes, because the use cases in `pns-application`
-/// take one and a use case may not name a type this package owns. The PARSE
-/// below stayed, which is the half that is about a command line.
-pub use pns_domain::EventArgs;
+use pns_domain::EventArgs;
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
@@ -40,13 +36,8 @@ const VALUE_FLAGS: [&str; 8] = [
 /// its value and the tier vanished without a warning.
 const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
 
-/// Whether a token is a flag this parser recognizes.
-///
-/// PUBLIC BECAUSE THE COMPOSITION ROOT ASKS IT TOO: telling a producer
-/// invocation from a mistyped subcommand is a question about these same two
-/// lists, and a second copy of them in `main` is exactly the drift the
-/// `--long-running` bug above came from.
-pub fn is_producer_flag(token: &str) -> bool {
+/// Whether a token is a producer flag, shared by parsing and invocation classification.
+fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
 }
 
@@ -61,7 +52,8 @@ pub fn is_help_flag(token: &str) -> bool {
     token == "--help" || token == "-h"
 }
 
-pub struct ParsedArgs {
+pub(super) struct ParsedArgs {
+    pub help: bool,
     pub event: EventArgs,
     pub warnings: Vec<String>,
     elapsed: Result<Option<u64>, String>,
@@ -77,11 +69,12 @@ impl ParsedArgs {
 }
 
 /// Parse argv, retaining legacy warnings and a separate elapsed refusal.
-pub fn parse_args<I>(argv: I) -> ParsedArgs
+pub(super) fn parse_args<I>(argv: I) -> ParsedArgs
 where
     I: IntoIterator<Item = String>,
 {
     let mut parsed = EventArgs::default();
+    let mut help = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut tokens = argv.into_iter().peekable();
@@ -95,7 +88,7 @@ where
             // --help` never lands here, the value arm below already took
             // `--help` as `--state`'s value by the time this token is asked
             // about again.
-            flag if is_help_flag(flag) => parsed.help = true,
+            flag if is_help_flag(flag) => help = true,
             "--elapsed" => {
                 let value = if tokens.peek().is_some_and(|next| !is_producer_flag(next)) {
                     tokens.next()
@@ -139,10 +132,35 @@ where
         elapsed = Err("--elapsed cannot be combined with --long-running".to_owned());
     }
     ParsedArgs {
+        help,
         event: parsed,
         warnings,
         elapsed,
     }
+}
+
+/// Whether argv is a PRODUCER invocation rather than a mistyped subcommand.
+///
+/// IT READS THE WHOLE OF ARGV, not just the leading word, and that is the
+/// point. The parser deliberately accepts a stray token in front of the real
+/// flags, so a leading word alone does not make an invocation a typo: what does
+/// is argv carrying no producer flag, and no `--help`/`-h`, anywhere. Refusing
+/// on the first word alone would drop real notifications, which is the exact
+/// mirror of the bug this refusal exists to fix.
+///
+/// AN EMPTY ARGV is the bare invocation `args` calls a valid empty event.
+/// A DASH-LED FIRST WORD IS NO LONGER A FREE PASS: that used to make ANY
+/// dash-led `argv[1]` a producer invocation, so a mistyped flag (`--wat`,
+/// `-help`, `--agent=claude`) delivered an empty event in silence, the `pns
+/// stpo` bug reopened for a typo that happens to start with a dash.
+/// `--help`/`-h` ARE COUNTED, so a producer invocation that only adds
+/// `--help` still reaches the parser below, which is where the help arm
+/// actually prints the usage and returns.
+pub fn is_producer_argv(argv: &[String]) -> bool {
+    argv.is_empty()
+        || argv
+            .iter()
+            .any(|token| is_producer_flag(token) || is_help_flag(token))
 }
 
 #[cfg(test)]

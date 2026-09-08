@@ -26,7 +26,7 @@ pub(super) struct EventRecords<'a> {
 impl pns_application::Journal for EventRecords<'_> {
     fn journal(
         &self,
-        event: &pns::args::EventArgs,
+        event: &pns_domain::EventArgs,
         now: Option<u64>,
         identity: Option<&pns_application::SubmissionIdentity>,
     ) {
@@ -37,7 +37,7 @@ impl pns_application::Journal for EventRecords<'_> {
     }
 }
 impl pns_application::ActivityRing for EventRecords<'_> {
-    fn record(&self, event: &pns::args::EventArgs, now: Option<u64>) {
+    fn record(&self, event: &pns_domain::EventArgs, now: Option<u64>) {
         pns_application::ActivityRing::record(&self.moment, event, now);
     }
     fn entries_between(&self, since: u64, until: u64) -> Vec<pns_domain::missed::Entry> {
