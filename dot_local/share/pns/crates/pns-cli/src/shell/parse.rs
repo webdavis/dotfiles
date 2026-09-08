@@ -20,8 +20,8 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
     let mut command = None;
     let mut exit = None;
     let mut elapsed = None;
-    let mut pairs = fields.chunks_exact(2);
-    for pair in &mut pairs {
+    let (pairs, remainder) = fields.as_chunks::<2>();
+    for pair in pairs {
         let slot = match pair[0].as_str() {
             "--pid" => &mut pid,
             "--command" => &mut command,
@@ -33,7 +33,7 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
             return Err("has a repeated argument");
         }
     }
-    if !pairs.remainder().is_empty() {
+    if !remainder.is_empty() {
         return Err("requires a value after every flag");
     }
     let pid = decimal(pid)
