@@ -17,7 +17,7 @@ mod spawn;
 mod text;
 mod uv;
 pub use skills::{
-    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsGenerationStore,
+    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsForkWatch, SkillsGenerationStore,
     SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
 };
 
