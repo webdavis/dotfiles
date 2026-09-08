@@ -192,3 +192,17 @@ fn help_in_value_position_is_still_just_a_value() {
         .args(["--agent", "claude", "--state", "--help"]));
     assert_eq!(sandbox.event("mobile")["state"], "--help");
 }
+
+#[test]
+fn a_missing_value_warning_keeps_its_exact_sentence() {
+    let sandbox = Sandbox::new("missing-value-warning");
+    let output = run(sandbox
+        .pns()
+        .args(["--detail", "--local-only", "--remote-only"]));
+    assert_eq!(
+        stderr(&output),
+        "pns: --detail given without a value; ignoring\n"
+    );
+    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("hermes"));
+}

@@ -128,3 +128,33 @@ fn help_in_value_position_is_still_just_a_value() {
     assert_eq!(parsed.state, "--help");
     assert!(!parsed.help);
 }
+
+#[test]
+fn the_last_value_wins_for_every_producer_field() {
+    let mut tokens = Vec::new();
+    for flag in [
+        "--agent",
+        "--state",
+        "--project",
+        "--branch",
+        "--detail",
+        "--pane",
+        "--channel",
+    ] {
+        tokens.extend([flag, "first", flag, "last"]);
+    }
+    let (event, warnings) = args(&tokens);
+    assert_eq!(
+        [
+            event.agent,
+            event.state,
+            event.project,
+            event.branch,
+            event.detail,
+            event.pane,
+            event.channel
+        ],
+        ["last"; 7].map(str::to_owned),
+    );
+    assert!(warnings.is_empty());
+}
