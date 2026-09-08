@@ -247,9 +247,10 @@ All leave light-action output and exit 0 unchanged, with no notification diagnos
 
 This deadline covers the direct producer child. Foreground `gtimeout` does not kill pns descendants.
 pns owns delivery-process cleanup, including after its producer exits or is killed; PR 10 must verify
-that separate lifecycle contract before wiring notification. The current Bash-channel delivery path
-has an unbounded child wait, so its cleanup is a pns prerequisite, not a guarantee made by this monitor.
-The lights plan does not add a delivery supervisor or change pns. Notification remains default-off.
+that separate lifecycle contract before wiring notification, including an independent finite owner for
+any deliberately detached recap. The original Bash-channel path had an unbounded child wait; the pns
+lifecycle fixes are a delivery prerequisite, not a guarantee made by this monitor. The lights plan does
+not add a delivery supervisor or change pns. Notification remains default-off.
 
 `--local-only` is deliberate: you are standing in the room with your hand on the key, so there is nothing
 for the phone to tell you.

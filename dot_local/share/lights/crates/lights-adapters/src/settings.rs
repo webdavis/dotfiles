@@ -8,6 +8,7 @@ pub struct Settings {
     pub aliases: Aliases,
     pub rotation: Rotation,
     pub step: u8,
+    pub notify: bool,
     pub controller: HueSettings,
 }
 

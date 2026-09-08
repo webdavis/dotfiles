@@ -40,7 +40,8 @@ fn room_option_works_before_and_after_command() {
             decode(&args).unwrap(),
             Request {
                 command: Command::Toggle,
-                room: Some("Custom Room".into())
+                room: Some("Custom Room".into()),
+                notify: false
             }
         );
     }

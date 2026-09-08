@@ -2,8 +2,8 @@ mod render;
 
 use lights_adapters::settings::{self, HueSettings, Settings};
 use lights_application::{
-    AdjustBrightness, BrightnessChange, LightController, LightsError, ReportStatus, SceneSelection,
-    SetPower, SetScene, TogglePower,
+    AdjustBrightness, BrightnessChange, LightController, LightsError, Notifier, ReportStatus,
+    SceneSelection, SetPower, SetScene, TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
 use lights_protocol::{BrightnessRequest, Command, Request};
@@ -19,6 +19,7 @@ pub struct Response {
 pub fn run<C: LightController>(
     args: &[String],
     config: &Path,
+    notifier: &impl Notifier,
     controller: impl FnOnce(&HueSettings) -> C,
 ) -> Response {
     let request = match lights_protocol::parse(args) {
@@ -39,8 +40,14 @@ pub fn run<C: LightController>(
         },
         None => settings.default_room.clone(),
     };
+    let notify = request.notify || settings.notify;
     match execute(&controller(&settings.controller), &settings, &room, request) {
-        Ok(action) => success(render::action(&action)),
+        Ok(action) => {
+            if notify && !matches!(action, Action::Reported { .. }) {
+                notifier.announce(&action);
+            }
+            success(lights_adapters::render_action(&action))
+        }
         Err(error) => {
             let (code, message) = render::error(error);
             failure(code, &message)

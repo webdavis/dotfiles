@@ -103,6 +103,7 @@ version = "0.1.0"
 dependencies = [
  "lights-application",
  "lights-domain",
+ "lights-protocol",
  "serde_json",
  "toml",
  "ureq",

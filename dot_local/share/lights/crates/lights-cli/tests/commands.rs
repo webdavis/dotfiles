@@ -120,3 +120,6 @@ fn named_and_rotated_scenes_use_real_adapter() {
 fn transport_timeout_exits_four_without_success() {
     failure(&timeout_command(), 4, "timed out");
 }
+
+#[path = "commands/notifications.rs"]
+mod notifications;

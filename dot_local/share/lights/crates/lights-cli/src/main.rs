@@ -1,4 +1,4 @@
-use lights_adapters::HueLightController;
+use lights_adapters::{HueLightController, PnsNotifier};
 use std::{path::PathBuf, process::ExitCode};
 
 fn main() -> ExitCode {
@@ -18,7 +18,15 @@ fn main() -> ExitCode {
         .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
         .map(|p| p.join("lights/config.toml"))
         .unwrap_or_default();
-    let response = lights_cli::run(&args, &config, HueLightController::new);
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let response = lights_cli::run(
+        &args,
+        &config,
+        &PnsNotifier::new(&home),
+        HueLightController::new,
+    );
     print!("{}", response.stdout);
     eprint!("{}", response.stderr);
     ExitCode::from(response.exit)

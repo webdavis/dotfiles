@@ -3,15 +3,11 @@ use lights_domain::{Aliases, RoomName, Rotation};
 use std::collections::BTreeMap;
 
 pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Settings, ConfigError> {
-    match root.get("notify") {
-        None | Some(toml::Value::Boolean(false)) => (),
-        Some(toml::Value::Boolean(true)) => {
-            return Err(error(
-                "notification requires the pending pns cleanup prerequisite",
-            ));
-        }
+    let notify = match root.get("notify") {
+        None => false,
+        Some(toml::Value::Boolean(value)) => *value,
         Some(_) => return Err(error("invalid notify")),
-    }
+    };
     let default_room =
         RoomName::new(string_or(root, "default_room", "3F - Studio")?).map_err(|e| error(e.0))?;
     let brightness = optional_table(root, "brightness")?;
@@ -59,6 +55,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
         Rotation::new(names, string_or(&scenes, "fallback", "Read")?).map_err(|e| error(e.0))?;
     Ok(Settings {
         controller,
+        notify,
         default_room,
         aliases: Aliases::new(aliases),
         rotation,

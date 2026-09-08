@@ -18,10 +18,12 @@ pub enum BrightnessRequest {
 pub struct Request {
     pub command: Command,
     pub room: Option<String>,
+    pub notify: bool,
 }
 
 pub fn parse(args: &[String]) -> Result<Request, String> {
     let mut room = None;
+    let mut notify = false;
     let mut words = Vec::new();
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -33,6 +35,11 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
             if room.replace(value.clone()).is_some() {
                 return Err("duplicate --room".into());
             }
+        } else if arg == "--notify" {
+            if notify {
+                return Err("duplicate --notify".into());
+            }
+            notify = true;
         } else {
             words.push(arg.as_str());
         }
@@ -58,7 +65,11 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
         }),
         _ => return Err("unknown command, flag or extra argument".into()),
     };
-    Ok(Request { command, room })
+    Ok(Request {
+        command,
+        room,
+        notify,
+    })
 }
 
 #[cfg(test)]

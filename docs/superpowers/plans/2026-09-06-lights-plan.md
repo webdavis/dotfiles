@@ -37,7 +37,7 @@ The member manifests enforce these final dependency edges:
 lights-domain      -> std only
 lights-application -> lights-domain
 lights-protocol    -> std only
-lights-adapters    -> lights-application, lights-domain
+lights-adapters    -> lights-application, lights-domain, lights-protocol
 lights-cli         -> lights-protocol, lights-adapters, lights-application, lights-domain
 ```
 

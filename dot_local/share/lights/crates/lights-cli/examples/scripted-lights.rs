@@ -5,6 +5,11 @@ use lights_adapters::HueLightController;
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::ExitCode, sync::Arc};
 
+struct Quiet;
+impl lights_application::Notifier for Quiet {
+    fn announce(&self, _: &lights_domain::Action) {}
+}
+
 fn main() -> ExitCode {
     let fixture: Value = std::env::var_os("LIGHTS_TEST_RESOURCES")
         .map(|p| serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap())
@@ -20,7 +25,7 @@ fn main() -> ExitCode {
         PathBuf::from(std::env::var_os("XDG_CONFIG_HOME").unwrap()).join("lights/config.toml");
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     let response = if std::env::var_os("LIGHTS_TEST_TIMEOUT").is_some() {
-        lights_cli::run(&args, &path, |s| {
+        lights_cli::run(&args, &path, &Quiet, |s| {
             HueLightController::with_transport(
                 s,
                 transport::TimeoutConnector,
@@ -28,7 +33,7 @@ fn main() -> ExitCode {
             )
         })
     } else {
-        lights_cli::run(&args, &path, |s| {
+        lights_cli::run(&args, &path, &Quiet, |s| {
             HueLightController::with_transport(s, connector, transport::ScriptedResolver)
         })
     };

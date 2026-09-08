@@ -1,4 +1,4 @@
-mod transport;
+pub(super) mod transport;
 
 use lights_adapters::HueLightController;
 use lights_cli::{Response, run};
@@ -28,6 +28,11 @@ pub fn config() -> &'static str {
 pub fn fixture() -> Value {
     serde_json::from_str(include_str!("../fixtures/resources.json")).unwrap()
 }
+pub struct Quiet;
+impl lights_application::Notifier for Quiet {
+    fn announce(&self, _: &lights_domain::Action) {}
+}
+
 pub fn command(
     args: &[&str],
     config: Option<&str>,
@@ -42,6 +47,7 @@ pub fn command(
     let response = run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
+        &Quiet,
         |settings| HueLightController::with_transport(settings, connector, ScriptedResolver),
     );
     let captured = requests.lock().unwrap().clone();
@@ -69,7 +75,7 @@ pub fn failure(response: &Response, exit: u8, name: &str) {
 pub fn timeout_command() -> Response {
     let path = home().join("config.toml");
     std::fs::write(&path, config()).unwrap();
-    run(&["toggle".into()], &path, |settings| {
+    run(&["toggle".into()], &path, &Quiet, |settings| {
         HueLightController::with_transport(
             settings,
             transport::TimeoutConnector,
