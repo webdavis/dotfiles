@@ -224,8 +224,8 @@ for these retained limits.
 ## Skills roster
 
 - **Given** skills settings, **when** parsing the callable component, **then** require every path to be
-  absolute and name invalid or unknown fields. The skills type remains unavailable to run and bootstrap
-  until its complete cutover; the shipped block stays commented.
+  absolute and name invalid or unknown fields. Register the skills type for both weekly runs and additive
+  bootstrap, using the declared lane name and the already parsed settings.
 - **Given** the custom roster, **when** capturing it, **then** require one version 2 document with typed
   tables and a nonempty npx/clawhub union. Refuse conflicting Hermes registry/profile ownership and
   refuse publication if the original roster bytes changed.
@@ -265,7 +265,8 @@ for these retained limits.
 - **Given** a candidate, **when** validating, **then** require every tracked directory and SKILL.md,
   ClawHub origin metadata, one npx lock document and correct overlays. Full lock keys must equal the npx
   roster; additive candidates may retain delisted keys. Refuse the whole candidate on any failure and
-  retain its renamed HOME for diagnosis, leaving the current generation alone.
+  rename its HOME as invalid, leaving the current generation alone. The weekly and bootstrap compositions
+  then discard their owned failed workspace.
 
 ## Skills publication
 
@@ -330,3 +331,12 @@ for these retained limits.
   generation names, npx keys, store entries and existing delivery links. Fill missing Hermes destinations
   under the same parent and child guards, both with and without publication. Do not migrate a flat store
   or refresh a healthy skill. Required phase failures remain failures.
+
+## Skills activation
+
+- **Given** a configured skills lane, **when** parsing its registration, **then** capture the updater
+  digest before any lane can replace the running executable's path. Skills recovery uses that captured
+  identity throughout the invocation.
+- **Given** a present ClawHub skill, **when** performing a full refresh, **then** remove only its
+  candidate `.DS_Store` metadata before the package command. Additive bootstrap preserves a healthy skill
+  without invoking the package command or removing its metadata.

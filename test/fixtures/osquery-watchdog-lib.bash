@@ -169,9 +169,9 @@ SHIM
   # has nothing to do with the behavior it is testing. WD_MANAGED_BIN_SCRIPT is the
   # stand-in unattended operator script; the shim beside it is in no manifest, the
   # way mise and herdr sit in the real directory.
-  mkdir -p "$WD_HOME/.local/bin" "$WD_HOME/.local/libexec/unattended-upgrades/agent-skills"
-  export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh"
-  printf 'echo update-skills\n' >"$WD_MANAGED_BIN_SCRIPT"
+  mkdir -p "$WD_HOME/.local/bin" "$WD_HOME/.local/libexec"
+  export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/libexec/managed-fixture.sh"
+  printf 'echo managed-fixture\n' >"$WD_MANAGED_BIN_SCRIPT"
   chmod 755 "$WD_MANAGED_BIN_SCRIPT"
   printf 'unmanaged self-updating binary\n' >"$WD_HOME/.local/bin/mise"
   export OSQUERY_MANAGED_BIN_MANIFEST="$WD_HOME/managed-bin-known-good.sha256"
@@ -343,7 +343,7 @@ tamper_managed_bin_file() {
 # chmod_managed_bin_file_through_hard_link -- the attribute half of the same blind
 # spot, on the bin arm: chmod a HARD LINK created outside ~/.local/bin, so the
 # watched path's mode changes with no event naming it and no byte of content moved.
-# update-skills.sh runs unattended from a LaunchAgent, so making it group-writable
+# A managed script runs unattended, so making it group-writable
 # is the step before rewriting it from a less privileged context later.
 chmod_managed_bin_file_through_hard_link() {
   local alias_path="$WD_HOME/bin-attacker-alias.sh"

@@ -1,3 +1,4 @@
+mod adapter;
 mod bootstrap;
 mod roster;
 pub use roster::{HermesRegistryEntry, SkillsRoster};

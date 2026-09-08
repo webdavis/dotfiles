@@ -79,3 +79,6 @@ fn clawhub(agents: &Path) -> Result<Listing, String> {
     }
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests;

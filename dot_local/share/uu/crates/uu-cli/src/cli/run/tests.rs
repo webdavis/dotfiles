@@ -63,7 +63,7 @@ fn a_missing_registration_refuses_before_any_command_or_diagnostic_can_run() {
         .unwrap_err();
     assert_eq!(
         error.detail(),
-        "lane `chosen` has type `fixture-command`, which is no lane type; this build serves brew, claude-plugins, command, herdr, npm, nvim-mason, nvim-parsers, nvim-plugins, nvim-smoke-test, uv"
+        "lane `chosen` has type `fixture-command`, which is no lane type; this build serves brew, claude-plugins, command, herdr, npm, nvim-mason, nvim-parsers, nvim-plugins, nvim-smoke-test, skills, uv"
     );
     assert!(!touched.exists());
     assert!(!fixture.marker().exists());

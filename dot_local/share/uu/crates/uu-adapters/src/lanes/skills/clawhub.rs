@@ -102,6 +102,11 @@ impl SkillsCandidate {
         runner: &dyn CommandRunner,
     ) -> Result<(), String> {
         let agents = self.agents();
+        match std::fs::remove_file(agents.join("skills").join(name).join(".DS_Store")) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
         let work = agents.to_string_lossy();
         let args = [
             "--no-input",

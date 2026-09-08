@@ -294,9 +294,8 @@ fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces 
 any more:** the roster guard was declaration-consistency checking, not tool behavior, so it went with the
 2026-08-05 scope ruling. Adding or removing a skill means editing the store, every lock table and every
 per-harness declaration by hand, and a missed one now surfaces as a skill quietly not reaching a harness
-rather than as a red build. `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh`
-refreshes the npx-, clawhub- and app-owned lanes weekly, publishing a new generation with one atomic
-exchange.
+rather than as a red build. `~/.local/libexec/uu/uu run skills` refreshes the npx-, clawhub- and
+app-owned lanes weekly, publishing a new generation with one atomic exchange.
 
 `docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
 drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
@@ -492,7 +491,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | -------------------------------------------------- | ---------------------------------------------------- |
 | `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
 | `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
-| `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)  |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |

@@ -49,20 +49,6 @@ grep -qx -- '--remote-only' "$scratch/posted" ||
 { grep -qx -- '--channel' "$scratch/posted" && grep -qx -- 'unattended-upgrades' "$scratch/posted"; } ||
   fail "the record names its route (--channel unattended-upgrades); a raw URL override is the retired way"
 
-# --- the remaining job resolve through the guard, none keeps a default --------
-# The path may appear inside weekly_engine's terminal fallback and nowhere
-# else. grep -q is never placed downstream of a pipe: its early exit closes
-# the pipe, the upstream grep dies of SIGPIPE on any file larger than the
-# buffer, and under pipefail the whole check reads as "no match": a guard
-# that cannot fail on exactly the biggest file.
-job="dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
-grep -q 'weekly_engine()' "$REPO_ROOT/$job" ||
-  fail "$job must define the guarded resolution"
-assignments="$(grep -nE '(PNS|pns_script)=' "$REPO_ROOT/$job" | grep -v '^[0-9]*: *#' || true)"
-if grep 'libexec/pns/relay\.sh' <<<"$assignments" >/dev/null; then
-  fail "$job assigns the bash engine directly instead of weekly_engine: $assignments"
-fi
-
 # --- a present-but-not-executable engine is refused with the stated lines --
 # An interrupted install leaves exactly this; the refusal and its wording are
 # the operator's only clue in a launchd log.
@@ -101,19 +87,5 @@ unattended_log_claim_week "$guard_dir" completed ||
 resolver_err="$(unattended_engine 2>&1 >/dev/null)"
 [[ -z $resolver_err ]] ||
   fail "resolution must not leak shell noise into the record, got: $resolver_err"
-
-# --- each job's terminal fallback is the binary, run, not read --------------
-# The fallback fires only when log-entries.sh is absent (partial deployment);
-# reverting it to the retired bash engine would leave exactly that machine
-# resolving a deleted file. The function is extracted from each job and RUN
-# with the shared rule undefined.
-job="dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh"
-fallback="$(bash --noprofile --norc -c "
-  HOME='$HOME'
-  $(sed -n '/^weekly_engine() {$/,/^}$/p' "$REPO_ROOT/$job")
-  weekly_engine
-")"
-[[ $fallback == "$HOME/.local/libexec/pns/pns" ]] ||
-  fail "$job's terminal fallback must be the binary, got: $fallback"
 
 exit 0
