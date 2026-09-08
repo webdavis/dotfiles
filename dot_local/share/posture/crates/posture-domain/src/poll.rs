@@ -1,6 +1,7 @@
 mod baseline;
 mod classify;
 mod gaps;
+pub use gaps::poll_persistence_gap;
 mod render;
 use crate::{Control, ControlsRefusal, Severity};
 pub use baseline::{

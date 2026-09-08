@@ -1,8 +1,8 @@
 # Controls, poller and Funnel policy
 
 The domain evaluates supplied readings and returns pages and proposed state. These contracts cover plan
-rows 2.7 and 2.8. The application must store each required page before publishing the proposed baseline.
-The process and file adapters supply the readings; this policy does not perform those effects.
+rows 2.7 and 2.8. The application stores each required page before publishing the proposed baseline. The
+process and file adapters supply the readings; this policy does not perform those effects.
 
 - Given a controls document, admit the whole nonempty array or return one refusal. Require a unique
   nonempty identifier made of lowercase ASCII (American Standard Code for Information Interchange)
@@ -62,8 +62,9 @@ descriptions and remedies. A later invalid row refuses the whole set (S254 to S2
 The reader returns a typed refusal without printing. The future caller still owns Bash's additional
 shell-redirection diagnostic for an unreadable file, alongside the malformed-file explanation. The
 controls array's typed length replaces the intermediate count string. The poller state adapter below owns
-its file operations. Durable acceptance and the Funnel file adapters remain in the planned application
-and adapter rows (S265, S270, S271, S278). The Bash callers remain active until those cutovers.
+its file operations. The poll flow below requires durable acceptance; concrete caller composition and the
+Funnel file adapters remain in their planned rows (S265, S270, S271, S278). The Bash callers remain
+active until those cutovers.
 
 The native poller inputs preserve each completed command's output and shell exit status. Existing
 inspection and publication callers still use success-only reads and their original total budget. Poller
@@ -85,9 +86,9 @@ newline-separated values. An invalid document clears the first projection; a sca
 that row while later stream rows still print. These bytes feed the existing domain classifiers without
 being treated as trusted readings (S241, S243).
 
-These adapters perform read-only observations when invoked. The application still owns validated-control
-ordering, calls to the baseline and gap adapter, durable page submission, and caller cutover. No deployed
-caller uses these inputs yet.
+These adapters perform read-only observations when invoked. The application flow below owns page and
+baseline ordering. Concrete composition still owns the validated-control reads, adapter calls,
+diagnostics and caller cutover. No deployed caller uses these inputs yet.
 
 The poller state adapter reads exactly one whole baseline object and trusts only mode 0600 with a valid
 trio. A symlink's own mode is checked while the regular-file read follows its target. Missing paths,
@@ -112,5 +113,28 @@ S262).
 The baseline is written with a trailing newline through its fixed private sibling, renamed, then chmodded
 to 0600. A failed write or rename leaves the old baseline; a failed chmod after rename returns failure
 with the new baseline already present. Existing temporary-file modes remain until the final chmod. The
-owner's exit removes a leftover temporary best effort. Durable acceptance before these writes and the
-persistence-gap response to their results remain application responsibilities (S265).
+owner's exit removes a leftover temporary best effort. The application flow below requires acceptance
+before these writes and handles their persistence-gap response (S265).
+
+The poll flow reads current gap coverage, evaluates the supplied readings, then submits any new
+monitoring gap before refreshing its marker. A refused gap stops the tick without advancing its marker,
+sending an exposure or publishing a baseline. An already-covered gap still refreshes the current member
+set. Clean recovery clears the read marker. Marker writes and clears remain best effort (S257, S258,
+S267).
+
+An unreadable trio without a trusted prior stops after the accepted gap. Otherwise, an independent
+exposure must be accepted before baseline publication. Refusal preserves the baseline while retaining any
+monitoring-gap coverage already accepted that tick. Publication runs once; success clears the persistence
+marker. Failure attempts a separate degraded-monitor gap, marks it only after acceptance, and returns
+failure even when that gap is refused or already covered. The file adapter's pre- and post-rename
+outcomes remain visible to the caller (S262, S265, S267).
+
+Pages carry `NeedsAttention`, the supplied occurrence time and no fixed occurrence identity. Monitoring
+and persistence gaps use event `gap`; exposure uses `page`. The flow leaves retained JSON inside the file
+adapter by accepting only a typed publication closure. No Bash caller is replaced here.
+
+`PollPage` retains the captured Sosumi field. The current PNS (Personal Notification System) banner uses
+its fixed default sound for `NeedsAttention`; its request and configuration do not accept a sound name.
+Exact ordinary banner sound-name parity remains a caller-cutover obligation. The independent last-resort
+alarm's fixed Sosumi behavior belongs to the separate producer adapter. This flow adds no unused sound
+field to `Alert`.

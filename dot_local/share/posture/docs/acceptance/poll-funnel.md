@@ -156,6 +156,46 @@ stub prints captured rows and never inspects the machine.
 
 The adapter retains the selected query rows inside `PostureTrio` for publication. It reuses the existing
 field parser and renderer, preserves numbers versus strings and unknown fields, and leaves the public
-reading and SQL unchanged. Application values contain no JSON. Gap submission before marker refresh,
-exposure submission before baseline advancement, caller diagnostics and deployed caller cutover remain
-application work. This packet does not complete the poller delivery.
+reading and SQL unchanged. Application values contain no JSON. The ordering slice below covers gap
+acceptance before marker refresh and exposure acceptance before baseline advancement. Concrete adapter
+composition, caller diagnostics and deployed caller cutover remain; these packets do not complete the
+poller cutover.
+
+## Poll application ordering
+
+Eight new application leaves preserve all 477 predecessor names. The initial no-op flow fails all eight
+actual assertions. The completed flow passes all 80 application cases, including the 72 retained leaves;
+no full workspace run is claimed here. Ten guarded production-source faults fail twelve named assertions.
+Each arm uses the same exclusively owned source and target, records its actual compiler invocation,
+dependency inputs and artifact hash, then restores exact bytes. All new healthy and failing cases
+complete within one millisecond. The healthy binary is restored byte-for-byte after the faults.
+
+| Full new test name                                                                                            | Source statements | Independent source faults                                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| `poll::tests::gap::a_new_gap_is_accepted_and_marked_before_an_independent_exposure_and_baseline`              | S257, S263, S267  | `marker-before-acceptance`, `publication-before-exposure`, `security-page-called-observation` |
+| `poll::tests::gap::a_refused_gap_advances_no_marker_exposure_or_baseline`                                     | S257, S267        | `marker-before-acceptance`                                                                    |
+| `poll::tests::gap::an_already_covered_gap_refreshes_current_members_even_when_marker_writes_refuse`           | S257              | `covered-gap-not-refreshed`                                                                   |
+| `poll::tests::gap::an_unreadable_trio_without_prior_stops_after_the_accepted_gap`                             | S262              | `early-stop-clears-persistence`                                                               |
+| `poll::tests::gap::exposure_refusal_preserves_baseline_after_the_independent_gap_was_accepted`                | S267              | `publication-before-exposure`                                                                 |
+| `poll::tests::publication::clean_recovery_and_successful_publication_clear_their_markers_best_effort`         | S257, S265        | `success-retains-persistence-gap`                                                             |
+| `poll::tests::publication::publication_failure_keeps_the_captured_file_outcome_and_pages_its_independent_gap` | S265              | `publication-refusal-called-success`, `persistence-gap-detail-erased-corrected`               |
+| `poll::tests::publication::persistence_gap_refusal_keeps_coverage_and_an_already_covered_gap_only_refreshes`  | S257, S265        | `refused-persistence-gap-marked`, `covered-persistence-pages-again`                           |
+
+The application tests record submission, marker and publication order, all six submission-failure
+classes, best-effort marker refusal and both file-publication outcomes. The publication closure models
+those outcomes; the earlier state tests retain the actual write, rename, chmod and file-mode evidence. A
+new inert Bash capture copies `persist_baseline` and records its exact degraded-monitor body and failure
+status, which the application fixture compares byte-for-byte.
+
+The first detail-erasure fault edit omitted a closing delimiter and failed compilation. That attempt is
+retained as compile-only evidence; its corrected body-only edit fails the intended assertion. No
+compile-only result is counted among the ten killed faults. The red-to-green helper changed marker
+methods to shared borrows so a concrete caller can use the same file adapter in the publication closure;
+all eight leaf assertion bodies remain unchanged apart from formatting.
+
+`Alert.occurrence_id` is borrowed from the separately frozen producer packet. New poll pages supply
+`None`, security classification and the supplied time, with event `gap` or `page`. This verifies the
+application request, not engine routing or a deployed notification. `PollPage` keeps its captured Sosumi
+field, but ordinary PNS banners currently request the fixed default sound. Exact sound-name parity
+remains at caller cutover; the independent alarm retains its separate fixed Sosumi contract. Caller
+stderr, concrete read order, activation and the Bash caller replacement also remain outside this slice.

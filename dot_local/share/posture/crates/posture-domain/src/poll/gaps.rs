@@ -52,3 +52,8 @@ pub(super) fn page(
     });
     (members, alert)
 }
+
+pub fn poll_persistence_gap() -> PollPage {
+    PollPage { severity: Severity::Critical, title: "🔴 **CRITICAL**".into(),
+        body: "**Security-posture monitor degraded**\n- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor.\n- Check the state directory free space and permissions. **Check now.**".into(), sound: "Sosumi" }
+}
