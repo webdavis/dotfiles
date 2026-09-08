@@ -9,7 +9,7 @@ struct Scripted {
     source: PathBuf,
     deployed: PathBuf,
     tree: PathBuf,
-    calls: Vec<(PathBuf, Vec<OsString>, CommandIo)>,
+    calls: Vec<(PathBuf, Vec<OsString>)>,
     apply: Result<Vec<u8>, InspectionFailure>,
     locate: Result<Vec<u8>, InspectionFailure>,
     manifest: Result<Vec<u8>, InspectionFailure>,
@@ -29,7 +29,6 @@ impl CommandRunner for Scripted {
         self.calls.push((
             program.into(),
             args.iter().map(|s| s.to_os_string()).collect(),
-            io,
         ));
         if args.first() == Some(&OsStr::new("apply")) {
             assert_eq!(program, Path::new("/fixture/chezmoi"));

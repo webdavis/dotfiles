@@ -10,7 +10,7 @@ fn timed_probe(script: &'static str) {
     timed_probe_with(script, CommandIo::Inspection { merge_stderr: true });
 }
 
-fn timed_probe_with(script: &'static str, io: CommandIo) {
+pub(super) fn timed_probe_with(script: &'static str, io: CommandIo<'static>) {
     let directory = std::env::temp_dir().join(format!(
         "posture-probe-{}-{}",
         std::process::id(),

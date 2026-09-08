@@ -80,3 +80,5 @@ mod lifecycle;
 mod terminal;
 
 mod outcomes;
+
+mod input;

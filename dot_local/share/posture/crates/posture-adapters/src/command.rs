@@ -1,20 +1,21 @@
 use posture_application::InspectionFailure;
 use std::ffi::OsStr;
 use std::io::{self, Read};
-use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 mod child;
+mod input;
 mod terminal;
 use child::OwnedChild;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommandIo {
+pub enum CommandIo<'a> {
     Inspection { merge_stderr: bool },
     CaptureStdout,
+    Input(&'a [u8]),
     InheritAll,
 }
 
@@ -23,7 +24,7 @@ pub trait CommandRunner {
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        io: CommandIo,
+        io: CommandIo<'_>,
     ) -> Result<Vec<u8>, InspectionFailure> {
         let completed = self.run_completed(program, args, io)?;
         if completed.exit == 0 {
@@ -36,7 +37,7 @@ pub trait CommandRunner {
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        io: CommandIo,
+        io: CommandIo<'_>,
     ) -> Result<CommandOutput, InspectionFailure>;
 }
 
@@ -71,7 +72,7 @@ impl CommandRunner for SystemRunner {
         &mut self,
         program: &Path,
         args: &[&OsStr],
-        io: CommandIo,
+        io: CommandIo<'_>,
     ) -> Result<CommandOutput, InspectionFailure> {
         let expires = match self.budget {
             Budget::Total(expires) => expires,
@@ -80,7 +81,7 @@ impl CommandRunner for SystemRunner {
         if Instant::now() >= expires {
             return Err(InspectionFailure::TimedOut);
         }
-        let interactive = !matches!(io, CommandIo::Inspection { .. });
+        let interactive = matches!(io, CommandIo::CaptureStdout | CommandIo::InheritAll);
         let mut command = Command::new(program);
         command.args(args).process_group(0);
         command.stdin(if interactive {
@@ -88,20 +89,16 @@ impl CommandRunner for SystemRunner {
         } else {
             Stdio::null()
         });
+        let mut input = match io {
+            CommandIo::Input(bytes) => Some(input::PendingInput::prepare(&mut command, bytes)?),
+            _ => None,
+        };
         let mut reader = if io == CommandIo::InheritAll {
             command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
             None
         } else {
             let (reader, writer) = io::pipe().map_err(|_| InspectionFailure::Unavailable)?;
-            // The read descriptor is owned here; its flags cannot affect the writer.
-            let flags = unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_GETFL) };
-            if flags == -1
-                || unsafe {
-                    libc::fcntl(reader.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK)
-                } == -1
-            {
-                return Err(InspectionFailure::Unavailable);
-            }
+            input::nonblocking(&reader)?;
             let stderr = match io {
                 CommandIo::Inspection { merge_stderr: true } => Stdio::from(
                     writer
@@ -143,6 +140,9 @@ impl CommandRunner for SystemRunner {
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
                     Err(_) => return Err(InspectionFailure::Failed),
                 }
+            }
+            if let Some(input) = &mut input {
+                input.write_pending()?;
             }
             if eof && child.exited()? {
                 let status = child.finish()?;
