@@ -217,3 +217,6 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
         0
     );
 }
+
+#[path = "submit_json/observation.rs"]
+mod observation;

@@ -24,6 +24,7 @@ fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_sil
                         ..Default::default()
                     },
                     DecisionRequest {
+                        observation: false,
                         scope,
                         pane: "wW:p1",
                         now_secs: Some(1_000_000),

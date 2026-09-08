@@ -100,6 +100,7 @@ pub(super) fn decide_with(probes: &CountingProbes, overrides: &Overrides, pane: 
         &three_selection(),
         overrides,
         pns_domain::DecisionRequest {
+            observation: false,
             silence_policy: pns_domain::SilencePolicy::Respect,
             scope: pns_domain::DeliveryScope::Automatic,
             pane,

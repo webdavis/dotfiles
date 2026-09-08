@@ -108,7 +108,7 @@ fn a_branchless_message_starting_with_a_killer_character_is_still_encoded() {
     let composed = pns_domain::render::message("", "(a parenthesised detail", "done");
     assert_eq!(composed, "(a parenthesised detail");
     assert_eq!(
-        notifier_args("t", &composed, "com.term", ": ")[3],
+        notifier_args("t", &composed, Some("default"), "com.term", ": ")[3],
         "\\(a parenthesised detail"
     );
 }
@@ -118,7 +118,7 @@ fn the_message_is_encoded_on_the_same_terms_as_the_title() {
     // Both are operator-facing text read through the identical parsing, so
     // a message beginning with a killer character needs the encoding just
     // as much as a title does.
-    let args = notifier_args("(a title", "[a preview", "com.term", ": ");
+    let args = notifier_args("(a title", "[a preview", Some("default"), "com.term", ": ");
     assert_eq!(args[1], "\\(a title");
     assert_eq!(args[3], "\\[a preview");
 }
@@ -257,3 +257,5 @@ fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
         mode,
     }
 }
+
+mod observation;
