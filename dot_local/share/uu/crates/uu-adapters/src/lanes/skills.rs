@@ -9,5 +9,7 @@ pub use generation::{
 
 mod npx;
 pub use npx::SkillsEnvironment;
+mod clawhub;
+mod overlay;
 #[cfg(test)]
 mod tests;

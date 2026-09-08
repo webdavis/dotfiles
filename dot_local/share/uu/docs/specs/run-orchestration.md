@@ -250,3 +250,10 @@ for these retained limits.
 - **Given** an installer child, **when** spawning, **then** clear inherited environment and keep
   candidate HOME, base directories, temporary files, npm cache and ClawHub config. Capture the real fnm
   interpreter directory before redirecting HOME. The existing lane deadline still bounds the child.
+
+## Skills ClawHub installs
+
+- **Given** an absent ClawHub skill, **when** installing, **then** use an owned throwaway workdir and
+  move its nested directory flat with origin metadata. Refresh a present skill by bare name. Retry
+  local-change refusals only after stripping our own policy block, then reassert it while preserving
+  updated upstream metadata.
