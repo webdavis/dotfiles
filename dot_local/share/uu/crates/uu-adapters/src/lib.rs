@@ -34,8 +34,9 @@ mod system;
 mod watchdog;
 
 pub use config::{
-    BrewLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane, NvimMasonLane,
-    NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path, load_config,
+    BrewLane, ClaudePluginsLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane,
+    NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path,
+    load_config,
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;

@@ -7,6 +7,7 @@
 
 mod brew;
 mod changes;
+mod claude_plugins;
 mod command;
 mod herdr;
 mod npm;

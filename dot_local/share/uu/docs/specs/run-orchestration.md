@@ -199,3 +199,24 @@ for these retained limits.
 - **Given** an undeclared lane, an absent config or a type without bootstrap capability, **when**
   requested by name, **then** refuse with exit one and name the missing declaration or unsupported type.
   A refused lock never invokes the capability. Usage lists bootstrap beside the other commands.
+
+## Claude Code plugin records
+
+- **Given** a `claude-plugins` lane, **when** loading config, **then** require an absolute `inventory`
+  path. Read one JSON document with a nonempty `plugins` object; validate each plugin's array and each
+  record's object and scope string before filtering to user scope. A malformed record fails the whole
+  reading. Other scopes alone form a valid empty reading.
+- **Given** a user-scope record, **when** reading its fingerprint, **then** prefer a nonempty version
+  other than `unknown`, then a nonempty commit, then `unknown`. Preserve the retired reporter's escaped
+  tab-separated fields. Report only identifiers and fingerprints with the shared quoting and caveat.
+- **Given** snapshot history, **when** running or bootstrapping, **then** keep a valid uu snapshot first.
+  Otherwise import the validated sorted legacy name/fingerprint pairs atomically, including an empty
+  file, preserving its exact bytes and leaving the legacy file alone. Seed only when both are absent.
+  Failed reads, validation and publication fail the lane without reseeding.
+- **Given** a first reading, **when** running, **then** save a baseline and compare nothing. Later runs
+  report changes and atomically replace the snapshot through an owner-only sibling temporary file. The
+  snapshot advances during the lane, before delivery of the combined record. A refused delivery can
+  therefore leave that comparison absent from the next record, unlike the retired bash job.
+- **Given** an existing or imported baseline, **when** bootstrapping repeatedly, **then** keep it without
+  comparing or advancing it. A non-regular inventory is refused, and failed publication preserves the
+  previous snapshot. State uses the declared lane name under `~/.local/state/uu/lanes/`.
