@@ -48,7 +48,7 @@ pub(super) fn shift(log: &Path, keep: u64) -> io::Result<()> {
             _ => fs::remove_file(entry.path())?,
         }
     }
-    retained.sort_by(|a, b| b.0.cmp(&a.0));
+    retained.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     for (index, path) in retained {
         fs::rename(path, archive(log, index + 1))?;
     }
