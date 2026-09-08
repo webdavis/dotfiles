@@ -18,6 +18,7 @@ pub fn decide(
         long_running,
         mobile_watch_card,
         silence_policy,
+        observation,
     } = request;
     let reading = surface_reading(snapshot, overrides, now_secs);
     let session_visibility = operator_visibility(snapshot, pane);
@@ -57,6 +58,17 @@ pub fn decide(
     let delivery = crate::surface::DeliveryPlan {
         phone_card: !overrides.skip_phone && (overrides.force_phone || delivery.phone_card),
         ..delivery
+    };
+    // A normalized observation is a quiet local notice plus the durable log,
+    // regardless of presence. Phone overrides cannot turn it into a card.
+    let delivery = if observation {
+        crate::surface::DeliveryPlan {
+            banner: true,
+            phone_card: false,
+            pulse: false,
+        }
+    } else {
+        delivery
     };
     // A configured class can preserve the banner and phone already selected
     // above. Silence still suppresses the pulse; caller scope and presence

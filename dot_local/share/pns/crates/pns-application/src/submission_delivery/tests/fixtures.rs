@@ -222,6 +222,7 @@ pub(super) fn decision() -> Decision {
         &pns_domain::registry::Registry::default().all(),
         &Overrides::default(),
         DecisionRequest {
+            observation: false,
             silence_policy: pns_domain::SilencePolicy::Respect,
             local_only: false,
             remote_only: false,

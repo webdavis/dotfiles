@@ -357,7 +357,8 @@ remain unchanged. Accepted and degraded results exit zero; rejected requests and
 Destination results carry typed verdicts without echoing private transport text. Unknown top-level field
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
-migration or the posture route. The configured class policy is specified in `quiet-behavior.md`, behavior
+migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
+gate. The configured class policy is specified in `quiet-behavior.md`, behavior
 7\.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
@@ -365,3 +366,20 @@ attempts the planned channels without inventing an identifier or lease time. Nat
 unavailable idempotency identifier, and legacy executables receive no request-identifier environment
 variable. The versioned egress envelope still requires a valid request identifier. Unretained attempts
 never produce a committed-ownership receipt.
+
+## protocol-v1/S031: Quiet normalized observations
+
+A normalized `Observation` requests the local banner and durable Hermes log on Desk, Mobile and Away,
+including a visible origin pane. The banner omits sound. It never requests a phone card or lamp pulse,
+even with a phone override or a long elapsed time, and its marker-neutral tail does not queue return
+replay. Explicit scope, disabled destinations, mute and named Focus still narrow delivery; an authorized
+class exception follows the existing silence policy without adding a phone card or pulse.
+
+The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
+legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
+and normal banner sound. `NeedsAttention` retains ordinary presence and visibility gating.
+
+The named route remains the Hermes URL path selected by the existing route mechanism. Initial and retry
+attempts carry the original request identifier in the signed body and idempotency header, and the full
+multiline detail rather than the local preview. This software behavior does not install the encrypted
+Hermes formatter, gateway key or operator route configuration.
