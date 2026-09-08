@@ -1,3 +1,4 @@
+pub(super) mod fixture;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 pub(super) fn directory() -> PathBuf {

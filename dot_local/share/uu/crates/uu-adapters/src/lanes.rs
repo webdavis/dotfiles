@@ -16,6 +16,7 @@ mod skills;
 mod spawn;
 mod text;
 mod uv;
+pub use skills::capture_skills_updater;
 pub use skills::{
     HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsForkWatch, SkillsGenerationStore,
     SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
@@ -194,5 +195,3 @@ mod tests {
         assert_eq!(ran.verdict, Verdict::Deferred("exit 75".to_string()));
     }
 }
-
-pub use skills::capture_skills_updater;

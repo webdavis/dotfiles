@@ -1,6 +1,5 @@
-mod fixture;
 mod publication;
-use fixture::{Effects, Fixture, skill};
+use crate::lanes::skills::tests::fixture::{Effects, Fixture, skill};
 #[test]
 fn a_weekly_skills_run_executes_every_required_phase_and_reports_its_outcome() {
     let f = Fixture::new();

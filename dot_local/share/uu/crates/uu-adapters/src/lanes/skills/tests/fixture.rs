@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-pub(super) struct Fixture {
+pub(in crate::lanes::skills) struct Fixture {
     pub root: PathBuf,
     pub config: SkillsConfig,
     pub store: SkillsGenerationStore,
@@ -109,7 +109,7 @@ impl Fixture {
         }
     }
 }
-pub(super) fn skill(path: &Path, content: &str) {
+pub(in crate::lanes::skills) fn skill(path: &Path, content: &str) {
     metadata::directory(&path.join(".clawhub")).unwrap();
     std::fs::write(path.join("SKILL.md"), content).unwrap();
     if path.file_name().unwrap() == "gamma" {
@@ -120,9 +120,11 @@ pub(super) fn skill(path: &Path, content: &str) {
         .unwrap();
     }
 }
-pub(super) struct Effects {
+pub(in crate::lanes::skills) struct Effects {
     pub calls: RefCell<Vec<String>>,
     pub fail_candidate: bool,
+    pub fail_routing: bool,
+    pub installs: RefCell<Vec<String>>,
     pub migrated: RefCell<bool>,
     pub root: PathBuf,
 }
@@ -131,6 +133,8 @@ impl Effects {
         Self {
             calls: RefCell::new(Vec::new()),
             fail_candidate: false,
+            fail_routing: false,
+            installs: RefCell::new(Vec::new()),
             migrated: RefCell::new(false),
             root: f.root.clone(),
         }
@@ -150,7 +154,11 @@ impl CommandRunner for Effects {
         Ok(Ran {
             stdout: output,
             stderr: String::new(),
-            verdict: Verdict::Clean,
+            verdict: if self.fail_routing && program.ends_with("/routing") {
+                Verdict::Failed("fixture routing failure".into())
+            } else {
+                Verdict::Clean
+            },
         })
     }
     fn run_with_deadline(&self, _: &str, args: &[&str], _: Duration) -> Result<String, String> {
@@ -187,6 +195,7 @@ impl CommandRunner for Effects {
             }
             let mut skills = serde_json::Map::new();
             for pair in args.windows(2).filter(|pair| pair[0] == "--skill") {
+                self.installs.borrow_mut().push(pair[1].into());
                 let target = home.join(".agents/skills").join(pair[1]);
                 if target.exists() {
                     std::fs::remove_dir_all(&target).unwrap();
@@ -201,6 +210,9 @@ impl CommandRunner for Effects {
             assert_eq!(name, "clawhub");
             let work =
                 Path::new(args[args.iter().position(|arg| *arg == "--workdir").unwrap() + 1]);
+            self.installs
+                .borrow_mut()
+                .push(args.last().unwrap().to_string());
             let target = work.join("skills").join(args.last().unwrap());
             skill(&target, "new");
         }

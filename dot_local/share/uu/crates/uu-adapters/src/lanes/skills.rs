@@ -1,3 +1,4 @@
+mod bootstrap;
 mod roster;
 pub use roster::{HermesRegistryEntry, SkillsRoster};
 
@@ -13,8 +14,6 @@ mod clawhub;
 mod fanout;
 mod overlay;
 mod publish;
-#[cfg(test)]
-mod tests;
 mod validate;
 
 mod hermes;
@@ -32,3 +31,5 @@ mod session;
 mod snapshot;
 
 pub use session::capture_skills_updater;
+#[cfg(test)]
+mod tests;
