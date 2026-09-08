@@ -142,9 +142,9 @@ executable differed on 16.
 
 ## Neovim consumer and lock recovery
 
-The `nvim-plugins` registration owns its typed executable, config and optional writeback settings. The
+The `nvim-plugins` registration owns its typed executable, config and optional auto-commit settings. The
 existing command runner preserves the child exit and stdout; the adapter maps Neovim's nonzero exits to
-pending or failure. The outer Neovim configuration owns Lazy calls and Git writeback, so the Rust package
+pending or failure. The outer Neovim configuration owns Lazy calls and Git auto-commit, so the Rust package
 contains no dependency on a deployed Lua path. The required absolute config names both its initializer
 and the entry script. Pure report decisions stay separate from plugin, Git and filesystem operations.
 
@@ -154,7 +154,7 @@ a versioned JSON (JavaScript Object Notation) file with restrictive permissions,
 parent-directory synchronization and atomic replacement. This filesystem protocol belongs beside the lock
 bytes it protects. No database migration or new Rust dependency is involved.
 
-A failed writeback leaves the active recovery file, its old lock and candidate lock for inspection. The
+A failed auto-commit leaves the active recovery file, its old lock and candidate lock for inspection. The
 operator chooses the desired pins and reconciles the source commit, deployed lock and installed
 lock-managed plugins. A later invocation verifies that agreement before renaming the record to its
 `.closed` archive. Disabling auto-commit cannot skip an open recovery. Successful commits use Git's

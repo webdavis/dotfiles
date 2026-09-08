@@ -1,5 +1,5 @@
-local Git = require("uu.writeback_git")
-local State = require("uu.writeback_state")
+local Git = require("uu.auto_commit_git")
+local State = require("uu.auto_commit_state")
 local Report = require("uu.report")
 local M = {}
 

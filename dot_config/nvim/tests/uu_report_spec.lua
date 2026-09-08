@@ -113,7 +113,7 @@ return {
 package.loaded["lazy.core.config"] = { plugins = { fixture = { _ = { updates = true } } } }
 package.loaded["lazy.core.plugin"] = { has_errors = function() return false end }
 package.loaded["lazy.manage"] = { check = function(options) assert(options.wait and not options.show) end }
-package.loaded["uu.writeback"] = { run = function() return { kind = "check", lines = {} } end }
+package.loaded["uu.auto_commit"] = { run = function() return { kind = "check", lines = {} } end }
 ]] .. string.format("local f = assert(io.open(%q, 'w')); f:write(vim.v.servername); f:close()\n", marker))
     local child = vim
       .system({ vim.v.progpath, "--headless", "-u", init, "-l", config .. "/lua/uu/plugins.lua" }, { text = true })
