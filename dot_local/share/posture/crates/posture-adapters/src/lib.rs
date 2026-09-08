@@ -67,3 +67,9 @@ pub use last_resort_banner::LastResortBanner;
 
 mod state_files;
 pub use state_files::PollStateFiles;
+
+mod converge;
+pub use converge::{
+    CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
+    resolve_osqueryctl,
+};
