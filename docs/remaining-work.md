@@ -309,8 +309,11 @@ posture is done and osquery is retired.
 - [ ] 64. lights PR 11a, conditional on the `bulk_read_latency` drill
 - [ ] 65. Neovim task 63: the acceptance record, needs the clean-home apply
 - [ ] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`
-- [ ] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`, approved and
-  scheduled after posture
+- [x] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`. The direction
+  became an enum, which closed a pair that could disagree: the word and the chord travelled side by side
+  as two strings, so a call passing `"left"` with `ctrl+l` compiled and sent Neovim the wrong way. Every
+  public item gained the documentation the house voice asks for, and the parse of herdr's answer states
+  why every unreadable shape means the same thing.
 - [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
   has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
   exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
