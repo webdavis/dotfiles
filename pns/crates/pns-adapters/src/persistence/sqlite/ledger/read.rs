@@ -1,5 +1,5 @@
 use super::*;
-use pns_domain::{Event, routing::ReportMode};
+use pns_domain::{Event, retry::DeliveryOutcome, routing::ReportMode};
 use rusqlite::{Connection, OptionalExtension, Row};
 
 pub(super) fn find(
@@ -39,11 +39,12 @@ pub(super) fn record(
          ORDER BY a.generation, l.position")?;
     let attempts = query
         .query_map([sequence], |row| {
+            let generation = row.get(1)?;
             Ok(LegAttempt {
                 destination: row.get(0)?,
-                generation: row.get(1)?,
+                generation,
                 at: u64::from_be_bytes(row.get(2)?),
-                completion: completion(row)?,
+                completion: completion(row, generation)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -71,12 +72,22 @@ pub(super) fn leg(row: &Row<'_>) -> rusqlite::Result<LedgerLeg> {
         decorative: row.get(3)?,
     })
 }
-fn completion(row: &Row<'_>) -> rusqlite::Result<LedgerCompletion> {
+/// `generation` decides whether a stored status was TERMINAL, and it has to be
+/// passed in because the attempt row alone can no longer say.
+///
+/// A status used to be written only when the leg was being given up on, so its
+/// mere presence meant `Rejected` and anything else was read as corruption. It
+/// is now written on every answered attempt, so a retryable 503 and a fatal 404
+/// both carry one. The same three facts the write path used decide it here: the
+/// outcome is a failure, the domain calls the code permanent, and this was not
+/// the initial send, which is never terminal.
+fn completion(row: &Row<'_>, generation: u64) -> rusqlite::Result<LedgerCompletion> {
     let detail = row.get(4)?;
-    if let Some(status) = row.get::<_, Option<u16>>(6)? {
-        if !matches!(status, 401 | 403 | 404 | 413) || row.get::<_, u8>(3)? != 2 {
-            return Err(rusqlite::Error::InvalidQuery);
-        }
+    if let Some(status) = row.get::<_, Option<u16>>(6)?
+        && row.get::<_, u8>(3)? == 2
+        && generation > 1
+        && DeliveryOutcome::Status(status).class().is_permanent()
+    {
         return Ok(LedgerCompletion::Rejected { status, detail });
     }
     let outcome = match row.get::<_, u8>(3)? {

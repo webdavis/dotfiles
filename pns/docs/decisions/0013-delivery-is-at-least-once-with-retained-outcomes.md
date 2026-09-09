@@ -71,11 +71,28 @@ pulse and unmarked return summaries stay quiet. Missing class metadata preserves
 bytes, and retry follows the stored legs rather than applying a later class configuration. The renderer
 writes the default security class explicitly, making the exception visible to the operator.
 
-Schema version 7 retains a terminal HTTP status on the affected leg and attempt. Only 401, 403, 404 and
-413 terminate a queued Hermes retry. That completion, the dead-letter marker and its pending local alarm
-commit together. The record, original request metadata, route and earlier attempts remain inspectable;
-terminal failure never acknowledges delivery or clears a missed event. The initial send remains pending
-for its first daemon retry. Other non-success responses remain retryable.
+Schema version 7 retains a terminal HTTP status on the affected leg and attempt. That completion, the
+dead-letter marker and its pending local alarm commit together. The record, original request metadata,
+route and earlier attempts remain inspectable; terminal failure never acknowledges delivery or clears a
+missed event. The initial send remains pending for its first daemon retry.
+
+Schema version 8 widens what that record can hold and moves the decision behind one rule. The terminal
+set was four statuses named in the Hermes channel; it is now the permanent class in `pns_domain::retry`,
+so a 404 on a route the gateway does not serve stops at its first queued retry rather than spending
+twenty attempts over seven days on the schedule meant for a gateway that is down. A channel reports the
+status it received and judges nothing, which is what keeps a second destination from disagreeing with the
+first about the same code. The dead-letter reason gains `permanent` beside `attempts` and `age`, so a
+report can say the gateway refused this rather than that it ran out of tries.
+
+The attempt's status column widens to any real HTTP status and now records what THAT attempt received,
+whether or not the leg was given up on: a 503 that will be tried again used to leave its code nowhere.
+The leg's own status keeps its narrower meaning, the status the leg died of. A stored status therefore no
+longer implies a terminal outcome, and the three facts the write path used, a failed outcome, a permanent
+class, and a generation past the initial send, are what reconstruct one on the way back out.
+
+The two migration steps that wrote the narrow constraints now write the wide ones directly, and step 8
+copies a column only for a database that already holds a narrow one. A fresh database does no copying at
+all, which matters because creating one is what every test and every new machine does.
 
 Queued failures use the completion time plus `retry_base_secs` times the retry count, and nothing else.
 The base defaults to 60 seconds. There is no random offset: the jitter this record originally described

@@ -126,14 +126,29 @@ impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
             .post(&self.url, &body, &signature, request.request_id, deadline);
         let line = outcome_line(outcome);
         if delivered(outcome) {
-            Delivery::Delivered(line)
-        } else if let PostOutcome::Status(status @ (401 | 403 | 404 | 413)) = outcome {
-            Delivery::Rejected {
+            return Delivery::Delivered(line);
+        }
+        // The channel REPORTS what happened; it does not decide whether the
+        // gateway will ever accept this page. That judgement is one rule in
+        // `pns_domain::retry`, applied once where the outcome is recorded, so a
+        // second destination cannot disagree with this one about a 404.
+        //
+        // This used to name four statuses here and call everything else a plain
+        // failure, which is how a 404 on a route that does not exist retried on
+        // the same schedule as an unreachable gateway.
+        match outcome {
+            PostOutcome::Status(status) => Delivery::Rejected {
                 status,
                 detail: line,
-            }
-        } else {
-            Delivery::Failed(line)
+            },
+            // `NoStatus` (a request never put on the wire) is a DIFFERENT fault
+            // from `NoResponse` (a request nothing answered), and it stays
+            // `Failed` anyway: `Delivery::Unlaunched` never prints, and the
+            // module rule above is that a sync post says its failure aloud.
+            // So the ledger records both as `no-response`. Task 33's route
+            // check is what tells the two apart for the operator, by asking the
+            // gateway about the route instead of guessing from a stored kind.
+            PostOutcome::NoStatus | PostOutcome::NoResponse => Delivery::Failed(line),
         }
     }
 }

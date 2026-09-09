@@ -67,10 +67,48 @@ fn retry(at: u64) -> LedgerCompletion {
         retry_at: at,
     }
 }
+/// A gateway that answers one fixed status to everything. Shared, because the
+/// retry schedule, the permanent-versus-temporary split and the schema all
+/// need a hermes leg whose answer the test chooses.
+struct Reply(u16);
+impl pns_hermes::SignedPost for Reply {
+    fn post(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: Option<&str>,
+        _: Option<std::time::Duration>,
+    ) -> pns_hermes::PostOutcome {
+        pns_hermes::PostOutcome::Status(self.0)
+    }
+}
+fn destinations(status: u16) -> pns_application::Destinations<crate::HermesChannel<Reply>> {
+    let mut destinations = pns_application::Destinations::new();
+    destinations
+        .register(crate::HermesChannel {
+            post: Reply(status),
+            key: Some("fixture-key".into()),
+            url: "http://127.0.0.1:9/owned-fixture".into(),
+            sync_deadline: None,
+        })
+        .unwrap();
+    destinations
+}
+fn remote_input() -> LedgerSubmission {
+    let mut input = submission();
+    input.legs.truncate(1);
+    input.legs[0].destination = "hermes".into();
+    input.producer_request = Some("retained canonical request".into());
+    input
+}
+
 mod claims;
+mod failure_class;
 mod failures;
 mod outcomes;
 mod prepare;
+mod schema_migration;
 
 mod atomicity;
 mod processes;
