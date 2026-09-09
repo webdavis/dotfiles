@@ -452,6 +452,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
+name = "uu"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "uu-adapters",
+ "uu-application",
+ "uu-domain",
+]
+
+[[package]]
 name = "uu-adapters"
 version = "0.1.0"
 dependencies = [
@@ -469,16 +479,6 @@ dependencies = [
 name = "uu-application"
 version = "0.1.0"
 dependencies = [
- "uu-domain",
-]
-
-[[package]]
-name = "uu-cli"
-version = "0.1.0"
-dependencies = [
- "libc",
- "uu-adapters",
- "uu-application",
  "uu-domain",
 ]
 

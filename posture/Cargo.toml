@@ -8,7 +8,7 @@
 #   posture-protocol    -> no dependencies until its codec lands in PR 2.4
 #   posture-adapters    -> posture-application, posture-domain,
 #                          posture-protocol, pns-protocol
-#   posture-cli         -> posture-adapters, posture-application, posture-domain
+#   posture         -> posture-adapters, posture-application, posture-domain
 #
 # posture-protocol owns the existing digest record shared by the alert and
 # digest processes. PR 2.4 implements its unchanged six-field wire codec;
@@ -30,11 +30,11 @@ resolver = "3"
 members = [
   "crates/posture-adapters",
   "crates/posture-application",
-  "crates/posture-cli",
+  "crates/posture",
   "crates/posture-domain",
   "crates/posture-protocol",
 ]
-default-members = ["crates/posture-cli"]
+default-members = ["crates/posture"]
 
 [profile.release]
 codegen-units = 1

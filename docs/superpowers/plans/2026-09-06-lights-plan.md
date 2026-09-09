@@ -26,7 +26,7 @@ lights/
     lights-application/       use cases and the LightController and Notifier ports
     lights-protocol/          command grammar, output records and exit-code contract
     lights-adapters/          HueLightController, PnsNotifier, settings parsing and loading
-    lights-cli/               process arguments, streams and composition; binary named lights
+    lights/                   process arguments, streams and composition; binary named lights
       src/main.rs             under 100 lines preferred, below 150 required
       tests/                  assembled command tests, fixtures owned by this member
 ```
@@ -38,7 +38,7 @@ lights-domain      -> std only
 lights-application -> lights-domain
 lights-protocol    -> std only
 lights-adapters    -> lights-application, lights-domain, lights-protocol
-lights-cli         -> lights-protocol, lights-adapters, lights-application, lights-domain
+lights             -> lights-protocol, lights-adapters, lights-application, lights-domain
 ```
 
 `lights-protocol` owns the external command grammar and output contract, with no dependency on policy.
@@ -354,7 +354,7 @@ Review those declarations and run the consuming commands. All hardware calls sta
 
 ### PR 1: command usage and workspace integration
 
-Introduce the virtual workspace, lockfile, protocol command decoder and `lights-cli` binary for help
+Introduce the virtual workspace, lockfile, protocol command decoder and `lights` binary for help
 and usage refusal. Add other members as their first behavior arrives. Help lists only implemented
 commands at each intermediate head. In the same commit add the lights `test-rust` lines, package
 `.gitignore` target entry and all `.chezmoiignore` source-only/platform exclusions described above.
@@ -474,7 +474,7 @@ errors, asserting unchanged action output and exit 0 with no notification diagno
 
 The hanging-child case owns its synthetic executable and process records inside `lights-adapters`;
 unit checks stay in private `#[cfg(test)]` modules. The assembled command check belongs to
-`lights-cli/tests/` with its own fixtures. Launch a child that records its process identifier and
+`lights/tests/` with its own fixtures. Launch a child that records its process identifier and
 ignores the ordinary termination signal (`SIGTERM`), then wait for its ready record instead of sleeping.
 Use a short adapter deadline and an independent harness deadline below one second. Require the
 monitor and direct child to be absent, with their wait results consumed, before the command returns

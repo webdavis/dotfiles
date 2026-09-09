@@ -143,8 +143,7 @@ fn enrich_with_an_absent_or_empty_path_is_successful_and_silent() {
 
 #[test]
 fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
-    let directory =
-        std::env::temp_dir().join(format!("posture-cli-metadata-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!("posture-metadata-{}", std::process::id()));
     std::fs::create_dir(&directory).expect("private fixture directory");
     let path = directory.join("file with spaces");
     std::fs::write(&path, b"inert non-code fixture").expect("fixture contents");

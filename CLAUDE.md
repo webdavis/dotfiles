@@ -229,6 +229,18 @@ other people install, and a tool never hardcodes its own path.
 member and back down into the sibling workspace, and they survived the move unchanged because both ends
 moved by the same prefix.
 
+Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
+`crates/lights`), not `<tool>-cli`, so that
+`cargo install --git https://github.com/webdavis/dotfiles pns` names the package a person would guess.
+The `-cli` suffix survives on the two herdr plugins, which nobody installs that way.
+
+`cargo install` installs EVERY binary a package declares, so pns's two development binaries
+(`http-capture`, a test double for the hermes transport, and `pns-config-render`, which regenerates this
+repository's own shipped config template) sit behind `required-features = ["dev-tools"]`. A default
+build and an install produce only `pns`; `just test-rust` and `just pns-config-render` pass
+`--features dev-tools`. Add a bin to that package and it needs the same gate unless it is genuinely part
+of the product.
+
 ### Minimum chezmoi version
 
 `.chezmoiversion` requires >= 2.62.3.

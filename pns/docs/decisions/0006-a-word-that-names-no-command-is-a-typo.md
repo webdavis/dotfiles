@@ -1,7 +1,7 @@
 # 0006: A word that names no command is refused, even though the producer parser is lenient
 
-Status: accepted. Implemented by `crates/pns-cli/src/legacy/argv.rs:is_producer_argv` and the refusal in
-`crates/pns-cli/src/invocation.rs:run`.
+Status: accepted. Implemented by `crates/pns/src/legacy/argv.rs:is_producer_argv` and the refusal in
+`crates/pns/src/invocation.rs:run`.
 
 ## The two rules that collided
 

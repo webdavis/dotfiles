@@ -11,7 +11,7 @@ running.
 | `posture-application` | Use cases and the ports they own                  |
 | `posture-protocol`    | Existing cross-process digest record codec        |
 | `posture-adapters`    | Concrete capabilities and consumed wire contracts |
-| `posture-cli`         | Command decoding, composition, and exit codes     |
+| `posture`         | Command decoding, composition, and exit codes     |
 
 The member manifests enforce the inward dependencies. Domain and application depend on neither protocol
 crate. Adapters alone consume posture-protocol and the sibling pns-protocol; the cli composes domain,

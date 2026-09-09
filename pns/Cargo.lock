@@ -266,6 +266,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
+name = "pns"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "libc",
+ "pns-adapters",
+ "pns-application",
+ "pns-domain",
+ "pns-hermes",
+ "pns-protocol",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "toml",
+]
+
+[[package]]
 name = "pns-adapters"
 version = "0.1.0"
 dependencies = [
@@ -286,23 +303,6 @@ name = "pns-application"
 version = "0.1.0"
 dependencies = [
  "pns-domain",
-]
-
-[[package]]
-name = "pns-cli"
-version = "0.1.0"
-dependencies = [
- "hmac",
- "libc",
- "pns-adapters",
- "pns-application",
- "pns-domain",
- "pns-hermes",
- "pns-protocol",
- "rusqlite",
- "serde_json",
- "sha2",
- "toml",
 ]
 
 [[package]]

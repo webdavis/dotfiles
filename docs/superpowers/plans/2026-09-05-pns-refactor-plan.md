@@ -600,7 +600,7 @@ Tests first: the byte-identity with today's JSON over the same event. Sizes: ~15
 id rides into the hermes body and an `Idempotency-Key` header (ruling 1), and the moshi body's `data`; a
 replay carries the ORIGINAL id (S243 gains that clause). Tests first: an end-to-end submit through the
 sandbox, the header on the wire through the capture server, the id surviving a replay. The argv
-differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus tests ~300. Order: after PR
+differential gains a `submit` row. Sizes: `pns/src/submit.rs` ~200 plus tests ~300. Order: after PR
 6.2.
 
 ### Step 8: the legacy command-line and hook adapters over the use cases
@@ -609,7 +609,7 @@ differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus test
 `event_mode`, `USAGE`, `PULSE_USAGE`, `LIGHTS_USAGE`, `LOOP_USAGE`, `QUIET_USAGE`, `DAEMON_USAGE`,
 `NAG_USAGE`, `Overrides::from_env`, `loop_command`, `quiet_command`, `parse_schedule`, `recap_bounds`,
 `pulse_mode`'s and `quiet_mode`'s argument arms into
-`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. `EventArgs` and `Record` already belong to the
+`pns/src/legacy/{argv,usage,overrides,verbs}.rs`. `EventArgs` and `Record` already belong to the
 domain through the combined step 6 delivery. This row moves argument parsing and usage adaptation
 while importing those existing values; it does not relocate them again.
 This row also decides and implements the separation of `help` and other command-only parse state
@@ -630,7 +630,7 @@ to `pns-adapters/src/harness/{payload,transcript,condenser}.rs`, and `hook_mode`
 `record_policy_settings_change`, `arm_quota_stale_wait`, `read_payload`, `payload_is_whole`,
 `payload_deadline`, `env_deadline`, `reread_*`, `pulse_threshold_secs`, `project_of` and the
 `REPLY_MAX_CHARS`, `TRANSCRIPT_TAIL_BYTES`, `*_REREAD_*`, `MAX_PAYLOAD_BYTES` constants
-(`src/main.rs:263-680`, `2075-2319`, `2608-2737`) into `pns-cli/src/hooks/{dispatch,turn,observation}.rs`
+(`src/main.rs:263-680`, `2075-2319`, `2608-2737`) into `pns/src/hooks/{dispatch,turn,observation}.rs`
 mapping each of the eleven words onto `SubmitNotification`, `RequestApproval` or `RunNag`'s clear.
 `condense`, `condenser_home`, `git_branch` become the adapters in PR 14.6. Unpinned first: S054 (empty
 stderr on a healthy hook, and the bare warning spelling), S065 (`plan-ready`), the `asking`/`blocked`
@@ -918,15 +918,15 @@ to 220 plus tests under 300. Statements: S056 to S059, S076, S192, S201, S245, S
 
 ### Step 15: the executables reduced to command adaptation and composition
 
-**PR 15.1 the binary moves to `pns-cli`.** Moves `main` (`src/main.rs:48-161`) and every remaining
+**PR 15.1 the binary moves to `pns`.** Moves `main` (`src/main.rs:48-161`) and every remaining
 `*_mode` presentation (`home.rs`'s `report` and `setup_report`, `decision_log`'s `section`, `render`,
-`complaint`, `escaped`, the doctor's printing) into `pns-cli/src/{main,compose,present/*}.rs`; `[[bin]]
-name = "pns"` moves to `crates/pns-cli/Cargo.toml`; the root manifest becomes a virtual workspace with
-`default-members = ["crates/pns-cli"]` so `cargo build --release --locked --quiet --bin pns
+`complaint`, `escaped`, the doctor's printing) into `pns/src/{main,compose,present/*}.rs`; `[[bin]]
+name = "pns"` moves to `crates/pns/Cargo.toml`; the root manifest becomes a virtual workspace with
+`default-members = ["crates/pns"]` so `cargo build --release --locked --quiet --bin pns
 --manifest-path pns/Cargo.toml` still resolves;
 `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl:87` and
 `test/unit/pns-engine-build-install.sh` are updated and run in the same PR; `pns-config-render` and
-`http-capture` move to `pns-cli/src/bin/`. Tests: the argv differential is the whole proof, with its
+`http-capture` move to `pns/src/bin/`. Tests: the argv differential is the whole proof, with its
 control mutant; every integration suite runs against the new binary path. Sizes: `main.rs` under 120,
 `compose.rs` ~250 (the one place every adapter is constructed), presentation files under 200. Order:
 after every step above. Statements: S001 to S046 (the dispatch order is the contract).

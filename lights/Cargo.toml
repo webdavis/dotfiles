@@ -5,7 +5,7 @@ members = [
   "crates/lights-domain",
   "crates/lights-adapters",
   "crates/lights-protocol",
-  "crates/lights-cli",
+  "crates/lights",
 ]
 
 [workspace.package]

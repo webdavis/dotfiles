@@ -12,7 +12,7 @@ process still exits 0.
 pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent
 ```
 
-The sentence is at `crates/pns-cli/src/legacy.rs`, on the dispatch path. The pane-scrub warning is deliberately withheld
+The sentence is at `crates/pns/src/legacy.rs`, on the dispatch path. The pane-scrub warning is deliberately withheld
 in this case, because no destination would have received it.
 
 ## The rule for the refactor

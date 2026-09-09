@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::Instant;
 
-/// The same speed guard as pns's `Sandbox` (`pns/crates/pns-cli/tests/support/mod.rs`):
+/// The same speed guard as pns's `Sandbox` (`pns/crates/pns/tests/support/mod.rs`):
 /// two crates, no shared dev crate, so this is a deliberate duplicate rather
 /// than an import. See that file for the full reasoning behind the two
 /// numbers; in short, `TEST_BUDGET_MS` is the review line (`Drop` warns on
@@ -48,7 +48,7 @@ pub struct Home {
 
 impl Home {
     pub fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("uu-cli-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("uu-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("scratch HOME");
         Home {

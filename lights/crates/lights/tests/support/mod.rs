@@ -1,7 +1,7 @@
 pub(super) mod transport;
 
+use lights::{Response, run};
 use lights_adapters::HueLightController;
-use lights_cli::{Response, run};
 use serde_json::{Value, json};
 use std::{
     path::PathBuf,

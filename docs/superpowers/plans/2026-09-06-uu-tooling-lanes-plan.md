@@ -166,9 +166,9 @@ the existing command adapter calls the use case. Sizes: each use case and privat
 
 **PR 0.4 adapters and command composition.** Moves process, filesystem, configuration parsing and
 validation, clock and transport into `crates/uu-adapters`; pns is an adapter-only dependency. Moves
-argument decoding and concrete construction into `crates/uu-cli`. Adapters consume domain, application
+argument decoding and concrete construction into `crates/uu`. Adapters consume domain, application
 ports and protocol; the command crate composes all four. Update every consumer and remove the root
-package once the real binary belongs to `uu-cli`, keeping `[[bin]] name = "uu"` and its installed
+package once the real binary belongs to `uu`, keeping `[[bin]] name = "uu"` and its installed
 path. Replace `config/shipped_template.rs`'s external `include_str!` in this row with package-owned
 config parser fixtures, so moving the module cannot break its relative include. Remove roster-equality
 assertions that test declarations alone. The outer repository renders and parses its actual template
@@ -203,7 +203,7 @@ Later rows retain the familiar source names to identify the existing behavior. R
 | record envelope and child exit-code encoding | `uu-protocol` |
 | run/bootstrap, record/alert and streak sequencing | `uu-application` |
 | config/schema, state codecs, command runner and lane technology | `uu-adapters` |
-| arguments, doctor presentation and concrete lane registration | `uu-cli` |
+| arguments, doctor presentation and concrete lane registration | `uu` |
 
 New lane parsing, spawning, storage and plugin interfaces follow the adapter owner; new pure decisions
 follow domain. A later row changes the owning crate and its consumers together. No row restores a

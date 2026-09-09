@@ -2,7 +2,7 @@
 #
 # Depends inward only: on the ports in pns-application, the policy types in
 # pns-domain, and the wire contracts in pns-protocol. Nothing depends on this
-# crate except pns-cli and the transitional engine package, which compose it.
+# crate except pns and the transitional engine package, which compose it.
 
 [package]
 name = "pns-adapters"

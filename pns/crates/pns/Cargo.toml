@@ -33,13 +33,35 @@
 # is the same rule: a format nobody should hand-parse.
 
 [package]
-name = "pns-cli"
+name = "pns"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
 name = "pns"
 path = "src/main.rs"
+
+# THE TWO DEVELOPMENT BINARIES ARE FEATURE GATED, and the gate is what keeps
+# `cargo install --git <url> pns` honest: cargo installs EVERY binary a package
+# declares, so without this an installing user would also get a bare
+# `http-capture` (a test double for the hermes transport) and
+# `pns-config-render` (which regenerates this repository's own shipped config
+# template). Neither is part of the product. `required-features` keeps both out
+# of a default build and out of an install, while `--features dev-tools` still
+# builds http-capture so `CARGO_BIN_EXE_http-capture` resolves for the native
+# tests. The justfile passes the feature on both recipes that need it.
+[features]
+dev-tools = []
+
+[[bin]]
+name = "http-capture"
+path = "src/bin/http-capture.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "pns-config-render"
+path = "src/bin/pns-config-render.rs"
+required-features = ["dev-tools"]
 
 [dependencies]
 pns-adapters = { path = "../pns-adapters" }

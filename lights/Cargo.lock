@@ -98,6 +98,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
+name = "lights"
+version = "0.1.0"
+dependencies = [
+ "lights-adapters",
+ "lights-application",
+ "lights-domain",
+ "lights-protocol",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "lights-adapters"
 version = "0.1.0"
 dependencies = [
@@ -114,18 +126,6 @@ name = "lights-application"
 version = "0.1.0"
 dependencies = [
  "lights-domain",
-]
-
-[[package]]
-name = "lights-cli"
-version = "0.1.0"
-dependencies = [
- "lights-adapters",
- "lights-application",
- "lights-domain",
- "lights-protocol",
- "serde_json",
- "ureq",
 ]
 
 [[package]]

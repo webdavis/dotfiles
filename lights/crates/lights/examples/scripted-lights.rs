@@ -25,7 +25,7 @@ fn main() -> ExitCode {
         PathBuf::from(std::env::var_os("XDG_CONFIG_HOME").unwrap()).join("lights/config.toml");
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     let response = if std::env::var_os("LIGHTS_TEST_TIMEOUT").is_some() {
-        lights_cli::run(&args, &path, &Quiet, |s| {
+        lights::run(&args, &path, &Quiet, |s| {
             HueLightController::with_transport(
                 s,
                 transport::TimeoutConnector,
@@ -33,7 +33,7 @@ fn main() -> ExitCode {
             )
         })
     } else {
-        lights_cli::run(&args, &path, &Quiet, |s| {
+        lights::run(&args, &path, &Quiet, |s| {
             HueLightController::with_transport(s, connector, transport::ScriptedResolver)
         })
     };

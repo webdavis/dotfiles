@@ -11,7 +11,7 @@ exists. The binary is now six crates:
 | Crate | Lines | Files |
 | --- | --- | --- |
 | `pns-adapters` | 36,629 | 393 |
-| `pns-cli` | 32,430 | 238 |
+| `pns` | 32,430 | 238 |
 | `pns-domain` | 14,717 | 114 |
 | `pns-application` | 11,086 | 123 |
 | `pns-protocol` | 2,298 | 18 |
@@ -20,7 +20,7 @@ exists. The binary is now six crates:
 Total 97,516 lines across 892 files. The growth over the original single file is tests: the split was
 what made most of these behaviours reachable by a test at all.
 
-**No file exceeds 500 lines.** The largest is `pns-cli/tests/native.rs` at 395, then
+**No file exceeds 500 lines.** The largest is `pns/tests/native.rs` at 395, then
 `pns-application/src/replay_missed/tests.rs` at 375 and `pns-domain/src/recap/tests/answers.rs` at 365.
 The operator's standing rule is a 300 line target and a 500 line hard cap with tests included, and
 `scripts/treefmt/rust-file-size.sh` now enforces the cap in `just lint-check` rather than leaving it to

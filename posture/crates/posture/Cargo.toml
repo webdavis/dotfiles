@@ -1,4 +1,4 @@
-# posture-cli: the composition root, and the `posture` binary.
+# posture: the composition root, and the `posture` binary.
 #
 # Depends on domain, application and adapters to compose the tool. It decodes
 # argv, constructs adapters, invokes the named use case and translates its
@@ -10,7 +10,7 @@
 # operator) invokes it by that one name.
 
 [package]
-name = "posture-cli"
+name = "posture"
 version = "0.1.0"
 edition = "2024"
 

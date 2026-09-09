@@ -8,7 +8,7 @@ pns_config_repo_root() {
 set_up_before_script() {
   PNS_CONFIG_REPO="$(pns_config_repo_root)"
   PNS_CONFIG_FIXTURE="$(mktemp -d)"
-  cargo build --locked --quiet --manifest-path "$PNS_CONFIG_REPO/pns/Cargo.toml" \
+  cargo build --locked --quiet --features dev-tools --manifest-path "$PNS_CONFIG_REPO/pns/Cargo.toml" \
     --bin pns-config-render
 }
 
@@ -26,7 +26,7 @@ function test_the_binary_over_the_committed_values_file_writes_the_committed_tem
 
 function test_the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot() {
   cp "$PNS_CONFIG_REPO/dot_config/pns/config-values.toml" "$PNS_CONFIG_CASE/values.toml"
-  cargo run --locked --quiet --manifest-path "$PNS_CONFIG_REPO/pns/Cargo.toml" \
+  cargo run --locked --quiet --features dev-tools --manifest-path "$PNS_CONFIG_REPO/pns/Cargo.toml" \
     --bin pns-config-render -- --check "$PNS_CONFIG_CASE/values.toml" \
     >"$PNS_CONFIG_CASE/stdout" 2>"$PNS_CONFIG_CASE/stderr"
   assert_successful_code

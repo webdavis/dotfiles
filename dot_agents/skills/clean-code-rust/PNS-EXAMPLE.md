@@ -52,7 +52,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
     crates/pns-application
     crates/pns-protocol
     crates/pns-adapters
-    crates/pns-cli
+    crates/pns
 
 The binary target stays `pns`.
 

@@ -21,7 +21,7 @@ fn main() -> ExitCode {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default();
-    let response = lights_cli::run(
+    let response = lights::run(
         &args,
         &config,
         &PnsNotifier::new(&home),

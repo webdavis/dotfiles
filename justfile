@@ -174,9 +174,9 @@ test-rust:
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path lights/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
-  cargo test --locked --workspace --manifest-path pns/Cargo.toml
+  cargo test --locked --workspace --features dev-tools --manifest-path pns/Cargo.toml
   cargo fmt --all --check --manifest-path pns/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path pns/Cargo.toml -- -D warnings
+  cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
   cargo test --locked --workspace --manifest-path uu/Cargo.toml
   cargo fmt --all --check --manifest-path uu/Cargo.toml
@@ -332,5 +332,5 @@ update-skills:
 # template (or an honest edit to the values file) fails there; this recipe is
 # what makes it green again. Dev-only: `pns-config-render` is never installed.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":
-  cargo run --locked --quiet --manifest-path pns/Cargo.toml --bin pns-config-render -- \
+  cargo run --locked --quiet --features dev-tools --manifest-path pns/Cargo.toml --bin pns-config-render -- \
     dot_config/pns/config-values.toml {{quote(output)}}

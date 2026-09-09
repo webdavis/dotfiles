@@ -49,10 +49,10 @@ That test runs `just pns-config-render` into scratch space and compares the resu
 `dot_config/pns/private_config.toml.tmpl`. The expected file is independent of the renderer. The same
 outer test passes a copy of `dot_config/pns/config-values.toml` to `pns-config-render --check`, which
 validates the rendered configuration against the package-owned
-`crates/pns-cli/tests/fixtures/resolved-config.snapshot` without writing either input or output.
+`crates/pns/tests/fixtures/resolved-config.snapshot` without writing either input or output.
 
 The renderer includes that owned snapshot from
-`crates/pns-cli/src/bin/pns-config-render.rs`. Its banner, footer, secret-action grammar and refusal
+`crates/pns/src/bin/pns-config-render.rs`. Its banner, footer, secret-action grammar and refusal
 behaviors retain independent tests within the package. The complete output comparison covers the
 headings and secret-action bytes; a separate list of live headings is not maintained. Behaviors 27 and
 28 describe the outer comparison and the resolved-configuration check.
@@ -369,7 +369,7 @@ marks an interpolation.
 | an unclosed chezmoi action while stubbing                    | `a chezmoi action is not closed on its own line: {line}`                                    | closed                                                |
 | an action that is not the one secret grammar                 | \`\` not a \`                                                                               | toToml\` secret action: {action} \`\`                 |
 
-### The generator binary (`crates/pns-cli/src/bin/pns-config-render.rs`)
+### The generator binary (`crates/pns/src/bin/pns-config-render.rs`)
 
 | What is rejected                             | Exact wording                                                               | Exit | Fail direction                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------- | ---- | ---------------------------------------------------- |
@@ -1466,9 +1466,9 @@ When the renderer validates it\
 
 Then it must parse, name registered plugins and match the package-owned resolved snapshot
 
-- Success: `crates/pns-cli/src/bin/pns-config-render.rs:check` reuses `rendered_configuration`, validates
+- Success: `crates/pns/src/bin/pns-config-render.rs:check` reuses `rendered_configuration`, validates
   the selected plugins through `registry::roster().enabled`, and compares `{config:#?}\n` with
-  `crates/pns-cli/tests/fixtures/resolved-config.snapshot`. Matching input exits 0 without output.
+  `crates/pns/tests/fixtures/resolved-config.snapshot`. Matching input exits 0 without output.
   The outer test `the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`
   supplies a copy of the committed values and verifies that copy remains unchanged.
 - Failure sources: unreadable or invalid values, a literal secret, a rendering or secret-action grammar
@@ -1476,7 +1476,7 @@ Then it must parse, name registered plugins and match the package-owned resolved
 - Fail direction: exit 1 with `pns-config-render: refused: {message}` on stderr. A snapshot mismatch uses
   `resolved configuration differs from the committed snapshot`. No input, template or snapshot is
   written. `checking_a_changed_resolved_configuration_refuses_without_writing` exercises this refusal
-  in `crates/pns-cli/tests/config_render.rs`.
+  in `crates/pns/tests/config_render.rs`.
 - Thresholds: the complete formatted configuration must match, including selected plugin settings,
   defaults and each secret's entry and field identity. Updating values can require a deliberate review
   and update of the separate snapshot; `--check` never updates it automatically.

@@ -61,7 +61,7 @@ all numeric and mechanism conflicts.
 The workspace is repository source at `posture/` and never deploys to $HOME, the same arrangement pns
 and uu use, so a path dependency on `../pns/crates/pns-protocol` resolves against the sibling workspace
 in this checkout (the reasoning is uu's, `uu/Cargo.toml:14-19`).
-The root manifest is a virtual workspace with `default-members = ["crates/posture-cli"]`, so the
+The root manifest is a virtual workspace with `default-members = ["crates/posture"]`, so the
 builder's `cargo build --release --locked --quiet --bin posture --manifest-path
 posture/Cargo.toml` resolves from day one:
 
@@ -70,14 +70,14 @@ crates/posture-domain        pure policy, no dependencies
 crates/posture-application   use cases and the ports they own
 crates/posture-protocol      the existing cross-process digest record codec
 crates/posture-adapters      everything concrete, by capability
-crates/posture-cli           argv decoding, composition, exit codes; the `posture` binary
+crates/posture           argv decoding, composition, exit codes; the `posture` binary
 ```
 
 The five roles are five crates in this workspace, as the paired Rust standard requires. The member
 manifests enforce dependency direction: `posture-application` depends on `posture-domain`;
 `posture-protocol` owns serialization and depends on `serde_json`, with no application or adapter
 dependency; `posture-adapters` depends on domain, application, posture-protocol and the sibling
-`pns-protocol`; `posture-cli` composes the domain, application and adapters. Domain and application
+`pns-protocol`; `posture` composes the domain, application and adapters. Domain and application
 import no wire crate, JSON (JavaScript Object Notation) value or concrete adapter. The adapter maps
 records to typed domain values.
 
@@ -279,7 +279,7 @@ A spawned child runs under an explicit deadline with process-group termination, 
 one `CommandRunner` trait with a scripted double, so no adapter test runs a real `sudo`, `osqueryctl`,
 `osqueryi`, `codesign`, `tailscale` or `pns`.
 
-### 2.5 `posture-cli`
+### 2.5 `posture`
 
 `main.rs` decodes argv, builds the adapters in one `compose.rs`, hands them to the use case the
 subcommand names, and translates the outcome to an exit code; it is projected under 120 lines and

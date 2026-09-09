@@ -1,5 +1,5 @@
 [package]
-name = "lights-cli"
+name = "lights"
 version.workspace = true
 edition.workspace = true
 

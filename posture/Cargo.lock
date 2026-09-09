@@ -88,6 +88,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "posture"
+version = "0.1.0"
+dependencies = [
+ "posture-adapters",
+ "posture-application",
+ "posture-domain",
+]
+
+[[package]]
 name = "posture-adapters"
 version = "0.1.0"
 dependencies = [
@@ -105,15 +114,6 @@ dependencies = [
 name = "posture-application"
 version = "0.1.0"
 dependencies = [
- "posture-domain",
-]
-
-[[package]]
-name = "posture-cli"
-version = "0.1.0"
-dependencies = [
- "posture-adapters",
- "posture-application",
  "posture-domain",
 ]
 

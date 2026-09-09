@@ -14,7 +14,7 @@ fn notify(
     settings: &str,
     replies: Vec<(u16, serde_json::Value)>,
     runner: impl Fn(&mut Command) -> io::Result<ExitStatus>,
-) -> (lights_cli::Response, usize) {
+) -> (lights::Response, usize) {
     let root = home();
     let path = root.join("notify.toml");
     std::fs::write(&path, settings).unwrap();
@@ -30,7 +30,7 @@ fn notify(
         calls.set(calls.get() + 1);
         runner(command)
     });
-    let response = lights_cli::run(
+    let response = lights::run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
         &notifier,
@@ -44,7 +44,7 @@ fn replies() -> Vec<(u16, serde_json::Value)> {
 fn ok(_: &mut Command) -> io::Result<ExitStatus> {
     Ok(ExitStatus::from_raw(0))
 }
-fn original(response: &lights_cli::Response) {
+fn original(response: &lights::Response) {
     assert_eq!(response.exit, 0);
     assert_eq!(response.stdout, "3F - Studio: off\n");
     assert!(response.stderr.is_empty());
@@ -126,7 +126,7 @@ fn missing_pns_does_not_fail_action() {
     let path = root.join("config.toml");
     std::fs::write(&path, config()).unwrap();
     let notifier = PnsNotifier::new(&root);
-    let response = lights_cli::run(
+    let response = lights::run(
         &["toggle".into(), "--notify".into()],
         &path,
         &notifier,
