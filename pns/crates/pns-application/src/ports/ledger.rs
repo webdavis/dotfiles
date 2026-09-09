@@ -118,3 +118,27 @@ pub trait DeliveryLedger {
         identity: &SubmissionIdentity,
     ) -> Result<Option<SubmissionRecord>, LedgerFailure>;
 }
+
+/// One failing delivery leg, as the ledger holds it.
+///
+/// Deliberately NOT `pns_domain::failure::Failure`. That type carries the
+/// gateway's address and the command the reader is shown, and neither is in the
+/// ledger: the address comes from the config and the command is reconstructed
+/// from the routing facts. The ledger reports what it stored, and the caller
+/// that also holds the config composes the message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredFailure {
+    /// The leg's row id, which is the number `pns failures` shows and takes.
+    pub id: u64,
+    pub destination: String,
+    pub route: String,
+    pub agent: String,
+    pub state: String,
+    pub outcome: pns_domain::retry::DeliveryOutcome,
+    /// When the current generation's attempt finished.
+    pub failed_at: u64,
+    /// Retries spent, which is the generation less the initial send.
+    pub retries: u64,
+    /// Whether pns has given up on this leg.
+    pub deadlettered: bool,
+}

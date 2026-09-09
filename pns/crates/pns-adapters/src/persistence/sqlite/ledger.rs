@@ -1,11 +1,12 @@
 use super::{SqliteStore, StoreError};
 use pns_application::{
     ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
-    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, SubmissionIdentity,
-    SubmissionRecord, UnconfirmedDelivery,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, StoredFailure,
+    SubmissionIdentity, SubmissionRecord, UnconfirmedDelivery,
 };
 mod claims;
 mod completion;
+mod failing;
 mod health;
 mod outcomes;
 mod prepare;
@@ -26,6 +27,38 @@ impl SqliteStore {
         result.map_err(|error| {
             self.report("delivery ledger", &error);
             LedgerFailure::Unavailable("delivery ledger storage unavailable".into())
+        })
+    }
+
+    /// The newest failing legs, newest first. READ ONLY, like the health
+    /// snapshot beside it and for the same reason: a report must not create,
+    /// import or migrate a database, or reading it would change it.
+    ///
+    /// Inherent rather than on the `DeliveryLedger` trait, which is the port
+    /// the delivery path speaks. Nothing about reporting belongs in a delivery
+    /// contract, and putting it there would make every test double implement a
+    /// method none of them use.
+    pub fn failing_legs(&self, limit: u32) -> Result<Vec<StoredFailure>, LedgerFailure> {
+        self.failing(|connection| failing::newest(connection, limit))
+    }
+
+    /// One failing leg by the id a listing showed, or `None` when that id names
+    /// nothing failing: a leg that has since been acknowledged answers here the
+    /// same way one that never existed does, because to the reader they are the
+    /// same news.
+    pub fn failing_leg(&self, id: u64) -> Result<Option<StoredFailure>, LedgerFailure> {
+        let Ok(id) = i64::try_from(id) else {
+            return Ok(None);
+        };
+        self.failing(|connection| failing::one(connection, id))
+    }
+
+    fn failing<T>(
+        &self,
+        read: impl FnOnce(&rusqlite::Connection) -> Result<T, StoreError>,
+    ) -> Result<T, LedgerFailure> {
+        (|| read(&self.read_only()?))().map_err(|_: StoreError| {
+            LedgerFailure::Unavailable("delivery ledger unreadable".into())
         })
     }
 }

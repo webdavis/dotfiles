@@ -42,8 +42,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     assert_eq!(lines[summary + 6], LIGHTS_OFF_LINE, "{printed}");
     assert_eq!(
         lines[summary + 7],
+        // Two legs are pending, so the summary names the detail view. That
+        // pointer is what the count is FOR: a reader holding a number and no
+        // next step is where this line used to leave them.
         "pns doctor: delivery ledger: 2 pending leg(s), 0 deadlettered, growth streak 0, \
-         alarm acknowledged; recording gaps none in recent daemon log",
+         alarm acknowledged; recording gaps none in recent daemon log; \
+         run `pns failures` for what is not arriving",
         "delivery health precedes decision history: {printed}"
     );
     assert_eq!(

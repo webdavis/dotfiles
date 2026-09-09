@@ -104,6 +104,7 @@ fn remote_input() -> LedgerSubmission {
 }
 
 mod claims;
+mod failing;
 mod failure_class;
 mod failures;
 mod outcomes;

@@ -66,6 +66,13 @@ pub(crate) fn run() {
     if first == "doctor" {
         std::process::exit(doctor_mode());
     }
+    // The detail view over what is not arriving. A MODE beside the doctor's
+    // for the same reason: it reads the ledger, prints, and delivers nothing,
+    // so no event's plan reaches it. The doctor reports the count and names
+    // this, which is what makes one command to discover and one to use.
+    if first == "failures" {
+        std::process::exit(failures_mode());
+    }
     // The return recap, rendered from the activity ring and posted to Discord.
     // A MODE for the reason the others are: it takes no decision, so no event's
     // plan reaches it. The event path starts it detached; an operator can also
