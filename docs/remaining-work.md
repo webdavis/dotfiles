@@ -277,7 +277,50 @@ is what makes a tool feel finished.
   closes with a numbered list of what to act on. NOTE: the doctor currently refuses any argument at all,
   with a comment saying so; that comment changes with the flag.
 - [ ] 70. Every other pns command that prints more than a sentence adopts the same vocabulary. Its scope
-  is decided by reading what each command prints today, not by a list written here in advance.
+  is decided by reading what each command prints today, not by a list written here in advance. Read on
+  2026-09-09, the commands that qualify are `pns failures` (a column table, and `listing()` is served by
+  the failure page as well, so it takes a `Paint` and the page passes the plain one), `pns home` (a
+  multi-line diagnostic), `pns setup` (the wizard's walk) and `pns lights` (a list of lines). Everything
+  else prints one sentence or a usage string.
+
+## The Back Tap marker
+
+Verified on 2026-09-09, and it is the reason the two tasks below exist. The marker is written by a FORCED
+COMMAND on an SSH key: `~/.ssh/authorized_keys` line 9 reads
+`command="/usr/bin/touch /Users/stephen/.local/state/pns/phone-attention.marker",restrict` on the key
+labelled `Shortcuts on mister`. sshd runs that command instead of whatever the client asks for, so the
+iOS Shortcut never names the file and could not: a public key has no room for a path. pns has no writer
+for it either, which its own spec records as an open question (`persistence-and-process-lifecycle.md`:
+"no writer of that path exists anywhere in `src/`"). So the path is written down TWICE, in two systems,
+one of which is not chezmoi-managed, and nothing checks that the two agree. A mismatch is silent: pns
+sees a file that never updates, reads the tap as stale, and phone cards simply stop.
+
+- [ ] 71. `pns tap` takes over the write. A new subcommand touches the marker at the SAME configured path
+  the presence probe reads, so the path exists once. The forced command becomes
+  `command="<cargo bin>/pns tap",restrict` and names no path at all, which is what makes task 72's knob
+  safe to turn: the operator edits `authorized_keys` once, here, and never again. `restrict` still holds,
+  so the key can run this and nothing else. The cost, stated rather than hidden: `/usr/bin/touch` is
+  always present and a built binary is not, so a broken build takes the tap with it. That is why the
+  doctor row below is part of this task rather than a follow-up: `pns doctor` gains a row under Pairing
+  that reads `~/.ssh/authorized_keys`, finds the forced command, and says whether a key is wired to
+  `pns tap`, so a key later deleted or mistyped is REPORTED instead of quietly ending phone cards.
+  Its flags, and what each one is for. Bare `pns tap` touches the marker and prints the surface that
+  results, because the forced command's stdout travels back over SSH and the Shortcut can show it: a tap
+  that says nothing is a tap you cannot tell from a broken one. `--clear` DELETES the marker, which is
+  not redundant with the newest-signal-wins rule: a stray tap holds Mobile until the desk is touched, and
+  an operator who mis-taps while away from the desk has nothing that cancels it. `--show` prints the
+  marker's age and the surface it implies and touches nothing, for debugging from either end. `--json`
+  emits the same answer machine-readably, so the Shortcut renders it rather than dumping a sentence.
+  `--no-color` and the terminal detection come from task 69's style module. DELIBERATELY NOT `--for
+  <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its contents
+  (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign rather
+  than a flag, and it is scoped separately if it is ever wanted.
+- [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
+  `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
+  the tests and sandboxes are untouched. NOT `[presence]`: `[plugins.presence]` already exists and is the
+  Hue room sensor, and two tables a word apart meaning different things is the confusion this avoids.
+  Ordered after 71 deliberately: a knob shipped while the path is still duplicated is a knob that breaks
+  the tap when it is turned.
 
 ## posture foundation
 
