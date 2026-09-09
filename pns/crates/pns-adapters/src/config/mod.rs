@@ -88,6 +88,9 @@ pub use router::{
     router_settings, stale_alert_channel,
 };
 
+mod banner;
+pub use banner::banner_click;
+
 mod hermes;
 pub use hermes::hermes_secret;
 

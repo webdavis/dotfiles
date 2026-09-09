@@ -32,6 +32,7 @@ pub use config::{
     router_settings, stale_alert_channel,
 };
 
+pub use config::banner_click;
 pub use config::hermes_secret;
 
 pub use config::select_plugins;

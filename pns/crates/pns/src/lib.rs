@@ -44,6 +44,7 @@ pub(crate) use pns_domain::render;
 
 mod channel_dispatch;
 mod channel_settings;
+mod command_click;
 mod command_daemon;
 mod command_doctor;
 mod command_failures;
@@ -78,6 +79,7 @@ mod turn_text;
 pub(crate) use channel_settings::{
     Mobile, disabled_backend_warnings, plugin_settings, read_mobile,
 };
+pub(crate) use command_click::click_mode;
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_failures::failures_mode;

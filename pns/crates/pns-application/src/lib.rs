@@ -22,6 +22,7 @@ mod delivery_health;
 pub use delivery_health::{delivery_health_line, report_delivery_health};
 mod destinations;
 mod environment_reading;
+mod open_failure;
 mod ports;
 mod replay_missed;
 mod request_approval;
@@ -32,6 +33,7 @@ mod submit_notification;
 pub use destinations::{DeliveryRequest, DestinationId, Destinations, Recorded};
 pub use environment_reading::{decide, operator_surface};
 
+pub use open_failure::{ClickOutcome, click_banner, click_failure_line, open_failure};
 pub use ports::clock::Clock;
 pub use ports::decision_outcomes::DecisionOutcomes;
 pub use ports::delivery::{

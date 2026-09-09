@@ -111,7 +111,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "plugins.hue",
         &["bridge", "enabled", "key", "quiet_hours", "rooms"],
     ),
-    ("plugins.macos-banner", &["enabled"]),
+    (
+        "plugins.macos-banner",
+        &["click_command", "click_type", "enabled"],
+    ),
     (
         "plugins.presence",
         &[

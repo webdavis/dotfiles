@@ -183,6 +183,12 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.hue", "key", "\"secret\""),
     ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
     ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
+    (
+        "plugins.macos-banner",
+        "click_command",
+        "\"/usr/bin/open {id}\"",
+    ),
+    ("plugins.macos-banner", "click_type", "\"herdr\""),
     ("plugins.macos-banner", "enabled", "true"),
     ("plugins.presence", "enabled", "true"),
     ("plugins.presence", "desk_room", "\"3F - Studio\""),
