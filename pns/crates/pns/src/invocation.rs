@@ -9,15 +9,33 @@ pub(crate) fn second_argument() -> String {
         .to_string_lossy()
         .into_owned()
 }
+/// What a producer gets when its own page did not reach the durable log.
+///
+/// ONE, NOT TWO. Two is what this mode already returns for argv it will not
+/// accept, and a producer that could not tell a lost page from a mistyped
+/// command would have to guess which of the two it was looking at.
+const EVENT_NOT_DELIVERED: i32 = 1;
+
+/// The event mode's exit code, which is the ONE thing a synchronous producer
+/// can read.
+///
+/// THE ALWAYS-EXIT-0 CONTRACT IS ABOUT ARGV, not about delivery: a stray token
+/// degrades into an empty event rather than a failure, because this sits on a
+/// notification path that must not break its caller. A gateway that refused the
+/// page is a different fact, and one a producer such as posture has no other way
+/// to learn.
 pub(crate) fn event_mode(argv: &[String]) -> i32 {
     crate::legacy::run(argv, |event| {
         // Legacy argv carries no harness payload.
-        run_event(
+        match run_event(
             &event,
             &system_probes(),
             &HookPayload::default(),
             Attempt::First,
-        );
+        ) {
+            event_flow::Landed::Yes => 0,
+            event_flow::Landed::No => EVENT_NOT_DELIVERED,
+        }
     })
 }
 

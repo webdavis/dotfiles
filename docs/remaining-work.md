@@ -235,9 +235,11 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   whole `fix` line is chosen by it. It also owns the rule the banner never needed, that a failure is
   never reported through the destination that failed, since a moshi refusal must not be announced to
   moshi.
-- [ ] 35c. A non-zero exit code for a synchronous caller whose page did not land, which is rung 5 of the
-  design's "where a failure surfaces" and the one a producer such as posture reads. Today an event mode
-  invocation exits 0 whatever the destinations answered.
+- [x] 35c. A non-zero exit code for a synchronous caller whose page did not land, rung 5 of the design's
+  "where a failure surfaces". Shipped OPT-IN, behind `--require-delivery`, because the design's
+  unconditional form contradicts accepted decision 0010 (a notification never fails the work it reports
+  on) and 126 tests pin that contract: every harness hook, the shell notifier and the daemon call the
+  event path while real work is in flight. A caller that asked for the answer is one that can take it.
 - [x] 36. The local page for moshi's browser preview
 
 ### STOP POINT C

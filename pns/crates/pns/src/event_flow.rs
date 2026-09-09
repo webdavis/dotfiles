@@ -46,7 +46,7 @@ pub(crate) fn run_event(
     probes: &SystemProbes<SystemCommandRunner>,
     payload: &HookPayload,
     attempt: Attempt,
-) {
+) -> Landed {
     run_event_pulsing(
         event,
         probes,
@@ -55,7 +55,7 @@ pub(crate) fn run_event(
         &|table, lights, behaviour, presence| {
             fire_pulse_unless_quiet(table, lights, behaviour, presence);
         },
-    );
+    )
 }
 /// Where this event's pulse ends up. THE REAL PULSE IN PRODUCTION and a
 /// recorder in the one test that is about the ORDERING of this path rather
@@ -78,10 +78,54 @@ fn run_event_pulsing(
     payload: &HookPayload,
     attempt: Attempt,
     pulse: PulseSink<'_>,
-) {
-    let _ = execution::execute(event, probes, payload, attempt, pulse, None);
+) -> Landed {
+    landed(&execution::execute(
+        event, probes, payload, attempt, pulse, None,
+    ))
+}
+
+/// Whether this event's own page reached the durable log.
+///
+/// THE ANSWER A SYNCHRONOUS PRODUCER NEEDS. A producer such as posture has no
+/// other way to learn that the page it just sent is not anywhere: the retry
+/// loop, the banner and `pns failures` all report to an operator, and a script
+/// reads an exit code. Without this it exits 0 whatever the gateway answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Landed {
+    Yes,
+    No,
+}
+
+/// DECORATIVE LEGS DO NOT DECIDE IT. `decorative` is `presence_gated || local`,
+/// which is the banner and the phone card: surfaces that SHOW the operator
+/// something. A banner that could not spawn its notifier is a notification the
+/// operator missed, not a page that is nowhere, and a producer that treated it
+/// as one would fail on every machine without `terminal-notifier`.
+///
+/// A LEDGER THAT REFUSED THE SUBMISSION IS `No`, because nothing was attempted
+/// and pns cannot say the page landed. An EXISTING record is `Yes`: the
+/// submission is a duplicate of one already answered, and answering it a second
+/// time with a failure would make a retried producer call report a page that did
+/// arrive.
+fn landed(
+    submitted: &Result<pns_application::Submitted, pns_application::LedgerFailure>,
+) -> Landed {
+    match submitted {
+        Err(_) => Landed::No,
+        Ok(pns_application::Submitted::Existing(_)) => Landed::Yes,
+        Ok(pns_application::Submitted::Attempted { outcomes, .. }) => {
+            let lost = outcomes.iter().any(|(leg, delivery)| {
+                !leg.decorative && !matches!(delivery, pns_domain::Delivery::Delivered(_))
+            });
+            if lost { Landed::No } else { Landed::Yes }
+        }
+    }
 }
 
 #[cfg(test)]
 #[path = "event_flow/tests.rs"]
 mod event_flow_tests;
+
+#[cfg(test)]
+#[path = "event_flow/landed_tests.rs"]
+mod landed_tests;
