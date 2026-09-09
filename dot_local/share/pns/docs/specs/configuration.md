@@ -10,9 +10,10 @@ secret-bearing and where a secret can and cannot travel, how plugin identity is 
 shipped chezmoi template. The setup wizard and the publication of a first-run file are a sibling
 specification's subject (`docs/specs/setup-and-publication.md`); this document names `src/setup.rs` only
 where it consumes something owned here, and defers the walk itself. Everything below is derived from the
-crate at `dot_local/share/pns` and from the two committed files it reads at `dot_config/pns/`. Where the
-code does not settle a question the line begins `NOT ESTABLISHED:` and names what was looked for. The
-operator's real config was never read, and no secret value appears anywhere in this document.
+package at `dot_local/share/pns` and from the two committed files the outer repository owns at
+`dot_config/pns/`. Where the code does not settle a question the line begins `NOT ESTABLISHED:` and names
+what was looked for. The operator's real config was never read, and no secret value appears anywhere in
+this document.
 
 Two vocabulary notes that matter for reading the tables below. `quiet hours` is the config key
 `[plugins.hue] quiet_hours` and `quiet window` is the parsed value behind it; `dim window` is the
@@ -37,57 +38,24 @@ migration prompt rather than a versioned one
 (`src/config.rs:a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`,
 `src/config.rs:a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`).
 
-## The one reach outside the crate
+## The outer repository owns the generated-file comparison
 
-Three places in the pns test build read files that live OUTSIDE `dot_local/share/pns`. All three are
-test-only, so the binary an apply builds out of the deployed crate never asks for them
-(`src/config.rs:SHIPPED_TEMPLATE` records this as measured both ways: `cargo build --bin pns` exits 0
-because `cfg(test)` is stripped before the macro expands, and `cargo test --no-run` fails with "couldn't
-read").
+The pns package owns its configuration parser, renderer and test fixtures. Its test build does not
+include the files under `dot_config/pns/` or construct a path to the outer repository. The values file
+and generated template belong to dotfiles; their comparison runs in
+`test/unit/pns-config-template.test.sh`, as recorded in decision 0011.
 
-The first, and the one the crate's own comment calls out, is at `src/config.rs:SHIPPED_TEMPLATE`:
+That test runs `just pns-config-render` into scratch space and compares the result with the committed
+`dot_config/pns/private_config.toml.tmpl`. The expected file is independent of the renderer. The same
+outer test passes a copy of `dot_config/pns/config-values.toml` to `pns-config-render --check`, which
+validates the rendered configuration against the package-owned
+`crates/pns-cli/tests/fixtures/resolved-config.snapshot` without writing either input or output.
 
-```rust
-const SHIPPED_TEMPLATE: &str =
-    include_str!("../../../../dot_config/pns/private_config.toml.tmpl");
-```
-
-The path is `../../../../dot_config/pns/private_config.toml.tmpl`, resolved relative to the file holding
-the macro (`dot_local/share/pns/src/config.rs`), so the four `..` segments walk `src` to `pns` to `share`
-to `dot_local` to the repository root. Its own doc comment states the cost in these words: "THE COST IS
-THAT THE TEST BUILD REACHES FOUR LEVELS OUT OF THE CRATE, into the repo checkout around it. `cargo test`
-and `cargo clippy --all-targets` therefore only work from inside this repo," and it names what happens
-the day pns moves to its own repository: "this test stops compiling and the template it reads has to
-arrive by another road (a copy vendored into the crate, or a path handed in by the build). No mechanism
-is built for that day here."
-
-The tests that use `SHIPPED_TEMPLATE`, all five in `src/config.rs`:
-
-| Test                                                                          | What it pins                                                              |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `the_committed_template_is_render_over_the_committed_values_file`             | the template is byte for byte `BANNER + render(CONFIG_VALUES) + FOOTER`   |
-| `every_table_the_operator_runs_is_still_live_in_the_shipped_template`         | the exact list of 22 uncommented headings                                 |
-| `the_shipped_template_names_the_entry_and_field_of_every_secret`              | the five secret lines, each with the table it fell under                  |
-| `the_shipped_config_template_still_parses_through_this_schema`                | the template parses and selects hermes, hue, macos-banner, mobile, router |
-| `the_shipped_template_states_the_blocked_backstop_at_its_default_uncommented` | `give_up_after_secs = 57600` is present as a live line                    |
-
-The second reach-out sits four lines below the first and is the same shape:
-
-```rust
-const CONFIG_VALUES: &str = include_str!("../../../../dot_config/pns/config-values.toml");
-```
-
-used by `the_committed_template_is_render_over_the_committed_values_file` and by
-`the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`. Its doc comment says
-"Same four-levels-out caveat as `SHIPPED_TEMPLATE` itself."
-
-The third is at runtime rather than compile time, in the integration suite:
-`tests/config_render.rs:the_binary_over_the_committed_values_file_writes_the_committed_template_exactly`
-builds `PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")` and reads both committed files off
-disk. So the brief's "one place" is precisely one `include_str!` of the TEMPLATE, and the honest count of
-out-of-crate reads is three. A fourth `include_str!` in the same module,
-`include_str!("../tests/fixtures/resolved-config.snapshot")` at `src/config.rs:RESOLVED_CONFIG_SNAPSHOT`,
-stays inside the crate and is not part of this.
+The renderer includes that owned snapshot from
+`crates/pns-cli/src/bin/pns-config-render.rs`. Its banner, footer, secret-action grammar and refusal
+behaviors retain independent tests within the package. The complete output comparison covers the
+headings and secret-action bytes; a separate list of live headings is not maintained. Behaviors 27 and
+28 describe the outer comparison and the resolved-configuration check.
 
 ## The five secret actions and where their shape is pinned
 
@@ -401,12 +369,12 @@ marks an interpolation.
 | an unclosed chezmoi action while stubbing                    | `a chezmoi action is not closed on its own line: {line}`                                    | closed                                                |
 | an action that is not the one secret grammar                 | \`\` not a \`                                                                               | toToml\` secret action: {action} \`\`                 |
 
-### The generator binary (`src/bin/pns-config-render.rs`)
+### The generator binary (`crates/pns-cli/src/bin/pns-config-render.rs`)
 
 | What is rejected                             | Exact wording                                                               | Exit | Fail direction                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------- | ---- | ---------------------------------------------------- |
-| no arguments, one argument, or three or more | `usage: pns-config-render <values-file> <template-file>` on stderr          | 2    | closed, nothing written                              |
-| any run failure                              | `pns-config-render: refused: {message}` on stderr                           | 1    | closed, nothing written                              |
+| no arguments, one argument, or three or more | both usage forms below on stderr | 2 | closed, nothing written |
+| any run or check failure | `pns-config-render: refused: {message}` on stderr | 1 | closed; see behavior 26 for write failures |
 | the values file cannot be read               | message is `reading {values_path}: {error}`                                 | 1    | closed                                               |
 | the values file is not TOML                  | `{values_path} is not valid TOML: {error}`                                  | 1    | closed                                               |
 | a literal at a secret-bearing path           | `` `{path}` must be a keepassxc secret marker table, not a literal value `` | 1    | closed                                               |
@@ -414,7 +382,17 @@ marks an interpolation.
 | the render's own secret action is malformed  | `the render carries a malformed secret action: {error}`                     | 1    | closed                                               |
 | the render will not parse back               | `the render does not self-parse: {detail}`                                  | 1    | closed                                               |
 | the template file cannot be written          | `writing {template_path}: {error}`                                          | 1    | closed, but see behavior 26 for what "closed" covers |
-| success                                      | `wrote {template_path}` on stdout                                           | 0    | n/a                                                  |
+| an unregistered plugin during `--check` | `the render names an unregistered plugin: {error:?}` | 1 | closed, nothing written |
+| a resolved snapshot mismatch during `--check` | `resolved configuration differs from the committed snapshot` | 1 | closed, nothing written |
+| write success | `wrote {template_path}` on stdout | 0 | n/a |
+| `--check` success | no stdout or stderr | 0 | no writes |
+
+The two accepted forms are:
+
+```text
+usage: pns-config-render <values-file> <template-file>
+       pns-config-render --check <values-file>
+```
 
 ## Behaviors
 
@@ -1418,7 +1396,7 @@ Then nothing reaches the template path until every earlier step has succeeded
   which holds a SECOND independent copy of the banner text; nondeterminism in the walk, pinned by
   `tests/config_render.rs:running_the_binary_twice_against_the_same_values_file_writes_identical_bytes`;
   a binary that validates its input and then writes a fixed body regardless, pinned by
-  `tests/config_render.rs:the_binary_over_the_committed_values_file_writes_the_committed_template_exactly`;
+  `test/unit/pns-config-template.test.sh:the_binary_over_the_committed_values_file_writes_the_committed_template_exactly`;
   and the argv guard, pinned by `tests/config_render.rs:missing_arguments_print_usage_and_exit_2` and
   `tests/config_render.rs:a_third_argument_prints_usage_and_exit_2`.
 - Fail direction: CLOSED, and specifically closed on a PRE-EXISTING file. Every refusal test plants
@@ -1426,9 +1404,9 @@ Then nothing reaches the template path until every earlier step has succeeded
   byte-identical, because "asserting `!template_path.exists()` on a path that started out absent proves
   nothing about that: the file was never there to begin with, so a refusal that destroys a pre-existing
   one would still pass."
-- Thresholds: exactly two arguments. Zero, one, or three or more print
-  `usage: pns-config-render <values-file> <template-file>` and exit 2. The three-argument case also
-  asserts nothing was written.
+- Thresholds: exactly two arguments select either `<values-file> <template-file>` or
+  `--check <values-file>`. Zero, one, or three or more print both usage forms listed above and exit 2.
+  The three-argument case also asserts nothing was written.
 - Required side effects: exactly one file write, at the very end, of `BANNER + rendered + FOOTER`.
 - Forbidden side effects: the binary is never installed. The module comment: "Dev-only: turns the
   committed values file into the shipped chezmoi template. Never installed (see the build script under
@@ -1448,99 +1426,70 @@ Then nothing reaches the template path until every earlier step has succeeded
 - Process ownership and cleanup: the write is a plain `std::fs::write`, not a publish-by-rename. A write
   that fails part way leaves a truncated template. `NOT ESTABLISHED:` no atomic-write or rollback
   mechanism exists in this binary, and no test covers a partial write.
-- Compatibility contract: `BANNER` is duplicated by hand in three places (the binary, the crate test, and
-  the integration test) rather than imported, and each copy says why: "if that binary's own copy were
-  ever deleted or gutted to an empty string, importing it here would make both sides agree on nothing and
-  this test would still pass."
+- Compatibility contract: the binary acceptance test holds its own expected banner and footer rather
+  than importing the binary's constants. Removing the binary's banner therefore makes that assertion
+  fail. The outer repository separately compares the complete generated template in behavior 27.
 
-### 27. The shipped template is pinned byte for byte, and three separate pins cover what one cannot
+### 27. The outer repository compares the complete generated template
 
 Given the committed `dot_config/pns/config-values.toml`\
 
-When the crate's test suite runs\
+When the outer repository runs `test/unit/pns-config-template.test.sh`\
 
-Then the committed `dot_config/pns/private_config.toml.tmpl` must equal `BANNER + render(values) + FOOTER` exactly
+Then `just pns-config-render` must produce the committed `dot_config/pns/private_config.toml.tmpl` exactly
 
-- Success: `src/config.rs:the_committed_template_is_render_over_the_committed_values_file` parses
-  `CONFIG_VALUES`, calls `config_text::render`, wraps it, and asserts equality with `SHIPPED_TEMPLATE`.
-  The failure message is the operator's instruction: "the shipped template drifted from `render` over the
-  committed values file; regenerate with `just pns-config-render`".
-- Failure sources: a hand edit to the template; an unregenerated values-file edit.
-- Fail direction: a red test rather than a runtime behavior. There is no runtime consequence until an
-  apply deploys the file.
-- Thresholds: three pins, layered, because each has a mutant the others cannot see. Byte equality catches
-  a hand edit but NOT a table dropped from the values file, because "a table ABSENT from the committed
-  values file renders COMMENTED OUT rather than refused, so dropping `[nag]` from that file and running
-  `just pns-config-render` writes a template with the nag the operator runs switched OFF, and the
-  byte-equality test stays green because both sides moved together. Measured: with `[nag]` dropped the
-  whole Rust suite passes." `src/config.rs:LIVE_TABLES` closes that: an enumerated list of the 22
-  uncommented headings, kept by hand OUTSIDE the values file, asserted in order by
-  `src/config.rs:every_table_the_operator_runs_is_still_live_in_the_shipped_template`. Its stated
-  ceiling: "this pins WHICH tables are live, not what every live key holds."
-  `src/config.rs:RESOLVED_CONFIG_SNAPSHOT` closes THAT: the `{:#?}` of the parsed `Config` over the
-  rendered values, committed at `tests/fixtures/resolved-config.snapshot`, asserted by
-  `src/config.rs:the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`. It
-  catches four keys that render COMMENTED when dropped without moving any heading (`plugins.hue.rooms`,
-  `plugins.hue.quiet_hours`, `plugins.router.router_url`, `plugins.router.device_hostname`) and a fifth
-  that renders LIVE at its schema default (`lights.loop.threshold_secs`, which falls from 360 to 300).
-- Required side effects: on a mismatch the snapshot test writes the actual text to a scratch file under
-  `std::env::temp_dir()` named for the process id and panics with two literal commands, a `diff` and a
-  `cp`, so the update procedure is printed rather than remembered.
-- Forbidden side effects: the snapshot is committed SEPARATELY from the values file and the template, on
-  purpose, "because a snapshot regenerated the same way those two are would move in lockstep with every
-  values-file edit and never disagree with anything."
-- Timeout and cancellation: Not applicable.
-- Idempotency and duplicates: the render is deterministic, so re-running produces the same bytes.
-- Privacy: the snapshot carries the five vault entry names and their fields, stubbed through
-  `identity_placeholder`, and no vault values. Verified by reading it.
-- Process ownership and cleanup: the scratch snapshot file is written and NOT removed, deliberately, so
-  the failure message can hand back a `cp` that runs from anywhere.
-- Compatibility contract: the honesty ceiling is stated rather than hidden: "it is only as honest as
-  whoever updates it: nothing stops a `cp` run without reading the diff first, which is why the diff step
-  is spelled out above rather than folded into one command." And what none of the three reaches: "a
-  plugin's own runtime reading of its `settings` table (`channels/hue.rs` deciding what a room NAME
-  means, for one) is downstream of this layer and out of its reach."
+- Success: `the_binary_over_the_committed_values_file_writes_the_committed_template_exactly` runs the
+  actual recipe into scratch space and compares every byte with the committed template. This includes
+  the generated banner, Darwin wrapper, rendered values and footer.
+- Failure sources: a hand edit to the template, an unregenerated values change, or a renderer that emits
+  the wrong text. The expected file is stored independently of the renderer.
+- Fail direction: the outer test fails. It changes neither committed file and runs no apply.
+- Thresholds: equality covers the complete output, including comments, headings and secret actions.
+  It does not require a separate list of headings. A values change followed by regeneration can change
+  both sides together; behavior 28 checks the resolved configuration against its separate snapshot.
+- Required side effects: the recipe writes one scratch template for the comparison.
+- Forbidden side effects: the test must not overwrite the committed template or change the values file.
+- Timeout and cancellation: no deadline is imposed by this comparison.
+- Idempotency and duplicates: rendering the same values produces the same bytes.
+- Privacy: the values file holds secret marker tables. Rendering writes their chezmoi actions and does
+  not read the vault or the operator's configuration.
+- Process ownership and cleanup: the outer test owns its scratch output. It does not publish a config.
+- Compatibility contract: the package's tests use owned fixtures and do not reach into `dot_config/`.
+  The outer repository supplies the values path and owns the committed-template comparison, as decision
+  0011 requires.
 
-### 28. The shipped template still parses through this schema, and states its defaults visibly
+### 28. The resolved configuration is checked without writing
 
-Given `SHIPPED_TEMPLATE` with its chezmoi actions stubbed\
+Given a values file supplied to `pns-config-render --check <values-file>`\
 
-When `parse_config` runs over it\
+When the renderer validates it\
 
-Then it loads and selects exactly hermes, hue, macos-banner, mobile and router, all of which the registry knows
+Then it must parse, name registered plugins and match the package-owned resolved snapshot
 
-- Success: `src/config.rs:the_shipped_config_template_still_parses_through_this_schema` asserts the
-  plugin key list is exactly `["hermes", "hue", "macos-banner", "mobile", "router"]` and then calls
-  `registry::roster().enabled(&config)` to prove every name is registered. Its comment states the stake:
-  "THE FENCE UNDER THE SWEEP... If it stops loading, the machine falls back to the CORE with a warning
-  nobody is standing in front of."
-- Failure sources: any schema tightening that the shipped file happens to violate.
-- Fail direction: a red test at build time. At runtime the consequence would be the CORE fallback, which
-  keeps the phone and the banner and loses the durable paper trail, the lights and the home probe.
-- Thresholds: `src/config.rs:the_shipped_template_states_the_blocked_backstop_at_its_default_uncommented`
-  asserts a LINE, `give_up_after_secs = 57600`, rather than a parsed value, and says why: "the key fence
-  counts a commented line too, and the parser reads the same number whether the line is there or not, so
-  only the line itself pins the ruling." That is the "defaults visible in config" ruling enforced at the
-  one place a parsed assertion cannot reach it.
-- Required side effects: none.
-- Forbidden side effects: none.
-- Timeout and cancellation: Not applicable.
-- Idempotency and duplicates: deterministic.
-- Privacy: the stub substitutes for the five secrets before parsing, so no vault access happens.
-- Process ownership and cleanup: Not applicable.
-- Compatibility contract: `src/config.rs:documented_keys_the_roster_serves` is a `#[cfg(test)]` scanner
-  that reads COMMENTED lines too, "which is the half a parse cannot reach: most of a documented config is
-  documentation, and a key documented there but refused by the code is a line an operator uncomments and
-  then cannot load." Its doc comment describes it as serving "BOTH TEXTS HELD TO THIS SCHEMA, the shipped
-  template and what `pns setup` composes", and says "the count is returned rather than pinned here
-  because only the template has a number worth pinning." That second claim is currently stale: the
-  scanner's only two callers are
-  `src/config_text.rs:the_routing_prose_is_always_written_and_the_example_only_when_nothing_is_declared`
-  and `src/setup.rs:every_key_it_writes_is_a_key_the_roster_serves_however_the_walk_was_answered`, and
-  NOTHING runs it over `SHIPPED_TEMPLATE`. `NOT ESTABLISHED:` there is no pin on the shipped template's
-  documented-key count, so a key documented in the template under a table that does not serve it would
-  not be caught by that scanner today. It would still be caught by behavior 27's byte-equality pin as
-  long as the template stays generated from the values file.
+- Success: `crates/pns-cli/src/bin/pns-config-render.rs:check` reuses `rendered_configuration`, validates
+  the selected plugins through `registry::roster().enabled`, and compares `{config:#?}\n` with
+  `crates/pns-cli/tests/fixtures/resolved-config.snapshot`. Matching input exits 0 without output.
+  The outer test `the_resolved_configuration_over_the_committed_values_file_matches_its_snapshot`
+  supplies a copy of the committed values and verifies that copy remains unchanged.
+- Failure sources: unreadable or invalid values, a literal secret, a rendering or secret-action grammar
+  error, a configuration parse refusal, an unregistered plugin, or a different resolved configuration.
+- Fail direction: exit 1 with `pns-config-render: refused: {message}` on stderr. A snapshot mismatch uses
+  `resolved configuration differs from the committed snapshot`. No input, template or snapshot is
+  written. `checking_a_changed_resolved_configuration_refuses_without_writing` exercises this refusal
+  in `crates/pns-cli/tests/config_render.rs`.
+- Thresholds: the complete formatted configuration must match, including selected plugin settings,
+  defaults and each secret's entry and field identity. Updating values can require a deliberate review
+  and update of the separate snapshot; `--check` never updates it automatically.
+- Required side effects: none beyond reading the supplied values file and reporting a refusal.
+- Forbidden side effects: no vault access, operator-config reads or configuration publication.
+- Timeout and cancellation: no deadline is imposed by this check.
+- Idempotency and duplicates: the same input yields the same result.
+- Privacy: `identity_placeholder` substitutes each secret action before parsing. The comparison retains
+  the entry and field identity without retrieving its secret value.
+- Process ownership and cleanup: the command creates no scratch snapshot or recovery file.
+- Compatibility contract: this check covers rendered configuration and registered plugin selection.
+  A plugin's later interpretation of its settings remains the plugin's contract. The package's separate
+  secret-action grammar tests still reject malformed actions, including a missing `| toToml`.
 
 ### 29. A broken config fails open on the delivery path and closed on every lamp path
 

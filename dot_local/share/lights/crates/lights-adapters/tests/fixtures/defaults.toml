@@ -1,0 +1,24 @@
+# The room targeted when --room is absent.
+default_room = "3F - Studio"
+# Notification remains unavailable until pns delivery cleanup is certified.
+notify = false
+
+[controller]
+type = "hue"
+address = "192.0.2.1"
+key = "test-secret"
+# Maximum duration of one bridge request, in seconds.
+timeout_secs = 2
+
+[brightness]
+# Percentage points per relative step.
+step = 15
+
+[rooms]
+studio = "3F - Studio"
+bedroom = "3F - Master Bedroom"
+kitchen = "2F - Kitchen"
+
+[scenes]
+rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
+fallback = "Read"

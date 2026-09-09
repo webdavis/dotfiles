@@ -1,103 +1,107 @@
 #!/usr/bin/env bash
-# The shell notifier calls the engine binary, and the >=300s tier says so with
-# --long-running: the lights are part of the engine's plan now, not a second
-# `pns pulse` call the shell decides on its own from the config file.
-#
-# The function is extracted from the RENDERED bashrc rather than a copy, so a
-# repoint that edits one and not the other fails here.
+# The shell captures time and status; pns owns the marker, skip list and tiers.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
-
-# shellcheck source=../helpers/extract-shell-notifier.sh
-source "$REPO_ROOT/test/helpers/extract-shell-notifier.sh"
-extract_shell_notifier "$REPO_ROOT" "$scratch/notifier.sh"
-
-# A HOME with a space, because these paths are interpolated everywhere.
-home="$scratch/home dir"
-# AND A STATE DIR OF ITS OWN. The extraction now carries the lights marker, and
-# the notifier resolves its path from PNS_STATE_DIR before HOME, so an inherited
-# value points this test at the operator's real state directory and precmd's
-# `command rm -f` deletes a live shell's marker there. Silently: the test still
-# exits 0.
-state="$scratch/state dir"
-mkdir -p "$home/.local/libexec/pns"
-{
-  printf '#!/usr/bin/env bash\n'
-  # shellcheck disable=SC2016  # CALLS_FILE must expand when the STUB runs
-  printf 'printf "%%s\\n" "$@" >>"${CALLS_FILE:-%s/calls}"\n' "$scratch"
-} >"$home/.local/libexec/pns/pns"
-chmod +x "$home/.local/libexec/pns/pns"
-
-# All six scenarios run inside ONE bash process, each writing its own calls
-# file, with a single settle at the end: six spawns each with their own
-# settle loop put the file over the repo's one-second rule.
-run_scenarios() {
-  HOME="$home" PNS_STATE_DIR="$state" HERDR_PANE_ID=wW:p7 bash --noprofile --norc -c "
-    source '$scratch/notifier.sh'
-    fire() { # <elapsed> <calls-file>
-      export CALLS_FILE=\"\$2\"
-      SECONDS=\$1
-      __cmd_notify_start=0
-      __cmd_notify_name='sleep 999'
-      (exit 0)
-      __cmd_notify_precmd
-    }
-    fire 400 '$scratch/calls-noconfig'
-    mkdir -p '$home/.config/pns'
-    printf '[plugins.hue]\nenabled = true\n' >'$home/.config/pns/config.toml'
-    fire 400 '$scratch/calls-config'
-    fire 300 '$scratch/calls-300'
-    fire 299 '$scratch/calls-299'
-    fire 30 '$scratch/calls-30'
-    fire 29 '$scratch/calls-29'
-  " >/dev/null 2>&1 || true
-  # One settle for every detached write the six scenarios spawned.
-  sleep 0.15
+# Retain this private fixture on failure as well as success.
+extract_shell_notifier() {
+  local repo_root="$1" destination="$2" rendered="$2.bashrc"
+  if ! CI=1 chezmoi --source "$repo_root" execute-template --no-tty \
+    <"$repo_root/dot_bashrc.tmpl" >"$rendered" 2>/dev/null; then
+    printf 'extract_shell_notifier: rendering %s/dot_bashrc.tmpl failed\n' "$repo_root" >&2
+    return 1
+  fi
+  sed -n '/^  __cmd_notify_start=""$/,/^  precmd_functions+=(__cmd_notify_precmd)$/p' \
+    "$rendered" | sed 's/^  //' >"$destination"
+  # THE END ANCHOR IS ASSERTED, NOT TRUSTED. sed prints to the end of the file
+  # when a range's closing address never matches, and that result is still
+  # non-empty, so an emptiness guard passes on an extraction that swallowed the
+  # rest of the bashrc. What fails then is whatever sourcing the runaway
+  # produces, which on today's file is a bare `syntax error near unexpected
+  # token fi` naming nothing. The anchor is the range's own last line, so its
+  # absence is exactly the runaway (and an unmatched opening address leaves an
+  # empty file, which this catches too).
+  if ! grep -qxF 'precmd_functions+=(__cmd_notify_precmd)' "$destination"; then
+    printf 'extract_shell_notifier: the notifier region was not found in %s; the sed range anchors have moved\n' "$rendered" >&2
+    return 1
+  fi
 }
 
+extract_shell_notifier "$REPO_ROOT" "$scratch/notifier.sh"
+mkdir -p "$scratch/home/.local/libexec/pns"
+cat >"$scratch/home/.local/libexec/pns/pns" <<'ENGINE'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$CALLS_FILE"
+printf 'suppressed stdout\n'
+printf 'suppressed stderr\n' >&2
+exit "${ENGINE_STATUS:-0}"
+ENGINE
+chmod 700 "$scratch/home/.local/libexec/pns/pns"
+export NOTIFIER="$scratch/notifier.sh" CALLS_FILE="$scratch/calls"
+export HOME="$scratch/home" PNS_STATE_DIR="$scratch/state" HERDR_PANE_ID=t1:p2
+
 fail() {
-  echo "$1" >&2
+  printf '%s\n' "$1" >&2
   exit 1
 }
 
-# THIS SUITE'S OWN SANDBOX CHECK, asked of the code under test rather than of
-# the variable set above it, and run where its stderr is visible rather than
-# inside run_scenarios (which discards output on purpose). A notifier that
-# stopped reading PNS_STATE_DIR would put precmd's `command rm -f` back on the
-# operator's real markers, silently, with this file still exiting 0.
-resolved="$(HOME="$home" PNS_STATE_DIR="$state" bash --noprofile --norc -c \
-  "source '$scratch/notifier.sh'; printf '%s' \"\$__cmd_notify_marker_dir\"")"
-[[ $resolved == "$state"/* ]] ||
-  fail "the notifier resolved outside this test's sandbox: $resolved"
+# Named successors of the old marker tests that actually belong to Bash.
+test_a_pane_reaching_its_first_prompt_leaves_another_panes_marker_alone() {
+  bash --noprofile --norc -c '
+    source "$NOTIFIER"
+    trap - EXIT
+    __cmd_notify_precmd
+  '
+  [[ ! -e $CALLS_FILE ]] || fail 'a first prompt must not call end'
+}
 
-run_scenarios
+test_preexec_succeeds_whether_or_not_it_published_because_extdebug_cancels_a_command_on_a_failed_one() {
+  ENGINE_STATUS=19 bash --noprofile --norc -c '
+    source "$NOTIFIER"
+    trap - EXIT
+    shopt -s extdebug
+    __cmd_notify_preexec "cargo build --secret value"
+    result=$?
+    [[ $result == 0 ]] || exit 3
+    printf "%s\n" "$$" >"$CALLS_FILE.pid"
+  ' >"$scratch/preexec.stdout" 2>"$scratch/preexec.stderr"
+  [[ ! -s $scratch/preexec.stdout && ! -s $scratch/preexec.stderr ]] || fail 'preexec must stay silent'
+  diff -u <(printf '%s\n' shell begin --pid "$(cat "$CALLS_FILE.pid")" --command 'cargo build --secret value') "$CALLS_FILE"
+}
 
-# --- no config: the notification fires, the pulse does not -----------------
-calls="$(cat "$scratch/calls-noconfig" 2>/dev/null || true)"
-grep -qxF -- '--agent' <<<"$calls" || fail "the long tier must notify; got: $calls"
-grep -qxF -- '--pane' <<<"$calls" || fail "the pane must ride along; got: $calls"
-grep -qxF -- 'wW:p7' <<<"$calls" || fail "the pane id must ride along; got: $calls"
-grep -qxF -- 'pulse' <<<"$calls" && fail "the pulse is no longer a separate call; got: $calls"
-grep -qxF -- '--long-running' <<<"$calls" || fail "the long tier says so; got: $calls"
-grep -qxF -- '--local-only' <<<"$calls" && fail "no narrowing flag may appear; got: $calls"
+test_a_shell_that_exits_without_another_prompt_leaves_no_marker_of_its_own() {
+  local status=0
+  bash --noprofile --norc -c '
+    source "$NOTIFIER"
+    printf "%s\n" "$$" >"$CALLS_FILE.pid"
+    exit 7
+  ' || status=$?
+  [[ $status == 7 ]] || fail 'EXIT cleanup changed the shell status'
+  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command '' --exit 0 --elapsed 0) "$CALLS_FILE"
+}
 
-# --- the config no longer gates the tier: the engine reads it itself -------
-calls="$(cat "$scratch/calls-config" 2>/dev/null || true)"
-grep -qxF -- '--long-running' <<<"$calls" || fail "the long tier says so; got: $calls"
-grep -qxF -- 'pulse' <<<"$calls" && fail "still one call, not two; got: $calls"
+# PS0 captures before preexec, including the first command. End receives the
+# captured status/time verbatim, even when engine startup itself refuses.
+test_prompt_captures_status_time_and_history_before_the_engine() {
+  ENGINE_STATUS=19 bash --noprofile --norc -c '
+    source "$NOTIFIER"
+    trap - EXIT
+    fc() { printf "  cargo build --private arg\n"; }
+    SECONDS=10
+    eval "printf %s \"$PS0\"" >"$CALLS_FILE.ps0"
+    [[ $__cmd_notify_start == 10 ]] || exit 3
+    SECONDS=39
+    (exit 17)
+    __cmd_notify_precmd
+    [[ -z $__cmd_notify_start ]] || exit 4
+    printf "%s\n" "$$" >"$CALLS_FILE.pid"
+  ' >"$scratch/precmd.stdout" 2>"$scratch/precmd.stderr"
+  [[ ! -s $scratch/precmd.stdout && ! -s $scratch/precmd.stderr && ! -s $CALLS_FILE.ps0 ]] || fail 'prompt callback leaked output'
+  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command 'cargo build --private arg' --exit 17 --elapsed 29) "$CALLS_FILE"
+}
 
-# --- the tier boundaries, exactly ------------------------------------------
-calls="$(cat "$scratch/calls-300" 2>/dev/null || true)"
-grep -qxF -- '--long-running' <<<"$calls" || fail "300s is the long tier; got: $calls"
-calls="$(cat "$scratch/calls-299" 2>/dev/null || true)"
-grep -qxF -- '--long-running' <<<"$calls" && fail "299s is not the long tier; got: $calls"
-grep -qxF -- '--agent' <<<"$calls" || fail "299s still notifies; got: $calls"
-calls="$(cat "$scratch/calls-30" 2>/dev/null || true)"
-grep -qxF -- '--agent' <<<"$calls" || fail "30s notifies; got: $calls"
-calls="$(cat "$scratch/calls-29" 2>/dev/null || true)"
-[[ -z $calls ]] || fail "nothing may fire below 30s; got: $calls"
-
-exit 0
+test_a_pane_reaching_its_first_prompt_leaves_another_panes_marker_alone
+test_preexec_succeeds_whether_or_not_it_published_because_extdebug_cancels_a_command_on_a_failed_one
+test_a_shell_that_exits_without_another_prompt_leaves_no_marker_of_its_own
+test_prompt_captures_status_time_and_history_before_the_engine

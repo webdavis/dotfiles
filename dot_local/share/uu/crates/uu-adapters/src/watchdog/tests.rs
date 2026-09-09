@@ -70,6 +70,7 @@ fn bounded(child: &mut std::process::Child, budget: Duration) -> Finished {
         ended,
         stdout: output.taken(),
         stderr: errors.taken(),
+        stdout_error: None,
     }
 }
 

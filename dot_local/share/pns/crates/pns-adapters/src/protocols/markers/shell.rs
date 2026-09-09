@@ -46,8 +46,8 @@ pub fn sweep_shell_markers(state: &Path) -> Option<u64> {
 }
 /// Where the shell says a tracked command is running: ONE FILE PER INTERACTIVE
 /// SHELL, named for that shell's pid, holding ONE EPOCH, the second the
-/// command started. Written by the interactive shell and removed when the
-/// command ends; only read here.
+/// command started. Written by pns for the interactive shell and removed when the
+/// command ends; the sweep below reads and collects dead owners.
 ///
 /// ONE FILE PER SHELL AND NOT ONE FILE. Every interactive shell on the machine
 /// runs the same two bash-preexec functions, so a single shared path is a

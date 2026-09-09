@@ -1,0 +1,515 @@
+[
+  {
+    "name": "query-valid",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":\"1\",\"screenlock\":0}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "0"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.05580229201586917,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":\"1\",\"screenlock\":0}]",
+    "exit": 0
+  },
+  {
+    "name": "query-empty-array",
+    "responses": [
+      {
+        "out": "[]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.0493716670316644,
+    "stderr": "",
+    "input": "[]",
+    "exit": 0
+  },
+  {
+    "name": "query-object",
+    "responses": [
+      {
+        "out": "{}",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.048471791960764676,
+    "stderr": "",
+    "input": "{}",
+    "exit": 0
+  },
+  {
+    "name": "query-null",
+    "responses": [
+      {
+        "out": "null",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.049897334014531225,
+    "stderr": "",
+    "input": "null",
+    "exit": 0
+  },
+  {
+    "name": "query-first-null",
+    "responses": [
+      {
+        "out": "[null,{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.0632143749971874,
+    "stderr": "",
+    "input": "[null,{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "exit": 0
+  },
+  {
+    "name": "query-second-row",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1},42]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "1"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.05498533300124109,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1},42]",
+    "exit": 0
+  },
+  {
+    "name": "query-extra-object",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] {}",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.060629624989815056,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] {}",
+    "exit": 0
+  },
+  {
+    "name": "query-two-arrays",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] [{\"firewall\":0,\"gatekeeper\":0,\"screenlock\":0}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1\n0",
+      "1\n0",
+      "1\n0"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.04766279202885926,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] [{\"firewall\":0,\"gatekeeper\":0,\"screenlock\":0}]",
+    "exit": 0
+  },
+  {
+    "name": "query-malformed-trailing",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] junk",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.052809749962762,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] junk",
+    "exit": 0
+  },
+  {
+    "name": "query-failed-healthy",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+        "exit": 2,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "2",
+      "",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.06375599995953962,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "exit": 2
+  },
+  {
+    "name": "query-false-and-nonfinite",
+    "responses": [
+      {
+        "out": "[{\"firewall\":false,\"gatekeeper\":NaN,\"screenlock\":Infinity}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "",
+      "",
+      "1.7976931348623157E+308"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.05006433400558308,
+    "stderr": "",
+    "input": "[{\"firewall\":false,\"gatekeeper\":NaN,\"screenlock\":Infinity}]",
+    "exit": 0
+  },
+  {
+    "name": "query-leading-zeros",
+    "responses": [
+      {
+        "out": "[{\"firewall\":01,\"gatekeeper\":001,\"screenlock\":00}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "0"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.045290624955669045,
+    "stderr": "",
+    "input": "[{\"firewall\":01,\"gatekeeper\":001,\"screenlock\":00}]",
+    "exit": 0
+  },
+  {
+    "name": "query-duplicates",
+    "responses": [
+      {
+        "out": "[{\"firewall\":2,\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "1"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.050011750019621104,
+    "stderr": "",
+    "input": "[{\"firewall\":2,\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "exit": 0
+  },
+  {
+    "name": "query-bom",
+    "responses": [
+      {
+        "out": "\ufeff[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "1"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.05170424998505041,
+    "stderr": "",
+    "input": "\ufeff[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "exit": 0
+  },
+  {
+    "name": "query-internal-lines",
+    "responses": [
+      {
+        "out": "[{\"firewall\":\"a\\n\\n\",\"gatekeeper\":\"\",\"screenlock\":null}] [{\"firewall\":\"b\",\"gatekeeper\":false,\"screenlock\":\"last\"}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "a\n\n\nb",
+      "",
+      "last"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.053850167023483664,
+    "stderr": "",
+    "input": "[{\"firewall\":\"a\\n\\n\",\"gatekeeper\":\"\",\"screenlock\":null}] [{\"firewall\":\"b\",\"gatekeeper\":false,\"screenlock\":\"last\"}]",
+    "exit": 0
+  },
+  {
+    "name": "query-scalar-second",
+    "responses": [
+      {
+        "out": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] [42] [{\"firewall\":2,\"gatekeeper\":2,\"screenlock\":2}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1\n2",
+      "1\n2",
+      "1\n2"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.05078895896440372,
+    "stderr": "",
+    "input": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}] [42] [{\"firewall\":2,\"gatekeeper\":2,\"screenlock\":2}]",
+    "exit": 0
+  },
+  {
+    "name": "query-null-first-documents",
+    "responses": [
+      {
+        "out": "[false] [NaN] [null] [{\"firewall\":1}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "",
+      ""
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.04961716604884714,
+    "stderr": "",
+    "input": "[false] [NaN] [null] [{\"firewall\":1}]",
+    "exit": 0
+  },
+  {
+    "name": "query-nul-command-substitution",
+    "responses": [
+      {
+        "out": "[{\"fire\u0000wall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "1",
+      "1",
+      "1"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.052270749991294,
+    "stderr": "",
+    "input": "[{\"fire\u0000wall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "exit": 0
+  },
+  {
+    "name": "query-compound-order",
+    "responses": [
+      {
+        "out": "[{\"firewall\":{\"z\":0,\"a\":1,\"z\":2},\"gatekeeper\":[null,false,NaN,Infinity],\"screenlock\":\"x\\u0000y\\n\"}]",
+        "exit": 0,
+        "err": ""
+      }
+    ],
+    "fields": [
+      "0",
+      "{\n  \"z\": 2,\n  \"a\": 1\n}",
+      "[\n  null,\n  false,\n  null,\n  1.7976931348623157E+308\n]",
+      "xy"
+    ],
+    "calls": [
+      [
+        "/fixture/osqueryi",
+        "--json",
+        "\n  SELECT\n    (SELECT global_state FROM alf) AS firewall,\n    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,\n    (SELECT enabled FROM screenlock) AS screenlock\n"
+      ]
+    ],
+    "seconds": 0.04919199994765222,
+    "stderr": "",
+    "input": "[{\"firewall\":{\"z\":0,\"a\":1,\"z\":2},\"gatekeeper\":[null,false,NaN,Infinity],\"screenlock\":\"x\\u0000y\\n\"}]",
+    "exit": 0
+  }
+]

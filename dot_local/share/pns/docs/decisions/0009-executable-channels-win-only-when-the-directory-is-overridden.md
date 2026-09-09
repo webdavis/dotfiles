@@ -1,6 +1,7 @@
 # 0009: A compiled-in destination beats an executable of the same name, unless the channels directory was overridden
 
-Status: accepted. Implemented by `src/channels/mod.rs:native_first`.
+Status: accepted. Implemented by `crates/pns-cli/src/channel_dispatch.rs:destinations_with_output` and
+`crates/pns-cli/src/channel_dispatch/registration.rs:choose`.
 
 ## The rule
 

@@ -65,20 +65,16 @@ pub struct Leg {
 /// The rules compose over declarations, never names. Remote-only is the LOG
 /// path: the durable plugins alone, and SYNCHRONOUSLY, because an undelivered
 /// log entry is invisible in a way an undelivered alert is not. Local-only is
-/// its mirror and keeps the local surfaces. Giving both suppresses
-/// everything, which is why the caller must say so. A presence-gated plugin
+/// its mirror and keeps the local surfaces. The CLI refuses conflicting
+/// flags before constructing a scope. A presence-gated plugin
 /// is dropped whenever the phone verdict is no, under every flag, so the gate
 /// means one thing everywhere.
 pub fn channel_plan(
     enabled: &Selection,
-    local_only: bool,
-    remote_only: bool,
+    scope: crate::DeliveryScope,
     delivery: crate::surface::DeliveryPlan,
 ) -> Vec<Leg> {
-    if local_only && remote_only {
-        return Vec::new();
-    }
-    let mode = if remote_only {
+    let mode = if scope == crate::DeliveryScope::RemoteOnly {
         ReportMode::ReportOutcome
     } else {
         ReportMode::Silent
@@ -97,10 +93,10 @@ pub fn channel_plan(
         // A plugin the binary serves in its own mode is not a destination an
         // event can reach, whatever the config selected it for.
         .filter(|(_, routing)| routing.event_dispatched)
-        .filter(|(_, routing)| match (local_only, remote_only) {
-            (true, _) => routing.local,
-            (_, true) => routing.durable,
-            _ => true,
+        .filter(|(_, routing)| match scope {
+            crate::DeliveryScope::LocalOnly => routing.local,
+            crate::DeliveryScope::RemoteOnly => routing.durable,
+            crate::DeliveryScope::Automatic => true,
         })
         // THE PLAN decides which surfaces an event reaches; the declarations
         // decide which plugin is which surface. A presence-gated plugin is the

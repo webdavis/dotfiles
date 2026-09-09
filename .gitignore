@@ -42,6 +42,9 @@ dot_local/share/pns/target/
 # Same, for the uu crate.
 dot_local/share/uu/target/
 
+# Same, for the lights workspace.
+dot_local/share/lights/target/
+
 # Same, for the posture crate.
 dot_local/share/posture/target/
 

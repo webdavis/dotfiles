@@ -43,11 +43,6 @@ impl Group {
         let (owner_read, owner_write) = io::pipe()?;
         let (mut ready_read, ready_write) = io::pipe()?;
         let until = watch::deadline(expires_at)?;
-        // SAFETY: sysconf reads the process's descriptor limit, with no pointers.
-        let max_fd = unsafe { libc::sysconf(libc::_SC_OPEN_MAX) };
-        if max_fd < 0 || max_fd > i64::from(libc::c_int::MAX) {
-            return Err(io::Error::other("cannot bound cleanup descriptors"));
-        }
         // SAFETY: the child enters only async-signal-safe operations in watch::run
         // and ends with _exit or SIGKILL, never Rust allocation or destruction.
         let pid = unsafe { libc::fork() };
@@ -61,7 +56,6 @@ impl Group {
                 watch::run(
                     owner_read.as_raw_fd(),
                     ready_write.as_raw_fd(),
-                    max_fd as i32,
                     until,
                     match scope {
                         Scope::Command => 0,

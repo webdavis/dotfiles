@@ -6,3 +6,5 @@ mod intent;
 mod mute;
 mod plan;
 mod readings;
+
+mod observation;

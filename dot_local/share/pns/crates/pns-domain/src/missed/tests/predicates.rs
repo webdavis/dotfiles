@@ -29,8 +29,7 @@ fn decided(surface: Surface, visibility: Visibility, plan: DeliveryPlan) -> Deci
             now_secs: Some(1_756_500_000),
             long_running: false,
             mobile_watch_card: false,
-            local_only: false,
-            remote_only: false,
+            scope: crate::DeliveryScope::Automatic,
             pane_present: true,
         },
     }

@@ -38,6 +38,15 @@ pub enum Verdict {
 /// (`Ran::verdict`), because the second case still has stdout worth
 /// recording.
 pub trait CommandRunner {
+    fn run_to_file(
+        &self,
+        _program: &str,
+        _args: &[&str],
+        _input: std::fs::File,
+        _output: std::fs::File,
+    ) -> Result<(), String> {
+        Err("runner does not support file output".into())
+    }
     fn run_in(
         &self,
         _program: &str,

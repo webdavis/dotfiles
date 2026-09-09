@@ -6,6 +6,7 @@
 //! stops the group when they take longer; `drain` collects what the pipes said
 //! without ever blocking the watchdog on a read.
 
+use std::fs::File;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -23,6 +24,7 @@ pub struct Finished {
     pub ended: Ended,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    pub(crate) stdout_error: Option<String>,
 }
 
 /// How long past its own budget a bounded spawn may take to answer before the
@@ -57,7 +59,7 @@ pub enum Spawned {
 /// finished leaves it orphaned. Joining instead is the unbounded hang this
 /// exists to end, so that orphan is the accepted price.
 pub fn bounded_spawn(program: &str, args: &[&str], stdin: Stdio, budget: Duration) -> Spawned {
-    spawn_with_environment(program, args, stdin, budget, None)
+    spawn_with_environment(program, args, stdin, budget, None, None)
 }
 pub fn bounded_spawn_in(
     program: &str,
@@ -66,14 +68,25 @@ pub fn bounded_spawn_in(
     budget: Duration,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Spawned {
-    spawn_with_environment(program, args, stdin, budget, Some(env.clone()))
+    spawn_with_environment(program, args, stdin, budget, Some(env.clone()), None)
 }
+pub(crate) fn bounded_spawn_to_file(
+    program: &str,
+    args: &[&str],
+    input: File,
+    output: File,
+    budget: Duration,
+) -> Spawned {
+    spawn_with_environment(program, args, input.into(), budget, None, Some(output))
+}
+
 fn spawn_with_environment(
     program: &str,
     args: &[&str],
     stdin: Stdio,
     budget: Duration,
     env: Option<std::collections::BTreeMap<String, String>>,
+    output_file: Option<File>,
 ) -> Spawned {
     let (send, receive) = std::sync::mpsc::channel();
     let owned_program = program.to_string();
@@ -102,6 +115,7 @@ fn spawn_with_environment(
             Ok(mut child) => Spawned::Ran(bounded_output(
                 &mut child,
                 budget.saturating_sub(started.elapsed()),
+                output_file,
             )),
             Err(error) => Spawned::NotRunnable(format!("could not run {owned_program}: {error}")),
         });
@@ -116,14 +130,18 @@ fn spawn_with_environment(
 /// THE CHILD MUST ALREADY BE IN A PROCESS GROUP OF ITS OWN (the caller spawns
 /// it with `process_group(0)`), because the kill below is aimed at that group
 /// and a shared one would take the caller with it.
-fn bounded_output(child: &mut Child, budget: Duration) -> Finished {
-    let output = Drain::new(child.stdout.take());
+fn bounded_output(child: &mut Child, budget: Duration, file: Option<File>) -> Finished {
+    let output = match file {
+        Some(file) => Drain::to_file(child.stdout.take(), file),
+        None => Drain::new(child.stdout.take()),
+    };
     let errors = Drain::new(child.stderr.take());
     let ended = wait_bounded(child, &output, &errors, budget, TERM_GRACE);
     Finished {
         ended,
         stdout: output.taken(),
         stderr: errors.taken(),
+        stdout_error: output.error(),
     }
 }
 
