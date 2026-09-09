@@ -308,14 +308,19 @@ posture is done and osquery is retired.
 - [ ] 63. lights: the manifest decision for `~/.local/libexec/lights`
 - [ ] 64. lights PR 11a, conditional on the `bulk_read_latency` drill
 - [ ] 65. Neovim task 63: the acceptance record, needs the clean-home apply
-- [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. The workspace lands INERT: the
-  bash still runs, and 66b is the cutover. Two limits of the shell went with the port. A line carrying a
-  NUL byte is now copied through whole, where `read` dropped the NUL and joined the two halves because no
-  shell variable can hold one; and the temporary file is removed by `Drop` rather than by six signal
-  traps, so there is no signal list to keep in step with a test.
-- [ ] 66b. tailnet-pin cutover: the builder chezmoiscript, the `run_onchange_after_41` call site, and
-  trashing the deployed `reconcile-hosts-pin.sh` with its bash unit suite. Held back from 66 because it
-  edits a root-executed path and the caller's SHA256 pin of a source file becomes a built binary.
+- [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
+  with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
+  joined the two halves because no shell variable can hold one; and the temporary file is removed by
+  `Drop` rather than by six signal traps, so there is no signal list to keep in step with a test.
+- [x] 66b. tailnet-pin cutover: the builder at `run_onchange_after_40`, the `run_onchange_after_41` call
+  site, and the source script and its bash suite deleted. The caller's SHA256 pin of a source file became
+  a SOURCE FINGERPRINT the builder records after installing, because a built binary's bytes do not exist
+  at render time; the runner refuses every pin unless that record matches what this apply rendered, which
+  is what stops a deferred build from aiming a stale binary at `/etc/hosts` as root.
+- [ ] 66c. Trash the deployed `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and its now-empty
+  directory, after an apply has installed `~/.cargo/bin/tailnet-pin`. Chezmoi does not delete a target
+  whose source entry is gone, and this repository builds no removal mechanisms, so it is one operator
+  command.
 - [x] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`. The direction
   became an enum, which closed a pair that could disagree: the word and the chord travelled side by side
   as two strings, so a call passing `"left"` with `ctrl+l` compiled and sent Neovim the wrong way. Every
@@ -347,6 +352,8 @@ Each of these gates work that cannot start without it.
 - [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
 - [ ] Run `chezmoi apply` to deploy the uu skills lane, which gates task 11c
+- [ ] Trash `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and its directory once an apply has built
+  `~/.cargo/bin/tailnet-pin`, gates task 66c
 - [ ] Restart Claude Code so the old `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` leaves the process environment
 
 ## Deferred, not scheduled
