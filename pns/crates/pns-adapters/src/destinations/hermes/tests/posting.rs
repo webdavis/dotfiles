@@ -75,7 +75,10 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
         (
             // A redirect is the final answer here, so it is not a delivery.
             PostOutcome::Status(301),
-            Delivery::Failed("post FAILED HTTP 301".to_string()),
+            Delivery::Rejected {
+                status: 301,
+                detail: "post FAILED HTTP 301".to_string(),
+            },
         ),
         (
             PostOutcome::NoResponse,
@@ -97,8 +100,14 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
     }
 }
 
+/// The channel REPORTS, it does not adjudicate. Every answer that carries a
+/// status leaves here as `Rejected` with that exact status, whether the status
+/// is one that will heal or one that never will; deciding which is the ledger's
+/// job, through one classifier every destination shares. This used to name four
+/// statuses here, which is how a 404 on a route that does not exist retried for
+/// seven days on the schedule meant for an unreachable gateway.
 #[test]
-fn only_the_four_established_http_statuses_are_terminal_failures() {
+fn every_answer_carrying_a_status_leaves_the_channel_with_that_exact_status() {
     for status in [
         199, 200, 299, 300, 400, 401, 402, 403, 404, 405, 408, 409, 412, 413, 414, 422, 429, 500,
         599,
@@ -107,11 +116,27 @@ fn only_the_four_established_http_statuses_are_terminal_failures() {
         let result = channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome));
         match status {
             200..=299 => assert!(matches!(result, Delivery::Delivered(_)), "status {status}"),
-            401 | 403 | 404 | 413 => assert!(
+            _ => assert!(
                 matches!(result, Delivery::Rejected { status: code, .. } if code == status),
                 "status {status}"
             ),
-            _ => assert!(matches!(result, Delivery::Failed(_)), "status {status}"),
         }
+    }
+}
+
+/// The complement: an answer with NO status cannot become a `Rejected`, which
+/// is the variant that carries one. Both stay `Failed` so a sync post still
+/// prints the sentence, per the module rule.
+#[test]
+fn an_answer_with_no_status_stays_a_plain_failure() {
+    for outcome in [PostOutcome::NoResponse, PostOutcome::NoStatus] {
+        let channel = channel_with_settings("key = \"key\"\n", outcome);
+        assert!(
+            matches!(
+                channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome)),
+                Delivery::Failed(_)
+            ),
+            "outcome {outcome:?}"
+        );
     }
 }

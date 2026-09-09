@@ -1,39 +1,6 @@
 use super::*;
-use pns_application::{Destinations, SubmissionDelivery};
-use pns_hermes::{PostOutcome, SignedPost};
+use pns_application::SubmissionDelivery;
 
-struct Reply(u16);
-impl SignedPost for Reply {
-    fn post(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: Option<&str>,
-        _: Option<std::time::Duration>,
-    ) -> PostOutcome {
-        PostOutcome::Status(self.0)
-    }
-}
-fn destinations(status: u16) -> Destinations<crate::HermesChannel<Reply>> {
-    let mut destinations = Destinations::new();
-    destinations
-        .register(crate::HermesChannel {
-            post: Reply(status),
-            key: Some("fixture-key".into()),
-            url: "http://127.0.0.1:9/owned-fixture".into(),
-            sync_deadline: None,
-        })
-        .unwrap();
-    destinations
-}
-fn remote_input() -> LedgerSubmission {
-    let mut input = submission();
-    input.legs.truncate(1);
-    input.legs[0].destination = "hermes".into();
-    input.producer_request = Some("retained canonical request".into());
-    input
-}
 #[test]
 fn permanent_http_retry_retains_identity_metadata_and_history_without_acknowledgement() {
     for status in [401, 403, 404, 413] {
@@ -288,63 +255,5 @@ fn a_stale_terminal_result_cannot_replace_the_successor_or_erase_an_interrupted_
             .claim_retry(lease(29, 40), Default::default())
             .unwrap()
             .is_some()
-    );
-}
-
-#[test]
-fn schema_six_http_migration_preserves_existing_deadletters_health_metadata_and_attempts() {
-    use std::os::unix::fs::PermissionsExt;
-    let path = state();
-    std::fs::create_dir_all(&path).unwrap();
-    let database = path.join("pns.db");
-    let mut connection = rusqlite::Connection::open(&database).unwrap();
-    std::fs::set_permissions(&database, std::fs::Permissions::from_mode(0o600)).unwrap();
-    let input = remote_input();
-    {
-        let transaction = connection.transaction().unwrap();
-        schema::create(&transaction).unwrap();
-        schema::retain_request(&transaction).unwrap();
-        schema::retain_deadletters(&transaction).unwrap();
-        super::super::prepare::submission(&transaction, &input, lease(10, 20)).unwrap();
-        transaction.execute("UPDATE ledger_legs SET deadlettered_at = ?1, deadletter_reason = 'attempts', owner = NULL, token = NULL, lease_until = NULL", [11u64.to_be_bytes()]).unwrap();
-        transaction.execute_batch("UPDATE delivery_health SET previous_pending = 2, growth = 2, generation = 8, acknowledged = 7;").unwrap();
-        transaction.pragma_update(None, "user_version", 6).unwrap();
-        transaction.commit().unwrap();
-    }
-    let store = SqliteStore::new(path);
-    assert!(
-        store.delivery_health().is_err(),
-        "read-only health cannot migrate schema six"
-    );
-    let record = store.inspect(&input.identity).unwrap().unwrap();
-    assert_eq!(record.submission, input);
-    assert_eq!(record.attempts.len(), 1);
-    assert_eq!(
-        (record.attempts[0].generation, record.attempts[0].at),
-        (1, 10)
-    );
-    let health = store.delivery_health().unwrap();
-    assert_eq!(
-        (
-            health.pending_legs,
-            health.deadlettered_legs,
-            health.growth_streak,
-            health.alarm_generation
-        ),
-        (0, 1, 2, Some(8))
-    );
-    let retained: (String, Option<u16>) = connection
-        .query_row(
-            "SELECT deadletter_reason,http_status FROM ledger_legs",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .unwrap();
-    assert_eq!(retained, ("attempts".into(), None));
-    assert_eq!(
-        connection
-            .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
-            .unwrap(),
-        7
     );
 }

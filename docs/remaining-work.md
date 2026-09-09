@@ -186,7 +186,14 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   of the clock and the attempt count, `RetryBackoff::random_secs` is gone, and `retry_random_secs` is
   refused by name rather than ignored, because a key that parses and changes nothing reads as configured
   behavior.
-- [ ] 31. The ledger columns and the persisted failure record
+- [x] 31. The ledger columns and the persisted failure record. Migration step 8 widens the CHECK on both
+  `http_status` columns to any real status and adds `permanent` to `deadletter_reason`, and the terminal
+  decision moves out of the hermes channel and behind `pns_domain::retry`'s permanent class, so a 404 now
+  stops at its first queued retry. The attempt keeps whatever status it got, so a retryable 503 no longer
+  leaves its code nowhere. The three denormalized leg columns the plan listed were not built: the attempt
+  row already carries them, `route` was already on the leg, and a per-delivery write measurably slowed
+  the suite. The read path the plan put here lands with its caller in task 33 rather than as an uncalled
+  method.
 - [ ] 32. The message, both render forms, the per-destination meaning tables
 - [ ] 33. `pns failures` and the `pns doctor` routing to it
 - [ ] 34. The `pns doctor` route check

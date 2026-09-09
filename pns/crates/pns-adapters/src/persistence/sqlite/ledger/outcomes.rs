@@ -1,5 +1,8 @@
 use super::*;
-use pns_domain::{Delivery, retry::RetryBackoff};
+use pns_domain::{
+    Delivery,
+    retry::{DeliveryOutcome, RetryBackoff},
+};
 use rusqlite::{Transaction, params};
 
 pub(super) fn record(
@@ -32,17 +35,27 @@ pub(super) fn record(
     // claim until a successor takes ownership; terminal failure cannot take it back.
     let changed = transaction.execute(
         "UPDATE ledger_legs SET acknowledged = ?1, owner = NULL, token = NULL, lease_until = NULL,
-         due = COALESCE(?2,due), deadlettered_at = ?6, http_status = ?7
+         due = COALESCE(?2,due), deadlettered_at = ?6, http_status = ?7,
+         deadletter_reason = COALESCE(?8, deadletter_reason)
          WHERE id = ?3 AND generation = ?4 AND token = ?5 AND acknowledged = 0 AND deadlettered_at IS NULL",
-        params![outcome == 1,retry_at,claim.leg,claim.generation,claim.token,status.map(|_| at.to_be_bytes()),status],
+        params![outcome == 1,retry_at,claim.leg,claim.generation,claim.token,status.map(|_| at.to_be_bytes()),status,status.map(|_| "permanent")],
     )?;
     if changed == 0 {
         return Ok(None);
     }
+    // The status THIS attempt got, whichever it was, which is what makes a
+    // failure report possible: `status` above is the TERMINAL status and is set
+    // only when the leg is being given up on, so a 503 that will be retried used
+    // to leave no trace of its code anywhere. The leg keeps meaning "the status
+    // it died of"; the attempt now means "the status this try got".
+    let attempt_status = match delivery {
+        Delivery::Rejected { status, .. } => Some(*status),
+        _ => None,
+    };
     let changed = transaction.execute(
         "UPDATE ledger_attempts SET finished = ?1, outcome = ?2, detail = ?3, retry_at = ?4, http_status = ?7
          WHERE leg = ?5 AND generation = ?6 AND finished IS NULL",
-        params![at.to_be_bytes(),outcome,detail,retry_at,claim.leg,claim.generation,status],
+        params![at.to_be_bytes(),outcome,detail,retry_at,claim.leg,claim.generation,attempt_status],
     )?;
     if changed != 1 {
         return Err(StoreError::InvalidState(
@@ -71,7 +84,13 @@ fn completion(
                 detail: detail.clone(),
             };
         }
-        Delivery::Rejected { status, detail } if claim.generation > 1 => {
+        // Terminal, and this is the ONE place that decides it. A channel now
+        // reports the status it got and says nothing about whether the gateway
+        // will ever accept the page; the domain's classifier answers that, so
+        // every destination stops on the same set of codes.
+        Delivery::Rejected { status, detail }
+            if claim.generation > 1 && DeliveryOutcome::Status(*status).class().is_permanent() =>
+        {
             return LedgerCompletion::Rejected {
                 status: *status,
                 detail: detail.clone(),
