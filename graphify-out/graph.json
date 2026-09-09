@@ -61791,7 +61791,7 @@
       },
       "norm_label": "run_script()",
       "source_file": "test/unit/pns-engine-build-install.sh",
-      "source_location": "L81"
+      "source_location": "L93"
     },
     {
       "id": "test_unit_pns_engine_build_install_sh__entry",
@@ -62030,7 +62030,7 @@
       "node_kind": "heading",
       "norm_label": "background jobs and launchagents",
       "source_file": "CLAUDE.md",
-      "source_location": "L528"
+      "source_location": "L536"
     },
     {
       "id": "claude_bashrc_init_ordering",
@@ -62042,7 +62042,7 @@
       "node_kind": "heading",
       "norm_label": "bashrc init ordering",
       "source_file": "CLAUDE.md",
-      "source_location": "L640"
+      "source_location": "L648"
     },
     {
       "id": "claude_chezmoi_operations",
@@ -62102,7 +62102,7 @@
       "node_kind": "heading",
       "norm_label": "code style",
       "source_file": "CLAUDE.md",
-      "source_location": "L673"
+      "source_location": "L681"
     },
     {
       "id": "claude_codex_settings",
@@ -62150,7 +62150,7 @@
       "node_kind": "heading",
       "norm_label": "git commits",
       "source_file": "CLAUDE.md",
-      "source_location": "L701"
+      "source_location": "L709"
     },
     {
       "id": "claude_git_hooks",
@@ -62174,7 +62174,7 @@
       "node_kind": "heading",
       "norm_label": "git worktrees (worktrunk)",
       "source_file": "CLAUDE.md",
-      "source_location": "L628"
+      "source_location": "L636"
     },
     {
       "id": "claude_global_instruction_files",
@@ -62198,7 +62198,7 @@
       "node_kind": "heading",
       "norm_label": "herdr native status",
       "source_file": "CLAUDE.md",
-      "source_location": "L622"
+      "source_location": "L630"
     },
     {
       "id": "claude_herdr_workspace_management",
@@ -62210,7 +62210,7 @@
       "node_kind": "heading",
       "norm_label": "herdr workspace management",
       "source_file": "CLAUDE.md",
-      "source_location": "L585"
+      "source_location": "L593"
     },
     {
       "id": "claude_key_commands",
@@ -62246,7 +62246,7 @@
       "node_kind": "heading",
       "norm_label": "long-running command notifier",
       "source_file": "CLAUDE.md",
-      "source_location": "L654"
+      "source_location": "L662"
     },
     {
       "id": "claude_macos_defaults_management",
@@ -62306,7 +62306,7 @@
       "node_kind": "heading",
       "norm_label": "security",
       "source_file": "CLAUDE.md",
-      "source_location": "L708"
+      "source_location": "L716"
     },
     {
       "id": "claude_source_only_files_and_os_targeting",
@@ -62330,7 +62330,7 @@
       "node_kind": "heading",
       "norm_label": "ssh hardening",
       "source_file": "CLAUDE.md",
-      "source_location": "L568"
+      "source_location": "L576"
     },
     {
       "id": "claude_system_package_management",
@@ -69222,7 +69222,7 @@
       "node_kind": "heading",
       "norm_label": "candidate startup verification",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L191"
+      "source_location": "L190"
     },
     {
       "id": "uu_docs_decisions_run_application_decisions_and_retained_rationale",
@@ -69234,7 +69234,7 @@
       "node_kind": "heading",
       "norm_label": "decisions and retained rationale",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L46"
+      "source_location": "L45"
     },
     {
       "id": "uu_docs_decisions_run_application_dependency_direction",
@@ -69258,7 +69258,7 @@
       "node_kind": "heading",
       "norm_label": "mason tools and parser reconciliation",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L172"
+      "source_location": "L171"
     },
     {
       "id": "uu_docs_decisions_run_application_neovim_consumer_and_lock_recovery",
@@ -69270,7 +69270,7 @@
       "node_kind": "heading",
       "norm_label": "neovim consumer and lock recovery",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L143"
+      "source_location": "L142"
     },
     {
       "id": "uu_docs_decisions_run_application_ports_and_their_current_adapters",
@@ -69282,7 +69282,7 @@
       "node_kind": "heading",
       "norm_label": "ports and their current adapters",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L29"
+      "source_location": "L28"
     },
     {
       "id": "uu_docs_decisions_run_application_run_application_ownership",
@@ -69306,7 +69306,7 @@
       "node_kind": "heading",
       "norm_label": "test ownership and evidence",
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L100"
+      "source_location": "L99"
     },
     {
       "id": "uu_docs_specs_run_orchestration",
@@ -83302,7 +83302,7 @@
       },
       "norm_label": "assert_audit_finding()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L210"
+      "source_location": "L219"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_prepare_builder",
@@ -83317,7 +83317,7 @@
       },
       "norm_label": "prepare_builder()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L265"
+      "source_location": "L274"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_run_consumer",
@@ -83332,7 +83332,7 @@
       },
       "norm_label": "run_consumer()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L196"
+      "source_location": "L205"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_run_in_sandbox",
@@ -83347,7 +83347,7 @@
       },
       "norm_label": "run_in_sandbox()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L77"
+      "source_location": "L86"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_run_refresh",
@@ -83362,7 +83362,7 @@
       },
       "norm_label": "run_refresh()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L71"
+      "source_location": "L80"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_set_up",
@@ -83377,7 +83377,7 @@
       },
       "norm_label": "set_up()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L22"
+      "source_location": "L31"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_set_up_before_script",
@@ -83392,7 +83392,7 @@
       },
       "norm_label": "set_up_before_script()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L5"
+      "source_location": "L8"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_sh__entry",
@@ -83422,7 +83422,7 @@
       },
       "norm_label": "test_a_failed_builder_refresh_preserves_the_prior_record_tuple_and_binary()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L299"
+      "source_location": "L308"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_failed_pipeline_install_preserves_the_previous_tuple",
@@ -83437,7 +83437,7 @@
       },
       "norm_label": "test_a_failed_pipeline_install_preserves_the_previous_tuple()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L93"
+      "source_location": "L102"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_forged_unbuilt_digest_never_matches_the_tuple",
@@ -83452,7 +83452,7 @@
       },
       "norm_label": "test_a_forged_unbuilt_digest_never_matches_the_tuple()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L243"
+      "source_location": "L252"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_malformed_record_digest_preserves_both_manifests",
@@ -83467,7 +83467,7 @@
       },
       "norm_label": "test_a_malformed_record_digest_preserves_both_manifests()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L155"
+      "source_location": "L164"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_missing_record_enumerates_an_unbuilt_binary_without_adopting_any_bytes",
@@ -83482,7 +83482,7 @@
       },
       "norm_label": "test_a_missing_record_enumerates_an_unbuilt_binary_without_adopting_any_bytes()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L147"
+      "source_location": "L156"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_nonregular_record_is_refused_without_opening_it",
@@ -83497,7 +83497,7 @@
       },
       "norm_label": "test_a_nonregular_record_is_refused_without_opening_it()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L188"
+      "source_location": "L197"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publication",
@@ -83512,7 +83512,7 @@
       },
       "norm_label": "test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publication()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L169"
+      "source_location": "L178"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_a_truncated_record_is_refused_instead_of_treated_as_unbuilt",
@@ -83527,7 +83527,7 @@
       },
       "norm_label": "test_a_truncated_record_is_refused_instead_of_treated_as_unbuilt()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L180"
+      "source_location": "L189"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_an_ordinary_digest_tuple_still_vouches_for_its_exact_content",
@@ -83542,7 +83542,7 @@
       },
       "norm_label": "test_an_ordinary_digest_tuple_still_vouches_for_its_exact_content()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L251"
+      "source_location": "L260"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_an_unbuilt_symlink_keeps_the_irregular_file_refusal",
@@ -83557,7 +83557,7 @@
       },
       "norm_label": "test_an_unbuilt_symlink_keeps_the_irregular_file_refusal()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L236"
+      "source_location": "L245"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_an_unknown_refresh_scope_refuses_to_publish",
@@ -83572,7 +83572,7 @@
       },
       "norm_label": "test_an_unknown_refresh_scope_refuses_to_publish()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L110"
+      "source_location": "L119"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_pipeline_only_refresh_never_fails_after_publishing_due_to_the_other_manifest",
@@ -83587,7 +83587,7 @@
       },
       "norm_label": "test_pipeline_only_refresh_never_fails_after_publishing_due_to_the_other_manifest()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L84"
+      "source_location": "L93"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_refresh_without_a_build_retains_the_tuple_despite_tampered_live_and_target_bytes",
@@ -83602,7 +83602,7 @@
       },
       "norm_label": "test_refresh_without_a_build_retains_the_tuple_despite_tampered_live_and_target_bytes()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L134"
+      "source_location": "L143"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner",
@@ -83617,7 +83617,7 @@
       },
       "norm_label": "test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L222"
+      "source_location": "L231"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_nonempty_unbuilt_content",
@@ -83632,7 +83632,7 @@
       },
       "norm_label": "test_the_audit_refuses_nonempty_unbuilt_content()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L229"
+      "source_location": "L238"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_audit_reports_a_missing_unbuilt_binary",
@@ -83647,7 +83647,7 @@
       },
       "norm_label": "test_the_audit_reports_a_missing_unbuilt_binary()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L217"
+      "source_location": "L226"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary",
@@ -83662,7 +83662,7 @@
       },
       "norm_label": "test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L124"
+      "source_location": "L133"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_builder_publishes_the_record_tuple_before_installing_the_binary",
@@ -83677,7 +83677,7 @@
       },
       "norm_label": "test_the_builder_publishes_the_record_tuple_before_installing_the_binary()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L286"
+      "source_location": "L295"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_test_the_default_refresh_still_updates_both_manifests",
@@ -83692,7 +83692,7 @@
       },
       "norm_label": "test_the_default_refresh_still_updates_both_manifests()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L102"
+      "source_location": "L111"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_write_record",
@@ -83707,7 +83707,7 @@
       },
       "norm_label": "write_record()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L118"
+      "source_location": "L127"
     },
     {
       "id": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
@@ -83722,7 +83722,7 @@
       },
       "norm_label": "write_unbuilt_tuple()",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L206"
+      "source_location": "L215"
     },
     {
       "id": "uu_crates_uu_adapters_src_adapters_presentation_consolerunpresentation_notice",
@@ -92424,7 +92424,7 @@
       "node_kind": "heading",
       "norm_label": "before the first stopping point",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L91"
+      "source_location": "L101"
     },
     {
       "id": "docs_remaining_work_deferred_not_scheduled",
@@ -92436,7 +92436,7 @@
       "node_kind": "heading",
       "norm_label": "deferred, not scheduled",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L259"
+      "source_location": "L283"
     },
     {
       "id": "docs_remaining_work_delivery_failure_reporting",
@@ -92448,7 +92448,7 @@
       "node_kind": "heading",
       "norm_label": "delivery failure reporting",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L148"
+      "source_location": "L172"
     },
     {
       "id": "docs_remaining_work_deployed_leftovers",
@@ -92472,7 +92472,7 @@
       "node_kind": "heading",
       "norm_label": "open questions",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L272"
+      "source_location": "L296"
     },
     {
       "id": "docs_remaining_work_pns_closure_and_the_rescued_lanes",
@@ -92484,7 +92484,7 @@
       "node_kind": "heading",
       "norm_label": "pns closure and the rescued lanes",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L131"
+      "source_location": "L155"
     },
     {
       "id": "docs_remaining_work_posture_cleanup",
@@ -92496,7 +92496,7 @@
       "node_kind": "heading",
       "norm_label": "posture cleanup",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L210"
+      "source_location": "L234"
     },
     {
       "id": "docs_remaining_work_posture_cutovers",
@@ -92508,7 +92508,7 @@
       "node_kind": "heading",
       "norm_label": "posture cutovers",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L178"
+      "source_location": "L202"
     },
     {
       "id": "docs_remaining_work_posture_foundation",
@@ -92520,7 +92520,7 @@
       "node_kind": "heading",
       "norm_label": "posture foundation",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L165"
+      "source_location": "L189"
     },
     {
       "id": "docs_remaining_work_red_main",
@@ -92556,7 +92556,7 @@
       "node_kind": "heading",
       "norm_label": "repository hygiene",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L235"
+      "source_location": "L259"
     },
     {
       "id": "docs_remaining_work_stop_point_a",
@@ -92568,7 +92568,7 @@
       "node_kind": "heading",
       "norm_label": "stop point a",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L102"
+      "source_location": "L112"
     },
     {
       "id": "docs_remaining_work_stop_point_b",
@@ -92580,7 +92580,7 @@
       "node_kind": "heading",
       "norm_label": "stop point b",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L144"
+      "source_location": "L168"
     },
     {
       "id": "docs_remaining_work_stop_point_c",
@@ -92592,7 +92592,7 @@
       "node_kind": "heading",
       "norm_label": "stop point c",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L161"
+      "source_location": "L185"
     },
     {
       "id": "docs_remaining_work_stop_point_d",
@@ -92604,7 +92604,7 @@
       "node_kind": "heading",
       "norm_label": "stop point d",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L174"
+      "source_location": "L198"
     },
     {
       "id": "docs_remaining_work_stop_point_e",
@@ -92616,7 +92616,7 @@
       "node_kind": "heading",
       "norm_label": "stop point e",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L192"
+      "source_location": "L216"
     },
     {
       "id": "docs_remaining_work_stop_point_f",
@@ -92628,7 +92628,7 @@
       "node_kind": "heading",
       "norm_label": "stop point f",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L206"
+      "source_location": "L230"
     },
     {
       "id": "docs_remaining_work_stop_point_g",
@@ -92640,7 +92640,7 @@
       "node_kind": "heading",
       "norm_label": "stop point g",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L217"
+      "source_location": "L241"
     },
     {
       "id": "docs_remaining_work_the_monorepo_conversion",
@@ -92652,7 +92652,7 @@
       "node_kind": "heading",
       "norm_label": "the monorepo conversion",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L107"
+      "source_location": "L117"
     },
     {
       "id": "docs_remaining_work_the_tail",
@@ -92664,7 +92664,7 @@
       "node_kind": "heading",
       "norm_label": "the tail",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L221"
+      "source_location": "L245"
     },
     {
       "id": "docs_remaining_work_untracked_files_decide_and_clear",
@@ -92688,7 +92688,7 @@
       "node_kind": "heading",
       "norm_label": "uu",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L196"
+      "source_location": "L220"
     },
     {
       "id": "docs_remaining_work_waiting_on_the_operator",
@@ -92700,7 +92700,7 @@
       "node_kind": "heading",
       "norm_label": "waiting on the operator",
       "source_file": "docs/remaining-work.md",
-      "source_location": "L245"
+      "source_location": "L269"
     },
     {
       "id": "docs_remaining_work_where_things_stand",
@@ -96033,7 +96033,7 @@
       },
       "norm_label": "assert_builder_fails()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L162"
+      "source_location": "L174"
     },
     {
       "id": "test_unit_posture_build_install_test_assert_builder_succeeds",
@@ -96048,7 +96048,7 @@
       },
       "norm_label": "assert_builder_succeeds()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L156"
+      "source_location": "L168"
     },
     {
       "id": "test_unit_posture_build_install_test_install_crate_source",
@@ -96063,7 +96063,7 @@
       },
       "norm_label": "install_crate_source()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L123"
+      "source_location": "L135"
     },
     {
       "id": "test_unit_posture_build_install_test_install_stub_toolchain",
@@ -96078,7 +96078,7 @@
       },
       "norm_label": "install_stub_toolchain()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L83"
+      "source_location": "L95"
     },
     {
       "id": "test_unit_posture_build_install_test_ready_to_build",
@@ -96093,7 +96093,7 @@
       },
       "norm_label": "ready_to_build()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L168"
+      "source_location": "L180"
     },
     {
       "id": "test_unit_posture_build_install_test_repo_root",
@@ -96108,7 +96108,7 @@
       },
       "norm_label": "repo_root()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L19"
+      "source_location": "L22"
     },
     {
       "id": "test_unit_posture_build_install_test_run_builder",
@@ -96123,7 +96123,7 @@
       },
       "norm_label": "run_builder()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L148"
+      "source_location": "L160"
     },
     {
       "id": "test_unit_posture_build_install_test_set_up",
@@ -96138,7 +96138,7 @@
       },
       "norm_label": "set_up()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L61"
+      "source_location": "L73"
     },
     {
       "id": "test_unit_posture_build_install_test_set_up_before_script",
@@ -96153,7 +96153,7 @@
       },
       "norm_label": "set_up_before_script()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L25"
+      "source_location": "L28"
     },
     {
       "id": "test_unit_posture_build_install_test_sh__entry",
@@ -96183,7 +96183,7 @@
       },
       "norm_label": "tear_down()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L79"
+      "source_location": "L91"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_build_publishes_a_private_record_before_refresh_and_install",
@@ -96198,7 +96198,7 @@
       },
       "norm_label": "test_a_build_publishes_a_private_record_before_refresh_and_install()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L233"
+      "source_location": "L245"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
@@ -96213,7 +96213,7 @@
       },
       "norm_label": "test_a_failed_build_never_refreshes_or_replaces_trusted_state()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L305"
+      "source_location": "L317"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_failed_first_refresh_restores_the_absent_record",
@@ -96228,7 +96228,7 @@
       },
       "norm_label": "test_a_failed_first_refresh_restores_the_absent_record()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L256"
+      "source_location": "L268"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
@@ -96243,7 +96243,7 @@
       },
       "norm_label": "test_a_failed_install_keeps_the_new_record_for_a_retry()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L316"
+      "source_location": "L328"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
@@ -96258,7 +96258,7 @@
       },
       "norm_label": "test_a_failed_refresh_restores_the_previous_record_and_binary()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L245"
+      "source_location": "L257"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_missing_toolchain_defers_the_build_and_leaves_the_trigger_retryable",
@@ -96273,7 +96273,7 @@
       },
       "norm_label": "test_a_missing_toolchain_defers_the_build_and_leaves_the_trigger_retryable()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L182"
+      "source_location": "L194"
     },
     {
       "id": "test_unit_posture_build_install_test_test_a_successful_build_installs_the_binary_where_the_agents_will_run_it_and_settles_the_trigger",
@@ -96288,7 +96288,7 @@
       },
       "norm_label": "test_a_successful_build_installs_the_binary_where_the_agents_will_run_it_and_settles_the_trigger()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L212"
+      "source_location": "L224"
     },
     {
       "id": "test_unit_posture_build_install_test_test_an_artifact_at_the_audit_size_limit_can_be_published",
@@ -96303,7 +96303,7 @@
       },
       "norm_label": "test_an_artifact_at_the_audit_size_limit_can_be_published()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L286"
+      "source_location": "L298"
     },
     {
       "id": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
@@ -96318,7 +96318,7 @@
       },
       "norm_label": "test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L294"
+      "source_location": "L306"
     },
     {
       "id": "test_unit_posture_build_install_test_test_an_empty_artifact_never_replaces_trusted_state",
@@ -96333,7 +96333,7 @@
       },
       "norm_label": "test_an_empty_artifact_never_replaces_trusted_state()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L329"
+      "source_location": "L341"
     },
     {
       "id": "test_unit_posture_build_install_test_test_an_identical_build_repairs_binary_and_record_permissions",
@@ -96348,7 +96348,7 @@
       },
       "norm_label": "test_an_identical_build_repairs_binary_and_record_permissions()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L276"
+      "source_location": "L288"
     },
     {
       "id": "test_unit_posture_build_install_test_test_an_identical_build_retains_the_record_and_skips_refresh",
@@ -96363,7 +96363,7 @@
       },
       "norm_label": "test_an_identical_build_retains_the_record_and_skips_refresh()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L264"
+      "source_location": "L276"
     },
     {
       "id": "test_unit_posture_build_install_test_test_same_second_deferrals_change_the_rendered_retry_trigger",
@@ -96378,7 +96378,7 @@
       },
       "norm_label": "test_same_second_deferrals_change_the_rendered_retry_trigger()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L193"
+      "source_location": "L205"
     },
     {
       "id": "test_unit_posture_build_install_test_test_the_build_runs_from_the_committed_lock_and_names_the_one_binary",
@@ -96393,7 +96393,7 @@
       },
       "norm_label": "test_the_build_runs_from_the_committed_lock_and_names_the_one_binary()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L223"
+      "source_location": "L235"
     },
     {
       "id": "test_unit_posture_build_install_test_write_stub_runner",
@@ -96408,7 +96408,7 @@
       },
       "norm_label": "write_stub_runner()",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L131"
+      "source_location": "L143"
     },
     {
       "id": "uu_crates_uu_adapters_src_adapters_state_filerunstate_acquire",
@@ -111660,7 +111660,7 @@
       "node_kind": "heading",
       "norm_label": "background jobs and launchagents",
       "source_file": "AGENTS.md",
-      "source_location": "L528"
+      "source_location": "L536"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_bashrc_init_ordering",
@@ -111672,7 +111672,7 @@
       "node_kind": "heading",
       "norm_label": "bashrc init ordering",
       "source_file": "AGENTS.md",
-      "source_location": "L640"
+      "source_location": "L648"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_ci",
@@ -111744,7 +111744,7 @@
       "node_kind": "heading",
       "norm_label": "git worktrees (worktrunk)",
       "source_file": "AGENTS.md",
-      "source_location": "L628"
+      "source_location": "L636"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_global_instruction_files",
@@ -111768,7 +111768,7 @@
       "node_kind": "heading",
       "norm_label": "herdr native status",
       "source_file": "AGENTS.md",
-      "source_location": "L622"
+      "source_location": "L630"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_herdr_workspace_management",
@@ -111780,7 +111780,7 @@
       "node_kind": "heading",
       "norm_label": "herdr workspace management",
       "source_file": "AGENTS.md",
-      "source_location": "L585"
+      "source_location": "L593"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_long_running_command_notifier",
@@ -111792,7 +111792,7 @@
       "node_kind": "heading",
       "norm_label": "long-running command notifier",
       "source_file": "AGENTS.md",
-      "source_location": "L654"
+      "source_location": "L662"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_macos_defaults_management",
@@ -111852,7 +111852,7 @@
       "node_kind": "heading",
       "norm_label": "ssh hardening",
       "source_file": "AGENTS.md",
-      "source_location": "L568"
+      "source_location": "L576"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_system_package_management",
@@ -123760,7 +123760,7 @@
       "file_type": "code",
       "norm_label": "bin_path()",
       "source_file": "posture/crates/posture-domain/src/known_good.rs",
-      "source_location": "L155"
+      "source_location": "L159"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_knowngood",
@@ -168326,7 +168326,7 @@
       "node_kind": "heading",
       "norm_label": "code style",
       "source_file": "AGENTS.md",
-      "source_location": "L673"
+      "source_location": "L681"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_cutover_tooling",
@@ -168350,7 +168350,7 @@
       "node_kind": "heading",
       "norm_label": "git commits",
       "source_file": "AGENTS.md",
-      "source_location": "L701"
+      "source_location": "L709"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_key_commands",
@@ -168398,7 +168398,7 @@
       "node_kind": "heading",
       "norm_label": "security",
       "source_file": "AGENTS.md",
-      "source_location": "L708"
+      "source_location": "L716"
     },
     {
       "id": "users_stephen_herdr_worktrees_dotfiles_refactor_monorepo_layout_agents_testing",
@@ -177666,7 +177666,7 @@
       "file_type": "code",
       "norm_label": "every_unusable_manifest_refuses_suppression_in_both_arms()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L134"
+      "source_location": "L138"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_tests_tracking_exactly_one_manifest_is_selected_without_cross_vouch",
@@ -177677,7 +177677,7 @@
       "file_type": "code",
       "norm_label": "exactly_one_manifest_is_selected_without_cross_vouch()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L108"
+      "source_location": "L112"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_tests_tracking_healthy_bin_manifest_tracks_only_its_named_paths_even_with_nested_bins",
@@ -177688,7 +177688,7 @@
       "file_type": "code",
       "norm_label": "healthy_bin_manifest_tracks_only_its_named_paths_even_with_nested_bins()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L50"
+      "source_location": "L54"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_tests_tracking_manifests",
@@ -177710,7 +177710,7 @@
       "file_type": "code",
       "norm_label": "missing_unreadable_empty_or_untrustworthy_bin_manifest_tracks_every_bin_neighbor()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L80"
+      "source_location": "L84"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_tests_tracking_nonempty_manifest_with_no_parsed_path_keeps_existing_membership_miss",
@@ -177721,7 +177721,7 @@
       "file_type": "code",
       "norm_label": "nonempty_manifest_with_no_parsed_path_keeps_existing_membership_miss()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L100"
+      "source_location": "L104"
     },
     {
       "id": "posture_crates_posture_domain_src_known_good_tests_tracking_own_plists_are_home_anchored_and_allowlist_is_one_exact_file",
@@ -177732,7 +177732,7 @@
       "file_type": "code",
       "norm_label": "own_plists_are_home_anchored_and_allowlist_is_one_exact_file()",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L31"
+      "source_location": "L35"
     },
     {
       "id": "test_unit_osquery_enricher_call_test",
@@ -185867,7 +185867,7 @@
       },
       "norm_label": "set_up()",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L4"
+      "source_location": "L7"
     },
     {
       "id": "test_unit_uu_skills_bootstrap_test_sh__entry",
@@ -185897,7 +185897,7 @@
       },
       "norm_label": "skills_invoke()",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L28"
+      "source_location": "L42"
     },
     {
       "id": "test_unit_uu_skills_bootstrap_test_test_a_contended_skills_bootstrap_retains_work_for_the_next_apply",
@@ -185912,7 +185912,7 @@
       },
       "norm_label": "test_a_contended_skills_bootstrap_retains_work_for_the_next_apply()",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L61"
+      "source_location": "L75"
     },
     {
       "id": "test_unit_uu_skills_bootstrap_test_test_a_failed_skills_bootstrap_advances_the_retry_marker_without_aborting_apply",
@@ -185927,7 +185927,7 @@
       },
       "norm_label": "test_a_failed_skills_bootstrap_advances_the_retry_marker_without_aborting_apply()",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L49"
+      "source_location": "L63"
     },
     {
       "id": "test_unit_uu_skills_bootstrap_test_test_a_successful_skills_bootstrap_clears_the_pending_marker",
@@ -185942,7 +185942,7 @@
       },
       "norm_label": "test_a_successful_skills_bootstrap_clears_the_pending_marker()",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L39"
+      "source_location": "L53"
     },
     {
       "id": "docs_superpowers_specs_2026_06_21_homebrew_weekly_upgrade_design",
@@ -221496,7 +221496,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L141",
+      "source_location": "L145",
       "weight": 1.0
     },
     {
@@ -221508,7 +221508,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L119",
+      "source_location": "L123",
       "weight": 1.0
     },
     {
@@ -221520,7 +221520,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L65",
+      "source_location": "L69",
       "weight": 1.0
     },
     {
@@ -221532,7 +221532,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L87",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -221544,7 +221544,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L32",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -229284,7 +229284,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/pns-engine-build-install.sh",
-      "source_location": "L85",
+      "source_location": "L97",
       "weight": 1.0
     },
     {
@@ -229404,7 +229404,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L164",
+      "source_location": "L176",
       "weight": 1.0
     },
     {
@@ -229416,7 +229416,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L158",
+      "source_location": "L170",
       "weight": 1.0
     },
     {
@@ -229428,7 +229428,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L169",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -229440,7 +229440,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L170",
+      "source_location": "L182",
       "weight": 1.0
     },
     {
@@ -229452,131 +229452,11 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L76",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_build_install_test_test_a_build_publishes_a_private_record_before_refresh_and_install",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L234",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_build_publishes_a_private_record_before_refresh_and_install",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L235",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L306",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L307",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_assert_builder_fails",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L310",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_first_refresh_restores_the_absent_record",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L257",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_first_refresh_restores_the_absent_record",
-      "target": "test_unit_posture_build_install_test_assert_builder_fails",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L259",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L317",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L318",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
-      "target": "test_unit_posture_build_install_test_assert_builder_fails",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L321",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
       "target": "test_unit_posture_build_install_test_ready_to_build",
       "relation": "calls",
       "_origin": "ast",
@@ -229588,7 +229468,7 @@
       "weight": 1.0
     },
     {
-      "source": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
+      "source": "test_unit_posture_build_install_test_test_a_build_publishes_a_private_record_before_refresh_and_install",
       "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
       "relation": "calls",
       "_origin": "ast",
@@ -229600,6 +229480,126 @@
       "weight": 1.0
     },
     {
+      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L318",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L319",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_build_never_refreshes_or_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_assert_builder_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L322",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_first_refresh_restores_the_absent_record",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L269",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_first_refresh_restores_the_absent_record",
+      "target": "test_unit_posture_build_install_test_assert_builder_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L271",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L329",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L330",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_install_keeps_the_new_record_for_a_retry",
+      "target": "test_unit_posture_build_install_test_assert_builder_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L333",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L258",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L259",
+      "weight": 1.0
+    },
+    {
       "source": "test_unit_posture_build_install_test_test_a_failed_refresh_restores_the_previous_record_and_binary",
       "target": "test_unit_posture_build_install_test_assert_builder_fails",
       "relation": "calls",
@@ -229608,7 +229608,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L251",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -229620,7 +229620,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L183",
+      "source_location": "L195",
       "weight": 1.0
     },
     {
@@ -229632,7 +229632,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L184",
+      "source_location": "L196",
       "weight": 1.0
     },
     {
@@ -229644,7 +229644,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L213",
+      "source_location": "L225",
       "weight": 1.0
     },
     {
@@ -229656,7 +229656,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L214",
+      "source_location": "L226",
       "weight": 1.0
     },
     {
@@ -229668,60 +229668,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L216",
+      "source_location": "L228",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_build_install_test_test_an_artifact_at_the_audit_size_limit_can_be_published",
       "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L287",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_an_artifact_at_the_audit_size_limit_can_be_published",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L289",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L295",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L296",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
-      "target": "test_unit_posture_build_install_test_assert_builder_fails",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -229732,6 +229684,54 @@
       "weight": 1.0
     },
     {
+      "source": "test_unit_posture_build_install_test_test_an_artifact_at_the_audit_size_limit_can_be_published",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L301",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L307",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L308",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state",
+      "target": "test_unit_posture_build_install_test_assert_builder_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L311",
+      "weight": 1.0
+    },
+    {
       "source": "test_unit_posture_build_install_test_test_an_empty_artifact_never_replaces_trusted_state",
       "target": "test_unit_posture_build_install_test_ready_to_build",
       "relation": "calls",
@@ -229740,7 +229740,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L330",
+      "source_location": "L342",
       "weight": 1.0
     },
     {
@@ -229752,7 +229752,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L331",
+      "source_location": "L343",
       "weight": 1.0
     },
     {
@@ -229764,11 +229764,35 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L335",
+      "source_location": "L347",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_build_install_test_test_an_identical_build_repairs_binary_and_record_permissions",
+      "target": "test_unit_posture_build_install_test_ready_to_build",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L289",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_an_identical_build_repairs_binary_and_record_permissions",
+      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L290",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test_test_an_identical_build_retains_the_record_and_skips_refresh",
       "target": "test_unit_posture_build_install_test_ready_to_build",
       "relation": "calls",
       "_origin": "ast",
@@ -229780,7 +229804,7 @@
       "weight": 1.0
     },
     {
-      "source": "test_unit_posture_build_install_test_test_an_identical_build_repairs_binary_and_record_permissions",
+      "source": "test_unit_posture_build_install_test_test_an_identical_build_retains_the_record_and_skips_refresh",
       "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
       "relation": "calls",
       "_origin": "ast",
@@ -229792,30 +229816,6 @@
       "weight": 1.0
     },
     {
-      "source": "test_unit_posture_build_install_test_test_an_identical_build_retains_the_record_and_skips_refresh",
-      "target": "test_unit_posture_build_install_test_ready_to_build",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L265",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test_test_an_identical_build_retains_the_record_and_skips_refresh",
-      "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L266",
-      "weight": 1.0
-    },
-    {
       "source": "test_unit_posture_build_install_test_test_same_second_deferrals_change_the_rendered_retry_trigger",
       "target": "test_unit_posture_build_install_test_assert_builder_succeeds",
       "relation": "calls",
@@ -229824,7 +229824,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L198",
+      "source_location": "L210",
       "weight": 1.0
     },
     {
@@ -229836,7 +229836,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L224",
+      "source_location": "L236",
       "weight": 1.0
     },
     {
@@ -229848,7 +229848,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L225",
+      "source_location": "L237",
       "weight": 1.0
     },
     {
@@ -229860,7 +229860,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L212",
+      "source_location": "L221",
       "weight": 1.0
     },
     {
@@ -229872,7 +229872,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L74",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -229884,7 +229884,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L300",
+      "source_location": "L309",
       "weight": 1.0
     },
     {
@@ -229896,7 +229896,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L301",
+      "source_location": "L310",
       "weight": 1.0
     },
     {
@@ -229908,7 +229908,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L312",
+      "source_location": "L321",
       "weight": 1.0
     },
     {
@@ -229920,7 +229920,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L96",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -229932,7 +229932,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L245",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -229944,7 +229944,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L247",
+      "source_location": "L256",
       "weight": 1.0
     },
     {
@@ -229956,7 +229956,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L160",
+      "source_location": "L169",
       "weight": 1.0
     },
     {
@@ -229968,7 +229968,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L162",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -229980,7 +229980,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L150",
+      "source_location": "L159",
       "weight": 1.0
     },
     {
@@ -229992,7 +229992,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L191",
+      "source_location": "L200",
       "weight": 1.0
     },
     {
@@ -230004,23 +230004,11 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L172",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_manifest_refresh_test_test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publication",
-      "target": "test_unit_posture_manifest_refresh_test_run_refresh",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L174",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_a_truncated_record_is_refused_instead_of_treated_as_unbuilt",
       "target": "test_unit_posture_manifest_refresh_test_run_refresh",
       "relation": "calls",
       "_origin": "ast",
@@ -230032,6 +230020,18 @@
       "weight": 1.0
     },
     {
+      "source": "test_unit_posture_manifest_refresh_test_test_a_truncated_record_is_refused_instead_of_treated_as_unbuilt",
+      "target": "test_unit_posture_manifest_refresh_test_run_refresh",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L192",
+      "weight": 1.0
+    },
+    {
       "source": "test_unit_posture_manifest_refresh_test_test_an_ordinary_digest_tuple_still_vouches_for_its_exact_content",
       "target": "test_unit_posture_manifest_refresh_test_run_consumer",
       "relation": "calls",
@@ -230040,7 +230040,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L258",
+      "source_location": "L267",
       "weight": 1.0
     },
     {
@@ -230052,7 +230052,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L237",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -230064,7 +230064,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L240",
+      "source_location": "L249",
       "weight": 1.0
     },
     {
@@ -230076,7 +230076,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L112",
+      "source_location": "L121",
       "weight": 1.0
     },
     {
@@ -230088,7 +230088,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L87",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -230100,11 +230100,107 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L135",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_manifest_refresh_test_test_refresh_without_a_build_retains_the_tuple_despite_tampered_live_and_target_bytes",
+      "target": "test_unit_posture_manifest_refresh_test_run_refresh",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L145",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner",
+      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L232",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner",
+      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L235",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_nonempty_unbuilt_content",
+      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L239",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_nonempty_unbuilt_content",
+      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L242",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_reports_a_missing_unbuilt_binary",
+      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L227",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_reports_a_missing_unbuilt_binary",
+      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L228",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary",
+      "target": "test_unit_posture_manifest_refresh_test_write_record",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L134",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test_test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary",
       "target": "test_unit_posture_manifest_refresh_test_run_refresh",
       "relation": "calls",
       "_origin": "ast",
@@ -230116,102 +230212,6 @@
       "weight": 1.0
     },
     {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner",
-      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L223",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_an_empty_unbuilt_binary_with_matching_mode_and_owner",
-      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L226",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_nonempty_unbuilt_content",
-      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L230",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_refuses_nonempty_unbuilt_content",
-      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L233",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_reports_a_missing_unbuilt_binary",
-      "target": "test_unit_posture_manifest_refresh_test_write_unbuilt_tuple",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L218",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_audit_reports_a_missing_unbuilt_binary",
-      "target": "test_unit_posture_manifest_refresh_test_assert_audit_finding",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L219",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary",
-      "target": "test_unit_posture_manifest_refresh_test_write_record",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L125",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test_test_the_binary_tuple_comes_from_the_build_record_without_a_deployed_binary",
-      "target": "test_unit_posture_manifest_refresh_test_run_refresh",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L127",
-      "weight": 1.0
-    },
-    {
       "source": "test_unit_posture_manifest_refresh_test_test_the_builder_publishes_the_record_tuple_before_installing_the_binary",
       "target": "test_unit_posture_manifest_refresh_test_prepare_builder",
       "relation": "calls",
@@ -230220,7 +230220,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L287",
+      "source_location": "L296",
       "weight": 1.0
     },
     {
@@ -230232,7 +230232,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L289",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -230244,7 +230244,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L295",
+      "source_location": "L304",
       "weight": 1.0
     },
     {
@@ -230256,7 +230256,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L104",
+      "source_location": "L113",
       "weight": 1.0
     },
     {
@@ -230724,7 +230724,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L64",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -230736,7 +230736,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L53",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -230748,7 +230748,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L42",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -350867,7 +350867,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L528",
+      "source_location": "L536",
       "weight": 1.0
     },
     {
@@ -350878,7 +350878,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L568",
+      "source_location": "L576",
       "weight": 1.0
     },
     {
@@ -350889,7 +350889,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L585",
+      "source_location": "L593",
       "weight": 1.0
     },
     {
@@ -350900,7 +350900,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L622",
+      "source_location": "L630",
       "weight": 1.0
     },
     {
@@ -350911,7 +350911,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L628",
+      "source_location": "L636",
       "weight": 1.0
     },
     {
@@ -350922,7 +350922,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L640",
+      "source_location": "L648",
       "weight": 1.0
     },
     {
@@ -350933,7 +350933,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L654",
+      "source_location": "L662",
       "weight": 1.0
     },
     {
@@ -350988,7 +350988,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L673",
+      "source_location": "L681",
       "weight": 1.0
     },
     {
@@ -350999,7 +350999,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L701",
+      "source_location": "L709",
       "weight": 1.0
     },
     {
@@ -351010,7 +351010,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CLAUDE.md",
-      "source_location": "L708",
+      "source_location": "L716",
       "weight": 1.0
     },
     {
@@ -351373,7 +351373,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L102",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -351384,7 +351384,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L161",
+      "source_location": "L185",
       "weight": 1.0
     },
     {
@@ -351395,7 +351395,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L144",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -351406,7 +351406,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L217",
+      "source_location": "L241",
       "weight": 1.0
     },
     {
@@ -351417,7 +351417,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L192",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -351428,7 +351428,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L174",
+      "source_location": "L198",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_remaining_work_remaining_work",
+      "target": "docs_remaining_work_before_the_first_stopping_point",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/remaining-work.md",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -351439,7 +351450,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L107",
+      "source_location": "L117",
       "weight": 1.0
     },
     {
@@ -351450,7 +351461,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L131",
+      "source_location": "L155",
       "weight": 1.0
     },
     {
@@ -351461,7 +351472,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L148",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -351472,18 +351483,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L165",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_remaining_work_remaining_work",
-      "target": "docs_remaining_work_posture_cutovers",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/remaining-work.md",
-      "source_location": "L178",
+      "source_location": "L189",
       "weight": 1.0
     },
     {
@@ -351499,13 +351499,24 @@
     },
     {
       "source": "docs_remaining_work_remaining_work",
+      "target": "docs_remaining_work_posture_cutovers",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/remaining-work.md",
+      "source_location": "L202",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_remaining_work_remaining_work",
       "target": "docs_remaining_work_uu",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L196",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -351516,7 +351527,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L210",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -351527,7 +351538,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L221",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -351538,7 +351549,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L235",
+      "source_location": "L259",
       "weight": 1.0
     },
     {
@@ -351549,7 +351560,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L245",
+      "source_location": "L269",
       "weight": 1.0
     },
     {
@@ -351560,7 +351571,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L259",
+      "source_location": "L283",
       "weight": 1.0
     },
     {
@@ -351571,7 +351582,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L272",
+      "source_location": "L296",
       "weight": 1.0
     },
     {
@@ -351619,17 +351630,6 @@
       "weight": 1.0
     },
     {
-      "source": "docs_remaining_work_remaining_work",
-      "target": "docs_remaining_work_before_the_first_stopping_point",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/remaining-work.md",
-      "source_location": "L91",
-      "weight": 1.0
-    },
-    {
       "source": "docs_remaining_work_uu",
       "target": "docs_remaining_work_stop_point_f",
       "relation": "contains",
@@ -351637,7 +351637,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/remaining-work.md",
-      "source_location": "L206",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -441716,7 +441716,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good.rs",
-      "source_location": "L155",
+      "source_location": "L159",
       "weight": 1.0
     },
     {
@@ -441892,7 +441892,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L100",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -441903,7 +441903,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L108",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -441925,7 +441925,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L134",
+      "source_location": "L138",
       "weight": 1.0
     },
     {
@@ -441947,7 +441947,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L31",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -441958,7 +441958,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L50",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -441969,7 +441969,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "posture/crates/posture-domain/src/known_good/tests/tracking.rs",
-      "source_location": "L80",
+      "source_location": "L84",
       "weight": 1.0
     },
     {
@@ -446380,7 +446380,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L528",
+      "source_location": "L536",
       "weight": 1.0
     },
     {
@@ -446391,7 +446391,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L568",
+      "source_location": "L576",
       "weight": 1.0
     },
     {
@@ -446402,7 +446402,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L585",
+      "source_location": "L593",
       "weight": 1.0
     },
     {
@@ -446413,7 +446413,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L622",
+      "source_location": "L630",
       "weight": 1.0
     },
     {
@@ -446424,7 +446424,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L628",
+      "source_location": "L636",
       "weight": 1.0
     },
     {
@@ -446435,7 +446435,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L640",
+      "source_location": "L648",
       "weight": 1.0
     },
     {
@@ -446446,7 +446446,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L654",
+      "source_location": "L662",
       "weight": 1.0
     },
     {
@@ -446501,7 +446501,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L673",
+      "source_location": "L681",
       "weight": 1.0
     },
     {
@@ -446512,7 +446512,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L701",
+      "source_location": "L709",
       "weight": 1.0
     },
     {
@@ -446523,7 +446523,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "AGENTS.md",
-      "source_location": "L708",
+      "source_location": "L716",
       "weight": 1.0
     },
     {
@@ -457066,24 +457066,13 @@
     },
     {
       "source": "uu_docs_decisions_run_application_run_application_ownership",
-      "target": "uu_docs_decisions_run_application_test_ownership_and_evidence",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L100",
-      "weight": 1.0
-    },
-    {
-      "source": "uu_docs_decisions_run_application_run_application_ownership",
       "target": "uu_docs_decisions_run_application_neovim_consumer_and_lock_recovery",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L143",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -457094,7 +457083,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L172",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -457105,7 +457094,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L191",
+      "source_location": "L190",
       "weight": 1.0
     },
     {
@@ -457116,7 +457105,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L29",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -457127,7 +457116,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
-      "source_location": "L46",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -457139,6 +457128,17 @@
       "confidence_score": 1.0,
       "source_file": "uu/docs/decisions/run-application.md",
       "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "uu_docs_decisions_run_application_run_application_ownership",
+      "target": "uu_docs_decisions_run_application_test_ownership_and_evidence",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "uu/docs/decisions/run-application.md",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -469172,7 +469172,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/pns-engine-build-install.sh",
-      "source_location": "L81",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -469304,7 +469304,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L123",
+      "source_location": "L135",
       "weight": 1.0
     },
     {
@@ -469315,7 +469315,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L131",
+      "source_location": "L143",
       "weight": 1.0
     },
     {
@@ -469326,7 +469326,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L148",
+      "source_location": "L160",
       "weight": 1.0
     },
     {
@@ -469337,7 +469337,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L156",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -469348,7 +469348,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L162",
+      "source_location": "L174",
       "weight": 1.0
     },
     {
@@ -469359,7 +469359,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L168",
+      "source_location": "L180",
       "weight": 1.0
     },
     {
@@ -469370,18 +469370,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L182",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test",
-      "target": "test_unit_posture_build_install_test_repo_root",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L19",
+      "source_location": "L194",
       "weight": 1.0
     },
     {
@@ -469392,7 +469381,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L193",
+      "source_location": "L205",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test",
+      "target": "test_unit_posture_build_install_test_repo_root",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -469403,7 +469403,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L212",
+      "source_location": "L224",
       "weight": 1.0
     },
     {
@@ -469414,7 +469414,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L223",
+      "source_location": "L235",
       "weight": 1.0
     },
     {
@@ -469425,7 +469425,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L233",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -469436,18 +469436,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L245",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_build_install_test",
-      "target": "test_unit_posture_build_install_test_set_up_before_script",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L25",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -469458,7 +469447,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L256",
+      "source_location": "L268",
       "weight": 1.0
     },
     {
@@ -469469,7 +469458,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L264",
+      "source_location": "L276",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_build_install_test",
+      "target": "test_unit_posture_build_install_test_set_up_before_script",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/unit/posture-build-install.test.sh",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -469480,7 +469480,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L276",
+      "source_location": "L288",
       "weight": 1.0
     },
     {
@@ -469491,7 +469491,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L286",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -469502,7 +469502,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L294",
+      "source_location": "L306",
       "weight": 1.0
     },
     {
@@ -469513,7 +469513,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L305",
+      "source_location": "L317",
       "weight": 1.0
     },
     {
@@ -469524,7 +469524,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L316",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -469535,7 +469535,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L329",
+      "source_location": "L341",
       "weight": 1.0
     },
     {
@@ -469546,7 +469546,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L61",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -469557,7 +469557,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L79",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -469568,12 +469568,12 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-build-install.test.sh",
-      "source_location": "L83",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_manifest_refresh_test",
-      "target": "test_unit_posture_manifest_refresh_test_test_the_default_refresh_still_updates_both_manifests",
+      "target": "test_unit_posture_manifest_refresh_test_test_a_failed_pipeline_install_preserves_the_previous_tuple",
       "relation": "defines",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -469584,13 +469584,24 @@
     },
     {
       "source": "test_unit_posture_manifest_refresh_test",
+      "target": "test_unit_posture_manifest_refresh_test_test_the_default_refresh_still_updates_both_manifests",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L111",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test",
       "target": "test_unit_posture_manifest_refresh_test_test_an_unknown_refresh_scope_refuses_to_publish",
       "relation": "defines",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L110",
+      "source_location": "L119",
       "weight": 1.0
     },
     {
@@ -469601,7 +469612,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L118",
+      "source_location": "L127",
       "weight": 1.0
     },
     {
@@ -469612,7 +469623,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L124",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -469623,7 +469634,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L134",
+      "source_location": "L143",
       "weight": 1.0
     },
     {
@@ -469634,7 +469645,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L147",
+      "source_location": "L156",
       "weight": 1.0
     },
     {
@@ -469645,7 +469656,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L155",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -469656,7 +469667,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L169",
+      "source_location": "L178",
       "weight": 1.0
     },
     {
@@ -469667,7 +469678,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L180",
+      "source_location": "L189",
       "weight": 1.0
     },
     {
@@ -469678,7 +469689,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L188",
+      "source_location": "L197",
       "weight": 1.0
     },
     {
@@ -469689,7 +469700,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L196",
+      "source_location": "L205",
       "weight": 1.0
     },
     {
@@ -469700,7 +469711,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L206",
+      "source_location": "L215",
       "weight": 1.0
     },
     {
@@ -469711,7 +469722,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L210",
+      "source_location": "L219",
       "weight": 1.0
     },
     {
@@ -469722,18 +469733,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L217",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test",
-      "target": "test_unit_posture_manifest_refresh_test_set_up",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L22",
+      "source_location": "L226",
       "weight": 1.0
     },
     {
@@ -469744,7 +469744,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L222",
+      "source_location": "L231",
       "weight": 1.0
     },
     {
@@ -469755,7 +469755,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L229",
+      "source_location": "L238",
       "weight": 1.0
     },
     {
@@ -469766,7 +469766,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L236",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -469777,7 +469777,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L243",
+      "source_location": "L252",
       "weight": 1.0
     },
     {
@@ -469788,7 +469788,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L251",
+      "source_location": "L260",
       "weight": 1.0
     },
     {
@@ -469799,7 +469799,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L265",
+      "source_location": "L274",
       "weight": 1.0
     },
     {
@@ -469810,7 +469810,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L286",
+      "source_location": "L295",
       "weight": 1.0
     },
     {
@@ -469821,7 +469821,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L299",
+      "source_location": "L308",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_posture_manifest_refresh_test",
+      "target": "test_unit_posture_manifest_refresh_test_set_up",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/unit/posture-manifest-refresh.test.sh",
+      "source_location": "L31",
       "weight": 1.0
     },
     {
@@ -469832,7 +469843,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L5",
+      "source_location": "L8",
       "weight": 1.0
     },
     {
@@ -469843,7 +469854,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L71",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -469854,23 +469865,12 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L77",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
       "source": "test_unit_posture_manifest_refresh_test",
       "target": "test_unit_posture_manifest_refresh_test_test_pipeline_only_refresh_never_fails_after_publishing_due_to_the_other_manifest",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "test/unit/posture-manifest-refresh.test.sh",
-      "source_location": "L84",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_posture_manifest_refresh_test",
-      "target": "test_unit_posture_manifest_refresh_test_test_a_failed_pipeline_install_preserves_the_previous_tuple",
       "relation": "defines",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -470327,7 +470327,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L28",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -470338,18 +470338,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L39",
-      "weight": 1.0
-    },
-    {
-      "source": "test_unit_uu_skills_bootstrap_test",
-      "target": "test_unit_uu_skills_bootstrap_test_set_up",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L4",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -470360,7 +470349,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L49",
+      "source_location": "L63",
+      "weight": 1.0
+    },
+    {
+      "source": "test_unit_uu_skills_bootstrap_test",
+      "target": "test_unit_uu_skills_bootstrap_test_set_up",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "test/unit/uu-skills-bootstrap.test.sh",
+      "source_location": "L7",
       "weight": 1.0
     },
     {
@@ -470371,7 +470371,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/unit/uu-skills-bootstrap.test.sh",
-      "source_location": "L61",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -532904,5 +532904,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "4b3a56c1281acc2485943f9fc099c6980d818433"
+  "built_at_commit": "a9b6e00d35b3afec167886dd8512963676ee4532"
 }
