@@ -311,55 +311,55 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   the environment), whether the file exists, how old it is, the surface that age implies, and whether a
   key in `~/.ssh/authorized_keys` is wired to `pns tap`. Naming the source is the point of it: an
   operator who set the config value and still sees the default is looking at an override they forgot, and
-  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for
-  this machine, with the binary path resolved, and says where to paste it. It says that a line already
-  wired for this should be replaced rather than added beside.
-  THERE IS NO `--write`, AND PNS NEVER READS OR WRITES `~/.ssh/authorized_keys`. This task's own history
-  went back and forth on it, so the reasoning is recorded rather than the conclusion alone.
-  Against writing: the flag would gate INTENT, never CAPABILITY. The write code sits in the binary on
-  every run, and that binary runs unattended as a daemon, from every harness hook, and on every shell
-  prompt. Any bug, config injection or compromised dependency that reaches it escalates to granting SSH
-  access to the machine, which is not a notification tool's blast radius. What it buys against that is
-  one paste, once per machine, ever. pns is also a tool other people `cargo install`, and "this notifier
-  can edit your authorized_keys" is a line that should stop an auditor cold.
-  Against reading: `--info` PRINTS what it reads, into a terminal whose contents get pasted into chats
-  and issues, and the file is the operator's whole SSH trust list.
-  And therefore no `--backup`: it only ever existed to make the write safe, and it carried its own
-  hazard, since a copy of a trust file re-grants a key that was later revoked if it is restored unread.
-  WHAT REPLACES THE READ IS A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN
-  FRESHNESS: "last tap 3 hours ago", or "never tapped". That verifies the whole chain end to end (phone,
-  Shortcut, ssh, key, forced command, file) rather than inspecting one link and inferring the rest, and
-  it needs no access to `~/.ssh` at all. A wiring mistake anywhere in that chain shows up the same way:
-  the marker never moves.
-  `--install` COVERS THE PHONE SIDE TOO, because the wiring has two halves and an
-  operator holding only one of them has nothing working. After the `authorized_keys` line it prints the
-  Shortcut recipe (Run Script Over SSH, with the host, the user and which key to select) and the triggers
-  that Shortcut can be attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center,
-  Siri. The command text typed into the Shortcut is cosmetic, since sshd runs the forced command instead,
-  but it is spelled `pns tap` anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF
-  `--info`: that flag is read when something is already wrong, and burying a status report under a wall
-  of instructions is how a diagnostic stops being read. `--info` closes with one line pointing at
-  `pns tap --install`. THE PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a
-  line the reader sees ("Settings paths verified on iOS <version>"). The exact paths to Back Tap and the
-  Action Button move between releases, and instructions that do not date themselves are worse than none:
-  a reader on a later iOS cannot tell a path that moved from a step they got wrong. Verify them against
-  the operator's own iOS at build time rather than writing them from memory here, and record the version
-  in the same change that writes the text. `--delete-marker` deletes the marker. NOT `--clear`, which says nothing about what it clears, and NOT `--at-desk`, which promises a surface the command cannot produce: removing the phone signal does not assert Desk, and a stale desk clock lands on Away. "Marker" is already this feature's own vocabulary, so naming it is consistent rather than leaky. ITS CASE IS UNVERIFIED
-  AND MUST BE SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry and stays the newest
-  signal until the desk is touched, so a Back Tap fired by a bump in a pocket parks the operator on
-  Mobile with nothing to cancel it while they are away from the desk. The hole in that argument: with the
-  marker gone and the desk clock stale the surface is Away, and Away also routes to the phone, so
-  clearing may change nothing in exactly the case it was built for. CHECK THE DESK/MOBILE/AWAY DELIVERY
-  MATRIX in `pns/docs/specs/presence-and-visibility.md` first and drop the flag if the two surfaces
-  deliver alike. `--json` emits the same answers
-  machine-readably, so the Shortcut renders them rather than dumping a sentence. `--no-color` is NOT one
-  of these flags; it is tool-wide, task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the
-  config: `~/.config/pns/config.toml` is a chezmoi-rendered target on this machine, so a write there is
-  erased by the next apply and the operator would watch their change disappear. `--info` names the file
-  that really holds the value instead. DELIBERATELY NOT `--for <duration>`, a tap that expires on its
-  own: the probe reads the marker's mtime and never its contents (`symlink_metadata`, so a dangling
-  symlink still answers), so an expiry is a reader redesign rather than a flag, and it is scoped
-  separately if it is ever wanted.
+  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for this
+  machine, with the binary path resolved, and says where to paste it. It says that a line already wired
+  for this should be replaced rather than added beside. THERE IS NO `--write`, AND PNS NEVER READS OR
+  WRITES `~/.ssh/authorized_keys`. This task's own history went back and forth on it, so the reasoning is
+  recorded rather than the conclusion alone. Against writing: the flag would gate INTENT, never
+  CAPABILITY. The write code sits in the binary on every run, and that binary runs unattended as a
+  daemon, from every harness hook, and on every shell prompt. Any bug, config injection or compromised
+  dependency that reaches it escalates to granting SSH access to the machine, which is not a notification
+  tool's blast radius. What it buys against that is one paste, once per machine, ever. pns is also a tool
+  other people `cargo install`, and "this notifier can edit your authorized_keys" is a line that should
+  stop an auditor cold. Against reading: `--info` PRINTS what it reads, into a terminal whose contents
+  get pasted into chats and issues, and the file is the operator's whole SSH trust list. And therefore no
+  `--backup`: it only ever existed to make the write safe, and it carried its own hazard, since a copy of
+  a trust file re-grants a key that was later revoked if it is restored unread. WHAT REPLACES THE READ IS
+  A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN FRESHNESS: "last tap 3 hours ago",
+  or "never tapped". That verifies the whole chain end to end (phone, Shortcut, ssh, key, forced command,
+  file) rather than inspecting one link and inferring the rest, and it needs no access to `~/.ssh` at
+  all. A wiring mistake anywhere in that chain shows up the same way: the marker never moves. `--install`
+  COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only one of them
+  has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run Script Over
+  SSH, with the host, the user and which key to select) and the triggers that Shortcut can be attached
+  to: Back Tap, the Action Button, a Lock Screen widget, Control Center, Siri. The command text typed
+  into the Shortcut is cosmetic, since sshd runs the forced command instead, but it is spelled `pns tap`
+  anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag is read
+  when something is already wrong, and burying a status report under a wall of instructions is how a
+  diagnostic stops being read. `--info` closes with one line pointing at `pns tap --install`. THE PRINTED
+  INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees ("Settings
+  paths verified on iOS <version>"). The exact paths to Back Tap and the Action Button move between
+  releases, and instructions that do not date themselves are worse than none: a reader on a later iOS
+  cannot tell a path that moved from a step they got wrong. Verify them against the operator's own iOS at
+  build time rather than writing them from memory here, and record the version in the same change that
+  writes the text. `--delete-marker` deletes the marker. NOT `--clear`, which says nothing about what it
+  clears, and NOT `--at-desk`, which promises a surface the command cannot produce: removing the phone
+  signal does not assert Desk, and a stale desk clock lands on Away. "Marker" is already this feature's
+  own vocabulary, so naming it is consistent rather than leaky. ITS CASE IS UNVERIFIED AND MUST BE
+  SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry and stays the newest signal until
+  the desk is touched, so a Back Tap fired by a bump in a pocket parks the operator on Mobile with
+  nothing to cancel it while they are away from the desk. The hole in that argument: with the marker gone
+  and the desk clock stale the surface is Away, and Away also routes to the phone, so clearing may change
+  nothing in exactly the case it was built for. CHECK THE DESK/MOBILE/AWAY DELIVERY MATRIX in
+  `pns/docs/specs/presence-and-visibility.md` first and drop the flag if the two surfaces deliver alike.
+  `--json` emits the same answers machine-readably, so the Shortcut renders them rather than dumping a
+  sentence. `--no-color` is NOT one of these flags; it is tool-wide, task 73. DELIBERATELY NOT
+  `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is a chezmoi-rendered target
+  on this machine, so a write there is erased by the next apply and the operator would watch their change
+  disappear. `--info` names the file that really holds the value instead. DELIBERATELY NOT
+  `--for <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its
+  contents (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign
+  rather than a flag, and it is scoped separately if it is ever wanted.
 
 - [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
   own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
@@ -372,6 +372,24 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   default: the SSH tap works with pns's daemon dead, because sshd and `touch` carry it end to end, and an
   HTTP tap does not. An operator whose daemon is wedged still wants their phone to say so. Also a
   listening port where there was none, and a secret that needs a rotation story.
+
+- [ ] 75. BIND SSHD TO THE TAILNET. Unrelated to pns and worth more than anything the tap design can do.
+  Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and IPv6, EVERY
+  INTERFACE. The Back Tap depends on Remote Login being on, so the tap is why that listener is there, but
+  the listener does not have to be reachable from everywhere. `~/.local/bin/ssh-hardening.sh` already
+  owns a drop-in at `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` and already restricts sshd to public
+  keys; adding `ListenAddress <tailscale ip>` there makes port 22 reachable over the tailnet alone. The
+  same tap mechanism, a far smaller surface, one line. Verify with `netstat` before and after and confirm
+  a tap still lands, since a wrong address silently ends both SSH and the tap.
+
+- [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
+  MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works
+  it beats both the SSH tap and the HTTP one: NO LISTENING PORT AT ALL, no key, no `authorized_keys`
+  line, no shared secret, nothing for pns to own but the marker it already owns.
+  FROM TRAINING, NOT VERIFIED, which is exactly why this is an investigation and not a build: whether
+  cross-device execution works on this operator's iOS and macOS versions, whether the Mac must be awake
+  or unlocked, and what the latency is. Those three answers decide it. Half an hour of testing on the
+  real devices settles whether task 74 is worth building at all.
 
 ## Tool-wide output flags
 
