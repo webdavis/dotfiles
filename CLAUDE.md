@@ -149,6 +149,16 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
 holds until the vault is replaced with a password manager an agent can unlock.
 
+**NEVER tell the operator to run `chezmoi apply` without verifying it will pass first.** The operator
+running an apply, hitting an error, pasting it back, waiting for a fix, and running again is a loop that
+costs them an evening and finds one failure per round. An agent has everything it needs to find those
+failures itself: render a script with
+`CI=1 chezmoi --source "$PWD" execute-template --no-tty < .chezmoiscripts/<name>` and run it, or run the
+deployed copy directly. Do that for every script the change touches AND for every one that failed on a
+previous attempt, report the exit codes, and only then say it is safe to apply (operator ruling
+2026-09-08). A long-deferred apply fails one script at a time, so a round trip per failure is the worst
+possible way to find them; every such failure is reproducible without an apply.
+
 **Why `--exclude=templates` was retired** (it was the mandated agent apply until 2026-08-10). It left the
 deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
 hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
