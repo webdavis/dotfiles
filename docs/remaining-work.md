@@ -311,22 +311,27 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   the environment), whether the file exists, how old it is, the surface that age implies, and whether a
   key in `~/.ssh/authorized_keys` is wired to `pns tap`. Naming the source is the point of it: an
   operator who set the config value and still sees the default is looking at an override they forgot, and
-  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for this
-  machine, with the binary path resolved, and says where to paste it. It says that a line already wired
-  for this should be replaced rather than added beside. PNS NEVER READS OR WRITES
-  `~/.ssh/authorized_keys` (operator ruling 2026-09-09, superseding two earlier shapes in this task's own
-  history). That file is the operator's whole SSH trust list. A notification tool has no business
-  enumerating it, and the concrete leak is not theoretical: `--info` PRINTS what it reads, into a
-  terminal whose contents get pasted into chats and issues. Writing it is worse again, a tool that runs
-  unattended as a daemon and from every harness hook holding the ability to grant SSH access. Printing
-  costs the operator one paste, once per machine, and costs pns the capability entirely. So there is no
-  `--write` and no `--backup`; the backup only ever existed to make a write safe, and it carried its own
-  hazard, since a copy of a trust file re-grants a key that was later revoked if it is ever restored
-  unread. WHAT REPLACES THE READ IS A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN
+  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for
+  this machine, with the binary path resolved, and says where to paste it. It says that a line already
+  wired for this should be replaced rather than added beside.
+  THERE IS NO `--write`, AND PNS NEVER READS OR WRITES `~/.ssh/authorized_keys`. This task's own history
+  went back and forth on it, so the reasoning is recorded rather than the conclusion alone.
+  Against writing: the flag would gate INTENT, never CAPABILITY. The write code sits in the binary on
+  every run, and that binary runs unattended as a daemon, from every harness hook, and on every shell
+  prompt. Any bug, config injection or compromised dependency that reaches it escalates to granting SSH
+  access to the machine, which is not a notification tool's blast radius. What it buys against that is
+  one paste, once per machine, ever. pns is also a tool other people `cargo install`, and "this notifier
+  can edit your authorized_keys" is a line that should stop an auditor cold.
+  Against reading: `--info` PRINTS what it reads, into a terminal whose contents get pasted into chats
+  and issues, and the file is the operator's whole SSH trust list.
+  And therefore no `--backup`: it only ever existed to make the write safe, and it carried its own
+  hazard, since a copy of a trust file re-grants a key that was later revoked if it is restored unread.
+  WHAT REPLACES THE READ IS A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN
   FRESHNESS: "last tap 3 hours ago", or "never tapped". That verifies the whole chain end to end (phone,
   Shortcut, ssh, key, forced command, file) rather than inspecting one link and inferring the rest, and
   it needs no access to `~/.ssh` at all. A wiring mistake anywhere in that chain shows up the same way:
-  the marker never moves. `--install` COVERS THE PHONE SIDE TOO, because the wiring has two halves and an
+  the marker never moves.
+  `--install` COVERS THE PHONE SIDE TOO, because the wiring has two halves and an
   operator holding only one of them has nothing working. After the `authorized_keys` line it prints the
   Shortcut recipe (Run Script Over SSH, with the host, the user and which key to select) and the triggers
   that Shortcut can be attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center,
@@ -339,9 +344,14 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   Action Button move between releases, and instructions that do not date themselves are worse than none:
   a reader on a later iOS cannot tell a path that moved from a step they got wrong. Verify them against
   the operator's own iOS at build time rather than writing them from memory here, and record the version
-  in the same change that writes the text. `--clear` DELETES the marker, which is not redundant with the
-  newest-signal-wins rule: a stray tap holds Mobile until the desk is touched, and an operator who
-  mis-taps while away from the desk has nothing that cancels it. `--json` emits the same answers
+  in the same change that writes the text. `--clear` deletes the marker. ITS CASE IS UNVERIFIED
+  AND MUST BE SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry and stays the newest
+  signal until the desk is touched, so a Back Tap fired by a bump in a pocket parks the operator on
+  Mobile with nothing to cancel it while they are away from the desk. The hole in that argument: with the
+  marker gone and the desk clock stale the surface is Away, and Away also routes to the phone, so
+  clearing may change nothing in exactly the case it was built for. CHECK THE DESK/MOBILE/AWAY DELIVERY
+  MATRIX in `pns/docs/specs/presence-and-visibility.md` first and drop the flag if the two surfaces
+  deliver alike. `--json` emits the same answers
   machine-readably, so the Shortcut renders them rather than dumping a sentence. `--no-color` is NOT one
   of these flags; it is tool-wide, task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the
   config: `~/.config/pns/config.toml` is a chezmoi-rendered target on this machine, so a write there is
@@ -358,17 +368,16 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   is, and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no `authorized_keys` line, no
   forced command, no second system holding a copy of a path, so the decoupling tasks 71 and 72 work
   around stops existing rather than being managed. The machinery is mostly here already: the daemon runs,
-  and `pns failures serve` is a listener.
-  ITS ONE REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's
-  daemon dead, because sshd and `touch` carry it end to end, and an HTTP tap does not. An operator whose
-  daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
-  secret that needs a rotation story.
+  and `pns failures serve` is a listener. ITS ONE REAL COST, which is why it is opt-in rather than the
+  default: the SSH tap works with pns's daemon dead, because sshd and `touch` carry it end to end, and an
+  HTTP tap does not. An operator whose daemon is wedged still wants their phone to say so. Also a
+  listening port where there was none, and a secret that needs a rotation story.
 
 ## Tool-wide output flags
 
-- [x] 73. DONE 2026-09-09, shipped with task 69 rather than after it, because a flag whose scope is
-  wrong is a contract, and the narrow form would have been the shipped one for as long as it took to
-  widen. `--no-color` is a PNS-WIDE flag, accepted in every position: `pns --no-color doctor` and
+- [x] 73. DONE 2026-09-09, shipped with task 69 rather than after it, because a flag whose scope is wrong
+  is a contract, and the narrow form would have been the shipped one for as long as it took to widen.
+  `--no-color` is a PNS-WIDE flag, accepted in every position: `pns --no-color doctor` and
   `pns doctor --no-color` mean the same thing, because an operator who has decided about color has
   decided about the whole command rather than about one subcommand's report. Task 69 shipped it as a
   `pns doctor`-only argument, which is the narrower reading and wrong; this widens it. The dispatcher
