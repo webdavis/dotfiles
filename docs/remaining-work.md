@@ -373,23 +373,14 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   HTTP tap does not. An operator whose daemon is wedged still wants their phone to say so. Also a
   listening port where there was none, and a secret that needs a rotation story.
 
-- [ ] 75. BIND SSHD TO THE TAILNET. Unrelated to pns and worth more than anything the tap design can do.
-  Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and IPv6, EVERY
-  INTERFACE. The Back Tap depends on Remote Login being on, so the tap is why that listener is there, but
-  the listener does not have to be reachable from everywhere. `~/.local/bin/ssh-hardening.sh` already
-  owns a drop-in at `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` and already restricts sshd to public
-  keys; adding `ListenAddress <tailscale ip>` there makes port 22 reachable over the tailnet alone. The
-  same tap mechanism, a far smaller surface, one line. Verify with `netstat` before and after and confirm
-  a tap still lands, since a wrong address silently ends both SSH and the tap.
-
 - [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
   MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works
   it beats both the SSH tap and the HTTP one: NO LISTENING PORT AT ALL, no key, no `authorized_keys`
-  line, no shared secret, nothing for pns to own but the marker it already owns.
-  FROM TRAINING, NOT VERIFIED, which is exactly why this is an investigation and not a build: whether
-  cross-device execution works on this operator's iOS and macOS versions, whether the Mac must be awake
-  or unlocked, and what the latency is. Those three answers decide it. Half an hour of testing on the
-  real devices settles whether task 74 is worth building at all.
+  line, no shared secret, nothing for pns to own but the marker it already owns. FROM TRAINING, NOT
+  VERIFIED, which is exactly why this is an investigation and not a build: whether cross-device execution
+  works on this operator's iOS and macOS versions, whether the Mac must be awake or unlocked, and what
+  the latency is. Those three answers decide it. Half an hour of testing on the real devices settles
+  whether task 74 is worth building at all.
 
 ## Tool-wide output flags
 
@@ -410,6 +401,24 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   Hue room sensor, and two tables a word apart meaning different things is the confusion this avoids.
   Ordered after 71 deliberately: a knob shipped while the path is still duplicated is a knob that breaks
   the tap when it is turned.
+
+## SSH exposure (not a pns task)
+
+- [ ] 75. BIND SSHD TO THE TAILNET. A DOTFILES TASK, NOT A PNS ONE, and it is filed in its own section
+  below rather than beside the tap tasks so it cannot be read as pns work. pns never learns that this
+  happened: it does not check for it, mention it, or behave differently either way. The tap is merely why
+  the listener exists.
+  Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and IPv6, so this Mac
+  answers on every network it touches. Public-key-only is already enforced, so nobody gets in without a
+  key, but the machine still announces itself as an SSH server to any network it joins. Tailscale is the
+  only network its own devices are on.
+  The change: an `ListenAddress` for the Tailscale address in the drop-in at
+  `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, which `dot_local/bin/executable_ssh-hardening.sh`
+  already generates and installs. Port 22 then answers on the tailnet alone. The phone is on the tailnet,
+  so the tap keeps working.
+  Verify with `netstat` before and after AND confirm a real tap still lands, because a wrong address
+  silently ends both SSH and the tap at once, and the script's own `--reload` refuses to claim success
+  without a real banner exchange.
 
 ## posture foundation
 
