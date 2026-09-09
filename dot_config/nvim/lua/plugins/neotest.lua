@@ -462,6 +462,7 @@ return {
     "nvim-neotest/neotest",
     commit = "27bf921498043f7ecd821d6db68d05de244bbd02",
     dependencies = {
+      "webdavis/pns.nvim",
       -- The busted and Swift adapters ship a rockspec listing nvim-nio, and lazy.nvim turns a
       -- rockspec dependency into a top-level spec, which would make nvim-nio load at startup.
       { "nvim-neotest/nvim-nio", lazy = true },
@@ -530,6 +531,7 @@ return {
       -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
       -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
       require("neotest").setup({
+        consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
           require("neotest-python"),
           require("neotest-golang")({}),
