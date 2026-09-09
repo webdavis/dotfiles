@@ -1,4 +1,4 @@
-use crate::{Mobile, channel_dispatch, now_secs, state_dir};
+use crate::{Mobile, channel_dispatch, failure_notice, now_secs, state_dir};
 use pns_adapters::SqliteStore;
 use pns_application::{
     Clock, DeliveryRequest, LeaseWindow, LedgerFailure, LedgerLeg, LedgerSubmission,
@@ -100,18 +100,29 @@ impl DeliveryRuntime<'_> {
             input.identity,
             clock.now_secs().and_then(|now| lease(now).ok()),
         ) {
-            (Some(identity), Some(window)) => workflow.submit(
-                &LedgerSubmission {
-                    identity: identity.clone(),
-                    producer_request: input.producer_request.map(str::to_owned),
-                    event,
-                    legs,
-                },
-                input.record,
-                window,
-                clock,
-                &delivery_notice,
-            ),
+            (Some(identity), Some(window)) => {
+                let submitted = workflow.submit(
+                    &LedgerSubmission {
+                        identity: identity.clone(),
+                        producer_request: input.producer_request.map(str::to_owned),
+                        event,
+                        legs,
+                    },
+                    input.record,
+                    window,
+                    clock,
+                    &delivery_notice,
+                );
+                // THIS IS WHERE A PERMANENT REFUSAL IS ANNOUNCED, and it is the
+                // only place it can be: a 404 dead-letters on its first attempt,
+                // so the retry loop never claims that leg and never sees it.
+                // Gated on an outcome that was not delivered, so the ordinary
+                // event path pays no ledger read.
+                if failed(&submitted) {
+                    failure_notice::announce(self.store, window.now);
+                }
+                submitted
+            }
             _ => {
                 delivery_notice("retention identity or clock unavailable");
                 Ok(workflow.attempt_live(
@@ -130,6 +141,21 @@ impl DeliveryRuntime<'_> {
                 ))
             }
         }
+    }
+}
+
+/// Whether a submission carried a leg that did not arrive.
+///
+/// AN EXISTING RECORD IS NOT RE-EXAMINED. A duplicate submission returns the
+/// first one's attempts, whose failures were announced when they happened, and
+/// announcing them again would make a retried producer call the way an operator
+/// gets a second banner about the same page.
+fn failed(submitted: &Result<Submitted, LedgerFailure>) -> bool {
+    match submitted {
+        Ok(Submitted::Attempted { outcomes, .. }) => outcomes
+            .iter()
+            .any(|(_, delivery)| !matches!(delivery, pns_domain::Delivery::Delivered(_))),
+        _ => false,
     }
 }
 

@@ -60,6 +60,10 @@ fn retry_once(
     let claimed = claimed.map(|retry| {
         if let Some(retry) = retry {
             attempt(retry, window);
+            // THE DEAD-LETTER IS WHAT THIS PASS ANNOUNCES. A leg's first failure
+            // happened on the submission path and was announced there; what only
+            // this loop ever sees is the attempt that spends the last one.
+            crate::failure_notice::announce(store, window.now);
         }
     });
     let health = match &claimed {

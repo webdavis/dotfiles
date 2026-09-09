@@ -224,13 +224,20 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   `command::tests::lifecycle::inherited_publication_io_still_terminates_descendants_at_the_total_deadline`.
   Both are timing-shaped, in the same class as the hue TLS fixture repaired in PR #474.
 - [x] 35. The banner click: `pns click`, and its three configured types
-- [ ] 35a. Raise the failure notification, which no task in this plan builds. The design gives the banner
-  and the phone card their own 256-character form and their own `fix` line, and
-  `pns_domain::failure::render::notification` renders both, but nothing calls it: a delivery failure is
-  still silent everywhere except `pns failures` and `pns doctor`. This is what stop point C's "loud"
-  claims, so it lands before 36. It also carries the last half of task 35 that had no producer to serve:
-  `click_command` returning the fixed `pns click <id>` for a failure event instead of the no-op `:`, and
-  whatever the event has to carry for the channel to know the id.
+- [x] 35a. Raise the failure BANNER, which no task in this plan built: the design gives the notification
+  its own 256-character form and its own `fix` line, and `pns_domain::failure::notification` renders it,
+  but nothing called it, so a delivery failure was silent everywhere except `pns failures` and
+  `pns doctor`. A leg speaks twice at most, on its first failure and on its dead-letter, because a banner
+  per attempt teaches the operator to dismiss the one banner the design exists to raise. It carries the
+  half of task 35 that had no producer: the banner's click is now `<absolute pns> click <id>`.
+- [ ] 35b. The failure PHONE CARD, under the existing presence rules. It waits on 36, not on scheduling:
+  `NotificationSurface::Phone` takes `serve`, which is task 36's `[failures] serve` key, and the phone's
+  whole `fix` line is chosen by it. It also owns the rule the banner never needed, that a failure is
+  never reported through the destination that failed, since a moshi refusal must not be announced to
+  moshi.
+- [ ] 35c. A non-zero exit code for a synchronous caller whose page did not land, which is rung 5 of the
+  design's "where a failure surfaces" and the one a producer such as posture reads. Today an event mode
+  invocation exits 0 whatever the destinations answered.
 - [ ] 36. The local page for moshi's browser preview
 
 ### STOP POINT C

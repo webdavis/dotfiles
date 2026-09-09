@@ -60,6 +60,7 @@ mod command_setup;
 mod daemon_runtime;
 mod delivery_runtime;
 mod event_flow;
+mod failure_notice;
 mod hook_dispatch;
 mod hook_observations;
 mod hook_payload;
