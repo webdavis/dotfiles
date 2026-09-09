@@ -491,7 +491,13 @@ The foundation is complete and nothing has cut over, so there is no runtime risk
 Every task in this section needs the pns-keyed gateway route to exist first. Adding it is an operator
 step, and it gates the whole section.
 
-- [ ] 43. posture 6.1: heartbeat cutover
+- [x] 43. posture 6.1: heartbeat cutover. The plist now runs `posture heartbeat` instead of
+  `bash heartbeat.sh`; the bash script and the integration test that pinned it are deleted.
+  `canary-freshness.sh` STAYS, because the watchdog still sources it and its own cutover is task 46. WHAT
+  THE OPERATOR STILL DOES, per the plan's step 6: apply, run `posture heartbeat` by hand once, watch for
+  the silent Discord line on the pns-keyed route and the silent desk banner, confirm the pns ledger
+  recorded it, and only then trash the deployed `~/.local/libexec/osquery/heartbeat.sh`. Deleting a
+  chezmoi source never deletes its target, which is why the deployed copy outlives this change.
 - [ ] 44. posture 6.2: digest cutover
 - [ ] 45. posture 6.3: alert cutover
 - [ ] 46. posture 6.4: watchdog cutover
