@@ -153,6 +153,9 @@ impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
     }
 }
 
+mod probe;
+pub use probe::{probe_route, probe_routes};
+
 #[cfg(test)]
 #[path = "hermes/tests/mod.rs"]
 mod tests;

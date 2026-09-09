@@ -21,7 +21,10 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
     assert_eq!(&lines[8..10], ["focus fixture", "daemon fixture"]);
     assert!(lines[10].starts_with("pns doctor: the nag "));
     assert!(lines[11].starts_with("pns doctor: lights:"));
-    assert!(lines[13].contains("decision"));
+    // The ledger, then the routes it would post to, then history. The fixture
+    // has posted to no route, so the route section is its summary alone.
+    assert!(lines[13].contains("no routes to check"));
+    assert!(lines[14].contains("decision"));
     assert!(lines.last().unwrap().contains("missed"));
     assert_eq!(&*history.reads.borrow(), &["decisions", "journal"]);
 }
@@ -90,4 +93,64 @@ fn doctor_unpaired_host_and_failed_pulse_grade_the_whole_completed_report() {
         assert_eq!(code, 1);
         assert!(lines.last().unwrap().contains("missed"));
     }
+}
+
+/// Every route gets its own line and the summary counts them, which is what
+/// makes the section usable when several routes are configured.
+#[test]
+fn each_route_gets_a_line_and_the_summary_counts_them_apart() {
+    let history = History {
+        routes: vec![
+            ("pns".into(), pns_domain::doctor::RouteVerdict::Served),
+            ("gone".into(), pns_domain::doctor::RouteVerdict::Missing),
+            (
+                "quiet".into(),
+                pns_domain::doctor::RouteVerdict::Unknown("the gateway did not answer".into()),
+            ),
+        ],
+        ..History::default()
+    };
+    let (_, lines) = report(&history, sent(), Outcome::Signalled(1), Pairing::NoAnswer);
+    let routes: Vec<&String> = lines
+        .iter()
+        .filter(|line| line.starts_with("pns doctor: route "))
+        .collect();
+    assert_eq!(routes.len(), 3);
+    assert!(routes[0].contains("served by the gateway"), "{}", routes[0]);
+    assert!(
+        routes[1].contains("THE GATEWAY HAS NO SUCH ROUTE"),
+        "{}",
+        routes[1]
+    );
+    assert!(
+        routes[2].contains("unknown, the gateway did not answer"),
+        "{}",
+        routes[2]
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "pns doctor: 3 route(s) checked, 1 missing, 1 unknown"),
+        "{lines:?}"
+    );
+}
+
+/// A missing route does NOT move the exit code. The roster is derived from what
+/// pns has posted to, so a route retired on the gateway would fail the doctor
+/// forever with nothing an operator could do to clear it, and a check that
+/// cannot be satisfied is one they learn to ignore.
+#[test]
+fn a_missing_route_reports_loudly_without_moving_the_exit_code() {
+    let history = History {
+        routes: vec![("gone".into(), pns_domain::doctor::RouteVerdict::Missing)],
+        ..History::default()
+    };
+    let (code, lines) = report(&history, sent(), Outcome::Signalled(1), Pairing::NoAnswer);
+    assert_eq!(code, 0, "{lines:?}");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("THE GATEWAY HAS NO SUCH ROUTE")),
+        "the line still says it in words that cannot be skimmed past"
+    );
 }

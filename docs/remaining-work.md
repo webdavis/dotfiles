@@ -211,7 +211,18 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   copy of the flags could disagree with the routing it describes. The design's rung 5, a non-zero exit
   for a synchronous producer, is NOT here: it changes what every producer sees and belongs in its own
   change, filed against task 34's PR.
-- [ ] 34. The `pns doctor` route check
+- [x] 34. The `pns doctor` route check. THE PROBE IS AN UNSIGNED POST, measured against the live gateway
+  on 2026-09-09: it answers 401 for a route that exists and 404 for one that does not, while GET and HEAD
+  answer 405 for every path and distinguish nothing. The signature is what authorizes a delivery, so a
+  request without one cannot become a page. The ledger's distinct routes are the roster, because a
+  producer names a route at call time and nothing else records it. A missing route reports loudly but
+  does not move the exit code: the roster is derived from history, so a route retired on the gateway
+  would fail the doctor forever with nothing an operator could do to clear it.
+- [ ] 34a. `posture-adapters` has a pre-existing flake, measured 1 of 4 runs on both `main` and a branch
+  off it on 2026-09-09:
+  `locks::tests::an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it` and
+  `command::tests::lifecycle::inherited_publication_io_still_terminates_descendants_at_the_total_deadline`.
+  Both are timing-shaped, in the same class as the hue TLS fixture repaired in PR #474.
 - [ ] 35. The banner click: `pns click`, and its three configured types
 - [ ] 36. The local page for moshi's browser preview
 

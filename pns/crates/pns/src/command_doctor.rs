@@ -203,6 +203,21 @@ pub(crate) fn doctor_mode() -> i32 {
                     .delivery_health()
                     .map_err(|_| "delivery ledger unreadable".into())
             },
+            routes: || {
+                // The ledger is the only roster pns has: a producer names a
+                // route at call time and nothing else writes it down. An
+                // unreadable ledger reports NO routes rather than inventing
+                // one, and the summary then says nothing has been posted yet,
+                // which is the honest reading of an empty list either way.
+                let posted = pns_adapters::SqliteStore::new(state_dir())
+                    .posted_routes()
+                    .unwrap_or_default();
+                let base = std::env::var("PNS_HERMES_URL")
+                    .unwrap_or_else(|_| pns_adapters::DEFAULT_HERMES_URL.to_string());
+                // The SAME client an event's hermes leg posts through, so a
+                // probe cannot succeed on a path a delivery would not take.
+                pns_adapters::probe_routes(&pns_hermes::UreqSignedPost, &base, &posted)
+            },
             imports: || {
                 pns_adapters::SqliteStore::for_records(state_dir())
                     .import_failures()

@@ -46,6 +46,13 @@ impl SqliteStore {
     /// nothing failing: a leg that has since been acknowledged answers here the
     /// same way one that never existed does, because to the reader they are the
     /// same news.
+    /// Every distinct route the ledger has posted to, which is the only roster
+    /// of routes pns has: a producer names one at call time and nothing else
+    /// records it.
+    pub fn posted_routes(&self) -> Result<Vec<String>, LedgerFailure> {
+        self.failing(failing::routes)
+    }
+
     pub fn failing_leg(&self, id: u64) -> Result<Option<StoredFailure>, LedgerFailure> {
         let Ok(id) = i64::try_from(id) else {
             return Ok(None);

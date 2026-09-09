@@ -16,7 +16,7 @@ pub struct RunDoctor<'a, R, C> {
     pub nag_after_secs: u64,
 }
 
-pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H> {
+pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO> {
     pub deliver: D,
     pub pulse: P,
     pub presence: PR,
@@ -26,12 +26,16 @@ pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H> {
     pub lamps: L,
     pub imports: I,
     pub delivery_health: H,
+    /// Whether the gateway serves each route pns has posted to. A closure
+    /// rather than a value, so the doctor pays for the probes only when it
+    /// reaches this section.
+    pub routes: RO,
 }
 
 impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
-    pub fn run<D, P, PR, PA, F, DA, L, I, H>(
+    pub fn run<D, P, PR, PA, F, DA, L, I, H, RO>(
         &self,
-        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H>,
+        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO>,
         mut print: impl FnMut(&str),
     ) -> i32
     where
@@ -44,6 +48,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         L: FnOnce() -> LightsReport,
         I: FnOnce() -> Result<Vec<ImportFailure>, String>,
         H: FnOnce() -> Result<crate::DeliveryHealth, String>,
+        RO: FnOnce() -> Vec<(String, pns_domain::doctor::RouteVerdict)>,
     {
         let checks = self.checks;
         let event = pns_domain::EventArgs {
@@ -157,6 +162,22 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
         print(&crate::delivery_health_line((actions.delivery_health)()));
+        // IMMEDIATELY UNDER THE LEDGER, because the two answer one question
+        // between them: the line above says what is not arriving, and these say
+        // whether the gateway would take it if pns sent it again.
+        //
+        // IT DOES NOT MOVE THE EXIT CODE, and that is not timidity. The roster
+        // is derived from what pns has POSTED TO, so a route used once and
+        // since retired on the gateway is missing forever with nothing an
+        // operator can do to clear it. A check that cannot be satisfied is one
+        // they learn to ignore, which would cost them the check that matters.
+        // The line says the route is missing in words that cannot be skimmed
+        // past; the reader decides.
+        let routes = (actions.routes)();
+        for (route, verdict) in &routes {
+            print(&pns_domain::doctor::route_line(route, verdict));
+        }
+        print(&pns_domain::doctor::routes_summary(&routes));
         for line in sections::decision_section(self.records, self.clock.now_secs()) {
             print(&line);
         }

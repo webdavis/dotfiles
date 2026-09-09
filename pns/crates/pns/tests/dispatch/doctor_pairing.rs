@@ -50,8 +50,17 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
          run `pns failures` for what is not arriving",
         "delivery health precedes decision history: {printed}"
     );
+    // The routes sit IMMEDIATELY UNDER the ledger, because the two answer one
+    // question between them: what is not arriving, and whether the gateway
+    // would take it if pns sent it again. This fixture has posted to no route,
+    // so the section is its own summary alone.
     assert_eq!(
         lines[summary + 8],
+        "pns doctor: no routes to check; nothing has been posted yet",
+        "the route check sits under the ledger: {printed}"
+    );
+    assert_eq!(
+        lines[summary + 9],
         format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

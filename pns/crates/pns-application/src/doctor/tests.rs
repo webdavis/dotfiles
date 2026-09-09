@@ -8,6 +8,7 @@ struct History {
     reads: RefCell<Vec<&'static str>>,
     imports: Result<Vec<(String, String)>, String>,
     health: Result<crate::DeliveryHealth, String>,
+    routes: Vec<(String, pns_domain::doctor::RouteVerdict)>,
 }
 impl Default for History {
     fn default() -> Self {
@@ -17,6 +18,7 @@ impl Default for History {
             reads: RefCell::new(Vec::new()),
             imports: Ok(Vec::new()),
             health: Err("fixture unreadable".into()),
+            routes: Vec::new(),
         }
     }
 }
@@ -106,6 +108,7 @@ fn report(
                 daemon: || "daemon fixture".into(),
                 lamps: || LightsReport::Off,
                 delivery_health: || history.health.clone(),
+                routes: || history.routes.clone(),
                 imports: || {
                     history.imports.clone().map(|rows| {
                         rows.into_iter()
