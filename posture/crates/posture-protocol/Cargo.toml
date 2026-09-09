@@ -1,6 +1,15 @@
-# The existing cross-process digest record contract. PR 2.4 adds its codec
-# and serialization dependency; the foundation declares its owner only.
+# The existing cross-process digest record contract: the six-field NDJSON line
+# the alerter appends and the daily digest reads back.
+#
+# Depends on nothing but a JSON codec. The record's derivation, its grouping and
+# its caps are domain policy; appending, claiming and permissions are adapters.
+# This crate owns exactly the wire shape the two processes agree on.
+
 [package]
 name = "posture-protocol"
 version = "0.1.0"
 edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
