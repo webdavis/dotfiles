@@ -329,6 +329,19 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   or "never tapped". That verifies the whole chain end to end (phone, Shortcut, ssh, key, forced command,
   file) rather than inspecting one link and inferring the rest, and it needs no access to `~/.ssh` at
   all. A wiring mistake anywhere in that chain shows up the same way: the marker never moves. `--install`
+  IS A GUIDE, not a dump. It uses task 69's house style, so setup and `pns doctor` read as one tool: the
+  framed title, `◆` numbered step headings with a faint blurb on the rule, `·` rows for the parts of a
+  line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE
+  SUBTITLE NAMES THE WALKTHROUGH rather than counting its parts: "set up this Mac, then set up your
+  phone", never "two halves", because the reader is about to follow steps and the subtitle should tell
+  them what the steps are. Three of them, in the order they are performed: step 1 the `authorized_keys`
+  line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
+  Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
+  text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
+  each. Host and user come from the machine, never hardcoded.
+  STEP 2 SHRINKS LATER. The operator intends to host a public Shortcut people can install directly
+  (2026-09-09), at which point step 2 becomes a link and an "install this" rather than a field-by-field
+  build. Write it so that swapping those is an edit to one step, not a rewrite of the guide.
   COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only one of them
   has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run Script Over
   SSH, with the host, the user and which key to select) and the triggers that Shortcut can be attached
