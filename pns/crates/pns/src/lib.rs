@@ -46,6 +46,7 @@ mod channel_dispatch;
 mod channel_settings;
 mod command_daemon;
 mod command_doctor;
+mod command_failures;
 mod command_home;
 mod command_lights;
 mod command_loop;
@@ -79,6 +80,7 @@ pub(crate) use channel_settings::{
 };
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
+pub(crate) use command_failures::failures_mode;
 pub(crate) use command_home::home_mode;
 pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;

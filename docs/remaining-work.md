@@ -203,7 +203,14 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   design gaps closed while building: the terminal `fix` needed a repair per code, which the design gave
   only as one worked example, and the 413 and 422 rows named no concrete subject despite the design's own
   rule that every meaning must.
-- [ ] 33. `pns failures` and the `pns doctor` routing to it
+- [x] 33. `pns failures` and the `pns doctor` routing to it. The read path, the listing capped at twenty
+  newest first, `pns failures <id>` through the full renderer, and the doctor's ledger line naming the
+  command when there is something to look at. NO PICKER, so the design's interaction model is not built:
+  a printed listing plus an id needs no prompt, and a prompt is the only thing that model exists to
+  guard. The `failed command` is reconstructed from the routing facts rather than stored, since a second
+  copy of the flags could disagree with the routing it describes. The design's rung 5, a non-zero exit
+  for a synchronous producer, is NOT here: it changes what every producer sees and belongs in its own
+  change, filed against task 34's PR.
 - [ ] 34. The `pns doctor` route check
 - [ ] 35. The banner click: `pns click`, and its three configured types
 - [ ] 36. The local page for moshi's browser preview

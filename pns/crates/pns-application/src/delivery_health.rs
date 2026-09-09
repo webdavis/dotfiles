@@ -23,11 +23,18 @@ pub fn report_delivery_health(
     }
 }
 
+/// The doctor's one line about the ledger.
+///
+/// IT STAYS A SUMMARY AND NAMES THE DETAIL VIEW. Counts say how MUCH is wrong
+/// and nothing about what, so a line reporting a backlog without saying where to
+/// look leaves the operator holding a number and no next step. It names
+/// `pns failures` only when there is something there: a pointer offered on a
+/// healthy machine is one the reader learns to skip.
 pub fn delivery_health_line(health: Result<DeliveryHealth, String>) -> String {
     match health {
         Err(_) => "pns doctor: delivery ledger unreadable; backlog and deadletters unknown".into(),
         Ok(health) => format!(
-            "pns doctor: delivery ledger: {} pending leg(s), {} deadlettered, growth streak {}, alarm {}; recording gaps {}",
+            "pns doctor: delivery ledger: {} pending leg(s), {} deadlettered, growth streak {}, alarm {}; recording gaps {}{}",
             health.pending_legs,
             health.deadlettered_legs,
             health.growth_streak,
@@ -40,6 +47,11 @@ pub fn delivery_health_line(health: Result<DeliveryHealth, String>) -> String {
                 "recorded in recent daemon log"
             } else {
                 "none in recent daemon log"
+            },
+            if health.pending_legs > 0 || health.deadlettered_legs > 0 {
+                "; run `pns failures` for what is not arriving"
+            } else {
+                ""
             }
         ),
     }
