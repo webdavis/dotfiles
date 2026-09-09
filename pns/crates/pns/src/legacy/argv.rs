@@ -34,7 +34,12 @@ const VALUE_FLAGS: [&str; 8] = [
 /// comparisons because the chain is what went stale: `--long-running` was
 /// handled below and never added here, so a value flag in front of it ate it as
 /// its value and the tier vanished without a warning.
-const BARE_FLAGS: [&str; 3] = ["--long-running", "--local-only", "--remote-only"];
+const BARE_FLAGS: [&str; 4] = [
+    "--long-running",
+    "--local-only",
+    "--remote-only",
+    "--require-delivery",
+];
 
 /// Whether a token is a producer flag, shared by parsing and invocation classification.
 fn is_producer_flag(token: &str) -> bool {
@@ -56,6 +61,15 @@ pub(super) struct ParsedArgs {
     pub help: bool,
     pub event: EventArgs,
     pub warnings: Vec<String>,
+    /// `--require-delivery`: whether this caller wants the exit code to say
+    /// that its page did not reach the durable log.
+    ///
+    /// OPT-IN, AND IT HAS TO BE. Decision 0010 says a notification never fails
+    /// the work it reports on, and every harness hook, the shell notifier and
+    /// the daemon call this while real work is in flight. A caller that asked
+    /// for the answer is a caller that can take it; every other one keeps the
+    /// exit-0 contract untouched.
+    pub require_delivery: bool,
     elapsed: Result<Option<u64>, String>,
     scope: Option<DeliveryScope>,
 }
@@ -89,6 +103,7 @@ where
     let mut help = false;
     let mut local_only = false;
     let mut remote_only = false;
+    let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut tokens = argv.into_iter().peekable();
@@ -97,6 +112,7 @@ where
             "--long-running" => parsed.long_running = true,
             "--local-only" => local_only = true,
             "--remote-only" => remote_only = true,
+            "--require-delivery" => require_delivery = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
             // --help` never lands here, the value arm below already took
@@ -149,6 +165,7 @@ where
         help,
         event: parsed,
         warnings,
+        require_delivery,
         elapsed,
         scope: match (local_only, remote_only) {
             (false, false) => Some(DeliveryScope::Automatic),

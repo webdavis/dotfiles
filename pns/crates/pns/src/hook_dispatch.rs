@@ -76,7 +76,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // a closed question no prompt is listening to. `denied` states no
         // message of its own, so its detail resolves through `parse_payload`'s
         // existing chain to the tool request.
-        "asked" | "plan-ready" | "denied" => run_event(
+        "asked" | "plan-ready" | "denied" => drop(run_event(
             &pns_domain::EventArgs {
                 agent,
                 state: event.to_string(),
@@ -88,7 +88,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
             &system_probes(),
             &payload,
             Attempt::First,
-        ),
+        )),
         // `PostModelSwitch`, restricted to the one `source` that is news:
         // `command`, `picker` and `sdk` are the operator or the harness
         // choosing a model on purpose, and `resume`, which the harness also

@@ -27,5 +27,5 @@ pns: usage:
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --channel <route> --elapsed <secs>
-                --local-only --remote-only --long-running
+                --local-only --remote-only --long-running --require-delivery
 ";
