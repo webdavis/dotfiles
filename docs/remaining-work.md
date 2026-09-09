@@ -104,15 +104,29 @@ The other two were retired by merged pull requests and named in their bodies for
 Everything above is additive. posture has not cut over, so the existing osquery pipeline keeps running
 untouched. This is the recommended place to stop and apply.
 
-## The Rust extraction program
+## The monorepo conversion
 
-The operator's standing constraint: nothing moves until a plan exists. Seven tools leave this repository
-for their own public repositories, and most of the chezmoi machinery that builds and deploys them gets
-deleted rather than rewritten.
+Operator ruling 2026-09-09, replacing the earlier extraction plan. The tools STAY in this repository for
+now, laid out like a monorepo so that lifting one out later is a move rather than a rewrite. They are
+products other people install, so nothing in a tool may assume this repository exists.
 
-- [ ] 20. Write the extraction plan: the seven repositories, what each one takes with it, what this
-  repository deletes, and the order.
-- [ ] 21. Get the plan approved before touching anything.
+Extraction into separate repositories is deferred to the tail; see task 68a.
+
+- [ ] 20. Convert to the monorepo layout, as ONE change because half-moved paths are the failure mode:
+  move `dot_local/share/{pns,uu,posture,lights}` to `{pns,uu,posture,lights}` at the repository root;
+  rename the CLI packages `pns-cli` to `pns`, `uu-cli` to `uu`, `posture-cli` to `posture`, so
+  `cargo install --git https://github.com/webdavis/dotfiles pns` reads naturally; install the binaries to
+  `~/.cargo/bin` and retire the `~/.local/libexec` rule for these four only, the bash scripts keep it.
+  Every caller reads ONE declared value rather than a literal path: the pns and uu LaunchAgents, the
+  Claude Code hook table in `modify_settings.json`, the Codex hook installer, `dot_bashrc.tmpl`, and the
+  herdr and aerospace keybindings. launchd is the exception that needs the absolute path, because it has
+  no PATH. Also update `.chezmoiignore`, the four builder scripts, the justfile, `treefmt.toml`,
+  `scripts/treefmt/rust-file-size.sh` and the tests that name the old paths. Verified by experiment on
+  2026-09-08: `cargo install --git` finds a package in a nested workspace with NO root `Cargo.toml`, so
+  no root workspace manifest is needed and none should be added.
+- [ ] 21. Apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a `launchctl list`
+  showing both agents loaded, and one real long-running command raising its notification through the
+  shell hook.
 
 ## pns closure and the rescued lanes
 
@@ -214,6 +228,9 @@ posture is done and osquery is retired.
 - [ ] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`
 - [ ] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`, approved and
   scheduled after posture
+- [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
+  has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
+  exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
 
 ## Repository hygiene
 
