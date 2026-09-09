@@ -18,7 +18,12 @@ fn a_malformed_decision_rolls_back_completion_and_keeps_the_owned_attempt_unfini
     let decision = line(&store);
     assert!(
         matches!(
-            store.record(&legs[0].claim, &acknowledged(), 11),
+            store.record(
+                &legs[0].claim,
+                &reported(&acknowledged()),
+                11,
+                Default::default()
+            ),
             Err(LedgerFailure::Unavailable(_))
         ),
         "malformed decision must roll back ledger completion"
@@ -55,15 +60,29 @@ fn a_decision_write_refusal_rolls_back_completion_without_losing_claim_ownership
     let before = store.inspect(&input.identity).unwrap().unwrap();
     let decision = line(&store);
     assert!(
-        store.record(&legs[0].claim, &acknowledged(), 11).is_err(),
+        store
+            .record(
+                &legs[0].claim,
+                &reported(&acknowledged()),
+                11,
+                Default::default()
+            )
+            .is_err(),
         "decision publication refusal must roll back ledger completion"
     );
     assert_eq!(store.inspect(&input.identity).unwrap().unwrap(), before);
     assert_eq!(line(&store), decision);
-    store.record(&legs[0].claim, &retry(30), 12).unwrap();
+    store
+        .record(
+            &legs[0].claim,
+            &reported(&retry(30)),
+            12,
+            Default::default(),
+        )
+        .unwrap();
     assert!(line(&store).ends_with(" legs=phone-primary:failed\n"));
     assert_eq!(
         store.inspect(&input.identity).unwrap().unwrap().attempts[0].completion,
-        retry(30)
+        retry(12)
     );
 }

@@ -73,7 +73,7 @@ pub fn verdicts(legs: &[(Leg, Delivery)]) -> String {
 pub fn verdict(delivery: &Delivery) -> &'static str {
     match delivery {
         Delivery::Delivered(_) => "delivered",
-        Delivery::Failed(_) => "failed",
+        Delivery::Failed(_) | Delivery::Rejected { .. } => "failed",
         Delivery::Unlaunched(_) => "unlaunched",
         Delivery::Silent => "silent",
     }

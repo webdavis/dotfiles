@@ -149,6 +149,10 @@ pub enum Delivery {
     Delivered(String),
     /// It did not, and this is what the destination said about that.
     Failed(String),
+    Rejected {
+        status: u16,
+        detail: String,
+    },
     /// It was never even LAUNCHED, and this says which channel and why. An
     /// executable channel that ran and said nothing is `Silent`; a spawn that
     /// never happened delivered nothing at all, and a caller that cannot tell
@@ -169,7 +173,9 @@ impl Delivery {
     /// exactly the outcome the log path exists to make visible.
     pub fn line_for(self, mode: ReportMode) -> Option<String> {
         match self {
-            Delivery::Delivered(line) | Delivery::Failed(line)
+            Delivery::Delivered(line)
+            | Delivery::Failed(line)
+            | Delivery::Rejected { detail: line, .. }
                 if mode == ReportMode::ReportOutcome =>
             {
                 Some(line)

@@ -103,7 +103,12 @@ fn competing_claim(retry: bool, name: &str) {
         "no acknowledgement may be invented after process death"
     );
     store
-        .record(&recovered.claim, &acknowledged(), now)
+        .record(
+            &recovered.claim,
+            &reported(&acknowledged()),
+            now,
+            Default::default(),
+        )
         .unwrap();
     assert!(
         store

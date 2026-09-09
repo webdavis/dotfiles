@@ -33,7 +33,12 @@ fn a_failed_outcome_write_preserves_the_unfinished_claim_for_a_later_record() {
     let connection = store.connect().unwrap();
     connection.execute_batch("CREATE TRIGGER reject_ack BEFORE UPDATE ON ledger_attempts WHEN NEW.outcome = 1 BEGIN SELECT RAISE(ABORT, 'injected outcome failure'); END;").unwrap();
     assert!(matches!(
-        store.record(&legs[0].claim, &acknowledged(), 11),
+        store.record(
+            &legs[0].claim,
+            &reported(&acknowledged()),
+            11,
+            Default::default()
+        ),
         Err(LedgerFailure::Unavailable(_))
     ));
     assert!(matches!(
@@ -45,7 +50,12 @@ fn a_failed_outcome_write_preserves_the_unfinished_claim_for_a_later_record() {
     ));
     connection.execute_batch("DROP TRIGGER reject_ack").unwrap();
     store
-        .record(&legs[0].claim, &acknowledged(), 12)
+        .record(
+            &legs[0].claim,
+            &reported(&acknowledged()),
+            12,
+            Default::default(),
+        )
         .expect("failed record must leave its claim owned");
 }
 #[test]

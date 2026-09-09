@@ -126,6 +126,10 @@ Config {
         max_attempts: 20,
         max_age_secs: 604800,
     },
+    retry_backoff: RetryBackoff {
+        base_secs: 60,
+        random_secs: 60,
+    },
     nag_after_secs: 300,
     lights: Some(
         Lights {

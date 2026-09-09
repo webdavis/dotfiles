@@ -1,7 +1,7 @@
 use crate::{
     Clock, DecisionOutcomes, DeliveryLedger, DeliveryRequest, Destinations, LeaseWindow,
-    LedgerCompletion, LedgerFailure, LedgerLeg, LedgerSubmission, NotificationDestination,
-    PreparedSubmission, Recorded, SubmissionRecord, UnconfirmedDelivery,
+    LedgerFailure, LedgerLeg, LedgerSubmission, NotificationDestination, PreparedSubmission,
+    Recorded, SubmissionRecord,
 };
 use pns_domain::{Delivery, Record};
 
@@ -82,7 +82,9 @@ where
                         route: &leg.route,
                         mode: leg.mode,
                     },
-                    claim.as_ref().map(|claim| (claim, lease)),
+                    claim
+                        .as_ref()
+                        .map(|claim| (claim, lease, Default::default())),
                     &leg.destination,
                     clock,
                     notice,
@@ -102,13 +104,20 @@ where
         let Some(retry) = self.ledger.claim_retry(lease, Default::default())? else {
             return Ok(None);
         };
-        Ok(Some(self.attempt_retry(retry, lease, clock, notice)))
+        Ok(Some(self.attempt_retry(
+            retry,
+            lease,
+            Default::default(),
+            clock,
+            notice,
+        )))
     }
 
     pub fn attempt_retry(
         &self,
         retry: crate::RetryDelivery<L::Claim>,
         lease: LeaseWindow,
+        backoff: pns_domain::retry::RetryBackoff,
         clock: &(impl Clock + Sync),
         notice: &(impl Fn(&str) + Sync),
     ) -> (LedgerLeg, Delivery) {
@@ -120,7 +129,7 @@ where
                 route: &retry.leg.route,
                 mode: retry.leg.mode,
             },
-            Some((&retry.claim, lease)),
+            Some((&retry.claim, lease, backoff)),
             &retry.leg.destination,
             clock,
             notice,

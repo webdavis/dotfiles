@@ -19,6 +19,7 @@ pub(super) fn result(submitted: Result<Submitted, LedgerFailure>) -> ResultEnvel
                 .into_iter()
                 .map(|attempt| {
                     let verdict = match attempt.completion {
+                        LedgerCompletion::Rejected { .. } => DeliveryOutcome::Failed,
                         LedgerCompletion::Acknowledged { .. } => DeliveryOutcome::Delivered,
                         LedgerCompletion::Retry {
                             outcome: UnconfirmedDelivery::Failed,
@@ -80,7 +81,7 @@ fn outcome(destination: String, delivered: &Delivery) -> DestinationOutcome {
         destination,
         match delivered {
             Delivery::Delivered(_) => DeliveryOutcome::Delivered,
-            Delivery::Failed(_) => DeliveryOutcome::Failed,
+            Delivery::Failed(_) | Delivery::Rejected { .. } => DeliveryOutcome::Failed,
             Delivery::Silent => DeliveryOutcome::Silent,
             Delivery::Unlaunched(_) => DeliveryOutcome::Unlaunched,
         },

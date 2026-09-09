@@ -110,7 +110,7 @@ deleted rather than rewritten.
 
 ## pns closure and the rescued lanes
 
-- [ ] 22. Rework `fix/pns-retry-backoff` against the current crate layout, PR, merge
+- [x] 22. Rework `fix/pns-retry-backoff` against the current crate layout, PR, merge
 - [ ] 23. Review and push `feat/posture-producer-commands` (heartbeat), PR, merge
 - [ ] 24. Review and push `feat/posture-converge-staging` (6 commits), PR, merge
 - [ ] 25. pns 18.1a: the `cargo doc` gate with `RUSTDOCFLAGS="-D warnings"`

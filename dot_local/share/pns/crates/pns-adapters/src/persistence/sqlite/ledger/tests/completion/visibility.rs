@@ -11,7 +11,7 @@ fn an_observer_sees_ledger_and_decision_completion_in_one_snapshot() {
     let (done, finished) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
         let store = SqliteStore::new(path);
-        let result = store.record(&claim, &acknowledged(), 11);
+        let result = store.record(&claim, &reported(&acknowledged()), 11, Default::default());
         done.send(()).unwrap();
         result
     });
@@ -45,13 +45,18 @@ fn a_suspended_worker_cannot_revise_after_a_competing_generation_finishes() {
     let (release, resumed) = std::sync::mpsc::channel();
     let worker = std::thread::spawn(move || {
         resumed.recv_timeout(Duration::from_millis(650)).unwrap();
-        SqliteStore::new(path).record(&claim, &retry(40), 22)
+        SqliteStore::new(path).record(&claim, &reported(&retry(40)), 22, Default::default())
     });
     let successor = store
         .claim_retry(lease(20, 30), Default::default())
         .unwrap()
         .unwrap();
-    let result = store.record(&successor.claim, &acknowledged(), 21);
+    let result = store.record(
+        &successor.claim,
+        &reported(&acknowledged()),
+        21,
+        Default::default(),
+    );
     release.send(()).unwrap();
     let stale = worker.join().unwrap();
     result.unwrap();

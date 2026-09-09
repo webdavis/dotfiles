@@ -116,6 +116,8 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("delivery", "bypass_silence_classes", "[\"custom\"]"),
     ("delivery", "max_attempts", "3"),
     ("delivery", "max_age_secs", "7"),
+    ("delivery", "retry_base_secs", "7"),
+    ("delivery", "retry_random_secs", "0"),
     (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
     (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
     (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
@@ -258,5 +260,29 @@ fn delivery_retry_settings_are_accepted_and_bad_limits_are_refused() {
     );
     for value in ["-1", "1.5", "true", "\"20\""] {
         assert!(parse_config(&format!("[delivery]\nmax_attempts = {value}\n")).is_err());
+    }
+}
+
+#[test]
+fn delivery_backoff_settings_accept_independent_base_and_random_seconds() {
+    let configured =
+        parse_config("[delivery]\nretry_base_secs = 7\nretry_random_secs = 0\n").unwrap();
+    assert_eq!(
+        (
+            configured.retry_backoff.base_secs,
+            configured.retry_backoff.random_secs
+        ),
+        (7, 0)
+    );
+    let defaults = parse_config("").unwrap().retry_backoff;
+    assert_eq!((defaults.base_secs, defaults.random_secs), (60, 60));
+    let inherited = parse_config("[delivery]\nretry_base_secs = 7\n")
+        .unwrap()
+        .retry_backoff;
+    assert_eq!((inherited.base_secs, inherited.random_secs), (7, 7));
+    for invalid in ["-1", "1.5", "true", "\"secret\"", "[]"] {
+        for key in ["retry_base_secs", "retry_random_secs"] {
+            assert!(parse_config(&format!("[delivery]\n{key} = {invalid}\n")).is_err());
+        }
     }
 }

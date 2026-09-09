@@ -26,6 +26,10 @@ pub(super) fn revise_decision(
         },
     )?;
     let delivery = match completion {
+        LedgerCompletion::Rejected { status, detail } => Delivery::Rejected {
+            status: *status,
+            detail: detail.clone(),
+        },
         LedgerCompletion::Acknowledged { detail } => Delivery::Delivered(detail.clone()),
         LedgerCompletion::Retry {
             outcome: UnconfirmedDelivery::Failed,
