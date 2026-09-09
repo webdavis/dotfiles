@@ -179,6 +179,10 @@ test-rust:
   cargo fmt --all --check --manifest-path pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
+  cargo test --locked --workspace --manifest-path tailnet-pin/Cargo.toml
+  cargo fmt --all --check --manifest-path tailnet-pin/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path tailnet-pin/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path tailnet-pin/Cargo.toml
   cargo test --locked --workspace --manifest-path uu/Cargo.toml
   cargo fmt --all --check --manifest-path uu/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path uu/Cargo.toml -- -D warnings

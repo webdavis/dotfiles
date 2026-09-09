@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/tailnet-pin-application",
+  "crates/tailnet-pin-domain",
+  "crates/tailnet-pin-adapters",
+  "crates/tailnet-pin-protocol",
+  "crates/tailnet-pin",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"

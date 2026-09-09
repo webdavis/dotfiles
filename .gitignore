@@ -48,6 +48,9 @@ lights/target/
 # Same, for the posture crate.
 posture/target/
 
+# Same, for the tailnet-pin workspace.
+tailnet-pin/target/
+
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*
 *config.yaml.corrupt*
