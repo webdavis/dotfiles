@@ -281,7 +281,7 @@ is what makes a tool feel finished.
 
 ## posture foundation
 
-- [ ] 37. posture 2.4: page, domain digest, protocol codec
+- [x] 37. posture 2.4: page, domain digest, protocol codec
 - [ ] 38. posture 2.9: `drift.rs` and `converge_policy.rs`
 - [ ] 39. posture 2.10: `cursor.rs` and `triage.rs`
 - [ ] 40. posture 3.1 remainder: four adapters
