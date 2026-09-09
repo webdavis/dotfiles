@@ -126,6 +126,16 @@ esac
 exit 0
 STUB
 
+  # osqueryi: the symlink to the very osqueryd binary the config check runs
+  # directly. Without a stub here resolve_osqueryd would reach the host's real
+  # osquery, the check would run against a real binary under the sudo stub, and
+  # nothing below could program it to reject a configuration.
+  cat >"$BIN/osqueryi" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OSQUERYD_LOG"
+exit "${OSQUERYD_CONFIG_CHECK_EXIT:-0}"
+STUB
+
   # pgrep: only `pgrep -P 1 -x osqueryd` is asked for. The pid file IS the
   # daemon's liveness. DAEMON_LIVES models a daemon that answers a few probes
   # and is then gone, which is what a crash inside the settle window looks like.
@@ -195,7 +205,7 @@ STUB
   # An instant sleep: the restart poll waits in quarter seconds and nothing here
   # asserts on the waiting.
   ln -sf /usr/bin/true "$BIN/sleep"
-  chmod +x "$BIN/sudo" "$BIN/osqueryctl" "$BIN/pgrep" "$BIN/stat" "$BIN/cmp"
+  chmod +x "$BIN/sudo" "$BIN/osqueryctl" "$BIN/osqueryi" "$BIN/pgrep" "$BIN/stat" "$BIN/cmp"
 }
 
 tear_down_after_script() { discard_fixture "$FILE_FIXTURE"; }
@@ -212,6 +222,7 @@ set_up() {
   LOG_DIR="$ROOT/log/osquery"
   SUDO_LOG="$ROOT/sudo.log"
   OSQUERYCTL_LOG="$ROOT/osqueryctl.log"
+  OSQUERYD_LOG="$ROOT/osqueryd.log"
   INSTALL_SOURCE_LOG="$ROOT/install-source.log"
   DAEMON_PID_FILE="$ROOT/daemon.pid"
   DAEMON_LIVES="$ROOT/daemon.lives"
@@ -221,6 +232,7 @@ set_up() {
   cp -R "$PROTOTYPE/." "$ROOT/"
   : >"$SUDO_LOG"
   : >"$OSQUERYCTL_LOG"
+  : >"$OSQUERYD_LOG"
   : >"$INSTALL_SOURCE_LOG"
   : >"$PGREP_ARGV"
   : >"$CMP_LOG"
@@ -231,7 +243,7 @@ set_up() {
   # on a privileged binary moves the scope to the stub bin directory instead.
   FAKE_STAT_UID_SCOPE="$TARGET"
 
-  export SUDO_LOG OSQUERYCTL_LOG INSTALL_SOURCE_LOG DAEMON_PID_FILE DAEMON_LIVES PGREP_ARGV
+  export SUDO_LOG OSQUERYCTL_LOG OSQUERYD_LOG INSTALL_SOURCE_LOG DAEMON_PID_FILE DAEMON_LIVES PGREP_ARGV
   export CMP_LOG
   export FAKE_STAT_UID_SCOPE
 }
@@ -261,6 +273,7 @@ converge() {
     OSQUERY_CONVERGE_TARGET_DIR="$TARGET" \
     OSQUERY_CONVERGE_SUDO="$BIN/sudo" \
     OSQUERY_CONVERGE_OSQUERYCTL="${OSQUERYCTL_STUB:-$BIN/osqueryctl}" \
+    OSQUERY_CONVERGE_OSQUERYD="${OSQUERYD_STUB-$BIN/osqueryi}" \
     OSQUERY_CONVERGE_LOG_DIR="$LOG_DIR" \
     OSQUERY_CONVERGE_RESTART_DEADLINE=1 \
     OSQUERY_CONVERGE_SETTLE_SECONDS=1 \
@@ -502,10 +515,13 @@ function test_the_content_comparison_reads_the_private_copy_not_the_deployed_sta
 }
 
 function test_only_the_drifted_file_is_reinstalled_so_a_repair_is_not_a_rewrite_of_everything() {
+  # Scoped to the INSTALL calls on purpose. The configuration check is also a
+  # privileged call and it names osquery.conf as its --config_path, so a bare
+  # search of the sudo log would report the check as a reinstall.
   rm -f "$TARGET/osquery.flags"
   converge >/dev/null 2>&1
   assert_successful_code
-  assert_file_not_contains "$SUDO_LOG" "$TARGET/osquery.conf"
+  assert_not_contains "$TARGET/osquery.conf" "$(grep install "$SUDO_LOG" || true)"
 }
 
 function test_a_repair_says_which_file_it_repaired_and_why() {
@@ -839,9 +855,34 @@ function test_a_symlink_standing_in_for_the_vendor_plist_refuses_the_restart() {
 
 function test_a_config_the_daemon_cannot_parse_refuses_the_restart_and_never_stops_the_daemon() {
   rm -f "$TARGET/osquery.conf"
-  OSQUERYCTL_CONFIG_CHECK_EXIT=1 converge >/dev/null 2>&1
+  OSQUERYD_CONFIG_CHECK_EXIT=1 converge >/dev/null 2>&1
   assert_unsuccessful_code
   assert_file_not_contains "$OSQUERYCTL_LOG" stop
+}
+
+function test_the_configuration_check_runs_the_daemon_against_a_database_of_its_own() {
+  # The whole reason the check calls the binary directly. osqueryctl passes no
+  # --database_path, so its check opens the live database the running daemon
+  # holds a lock on and fails on the lock rather than on the configuration,
+  # which would refuse every converge on a host whose daemon is up.
+  rm -f "$TARGET/osquery.conf"
+  converge >/dev/null 2>&1
+  assert_successful_code
+  assert_file_contains "$OSQUERYD_LOG" --config_check
+  assert_file_contains "$OSQUERYD_LOG" --database_path
+  assert_file_not_contains "$OSQUERYCTL_LOG" config-check
+}
+
+function test_without_a_resolvable_daemon_binary_the_check_falls_back_to_osqueryctl() {
+  # The fallback arm. A host where osqueryi cannot be resolved still gets a
+  # configuration check rather than none, and a rejection there still refuses.
+  local output
+  rm -f "$TARGET/osquery.conf"
+  output="$(OSQUERYD_STUB="$ROOT/no-such-osqueryd" OSQUERYCTL_CONFIG_CHECK_EXIT=1 converge 2>&1)"
+  assert_unsuccessful_code
+  assert_file_contains "$OSQUERYCTL_LOG" config-check
+  assert_file_not_contains "$OSQUERYCTL_LOG" stop
+  assert_not_contains "restarted osqueryd" "$output"
 }
 
 function test_a_daemon_that_never_comes_back_is_a_loud_failure_not_a_reported_success() {
