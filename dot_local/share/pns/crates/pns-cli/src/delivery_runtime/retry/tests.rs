@@ -1,7 +1,5 @@
 use super::*;
-use pns_application::{
-    LedgerCompletion, LedgerLeg, LedgerSubmission, PreparedSubmission, SubmissionIdentity,
-};
+use pns_application::{LedgerLeg, LedgerSubmission, PreparedSubmission, SubmissionIdentity};
 use pns_domain::{Delivery, EventArgs, retry::RetryLimits, routing::ReportMode};
 use std::cell::Cell;
 
@@ -52,24 +50,23 @@ fn daemon_retry_uses_limits_and_retained_route_and_continues_after_a_failed_heal
         limits,
         |message| {
             assert!(message.contains("1 deadlettered"));
-            calls.set(1);
+            calls.set(calls.get() + 1);
             Delivery::Failed("fixture".into())
         },
         |retry, _| {
-            assert_eq!(calls.get(), 1, "alarm attempt precedes retry transport");
+            assert_eq!(calls.get(), 0, "transport precedes the pass health sample");
             assert_eq!(retry.identity, later.identity);
             assert_eq!(retry.event, later.event);
             assert_eq!(retry.leg.route, "retained-priority");
             store
                 .record(
                     &retry.claim,
-                    &LedgerCompletion::Acknowledged {
-                        detail: "fixture accepted".into(),
-                    },
+                    &Delivery::Delivered("fixture accepted".into()),
                     12,
+                    Default::default(),
                 )
                 .unwrap();
-            calls.set(2);
+            calls.set(calls.get() + 1);
         },
     );
     assert!(result.is_err());
@@ -140,4 +137,52 @@ fn daemon_health_banner_uses_the_native_sound_enabled_adapter_and_observes_its_f
         alarm_banner("one undelivered page", Runner(false)),
         Delivery::Failed(_)
     ));
+}
+
+#[test]
+fn a_permanent_retry_failure_raises_its_retained_alarm_in_the_same_pass() {
+    let state = crate::runtime_test_support::scratch("permanent-retry-health");
+    let store = SqliteStore::new(state);
+    let original = input("permanent", "retained-route");
+    store
+        .prepare(&original, pns_application::LeaseWindow { now: 1, until: 2 })
+        .unwrap();
+    let steps = std::cell::RefCell::new(Vec::new());
+    retry_once(
+        &store,
+        12,
+        Default::default(),
+        |message| {
+            steps.borrow_mut().push("alarm");
+            assert!(message.contains("1 deadlettered"));
+            Delivery::Failed("owned banner refusal".into())
+        },
+        |retry, _| {
+            steps.borrow_mut().push("retry");
+            store
+                .record(
+                    &retry.claim,
+                    &Delivery::Rejected {
+                        status: 404,
+                        detail: "missing route".into(),
+                    },
+                    12,
+                    Default::default(),
+                )
+                .unwrap();
+        },
+    )
+    .unwrap_err();
+    assert_eq!(*steps.borrow(), ["retry", "alarm"]);
+    let pending = store.delivery_health().unwrap().alarm_generation.unwrap();
+    retry_once(
+        &store,
+        13,
+        Default::default(),
+        |_| Delivery::Delivered("owned banner".into()),
+        |_, _| panic!("terminal leg must not be retried"),
+    )
+    .unwrap();
+    assert!(pending > 0);
+    assert_eq!(store.delivery_health().unwrap().alarm_generation, None);
 }

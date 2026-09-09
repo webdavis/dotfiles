@@ -110,13 +110,13 @@ deleted rather than rewritten.
 
 ## pns closure and the rescued lanes
 
-- [ ] 22. Rework `fix/pns-retry-backoff` against the current crate layout, PR, merge
+- [x] 22. Rework `fix/pns-retry-backoff` against the current crate layout, PR, merge
 - [ ] 23. Review and push `feat/posture-producer-commands` (heartbeat), PR, merge
 - [ ] 24. Review and push `feat/posture-converge-staging` (6 commits), PR, merge
-- [ ] 25. pns 18.1a: the `cargo doc` gate with `RUSTDOCFLAGS="-D warnings"`
-- [ ] 26. pns 8.4: the Codex and Claude hook-table verification record
-- [ ] 27. pns: backfill decision record 0012 (SQLite two fail directions)
-- [ ] 28. pns 18.1b: the completion report and line counts
+- [x] 25. pns 18.1a: the `cargo doc` gate with `RUSTDOCFLAGS="-D warnings"`
+- [x] 26. pns 8.4: the Codex and Claude hook-table verification record
+- [x] 27. pns: backfill decision record 0012 (SQLite two fail directions)
+- [x] 28. pns 18.1b: the completion report and line counts
 
 ### STOP POINT B
 

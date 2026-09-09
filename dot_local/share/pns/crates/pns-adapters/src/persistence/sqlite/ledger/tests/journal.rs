@@ -28,15 +28,36 @@ fn only_an_acknowledged_decorative_leg_clears_its_original_keyed_miss() {
             .record_journal(&note(detail), Some(11), identity)
             .unwrap();
     }
-    store.record(&claims[0].claim, &acknowledged(), 12).unwrap();
+    store
+        .record(
+            &claims[0].claim,
+            &reported(&acknowledged()),
+            12,
+            Default::default(),
+        )
+        .unwrap();
     assert!(Journal::read(&store).unwrap().unwrap().contains("original"));
-    store.record(&claims[1].claim, &retry(20), 12).unwrap();
+    store
+        .record(
+            &claims[1].claim,
+            &reported(&retry(20)),
+            12,
+            Default::default(),
+        )
+        .unwrap();
     assert!(Journal::read(&store).unwrap().unwrap().contains("original"));
     let retry = store
         .claim_retry(lease(20, 30), Default::default())
         .unwrap()
         .unwrap();
-    store.record(&retry.claim, &acknowledged(), 21).unwrap();
+    store
+        .record(
+            &retry.claim,
+            &reported(&acknowledged()),
+            21,
+            Default::default(),
+        )
+        .unwrap();
     let pending = Journal::read(&store).unwrap().unwrap();
     assert!(
         !pending.contains("original"),
@@ -64,7 +85,14 @@ fn a_completed_original_cannot_be_rejournaled_and_duplicate_pending_identity_is_
         "one original submission has one missed record"
     );
     assert_eq!(pending[0].detail, "first");
-    store.record(&claims[1].claim, &acknowledged(), 13).unwrap();
+    store
+        .record(
+            &claims[1].claim,
+            &reported(&acknowledged()),
+            13,
+            Default::default(),
+        )
+        .unwrap();
     store
         .record_journal(
             &note("late completion tail"),
@@ -86,7 +114,12 @@ fn refusing_keyed_miss_removal_rolls_back_completion_and_preserves_the_claim() {
         .unwrap();
     connection.execute_batch("CREATE TRIGGER retain_miss BEFORE DELETE ON journal BEGIN SELECT RAISE(ABORT, 'owned refusal'); END;").unwrap();
     assert!(matches!(
-        store.record(&claims[1].claim, &acknowledged(), 12),
+        store.record(
+            &claims[1].claim,
+            &reported(&acknowledged()),
+            12,
+            Default::default()
+        ),
         Err(LedgerFailure::Unavailable(_))
     ));
     assert!(matches!(

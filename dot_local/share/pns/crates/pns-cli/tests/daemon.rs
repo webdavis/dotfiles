@@ -31,23 +31,27 @@ fn now_secs() -> u64 {
         .as_secs()
 }
 
-/// The hermes stub replaced by one that APPENDS a line per delivery, so "once"
-/// and "twice" are different observations. The shared stub truncates, which
-/// makes a second firing indistinguishable from the first.
+// Count scheduled occurrences by their required request identity. An
+// unacknowledged executable may receive retries of the same occurrence; a
+// second producer invocation has a fresh identity and must still count twice.
 fn count_fires(sandbox: &Sandbox) {
     sandbox.stub_channel(
         "hermes",
-        &format!("cat >>\"{}/hermes.events\"", sandbox.display()),
+        &format!(
+            "cat >>\"{root}/hermes.events\"\nprintf '%s\\n' \"${{PNS_REQUEST_ID:?}}\" >>\"{root}/hermes.requests\"",
+            root = sandbox.display()
+        ),
     );
 }
 
-/// How many times the counting stub has been handed an event.
+// How many distinct scheduled occurrences reached the counting stub.
 fn fires(sandbox: &Sandbox) -> usize {
-    std::fs::read_to_string(sandbox.path("hermes.events"))
+    std::fs::read_to_string(sandbox.path("hermes.requests"))
         .unwrap_or_default()
         .lines()
         .filter(|line| !line.trim().is_empty())
-        .count()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
 }
 
 /// One registration through the typed command, which is the same library call

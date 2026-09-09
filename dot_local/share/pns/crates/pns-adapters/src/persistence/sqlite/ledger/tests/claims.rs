@@ -56,10 +56,22 @@ fn a_stale_generation_cannot_acknowledge_a_released_leg() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        store.record(&legs[0].claim, &acknowledged(), 21),
+        store.record(
+            &legs[0].claim,
+            &reported(&acknowledged()),
+            21,
+            Default::default()
+        ),
         Err(LedgerFailure::LostClaim)
     );
-    store.record(&retry.claim, &acknowledged(), 22).unwrap();
+    store
+        .record(
+            &retry.claim,
+            &reported(&acknowledged()),
+            22,
+            Default::default(),
+        )
+        .unwrap();
     let history = store.inspect(&input.identity).unwrap().unwrap();
     assert_eq!(history.attempts.len(), 3);
     assert_eq!(history.attempts[2].completion, acknowledged());
@@ -72,7 +84,12 @@ fn a_claim_from_another_database_cannot_complete_a_matching_row() {
     let a = created(&first, &input);
     created(&second, &input);
     assert_eq!(
-        second.record(&a[0].claim, &acknowledged(), 11),
+        second.record(
+            &a[0].claim,
+            &reported(&acknowledged()),
+            11,
+            Default::default()
+        ),
         Err(LedgerFailure::LostClaim)
     );
     assert!(matches!(

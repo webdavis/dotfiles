@@ -25,7 +25,7 @@ fn a_new_store_commits_its_schema_in_a_private_wal_database() {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
     assert_eq!(journal, "wal");
-    assert_eq!(version, 6);
+    assert_eq!(version, 7);
     for name in ["pns.db", "pns.db-wal", "pns.db-shm"] {
         assert_eq!(
             std::fs::metadata(state.join(name))
@@ -63,13 +63,13 @@ fn a_newer_schema_is_refused_without_rewriting_its_version_or_data() {
     connection
         .execute("INSERT INTO decisions(line) VALUES ('future outcome')", [])
         .unwrap();
-    connection.pragma_update(None, "user_version", 7).unwrap();
+    connection.pragma_update(None, "user_version", 8).unwrap();
     assert!(store.connect().is_err(), "future schema must be refused");
     assert_eq!(
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        7
+        8
     );
     assert_eq!(
         connection
@@ -128,7 +128,7 @@ fn a_future_schema_is_rejected_before_changing_its_journal_mode() {
     connection
         .pragma_update(None, "journal_mode", "DELETE")
         .unwrap();
-    connection.pragma_update(None, "user_version", 7).unwrap();
+    connection.pragma_update(None, "user_version", 8).unwrap();
     drop(connection);
     assert!(store.connect().is_err());
     let connection = rusqlite::Connection::open(state.join("pns.db")).unwrap();

@@ -67,7 +67,10 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
         ),
         (
             PostOutcome::Status(401),
-            Delivery::Failed("post FAILED HTTP 401".to_string()),
+            Delivery::Rejected {
+                status: 401,
+                detail: "post FAILED HTTP 401".to_string(),
+            },
         ),
         (
             // A redirect is the final answer here, so it is not a delivery.
@@ -91,5 +94,24 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
             expected,
             "case: {outcome:?}"
         );
+    }
+}
+
+#[test]
+fn only_the_four_established_http_statuses_are_terminal_failures() {
+    for status in [
+        199, 200, 299, 300, 400, 401, 402, 403, 404, 405, 408, 409, 412, 413, 414, 422, 429, 500,
+        599,
+    ] {
+        let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(status));
+        let result = channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome));
+        match status {
+            200..=299 => assert!(matches!(result, Delivery::Delivered(_)), "status {status}"),
+            401 | 403 | 404 | 413 => assert!(
+                matches!(result, Delivery::Rejected { status: code, .. } if code == status),
+                "status {status}"
+            ),
+            _ => assert!(matches!(result, Delivery::Failed(_)), "status {status}"),
+        }
     }
 }

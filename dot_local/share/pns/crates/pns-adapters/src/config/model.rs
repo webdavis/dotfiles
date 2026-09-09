@@ -38,6 +38,7 @@ pub struct Config {
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
     pub retry_limits: pns_domain::retry::RetryLimits,
+    pub retry_backoff: pns_domain::retry::RetryBackoff,
     /// `[nag] after_secs`: how long an unanswered approval waits before it is
     /// carded a second time, in seconds. ZERO IS THE FEATURE OFF.
     ///
@@ -68,6 +69,7 @@ impl Default for Config {
             bypass_silence_classes: vec!["security".into()],
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
             retry_limits: Default::default(),
+            retry_backoff: Default::default(),
             nag_after_secs: NAG_OFF,
             lights: None,
         }

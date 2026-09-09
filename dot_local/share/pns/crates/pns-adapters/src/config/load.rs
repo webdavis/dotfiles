@@ -35,6 +35,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                     return Err(ConfigError::Invalid("`delivery` is not a table".into()));
                 };
                 config.retry_limits = retry::parse_retry(&mut table)?;
+                config.retry_backoff = retry::parse_backoff(&mut table)?;
                 config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
             }
             "nag" => config.nag_after_secs = parse_nag(value)?,
