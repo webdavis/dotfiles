@@ -44,3 +44,29 @@ impl PollStateFiles {
         }
     }
 }
+
+/// The port the application drives these three through.
+///
+/// A THIN BRIDGE ON PURPOSE, and separate from the inherent methods above
+/// rather than replacing them. The inherent forms return `io::Result`, which is
+/// what a caller inside this crate wants when it is deciding what to do about a
+/// particular errno. The port returns the application's own opaque failure,
+/// because policy has no business branching on an operating system's error
+/// kinds: every way a marker fails to persist means the same thing to it.
+impl posture_application::PollMarkers for PollStateFiles {
+    fn covered(&self, gap: PollGap) -> Vec<String> {
+        Self::covered(self, gap)
+    }
+
+    fn remember(
+        &self,
+        gap: PollGap,
+        members: &[String],
+    ) -> Result<(), posture_application::PollStateFailure> {
+        Self::remember(self, gap, members).map_err(|_| posture_application::PollStateFailure)
+    }
+
+    fn clear(&self, gap: PollGap) -> Result<(), posture_application::PollStateFailure> {
+        Self::clear(self, gap).map_err(|_| posture_application::PollStateFailure)
+    }
+}

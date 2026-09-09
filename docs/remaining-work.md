@@ -478,9 +478,20 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 - [x] 37. posture 2.4: page, domain digest, protocol codec
 - [ ] 38. posture 2.9: `drift.rs` and `converge_policy.rs`
 - [ ] 39. posture 2.10: `cursor.rs` and `triage.rs`
-- [ ] 40. posture 3.1 remainder: four adapters
-- [ ] 41. posture 3.2 remainder: tailscale, process, gateway, `LaunchdState`
-- [ ] 42. posture 3.3: the converge read half, staging, privileged
+- [x] 40. posture 3.1 remainder: four adapters. Measured on 2026-09-09 by listing every `pub trait` in
+  `posture-application` and asking which had no `impl` in `posture-adapters`, rather than by reading the
+  plan. Sixteen of the seventeen ports already had one, shipped by earlier merged work. The seventeenth
+  was `PollMarkers`, and even its three methods existed as inherent methods on `PollStateFiles`; only the
+  trait bridge was missing.
+- [x] 41. posture 3.2 remainder: tailscale, process, gateway, `LaunchdState`. Already done.
+  `ProcessTable` is implemented in `converge/parents.rs` and `LaunchdTable` in `launchd_table.rs`; the
+  Tailscale funnel judgement lives in `posture-domain::funnel` and its watched agent in
+  `watchdog::agents`. There is no `gateway` port: delivery goes through `pns_producer.rs`, which is how
+  this repository decided a producer reaches a gateway. Nothing was left to write.
+- [x] 42. posture 3.3: the converge read half, staging, privileged. Already done, and verified the same
+  way: `ConvergeStaging` in `staging.rs`, `DesiredTree` in `staging/owned.rs`, `LiveTree` in
+  `live_tree.rs`, `PrivilegedInstall` in `converge/install.rs`, plus `OsqueryControl`, `ProcessTable` and
+  `RestartClock` under `converge/`.
 
 ### STOP POINT D
 
