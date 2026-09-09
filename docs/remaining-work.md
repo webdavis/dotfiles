@@ -338,53 +338,59 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
   Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
   text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
-  each. Host and user come from the machine, never hardcoded.
-  STEP 2 SHRINKS LATER. The operator intends to host a public Shortcut people can install directly
-  (2026-09-09), at which point step 2 becomes a link and an "install this" rather than a field-by-field
-  build. Write it so that swapping those is an edit to one step, not a rewrite of the guide.
-  COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only one of them
-  has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run Script Over
-  SSH, with the host, the user and which key to select) and the triggers that Shortcut can be attached
-  to: Back Tap, the Action Button, a Lock Screen widget, Control Center, Siri. The command text typed
-  into the Shortcut is cosmetic, since sshd runs the forced command instead, but it is spelled `pns tap`
-  anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag is read
-  when something is already wrong, and burying a status report under a wall of instructions is how a
-  diagnostic stops being read. `--info` closes with one line pointing at `pns tap --install`. THE PRINTED
-  INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees ("Settings
-  paths verified on iOS <version>"). The exact paths to Back Tap and the Action Button move between
-  releases, and instructions that do not date themselves are worse than none: a reader on a later iOS
-  cannot tell a path that moved from a step they got wrong. Verify them against the operator's own iOS at
-  build time rather than writing them from memory here, and record the version in the same change that
-  writes the text. `--delete-marker` deletes the marker. NOT `--clear`, which says nothing about what it
-  clears, and NOT `--at-desk`, which promises a surface the command cannot produce: removing the phone
-  signal does not assert Desk, and a stale desk clock lands on Away. "Marker" is already this feature's
-  own vocabulary, so naming it is consistent rather than leaky. ITS CASE IS UNVERIFIED AND MUST BE
-  SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry and stays the newest signal until
-  the desk is touched, so a Back Tap fired by a bump in a pocket parks the operator on Mobile with
-  nothing to cancel it while they are away from the desk. The hole in that argument: with the marker gone
-  and the desk clock stale the surface is Away, and Away also routes to the phone, so clearing may change
-  nothing in exactly the case it was built for. CHECK THE DESK/MOBILE/AWAY DELIVERY MATRIX in
-  `pns/docs/specs/presence-and-visibility.md` first and drop the flag if the two surfaces deliver alike.
-  `--json` emits the same answers machine-readably, so the Shortcut renders them rather than dumping a
-  sentence. `--no-color` is NOT one of these flags; it is tool-wide, task 73. DELIBERATELY NOT
-  `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is a chezmoi-rendered target
-  on this machine, so a write there is erased by the next apply and the operator would watch their change
-  disappear. `--info` names the file that really holds the value instead. DELIBERATELY NOT
-  `--for <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its
-  contents (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign
-  rather than a flag, and it is scoped separately if it is ever wanted.
+  each. Host and user come from the machine, never hardcoded. STEP 2 SHRINKS LATER. The operator intends
+  to host a public Shortcut people can install directly (2026-09-09), at which point step 2 becomes a
+  link and an "install this" rather than a field-by-field build. Write it so that swapping those is an
+  edit to one step, not a rewrite of the guide. COVERS THE PHONE SIDE TOO, because the wiring has two
+  halves and an operator holding only one of them has nothing working. After the `authorized_keys` line
+  it prints the Shortcut recipe (Run Script Over SSH, with the host, the user and which key to select)
+  and the triggers that Shortcut can be attached to: Back Tap, the Action Button, a Lock Screen widget,
+  Control Center, Siri. The command text typed into the Shortcut is cosmetic, since sshd runs the forced
+  command instead, but it is spelled `pns tap` anyway so the Shortcut reads as what it does. THE SETUP
+  PROSE STAYS OFF `--info`: that flag is read when something is already wrong, and burying a status
+  report under a wall of instructions is how a diagnostic stops being read. `--info` closes with one line
+  pointing at `pns tap --install`. THE PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED
+  AGAINST, as a line the reader sees ("Settings paths verified on iOS <version>"). The exact paths to
+  Back Tap and the Action Button move between releases, and instructions that do not date themselves are
+  worse than none: a reader on a later iOS cannot tell a path that moved from a step they got wrong.
+  Verify them against the operator's own iOS at build time rather than writing them from memory here, and
+  record the version in the same change that writes the text. `--delete-marker` deletes the marker. NOT
+  `--clear`, which says nothing about what it clears, and NOT `--at-desk`, which promises a surface the
+  command cannot produce: removing the phone signal does not assert Desk, and a stale desk clock lands on
+  Away. "Marker" is already this feature's own vocabulary, so naming it is consistent rather than leaky.
+  ITS CASE IS UNVERIFIED AND MUST BE SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry
+  and stays the newest signal until the desk is touched, so a Back Tap fired by a bump in a pocket parks
+  the operator on Mobile with nothing to cancel it while they are away from the desk. The hole in that
+  argument: with the marker gone and the desk clock stale the surface is Away, and Away also routes to
+  the phone, so clearing may change nothing in exactly the case it was built for. CHECK THE
+  DESK/MOBILE/AWAY DELIVERY MATRIX in `pns/docs/specs/presence-and-visibility.md` first and drop the flag
+  if the two surfaces deliver alike. `--json` emits the same answers machine-readably, so the Shortcut
+  renders them rather than dumping a sentence. `--no-color` is NOT one of these flags; it is tool-wide,
+  task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is
+  a chezmoi-rendered target on this machine, so a write there is erased by the next apply and the
+  operator would watch their change disappear. `--info` names the file that really holds the value
+  instead. DELIBERATELY NOT `--for <duration>`, a tap that expires on its own: the probe reads the
+  marker's mtime and never its contents (`symlink_metadata`, so a dangling symlink still answers), so an
+  expiry is a reader redesign rather than a flag, and it is scoped separately if it is ever wanted.
 
 - [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
   own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
-  chooses. pns serves a small endpoint the Shortcut posts to over the tailnet ("Get Contents of URL"
-  rather than "Run Script Over SSH"), authenticated by a config secret the way the hermes webhook already
-  is, and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no `authorized_keys` line, no
-  forced command, no second system holding a copy of a path, so the decoupling tasks 71 and 72 work
-  around stops existing rather than being managed. The machinery is mostly here already: the daemon runs,
-  and `pns failures serve` is a listener. ITS ONE REAL COST, which is why it is opt-in rather than the
-  default: the SSH tap works with pns's daemon dead, because sshd and `touch` carry it end to end, and an
-  HTTP tap does not. An operator whose daemon is wedged still wants their phone to say so. Also a
-  listening port where there was none, and a secret that needs a rotation story.
+  chooses. pns serves a small endpoint the Shortcut posts to ("Get Contents of URL" rather than "Run
+  Script Over SSH") and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no
+  `authorized_keys` line, no forced command, no second system holding a copy of a path, so the decoupling
+  tasks 71 and 72 work around stops existing rather than being managed. The machinery is mostly here
+  already: the daemon runs, and `pns failures serve` is a listener.
+  IT ASSUMES NOTHING ABOUT THE OPERATOR'S NETWORK (operator ruling 2026-09-09, correcting an earlier
+  draft of this task that said "on the tailnet"). pns is a tool other people install and it has no idea
+  what anyone's topology looks like: no Tailscale, no VPN, no LAN shape, nothing detected and nothing
+  guessed. The listener is OFF unless configured, and its `bind` address is written by the operator with
+  NO DEFAULT, because there is no safe one to pick: loopback is safe and unreachable from a phone, and
+  every other address is a guess about somebody's network. Authentication is a config secret, the way the
+  hermes webhook already is.
+  ITS ONE REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's
+  daemon dead, because sshd and the command it forces carry it end to end, and an HTTP tap does not. An
+  operator whose daemon is wedged still wants their phone to say so. Also a listening port where there
+  was none, and a secret that needs a rotation story.
 
 - [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
   MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works
@@ -420,18 +426,15 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 - [ ] 75. BIND SSHD TO THE TAILNET. A DOTFILES TASK, NOT A PNS ONE, and it is filed in its own section
   below rather than beside the tap tasks so it cannot be read as pns work. pns never learns that this
   happened: it does not check for it, mention it, or behave differently either way. The tap is merely why
-  the listener exists.
-  Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and IPv6, so this Mac
-  answers on every network it touches. Public-key-only is already enforced, so nobody gets in without a
-  key, but the machine still announces itself as an SSH server to any network it joins. Tailscale is the
-  only network its own devices are on.
-  The change: an `ListenAddress` for the Tailscale address in the drop-in at
-  `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, which `dot_local/bin/executable_ssh-hardening.sh`
-  already generates and installs. Port 22 then answers on the tailnet alone. The phone is on the tailnet,
-  so the tap keeps working.
-  Verify with `netstat` before and after AND confirm a real tap still lands, because a wrong address
-  silently ends both SSH and the tap at once, and the script's own `--reload` refuses to claim success
-  without a real banner exchange.
+  the listener exists. Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and
+  IPv6, so this Mac answers on every network it touches. Public-key-only is already enforced, so nobody
+  gets in without a key, but the machine still announces itself as an SSH server to any network it joins.
+  Tailscale is the only network its own devices are on. The change: an `ListenAddress` for the Tailscale
+  address in the drop-in at `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, which
+  `dot_local/bin/executable_ssh-hardening.sh` already generates and installs. Port 22 then answers on the
+  tailnet alone. The phone is on the tailnet, so the tap keeps working. Verify with `netstat` before and
+  after AND confirm a real tap still lands, because a wrong address silently ends both SSH and the tap at
+  once, and the script's own `--reload` refuses to claim success without a real banner exchange.
 
 ## posture foundation
 
