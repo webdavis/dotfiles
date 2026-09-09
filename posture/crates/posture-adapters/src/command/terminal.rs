@@ -8,7 +8,22 @@ pub(super) struct Foreground {
 }
 impl Foreground {
     pub(super) fn take(child: libc::pid_t) -> Result<Option<Self>, InspectionFailure> {
-        // Descriptor 0 is inherited input. A pipe or a non-controlling terminal needs no handoff.
+        // NO TERMINAL, NOTHING TO HAND OVER, and this is asked FIRST because it is the
+        // question. Descriptor 0 is whatever the caller inherited, and every kind of
+        // descriptor that is not a terminal reaches this line: a pipe from a shell
+        // pipeline, /dev/null under launchd, a socket from a socket-activated job.
+        //
+        // The check used to be the errno of the tcgetpgrp below, forgiving ENOTTY and
+        // EBADF and failing the probe on anything else. Darwin answers a SOCKET at
+        // descriptor 0 with EOPNOTSUPP rather than ENOTTY, so an inherited socket
+        // failed every interactive command outright. Asking whether it is a terminal
+        // covers every such descriptor at once instead of naming errno numbers one
+        // platform at a time.
+        if unsafe { libc::isatty(0) } != 1 {
+            return Ok(None);
+        }
+        // Still reachable when the terminal is revoked between the two calls, which
+        // leaves nothing to hand over either.
         let original = unsafe { libc::tcgetpgrp(0) };
         if original == -1 {
             return match io::Error::last_os_error().raw_os_error() {

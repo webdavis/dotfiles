@@ -1,9 +1,21 @@
 use super::*;
 
+/// A deadline generous enough that only a HUNG runner reaches it.
+///
+/// THESE TWO TESTS ARE NOT ABOUT THE DEADLINE. They are about a quarter of a
+/// megabyte moving through a pipe in both directions without either side
+/// blocking the other, and the runner's deadline is only there because it has
+/// to be some number. It was 600 ms, which is a wall-clock budget for spawning
+/// a shell and moving 352 KiB while the rest of the suite competes for the same
+/// CPU, and CI reached it. A generous deadline costs the happy path nothing:
+/// the tests finish in milliseconds and a runner that never returns still
+/// fails, just later. `lifecycle.rs` is where the deadline itself is measured.
+const PATIENT: Duration = Duration::from_secs(30);
+
 #[test]
 fn piped_input_is_complete_and_closed_before_the_reply_finishes() {
     let input = vec![b'x'; 128 * 1024];
-    let mut runner = SystemRunner::new(Duration::from_millis(600));
+    let mut runner = SystemRunner::new(PATIENT);
     let result = runner.run_completed(Path::new("/bin/cat"), &[], CommandIo::Input(&input));
     let output = result.expect("complete request reply");
     assert_eq!(output.exit, 0);
@@ -14,7 +26,7 @@ fn piped_input_is_complete_and_closed_before_the_reply_finishes() {
 #[test]
 fn output_backpressure_is_drained_while_input_is_still_pending() {
     let input = vec![b'x'; 128 * 1024];
-    let mut runner = SystemRunner::new(Duration::from_millis(600));
+    let mut runner = SystemRunner::new(PATIENT);
     let output = runner
         .run_completed(
             Path::new("/bin/sh"),
