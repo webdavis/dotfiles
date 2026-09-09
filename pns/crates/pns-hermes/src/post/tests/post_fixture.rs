@@ -2,7 +2,14 @@ use std::io::{self, Read, Write};
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
-pub(super) const DEADLINE: Duration = Duration::from_millis(400);
+/// How long the fixture server waits for the client at each step.
+///
+/// FIXTURE PATIENCE, not a measurement. Nothing here times anything: the
+/// deadline only exists so a client that never arrives fails the test instead
+/// of hanging it. It was 400 ms, a wall-clock budget for a loopback round trip
+/// while the rest of the suite competes for the same CPU, and it expired on a
+/// loaded machine. A generous bound costs the happy path nothing.
+pub(super) const DEADLINE: Duration = Duration::from_secs(30);
 
 pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::Result<Vec<u8>> {
     let deadline = Instant::now() + DEADLINE;
