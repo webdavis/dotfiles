@@ -72,10 +72,7 @@ fn retry_outcomes_keep_their_details_and_are_due_only_at_the_exact_retry_instant
                     &queued.claim,
                     &reported(&completion),
                     11,
-                    pns_domain::retry::RetryBackoff {
-                        base_secs: 19,
-                        random_secs: 0,
-                    },
+                    pns_domain::retry::RetryBackoff { base_secs: 19 },
                 )
                 .unwrap();
             store
@@ -171,10 +168,7 @@ fn retry_claims_follow_event_sequence_and_retained_attempt_order_without_replaci
             &a.claim,
             &reported(&retry(40)),
             21,
-            pns_domain::retry::RetryBackoff {
-                base_secs: 19,
-                random_secs: 0,
-            },
+            pns_domain::retry::RetryBackoff { base_secs: 19 },
         )
         .unwrap();
     let b = store

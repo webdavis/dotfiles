@@ -28,7 +28,12 @@ pub(super) fn parse_backoff(
     table: &mut toml::Table,
 ) -> Result<pns_domain::retry::RetryBackoff, ConfigError> {
     let mut backoff = pns_domain::retry::RetryBackoff::default();
-    for key in ["retry_base_secs", "retry_random_secs"] {
+    // `retry_random_secs` is deliberately NOT accepted. The jitter it configured
+    // is gone, and a key that parses but changes nothing is worse than one that
+    // is refused: it reads as configured behavior. Leaving it out of this list
+    // means the caller's unknown-key path names it, which is how every other
+    // retired key in this file behaves.
+    for key in ["retry_base_secs"] {
         let Some(value) = table.remove(key) else {
             continue;
         };
@@ -41,11 +46,7 @@ pub(super) fn parse_backoff(
                 ))
             })?;
         match key {
-            "retry_base_secs" => {
-                backoff.base_secs = count;
-                backoff.random_secs = count;
-            }
-            "retry_random_secs" => backoff.random_secs = count,
+            "retry_base_secs" => backoff.base_secs = count,
             _ => return Err(unknown_key("delivery", "delivery", key)),
         }
     }

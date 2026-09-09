@@ -117,7 +117,6 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("delivery", "max_attempts", "3"),
     ("delivery", "max_age_secs", "7"),
     ("delivery", "retry_base_secs", "7"),
-    ("delivery", "retry_random_secs", "0"),
     (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
     (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
     (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
@@ -264,25 +263,24 @@ fn delivery_retry_settings_are_accepted_and_bad_limits_are_refused() {
 }
 
 #[test]
-fn delivery_backoff_settings_accept_independent_base_and_random_seconds() {
-    let configured =
-        parse_config("[delivery]\nretry_base_secs = 7\nretry_random_secs = 0\n").unwrap();
-    assert_eq!(
-        (
-            configured.retry_backoff.base_secs,
-            configured.retry_backoff.random_secs
-        ),
-        (7, 0)
-    );
-    let defaults = parse_config("").unwrap().retry_backoff;
-    assert_eq!((defaults.base_secs, defaults.random_secs), (60, 60));
-    let inherited = parse_config("[delivery]\nretry_base_secs = 7\n")
-        .unwrap()
-        .retry_backoff;
-    assert_eq!((inherited.base_secs, inherited.random_secs), (7, 7));
+fn the_delivery_backoff_takes_its_one_base_and_defaults_to_a_minute() {
+    let configured = parse_config("[delivery]\nretry_base_secs = 7\n").unwrap();
+    assert_eq!(configured.retry_backoff.base_secs, 7);
+    assert_eq!(parse_config("").unwrap().retry_backoff.base_secs, 60);
     for invalid in ["-1", "1.5", "true", "\"secret\"", "[]"] {
-        for key in ["retry_base_secs", "retry_random_secs"] {
-            assert!(parse_config(&format!("[delivery]\n{key} = {invalid}\n")).is_err());
-        }
+        assert!(parse_config(&format!("[delivery]\nretry_base_secs = {invalid}\n")).is_err());
     }
+}
+
+/// The retired jitter key is REFUSED, not ignored. A key that parses and
+/// changes nothing reads as configured behavior, so an operator who still has
+/// `retry_random_secs` in their file learns it is gone rather than believing a
+/// spread is still applied.
+#[test]
+fn the_retired_jitter_key_is_refused_by_name() {
+    let refusal = parse_config("[delivery]\nretry_random_secs = 0\n").unwrap_err();
+    assert!(
+        format!("{refusal:?}").contains("retry_random_secs"),
+        "the refusal must name the key: {refusal:?}"
+    );
 }

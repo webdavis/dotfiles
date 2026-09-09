@@ -77,8 +77,16 @@ commit together. The record, original request metadata, route and earlier attemp
 terminal failure never acknowledges delivery or clears a missed event. The initial send remains pending
 for its first daemon retry. Other non-success responses remain retryable.
 
-Queued failures use the completion time plus `retry_base_secs` times the retry count, plus one bounded
-random offset. The base defaults to 60 seconds. `retry_random_secs` defaults to the base when omitted;
-zero disables jitter. The sample retains the legacy 15-bit range and inclusive maximum. Initial sends
-consume no retry count or delay, while interrupted retry claims still consume a generation. Arithmetic
-saturates at the unsigned timestamp ceiling. Lease expiry and retry delay are separate policies.
+Queued failures use the completion time plus `retry_base_secs` times the retry count, and nothing else.
+The base defaults to 60 seconds. There is no random offset: the jitter this record originally described
+was removed on 2026-09-09, because random spread exists to stop many clients retrying in one instant and
+this is a single local daemon draining one queue against a loopback gateway. The retired
+`retry_random_secs` key is refused by name rather than ignored, so an operator who still has it learns it
+is gone. Initial sends consume no retry count or delay, while interrupted retry claims still consume a
+generation. Arithmetic saturates at the unsigned timestamp ceiling. Lease expiry and retry delay are
+separate policies.
+
+The same change added the permanent-versus-temporary split in `pns_domain::retry`. A refused request
+dead-letters on its FIRST failure with `DeadletterReason::Permanent`, rather than consuming the twenty
+attempts a recoverable one is allowed. The rule is one function over a `DeliveryOutcome`, so every
+destination classifies identically and only the operator-facing wording varies.

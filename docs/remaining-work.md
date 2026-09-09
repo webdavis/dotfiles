@@ -171,10 +171,21 @@ The pns refactor plan is closed and nothing is stranded.
 
 ## Delivery failure reporting
 
-Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-design.md`.
+Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-design.md`, built from
+`docs/superpowers/plans/2026-09-09-pns-delivery-failure-reporting-plan.md`.
 
-- [ ] 29. Plan the build, the pull request breakdown from the spec
-- [ ] 30. Permanent versus temporary classification in `pns-domain`
+- [x] 29. Plan the build, the pull request breakdown from the spec. Seven pull requests, one per task
+  below, in that order. Three facts from the survey changed the plan: the backoff already landed, so task
+  30 removes its jitter rather than adding the type; an `http_status` column already exists with a CHECK
+  admitting only four codes, so task 31 has to recreate it rather than add one; and the banner's click
+  slot is already free, returning the no-op `:` for exactly the pane-less events every delivery failure
+  is.
+- [x] 30. Permanent versus temporary classification in `pns-domain`. `DeliveryOutcome`, `FailureClass`
+  and `RetryLimits::verdict`, with `DeadletterReason::Permanent`. Permanence outranks both counters, so a
+  refused request dead-letters on attempt one. The jitter went with it: `retry_at` is now a pure function
+  of the clock and the attempt count, `RetryBackoff::random_secs` is gone, and `retry_random_secs` is
+  refused by name rather than ignored, because a key that parses and changes nothing reads as configured
+  behavior.
 - [ ] 31. The ledger columns and the persisted failure record
 - [ ] 32. The message, both render forms, the per-destination meaning tables
 - [ ] 33. `pns failures` and the `pns doctor` routing to it

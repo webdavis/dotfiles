@@ -9,7 +9,7 @@ pub(super) fn record(
     at: u64,
     backoff: RetryBackoff,
 ) -> Result<Option<LedgerCompletion>, StoreError> {
-    let completion = completion(transaction, claim, delivery, at, backoff)?;
+    let completion = completion(claim, delivery, at, backoff);
     let (outcome, detail, retry_at, status) = match &completion {
         LedgerCompletion::Acknowledged { detail } => (1, detail, None, None),
         LedgerCompletion::Rejected { status, detail } => (2, detail, None, Some(*status)),
@@ -55,24 +55,27 @@ pub(super) fn record(
     Ok(Some(completion))
 }
 
+/// INFALLIBLE, and no longer handed the transaction. It used to read
+/// `randomblob(2)` for the retry jitter; the jitter is gone, so the retry time
+/// is a pure function of the clock and the attempt count and this needs no
+/// database at all.
 fn completion(
-    transaction: &Transaction<'_>,
     claim: &DeliveryClaim,
     delivery: &Delivery,
     at: u64,
     backoff: RetryBackoff,
-) -> Result<LedgerCompletion, StoreError> {
+) -> LedgerCompletion {
     let (outcome, detail) = match delivery {
         Delivery::Delivered(detail) => {
-            return Ok(LedgerCompletion::Acknowledged {
+            return LedgerCompletion::Acknowledged {
                 detail: detail.clone(),
-            });
+            };
         }
         Delivery::Rejected { status, detail } if claim.generation > 1 => {
-            return Ok(LedgerCompletion::Rejected {
+            return LedgerCompletion::Rejected {
                 status: *status,
                 detail: detail.clone(),
-            });
+            };
         }
         Delivery::Failed(detail) | Delivery::Rejected { detail, .. } => {
             (UnconfirmedDelivery::Failed, detail.clone())
@@ -85,18 +88,11 @@ fn completion(
     let retry_at = if claim.generation == 1 {
         at
     } else {
-        let sample = if backoff.random_secs == 0 {
-            0
-        } else {
-            let bytes: [u8; 2] =
-                transaction.query_row("SELECT randomblob(2)", [], |row| row.get(0))?;
-            u16::from_be_bytes(bytes)
-        };
-        backoff.retry_at(at, (claim.generation - 1) as u64, sample)
+        backoff.retry_at(at, (claim.generation - 1) as u64)
     };
-    Ok(LedgerCompletion::Retry {
+    LedgerCompletion::Retry {
         outcome,
         detail,
         retry_at,
-    })
+    }
 }
