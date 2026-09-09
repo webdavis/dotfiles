@@ -206,6 +206,15 @@
 [includeIf "gitdir/i:/private/tmp/"]
   path = ~/.config/git/no-fsmonitor.gitconfig
 
+# Disable fsmonitor for the Neovim plugin checkouts. lazy.nvim drives roughly a
+# hundred small repositories CONCURRENTLY, and each one git touches wants a
+# daemon of its own. Under that fan-out the IPC handshake intermittently fails
+# and git prints "error: could not read IPC response" on stderr, which lazy
+# reads as a dirty worktree and refuses to restore. The repositories are small
+# clones that fsmonitor buys nothing on anyway.
+[includeIf "gitdir/i:~/.local/share/nvim/lazy/"]
+  path = ~/.config/git/no-fsmonitor.gitconfig
+
 [interactive]
   diffFilter = delta --color-only
 
