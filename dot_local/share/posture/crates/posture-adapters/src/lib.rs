@@ -20,6 +20,8 @@
 //! `tailscale` or `pns`. Enrichment and allowlist curation use these boundaries.
 
 mod codesign;
+mod staging;
+pub use staging::{DesiredStaging, StagedTree};
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
@@ -47,6 +49,9 @@ pub use snapshots_log::SnapshotsFile;
 mod clock;
 pub use clock::SystemClock;
 
+mod live_tree;
+pub use live_tree::InstalledTree;
+
 mod controls_file;
 pub use controls_file::read_controls;
 
@@ -62,3 +67,9 @@ pub use last_resort_banner::LastResortBanner;
 
 mod state_files;
 pub use state_files::PollStateFiles;
+
+mod converge;
+pub use converge::{
+    CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
+    resolve_osqueryctl,
+};

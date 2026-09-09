@@ -21,6 +21,11 @@
 
 mod finding;
 
+mod converge_policy;
+pub use converge_policy::{
+    CommandTrustRefusal, ConvergeDirectory, ConvergeFile, ParentPid, RestartBounds, command_trust,
+};
+
 pub use finding::{Detector, EnrichmentPaths};
 
 mod gate;
@@ -69,6 +74,12 @@ pub use watchdog::{
     Agent, AgentExit, AgentJudgment, AgentReading, AgentState, AuditFingerprint, AuditJudgment,
     AuditMemory, ExitCode, WatchdogPage, audit_fingerprint_input, judge_agent, judge_audit,
     osquery_problem, route_problem, state_problem, watchdog_page,
+};
+
+mod drift;
+pub use drift::{
+    ContentComparison, Drift, LiveAttributes, LiveEntry, directory_drift, file_drift,
+    restart_required,
 };
 
 mod controls;

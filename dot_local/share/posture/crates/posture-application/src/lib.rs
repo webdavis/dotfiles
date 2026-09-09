@@ -18,7 +18,13 @@
 //! `posture-domain`, and every trait here is implemented from the outside by
 //! `posture-adapters`. Enrichment and allowlist curation use these boundaries.
 
+mod converge;
 mod enrich;
+pub use converge::{
+    ConvergeEvent, ConvergeFailure, ConvergePlan, ConvergeRefusal, ConvergeStaging, DesiredTree,
+    LiveTree, OsqueryControl, PrivilegedInstall, ProcessTable, RestartClock, RestartFailure,
+    Restarted, StagingRefusal, VendorPlist, converge, prepare_converge, restart_daemon,
+};
 pub use enrich::{EnrichmentInspection, InspectionFailure, enrich};
 
 mod allowlist;
