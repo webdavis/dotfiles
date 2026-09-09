@@ -505,19 +505,18 @@ step, and it gates the whole section.
   the silent Discord line on the pns-keyed route and the silent desk banner, confirm the pns ledger
   recorded it, and only then trash the deployed `~/.local/libexec/osquery/heartbeat.sh`. Deleting a
   chezmoi source never deletes its target, which is why the deployed copy outlives this change.
-- [x] 44. posture 6.2: digest cutover. The plist now runs `posture digest` instead of
-  `bash digest.sh`; the bash script and the integration test that pinned it are deleted. The port
-  splits one `main` into three seams that test apart: the application use case owning the claim,
-  keep and restore decisions, the adapter owning the file moves, and the composition root. Two
-  behaviors the shell could not express are now pinned: a batch whose every line is unreadable is
-  KEPT for forensics rather than sent with a count and an empty body or retried forever against
-  bytes that render empty again, and a clock that cannot answer leaves the batch untouched rather
-  than claiming one this run could not finish naming. The digest spool's WRITE side stays bash
-  until task 45b; both ends still agree because they are built from one `posture-protocol` record.
-  THE ALLOWLIST TUPLE MOVED WITH THE PLIST: the alerter matches a `persistence_launchd` finding
-  against (label, path, program), so repointing without it pages on the next launchd scan. WHAT THE
-  OPERATOR STILL DOES: apply, run `posture digest` by hand against a spool the day has filled,
-  confirm the single silent message and the `.last` rotation, then trash the deployed
+- [x] 44. posture 6.2: digest cutover. The plist now runs `posture digest` instead of `bash digest.sh`;
+  the bash script and the integration test that pinned it are deleted. The port splits one `main` into
+  three seams that test apart: the application use case owning the claim, keep and restore decisions, the
+  adapter owning the file moves, and the composition root. Two behaviors the shell could not express are
+  now pinned: a batch whose every line is unreadable is KEPT for forensics rather than sent with a count
+  and an empty body or retried forever against bytes that render empty again, and a clock that cannot
+  answer leaves the batch untouched rather than claiming one this run could not finish naming. The digest
+  spool's WRITE side stays bash until task 45b; both ends still agree because they are built from one
+  `posture-protocol` record. THE ALLOWLIST TUPLE MOVED WITH THE PLIST: the alerter matches a
+  `persistence_launchd` finding against (label, path, program), so repointing without it pages on the
+  next launchd scan. WHAT THE OPERATOR STILL DOES: apply, run `posture digest` by hand against a spool
+  the day has filled, confirm the single silent message and the `.last` rotation, then trash the deployed
   `~/.local/libexec/osquery/digest.sh`.
 - [ ] 45. posture 6.3: alert cutover
 - [ ] 46. posture 6.4: watchdog cutover
