@@ -1,0 +1,7 @@
+[package]
+name = "tailnet-pin-adapters"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tailnet-pin-application = { path = "../tailnet-pin-application" }

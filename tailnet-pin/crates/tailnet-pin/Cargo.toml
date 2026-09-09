@@ -1,0 +1,13 @@
+[package]
+name = "tailnet-pin"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "tailnet-pin"
+path = "src/main.rs"
+
+[dependencies]
+tailnet-pin-adapters = { path = "../tailnet-pin-adapters" }
+tailnet-pin-application = { path = "../tailnet-pin-application" }
+tailnet-pin-domain = { path = "../tailnet-pin-domain" }

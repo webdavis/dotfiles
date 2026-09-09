@@ -53,12 +53,12 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
-# The four Rust tool workspaces sit at the repository root in monorepo layout,
+# The five Rust tool workspaces sit at the repository root in monorepo layout,
 # so lifting one out into its own repository later is a move rather than a
 # rewrite. They are SOURCE and never a deploy target: each builder script
 # compiles its workspace out of this checkout and installs only the binary.
 # Left unignored, a root directory reaches $HOME under its own name, so these
-# four entries are what keeps ~/pns and its siblings from being created. A
+# five entries are what keeps ~/pns and its siblings from being created. A
 # slashless pattern matches at the target ROOT only, so these do not also
 # swallow .config/pns and its siblings; that is the same reason .config/nvim/docs
 # needs its own entry above even though `docs/` is already listed. chezmoi
@@ -68,6 +68,7 @@ pns
 uu
 posture
 lights
+tailnet-pin
 
 # The committed input to `just pns-config-render`, never a deploy target:
 # the shipped template it generates is what chezmoi applies.

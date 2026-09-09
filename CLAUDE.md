@@ -69,7 +69,7 @@ just test-unit          # Unit suite only (the fast commit gate)
 just test-bashunit      # One suite's `<name>.test.sh` files alone (default test/unit)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-rust          # Rust tests for herdr, pns, uu, posture and lights, plus workspace checks
+just test-rust          # Rust tests for herdr, pns, uu, posture, lights and tailnet-pin, plus workspace checks
 just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
