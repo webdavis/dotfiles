@@ -2,6 +2,9 @@
 # The builder refreshes only its governing manifest. The legacy two-manifest
 # refresh can publish the first and then fail on the second.
 
+# shellcheck disable=SC2016  # Several redirects below rewrite a rendered script
+# so it expands $HOME at RUN time; the single quotes keeping $HOME literal are
+# the point, not an oversight.
 set_up_before_script() {
   local root
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -17,6 +20,12 @@ set_up_before_script() {
   # test staged. Point the rendered copy at a per-sandbox directory under HOME.
   sed -i '' 's|^crate_dir=.*|crate_dir="$HOME/crate"|' "$rendered_builder"
   grep -q '^crate_dir="\$HOME/crate"$' "$rendered_builder"
+  # install_dir is likewise baked absolute at render time, off the REAL home,
+  # so an unredirected run installs into the operator's own ~/.cargo/bin
+  # instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+  # is the shape it had before the install location moved.
+  sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$rendered_builder"
+  grep -q '^install_dir="\$HOME/.cargo/bin"$' "$rendered_builder"
 }
 
 set_up() {
@@ -24,7 +33,7 @@ set_up() {
   stubbin="$sandbox/bin"
   sandbox_home="$sandbox/home with spaces"
   build_record="$sandbox_home/.local/state/posture-build-record"
-  binary="$sandbox_home/.local/libexec/posture/posture"
+  binary="$sandbox_home/.cargo/bin/posture"
   artifact="$sandbox_home/crate/target/release/posture"
   mkdir -p "$stubbin" "$(dirname "$build_record")" "$(dirname "$binary")" "$(dirname "$artifact")"
   pipeline_manifest="$sandbox/pipeline"
@@ -60,8 +69,8 @@ set -euo pipefail
 source_file="${@: -2:1}"
 destination="${@: -1}"
 [[ "$destination" == "$TEST_ROOT/pipeline" || "$destination" == "$TEST_ROOT/managed-bin" ]] || exit 98
-if [[ "$destination" == "$TEST_ROOT/pipeline" && -f "$HOME/.local/libexec/posture/posture" ]]; then
-  cp "$HOME/.local/libexec/posture/posture" "$TEST_ROOT/binary-at-publication"
+if [[ "$destination" == "$TEST_ROOT/pipeline" && -f "$HOME/.cargo/bin/posture" ]]; then
+  cp "$HOME/.cargo/bin/posture" "$TEST_ROOT/binary-at-publication"
 fi
 cp "$source_file" "$destination"
 STUB

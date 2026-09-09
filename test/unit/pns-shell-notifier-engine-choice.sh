@@ -29,15 +29,15 @@ extract_shell_notifier() {
 }
 
 extract_shell_notifier "$REPO_ROOT" "$scratch/notifier.sh"
-mkdir -p "$scratch/home/.local/libexec/pns"
-cat >"$scratch/home/.local/libexec/pns/pns" <<'ENGINE'
+mkdir -p "$scratch/home/.cargo/bin"
+cat >"$scratch/home/.cargo/bin/pns" <<'ENGINE'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$CALLS_FILE"
 printf 'suppressed stdout\n'
 printf 'suppressed stderr\n' >&2
 exit "${ENGINE_STATUS:-0}"
 ENGINE
-chmod 700 "$scratch/home/.local/libexec/pns/pns"
+chmod 700 "$scratch/home/.cargo/bin/pns"
 export NOTIFIER="$scratch/notifier.sh" CALLS_FILE="$scratch/calls"
 export HOME="$scratch/home" PNS_STATE_DIR="$scratch/state" HERDR_PANE_ID=t1:p2
 

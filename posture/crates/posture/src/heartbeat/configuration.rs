@@ -12,7 +12,7 @@ impl Configuration {
         let mut default_snapshots = home.clone();
         default_snapshots.push("/.local/log/osquery/osqueryd.snapshots.log");
         let mut pns = home;
-        pns.push("/.local/libexec/pns/pns");
+        pns.push("/.cargo/bin/pns");
         let bound = variable("OSQUERY_CANARY_MAX_AGE");
         Some(Self {
             snapshots: default_snapshots.into(),

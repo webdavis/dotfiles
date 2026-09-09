@@ -13,7 +13,7 @@ pub const DEFAULT_LABEL: &str = "com.webdavis.uu";
 
 /// Where the apply-time build puts the binary launchd runs.
 pub fn installed_binary(home: &str) -> PathBuf {
-    Path::new(home).join(".local/libexec/uu/uu")
+    Path::new(home).join(".cargo/bin/uu")
 }
 
 /// Where the job's own output goes. The DIRECTORY is the operator's to make;

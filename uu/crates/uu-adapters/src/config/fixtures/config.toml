@@ -5,7 +5,7 @@ time = "12:00"
 url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
 key = "/stand-in"
 [alerts]
-binary = "/stand-in/.local/libexec/pns/pns"
+binary = "/stand-in/.cargo/bin/pns"
 [lanes.herdr]
 type = "herdr"
 binary = "/stand-in/.local/bin/herdr"

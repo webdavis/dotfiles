@@ -1,0 +1,17 @@
+# Where the four Rust tools this repository builds are installed, declared ONCE
+# so that moving them is one edit rather than a hunt through LaunchAgents,
+# keybindings, hook tables and shell functions.
+#
+# `~/.cargo/bin` is the conventional home for a cargo-built binary and is
+# already on the managed shell's PATH, so `cargo install --git <url> pns` and
+# this repository's apply-time builders agree on one destination. Before
+# 2026-09-09 the four lived under `~/.local/libexec/<tool>/`, on the rule that
+# libexec holds what the operator never types. They left that rule because they
+# are products other people install, not private helpers of this checkout; the
+# bash scripts under libexec keep it.
+#
+# The value is HOME-RELATIVE. Templates join it onto `.chezmoi.homeDir`, because
+# launchd resolves no `~` and inherits almost no PATH, so every plist, hook
+# declaration and keybinding needs the absolute form.
+rust_tools:
+  install_dir: ".cargo/bin"

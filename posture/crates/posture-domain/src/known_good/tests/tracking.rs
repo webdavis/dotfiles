@@ -14,13 +14,17 @@ fn dedicated_pipeline_and_posture_trees_are_always_tracked() {
     for path in [
         PATH,
         "/fixture/.local/libexec/osquery/",
-        "/fixture/.local/libexec/posture/posture",
+        "/fixture/.cargo/bin/posture",
     ] {
         assert!(known.is_tracked(path), "{path}");
     }
     for path in [
         "/fixture/.local/libexec/osquery",
-        "/fixture/.local/libexec/posturex/a",
+        // The binary is matched exactly, so a cargo-installed neighbour whose
+        // name merely starts with "posture" is not swept in beside it, and
+        // neither is anything below a directory of that name.
+        "/fixture/.cargo/bin/posturex",
+        "/fixture/.cargo/bin/posture/a",
         "/else/.local/libexec/osquery/a",
     ] {
         assert!(!known.is_tracked(path), "{path}");
@@ -111,7 +115,7 @@ fn exactly_one_manifest_is_selected_without_cross_vouch() {
         ..tuple()
     };
     let posture = KnownGoodTuple {
-        path: "/fixture/.local/libexec/posture/posture",
+        path: "/fixture/.cargo/bin/posture",
         ..tuple()
     };
     let pipeline = [tuple(), posture];

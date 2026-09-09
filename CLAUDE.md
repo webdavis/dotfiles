@@ -236,8 +236,8 @@ The `-cli` suffix survives on the two herdr plugins, which nobody installs that 
 
 `cargo install` installs EVERY binary a package declares, so pns's two development binaries
 (`http-capture`, a test double for the hermes transport, and `pns-config-render`, which regenerates this
-repository's own shipped config template) sit behind `required-features = ["dev-tools"]`. A default
-build and an install produce only `pns`; `just test-rust` and `just pns-config-render` pass
+repository's own shipped config template) sit behind `required-features = ["dev-tools"]`. A default build
+and an install produce only `pns`; `just test-rust` and `just pns-config-render` pass
 `--features dev-tools`. Add a bin to that package and it needs the same gate unless it is genuinely part
 of the product.
 
@@ -338,8 +338,8 @@ fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces 
 any more:** the roster guard was declaration-consistency checking, not tool behavior, so it went with the
 2026-08-05 scope ruling. Adding or removing a skill means editing the store, every lock table and every
 per-harness declaration by hand, and a missed one now surfaces as a skill quietly not reaching a harness
-rather than as a red build. `~/.local/libexec/uu/uu run skills` refreshes the npx-, clawhub- and
-app-owned lanes weekly, publishing a new generation with one atomic exchange.
+rather than as a red build. `~/.cargo/bin/uu run skills` refreshes the npx-, clawhub- and app-owned lanes
+weekly, publishing a new generation with one atomic exchange.
 
 `docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
 drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
@@ -471,6 +471,14 @@ a `just` recipe lives under `~/.local/libexec`, because `just` and launchd are t
 script beneath them is an implementation detail. Today that leaves exactly one file in `bin`
 (`ssh-hardening.sh`).
 
+**THE FOUR RUST TOOLS ARE OUT OF THAT RULE** (operator ruling 2026-09-09). `pns`, `uu`, `posture` and
+`lights` install to `~/.cargo/bin` instead, declared once in `.chezmoidata/rust_tools.yaml` and read from
+there by every caller. They left because the rule sorts private helpers of this checkout, and these are
+products other people install with `cargo install`; putting them where cargo puts everything else means
+one destination whether they arrived by apply or by install. The exemption is exactly those four. Every
+bash script under `libexec` keeps the rule, `pns/hooks/codex/install-hooks.sh` included, which is why
+`~/.local/libexec/pns` still exists with no binary in it.
+
 Four rules decide the shape below `libexec`, in this order:
 
 1. **A directory names a DOMAIN, a SYSTEM, or a FUNCTION**, never a dependency and never a vendor.
@@ -502,8 +510,8 @@ Names are verb-first where a bare noun would not say what happens (`compress-and
 `macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
 
 **`pns/` IS THE RUST ENGINE NOW, and the directory says so.** `pns` is the compiled binary, built at
-apply time from the workspace at `pns/` in this checkout and installed here because launchd and the hooks are
-what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
+apply time from the workspace at `pns/` in this checkout and installed here because launchd and the hooks
+are what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
 dropped in a directory. The HOOKS are the engine too:
 `pns hook prompt|stop|stop-failure|blocked|asked|plan-ready|denied|resolved|model-switch|quota|config-change`
@@ -655,20 +663,20 @@ and direnv and before starship.
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework), inside a darwin gate, because the engine is macOS-only. The shell is an engine producer like
-the Claude and Codex hooks and the weekly jobs, so its begin/end callbacks call
-`~/.local/libexec/pns/pns` rather than raising their own banner: the state is `done` or `failed` off the
-exit code, the detail is the command name and how long it ran, and the pane is `HERDR_PANE_ID`, which is
-what makes the banner focus that pane on click. Commands at 30s or longer go through the engine's normal
-presence gate (banner and Discord always, phone when away; operator ruling 2026-08-06: away means mobile,
-and mobile means glancing, so 30s is enough to earn the phone); at 5 minutes or longer pns selects
-`--long-running`, and the lights are part of the engine's own delivery plan from there, pulsing green on
-success and red otherwise off the same exit code the state came from. The shell used to make a second
-`pns pulse` call of its own, which meant the tier was decided twice and could disagree with itself.
-`pns pulse <exit-code>` still exists, but nothing in this repo calls it: it is the operator's manual
-command for signalling the lights by hand and for checking that a `[plugins.hue]` table's bridge and key
-actually work. Interactive TUIs are skipped by a prefix match on the command line: `vim`, `nvim`, `less`,
-`man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list
-because they fire their own relay hooks.
+the Claude and Codex hooks and the weekly jobs, so its begin/end callbacks call `~/.cargo/bin/pns` rather
+than raising their own banner: the state is `done` or `failed` off the exit code, the detail is the
+command name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus
+that pane on click. Commands at 30s or longer go through the engine's normal presence gate (banner and
+Discord always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means
+glancing, so 30s is enough to earn the phone); at 5 minutes or longer pns selects `--long-running`, and
+the lights are part of the engine's own delivery plan from there, pulsing green on success and red
+otherwise off the same exit code the state came from. The shell used to make a second `pns pulse` call of
+its own, which meant the tier was decided twice and could disagree with itself. `pns pulse <exit-code>`
+still exists, but nothing in this repo calls it: it is the operator's manual command for signalling the
+lights by hand and for checking that a `[plugins.hue]` table's bridge and key actually work. Interactive
+TUIs are skipped by a prefix match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`,
+`ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire
+their own relay hooks.
 
 ## Code Style
 

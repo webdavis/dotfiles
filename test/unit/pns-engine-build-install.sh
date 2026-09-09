@@ -7,6 +7,9 @@
 #
 # The script resolves cargo at a fixed $HOME-relative path, so a sandboxed
 # HOME with a stub cargo runs the real rendered script end to end.
+# shellcheck disable=SC2016  # The redirects below rewrite a rendered script so
+# it expands $HOME at RUN time; the single quotes keeping $HOME literal are the
+# point, not an oversight.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,12 +36,21 @@ grep -q '^crate_dir="\$HOME/crate"$' "$script" || {
   echo "the crate_dir redirect did not apply" >&2
   exit 1
 }
+# install_dir is likewise baked absolute at render time, off the REAL home,
+# so an unredirected run installs into the operator's own ~/.cargo/bin
+# instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+# is the shape it had before the install location moved.
+sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$script"
+grep -q '^install_dir="\$HOME/.cargo/bin"$' "$script" || {
+  echo "the install_dir redirect did not apply" >&2
+  exit 1
+}
 chmod +x "$script"
 
 home="$scratch/home"
 marker="$home/.cache/pns-build/engine.retry"
 pending="$home/.cache/pns-build/restart-pending"
-installed="$home/.local/libexec/pns/pns"
+installed="$home/.cargo/bin/pns"
 
 # The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
 # and a sandboxed HOME does nothing to launchctl: without a stub on PATH this

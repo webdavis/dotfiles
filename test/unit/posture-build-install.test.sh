@@ -16,6 +16,9 @@
 # executable bit; test/validate-tests.sh pins the shape. assert_same, never
 # assert_equals: the latter normalizes control characters away (0.50.1).
 
+# shellcheck disable=SC2016  # Several redirects below rewrite a rendered script
+# so it expands $HOME at RUN time; the single quotes keeping $HOME literal are
+# the point, not an oversight.
 repo_root() {
   printf '%s' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 }
@@ -44,6 +47,15 @@ set_up_before_script() {
     echo "the crate_dir redirect did not apply" >&2
     return 1
   }
+  # install_dir is likewise baked absolute at render time, off the REAL home,
+  # so an unredirected run installs into the operator's own ~/.cargo/bin
+  # instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+  # is the shape it had before the install location moved.
+  sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$rendered_builder"
+  grep -q '^install_dir="\$HOME/.cargo/bin"$' "$rendered_builder" || {
+    echo "the install_dir redirect did not apply" >&2
+    return 1
+  }
   chmod +x "$rendered_builder"
   # Exercise the builder's trigger without rehashing every build input per case.
   retry_template="$render_dir/retry-trigger.tmpl"
@@ -62,7 +74,7 @@ set_up() {
   sandbox="$(mktemp -d)"
   sandbox_home="$sandbox/home"
   sandbox_source="$sandbox/source"
-  installed_binary="$sandbox_home/.local/libexec/posture/posture"
+  installed_binary="$sandbox_home/.cargo/bin/posture"
   retry_marker="$sandbox_home/.cache/posture-build/posture.retry"
   build_record="$sandbox_home/.local/state/posture-build-record"
   cargo_args="$sandbox/cargo.args"

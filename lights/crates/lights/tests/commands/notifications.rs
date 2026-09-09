@@ -139,7 +139,7 @@ fn missing_pns_does_not_fail_action() {
         },
     );
     original(&response);
-    assert!(!root.join(".local/libexec/pns/pns").exists());
+    assert!(!root.join(".cargo/bin/pns").exists());
 }
 #[test]
 fn notification_status_never_changes_success() {

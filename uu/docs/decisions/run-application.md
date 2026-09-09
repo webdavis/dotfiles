@@ -14,10 +14,9 @@ existing exit behavior.
 | `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                               |
 | `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                   |
 | `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns-hermes` and the existing infrastructure libraries.            |
-| `uu`         | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
+| `uu`             | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
 
-`uu` also takes `uu-domain` as a test dependency for the value types in the existing application
-ports.
+`uu` also takes `uu-domain` as a test dependency for the value types in the existing application ports.
 
 `Marker` and `RunFacts` belong to the domain because they describe the previous successful run and the
 facts supplied to a lane, without prescribing an encoding.

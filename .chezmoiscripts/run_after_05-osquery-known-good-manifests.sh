@@ -393,7 +393,7 @@ refresh_manifest() {
   # This binary is built, not chezmoi-managed, so it has no cat/dump entry.
   if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
     refresh_manifest_hash="$(posture_record_hash)" || return 1
-    printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.local/libexec/posture/posture" >>"$fresh"
+    printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/posture" >>"$fresh"
   fi
 
   # Never let an empty render overwrite a good manifest.

@@ -16,7 +16,7 @@ set -euo pipefail
 # Repository SOURCE at the monorepo root, never a deploy target, so the build
 # reads the chezmoi source directory rather than a copy under $HOME.
 crate_dir={{ $lights | quote }}
-install_dir="$HOME/.local/libexec"
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
 cargo_bin="$HOME/.cargo/bin/cargo"
 retry_marker="$HOME/.cache/lights-build/lights.retry"
 

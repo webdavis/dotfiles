@@ -109,10 +109,10 @@ deployed `enrich-finding.sh`. The source package and its tests never apply or in
 | `crates/posture-application/src/enrich/tests/signing.rs`      | `bash_downloaded`                                                           |
 | `crates/posture-application/src/enrich/tests/signing.rs`      | `bash_quarantine_failure`                                                   |
 | `crates/posture-application/src/enrich/tests/signing.rs`      | `bash_quarantine_empty`                                                     |
-| `crates/posture/src/tests.rs`                             | `the_cli_composes_enrichment_and_preserves_its_fact_and_exit_status`        |
-| `crates/posture/tests/usage.rs`                           | `every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2`       |
-| `crates/posture/tests/usage.rs`                           | `enrich_with_an_absent_or_empty_path_is_successful_and_silent`              |
-| `crates/posture/tests/usage.rs`                           | `enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands`     |
+| `crates/posture/src/tests.rs`                                 | `the_cli_composes_enrichment_and_preserves_its_fact_and_exit_status`        |
+| `crates/posture/tests/usage.rs`                               | `every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2`       |
+| `crates/posture/tests/usage.rs`                               | `enrich_with_an_absent_or_empty_path_is_successful_and_silent`              |
+| `crates/posture/tests/usage.rs`                               | `enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands`     |
 | `crates/posture-domain/src/enrich/tests.rs`                   | `signing_failure`                                                           |
 | `crates/posture-domain/src/enrich/tests.rs`                   | `signing_not_signed`                                                        |
 | `crates/posture-domain/src/enrich/tests.rs`                   | `signing_adhoc`                                                             |

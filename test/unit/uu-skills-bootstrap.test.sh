@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
 # The bootstrap wrapper runs only owned stand-ins under each case's private HOME.
 
+# shellcheck disable=SC2016  # Several redirects below rewrite a rendered script
+# so it expands $HOME at RUN time; the single quotes keeping $HOME literal are
+# the point, not an oversight.
 function set_up() {
   SKILLS_FIXTURE="$(mktemp -d)"
   SKILLS_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  mkdir -p "$SKILLS_FIXTURE/.local/libexec/uu" "$SKILLS_FIXTURE/.local/libexec/pns" \
+  mkdir -p "$SKILLS_FIXTURE/.cargo/bin" \
     "$SKILLS_FIXTURE/.local/state/skills" "$SKILLS_FIXTURE/c" "$SKILLS_FIXTURE/d" \
     "$SKILLS_FIXTURE/s" "$SKILLS_FIXTURE/k" "$SKILLS_FIXTURE/r" "$SKILLS_FIXTURE/l" "$SKILLS_FIXTURE/t"
-  sed '/^# .*{{/d' "$SKILLS_REPO/.chezmoiscripts/run_onchange_after_64-update-skills-first-install.sh.tmpl" \
-    >"$SKILLS_FIXTURE/subject.sh"
-  cat >"$SKILLS_FIXTURE/.local/libexec/uu/uu" <<'STUB'
+  # RENDERED, not comment-stripped. Until the install location moved, the only
+  # Go actions in this script sat in comment lines, so deleting those lines left
+  # runnable bash. The two binary paths now come from .chezmoidata/rust_tools.yaml,
+  # and a stripped copy carries a bare `{{ ... }}` into executable position, which
+  # exits 127 in every case. Render properly, then point both paths back at this
+  # case's own HOME, because the render bakes an absolute path off the real one.
+  CI=1 HOME="$SKILLS_FIXTURE" chezmoi --source "$SKILLS_REPO" execute-template --no-tty \
+    <"$SKILLS_REPO/.chezmoiscripts/run_onchange_after_64-update-skills-first-install.sh.tmpl" \
+    >"$SKILLS_FIXTURE/subject.sh" 2>/dev/null
+  sed -i '' -e 's|^UPDATER=.*|UPDATER="$HOME/.cargo/bin/uu"|' \
+    -e 's|^ENGINE=.*|ENGINE="$HOME/.cargo/bin/pns"|' "$SKILLS_FIXTURE/subject.sh"
+  grep -q '^UPDATER="\$HOME/.cargo/bin/uu"$' "$SKILLS_FIXTURE/subject.sh"
+  grep -q '^ENGINE="\$HOME/.cargo/bin/pns"$' "$SKILLS_FIXTURE/subject.sh"
+  cat >"$SKILLS_FIXTURE/.cargo/bin/uu" <<'STUB'
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$@" >"$HOME/argv"
 cat "$HOME/message" >&2
 exit "$(cat "$HOME/exit")"
 STUB
-  cat >"$SKILLS_FIXTURE/.local/libexec/pns/pns" <<'STUB'
+  cat >"$SKILLS_FIXTURE/.cargo/bin/pns" <<'STUB'
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$@" >"$HOME/alarm"
 STUB
-  chmod 755 "$SKILLS_FIXTURE/.local/libexec/uu/uu" "$SKILLS_FIXTURE/.local/libexec/pns/pns"
+  chmod 755 "$SKILLS_FIXTURE/.cargo/bin/uu" "$SKILLS_FIXTURE/.cargo/bin/pns"
   : >"$SKILLS_FIXTURE/message"
 }
 

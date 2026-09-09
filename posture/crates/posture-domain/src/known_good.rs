@@ -149,7 +149,11 @@ fn valid_digest(hash: &str) -> bool {
 
 fn pipeline_path(home: &str, target: &str) -> bool {
     target.starts_with(&format!("{home}/.local/libexec/osquery/"))
-        || target.starts_with(&format!("{home}/.local/libexec/posture/"))
+        // The posture binary moved to ~/.cargo/bin on 2026-09-09. It is matched
+        // EXACTLY, never by prefix: that directory is shared with every other
+        // cargo-installed program on the machine, and a prefix would pull all of
+        // them into the pipeline manifest.
+        || target == format!("{home}/.cargo/bin/posture")
 }
 
 fn bin_path(home: &str, target: &str) -> bool {

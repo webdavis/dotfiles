@@ -270,7 +270,7 @@ setup:
 # launchd runs), not the repo source copy. It takes uu's own run lock, so a run
 # that overlaps the scheduled one says so and exits rather than racing it.
 brew-upgrade:
-  ~/.local/libexec/uu/uu run brew
+  ~/.cargo/bin/uu run brew
 
 # Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
 # `brew shellenv`, now, instead of waiting for the next interactive shell to
@@ -325,7 +325,7 @@ defaults-dump:
 # Refresh skills through the weekly uu lane.
 # uu bootstrap skills installs or repairs additively without a weekly record.
 update-skills:
-  ~/.local/libexec/uu/uu run skills
+  ~/.cargo/bin/uu run skills
 
 # Regenerate the shipped pns config template from the committed values file.
 # `just test-unit` pins the result byte for byte, so a hand edit to the

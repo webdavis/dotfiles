@@ -12,7 +12,7 @@ the loop, pns, or the machine dies.
 ## Take the lease first
 
 ```bash
-~/.local/libexec/pns/pns loop begin
+~/.cargo/bin/pns loop begin
 ```
 
 Run it in the pane the work will run in. It keys the lease to `HERDR_PANE_ID`
@@ -31,7 +31,7 @@ without the lamp. The lease changes nothing about how the work runs.
 ## Give the lease back at the end
 
 ```bash
-~/.local/libexec/pns/pns loop end
+~/.cargo/bin/pns loop end
 ```
 
 Run it in the same pane, as the last step of the run, on success and on

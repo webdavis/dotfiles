@@ -104,7 +104,7 @@ of scope here.
 
 ## The in-repo callers of this contract
 
-Enumerated by `grep -rn 'libexec/pns/pns'` over the repository, excluding `.git`, `target`,
+Enumerated by `grep -rn 'cargo/bin/pns'` over the repository, excluding `.git`, `target`,
 `graphify-out` and the crate itself. Paths are repository-relative to the worktree root.
 
 Producer invocations (the contract this file specifies):
@@ -121,13 +121,13 @@ lives inside:
 
 | Caller                                                                         | Command line                                                                             |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:9`                    | `<home>/.local/libexec/pns/pns daemon run`                                               |
-| `private_dot_claude/modify_settings.json:328-387`                              | `<home>/.local/libexec/pns/pns hook <event>` for eleven events, one of them `>/dev/null` |
+| `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:9`                    | `<home>/.cargo/bin/pns daemon run`                                               |
+| `private_dot_claude/modify_settings.json:328-387`                              | `<home>/.cargo/bin/pns hook <event>` for eleven events, one of them `>/dev/null` |
 | `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh:12-13`          | `PNS_AGENT=codex $agent hook stop` and `PNS_AGENT=codex $agent hook blocked`             |
 | `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl:56`         | the binary path written into moshi's `helperBinary`, which then invokes `pns pi-hook`    |
-| `private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md:15,34`    | `~/.local/libexec/pns/pns loop begin` and `~/.local/libexec/pns/pns loop end`            |
+| `private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md:15,34`    | `~/.cargo/bin/pns loop begin` and `~/.cargo/bin/pns loop end`            |
 | `dot_config/uu/private_config.toml.tmpl:36`                                    | `[alerts] binary`, the engine `uu` shells out to for a failed lane                       |
-| `dot_config/osquery/private_page-launchd-allowlist.txt:46`                     | the allowlisted program string `~/.local/libexec/pns/pns daemon run`                     |
+| `dot_config/osquery/private_page-launchd-allowlist.txt:46`                     | the allowlisted program string `~/.cargo/bin/pns daemon run`                     |
 | `.chezmoiscripts/run_onchange_after_64-update-skills-first-install.sh.tmpl:51` | `ENGINE`, resolved and passed to the updater                                             |
 
 Two references are documents rather than callers and invoke nothing:

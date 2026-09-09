@@ -328,70 +328,75 @@
      neither PreToolUse's tool name nor StopFailure's error text.
      --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
+{{- /* The pns binary's absolute path, from the one declaration in
+     .chezmoidata/rust_tools.yaml. Absolute rather than a bare `pns` because a
+     hook command runs with whatever PATH the harness inherited, which on a GUI
+     launch is not the managed shell's. */ -}}
+{{- $pns := joinPath $home .rust_tools.install_dir "pns" -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/libexec/pns/pns hook prompt" $home)))))
+        "command" (printf "%s hook prompt" $pns)))))
     "Stop" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook stop" $home)))))
+        "command" (printf "%s hook stop" $pns)))))
     "PostModelSwitch" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook model-switch >/dev/null" $home)))))
+        "command" (printf "%s hook model-switch >/dev/null" $pns)))))
     "StopFailure" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook stop-failure" $home)))))
+        "command" (printf "%s hook stop-failure" $pns)))))
     "Notification" (list (dict
       "matcher" "quota_auto_resume_fired|quota_auto_resume_stale|quota_auto_resume_disabled"
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook quota" $home)))))
+        "command" (printf "%s hook quota" $pns)))))
     "ConfigChange" (list (dict
       "matcher" "user_settings|project_settings|local_settings|policy_settings|skills"
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook config-change" $home)))))
+        "command" (printf "%s hook config-change" $pns)))))
     "PermissionRequest" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s/.local/libexec/pns/pns hook blocked" $home)))))
+        "command" (printf "%s hook blocked" $pns)))))
     "PermissionDenied" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook denied" $home)))))
+        "command" (printf "%s hook denied" $pns)))))
     "Elicitation" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook asked" $home)))))
+        "command" (printf "%s hook asked" $pns)))))
     "PostToolBatch" (list (dict
       "hooks" (list (dict
         "type" "command"
         "async" true
-        "command" (printf "%s/.local/libexec/pns/pns hook resolved" $home)))))
+        "command" (printf "%s hook resolved" $pns)))))
     "PostToolUse" (list
       (dict
         "matcher" "AskUserQuestion"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/pns hook asked" $home))))
+          "command" (printf "%s hook asked" $pns))))
       (dict
         "matcher" "ExitPlanMode"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/libexec/pns/pns hook plan-ready" $home)))))
+          "command" (printf "%s hook plan-ready" $pns)))))
     "SessionStart" (list (dict
       "matcher" "*"
       "hooks" (list (dict

@@ -75,7 +75,6 @@ lights
 
 {{- if eq .chezmoi.os "linux" }}
 Library
-.local/libexec/lights
 .config/lights
 .local/libexec/macos-defaults/macos-defaults-drift.sh
 .local/libexec/macos-defaults/macos-defaults-apply.sh
@@ -98,9 +97,7 @@ Library
 .claude/strategy-marketplace
 # uu rides on the pns engine for alerts and on its hermes client for records,
 # so it is macOS-only for the same reasons and its builder is darwin-gated too.
-.local/libexec/uu
 .config/uu
 # posture is the osquery pipeline's port, and that pipeline is macOS-only
 # (launchd, osqueryd under /var/osquery, a darwin-gated builder).
-.local/libexec/posture
 {{- end }}

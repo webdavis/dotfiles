@@ -25,7 +25,7 @@ fn pns_arguments_are_local_only() {
                 "--foreground",
                 "--signal=KILL",
                 "2s",
-                "/owned/home/.local/libexec/pns/pns",
+                "/owned/home/.cargo/bin/pns",
                 "--agent",
                 "lights",
                 "--state",

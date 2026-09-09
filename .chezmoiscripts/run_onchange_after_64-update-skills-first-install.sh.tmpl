@@ -16,10 +16,10 @@
 # pending retry: {{ if stat (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending") }}{{ (output "sh" "-c" (printf "cat %s 2>/dev/null || true" (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending" | squote))) | regexFind "^[0-9]+" }}{{ end }}
 set -euo pipefail
 
-UPDATER="$HOME/.local/libexec/uu/uu"
+UPDATER={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" | quote }}
 MARKER_DIR="$HOME/.local/state/skills"
 MARKER="$MARKER_DIR/first-install-pending"
-ENGINE="$HOME/.local/libexec/pns/pns"
+ENGINE={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" | quote }}
 
 if [[ ! -x $UPDATER ]]; then
   exit 0

@@ -18,7 +18,7 @@ fn home_constructs_paths_without_reading_legacy_path_overrides() {
     snapshots.push("/.local/log/osquery/osqueryd.snapshots.log");
     assert_eq!(config.snapshots, PathBuf::from(snapshots));
     let mut engine = home;
-    engine.push("/.local/libexec/pns/pns");
+    engine.push("/.cargo/bin/pns");
     assert_eq!(config.pns, PathBuf::from(engine));
     assert_eq!(config.alarm, PathBuf::from("/usr/bin/osascript"));
     assert_eq!(config.maximum_age.seconds(), 16);

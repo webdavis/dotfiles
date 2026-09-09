@@ -6,7 +6,7 @@
   <string>com.webdavis.pns-daemon</string>
   <key>ProgramArguments</key>
   <array>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/pns/pns</string>
+    <string>{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}</string>
     <string>daemon</string>
     <string>run</string>
   </array>

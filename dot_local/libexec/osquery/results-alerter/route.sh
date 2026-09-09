@@ -112,7 +112,7 @@ route_findings() {
   # The signing enricher (posture enrich): given an inspectable path it emits a
   # trust fact string and exits 10 when the code is UNTRUSTED. Overridable for tests;
   # absent/non-executable -> enrichment is skipped (fail-open, the finding still surfaces).
-  local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.local/libexec/posture/posture}"
+  local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.cargo/bin/posture}"
 
   local -a pages=()
   local i q act path label program category target base hash verb ep sev av signing enrich_status

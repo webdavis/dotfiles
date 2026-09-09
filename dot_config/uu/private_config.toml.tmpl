@@ -37,7 +37,7 @@ key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
 # decision: pns owns presence and escalation. An engine that is not there leaves
 # the failure logged and the run clean.
 [alerts]
-binary = "{{ .chezmoi.homeDir }}/.local/libexec/pns/pns"
+binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 
 # herdr and every GitHub-sourced plugin, refreshed weekly. herdr has no
 # `plugin update`, so a refresh is an uninstall followed by a fresh install,

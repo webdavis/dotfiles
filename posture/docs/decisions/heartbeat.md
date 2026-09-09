@@ -52,8 +52,8 @@ The heartbeat command supplies the proposed fixed route name `posture` through t
 validated route argument. It does not add a protocol dependency to the command crate. This name requires
 an operator-created, pns-keyed Hermes binding under specification section 5.5(5); no encrypted
 configuration or live route was inspected or changed. The prepared plist changes only its two program
-arguments, to `~/.local/libexec/posture/posture heartbeat`, and remains held for that prerequisite. The
-existing Bash script and tests are retained, and `canary-freshness.sh` still serves the watchdog.
+arguments, to `~/.cargo/bin/posture heartbeat`, and remains held for that prerequisite. The existing Bash
+script and tests are retained, and `canary-freshness.sh` still serves the watchdog.
 
 The five-second submission limit comes from the Bash remote delivery bound. The independent banner uses
 the existing ten-second posture command bound, through a separate runner. This preserves its opportunity

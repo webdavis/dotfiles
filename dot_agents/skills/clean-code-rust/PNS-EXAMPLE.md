@@ -13,11 +13,11 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
 
 1. **The chezmoi builder**, `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`, runs
    `cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml`
-   and installs `target/release/pns` into `~/.local/libexec/pns/pns`. Its cargo line and paths move
+   and installs `target/release/pns` into `~/.cargo/bin/pns`. Its cargo line and paths move
    to the workspace layout in the same pull request as the conversion, together with
    `test/unit/pns-engine-build-install.sh`, which stubs that shape. Fixed: the workspace lives at
    `pns/` in the checkout and never deploys to `$HOME`, the binary installs at
-   `~/.local/libexec/pns/pns`, and the build runs `--locked`.
+   `~/.cargo/bin/pns`, and the build runs `--locked`.
 2. **The justfile recipes** `test-rust` and `pns-config-render` pass
    `--manifest-path pns/Cargo.toml`. The workspace conversion has since landed:
    `crates/pns-{domain,application,protocol,adapters,cli}` exist as skeletons and `test-rust` already
@@ -32,7 +32,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    moshi's generated extensions hold one pathname in `helperBinary` and therefore call the bare
    spelling `pns pi-hook` rather than `pns gate pi-hook`. Enumerate the in-repo callers first:
 
-       grep -rn 'libexec/pns/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
+       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
 
    They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
    LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's

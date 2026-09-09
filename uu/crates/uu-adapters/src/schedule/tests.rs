@@ -9,7 +9,7 @@ fn rendered(schedule: Schedule) -> String {
 fn the_rendered_job_runs_the_binary_with_the_run_subcommand() {
     let plist = rendered(Schedule::default());
     assert!(
-        plist.contains("<string>/home/x/.local/libexec/uu/uu</string>"),
+        plist.contains("<string>/home/x/.cargo/bin/uu</string>"),
         "{plist}"
     );
     assert!(plist.contains("<string>run</string>"), "{plist}");
@@ -93,7 +93,7 @@ fn a_path_holding_xml_syntax_is_escaped_rather_than_breaking_the_plist() {
     let plist = render_plist("a&b", "/home/a<b>&c", Schedule::default());
     assert!(plist.contains("<string>a&amp;b</string>"), "{plist}");
     assert!(
-        plist.contains("<string>/home/a&lt;b&gt;&amp;c/.local/libexec/uu/uu</string>"),
+        plist.contains("<string>/home/a&lt;b&gt;&amp;c/.cargo/bin/uu</string>"),
         "{plist}"
     );
     assert!(

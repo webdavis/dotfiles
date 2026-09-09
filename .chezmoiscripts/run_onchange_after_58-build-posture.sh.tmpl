@@ -8,8 +8,7 @@ umask 077
 # run it. The workspace is repository SOURCE at the monorepo root and never
 # deploys to $HOME, so this compiles out of the chezmoi source directory;
 # nothing else compiles it, so without this script every plist repointed at the
-# binary
-# would find nothing there.
+# binary would find nothing there.
 #
 # Re-runs whenever a build input changes. Three kinds are hashed below, globbed
 # rather than listed so a new module or workspace member cannot miss the
@@ -55,8 +54,9 @@ umask 077
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
 crate_dir={{ $crate | quote }}
-# Scheduled jobs and the operator share this installed entry point.
-install_dir="$HOME/.local/libexec/posture"
+# ~/.cargo/bin, declared once in .chezmoidata/rust_tools.yaml. Scheduled jobs
+# and the operator share this installed entry point.
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
 binary="$install_dir/posture"
 artifact="$crate_dir/target/release/posture"
 retry_marker="$HOME/.cache/posture-build/posture.retry"

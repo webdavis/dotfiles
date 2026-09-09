@@ -7,7 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once() {
     let home = std::env::temp_dir().join(format!("posture-heartbeat-edge-{}", std::process::id()));
     std::fs::create_dir(&home).unwrap();
-    let engine = home.join(".local/libexec/pns/pns");
+    let engine = home.join(".cargo/bin/pns");
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
     std::fs::write(&engine,br##"#!/bin/sh
 set -eu

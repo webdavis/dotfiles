@@ -44,8 +44,8 @@ The lock at `dot_agents/custom-skill-lock.json` records it.
 ### npx-tracked (the `npxTracked` table, 29 skills)
 
 The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
-upstream, latest from `main` (no pin). `~/.local/libexec/uu/uu run skills` installs and refreshes them
-via an explicit
+upstream, latest from `main` (no pin). `~/.cargo/bin/uu run skills` installs and refreshes them via an
+explicit
 `npx --yes skills@<configured-version> add <repo> --skill <name> --agent claude-code --agent codex -g -y`
 per repo group, run against the weekly candidate generation. It never uses the bulk `npx skills update`,
 whose lock-walk logs some failures at exit 0; the explicit add also reconciles lock-absent roster skills.
@@ -327,9 +327,9 @@ target Claude Code and Codex; other harness delivery comes from the declared pro
 ## Schedule
 
 The skills lane runs with the configured `uu` weekly job. `just update-skills` invokes
-`~/.local/libexec/uu/uu run skills` manually. There is no activity gate or separate Monday retry window.
-The uu run lock prevents concurrent uu execution; a refused bootstrap exits 1 and its apply wrapper
-retains `~/.local/state/skills/first-install-pending` for the next apply.
+`~/.cargo/bin/uu run skills` manually. There is no activity gate or separate Monday retry window. The uu
+run lock prevents concurrent uu execution; a refused bootstrap exits 1 and its apply wrapper retains
+`~/.local/state/skills/first-install-pending` for the next apply.
 
 Before the cutover apply, the operator stops `com.webdavis.update-skills` and waits for old updater and
 manual `live-reconcile` invocations to finish. Source retirement cannot stop an already loaded job. The
@@ -388,9 +388,9 @@ combined weekly entry. It does not install or upgrade plugins.
 - **Delivery timing:** the lane advances its snapshot during the run, before uu delivers the combined
   record. This differs from the retired bash reporter: a refused record can leave that comparison absent
   from the next run. Snapshot publication is atomic, and a publication failure is reported.
-- **Bootstrap:** `~/.local/libexec/uu/uu bootstrap claude-plugins` takes the run lock, seeds or imports
-  the baseline, and prints its report. It sends no record or alert and changes no success marker or
-  streak. Repeated bootstrap keeps existing history without consuming its pending comparison.
+- **Bootstrap:** `~/.cargo/bin/uu bootstrap claude-plugins` takes the run lock, seeds or imports the
+  baseline, and prints its report. It sends no record or alert and changes no success marker or streak.
+  Repeated bootstrap keeps existing history without consuming its pending comparison.
 - **Apply ordering:** script 69 invokes bootstrap after uu is deployed. This is the same apply that
   enables marketplace auto-updates, so nothing between the settings write and the seed may start Claude
   Code. Seed failure is nonfatal and leaves the next run to retry.

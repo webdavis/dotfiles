@@ -6,7 +6,7 @@
   <string>com.webdavis.uu</string>
   <key>ProgramArguments</key>
   <array>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/uu/uu</string>
+    <string>{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" }}</string>
     <string>run</string>
   </array>
   <!-- Mason needs the managed Node runtime for npm packages such as prettierd

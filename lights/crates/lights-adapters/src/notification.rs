@@ -24,7 +24,7 @@ impl PnsNotifier {
 impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
     pub fn with_runner(home: &Path, run: F) -> Self {
         Self {
-            pns: home.join(".local/libexec/pns/pns"),
+            pns: home.join(".cargo/bin/pns"),
             monitor: PathBuf::from("gtimeout"),
             duration: Duration::from_secs(2),
             run,

@@ -11,7 +11,7 @@ running.
 | `posture-application` | Use cases and the ports they own                  |
 | `posture-protocol`    | Existing cross-process digest record codec        |
 | `posture-adapters`    | Concrete capabilities and consumed wire contracts |
-| `posture`         | Command decoding, composition, and exit codes     |
+| `posture`             | Command decoding, composition, and exit codes     |
 
 The member manifests enforce the inward dependencies. Domain and application depend on neither protocol
 crate. Adapters alone consume posture-protocol and the sibling pns-protocol; the cli composes domain,
@@ -34,11 +34,11 @@ cargo build --release --locked --quiet --bin posture --manifest-path posture/Car
 ```
 
 `just test-rust` runs the workspace tests, formatting check, and clippy. The builder installs
-`~/.local/libexec/posture/posture` after recording the authorized artifact and refreshing its governing
-manifest through the runner's pipeline-only option. It refuses empty artifacts and artifacts over 8 MiB.
-A pre-publication refusal preserves the prior record, binary and tuple. A failed installation keeps the
-new record so the next apply can retry. The interval between manifest publication and binary installation
-can produce a detectable mismatch; it has no fixed time bound or interruption rollback.
+`~/.cargo/bin/posture` after recording the authorized artifact and refreshing its governing manifest
+through the runner's pipeline-only option. It refuses empty artifacts and artifacts over 8 MiB. A
+pre-publication refusal preserves the prior record, binary and tuple. A failed installation keeps the new
+record so the next apply can retry. The interval between manifest publication and binary installation can
+produce a detectable mismatch; it has no fixed time bound or interruption rollback.
 
 `test-baseline.tsv` records each retained Bash test by source path, leaf name, and observed result.
 Subsequent port changes map those names to Rust successors or explain their retirement. The existing Bash
