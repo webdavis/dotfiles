@@ -218,16 +218,42 @@ impl Tone {
 /// first frame was written: the house look is gum's pink over a faint rule with
 /// NO BOX AROUND BODY TEXT. A rule cannot be mangled, because it has one side.
 ///
-/// NOTHING HERE FLOATS EITHER. Every line after the command carries a label
-/// naming its role, because a bare sentence under a command name reads like an
-/// error rather than a description.
-pub(crate) fn header(paint: Paint, command: &str, lines: &[String]) -> Vec<String> {
-    let mut out = vec![paint.accent(command)];
-    out.extend(lines.iter().map(|line| paint.faint(line)));
+/// NOTHING HERE FLOATS EITHER, and that is enforced by the argument type rather
+/// than asked for in a comment. Every line after the invocation arrives as a
+/// `HeaderLine`, which cannot be built without a label, because a bare sentence
+/// under a command name reads like an error rather than a description: a reader
+/// meeting `pns doctor` over `every suppression gate is bypassed` cannot tell
+/// whether that is a description, a status or a failure.
+///
+/// THE INVOCATION IS THE WHOLE COMMAND LINE, `pns tap --info` rather than
+/// `pns tap`, so a reader can tell which flag produced the output in front of
+/// them.
+///
+/// IT OPENS WITH A BLANK LINE, so the report does not begin flush against the
+/// prompt the operator just typed.
+pub(crate) fn header(paint: Paint, invocation: &str, lines: &[HeaderLine<'_>]) -> Vec<String> {
+    let width = lines.iter().map(|line| line.label.len()).max().unwrap_or(0);
+    let mut out = vec![String::new(), paint.accent(invocation)];
+    out.extend(
+        lines
+            .iter()
+            .map(|line| paint.faint(&format!("{:width$}   {}", line.label, line.text))),
+    );
     out.push(rule(paint));
     // NO TRAILING BLANK. Every section already opens with one, so adding a
     // second here put two blank lines between the rule and the first heading.
     out
+}
+
+/// One labelled line of a header.
+///
+/// THE LABEL IS THE POINT. `Note` marks a caveat about the report being read,
+/// `About` says what a feature is, `Steps` heads a contents list. Without one
+/// the reader has to guess what role the text plays, and the guess that costs
+/// the most is "something went wrong".
+pub(crate) struct HeaderLine<'a> {
+    pub(crate) label: &'a str,
+    pub(crate) text: &'a str,
 }
 
 /// A section heading: a diamond, the name, and a rule carrying the one line

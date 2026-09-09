@@ -285,7 +285,7 @@ is what makes a tool feel finished.
 
 ## Framed headers carry labels, never floating sentences
 
-- [ ] 77. NOTHING IN A FRAME FLOATS (operator ruling 2026-09-09). Task 69 shipped the doctor's frame as a
+- [x] 77. NOTHING IN A FRAME FLOATS (operator ruling 2026-09-09). Task 69 shipped the doctor's frame as a
   command name with a bare sentence under it, `pns doctor` over `every suppression gate is bypassed`, and
   a reader has no way to tell whether that sentence is a description, a status or an error. It reads like
   something went wrong. Every line after the command name takes a LABEL naming its role: `Note` for a
@@ -294,6 +294,14 @@ is what makes a tool feel finished.
   WHOLE INVOCATION, `pns tap --info` rather than `pns tap`, so the reader can tell which flag produced
   the output in front of them. This changes `pns doctor` (shipped) as well as the tap guide, and every
   command task 70 converts.
+
+  DONE 2026-09-09, and the rule is now enforced by the argument type rather than asked for in a comment.
+  `header` takes `&[HeaderLine]`, and a `HeaderLine` cannot be built without a label, so a floating
+  sentence is unrepresentable rather than merely discouraged. Labels line up in one column, because
+  ragged ones read as unrelated lines instead of as facts about the same report. The header also OPENS
+  WITH A BLANK LINE (operator ruling 2026-09-09), so a report does not begin flush against the prompt
+  just typed. The whole-invocation rule is carried by the parameter's name and its tests; `pns doctor`
+  has no flags, so it is already whole, and the tap guide inherits the shape when it is built.
 
 ## The Back Tap marker
 

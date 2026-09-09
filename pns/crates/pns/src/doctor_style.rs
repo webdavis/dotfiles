@@ -55,7 +55,14 @@ impl Report {
     /// The `Note` label is what says which of the three it is, and it costs one
     /// word.
     pub(crate) fn open(&self, note: &str) -> Vec<String> {
-        style::header(self.paint, "pns doctor", &[format!("Note   {note}")])
+        style::header(
+            self.paint,
+            "pns doctor",
+            &[style::HeaderLine {
+                label: "Note",
+                text: note,
+            }],
+        )
     }
 
     /// One piece of the report.
