@@ -17,7 +17,7 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     }
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    let lines: Vec<&str> = printed.lines().collect();
+    let lines = report_rows(&printed);
     // ANCHORED ON THE HEADING THIS LOCATES ITSELF, rather than on an offset
     // from the summary. Every assertion it was written to make survives (the
     // heading leads the section, newest first, and nothing follows it); what
@@ -54,8 +54,12 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    assert!(
-        printed.ends_with(&format!("{NO_DECISION_RECORDED}\n{NONE_WAITING}\n")),
+    // THE LAST TWO ROWS, rather than the last two lines: the report now closes
+    // with a list of what to act on, which repeats a row already printed.
+    let rows = report_rows(&printed);
+    assert_eq!(
+        &rows[rows.len() - 2..],
+        [NO_DECISION_RECORDED, NONE_WAITING],
         "{printed}"
     );
     assert_eq!(
@@ -73,10 +77,15 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
     std::fs::write(sandbox.path("state/decisions"), "not a decision at all\n").expect("the ring");
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    assert!(
-        printed.ends_with(&format!(
-            "  unreadable entry: \"not a decision at all\"\n{NONE_WAITING}\n"
-        )),
+    let rows = report_rows(&printed);
+    assert_eq!(
+        &rows[rows.len() - 2..],
+        [
+            // The entry keeps the two spaces the decision section itself
+            // writes; the renderer's indent sits outside them.
+            "  unreadable entry: \"not a decision at all\"",
+            NONE_WAITING
+        ],
         "{printed}"
     );
     assert_eq!(
@@ -99,7 +108,7 @@ fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_co
 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    let lines: Vec<&str> = printed.lines().collect();
+    let lines = report_rows(&printed);
     assert_eq!(
         lines.get(lines.len() - 2),
         Some(&NONE_WAITING),
@@ -146,7 +155,7 @@ fn a_fifo_at_the_rings_path_never_parks_the_doctor_and_is_named_by_its_kind() {
     let output = output_before_the_deadline(&mut command);
 
     let printed = stdout(&output);
-    let lines: Vec<&str> = printed.lines().collect();
+    let lines = report_rows(&printed);
     assert_eq!(
         lines.get(lines.len() - 2),
         Some(&NONE_WAITING),

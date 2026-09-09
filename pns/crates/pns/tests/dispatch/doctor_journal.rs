@@ -14,7 +14,7 @@ fn the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it() {
 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    let lines: Vec<&str> = printed.lines().collect();
+    let lines = report_rows(&printed);
     let heading = lines
         .iter()
         .position(|line| *line == format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"))
@@ -48,7 +48,7 @@ fn a_journal_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit
 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);
-    let lines: Vec<_> = printed.lines().collect();
+    let lines = report_rows(&printed);
     assert!(
         lines
             .last()
@@ -88,7 +88,7 @@ fn a_fifo_at_the_journals_path_never_parks_the_doctor_and_is_named_by_its_kind()
     let output = output_before_the_deadline(&mut command);
 
     let printed = stdout(&output);
-    let lines: Vec<_> = printed.lines().collect();
+    let lines = report_rows(&printed);
     assert!(
         lines
             .last()

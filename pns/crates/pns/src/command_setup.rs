@@ -14,10 +14,7 @@ use pns_application::SETUP_USAGE;
 /// and guessing every answer would write a config the operator never agreed
 /// to, over one they may already have.
 pub(crate) fn setup_mode() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_subcommand();
     let force = match arguments.as_slice() {
         [] => false,
         [word] if word == "--force" => true,

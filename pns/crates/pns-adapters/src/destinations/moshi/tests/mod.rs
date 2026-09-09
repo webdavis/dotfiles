@@ -168,7 +168,7 @@ fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             Delivery::Failed(
-                "push SKIPPED -- no moshi token in the config ([plugins.mobile] token); \
+                "push SKIPPED, no moshi token in the config ([plugins.mobile] token); \
                      nothing was sent"
                     .to_string()
             )

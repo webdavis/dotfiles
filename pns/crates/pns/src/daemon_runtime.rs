@@ -2,7 +2,7 @@ use crate::*;
 use pns_application::JobChildren;
 
 pub(crate) fn daemon_run() -> i32 {
-    if std::env::args_os().nth(3).is_some() {
+    if !crate::arguments_after_verb().is_empty() {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     }
@@ -94,7 +94,7 @@ fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
 }
 
 pub(crate) fn daemon_retry() -> i32 {
-    if std::env::args_os().nth(3).is_some() {
+    if !crate::arguments_after_verb().is_empty() {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     }

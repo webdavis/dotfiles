@@ -1,14 +1,64 @@
 use crate::legacy::{USAGE, is_producer_argv};
 use crate::*;
 
-/// The word after the subcommand, or empty when there is none.
-pub(crate) fn second_argument() -> String {
-    std::env::args_os()
-        .nth(2)
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned()
+/// What every command reads instead of the environment: argv from the
+/// subcommand on, with the tool-wide flags already taken out.
+///
+/// PUBLISHED ONCE rather than threaded, for the same reason the color answer
+/// is. Fifteen commands used to reach for `std::env::args_os()` themselves,
+/// which is what made a flag typed BEFORE the subcommand shift every position
+/// after it: `pns --no-color daemon start` handed `daemon` to the daemon as its
+/// verb, and `pns --no-color doctor` looked to the doctor like a stray word to
+/// refuse. Reading one filtered answer is what makes the flag mean the same
+/// thing wherever it is typed.
+static TOOL_ARGV: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+
+/// argv from the subcommand on. Index 0 is the subcommand itself.
+pub(crate) fn tool_argv() -> &'static [String] {
+    TOOL_ARGV.get().map(Vec::as_slice).unwrap_or_default()
 }
+
+/// The words after the subcommand, which is what a one-word command validates.
+pub(crate) fn arguments_after_subcommand() -> Vec<String> {
+    tool_argv().iter().skip(1).cloned().collect()
+}
+
+/// The words after the subcommand AND its verb, for the commands that take one
+/// (`pns lights tick`, `pns loop begin`, `pns presence poll`).
+pub(crate) fn arguments_after_verb() -> Vec<String> {
+    tool_argv().iter().skip(2).cloned().collect()
+}
+
+/// The word after the subcommand, or empty when there is none.
+fn second_argument(flagless: &[String]) -> String {
+    flagless.get(1).cloned().unwrap_or_default()
+}
+
+/// The tool-wide flags, taken out of argv wherever they appeared.
+///
+/// `--no-color` ANSWERS IN EVERY POSITION. `pns --no-color doctor` and
+/// `pns doctor --no-color` mean the same thing, because an operator who has
+/// decided about color has decided about the whole command rather than about
+/// one subcommand's report. Taking it out here is what lets each subcommand go
+/// on treating an argument it does not know as a refusal.
+fn take_tool_wide_flags(argv: &[String]) -> (Vec<String>, bool) {
+    let mut forced_plain = false;
+    let kept = argv
+        .iter()
+        .filter(|argument| {
+            if *argument == NO_COLOR_FLAG {
+                forced_plain = true;
+                return false;
+            }
+            true
+        })
+        .cloned()
+        .collect();
+    (kept, forced_plain)
+}
+
+/// The one flag every printing command answers to.
+const NO_COLOR_FLAG: &str = "--no-color";
 /// What a producer gets when its own page did not reach the durable log.
 ///
 /// ONE, NOT TWO. Two is what this mode already returns for argv it will not
@@ -50,16 +100,24 @@ pub(crate) fn run() {
         .skip(1)
         .map(|argument| argument.to_string_lossy().into_owned())
         .collect();
-    let first = argv.first().cloned().unwrap_or_default();
+    // THE EVENT PATH KEEPS THE ORIGINAL ARGV, and every subcommand below reads
+    // the filtered one. The filter is position-blind, so a producer sending
+    // `--detail --no-color` would lose its value to it; the event path prints
+    // nothing but an exit code, so the flag means nothing there anyway and
+    // passing argv through unchanged keeps that contract exact.
+    let (flagless, forced_plain) = take_tool_wide_flags(&argv);
+    style::remember_forced_plain(forced_plain);
+    let _ = TOOL_ARGV.set(flagless.clone());
+    let first = flagless.first().cloned().unwrap_or_default();
     if matches!(first.as_str(), "--version" | "-V") {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
     if first == "shell" {
-        std::process::exit(crate::shell_mode(&argv[1..]));
+        std::process::exit(crate::shell_mode(&flagless[1..]));
     }
     if first == "submit" {
-        std::process::exit(event_flow::submit_mode(&argv[1..]));
+        std::process::exit(event_flow::submit_mode(&flagless[1..]));
     }
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
@@ -109,24 +167,24 @@ pub(crate) fn run() {
     // a file. Nothing on the event path below reaches it, and nothing here
     // reaches the event path except by re-executing this binary.
     if first == "daemon" {
-        std::process::exit(daemon_mode(&second_argument()));
+        std::process::exit(daemon_mode(&second_argument(&flagless)));
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
     // It reaches the event path through nothing at all.
     if first == "lights" {
-        std::process::exit(lights_mode(&second_argument()));
+        std::process::exit(lights_mode(&second_argument(&flagless)));
     }
     // The room sensor's own upkeep. A MODE beside the lamps' for the same
     // reason: it reads the bridge, publishes one state line and delivers
     // nothing, and the daemon is what runs it.
     if first == "presence" {
-        std::process::exit(presence_mode(&second_argument()));
+        std::process::exit(presence_mode(&second_argument(&flagless)));
     }
     // The loop lease, taken and given back by hand. A MODE beside the lamps'
     // for the same reason: it moves one file and delivers nothing.
     if first == "loop" {
-        std::process::exit(loop_mode(&second_argument()));
+        std::process::exit(loop_mode(&second_argument(&flagless)));
     }
     // The nudge about an approval nobody answered. A MODE for the reason the
     // others are: it takes no decision from an event and reads no stdin. It
@@ -155,10 +213,10 @@ pub(crate) fn run() {
     // to the event path instead is how the documented spelling used to fire a
     // notification about an empty event.
     if first == "gate" {
-        std::process::exit(gate_mode(&second_argument()));
+        std::process::exit(gate_mode(&second_argument(&flagless)));
     }
     if first == "hook" {
-        std::process::exit(hook_mode(&second_argument()));
+        std::process::exit(hook_mode(&second_argument(&flagless)));
     }
     // A WORD THAT NAMES NO COMMAND IS A TYPO, never an event. It is the house
     // rule `pns nag` and `pns lights` already keep, moved up to where argv[1]
@@ -175,4 +233,57 @@ pub(crate) fn run() {
         std::process::exit(2);
     }
     std::process::exit(event_mode(&argv));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(words: &[&str]) -> Vec<String> {
+        words.iter().map(|word| (*word).to_string()).collect()
+    }
+
+    #[test]
+    fn the_color_flag_answers_before_the_subcommand_and_after_it() {
+        for argv in [
+            strings(&["--no-color", "doctor"]),
+            strings(&["doctor", "--no-color"]),
+        ] {
+            let (flagless, forced_plain) = take_tool_wide_flags(&argv);
+            assert!(forced_plain, "{argv:?}");
+            assert_eq!(flagless, strings(&["doctor"]), "{argv:?}");
+        }
+    }
+
+    #[test]
+    fn argv_without_the_flag_is_passed_through_unchanged() {
+        let argv = strings(&["daemon", "schedule", "--id", "x"]);
+        let (flagless, forced_plain) = take_tool_wide_flags(&argv);
+        assert!(!forced_plain);
+        assert_eq!(flagless, argv);
+    }
+
+    #[test]
+    fn the_flag_typed_twice_is_still_one_answer_and_leaves_nothing_behind() {
+        let argv = strings(&["--no-color", "lights", "--no-color", "tick"]);
+        let (flagless, forced_plain) = take_tool_wide_flags(&argv);
+        assert!(forced_plain);
+        assert_eq!(flagless, strings(&["lights", "tick"]));
+    }
+
+    #[test]
+    fn a_verb_keeps_its_position_when_the_flag_was_typed_before_the_subcommand() {
+        // The bug this exists to prevent: reading the verb off the environment
+        // handed `daemon` to the daemon as its own verb.
+        let (flagless, _) = take_tool_wide_flags(&strings(&["--no-color", "daemon", "start"]));
+        assert_eq!(second_argument(&flagless), "start");
+    }
+
+    #[test]
+    fn a_word_that_merely_contains_the_flag_is_not_the_flag() {
+        let argv = strings(&["recap", "--since=--no-color"]);
+        let (flagless, forced_plain) = take_tool_wide_flags(&argv);
+        assert!(!forced_plain);
+        assert_eq!(flagless, argv);
+    }
 }

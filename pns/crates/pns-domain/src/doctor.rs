@@ -16,13 +16,15 @@ mod lights;
 mod outcome;
 mod pairing;
 mod presence;
+mod report;
 mod routes;
 pub use census::checks;
 pub use daemon::{daemon_line, nag_line};
 pub use lights::{LightsReport, lights_lines};
-pub use outcome::{Check, CheckKind, ConfigState, Outcome, exit_code, line, summary};
-pub use pairing::{Pairing, PairingReport, pairing_lines};
-pub use routes::{RouteVerdict, route_line, routes_summary};
+pub use outcome::{Check, CheckKind, ConfigState, Outcome, exit_code, line, outcome_mark, summary};
+pub use pairing::{Pairing, PairingReport, pairing_lines, pairing_mark};
+pub use report::{Item, Mark};
+pub use routes::{RouteVerdict, route_line, route_mark, routes_summary};
 
 mod decisions;
 pub use decisions::section as decision_section;

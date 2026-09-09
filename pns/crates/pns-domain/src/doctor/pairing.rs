@@ -133,3 +133,17 @@ fn said_of(pairing: &Pairing) -> String {
 
 /// How every line the doctor prints for itself is addressed.
 pub(super) const PREFIX: &str = "pns doctor: ";
+
+/// How a pairing verdict reads at a glance.
+///
+/// UNPAIRED IS BAD and the two unreadable states are not. A host that is not
+/// paired has dead approval cards, which is a fault the operator can fix; a
+/// moshi-hook that is absent or answering nonsense may simply not be installed
+/// on this machine, and the exit code already treats those apart.
+pub fn pairing_mark(report: &PairingReport) -> super::Mark {
+    match report.pairing {
+        Pairing::Paired { .. } => super::Mark::Good,
+        Pairing::Unpaired => super::Mark::Bad,
+        Pairing::Unreadable | Pairing::NoAnswer => super::Mark::Warn,
+    }
+}

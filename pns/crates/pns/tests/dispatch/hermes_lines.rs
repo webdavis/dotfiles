@@ -17,7 +17,7 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
             "no key in the config",
             "[plugins.hermes]\nenabled = true\n",
             "http://127.0.0.1:1/hook",
-            "pns: post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent\n",
+            "pns: post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent\n",
         ),
         (
             "a gateway nothing is listening for",

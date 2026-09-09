@@ -13,10 +13,7 @@ use crate::*;
 /// is down still means the lamp simply does not light, and `pns loop end` on a
 /// machine that never began is a removal of a file that is not there.
 pub(crate) fn loop_mode(verb: &str) -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(3)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_verb();
     let command = match crate::loop_command(
         verb,
         &arguments,

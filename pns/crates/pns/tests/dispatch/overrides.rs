@@ -50,7 +50,7 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
     assert!(!sandbox.fired("macos-banner"));
     assert_eq!(
         stdout(&output),
-        "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n"
+        "pns: post SKIPPED, --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n"
     );
     assert_eq!(stderr(&output), "", "no pane warning before refusal");
     assert!(

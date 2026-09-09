@@ -36,7 +36,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
     pub fn run<D, P, PR, PA, F, DA, L, I, H, RO>(
         &self,
         mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO>,
-        mut print: impl FnMut(&str),
+        mut emit: impl FnMut(pns_domain::doctor::Item),
     ) -> i32
     where
         D: FnOnce(&[Leg], &EventArgs) -> Vec<(Leg, Delivery)>,
@@ -123,45 +123,74 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
             })
             .collect();
 
+        use pns_domain::doctor::{Item, Mark};
+        emit(Item::section("Channels", CHANNELS_BLURB));
         for (check, outcome) in checks.iter().zip(&outcomes) {
-            print(&pns_domain::doctor::line(check, outcome));
+            emit(Item::row(
+                pns_domain::doctor::outcome_mark(outcome),
+                pns_domain::doctor::line(check, outcome),
+            ));
         }
-        print(&pns_domain::doctor::summary(&outcomes));
+        emit(Item::row(
+            Mark::Detail,
+            pns_domain::doctor::summary(&outcomes),
+        ));
         // BETWEEN THE SUMMARY AND THE DECISION SECTION, which is health beside
         // health and history last: this check can move the exit code and the
         // decision log explicitly cannot, so the other order would put a gradeable
         // line below an ungradeable one.
         let pairing = (actions.pairing)();
-        for line in pns_domain::doctor::pairing_lines(&pairing) {
-            print(&line);
+        emit(Item::section("Pairing", PAIRING_BLURB));
+        let pairing_mark = pns_domain::doctor::pairing_mark(&pairing);
+        for (index, line) in pns_domain::doctor::pairing_lines(&pairing)
+            .into_iter()
+            .enumerate()
+        {
+            // THE FIRST LINE IS THE VERDICT and the rest is what moshi said
+            // about it, so only the first carries the grade.
+            emit(Item::row(
+                if index == 0 {
+                    pairing_mark
+                } else {
+                    Mark::Detail
+                },
+                line,
+            ));
         }
         // GATE STATE ABOVE THE HISTORY THE GATE EXPLAINS, and below the pairing
         // check, which is health. It must NOT move the exit code, for the reason
         // the decision section does not: a Focus being on is not a fault.
-        print(&(actions.focus)());
+        emit(Item::section("Daemon and gates", DAEMON_BLURB));
+        emit(Item::note((actions.focus)()));
         // BESIDE THE FOCUS LINE, which is the other line that reports state without
         // grading it. It must NOT move the exit code in any state, including the
         // dead one: a daemon that is down costs ambient features, and this exit
         // code is what an operator's automation reads as "notifications are
         // broken".
-        print(&(actions.daemon)());
+        emit(Item::note((actions.daemon)()));
         // IMMEDIATELY BELOW THE DAEMON'S OWN LINE, and that placement is the whole
         // mitigation for the one thing this line does not say: a nag with a dead
         // daemon never fires, and the line above already reports the daemon from its
         // heartbeat. Two lines deriving one fact is how they drift apart, so these
         // two read as one paragraph instead.
-        print(&pns_domain::doctor::nag_line(self.nag_after_secs));
+        emit(Item::note(pns_domain::doctor::nag_line(
+            self.nag_after_secs,
+        )));
         // AND THE LAMPS BELOW THE GATE, for the same reason: a dark lamp is not a
         // broken notifier, so this section reports and never grades. It is the last
         // thing that touches the network, so a bridge that hangs cannot delay a
         // line above it.
+        emit(Item::section("Lights", LIGHTS_BLURB));
         for line in pns_domain::doctor::lights_lines(&(actions.lamps)()) {
-            print(&line);
+            emit(Item::note(line));
         }
         // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
-        print(&crate::delivery_health_line((actions.delivery_health)()));
+        emit(Item::section("Delivery", DELIVERY_BLURB));
+        emit(Item::note(crate::delivery_health_line((actions
+            .delivery_health)(
+        ))));
         // IMMEDIATELY UNDER THE LEDGER, because the two answer one question
         // between them: the line above says what is not arriving, and these say
         // whether the gateway would take it if pns sent it again.
@@ -175,19 +204,37 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // past; the reader decides.
         let routes = (actions.routes)();
         for (route, verdict) in &routes {
-            print(&pns_domain::doctor::route_line(route, verdict));
+            emit(Item::row(
+                pns_domain::doctor::route_mark(verdict),
+                pns_domain::doctor::route_line(route, verdict),
+            ));
         }
-        print(&pns_domain::doctor::routes_summary(&routes));
-        for line in sections::decision_section(self.records, self.clock.now_secs()) {
-            print(&line);
+        emit(Item::row(
+            Mark::Detail,
+            pns_domain::doctor::routes_summary(&routes),
+        ));
+        emit(Item::section("Recent decisions", DECISIONS_BLURB));
+        for (index, line) in sections::decision_section(self.records, self.clock.now_secs())
+            .into_iter()
+            .enumerate()
+        {
+            // The heading sentence, then one indented entry per decision.
+            emit(Item::row(
+                if index == 0 { Mark::Note } else { Mark::Detail },
+                line,
+            ));
         }
         // HISTORY BELOW HISTORY, and last for the reason the decision section is
         // second to last: an unreplayed journal is not a failure, so it sits under
         // the one section that already cannot move the exit code.
-        print(&sections::missed_line(self.records, self.replay_card));
+        emit(Item::section("History", HISTORY_BLURB));
+        emit(Item::note(sections::missed_line(
+            self.records,
+            self.replay_card,
+        )));
         // Import failures are recoverable history, not a destination health grade.
         for line in imports::lines((actions.imports)()) {
-            print(&line);
+            emit(Item::row(Mark::Warn, line));
         }
         // THE DECISION SECTION DOES NOT MOVE THE EXIT CODE. It reports HISTORY,
         // not health: an empty log on a fresh machine is not a failure, and
@@ -198,13 +245,26 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
     }
 }
 
+/// What each section's rows are for. THE BLURB IS THE POINT of a heading, not
+/// decoration: "Delivery" tells an operator nothing its rows did not already
+/// say, and "what has not arrived yet, and whether the gateway would take it"
+/// tells them whether to read on.
+/// NAMING THE GATES IS THE POINT. The frame's subtitle has room to say they are
+/// all bypassed and no room to say which, and knowing which is what tells an
+/// operator that a green line here does not promise a green line during an
+/// event. A heading's rule is not boxed, so it has the room.
+const CHANNELS_BLURB: &str = "one send per channel, with every suppression gate bypassed";
+const PAIRING_BLURB: &str = "whether the phone that answers cards still knows this Mac";
+const DAEMON_BLURB: &str = "what is running, and what would silence a notification";
+const LIGHTS_BLURB: &str = "what the lamps were last told to do";
+const DELIVERY_BLURB: &str = "what has not arrived, and whether the gateway would take it";
+const DECISIONS_BLURB: &str = "why a card did or did not fire, newest first";
+const HISTORY_BLURB: &str = "what went unseen, and what failed to import";
+
 /// The contract, STATED rather than measured. Whether a gate is currently in
 /// effect is the decision log's question, and reporting live gate state here
 /// would be that feature built twice, in two places, from two readings.
-pub const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
-     Every suppression gate is bypassed (the operator mute, a macOS Focus you named, \
-     the presence gate, the viewed-pane rule, the lights' quiet hours), because a check \
-     that can be suppressed proves nothing.";
+pub const DOCTOR_OPENING: &str = "every suppression gate is bypassed";
 
 /// The payload's detail, so whoever the card wakes knows at once that nothing
 /// is wrong and nothing needs doing.

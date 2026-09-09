@@ -155,7 +155,7 @@ impl<H: HttpPost + Send + Sync> NotificationDestination for MoshiChannel<H> {
 /// config key to write, the way hermes's does, because "not set up" without an
 /// address sends the operator hunting.
 const NO_TOKEN_LINE: &str =
-    "push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent";
+    "push SKIPPED, no moshi token in the config ([plugins.mobile] token); nothing was sent";
 
 /// The line for a mobile leg refused before either delivery seam: the table
 /// names a backend nothing compiled in answers.
@@ -166,7 +166,7 @@ const NO_TOKEN_LINE: &str =
 /// only which key is wrong, and a report that named `token` for a `type` fault
 /// sends them to the one edit that is already correct.
 pub fn refused_backend_line(reason: &str) -> String {
-    format!("push SKIPPED -- {reason}; nothing was sent")
+    format!("push SKIPPED, {reason}; nothing was sent")
 }
 
 mod http;

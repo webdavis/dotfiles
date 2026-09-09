@@ -12,10 +12,7 @@ use pns_domain::failure::ClickView;
 /// A MODE beside the doctor's: it opens a view and delivers nothing, so no
 /// event's plan reaches it.
 pub(crate) fn click_mode() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_subcommand();
     let [word] = arguments.as_slice() else {
         eprintln!("{CLICK_USAGE}");
         return 2;

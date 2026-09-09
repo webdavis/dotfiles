@@ -40,7 +40,7 @@ fn sync_outcomes_are_spelled_exactly_as_the_bash_spells_them() {
 fn the_no_key_line_names_the_config_key_the_operator_must_fix() {
     assert_eq!(
         skipped_line(),
-        "post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
+        "post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent"
     );
 }
 

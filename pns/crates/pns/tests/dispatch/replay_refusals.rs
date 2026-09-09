@@ -123,7 +123,7 @@ fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_inter
         &format!(
             "payload=$(cat)\nprintf '%s\\n' \"$payload\" >>\"{root}/macos-banner.events\"\n\
              case \"$payload\" in\n  *'\"state\":\"missed\"'*) : >\"{root}/inside.the.replay\"; \
-             for _ in $(seq 1 40); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.01; done; : >\"{root}/channel.finished\" ;;\nesac",
+             for _ in $(seq 1 1000); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.01; done; : >\"{root}/channel.finished\" ;;\nesac",
             root = killed.display()
         ),
     );
@@ -152,7 +152,15 @@ fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_inter
         release: killed.path("the.test.is.over"),
     };
     let inside = killed.path("inside.the.replay");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(650);
+    // PATIENCE, NOT A MEASUREMENT. Nothing here claims the replay is fast; the
+    // wait exists so a hung engine fails with its stderr rather than hanging the
+    // suite. The old 650 ms was tight enough that a full parallel run, where a
+    // process spawn and a shell stub compete with every other test on this
+    // machine, tripped it on work that was proceeding normally. The stub's own
+    // hold loop is generous for the same reason, and both release early: this
+    // one the moment the marker appears, the stub the moment the guard writes
+    // its release file.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while !inside.exists() {
         assert!(
             std::time::Instant::now() < deadline,

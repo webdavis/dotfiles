@@ -169,3 +169,16 @@ fn verdict(outcome: &Outcome) -> Verdict {
         Outcome::Presence(..) => Verdict::Skipped,
     }
 }
+
+/// How a check's verdict reads at a glance.
+///
+/// ONLY A FAILED SEND IS BAD, and a skip never is. A plugin the config left off
+/// is the operator's own choice, and grading a choice as a fault teaches them to
+/// scroll past the marks.
+pub fn outcome_mark(outcome: &Outcome) -> super::Mark {
+    match outcome {
+        Outcome::Sent(_) | Outcome::SentUnreported | Outcome::Signalled(_) => super::Mark::Good,
+        Outcome::Failed(_) => super::Mark::Bad,
+        Outcome::Skipped(_) | Outcome::Presence(_, _) => super::Mark::Note,
+    }
+}

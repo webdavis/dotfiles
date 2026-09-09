@@ -18,5 +18,5 @@ pub fn doctor_pulse(resolves: bool, pulse: impl FnOnce() -> usize) -> pns_domain
 /// The line for lights that were selected and never set up. It names the
 /// settings to write, the way moshi's and hermes's do, because "no rooms"
 /// without an address sends the operator to a bridge nothing dialled.
-const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED -- no hue bridge and key in the config \
+const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED, no hue bridge and key in the config \
      ([plugins.hue] bridge, key); nothing was signalled";

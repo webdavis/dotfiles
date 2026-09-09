@@ -20,10 +20,7 @@ const LISTING_LIMIT: u32 = 20;
 /// refuse one: a subcommand that swallows a typo answers a question the operator
 /// did not ask.
 pub(crate) fn failures_mode() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_subcommand();
     let store = SqliteStore::for_records(pns_adapters::state_dir());
     match arguments.as_slice() {
         [] => list(&store),
