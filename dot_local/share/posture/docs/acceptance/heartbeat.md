@@ -1,14 +1,15 @@
 # Heartbeat acceptance map
 
-This row prepares 2.5 and the heartbeat-owned application and native reader/clock parts. Shared delivery
-and the deployed caller cutover still require the unmerged posture observation route and the concrete
-producer. The 17 current Bash tests pass with their assertions unchanged; the private harness only
-redirects the repository root and retains its owned fixtures instead of deleting them. The original
-historical names remain in `test-baseline.tsv`. No existing heartbeat test is retired here.
+The 2.5 heartbeat policy, readers and clock, and the 5.1 producer are implemented. The 6.1 command now
+composes them. Its proposed named route `posture` still requires the operator's pns-keyed Hermes binding,
+so the plist change and Bash retirement remain held. The 17 current Bash tests retain their recorded
+passing results and unchanged assertions; the private harness only redirected the repository root and
+retained its owned fixtures instead of deleting them. The original historical names remain in
+`test-baseline.tsv`. No existing heartbeat test is retired here.
 
 The current tests in `test/integration/osquery-heartbeat.test.sh` map to the following typed pins. Their
-Bash route and sound assertions remain necessary until the real producer adapter lands; an application
-observation alone does not prove Discord or banner delivery.
+Bash route and sound assertions remain necessary until the operator verifies the proposed route; an
+application observation alone does not prove Discord or banner delivery.
 
 | Current Bash leaf, retained                                                            | Typed pin                                                                              |
 | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -166,3 +167,48 @@ New behavior pins, classified by their owner:
 | `crates/posture-domain/src/heartbeat/tests.rs`             | `captured_clock_unknown`                                             | permanent behavioral contract |
 | `crates/posture-domain/src/heartbeat/tests.rs`             | `captured_send_failure`                                              | permanent behavioral contract |
 | `crates/posture-domain/src/heartbeat/tests.rs`             | `captured_invalid_bound`                                             | permanent behavioral contract |
+
+## Heartbeat command, plan 6.1
+
+The real command runs against a private installed-engine double. It ignores trailing operands, reads the
+HOME-derived snapshot path despite a conflicting legacy override, preserves `020` as the displayed
+sixteen-second bound, and submits one unmarked observation on `posture`. The double acknowledges the
+original request identity with `ledger_committed`. The command exits zero with empty output and leaves
+snapshot bytes and heartbeat state untouched. The existing four application tests retain their bodies;
+only their subject constructor now supplies `HeartbeatWindow`.
+
+| New qualified leaf                                                                                                             | Statements and contract                                               | Caught source fault                           |
+| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------- |
+| `posture-domain: heartbeat::window::tests::literal_bounds_preserve_valid_octal_text_and_refuse_invalid_or_overflow_values`     | S200/S203, lexical octal bounds and checked full unsigned range       | decimalized octal; unsigned bound clamped     |
+| `posture-domain: heartbeat::window::tests::invalid_literals_request_a_diagnostic_but_non_numeric_overrides_keep_quiet_default` | S200/S203, deliberate invalid-literal validation                      | invalid literal silenced                      |
+| `posture-cli: heartbeat::configuration::tests::home_constructs_paths_without_reading_legacy_path_overrides`                    | Section 3.11 and S200, raw HOME paths and construction-only injection | legacy path override reintroduced             |
+| `posture-cli: heartbeat::tests::the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observation`            | S198/S204/S205, actual producer composition and no baseline           | route omitted                                 |
+| `posture-cli: heartbeat::tests::engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_status`             | S205 and section 5.1, failure direction and independent alarm         | alarm path replaced; best-effort exit changed |
+| `posture-cli: heartbeat::tests::invalid_literal_emits_one_fixed_diagnostic_and_still_submits_the_default_observation`          | S200/S203, fixed diagnostic with default observation                  | invalid-literal diagnostic omitted            |
+| `posture-cli/tests/heartbeat: heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once`               | S193/S200/S204/S205, real command argument and engine boundary        | trailing operands refused                     |
+
+All seven new leaves failed their actual assertions before implementation. The exact `u64::MAX` assertion
+also catches the independent clamping fault. Nine source faults fail the named tests after compilation of
+their actual source; each fault and each healthy case completes within one second. The initial
+path-override parity test and fault are superseded by the section 3.11 contract. Their raw results remain
+retained; the revised configuration and real command cases both failed against the environment-reading
+predecessor before that correction. The existing usage test retains its name and removes only heartbeat
+from its unimplemented-word inputs.
+
+The captures deliberately differ in five cases. With a seventeen-second old canary, `08` and
+`18446744073709551616` now use 1800 and report healthy with the fixed diagnostic, instead of Bash's
+arithmetic errors or wrapped stale result. `9223372036854775808` and `18446744073709551615` retain their
+actual unsigned bounds and report healthy, instead of a negative implausible skew or stale result. With a
+seventeen-second future canary and `08`, the default bound reports healthy with age zero and the same
+fixed diagnostic, instead of a negative stale age. These are deliberate S200/S203 validation fixes; valid
+in-range literals and nonnumeric defaults retain their captured text and decisions.
+
+The command does not retire the source-only canary seam from S206. The first 17-row table remains the
+exact Bash-to-Rust successor map; the new command and producer cases establish composition, while silent
+Discord/banner arrival and the named route remain operator acceptance. No deployment test, live send,
+LaunchAgent load, source deletion or installed-script removal was performed.
+
+Production `OSQUERY_SNAPSHOTS_LOG` overrides are intentionally retired under section 3.11. The command
+ignores an alternate legacy path while reading the HOME-derived snapshot; direct configuration injection
+continues to test selected private paths. This path change is separate from the five arithmetic
+corrections above. No later heartbeat exception to section 3.11 was found.

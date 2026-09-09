@@ -1,4 +1,6 @@
 use crate::CanaryFreshness;
+mod window;
+pub use window::HeartbeatWindow;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeartbeatText {
     pub title: String,
@@ -7,7 +9,7 @@ pub struct HeartbeatText {
 pub fn heartbeat_text(
     freshness: Option<CanaryFreshness>,
     day: &str,
-    maximum_age: u64,
+    maximum_age: impl std::fmt::Display,
 ) -> HeartbeatText {
     let title = match freshness {
         None => "⚠️ osquery heartbeat · time unknown".to_owned(),

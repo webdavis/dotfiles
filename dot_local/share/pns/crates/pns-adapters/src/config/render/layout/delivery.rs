@@ -24,5 +24,15 @@ pub(super) const DELIVERY: Table = Table {
             prose: "# Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.\n",
             sample: Sample::Default("604800"),
         },
+        Key {
+            name: "retry_base_secs",
+            prose: "# Queued retries wait this many seconds times their retry count.\n",
+            sample: Sample::Default("60"),
+        },
+        Key {
+            name: "retry_random_secs",
+            prose: "# Add one bounded random delay per failed retry. Zero disables it.\n# When omitted, it follows retry_base_secs.\n",
+            sample: Sample::Default("60"),
+        },
     ],
 };

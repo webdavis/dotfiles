@@ -1,5 +1,5 @@
 use super::*;
-use crate::{LedgerCompletion, PreparedSubmission, UnconfirmedDelivery};
+use crate::PreparedSubmission;
 use pns_domain::{EventArgs, Overrides, Record};
 
 mod fixtures;
@@ -8,37 +8,11 @@ use fixtures::*;
 
 #[test]
 fn each_leg_is_written_ahead_and_its_atomic_completion_follows_delivery() {
-    for (delivery, expected) in [
-        (
-            Delivery::Delivered("accepted".into()),
-            LedgerCompletion::Acknowledged {
-                detail: "accepted".into(),
-            },
-        ),
-        (
-            Delivery::Failed("timeout".into()),
-            LedgerCompletion::Retry {
-                outcome: UnconfirmedDelivery::Failed,
-                detail: "timeout".into(),
-                retry_at: 155,
-            },
-        ),
-        (
-            Delivery::Unlaunched("missing".into()),
-            LedgerCompletion::Retry {
-                outcome: UnconfirmedDelivery::Unlaunched,
-                detail: "missing".into(),
-                retry_at: 155,
-            },
-        ),
-        (
-            Delivery::Silent,
-            LedgerCompletion::Retry {
-                outcome: UnconfirmedDelivery::Unknown,
-                detail: String::new(),
-                retry_at: 155,
-            },
-        ),
+    for delivery in [
+        Delivery::Delivered("accepted".into()),
+        Delivery::Failed("timeout".into()),
+        Delivery::Unlaunched("missing".into()),
+        Delivery::Silent,
     ] {
         let store = Store::default();
         let destinations = destinations(&store, delivery.clone());
@@ -73,7 +47,7 @@ fn each_leg_is_written_ahead_and_its_atomic_completion_follows_delivery() {
         );
         assert_eq!(
             *store.completed.lock().unwrap(),
-            [(0, expected.clone(), 125), (1, expected, 125)]
+            [(0, delivery.clone(), 125), (1, delivery, 125)]
         );
     }
 }

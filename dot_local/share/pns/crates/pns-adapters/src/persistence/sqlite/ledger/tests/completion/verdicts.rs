@@ -3,12 +3,12 @@ use super::*;
 fn completing_an_owned_leg_preserves_its_identity_and_exact_printable_verdict() {
     for (completion, verdict) in [
         (acknowledged(), "delivered"),
-        (retry(30), "failed"),
+        (retry(11), "failed"),
         (
             LedgerCompletion::Retry {
                 outcome: UnconfirmedDelivery::Unlaunched,
                 detail: "never ran".into(),
-                retry_at: 30,
+                retry_at: 11,
             },
             "unlaunched",
         ),
@@ -16,7 +16,7 @@ fn completing_an_owned_leg_preserves_its_identity_and_exact_printable_verdict() 
             LedgerCompletion::Retry {
                 outcome: UnconfirmedDelivery::Unknown,
                 detail: String::new(),
-                retry_at: 30,
+                retry_at: 11,
             },
             "silent",
         ),
@@ -32,7 +32,14 @@ fn completing_an_owned_leg_preserves_its_identity_and_exact_printable_verdict() 
         let legs = created(&store, &input);
         begin(&store, &input.identity);
         let original = line(&store);
-        store.record(&legs[1].claim, &completion, 11).unwrap();
+        store
+            .record(
+                &legs[1].claim,
+                &reported(&completion),
+                11,
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(
             line(&store),
             original.replace("legs=none", &format!("legs=lights-desk:{verdict}")),
@@ -70,7 +77,14 @@ fn a_pruned_or_absent_decision_does_not_block_owned_completion_or_reappear() {
             }
         }
         let before = line(&store);
-        store.record(&legs[0].claim, &acknowledged(), 11).unwrap();
+        store
+            .record(
+                &legs[0].claim,
+                &reported(&acknowledged()),
+                11,
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(
             line(&store),
             before,

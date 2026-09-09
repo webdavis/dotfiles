@@ -19,11 +19,28 @@ validates after choosing the last emitted line. An invalid last value masks an o
 null or torn row emits nothing and leaves the preceding value available.
 
 The native clock reads epoch seconds and formats their Coordinated Universal Time (UTC) date through
-`gmtime_r`. A pre-epoch or unrepresentable time fails as unknown. The application receives a numeric
-maximum age; command-line environment parsing remains with the later composition owner.
+`gmtime_r`. A pre-epoch or unrepresentable time fails as unknown.
 
-These functions and ports prepare the heartbeat cutover. Pns provides `submit --json`, committed-ledger
-acknowledgement and delivery-class policy. The posture observation route is frozen locally but remains
-unmerged, and the concrete producer is not wired here. Only durable acknowledgement may implement
-`AlertSink` acceptance. The deployed Bash entry point remains until the route preserves the silent daily
-Discord record and desktop banner and the producer satisfies that contract.
+Given `posture heartbeat`, when trailing operands are present, then the command ignores them. Production
+paths are constructed once from `HOME`, as section 3.11 requires. Snapshots use
+`$HOME/.local/log/osquery/osqueryd.snapshots.log`; the legacy `OSQUERY_SNAPSHOTS_LOG` path override is
+ignored. Tests supply alternate paths through the existing configuration value. The command reads no
+control state and writes no heartbeat baseline.
+
+Given `OSQUERY_CANARY_MAX_AGE`, when it contains ASCII digits, then a leading zero selects octal and
+other literals select decimal. Checked parsing admits the full unsigned 64-bit range and preserves valid
+display text. Empty or nonnumeric values quietly use 1800. Invalid octal or overflow uses 1800 and emits
+one fixed line: `posture heartbeat: invalid OSQUERY_CANARY_MAX_AGE literal; using 1800 seconds`.
+Freshness still uses unsigned distances and the existing two-sided boundary.
+
+The command submits through `$HOME/.local/libexec/pns/pns` on the proposed named route `posture`.
+Heartbeat remains an observation without the security class. Submission has a five-second command budget;
+an independent runner gives the local failure banner ten seconds. Correlated `ledger_committed`
+acceptance is the only durable acknowledgement. Refusal, engine failure and alarm failure all leave the
+command's best-effort exit status at zero. Missing `HOME` refuses setup with a fixed diagnostic and exit
+1\.
+
+The route name is a deployment prerequisite, not an installed binding. The operator must configure the
+pns-keyed Hermes route to preserve the silent daily Discord record and desktop banner before the held
+LaunchAgent change can land. The Bash entry point, its 17 tests and the shared canary helper remain
+active until that separate caller and operator cutover.

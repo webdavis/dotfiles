@@ -1,5 +1,5 @@
 use crate::SnapshotsLog;
-use posture_domain::{canary_freshness, heartbeat_text};
+use posture_domain::{HeartbeatWindow, canary_freshness, heartbeat_text};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WallTime {
     pub seconds: u64,
@@ -39,7 +39,7 @@ pub enum Submission {
     NotAccepted(SubmissionFailure),
 }
 // Accepted promises a committed retriable obligation for this request, before dispatch.
-// The future pns adapter must establish that from the engine's actual diagnostic contract.
+// PnsProducer establishes that from the engine's correlated ledger_committed diagnostic.
 pub trait AlertSink {
     fn submit(&mut self, alert: &Alert) -> Submission;
 }
@@ -47,7 +47,7 @@ pub struct Heartbeat<C, L, S> {
     pub clock: C,
     pub snapshots: L,
     pub sink: S,
-    pub maximum_age: u64,
+    pub maximum_age: HeartbeatWindow,
 }
 impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
     pub fn run(&mut self) {
@@ -56,13 +56,13 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
             canary_freshness(
                 time.seconds,
                 self.snapshots.newest_canary().ok().flatten(),
-                self.maximum_age,
+                self.maximum_age.seconds(),
             )
         });
         let text = heartbeat_text(
             freshness,
             time.as_ref().map_or("", |time| time.utc_day.as_str()),
-            self.maximum_age,
+            self.maximum_age.display(),
         );
         // This daily observation advances no state. The sink owns durable delivery;
         // a refusal does not turn the heartbeat into a retry loop or a security page.

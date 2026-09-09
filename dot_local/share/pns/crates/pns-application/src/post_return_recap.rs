@@ -54,9 +54,12 @@ pub fn post_return_recap(
 /// Whether a dispatch refused the recap, which is the only thing that earns
 /// the fallback. See `post_recap`.
 fn refused(outcomes: &[Delivery]) -> bool {
-    outcomes
-        .iter()
-        .any(|delivered| matches!(delivered, Delivery::Failed(_) | Delivery::Unlaunched(_)))
+    outcomes.iter().any(|delivered| {
+        matches!(
+            delivered,
+            Delivery::Failed(_) | Delivery::Rejected { .. } | Delivery::Unlaunched(_)
+        )
+    })
 }
 
 /// The hermes route a threaded recap posts to. ONE CONST rather than a key: a

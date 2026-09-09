@@ -50,7 +50,14 @@ fn deadlettering_preserves_metadata_routes_history_acknowledged_siblings_and_act
     let mut input = submission();
     input.producer_request = Some("canonical producer request".into());
     let legs = created(&store, &input);
-    store.record(&legs[1].claim, &acknowledged(), 11).unwrap();
+    store
+        .record(
+            &legs[1].claim,
+            &reported(&acknowledged()),
+            11,
+            Default::default(),
+        )
+        .unwrap();
     let active = one(&store, "active");
     let before = store.inspect(&input.identity).unwrap().unwrap();
     let limits = RetryLimits {
@@ -63,7 +70,14 @@ fn deadlettering_preserves_metadata_routes_history_acknowledged_siblings_and_act
         0,
         "active lease must survive even exhausted limits"
     );
-    store.record(&legs[0].claim, &retry(19), 19).unwrap();
+    store
+        .record(
+            &legs[0].claim,
+            &reported(&retry(19)),
+            19,
+            Default::default(),
+        )
+        .unwrap();
     assert!(store.claim_retry(lease(19, 30), limits).unwrap().is_none());
     let after = store.inspect(&input.identity).unwrap().unwrap();
     assert_eq!(before.submission, after.submission);
@@ -85,7 +99,14 @@ fn deadlettering_preserves_metadata_routes_history_acknowledged_siblings_and_act
         reason, "attempts",
         "attempt exhaustion takes precedence over age"
     );
-    store.record(&active[0].claim, &acknowledged(), 19).unwrap();
+    store
+        .record(
+            &active[0].claim,
+            &reported(&acknowledged()),
+            19,
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(store.delivery_health().unwrap().pending_legs, 0);
     assert!(matches!(
         store.prepare(&input, lease(40, 50)).unwrap(),
@@ -96,7 +117,9 @@ fn deadlettering_preserves_metadata_routes_history_acknowledged_siblings_and_act
 fn delivery_deadletter_update_and_alarm_are_atomic_and_do_not_starve_a_later_eligible_leg() {
     let store = SqliteStore::new(state());
     let old = one(&store, "old");
-    store.record(&old[0].claim, &retry(20), 11).unwrap();
+    store
+        .record(&old[0].claim, &reported(&retry(20)), 11, Default::default())
+        .unwrap();
     let mut later = submission();
     later.identity.request_id = "later".into();
     later.legs.truncate(1);
@@ -120,7 +143,12 @@ fn delivery_deadletter_update_and_alarm_are_atomic_and_do_not_starve_a_later_eli
     assert_eq!(claimed.identity, later.identity);
     assert_eq!(store.delivery_health().unwrap().deadlettered_legs, 1);
     assert!(matches!(
-        store.record(&old[0].claim, &acknowledged(), 42),
+        store.record(
+            &old[0].claim,
+            &reported(&acknowledged()),
+            42,
+            Default::default()
+        ),
         Err(LedgerFailure::LostClaim)
     ));
 }
@@ -218,6 +246,6 @@ fn schema_five_delivery_metadata_epochs_routes_and_attempts_survive_the_health_m
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        6
+        super::super::super::migrations::VERSION
     );
 }

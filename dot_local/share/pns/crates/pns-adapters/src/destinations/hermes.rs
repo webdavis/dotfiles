@@ -13,7 +13,7 @@ use super::{Delivery, Event};
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
 use pns_domain::registry::Routing;
 use pns_domain::routing::ReportMode;
-use pns_hermes::{SignedPost, delivered, outcome_line, sign, skipped_line};
+use pns_hermes::{PostOutcome, SignedPost, delivered, outcome_line, sign, skipped_line};
 use std::time::Duration;
 
 /// The gateway when `PNS_HERMES_URL` says nothing: the local hermes
@@ -127,6 +127,11 @@ impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
         let line = outcome_line(outcome);
         if delivered(outcome) {
             Delivery::Delivered(line)
+        } else if let PostOutcome::Status(status @ (401 | 403 | 404 | 413)) = outcome {
+            Delivery::Rejected {
+                status,
+                detail: line,
+            }
         } else {
             Delivery::Failed(line)
         }

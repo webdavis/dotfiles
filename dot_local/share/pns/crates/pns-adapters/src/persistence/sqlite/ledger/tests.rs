@@ -84,3 +84,24 @@ mod metadata;
 mod limits;
 
 mod health;
+
+mod http_retry;
+
+fn reported(completion: &LedgerCompletion) -> pns_domain::Delivery {
+    match completion {
+        LedgerCompletion::Acknowledged { detail } => {
+            pns_domain::Delivery::Delivered(detail.clone())
+        }
+        LedgerCompletion::Rejected { status, detail } => pns_domain::Delivery::Rejected {
+            status: *status,
+            detail: detail.clone(),
+        },
+        LedgerCompletion::Retry {
+            outcome, detail, ..
+        } => match outcome {
+            UnconfirmedDelivery::Failed => pns_domain::Delivery::Failed(detail.clone()),
+            UnconfirmedDelivery::Unlaunched => pns_domain::Delivery::Unlaunched(detail.clone()),
+            UnconfirmedDelivery::Unknown => pns_domain::Delivery::Silent,
+        },
+    }
+}

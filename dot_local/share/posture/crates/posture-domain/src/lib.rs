@@ -61,7 +61,7 @@ mod canary;
 pub use canary::{CanaryEpoch, CanaryFreshness, canary_freshness};
 
 mod heartbeat;
-pub use heartbeat::{HeartbeatText, heartbeat_text};
+pub use heartbeat::{HeartbeatText, HeartbeatWindow, heartbeat_text};
 
 mod audit;
 pub use audit::{

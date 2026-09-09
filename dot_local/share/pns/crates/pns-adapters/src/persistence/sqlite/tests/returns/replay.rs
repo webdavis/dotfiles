@@ -108,10 +108,9 @@ fn adoption(queued: bool) {
         store
             .record(
                 &retry.claim,
-                &pns_application::LedgerCompletion::Acknowledged {
-                    detail: "accepted".into(),
-                },
+                &pns_domain::Delivery::Delivered("accepted".into()),
                 31,
+                Default::default(),
             )
             .unwrap();
         assert!(
@@ -151,8 +150,7 @@ fn an_empty_journal_digest_still_has_one_owned_return_batch() {
 
 fn queue(store: &SqliteStore, identity: pns_application::SubmissionIdentity) {
     use pns_application::{
-        DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerLeg, LedgerSubmission,
-        PreparedSubmission, UnconfirmedDelivery,
+        DeliveryLedger, LeaseWindow, LedgerLeg, LedgerSubmission, PreparedSubmission,
     };
     let input = LedgerSubmission {
         producer_request: None,
@@ -180,21 +178,17 @@ fn queue(store: &SqliteStore, identity: pns_application::SubmissionIdentity) {
     store
         .record(
             &legs[0].claim,
-            &LedgerCompletion::Acknowledged {
-                detail: "accepted".into(),
-            },
+            &pns_domain::Delivery::Delivered("accepted".into()),
             21,
+            Default::default(),
         )
         .unwrap();
     store
         .record(
             &legs[1].claim,
-            &LedgerCompletion::Retry {
-                outcome: UnconfirmedDelivery::Failed,
-                detail: "refused".into(),
-                retry_at: 30,
-            },
+            &pns_domain::Delivery::Failed("refused".into()),
             21,
+            Default::default(),
         )
         .unwrap();
 }
