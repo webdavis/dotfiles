@@ -31,13 +31,75 @@ const WARN: &str = "\u{1b}[38;5;221m";
 const FAINT: &str = "\u{1b}[38;5;244m";
 const RESET: &str = "\u{1b}[0m";
 
-/// How wide a frame and a closing rule are drawn.
+/// The widest a frame or a rule is ever drawn.
 ///
-/// A CONSTANT, NOT THE TERMINAL'S WIDTH. Reading the width gives a report that
-/// reflows differently in every pane and wraps differently in a recording; a
-/// fixed frame is the same shape everywhere, and 60 columns fits the narrowest
-/// pane anyone splits this machine into.
-pub(crate) const WIDTH: usize = 60;
+/// A CEILING RATHER THAN A SIZE. Body text stops being readable long before a
+/// wide terminal runs out of columns, so the report does not grow to fill a
+/// full-screen window.
+const WIDEST: usize = 60;
+
+/// The narrowest frame still worth drawing.
+///
+/// "pns doctor" is ten characters, two borders and four columns of padding make
+/// sixteen, so twenty leaves the title room to breathe. Under this the content
+/// is truncated rather than the box being broken, because a cramped frame is
+/// still a frame and a wrapped one is a pile of line noise.
+const NARROWEST: usize = 20;
+
+/// What a frame is drawn at when the destination has no width to report.
+///
+/// A PIPE OR A FILE GETS THE CEILING, deterministically. Redirected output
+/// should not depend on the size of whatever window happened to launch the
+/// process, and a test that captures a report needs one answer rather than the
+/// runner's terminal.
+const UNMEASURED: usize = WIDEST;
+
+/// The terminal's width, measured once.
+static COLUMNS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+
+/// How wide a frame and a closing rule are drawn, for this run.
+///
+/// MEASURED, THEN CLAMPED, and the measurement is what this used to get wrong.
+/// A fixed sixty was defended here as giving every pane the same shape, which
+/// it does right up until the pane is narrower than sixty: then the terminal
+/// wraps `╭` and its rule onto a second line, and every border character lands
+/// somewhere the box does not want it. A report that reflows is a small cost. A
+/// report that is mangled is not readable at all.
+///
+/// Clamping to `WIDEST` keeps most of what the constant was for: every terminal
+/// roomy enough gets the identical sixty-column report, so two panes side by
+/// side still agree, and only a genuinely narrow one differs. Measured once per
+/// run rather than per line, so a window resized mid-report cannot tear it.
+pub(crate) fn width() -> usize {
+    *COLUMNS.get_or_init(|| clamped(terminal_columns()))
+}
+
+/// What a measurement means, held apart from taking one so it can be tested.
+fn clamped(measured: Option<usize>) -> usize {
+    measured.map_or(UNMEASURED, |columns| columns.clamp(NARROWEST, WIDEST))
+}
+
+/// The columns of the terminal on stdout, or `None` when it is not one.
+///
+/// `TIOCGWINSZ` rather than `$COLUMNS`, because the environment variable is set
+/// by interactive shells for themselves and is stale or absent in every context
+/// that matters here: a launchd job, a hook, a subshell whose parent was
+/// resized. The ioctl asks the terminal.
+fn terminal_columns() -> Option<usize> {
+    if !std::io::stdout().is_terminal() {
+        return None;
+    }
+    let mut size: libc::winsize = unsafe { std::mem::zeroed() };
+    // SAFETY: `size` is a valid, fully initialized `winsize` for the duration
+    // of the call, and the kernel only writes into it.
+    let answered = unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &raw mut size) };
+    // A WIDTH OF ZERO IS "IT DID NOT SAY", which some terminals answer with,
+    // and clamping zero would silently draw every report at the floor.
+    if answered != 0 || size.ws_col == 0 {
+        return None;
+    }
+    Some(usize::from(size.ws_col))
+}
 
 /// The environment variable every well-behaved tool honours.
 const NO_COLOR: &str = "NO_COLOR";
@@ -147,44 +209,25 @@ impl Tone {
     }
 }
 
-/// A gum-style rounded frame around one or more lines.
+/// The opening of a report: the command that produced it, then labelled lines
+/// saying what the reader is about to read, then a rule.
 ///
-/// GLYPHS SURVIVE PLAIN MODE and only the color is dropped, here and at every
-/// mark below. Plain mode is for a pipe or a file, where an escape sequence is
-/// corruption; the shape of the report is not decoration, and stripping it
-/// would leave the plain output saying less than the painted output rather than
-/// the same thing unpainted.
-pub(crate) fn frame(paint: Paint, lines: &[(String, bool)]) -> Vec<String> {
-    let inner = WIDTH - 2;
-    let mut out = vec![paint.accent(&format!("╭{}╮", "─".repeat(inner)))];
-    out.push(edge(paint, &" ".repeat(inner)));
-    for (text, is_title) in lines {
-        let padded = pad(&format!("  {text}"), inner);
-        let painted = if *is_title {
-            paint.accent(&padded)
-        } else {
-            paint.faint(&padded)
-        };
-        out.push(edge(paint, &painted));
-    }
-    out.push(edge(paint, &" ".repeat(inner)));
-    out.push(paint.accent(&format!("╰{}╯", "─".repeat(inner))));
+/// NO BOX. A box needs four sides to line up, so any terminal narrower than its
+/// content mangles it, and there is no width at which a box is safe and a plain
+/// line is not. This module's own opening paragraph settled that before the
+/// first frame was written: the house look is gum's pink over a faint rule with
+/// NO BOX AROUND BODY TEXT. A rule cannot be mangled, because it has one side.
+///
+/// NOTHING HERE FLOATS EITHER. Every line after the command carries a label
+/// naming its role, because a bare sentence under a command name reads like an
+/// error rather than a description.
+pub(crate) fn header(paint: Paint, command: &str, lines: &[String]) -> Vec<String> {
+    let mut out = vec![paint.accent(command)];
+    out.extend(lines.iter().map(|line| paint.faint(line)));
+    out.push(rule(paint));
+    // NO TRAILING BLANK. Every section already opens with one, so adding a
+    // second here put two blank lines between the rule and the first heading.
     out
-}
-
-/// One framed line, with its two side rules.
-fn edge(paint: Paint, body: &str) -> String {
-    format!("{}{body}{}", paint.accent("│"), paint.accent("│"))
-}
-
-/// `text` padded to `width` DISPLAY characters, counted the way the frame is
-/// drawn.
-fn pad(text: &str, width: usize) -> String {
-    let counted = text.chars().count();
-    if counted >= width {
-        return text.chars().take(width).collect();
-    }
-    format!("{text}{}", " ".repeat(width - counted))
 }
 
 /// A section heading: a diamond, the name, and a rule carrying the one line
@@ -199,7 +242,7 @@ pub(crate) fn heading(paint: Paint, title: &str, blurb: &str) -> String {
 
 /// A closing rule, the full width of the frame.
 pub(crate) fn rule(paint: Paint) -> String {
-    paint.faint(&"─".repeat(WIDTH))
+    paint.faint(&"─".repeat(width()))
 }
 
 /// One row: its mark, then its text.

@@ -34,7 +34,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "mobile: FAILED, push SKIPPED -- no moshi token in the config \
+            "mobile: FAILED, push SKIPPED, no moshi token in the config \
              ([plugins.mobile] token); nothing was sent"
         ),
         "the first channel's own sentence, verbatim: {printed}"
@@ -49,7 +49,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     );
     assert!(
         printed.contains(
-            "hermes: FAILED, post SKIPPED -- no hermes key in the config \
+            "hermes: FAILED, post SKIPPED, no hermes key in the config \
              ([plugins.hermes] key); nothing was sent"
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
@@ -198,7 +198,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "hue: FAILED, pulse SKIPPED -- no hue bridge and key in the config \
+            "hue: FAILED, pulse SKIPPED, no hue bridge and key in the config \
              ([plugins.hue] bridge, key); nothing was signalled"
         ),
         "the line names the settings to write: {printed}"

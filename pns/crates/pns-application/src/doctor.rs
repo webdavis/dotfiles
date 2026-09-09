@@ -253,8 +253,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
 /// all bypassed and no room to say which, and knowing which is what tells an
 /// operator that a green line here does not promise a green line during an
 /// event. A heading's rule is not boxed, so it has the room.
-const CHANNELS_BLURB: &str = "one send per enabled channel; the mute, a named Focus, presence, the viewed pane \
-     and quiet hours are all bypassed";
+const CHANNELS_BLURB: &str = "one send per channel, with every suppression gate bypassed";
 const PAIRING_BLURB: &str = "whether the phone that answers cards still knows this Mac";
 const DAEMON_BLURB: &str = "what is running, and what would silence a notification";
 const LIGHTS_BLURB: &str = "what the lamps were last told to do";

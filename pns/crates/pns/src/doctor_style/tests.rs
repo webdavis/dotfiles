@@ -46,7 +46,7 @@ fn a_report_with_nothing_wrong_closes_by_saying_so() {
     let report = plain();
     let closing = report.close();
     assert_eq!(closing[0], "");
-    assert_eq!(closing[1].chars().count(), crate::style::WIDTH);
+    assert_eq!(closing[1].chars().count(), crate::style::width());
     assert_eq!(closing[2], "  ✓ nothing to act on");
 }
 
@@ -68,7 +68,7 @@ fn the_closing_list_numbers_every_bad_row_in_the_order_it_appeared() {
     report.item(&Item::row(Mark::Good, "hermes: sent"));
     report.item(&Item::row(Mark::Bad, "hue: FAILED, no bridge"));
     let closing = report.close();
-    assert_eq!(closing[2], "  Found 2 issues to address:");
+    assert_eq!(closing[2], "  2 issues to fix:");
     assert_eq!(closing[3], "  1. mobile: FAILED, push refused");
     assert_eq!(closing[4], "  2. hue: FAILED, no bridge");
 }
@@ -77,20 +77,27 @@ fn the_closing_list_numbers_every_bad_row_in_the_order_it_appeared() {
 fn one_issue_is_not_pluralised() {
     let mut report = plain();
     report.item(&Item::row(Mark::Bad, "mobile: FAILED"));
-    assert_eq!(report.close()[2], "  Found 1 issue to address:");
+    assert_eq!(report.close()[2], "  1 issue to fix:");
 }
 
 #[test]
-fn the_frame_names_the_command_and_its_subtitle() {
+fn the_header_names_the_command_and_labels_the_line_under_it() {
+    // A BARE SENTENCE UNDER A COMMAND NAME reads like an error. The label is
+    // what tells the reader it is a caveat about the report below it.
     let report = plain();
-    let frame = report.open("every suppression gate is bypassed");
-    let joined = frame.join("\n");
-    assert!(joined.contains("pns doctor"), "{joined}");
-    assert!(
-        joined.contains("every suppression gate is bypassed"),
-        "{joined}"
-    );
-    for line in &frame {
-        assert_eq!(line.chars().count(), crate::style::WIDTH, "{line:?}");
+    let opening = report.open("every suppression gate is bypassed");
+    assert_eq!(opening[0], "pns doctor");
+    assert_eq!(opening[1], "Note   every suppression gate is bypassed");
+    assert_eq!(opening[2].chars().count(), crate::style::width());
+}
+
+#[test]
+fn the_opening_draws_no_box() {
+    // A box needs four sides to line up, so a narrow terminal mangles it.
+    let opening = plain()
+        .open("every suppression gate is bypassed")
+        .join("\n");
+    for glyph in ['\u{256d}', '\u{256e}', '\u{2570}', '\u{256f}', '\u{2502}'] {
+        assert!(!opening.contains(glyph), "{glyph:?} in {opening}");
     }
 }

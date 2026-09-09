@@ -28,8 +28,7 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
 /// config key to write, because "not set up" without an address sends the
 /// operator hunting.
 pub fn skipped_line() -> String {
-    "post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent"
-        .to_string()
+    "post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent".to_string()
 }
 
 #[cfg(test)]

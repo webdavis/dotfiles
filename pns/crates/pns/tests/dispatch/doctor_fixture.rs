@@ -160,7 +160,7 @@ pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = t
 pub(super) fn report_rows(reported: &str) -> Vec<&str> {
     // The closing rule ends the report proper; everything under it repeats a
     // row already counted.
-    let body = match reported.split_once("\n─") {
+    let body = match reported.rsplit_once("\n─") {
         Some((body, _)) => body,
         None => reported,
     };

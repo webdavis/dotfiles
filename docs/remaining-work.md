@@ -283,6 +283,18 @@ is what makes a tool feel finished.
   multi-line diagnostic), `pns setup` (the wizard's walk) and `pns lights` (a list of lines). Everything
   else prints one sentence or a usage string.
 
+## Framed headers carry labels, never floating sentences
+
+- [ ] 77. NOTHING IN A FRAME FLOATS (operator ruling 2026-09-09). Task 69 shipped the doctor's frame as a
+  command name with a bare sentence under it, `pns doctor` over `every suppression gate is bypassed`, and
+  a reader has no way to tell whether that sentence is a description, a status or an error. It reads like
+  something went wrong. Every line after the command name takes a LABEL naming its role: `Note` for a
+  caveat about the report being read, `About` for what a feature is, `Steps` heading a contents list. The
+  label is what supplies the context the reader was otherwise left to guess at. THE FRAME ALSO SHOWS THE
+  WHOLE INVOCATION, `pns tap --info` rather than `pns tap`, so the reader can tell which flag produced
+  the output in front of them. This changes `pns doctor` (shipped) as well as the tap guide, and every
+  command task 70 converts.
+
 ## The Back Tap marker
 
 Verified on 2026-09-09, and it is the reason the two tasks below exist. The marker is written by a FORCED
@@ -331,51 +343,58 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   all. A wiring mistake anywhere in that chain shows up the same way: the marker never moves. `--install`
   IS A GUIDE, not a dump. It uses task 69's house style, so setup and `pns doctor` read as one tool: the
   framed title, `◆` numbered step headings with a faint blurb on the rule, `·` rows for the parts of a
-  line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE
-  FRAME CARRIES A NUMBERED CONTENTS LIST, not a sentence and not a count of parts (operator ruling
-  2026-09-09, after "two halves" and then "set up this Mac, then set up your phone" were both rejected as
-  too vague). It lists the steps by the same numbers their headings use, each with a short gloss:
-  `1. This Mac / the authorized_keys line`, `2. Your phone / the Shortcut`, `3. A trigger / Back Tap,
-  Action Button, and others`. The reader sees the whole job before starting one, finds their place again
-  after stepping away, and learns what a step involves without scrolling to it. Three steps, in the order
-  they are performed: step 1 the `authorized_keys`
+  line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE FRAME
+  CARRIES A NUMBERED CONTENTS LIST, not a sentence and not a count of parts (operator ruling 2026-09-09,
+  after "two halves" and then "set up this Mac, then set up your phone" were both rejected as too vague).
+  It lists the steps by the same numbers their headings use, each with a short gloss:
+  `1. This Mac / the authorized_keys line`, `2. Your phone / the PNS Tap shortcut`,
+  `3. Trigger methods / Back Tap, Action Button, others`, NOT "A trigger": the section lists ways to fire
+  the Shortcut, so it names the category rather than one instance of it. The reader sees the whole job
+  before starting one, finds their place again after stepping away, and learns what a step involves
+  without scrolling to it. Three steps, in the order they are performed: step 1 the `authorized_keys`
   line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
   Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
   text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
-  each. Host and user come from the machine, never hardcoded. STEP 2 SHRINKS LATER. The operator intends
-  to host a public Shortcut people can install directly (2026-09-09), at which point step 2 becomes a
-  link and an "install this" rather than a field-by-field build. Write it so that swapping those is an
-  edit to one step, not a rewrite of the guide. COVERS THE PHONE SIDE TOO, because the wiring has two
-  halves and an operator holding only one of them has nothing working. After the `authorized_keys` line
-  it prints the Shortcut recipe (Run Script Over SSH, with the host, the user and which key to select)
-  and the triggers that Shortcut can be attached to: Back Tap, the Action Button, a Lock Screen widget,
-  Control Center, Siri. The command text typed into the Shortcut is cosmetic, since sshd runs the forced
-  command instead, but it is spelled `pns tap` anyway so the Shortcut reads as what it does. THE SETUP
-  PROSE STAYS OFF `--info`: that flag is read when something is already wrong, and burying a status
-  report under a wall of instructions is how a diagnostic stops being read. `--info` closes with one line
-  pointing at `pns tap --install`. THE PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED
-  AGAINST, as a line the reader sees ("Settings paths verified on iOS <version>"). The exact paths to
-  Back Tap and the Action Button move between releases, and instructions that do not date themselves are
-  worse than none: a reader on a later iOS cannot tell a path that moved from a step they got wrong.
-  Verify them against the operator's own iOS at build time rather than writing them from memory here, and
-  record the version in the same change that writes the text. `--delete-marker` deletes the marker. NOT
-  `--clear`, which says nothing about what it clears, and NOT `--at-desk`, which promises a surface the
-  command cannot produce: removing the phone signal does not assert Desk, and a stale desk clock lands on
-  Away. "Marker" is already this feature's own vocabulary, so naming it is consistent rather than leaky.
-  ITS CASE IS UNVERIFIED AND MUST BE SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry
-  and stays the newest signal until the desk is touched, so a Back Tap fired by a bump in a pocket parks
-  the operator on Mobile with nothing to cancel it while they are away from the desk. The hole in that
-  argument: with the marker gone and the desk clock stale the surface is Away, and Away also routes to
-  the phone, so clearing may change nothing in exactly the case it was built for. CHECK THE
-  DESK/MOBILE/AWAY DELIVERY MATRIX in `pns/docs/specs/presence-and-visibility.md` first and drop the flag
-  if the two surfaces deliver alike. `--json` emits the same answers machine-readably, so the Shortcut
-  renders them rather than dumping a sentence. `--no-color` is NOT one of these flags; it is tool-wide,
-  task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is
-  a chezmoi-rendered target on this machine, so a write there is erased by the next apply and the
-  operator would watch their change disappear. `--info` names the file that really holds the value
-  instead. DELIBERATELY NOT `--for <duration>`, a tap that expires on its own: the probe reads the
-  marker's mtime and never its contents (`symlink_metadata`, so a dangling symlink still answers), so an
-  expiry is a reader redesign rather than a flag, and it is scoped separately if it is ever wanted.
+  each. Host and user come from the machine, never hardcoded. EVERY WORD PNS PRINTS GOES THROUGH THE
+  `humanizer` SKILL BEFORE IT SHIPS (operator ruling 2026-09-09, standing, and it covers every pns
+  command rather than this guide alone). Terminal output is prose the operator reads under pressure, and
+  the tells that skill catches are the ones that make a tool feel generated. The first pass over this
+  guide caught four. A subjectless "Nothing is written for you" tacked on as a negation becomes "pns does
+  not edit this file". A run of fragments closing on the manufactured punchline "This key does one thing"
+  keeps the fact list and loses the punchline. "The script text is cosmetic" becomes "sshd ignores this
+  script text", which is shorter and more accurate. And "Found 3 issues to address:" carries filler ahead
+  of a numbered list, so the doctor's closing line becomes "3 issues to fix:". The doctor's seven section
+  blurbs passed unchanged. STEP 2 SHRINKS LATER. The operator intends to host a public Shortcut people
+  can install directly (2026-09-09), at which point step 2 becomes a link and an "install this" rather
+  than a field-by-field build. Write it so that swapping those is an edit to one step, not a rewrite of
+  the guide. COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only
+  one of them has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run
+  Script Over SSH, with the host, the user and which key to select) and the triggers that Shortcut can be
+  attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center, Siri. The command text
+  typed into the Shortcut is cosmetic, since sshd runs the forced command instead, but it is spelled
+  `pns tap` anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag
+  is read when something is already wrong, and burying a status report under a wall of instructions is
+  how a diagnostic stops being read. `--info` closes with one line pointing at `pns tap --install`. THE
+  PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees
+  ("Settings paths verified on iOS <version>"). The exact paths to Back Tap and the Action Button move
+  between releases, and instructions that do not date themselves are worse than none: a reader on a later
+  iOS cannot tell a path that moved from a step they got wrong. Verify them against the operator's own
+  iOS at build time rather than writing them from memory here, and record the version in the same change
+  that writes the text. `--delete-marker` IS NOT BUILT. Verified against
+  `pns/docs/specs/presence-and-visibility.md` on 2026-09-09, which settles it: "Mobile and Away both mean
+  the phone card", and "Away always cards while Mobile lets [the viewed pane suppress it]". So deleting
+  the marker while away from the desk moves the operator Mobile to AWAY, which cards MORE aggressively
+  because Away never suppresses, the opposite of what a flag called clear or delete would promise. At the
+  desk it is redundant, since typing already cancels a stray tap under newest-signal-wins. Both cases
+  fail, so the flag does not ship. The earlier names weighed for it (`--clear`, `--at-desk`) are moot.
+  `--json` emits the same answers machine-readably, so the Shortcut renders them rather than dumping a
+  sentence. `--no-color` is NOT one of these flags; it is tool-wide, task 73. DELIBERATELY NOT
+  `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is a chezmoi-rendered target
+  on this machine, so a write there is erased by the next apply and the operator would watch their change
+  disappear. `--info` names the file that really holds the value instead. DELIBERATELY NOT
+  `--for <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its
+  contents (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign
+  rather than a flag, and it is scoped separately if it is ever wanted.
 
 - [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
   own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
@@ -383,18 +402,17 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   Script Over SSH") and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no
   `authorized_keys` line, no forced command, no second system holding a copy of a path, so the decoupling
   tasks 71 and 72 work around stops existing rather than being managed. The machinery is mostly here
-  already: the daemon runs, and `pns failures serve` is a listener.
-  IT ASSUMES NOTHING ABOUT THE OPERATOR'S NETWORK (operator ruling 2026-09-09, correcting an earlier
-  draft of this task that said "on the tailnet"). pns is a tool other people install and it has no idea
-  what anyone's topology looks like: no Tailscale, no VPN, no LAN shape, nothing detected and nothing
-  guessed. The listener is OFF unless configured, and its `bind` address is written by the operator with
-  NO DEFAULT, because there is no safe one to pick: loopback is safe and unreachable from a phone, and
-  every other address is a guess about somebody's network. Authentication is a config secret, the way the
-  hermes webhook already is.
-  ITS ONE REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's
-  daemon dead, because sshd and the command it forces carry it end to end, and an HTTP tap does not. An
-  operator whose daemon is wedged still wants their phone to say so. Also a listening port where there
-  was none, and a secret that needs a rotation story.
+  already: the daemon runs, and `pns failures serve` is a listener. IT ASSUMES NOTHING ABOUT THE
+  OPERATOR'S NETWORK (operator ruling 2026-09-09, correcting an earlier draft of this task that said "on
+  the tailnet"). pns is a tool other people install and it has no idea what anyone's topology looks like:
+  no Tailscale, no VPN, no LAN shape, nothing detected and nothing guessed. The listener is OFF unless
+  configured, and its `bind` address is written by the operator with NO DEFAULT, because there is no safe
+  one to pick: loopback is safe and unreachable from a phone, and every other address is a guess about
+  somebody's network. Authentication is a config secret, the way the hermes webhook already is. ITS ONE
+  REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's daemon dead,
+  because sshd and the command it forces carry it end to end, and an HTTP tap does not. An operator whose
+  daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
+  secret that needs a rotation story.
 
 - [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
   MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works

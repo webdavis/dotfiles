@@ -30,7 +30,7 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs) -> i32) -
         Ok(None) => return 0,
         Err(argv::Refusal::Scope) => {
             println!(
-                "pns: post SKIPPED -- --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
+                "pns: post SKIPPED, --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
             );
             return 0;
         }

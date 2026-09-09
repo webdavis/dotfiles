@@ -48,14 +48,14 @@ impl Report {
     /// capturing a process's output. The doctor's own ordering comments depend
     /// on that progressive printing: the lamps section touches the network
     /// last, so a bridge that hangs must not delay a line above it.
-    pub(crate) fn open(&self, subtitle: &str) -> Vec<String> {
-        style::frame(
-            self.paint,
-            &[
-                ("pns doctor".to_string(), true),
-                (subtitle.to_string(), false),
-            ],
-        )
+    /// NOTHING IN THE FRAME FLOATS. The line under the command used to be a
+    /// bare sentence, `every suppression gate is bypassed` sitting under
+    /// `pns doctor`, and a reader had no way to tell whether that was a
+    /// description, a status or an error. It reads like something went wrong.
+    /// The `Note` label is what says which of the three it is, and it costs one
+    /// word.
+    pub(crate) fn open(&self, note: &str) -> Vec<String> {
+        style::header(self.paint, "pns doctor", &[format!("Note   {note}")])
     }
 
     /// One piece of the report.
@@ -94,8 +94,7 @@ impl Report {
         let plural = if count == 1 { "" } else { "s" };
         lines.push(format!(
             "  {}",
-            self.paint
-                .bad(&format!("Found {count} issue{plural} to address:"))
+            self.paint.bad(&format!("{count} issue{plural} to fix:"))
         ));
         for (index, issue) in self.issues.iter().enumerate() {
             lines.push(format!("  {}. {issue}", index + 1));

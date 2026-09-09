@@ -18,13 +18,22 @@ const PATIENT: Duration = Duration::from_secs(10);
 /// measures. It has to cover a TLS handshake with room to spare, because a
 /// caller that gives up mid-handshake never delivers the request the fixture is
 /// asserted to have received; 150 ms did not cover one on a loaded machine.
-const IMPATIENT: Duration = Duration::from_millis(400);
+// A SECOND RATHER THAN 400 ms. The deadline has to outlast the client
+// reaching the fixture at all, and under a full parallel run a process spawn
+// plus a loopback connect can miss 400 ms on work that is proceeding normally.
+// When it did, the client gave up BEFORE the server ever accepted and the run
+// failed on "the request reached the silent bridge", which is a lost race
+// rather than a broken deadline.
+const IMPATIENT: Duration = Duration::from_secs(1);
 
 /// The ceiling on that measurement. A bridge that honours its deadline returns
 /// at `IMPATIENT`; one that ignores it holds the connection until the fixture
 /// runs out of patience, which is ten seconds away, so anything in between
 /// separates the two even when the machine is busy.
-const IMPATIENT_CEILING: Duration = Duration::from_secs(3);
+// Raised with IMPATIENT and still FAR under the server's own PATIENT wait,
+// which is the whole measurement: a client that ignored its deadline would sit
+// here for ten seconds, not five.
+const IMPATIENT_CEILING: Duration = Duration::from_secs(5);
 
 #[test]
 fn the_bridge_reads_through_its_self_signed_certificate_and_sends_the_key() {
