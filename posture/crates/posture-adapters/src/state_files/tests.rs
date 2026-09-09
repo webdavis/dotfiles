@@ -32,7 +32,6 @@ mod encoding;
 /// bridge above can get wrong.
 mod port {
     use super::*;
-    use posture_application::PollMarkers as _;
 
     #[test]
     fn the_port_remembers_and_reads_back_what_the_inherent_form_would() {
