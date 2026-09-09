@@ -218,11 +218,14 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   producer names a route at call time and nothing else records it. A missing route reports loudly but
   does not move the exit code: the roster is derived from history, so a route retired on the gateway
   would fail the doctor forever with nothing an operator could do to clear it.
-- [ ] 34a. `posture-adapters` has a pre-existing flake, measured 1 of 4 runs on both `main` and a branch
-  off it on 2026-09-09:
-  `locks::tests::an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it` and
-  `command::tests::lifecycle::inherited_publication_io_still_terminates_descendants_at_the_total_deadline`.
-  Both are timing-shaped, in the same class as the hue TLS fixture repaired in PR #474.
+- [x] 34a. `posture-adapters` flake, PR #486, and only one of the two was a flake. The lifecycle case was
+  a REAL DEFECT the suite happened to stand on: the command runner decided whether it had a terminal to
+  hand over from the errno of `tcgetpgrp`, and Darwin answers a SOCKET at descriptor 0 with `EOPNOTSUPP`
+  rather than `ENOTTY`, so an inherited socket failed every interactive command outright, which a
+  socket-activated launchd job would hit. It now asks whether descriptor 0 is a terminal, which covers a
+  pipe, `/dev/null` and a socket at once. The lock case was fixture shape: a single nonblocking `flock`
+  asked once, in a binary where any concurrent spawn holds a copy of every open descriptor between its
+  fork and its exec. Three more of the same class in pns followed, PRs #487 and #488.
 - [x] 35. The banner click: `pns click`, and its three configured types
 - [x] 35a. Raise the failure BANNER, which no task in this plan built: the design gives the notification
   its own 256-character form and its own `fix` line, and `pns_domain::failure::notification` renders it,
@@ -345,7 +348,10 @@ posture is done and osquery is retired.
 Each of these gates work that cannot start without it.
 
 - [ ] Add the pns-keyed gateway route, gates every posture cutover, tasks 43 to 50
-- [ ] Certify the stable Rust toolchain, gates tasks 51 and 52
+- [ ] Certify the stable Rust toolchain, gates tasks 51 and 52. Measured 2026-09-09: this machine runs
+  nightly clippy 1.92 while CI runs a newer stable, and CI rejected `[b' ', b'\t', b'\n']` under
+  `clippy::byte_char_slices` after a local `just test-rust` had passed. A green local Rust gate is
+  therefore not evidence about CI, which is what this gate is for.
 - [ ] Stop the hourly log writer, gates task 57
 - [ ] The clean-home apply from PR #385, gates task 65
 - [ ] The lamp drills, gates task 64
