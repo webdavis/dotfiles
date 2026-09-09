@@ -21,19 +21,16 @@ use pns_application::DOCTOR_OPENING;
 /// and the destination registry, so a doctor cannot report green through a path an
 /// event would not use.
 pub(crate) fn doctor_mode() -> i32 {
-    // ONE FLAG, AND ANY OTHER EXTRA WORD IS STILL A REFUSAL, before anything is
-    // sent or printed. A doctor that quietly ignored an argument is a check the
-    // operator believes was narrower or wider than it was.
-    let mut forced_plain = false;
-    for argument in std::env::args_os().skip(2) {
-        if argument == "--no-color" {
-            forced_plain = true;
-            continue;
-        }
+    // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A doctor
+    // that quietly ignored an argument is a check the operator believes was
+    // narrower or wider than it was. `--no-color` never reaches here: it is
+    // tool-wide, so the dispatcher takes it out of argv and remembers it, which
+    // is what lets this stay a plain refusal of everything.
+    if !crate::arguments_after_subcommand().is_empty() {
         eprintln!("{DOCTOR_USAGE}");
         return 2;
     }
-    let mut report = doctor_style::Report::new(style::Paint::for_stdout(forced_plain));
+    let mut report = doctor_style::Report::new(style::Paint::for_stdout());
     print_lines(report.open(DOCTOR_OPENING));
 
     let home = std::env::var("HOME").unwrap_or_default();
@@ -252,4 +249,4 @@ fn print_lines(lines: Vec<String>) {
 /// and the report absorbs a new section without a new spelling. The one flag
 /// earns its place because a report that reaches a file or a pipe wants plain
 /// text and the automatic detection cannot see through a pty.
-const DOCTOR_USAGE: &str = "pns: usage: pns doctor [--no-color]";
+const DOCTOR_USAGE: &str = "pns: usage: pns doctor";

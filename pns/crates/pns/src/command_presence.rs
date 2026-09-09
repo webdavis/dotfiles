@@ -1,10 +1,7 @@
 use crate::*;
 
 pub(crate) fn presence_mode(verb: &str) -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(3)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_verb();
     match (verb, presence_launch(&arguments)) {
         ("poll", Some(launch)) => presence_poll(launch),
         // UNKNOWN IS AN ERROR, never a silent fallthrough, exactly as the

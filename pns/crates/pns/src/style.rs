@@ -46,6 +46,25 @@ const NO_COLOR: &str = "NO_COLOR";
 /// setting makes the whole machine print plainly.
 const HOUSE_PLAIN: &str = "REPORT_LIB_PLAIN";
 
+/// Whether `--no-color` was typed, decided once when argv was read.
+///
+/// A PROCESS-WIDE ANSWER, because the flag is a process-wide question. An
+/// operator who has decided about color has decided about the whole command,
+/// not about one subcommand's report, so `pns --no-color doctor` and
+/// `pns doctor --no-color` mean the same thing and every command that prints
+/// reads the same answer. Threading a boolean from the dispatcher into each of
+/// them instead would be a parameter every future printing command had to
+/// remember to accept, and the one that forgot would ignore the flag silently.
+///
+/// `decide` below stays a pure function of its arguments, which is what the
+/// tests exercise; this only supplies one of them.
+static FORCED_PLAIN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Record what argv said about color. Called ONCE, by the dispatcher.
+pub(crate) fn remember_forced_plain(forced_plain: bool) {
+    let _ = FORCED_PLAIN.set(forced_plain);
+}
+
 /// Whether output is being painted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Paint {
@@ -73,8 +92,11 @@ impl Paint {
     }
 
     /// What printing to this process's own output means right now.
-    pub(crate) fn for_stdout(forced_plain: bool) -> Self {
-        Self::decide(forced_plain, std::io::stdout().is_terminal())
+    pub(crate) fn for_stdout() -> Self {
+        Self::decide(
+            *FORCED_PLAIN.get().unwrap_or(&false),
+            std::io::stdout().is_terminal(),
+        )
     }
 
     /// `text` in `color`, or `text` alone when nothing is being painted.

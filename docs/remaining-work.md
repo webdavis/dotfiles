@@ -303,18 +303,80 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   always present and a built binary is not, so a broken build takes the tap with it. That is why the
   doctor row below is part of this task rather than a follow-up: `pns doctor` gains a row under Pairing
   that reads `~/.ssh/authorized_keys`, finds the forced command, and says whether a key is wired to
-  `pns tap`, so a key later deleted or mistyped is REPORTED instead of quietly ending phone cards.
-  Its flags, and what each one is for. Bare `pns tap` touches the marker and prints the surface that
-  results, because the forced command's stdout travels back over SSH and the Shortcut can show it: a tap
-  that says nothing is a tap you cannot tell from a broken one. `--clear` DELETES the marker, which is
-  not redundant with the newest-signal-wins rule: a stray tap holds Mobile until the desk is touched, and
-  an operator who mis-taps while away from the desk has nothing that cancels it. `--show` prints the
-  marker's age and the surface it implies and touches nothing, for debugging from either end. `--json`
-  emits the same answer machine-readably, so the Shortcut renders it rather than dumping a sentence.
-  `--no-color` and the terminal detection come from task 69's style module. DELIBERATELY NOT `--for
-  <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its contents
-  (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign rather
-  than a flag, and it is scoped separately if it is ever wanted.
+  `pns tap`, so a key later deleted or mistyped is REPORTED instead of quietly ending phone cards. Its
+  flags, and what each one is for. Bare `pns tap` touches the marker and prints the surface that results,
+  because the forced command's stdout travels back over SSH and the Shortcut can show it: a tap that says
+  nothing is a tap you cannot tell from a broken one. `--info` explains the feature and reports its live
+  configuration: the marker path AND WHICH SOURCE SUPPLIED IT (the shipped default, the config file, or
+  the environment), whether the file exists, how old it is, the surface that age implies, and whether a
+  key in `~/.ssh/authorized_keys` is wired to `pns tap`. Naming the source is the point of it: an
+  operator who set the config value and still sees the default is looking at an override they forgot, and
+  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for this
+  machine, with the binary path resolved, and says where to paste it. It says that a line already wired
+  for this should be replaced rather than added beside. PNS NEVER READS OR WRITES
+  `~/.ssh/authorized_keys` (operator ruling 2026-09-09, superseding two earlier shapes in this task's own
+  history). That file is the operator's whole SSH trust list. A notification tool has no business
+  enumerating it, and the concrete leak is not theoretical: `--info` PRINTS what it reads, into a
+  terminal whose contents get pasted into chats and issues. Writing it is worse again, a tool that runs
+  unattended as a daemon and from every harness hook holding the ability to grant SSH access. Printing
+  costs the operator one paste, once per machine, and costs pns the capability entirely. So there is no
+  `--write` and no `--backup`; the backup only ever existed to make a write safe, and it carried its own
+  hazard, since a copy of a trust file re-grants a key that was later revoked if it is ever restored
+  unread. WHAT REPLACES THE READ IS A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN
+  FRESHNESS: "last tap 3 hours ago", or "never tapped". That verifies the whole chain end to end (phone,
+  Shortcut, ssh, key, forced command, file) rather than inspecting one link and inferring the rest, and
+  it needs no access to `~/.ssh` at all. A wiring mistake anywhere in that chain shows up the same way:
+  the marker never moves. `--install` COVERS THE PHONE SIDE TOO, because the wiring has two halves and an
+  operator holding only one of them has nothing working. After the `authorized_keys` line it prints the
+  Shortcut recipe (Run Script Over SSH, with the host, the user and which key to select) and the triggers
+  that Shortcut can be attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center,
+  Siri. The command text typed into the Shortcut is cosmetic, since sshd runs the forced command instead,
+  but it is spelled `pns tap` anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF
+  `--info`: that flag is read when something is already wrong, and burying a status report under a wall
+  of instructions is how a diagnostic stops being read. `--info` closes with one line pointing at
+  `pns tap --install`. THE PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a
+  line the reader sees ("Settings paths verified on iOS <version>"). The exact paths to Back Tap and the
+  Action Button move between releases, and instructions that do not date themselves are worse than none:
+  a reader on a later iOS cannot tell a path that moved from a step they got wrong. Verify them against
+  the operator's own iOS at build time rather than writing them from memory here, and record the version
+  in the same change that writes the text. `--clear` DELETES the marker, which is not redundant with the
+  newest-signal-wins rule: a stray tap holds Mobile until the desk is touched, and an operator who
+  mis-taps while away from the desk has nothing that cancels it. `--json` emits the same answers
+  machine-readably, so the Shortcut renders them rather than dumping a sentence. `--no-color` is NOT one
+  of these flags; it is tool-wide, task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the
+  config: `~/.config/pns/config.toml` is a chezmoi-rendered target on this machine, so a write there is
+  erased by the next apply and the operator would watch their change disappear. `--info` names the file
+  that really holds the value instead. DELIBERATELY NOT `--for <duration>`, a tap that expires on its
+  own: the probe reads the marker's mtime and never its contents (`symlink_metadata`, so a dangling
+  symlink still answers), so an expiry is a reader redesign rather than a flag, and it is scoped
+  separately if it is ever wanted.
+
+- [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
+  own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
+  chooses. pns serves a small endpoint the Shortcut posts to over the tailnet ("Get Contents of URL"
+  rather than "Run Script Over SSH"), authenticated by a config secret the way the hermes webhook already
+  is, and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no `authorized_keys` line, no
+  forced command, no second system holding a copy of a path, so the decoupling tasks 71 and 72 work
+  around stops existing rather than being managed. The machinery is mostly here already: the daemon runs,
+  and `pns failures serve` is a listener.
+  ITS ONE REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's
+  daemon dead, because sshd and `touch` carry it end to end, and an HTTP tap does not. An operator whose
+  daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
+  secret that needs a rotation story.
+
+## Tool-wide output flags
+
+- [x] 73. DONE 2026-09-09, shipped with task 69 rather than after it, because a flag whose scope is
+  wrong is a contract, and the narrow form would have been the shipped one for as long as it took to
+  widen. `--no-color` is a PNS-WIDE flag, accepted in every position: `pns --no-color doctor` and
+  `pns doctor --no-color` mean the same thing, because an operator who has decided about color has
+  decided about the whole command rather than about one subcommand's report. Task 69 shipped it as a
+  `pns doctor`-only argument, which is the narrower reading and wrong; this widens it. The dispatcher
+  takes the flag out of argv wherever it appears, remembers it once, and every command that prints reads
+  that one answer with no plumbing of its own. THE EVENT PATH IS EXEMPT and keeps its argv untouched: it
+  prints nothing but an exit code, and a position-blind filter would eat a producer's
+  `--detail "--no-color"` as a flag, which is the same value-position bug the argv grammar already guards
+  against elsewhere.
 - [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
   the tests and sandboxes are untouched. NOT `[presence]`: `[plugins.presence]` already exists and is the

@@ -31,10 +31,7 @@ pns daemon cancel --id <id>";
 /// will call, in-process, so nothing ever spawns a process to talk to the
 /// daemon.
 fn daemon_schedule() -> i32 {
-    let argv: Vec<String> = std::env::args_os()
-        .skip(3)
-        .map(|word| word.to_string_lossy().into_owned())
-        .collect();
+    let argv: Vec<String> = crate::arguments_after_verb();
     let Some(request) = parse_schedule(&argv) else {
         eprintln!("{DAEMON_USAGE}");
         return 2;
@@ -95,10 +92,7 @@ fn parse_schedule(argv: &[String]) -> Option<ScheduleJob> {
 
 /// `pns daemon cancel --id <id>`: forget one job.
 fn daemon_cancel() -> i32 {
-    let argv: Vec<String> = std::env::args_os()
-        .skip(3)
-        .map(|word| word.to_string_lossy().into_owned())
-        .collect();
+    let argv: Vec<String> = crate::arguments_after_verb();
     let [flag, id] = argv.as_slice() else {
         eprintln!("{DAEMON_USAGE}");
         return 2;

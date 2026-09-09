@@ -111,7 +111,7 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
         assert!(
             stderr(&output)
                 .lines()
-                .any(|line| line == "pns: usage: pns doctor [--no-color]"),
+                .any(|line| line == "pns: usage: pns doctor"),
             "arguments: {arguments:?}, stderr: {}",
             stderr(&output)
         );

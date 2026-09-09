@@ -15,10 +15,7 @@ use pns_adapters::SqliteStore;
 /// reason: it knows only that its own write did not happen, and a previous
 /// mute may still be standing behind it.
 pub(crate) fn quiet_mode() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_subcommand();
     let records = SqliteStore::for_records(state_dir());
     // A SET THAT DID NOT HAPPEN, carried to the exit code rather than
     // returned on the spot, so the report below runs on this path too.
