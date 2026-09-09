@@ -111,8 +111,11 @@ deleted rather than rewritten.
 ## pns closure and the rescued lanes
 
 - [x] 22. Rework `fix/pns-retry-backoff` against the current crate layout, PR, merge
-- [ ] 23. Review and push `feat/posture-producer-commands` (heartbeat), PR, merge
-- [ ] 24. Review and push `feat/posture-converge-staging` (6 commits), PR, merge
+- [x] 23. Review and push `feat/posture-producer-commands` (heartbeat), PR, merge
+- [x] 24. Review and push `feat/posture-converge-staging`, PR, merge. Shipped as
+  `feat/posture-converge-foundation`: five of its six commits. The sixth deletes the bash converge and
+  routes through the native command, which is the cutover task 50 owns, and the native path still calls
+  `osqueryctl config-check`, the bug PR #463 fixed. It is parked until task 50 ports that fix.
 - [x] 25. pns 18.1a: the `cargo doc` gate with `RUSTDOCFLAGS="-D warnings"`
 - [x] 26. pns 8.4: the Codex and Claude hook-table verification record
 - [x] 27. pns: backfill decision record 0012 (SQLite two fail directions)
