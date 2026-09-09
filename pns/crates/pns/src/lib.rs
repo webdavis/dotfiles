@@ -59,6 +59,7 @@ mod command_recap;
 mod command_setup;
 mod daemon_runtime;
 mod delivery_runtime;
+mod doctor_style;
 mod event_flow;
 mod failure_notice;
 mod failures_page;
@@ -75,6 +76,7 @@ mod presence_runtime;
 mod recap_delivery_runtime;
 mod return_replay;
 mod runtime_environment;
+mod style;
 mod turn_lifecycle;
 mod turn_text;
 

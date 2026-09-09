@@ -79,9 +79,11 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     for channel in ["mobile", "macos-banner", "hermes"] {
         assert!(
-            printed.lines().any(|line| line.starts_with(&format!(
-                "{channel}: FAILED, could not launch the channel at"
-            ))),
+            report_rows(&printed)
+                .iter()
+                .any(|line| line.starts_with(&format!(
+                    "{channel}: FAILED, could not launch the channel at"
+                ))),
             "{channel} was reported as sent by a spawn that never happened: {printed}"
         );
     }
@@ -254,7 +256,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         stderr(&output)
     );
     let reported = stdout(&output);
-    let printed: Vec<&str> = reported.lines().skip(1).collect();
+    let printed = report_rows(&reported);
     assert_eq!(
         printed,
         [

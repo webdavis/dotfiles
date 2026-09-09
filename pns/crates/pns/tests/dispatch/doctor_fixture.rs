@@ -151,8 +151,35 @@ pub(super) const LIGHTS_OFF_LINE: &str =
 pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
      [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
 
-/// The line the doctor opens with, whatever it goes on to find.
-pub(super) const DOCTOR_OPENING: &str = "pns doctor: sending one test to every enabled channel. \
-     Every suppression gate is bypassed (the operator mute, a macOS Focus you named, \
-     the presence gate, the viewed-pane rule, the lights' quiet hours), because a check \
-     that can be suppressed proves nothing.";
+/// The report's own sentences, with the presentation taken back off.
+///
+/// THE TESTS BELOW ASSERT WHAT THE REPORT SAYS, not how it looks. The frame,
+/// the headings, the marks and the closing list are the command's rendering and
+/// have their own tests beside the renderer; reading them here would make every
+/// expectation in this file a hostage to a change of glyph.
+pub(super) fn report_rows(reported: &str) -> Vec<&str> {
+    // The closing rule ends the report proper; everything under it repeats a
+    // row already counted.
+    let body = match reported.split_once("\n─") {
+        Some((body, _)) => body,
+        None => reported,
+    };
+    body.lines()
+        .map(str::trim_start)
+        .filter_map(|line| {
+            ["✓ ", "✗ ", "⚠ ", "· ", "→ "]
+                .iter()
+                .find_map(|glyph| line.strip_prefix(glyph))
+        })
+        .collect()
+}
+
+/// The section headings, in the order they were printed.
+pub(super) fn report_sections(reported: &str) -> Vec<&str> {
+    reported
+        .lines()
+        .filter_map(|line| line.strip_prefix("◆ "))
+        .filter_map(|line| line.split_once(" ──"))
+        .map(|(title, _)| title)
+        .collect()
+}

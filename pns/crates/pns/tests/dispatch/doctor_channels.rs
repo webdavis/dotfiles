@@ -37,10 +37,22 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     );
 
     let reported = stdout(&output);
-    let printed: Vec<&str> = reported.lines().collect();
-    assert_eq!(printed[0], DOCTOR_OPENING);
+    let printed = report_rows(&reported);
     assert_eq!(
-        &printed[1..],
+        report_sections(&reported),
+        [
+            "Channels",
+            "Pairing",
+            "Daemon and gates",
+            "Lights",
+            "Delivery",
+            "Recent decisions",
+            "History",
+        ],
+        "the report's sections, in order"
+    );
+    assert_eq!(
+        &printed[..],
         [
             "router: skipped, a sensor and never a delivery destination",
             "presence: skipped, not enabled in the config",
@@ -118,8 +130,8 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let reported = stdout(&output);
-    let mobile = reported
-        .lines()
+    let mobile = report_rows(&reported)
+        .into_iter()
         .find(|line| line.starts_with("mobile:"))
         .unwrap_or_else(|| panic!("the census names every plugin: {reported}"));
     assert!(
@@ -135,8 +147,8 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
         "and never the key that is right: {mobile}"
     );
     assert_eq!(
-        reported
-            .lines()
+        report_rows(&reported)
+            .into_iter()
             .filter(|line| line.starts_with("mobile:"))
             .count(),
         1,
@@ -156,8 +168,8 @@ fn the_doctor_tells_a_machine_with_no_config_that_there_is_no_config() {
 
     let reported = stdout(&output);
     for plugin in ["router", "hermes", "hue"] {
-        let line = reported
-            .lines()
+        let line = report_rows(&reported)
+            .into_iter()
             .find(|line| line.starts_with(&format!("{plugin}:")))
             .unwrap_or_else(|| panic!("the census names every plugin: {reported}"));
         assert_eq!(

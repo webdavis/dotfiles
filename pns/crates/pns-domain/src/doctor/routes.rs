@@ -101,3 +101,18 @@ pub fn routes_summary(verdicts: &[(String, RouteVerdict)]) -> String {
 #[cfg(test)]
 #[path = "routes/tests.rs"]
 mod tests;
+
+/// How a route's verdict reads at a glance.
+///
+/// A MISSING ROUTE IS A WARNING RATHER THAN A FAULT, for the reason it does not
+/// move the exit code: the roster is derived from what pns has posted to, so a
+/// route retired on the gateway is missing forever with nothing the operator
+/// can do to clear it. A check that cannot be satisfied is one they learn to
+/// ignore.
+pub fn route_mark(verdict: &RouteVerdict) -> super::Mark {
+    match verdict {
+        RouteVerdict::Served => super::Mark::Good,
+        RouteVerdict::Missing => super::Mark::Warn,
+        RouteVerdict::Unknown(_) => super::Mark::Note,
+    }
+}

@@ -53,8 +53,8 @@ fn the_doctor_reads_the_room_off_the_state_file_and_judges_it_against_the_config
     let before = now_secs();
     let reported = stdout(&doctor_command(&sandbox).output().expect("the engine runs"));
     let after = now_secs();
-    let line = reported
-        .lines()
+    let line = report_rows(&reported)
+        .into_iter()
         .find(|line| line.starts_with("presence: "))
         .expect("the presence result");
     let age = line
@@ -111,7 +111,7 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
         assert!(
             stderr(&output)
                 .lines()
-                .any(|line| line == "pns: usage: pns doctor"),
+                .any(|line| line == "pns: usage: pns doctor [--no-color]"),
             "arguments: {arguments:?}, stderr: {}",
             stderr(&output)
         );
