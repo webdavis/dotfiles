@@ -67,15 +67,21 @@ The other two were retired by merged pull requests and named in their bodies for
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
 
-- [ ] 11c. Bootout `com.webdavis.update-skills`, then trash its plist and the two scripts tasks 55 and 56
-  retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
+- [ ] 11c. BLOCKED ON THE NEXT APPLY. Bootout `com.webdavis.update-skills`, then trash its plist and the
+  two scripts tasks 55 and 56 retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
   `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
   `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
-  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out.
+  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out. Checked 2026-09-09:
+  the deployed `uu` reports no `skills` lane, so the replacement is merged but not on disk. Doing this
+  before the apply would leave the machine with no weekly skills refresh at all. Verify with `uu doctor`
+  first; the lane must be listed before any of this runs.
 
-- [ ] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
+- [x] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
   open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
-  open. Three were found on 2026-09-08, two of them nearly three days old.
+  open. Three were found on 2026-09-08, two of them nearly three days old, held by headless Neovim
+  processes an agent had leaked. Cleared, and every remaining lock was verified live by its pid. This
+  recurs whenever a headless Neovim is killed rather than quit, so it is worth re-checking, not a
+  permanent fix.
 
 - [x] 11b. Trash `~/.local/share/herdr/plugins/herdr-last-workspace` and its link. Folded into
   `herdr-workspace-jump` in PR #418. It was still registered in `~/.config/herdr/plugins.json` and still
@@ -230,6 +236,7 @@ Each of these gates work that cannot start without it.
 - [ ] The lamp drills, gates task 64
 - [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
+- [ ] Run `chezmoi apply` to deploy the uu skills lane, which gates task 11c
 - [ ] Restart Claude Code so the old `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` leaves the process environment
 
 ## Deferred, not scheduled
