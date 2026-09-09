@@ -10,37 +10,41 @@ Updated as tasks complete. Last updated 2026-09-08.
 `main` carries eighty-six merged pull requests from 2026-09-06 onward and the first full `chezmoi apply`
 since then has now run and passed.
 
-Two runs of the Lint workflow on `main` are red, so the branch is not green as it stands. Clearing that
-is the first section below, because every later merge lands on top of it.
+`main` is green as of run 34301231057. Both red cases turned out to be wrong assertions rather than
+broken code, and both repairs are mutation-verified.
 
 Every pull request tracked by the 2026-09-06 Codex handoff has merged. Two pull requests remain open,
 `#24` and `#51`, and both predate this program and are unrelated to it. This file replaces that handoff.
 
 ## Red main
 
-- [ ] 1. Fix `ledger_awk_spec: reads FIXED-NOTEST as closed as well, so the skip is a prefix match`. It
-  fails on the CI runner and passes on this machine, so it is an environment difference rather than a
-  flake. Run 34284143580, merge of PR #462.
-- [ ] 2. Fix or quarantine the e2e case `Two parallel runs deliver a batch exactly once` (`test/e2e`, the
-  osquery alerter concurrency test). Run 34270895202, merge of PR #458. Seen failing four separate times
-  across this program and passing on rerun each time.
-- [ ] 3. Rerun both workflows and confirm `main` is green.
+- [x] 1. Fix `ledger_awk_spec: reads FIXED-NOTEST as closed as well, so the skip is a prefix match`. Run
+  34284143580, merge of PR #462. It looked like an environment difference because it passed here and
+  failed there; it is a flake. The case searched the whole output for the two characters `F5`, every
+  output line starts with the register's own path, and CI drew the temporary directory
+  `nvim.runner/cF5NkO`. The awk program was never wrong. Fixed by matching the id in its own column.
+- [x] 2. Fix the e2e case `Two parallel runs deliver a batch exactly once` (`test/e2e`, the osquery
+  alerter concurrency test). Run 34270895202, merge of PR #458. `read` returned 142 for SIGALRM: a loaded
+  shared runner did not start bash and reach `send_alert` inside the 250 ms bound. All four bounds in
+  that case are ceilings on a subject that never signals rather than measurements, so they were widened
+  eightfold. A green run still takes about 800 ms.
+- [x] 3. Rerun both workflows and confirm `main` is green.
 
-## Apply blockers, in flight on `fix/apply-blockers`
+## Apply blockers, merged as PR #463
 
-- [ ] 4. Commit, push and merge the six apply fixes: the osquery converge configuration check and its
-  tests, the deno `--allow-scripts` addition, the gitconfig fsmonitor exclusion for the lazy.nvim
-  checkouts, the CLAUDE.md rule about verifying an apply first, the espanso `,,ca` trigger, and the
-  auto-compact window setting.
+- [x] 4. Commit, push and merge the apply fixes: the osquery converge configuration check and its tests,
+  the deno `--allow-scripts` addition, the gitconfig fsmonitor exclusion for the lazy.nvim checkouts, the
+  CLAUDE.md rule about verifying an apply first, the espanso `,,ca` trigger, and the auto-compact window
+  setting. Shipped as nine commits with the two test repairs above.
 
 ## Untracked files, decide and clear
 
-- [ ] 5. Commit `docs/superpowers/specs/2026-07-15-s9-reland-decomposition-design.md`. It is a real
+- [x] 5. Commit `docs/superpowers/specs/2026-07-15-s9-reland-decomposition-design.md`. It is a real
   approved design and every other design spec is tracked in that directory.
-- [ ] 6. Trash `HANDOFF-CODEX.md`. It is a handoff for a session that has ended and this file replaces
+- [x] 6. Trash `HANDOFF-CODEX.md`. It is a handoff for a session that has ended and this file replaces
   what it carried. It also sits in the repository root, where no document belongs.
-- [ ] 7. Trash `nvim.log`. Two Neovim server-start warnings captured by accident.
-- [ ] 8. Trash `docs/research/moshi-verbose-daemon.log`. A 109 KB daemon capture from the moshi approval
+- [x] 7. Trash `nvim.log`. Two Neovim server-start warnings captured by accident.
+- [x] 8. Trash `docs/research/moshi-verbose-daemon.log`. A 109 KB daemon capture from the moshi approval
   investigation, which is closed.
 
 ## Deployed leftovers
@@ -51,19 +55,21 @@ deployed copy in place until it is trashed by hand. All five below were verified
 Three sit in `~/.config/nvim/lua/custom_api/` with no chezmoi source, left behind by the standalone
 Neovim repository that chezmoi replaced. Nothing in the source tree references any of them.
 
-- [ ] 9. Trash `~/.config/nvim/lua/custom_api/delegate.lua`. The v3 overhaul design retires it in favour
+- [x] 9. Trash `~/.config/nvim/lua/custom_api/delegate.lua`. The v3 overhaul design retires it in favour
   of `coder/claudecode.nvim`.
-- [ ] 10. Trash `~/.config/nvim/lua/custom_api/helpers.lua`. Last touched December 2025, referenced
+- [x] 10. Trash `~/.config/nvim/lua/custom_api/helpers.lua`. Last touched December 2025, referenced
   nowhere.
-- [ ] 11. Trash `~/.config/nvim/lua/custom_api/init.lua`. It builds a module table that requires
+- [x] 11. Trash `~/.config/nvim/lua/custom_api/init.lua`. It builds a module table that requires
   `custom_api.delegate`, and nothing requires it in turn.
 
 The other two were retired by merged pull requests and named in their bodies for hand removal.
 
-- [ ] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
+- [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
-- [ ] 11b. Trash `~/.local/share/herdr/plugins/herdr-last-workspace` and its link. Folded into
-  `herdr-workspace-jump` in PR #418.
+- [x] 11b. Trash `~/.local/share/herdr/plugins/herdr-last-workspace` and its link. Folded into
+  `herdr-workspace-jump` in PR #418. It was still registered in `~/.config/herdr/plugins.json` and still
+  running an event hook on every `workspace.focused`, so it needed `herdr plugin unlink` before the
+  trash. Deleting the directory alone would have left herdr pointing at a path that no longer exists.
 
 ## Before the first stopping point
 
