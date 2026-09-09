@@ -230,11 +230,10 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   `pns doctor`. A leg speaks twice at most, on its first failure and on its dead-letter, because a banner
   per attempt teaches the operator to dismiss the one banner the design exists to raise. It carries the
   half of task 35 that had no producer: the banner's click is now `<absolute pns> click <id>`.
-- [ ] 35b. The failure PHONE CARD, under the existing presence rules. It waits on 36, not on scheduling:
-  `NotificationSurface::Phone` takes `serve`, which is task 36's `[failures] serve` key, and the phone's
-  whole `fix` line is chosen by it. It also owns the rule the banner never needed, that a failure is
-  never reported through the destination that failed, since a moshi refusal must not be announced to
-  moshi.
+- [x] 35b. The failure PHONE CARD, under the existing presence rules (anything but at the desk, the same
+  reading `forward_to_moshi` takes). It carries the rule the banner never needed, that a failure is never
+  reported through the destination that failed: a mobile refusal pushes no card about itself, and a
+  hermes refusal says Discord is empty rather than pointing at it.
 - [x] 35c. A non-zero exit code for a synchronous caller whose page did not land, rung 5 of the design's
   "where a failure surfaces". Shipped OPT-IN, behind `--require-delivery`, because the design's
   unconditional form contradicts accepted decision 0010 (a notification never fails the work it reports

@@ -107,7 +107,7 @@ fn banner_channel() -> BannerChannel<SystemCommandRunner> {
     }
 }
 /// The moshi push, with the token the config already provided.
-fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
+pub(crate) fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
         token,
