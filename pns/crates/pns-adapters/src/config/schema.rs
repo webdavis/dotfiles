@@ -39,7 +39,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "focus", "lights", "nag", "plugins", "recap",
+            "daemon", "delivery", "failures", "focus", "lights", "nag", "plugins", "recap",
         ],
     ),
     (
@@ -67,6 +67,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("daemon", &["enabled"]),
     ("nag", &["after_secs"]),
+    ("failures", &["port", "serve"]),
     (
         "lights",
         &[

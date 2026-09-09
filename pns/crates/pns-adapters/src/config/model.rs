@@ -58,6 +58,12 @@ pub struct Config {
     /// Boxed because this is the largest optional policy. Configurations
     /// without lamps do not reserve space for all its fields.
     pub lights: Option<Box<Lights>>,
+    /// `[failures]`: whether the failure record is served as a page, and where.
+    ///
+    /// NOT AN OPTION, unlike `lights` above it: both its keys are defaulted, so
+    /// a file with no table and a file writing the defaults are the same
+    /// statement and there is nothing for `None` to mean.
+    pub failures: Failures,
 }
 
 impl Default for Config {
@@ -72,6 +78,7 @@ impl Default for Config {
             retry_backoff: Default::default(),
             nag_after_secs: NAG_OFF,
             lights: None,
+            failures: Failures::default(),
         }
     }
 }

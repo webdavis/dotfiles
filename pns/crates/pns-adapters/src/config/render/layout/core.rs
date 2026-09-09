@@ -143,6 +143,34 @@ pub(super) const NAG: Table = Table {
         sample: Sample::Default("300"),
     }],
 };
+pub(super) const FAILURES: Table = Table {
+    name: "failures",
+    prose: "# The failure page: the same record `pns failures` prints, served over\n\
+                 # loopback so moshi's browser preview can read it from your phone. The\n\
+                 # listener binds 127.0.0.1 only, because the per-session SSH forward is\n\
+                 # the trust boundary and nothing needs to be reachable from anywhere\n\
+                 # else. moshi-hook finds it by probing local ports and remembering the\n\
+                 # ones that answer, so nothing registers itself; an operator with a\n\
+                 # narrowed scan-ports list adds this number to it. Two limits pns cannot\n\
+                 # detect and does not pretend to: browser preview needs a moshi Pro\n\
+                 # subscription, and the tunnel exists only while a terminal session is\n\
+                 # open. serve = false is the fallback for either, and it costs nothing\n\
+                 # else: the notification stands alone, Discord still carries the full\n\
+                 # form whenever the hermes leg worked, and `pns failures` is unchanged.\n",
+    opt_in: false,
+    keys: &[
+        Key {
+            name: "serve",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "port",
+            prose: "",
+            sample: Sample::Default("8646"),
+        },
+    ],
+};
 pub(super) const LIGHTS: Table = Table {
     name: "lights",
     prose: LIGHTS_PROSE,

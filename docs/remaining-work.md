@@ -238,7 +238,7 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
 - [ ] 35c. A non-zero exit code for a synchronous caller whose page did not land, which is rung 5 of the
   design's "where a failure surfaces" and the one a producer such as posture reads. Today an event mode
   invocation exits 0 whatever the destinations answered.
-- [ ] 36. The local page for moshi's browser preview
+- [x] 36. The local page for moshi's browser preview
 
 ### STOP POINT C
 

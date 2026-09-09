@@ -76,6 +76,7 @@ pub(super) const LAYOUT: &[Table] = &[
     RECAP,
     FOCUS,
     NAG,
+    FAILURES,
     LIGHTS,
     LIGHTS_DONE,
     LIGHTS_FAILED,
