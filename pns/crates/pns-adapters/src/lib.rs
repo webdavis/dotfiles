@@ -99,7 +99,8 @@ pub use destinations::banner::{
 };
 
 pub use destinations::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, remote_deadline,
+    DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, probe_route, probe_routes,
+    remote_deadline,
 };
 
 pub use destinations::moshi::{
