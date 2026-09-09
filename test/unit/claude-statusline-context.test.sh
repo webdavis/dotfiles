@@ -71,3 +71,52 @@ function test_context_caps_one_hundred_percent_at_the_default_threshold() {
 function test_context_honors_a_smaller_output_token_reserve() {
   statusline_context '~80%/743k' '{"env":{"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"75"}}' unset unset '8192'
 }
+
+# --- the gauge's color bands -------------------------------------------------
+
+# The band a given context reading paints, asserted on the escape sequence
+# itself rather than on the text, because the color IS the signal: the whole
+# point of the gauge is that it can be read without reading it.
+function statusline_color() {
+  local expected="$1" used="$2"
+  local fixture script actual
+  fixture=$(mktemp -d "${TMPDIR:-/tmp}/statusline-color.XXXXXX")
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/private_dot_claude/executable_statusline-command.sh"
+  mkdir -p "$fixture/bin" "$fixture/home/.claude" "$fixture/tmp"
+  printf '{}\n' >"$fixture/home/.claude/settings.json"
+  printf '#!/bin/bash\nset -euo pipefail\nexit 1\n' >"$fixture/bin/git"
+  printf '#!/bin/bash\nset -euo pipefail\nprintf "fixture-host\\n"\n' >"$fixture/bin/hostname"
+  chmod 700 "$fixture/bin/git" "$fixture/bin/hostname"
+  ln -s "$(command -v jq)" "$fixture/bin/jq"
+  actual=$(printf '{"workspace":{"current_dir":"/fixture/project","project_dir":"/fixture/project"},"context_window":{"used_percentage":%s,"context_window_size":200000}}' "$used" |
+    env -i "HOME=$fixture/home" "PATH=$fixture/bin:/usr/bin:/bin" LC_ALL=C \
+      "TMPDIR=$fixture/tmp" "CLAUDE_CONFIG_DIR=$fixture/home/.claude" \
+      GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+      /bin/bash "$script" 2>/dev/null)
+  local band=calm
+  case "$actual" in
+    *'247;118;142'*) band=red ;;
+    *'224;175;104'*) band=yellow ;;
+  esac
+  assert_same "$expected" "$band"
+}
+
+# The readings either side of each boundary. They are expressed as the share of
+# the model window because that is what Claude Code reports; the gauge divides
+# it by the compaction ceiling, so 71 per cent of the window is 85 per cent of
+# the way to a compaction.
+function test_the_gauge_stays_calm_below_three_fifths() {
+  statusline_color calm 50
+}
+
+function test_the_gauge_turns_yellow_at_three_fifths() {
+  statusline_color yellow 51
+}
+
+function test_the_gauge_is_still_yellow_just_below_the_red_band() {
+  statusline_color yellow 70
+}
+
+function test_the_gauge_turns_red_at_eighty_five() {
+  statusline_color red 71
+}
