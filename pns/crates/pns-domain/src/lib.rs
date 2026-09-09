@@ -63,6 +63,7 @@ mod presence_decision;
 pub use presence_decision::PresenceDecision;
 
 pub mod doctor;
+pub mod failure;
 
 mod setup;
 pub use setup::{
