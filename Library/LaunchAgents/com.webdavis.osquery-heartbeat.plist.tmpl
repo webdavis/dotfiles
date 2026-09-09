@@ -6,8 +6,8 @@
   <string>com.webdavis.osquery-heartbeat</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/bash</string>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/osquery/heartbeat.sh</string>
+    <string>{{ .chezmoi.homeDir }}/{{ .rust_tools.install_dir }}/posture</string>
+    <string>heartbeat</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>

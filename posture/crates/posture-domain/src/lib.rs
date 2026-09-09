@@ -28,12 +28,16 @@ pub use converge_policy::{
 
 pub use finding::{Detector, EnrichmentPaths};
 
+mod cursor;
 mod digest;
 mod gate;
 mod page;
 mod sanitize;
 mod severity;
 
+pub use cursor::{
+    Advance, LiveLog, StoredCursor, advance, parse as parse_cursor, render as render_cursor,
+};
 pub use digest::{BULLETS_PER_GROUP, DigestEntry, GROUP_LIMIT, render_digest};
 pub use gate::{
     FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
