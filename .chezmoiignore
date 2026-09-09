@@ -53,28 +53,21 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
-# Same, for the pns crate.
-.local/share/pns/target
-
-# The pns specifications, decision records and test baseline: development
-# artifacts for people working ON pns, never runtime inputs the binary reads.
-# They live in the crate so they travel when pns is extracted to its own
-# repository, which is about the git repo and not about what reaches $HOME.
-.local/share/pns/docs
-
-# Same, for the uu crate.
-.local/share/uu/target
-
-# Lights build output and development fixtures.
-.local/share/lights/target
-.local/share/lights/docs
-.local/share/lights/crates/*/tests/fixtures
-
-# Same, for the posture crate, and the same rule for its docs as for pns's: the
-# test baseline, the acceptance examples and the decision records travel with
-# the crate in git and never reach $HOME.
-.local/share/posture/target
-.local/share/posture/docs
+# The four Rust tool workspaces sit at the repository root in monorepo layout,
+# so lifting one out into its own repository later is a move rather than a
+# rewrite. They are SOURCE and never a deploy target: each builder script
+# compiles its workspace out of this checkout and installs only the binary.
+# Left unignored, a root directory reaches $HOME under its own name, so these
+# four entries are what keeps ~/pns and its siblings from being created. A
+# slashless pattern matches at the target ROOT only, so these do not also
+# swallow .config/pns and its siblings; that is the same reason .config/nvim/docs
+# needs its own entry above even though `docs/` is already listed. chezmoi
+# rejects a leading-slash anchor outright ("invalid path"), so bare names with
+# this note are the anchored form.
+pns
+uu
+posture
+lights
 
 # The committed input to `just pns-config-render`, never a deploy target:
 # the shipped template it generates is what chezmoi applies.
@@ -83,7 +76,6 @@ tmp.*
 {{- if eq .chezmoi.os "linux" }}
 Library
 .local/libexec/lights
-.local/share/lights
 .config/lights
 .local/libexec/macos-defaults/macos-defaults-drift.sh
 .local/libexec/macos-defaults/macos-defaults-apply.sh
@@ -96,7 +88,6 @@ Library
 # banner needs macOS, and shipping binary callers with no binary would leave
 # a Linux machine permanently engine-less.
 .local/libexec/pns
-.local/share/pns
 .config/pns
 # And so is the /pns: plugin, which is nothing but commands for that engine.
 .claude/pns-marketplace
@@ -108,10 +99,8 @@ Library
 # uu rides on the pns engine for alerts and on its hermes client for records,
 # so it is macOS-only for the same reasons and its builder is darwin-gated too.
 .local/libexec/uu
-.local/share/uu
 .config/uu
 # posture is the osquery pipeline's port, and that pipeline is macOS-only
 # (launchd, osqueryd under /var/osquery, a darwin-gated builder).
 .local/libexec/posture
-.local/share/posture
 {{- end }}

@@ -27,10 +27,10 @@ this plan:
 - the eleven bats files and one bashunit file, 186 test cases, 3,886 lines, and the five orphan
   fixture libraries under `test/fixtures/` (2,051 lines, 127 functions) that are the only record of
   what the five untested tools once asserted;
-- the pns crate's workspace (`dot_local/share/pns/Cargo.toml`, five members, the dependency edges
+- the pns crate's workspace (`pns/Cargo.toml`, five members, the dependency edges
   declared in the member manifests) and its builder
   (`.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`);
-- uu's lane adapter shape (`dot_local/share/uu/src/lanes.rs:39-59`), its spawn seam
+- uu's lane adapter shape (`uu/src/lanes.rs:39-59`), its spawn seam
   (`src/lanes/spawn.rs:59`) and its two clients of pns (`src/alert.rs`, `src/delivery.rs:11`);
 - the locked decisions in the specification's section 4 and the delivery decision in its section 5;
 - `dot_local/bin/executable_ssh-hardening.sh` (2,826 lines) and its one unit test,
@@ -43,7 +43,7 @@ cutovers), and nothing before them: PR 7.3 (`pns submit --json` with a result en
 specification's section 5.5 sizes, and the delivery-class pull request that lets a security page
 through the operator's mute (decision 4, step 0.5). They gate those two steps because pns today
 acknowledges nothing durably: the channels are dispatched before the record is written and a failed
-journal write is dropped (`dot_local/share/pns/src/main.rs:3101-3122`, `:814-858`; spec section
+journal write is dropped (`pns/src/main.rs:3101-3122`, `:814-858`; spec section
 5.2), and step 5 is the first posture code that submits anything. Steps 1 to 4 deliver nothing, so
 they run as a second lane beside the pns work, both lanes starting at step 0; only step 0's design
 items (the route overlap contract and the three-table queue check) sit ahead of step 1, because code
@@ -58,12 +58,12 @@ all numeric and mechanism conflicts.
 
 ### 2.1 Location and crates
 
-The crate deploys as source to `~/.local/share/posture` from `dot_local/share/posture/`, the same
-arrangement pns and uu use, so a path dependency on `../pns/crates/pns-protocol` resolves in both the
-repository checkout and the deployed tree (the reasoning is uu's, `dot_local/share/uu/Cargo.toml:14-19`).
+The workspace is repository source at `posture/` and never deploys to $HOME, the same arrangement pns
+and uu use, so a path dependency on `../pns/crates/pns-protocol` resolves against the sibling workspace
+in this checkout (the reasoning is uu's, `uu/Cargo.toml:14-19`).
 The root manifest is a virtual workspace with `default-members = ["crates/posture-cli"]`, so the
 builder's `cargo build --release --locked --quiet --bin posture --manifest-path
-dot_local/share/posture/Cargo.toml` resolves from day one:
+posture/Cargo.toml` resolves from day one:
 
 ```
 crates/posture-domain        pure policy, no dependencies
@@ -294,7 +294,7 @@ depends on them.
 
 ### 2.6 What the binary may spawn
 
-Stated up front, as pns does in its manifest (`dot_local/share/pns/Cargo.toml:1-30`), because the
+Stated up front, as pns does in its manifest (`pns/Cargo.toml:1-30`), because the
 roster is a security property of a security tool: `osqueryi`, `osqueryctl` (trust-checked), `sudo`
 and `install` (by absolute path, converge only), `launchctl`, `pgrep`, `fdesetup`, `csrutil`,
 `sysadminctl`, `defaults`, `plutil`, `readlink`, `xattr`, `file`, `codesign`, `tailscale`, `chezmoi`
@@ -370,8 +370,8 @@ builder runs after `05`, and the tuple for the binary comes from the build recor
 from a file that has to exist at `05`.
 
 Its trigger header hashes more than its own tree. Besides every `*.rs`, `build.rs`, the manifests
-and the lock under `dot_local/share/posture/`, it globs the sibling path dependency
-`dot_local/share/pns/crates/pns-protocol/**` the same way, because a change there changes the bytes
+and the lock under `posture/`, it globs the sibling path dependency
+`pns/crates/pns-protocol/**` the same way, because a change there changes the bytes
 this installs and the pns builder's header would fire only the pns build. The compiler is a build
 input too: the header records the modification time of every installed toolchain's `rustc` under
 `~/.rustup/toolchains`, never its contents, so a `rustup update` re-fires the build. This avoids
@@ -509,7 +509,7 @@ which is a separate migration.
 `run_after_50-setup-osquery.sh:46` changes its path and argv to `posture converge`, and its source
 file is renamed to `run_after_59-setup-osquery.sh` in PR 7.1. Slot 59 follows builder 58, so the
 apply installs the version that implements the new subcommand before invoking it. uu's brew lane runs the
-converge as a program with no arguments (`dot_local/share/uu/src/lanes/brew/repairs.rs:75`,
+converge as a program with no arguments (`uu/src/lanes/brew/repairs.rs:75`,
 `runner.run(&lane.osquery_converge, &[])`), so its `osquery_converge` key must carry argv rather
 than one path; the proposed configuration array is `["<home>/.local/libexec/posture/posture",
 "converge"]`, changed in uu's schema (`src/config/schema.rs:26`), its shipped template
@@ -555,14 +555,14 @@ converge's seam gate, and the exact list is proposed.
 1. **Everything is new behavior, and every behavior lands red first.** A port has no pure moves.
    For a pinned statement the Rust test re-expresses the bats or bashunit pin by name, and the pull
    request carries a mapping table from the retired test to its successor (pns keeps that table in
-   `dot_local/share/pns/docs/test-baseline.md`; posture keeps
-   `dot_local/share/posture/docs/test-baseline.tsv` with the 186 case names recorded in step 1).
+   `pns/docs/test-baseline.md`; posture keeps
+   `posture/docs/test-baseline.tsv` with the 186 case names recorded in step 1).
    For every UNPINNED statement or uncovered clause of a partial pin, the pull request first records
    a BASH-DERIVED ACCEPTANCE EXAMPLE: the
    exact input handed to the running bash function or script (sourced into a sandbox `HOME`, the way
    the bats harnesses do) and the output, exit status and files it produced, captured before any
    Rust for that statement is written and committed under
-   `dot_local/share/posture/docs/acceptance/<statement>.md` (proposed) with the command that produced
+   `posture/docs/acceptance/<statement>.md` (proposed) with the command that produced
    it. The Rust test then asserts that example, not the statement's prose, because the 399 statements
    are an inventory and not proof of parity: a test written from the prose alone checks the porter's
    reading of the bash, and the bash is what the machine has been running. Where the orphan fixture
@@ -572,7 +572,7 @@ converge's seam gate, and the exact list is proposed.
    until its examples are committed, which the cutover rule below already implies.
 2. **Gates.** `just test-rust`, `just lint-check`, the builder's build line, `just ship` before the
    pull request opens (a topic branch with no open pull request runs the suite nowhere), and
-   `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` on the two pull requests that
+   `cargo test --locked --manifest-path uu/Cargo.toml` on the two pull requests that
    touch uu.
 3. **File size.** The paired Rust standard targets 200 implementation lines and 300 total; 250
    implementation or 400 total normally requires decomposition, and no handwritten `.rs` file
@@ -580,7 +580,7 @@ converge's seam gate, and the exact list is proposed.
    cross a decomposition threshold must be split before implementation is complete. Unit
    tests live in a sibling `<module>/tests.rs`, split by behavior when they pass the cap. The
    rationale that makes the bash 1.09 lines of comment per line of code moves into
-   `dot_local/share/posture/docs/decisions/` records; production keeps a one-line invariant and a
+   `posture/docs/decisions/` records; production keeps a one-line invariant and a
    link. Count physical lines after `rustfmt` with this exact command, substituting the crate path:
 
    ```bash
@@ -709,7 +709,7 @@ security `NeedsAttention` and never for the heartbeat or the digest, and PR 5.1 
 
 ### Step 1: the workspace and the deployment prerequisites
 
-**PR 1.1 the workspace and the builder.** Creates `dot_local/share/posture/` with the five member crates
+**PR 1.1 the workspace and the builder.** Creates `posture/` with the five member crates
 (each `lib.rs` a doc comment naming its responsibility), `Cargo.lock`, the `posture` binary printing
 usage and exiting 2 on every word (S298, S341), `docs/README.md`, and `docs/test-baseline.tsv` holding
 the 186 bats and bashunit case names plus the one plain-script ssh-hardening test as the set to map from.
@@ -939,7 +939,7 @@ and otherwise refuses BOTH manifest scans as unavailable. That last helper retir
 `test/e2e/osquery-alerter-criteria.bats`, `osquery-alerter-hostile-columns.bats`,
 `osquery-alerter-concurrency.bats`, `test/unit/osquery-route.bats`, `osquery-render.bats`,
 `osquery-normalize-and-digest-store.bats`; the comment at
-`dot_local/share/uu/src/lanes/brew/upgrade_record.rs:8` that names the triage helper's path. The
+`uu/src/lanes/brew/upgrade_record.rs:8` that names the triage helper's path. The
 concurrency pins (S001, S002, S004) are re-expressed as a two-process test over the real lock path
 in a sandbox. **Cutover**: the operator applies with the results log quiet, watches one tick of
 `posture alert` under the WatchPaths trigger by touching nothing and reading the agent log, then
@@ -1114,7 +1114,7 @@ docblock names the new directory. **Cutover**: apply, one osqueryd restart throu
 the watch-path change.
 
 **PR 9.2 the file-size lint and the completion record.** `scripts/treefmt/rust-file-size.sh` over
-`dot_local/share/posture/**/*.rs` at the 500 cap, if the pns program's PR 18.1 has not already added
+`posture/**/*.rs` at the 500 cap, if the pns program's PR 18.1 has not already added
 a shared one; the completion report with the before-and-after line table (spec section 9 against
 the crate), the test mapping table complete (187 retired names, each with a successor or a reason),
 and the decision records index.

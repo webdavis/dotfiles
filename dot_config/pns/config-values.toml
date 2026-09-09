@@ -9,7 +9,7 @@
 # (an opt-in feature nobody armed yet); a key this file never mentions
 # renders at its schema default. Every table and key below is here because
 # the shipped template has it live at a value other than that default, or
-# because it is a secret. See `dot_local/share/pns/src/config_text.rs`
+# because it is a secret. See `pns/crates/pns-adapters/src/config/render/layout.rs`
 # (`LAYOUT`) for the schema this is walked against.
 
 [plugins.mobile]

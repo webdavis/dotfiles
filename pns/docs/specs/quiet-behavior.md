@@ -8,7 +8,7 @@ Disturb store and filtered by `[focus] silence`, the quiet window (the config ke
 `[plugins.hue] quiet_hours`, and the parsed value is `hue::QuietWindow`), the dim window (per lamp, room
 or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights quiet`, state
 file `lights-quiet`). Two of those names turn out to be one mechanism and the evidence is in behavior 14.
-Everything below is derived from the crate at `dot_local/share/pns` and its tests only. Where the code
+Everything below is derived from the crate at `pns` and its tests only. Where the code
 does not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 Approvals get their own behavior (9) because the exemption is structural rather than conditional.
 

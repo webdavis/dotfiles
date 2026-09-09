@@ -30,7 +30,7 @@ mechanisms.
 From the dotfiles checkout, build the installed target with:
 
 ```sh
-cargo build --release --locked --quiet --bin posture --manifest-path dot_local/share/posture/Cargo.toml
+cargo build --release --locked --quiet --bin posture --manifest-path posture/Cargo.toml
 ```
 
 `just test-rust` runs the workspace tests, formatting check, and clippy. The builder installs

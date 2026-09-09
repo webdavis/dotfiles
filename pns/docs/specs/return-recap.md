@@ -8,7 +8,7 @@ requests through `gh`, review notes matching a glob), how it spends one summariz
 three questions, how it composes a body under two budgets at once, how it renders a local wall clock, and
 how it posts to one durable route with one fallback. It also covers the other caller: the event path
 starts this same mode in a detached process at the return moment. Everything below is derived from the
-crate at `dot_local/share/pns` and its tests only. Where the code does not settle a question, the line
+crate at `pns` and its tests only. Where the code does not settle a question, the line
 begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 ## Vocabulary, in the code's own words

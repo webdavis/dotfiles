@@ -208,6 +208,27 @@ here; this paragraph used to transcribe it and drifted twice. Templates branch o
 One thing the file does not say: `.worktrees/` is deliberately NOT in it; it is gitignored and
 treefmt-excluded instead.
 
+### The Rust monorepo
+
+`pns/`, `uu/`, `posture/` and `lights/` are four independent cargo workspaces at the REPOSITORY ROOT,
+each with its own `Cargo.toml`, `Cargo.lock` and `crates/` directory. There is deliberately NO root
+workspace manifest: verified by experiment on 2026-09-08, `cargo install --git <url> <package>` finds a
+package in a nested workspace without one, and a root manifest cannot contain another workspace anyway.
+
+They are SOURCE ONLY. `.chezmoiignore` lists all four by bare name so nothing lands in `$HOME` under its
+own name, and each `run_onchange_after_5*` builder compiles its workspace out of `.chezmoi.sourceDir`
+rather than a deployed copy. That is why none of them carries a "crate source is not deployed yet"
+deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
+one aborts the apply before the script is ever written.
+
+The layout exists so that lifting a tool into its own public repository later is a `git subtree split`
+rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools
+other people install, and a tool never hardcodes its own path.
+
+`posture` and `uu` both take a path dependency on a `pns` crate. Those relative paths climb out of the
+member and back down into the sibling workspace, and they survived the move unchanged because both ends
+moved by the same prefix.
+
 ### Minimum chezmoi version
 
 `.chezmoiversion` requires >= 2.62.3.
@@ -469,7 +490,7 @@ Names are verb-first where a bare noun would not say what happens (`compress-and
 `macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
 
 **`pns/` IS THE RUST ENGINE NOW, and the directory says so.** `pns` is the compiled binary, built at
-apply time from the crate at `~/.local/share/pns` and installed here because launchd and the hooks are
+apply time from the workspace at `pns/` in this checkout and installed here because launchd and the hooks are
 what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
 dropped in a directory. The HOOKS are the engine too:

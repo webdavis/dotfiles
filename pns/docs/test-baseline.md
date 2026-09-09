@@ -47,7 +47,7 @@ every integration target, so the pair (target, test) is the key, not the test na
 The result column came from a full run, which passed:
 
 ```
-cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
+cargo test --locked --workspace --manifest-path pns/Cargo.toml
 ```
 
 The NAME column did not come from that run's output, and this matters. A test that prints to standard
@@ -56,7 +56,7 @@ speed-guard warning merged with the following result line and produced a name th
 therefore taken from the deterministic listing:
 
 ```
-cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml -- --list
+cargo test --locked --workspace --manifest-path pns/Cargo.toml -- --list
 ```
 
 Regenerate with the same two commands. Take names from `--list` and results from the run, never names

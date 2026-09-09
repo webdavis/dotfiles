@@ -3,17 +3,18 @@
 
 set -euo pipefail
 
-# Builds the uu binary and installs it where launchd runs it. The crate deploys
-# as SOURCE under ~/.local/share/uu; nothing else compiles it, so without this
-# script the LaunchAgent would find nothing to run.
+# Builds the uu binary and installs it where launchd runs it. The workspace is
+# repository SOURCE at the monorepo root and never deploys to $HOME, so this
+# compiles out of the chezmoi source directory; nothing else compiles it, so
+# without this script the LaunchAgent would find nothing to run.
 #
 # BOTH CRATES ARE HASHED. uu links pns's hermes client as a library, so a change
 # to pns alone still changes the binary this installs; hashing uu's sources only
 # would leave the deployed uu carrying stale signing and transport code with
 # nothing to trigger a rebuild. Both workspaces include member manifests in
 # their hashed inputs for the same reason.
-{{ $uu := joinPath .chezmoi.sourceDir "dot_local/share/uu" -}}
-{{ $pns := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
+{{ $uu := joinPath .chezmoi.sourceDir "uu" -}}
+{{ $pns := joinPath .chezmoi.sourceDir "pns" -}}
 {{ range (glob (joinPath $uu "**/*.rs")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -42,7 +43,7 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-crate_dir="$HOME/.local/share/uu"
+crate_dir={{ $uu | quote }}
 # Beside pns, not in bin: the operator does not type this, launchd does.
 install_dir="$HOME/.local/libexec/uu"
 retry_marker="$HOME/.cache/uu-build/uu.retry"
@@ -67,19 +68,11 @@ if [[ ! -x $cargo_bin ]]; then
   exit 0
 fi
 
-if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
-  report_line 'uu: crate source is not deployed yet; build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
-
-# The path dependency resolves to the deployed pns source beside this crate, so
-# a uu without pns cannot build at all and should say which half is missing.
-if [[ ! -f "$HOME/.local/share/pns/Cargo.toml" ]]; then
-  report_line 'uu: the pns crate it links is not deployed yet; build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
+# The two "source is not deployed yet" deferrals that used to sit here are gone
+# with the monorepo move. Both workspaces are read out of the chezmoi source
+# directory now, and the hash comment above already `include`s each manifest at
+# render time, so a missing one aborts the apply before this script is written
+# rather than reaching a runtime guard.
 
 report_section 'uu'
 report_line 'building the release binary'

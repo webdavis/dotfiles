@@ -11,7 +11,7 @@ pointing at another client or at nobody), the episode memory that keeps the warn
 the stale alert that memory gates, every failure source, and every deadline and byte ceiling. It also
 settles what the router IS in this crate: `[plugins.router]` is registered as a SENSOR, an input, never a
 delivery destination, and the evidence is behavior 1. Everything below is derived from the crate at
-`dot_local/share/pns` and its tests only. Where the code does not settle a question the line begins
+`pns` and its tests only. Where the code does not settle a question the line begins
 `NOT ESTABLISHED:` and names what was looked for.
 
 ## The identifiers

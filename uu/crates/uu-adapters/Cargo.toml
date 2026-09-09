@@ -7,8 +7,9 @@
 # transport and POST seam already live there; a second copy of an HMAC
 # (hash-based message authentication code) signer is a second thing to get wrong.
 # The record BODY is uu's own; only the plumbing is shared. The relative path
-# resolves from this member through the uu workspace, both in the repo checkout
-# beside `dot_local/share/pns` and in the deployed tree beside `~/.local/share/pns`.
+# resolves from this member up through the uu workspace to its sibling `pns`
+# workspace at the monorepo root. Neither tree deploys to $HOME any more; the
+# builder compiles both out of this checkout.
 
 [package]
 name = "uu-adapters"

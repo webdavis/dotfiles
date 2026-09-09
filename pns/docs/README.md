@@ -62,7 +62,7 @@ history, rather than restating the measurement at every site.
 
 These documents are deliberately NOT formatted by mdformat. They use a three-line
 `Given` / `When` / `Then` form in which the line breaks carry the meaning, and mdformat's reflow collapses
-the three into one paragraph. `dot_local/share/pns/docs/**` is therefore in the mdformat `excludes` list
+the three into one paragraph. `pns/docs/**` is therefore in the mdformat `excludes` list
 in `treefmt.toml`, beside `docs/superpowers/**`, which is excluded for the same reason. Do not "fix" that
 by removing the exclusion.
 

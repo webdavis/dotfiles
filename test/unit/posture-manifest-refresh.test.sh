@@ -10,7 +10,13 @@ set_up_before_script() {
   HOME="$render_dir" CI=1 chezmoi --source "$root" execute-template --no-tty \
     <"$root/.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl" \
     >"$rendered_builder" 2>/dev/null
-  [[ -s $rendered_builder ]]
+  [[ -s $rendered_builder ]] || return 1
+  # The monorepo move bakes the real checkout's absolute path into crate_dir at
+  # render time. The builder reads its artifact from under that directory, so an
+  # unredirected run would look in the working tree instead of the sandbox the
+  # test staged. Point the rendered copy at a per-sandbox directory under HOME.
+  sed -i '' 's|^crate_dir=.*|crate_dir="$HOME/crate"|' "$rendered_builder"
+  grep -q '^crate_dir="\$HOME/crate"$' "$rendered_builder"
 }
 
 set_up() {
@@ -19,7 +25,7 @@ set_up() {
   sandbox_home="$sandbox/home with spaces"
   build_record="$sandbox_home/.local/state/posture-build-record"
   binary="$sandbox_home/.local/libexec/posture/posture"
-  artifact="$sandbox_home/.local/share/posture/target/release/posture"
+  artifact="$sandbox_home/crate/target/release/posture"
   mkdir -p "$stubbin" "$(dirname "$build_record")" "$(dirname "$binary")" "$(dirname "$artifact")"
   pipeline_manifest="$sandbox/pipeline"
   bin_manifest="$sandbox/managed-bin"
@@ -259,11 +265,9 @@ function test_an_ordinary_digest_tuple_still_vouches_for_its_exact_content() {
 prepare_builder() {
   local root
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  mkdir -p "$sandbox/source/.chezmoiscripts" "$sandbox_home/.cargo/bin" \
-    "$sandbox_home/.local/share/pns/crates/pns-protocol"
+  mkdir -p "$sandbox/source/.chezmoiscripts" "$sandbox_home/.cargo/bin"
   cp "$root/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" "$sandbox/source/.chezmoiscripts/"
-  : >"$sandbox_home/.local/share/posture/Cargo.toml"
-  : >"$sandbox_home/.local/share/pns/crates/pns-protocol/Cargo.toml"
+  : >"$sandbox_home/crate/Cargo.toml"
   cat >"$sandbox_home/.cargo/bin/cargo" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail

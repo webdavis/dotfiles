@@ -10,7 +10,7 @@ secret-bearing and where a secret can and cannot travel, how plugin identity is 
 shipped chezmoi template. The setup wizard and the publication of a first-run file are a sibling
 specification's subject (`docs/specs/setup-and-publication.md`); this document names `src/setup.rs` only
 where it consumes something owned here, and defers the walk itself. Everything below is derived from the
-package at `dot_local/share/pns` and from the two committed files the outer repository owns at
+package at `pns` and from the two committed files the outer repository owns at
 `dot_config/pns/`. Where the code does not settle a question the line begins `NOT ESTABLISHED:` and names
 what was looked for. The operator's real config was never read, and no secret value appears anywhere in
 this document.
@@ -1412,7 +1412,7 @@ Then nothing reaches the template path until every earlier step has succeeded
   committed values file into the shipped chezmoi template. Never installed (see the build script under
   `.chezmoiscripts`, which only ever copies `target/release/pns`); run by hand through
   `just pns-config-render`." The recipe at `justfile:pns-config-render` is
-  `cargo run --locked --quiet --manifest-path dot_local/share/pns/Cargo.toml --bin pns-config-render -- dot_config/pns/config-values.toml dot_config/pns/private_config.toml.tmpl`.
+  `cargo run --locked --quiet --manifest-path pns/Cargo.toml --bin pns-config-render -- dot_config/pns/config-values.toml dot_config/pns/private_config.toml.tmpl`.
 - Timeout and cancellation: none. `NOT ESTABLISHED:` there is no deadline on the read or the write, and
   none is needed for a hand-run developer tool.
 - Idempotency and duplicates: byte-identical across runs, pinned.

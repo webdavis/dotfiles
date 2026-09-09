@@ -10,7 +10,7 @@ four predicates and their callers), the decision ring's printability rule (`deci
 the escape rule the doctor reads it back under), the byte and character ceilings on every externally
 supplied field and every file or child this binary reads, and secret handling (the moshi token, the
 hermes signing key, the hue application key and the router API key, plus what the setup wizard echoes).
-Everything below is derived from the crate at `dot_local/share/pns` and its tests only. Where the code
+Everything below is derived from the crate at `pns` and its tests only. Where the code
 does not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 No operator config or state directory was read to write this; every quoted secret value is a literal that
 appears in a test file.

@@ -11,7 +11,7 @@ switch and the shutdown behavior are all in scope, along with the three jobs the
 itself (the lights `tick`, the nag, and the room sensor's `presence` poll). Out of scope: what a fired
 job then does (that is the event path, covered by `routing-and-delivery.md`), the lamp policy the lights
 tick applies, and the `quiet window`, `dim window` and `quiet hours` the tick reads. Everything below is
-derived from the crate at `dot_local/share/pns` and its tests only. Where the code does not settle a
+derived from the crate at `pns` and its tests only. Where the code does not settle a
 question the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 The whole design rests on one property, stated in the module comment at `src/daemon.rs` head: the

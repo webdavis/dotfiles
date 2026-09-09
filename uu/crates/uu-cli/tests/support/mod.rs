@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::Instant;
 
-/// The same speed guard as pns's `Sandbox` (`dot_local/share/pns/tests/support/mod.rs`):
+/// The same speed guard as pns's `Sandbox` (`pns/crates/pns-cli/tests/support/mod.rs`):
 /// two crates, no shared dev crate, so this is a deliberate duplicate rather
 /// than an import. See that file for the full reasoning behind the two
 /// numbers; in short, `TEST_BUDGET_MS` is the review line (`Drop` warns on
@@ -161,7 +161,7 @@ pub fn closed_port() -> u16 {
 /// Content-Length body), answer 200, and hand back the body as text.
 ///
 /// Mirrors the raw-HTTP read pns's own hermes tests use
-/// (`dot_local/share/pns/src/channels/hermes.rs`, the redirect test): two
+/// (`pns/crates/pns-adapters/src/destinations/hermes.rs`, the redirect test): two
 /// crates, no shared dev dependency, so this is a deliberate duplicate rather
 /// than an import. A response after only a partial read can reset the socket
 /// under a client still writing, which is why this drains to Content-Length

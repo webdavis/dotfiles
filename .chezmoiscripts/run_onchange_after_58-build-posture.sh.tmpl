@@ -5,8 +5,10 @@ set -euo pipefail
 umask 077
 
 # Builds the posture binary and installs it where the osquery LaunchAgents will
-# run it. The crate deploys as SOURCE under ~/.local/share/posture; nothing
-# else compiles it, so without this script every plist repointed at the binary
+# run it. The workspace is repository SOURCE at the monorepo root and never
+# deploys to $HOME, so this compiles out of the chezmoi source directory;
+# nothing else compiles it, so without this script every plist repointed at the
+# binary
 # would find nothing there.
 #
 # Re-runs whenever a build input changes. Three kinds are hashed below, globbed
@@ -22,8 +24,8 @@ umask 077
 # one would mean reading settings.toml at render time; an update to a toolchain
 # cargo does not use re-fires a build that produces identical bytes and
 # installs nothing.
-{{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/posture" -}}
-{{ $protocol := joinPath .chezmoi.sourceDir "dot_local/share/pns/crates/pns-protocol" -}}
+{{ $crate := joinPath .chezmoi.sourceDir "posture" -}}
+{{ $protocol := joinPath .chezmoi.sourceDir "pns/crates/pns-protocol" -}}
 {{ range (glob (joinPath $crate "**/*.rs")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -52,9 +54,7 @@ umask 077
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-crate_dir="$HOME/.local/share/posture"
-# The path dependency resolves to the deployed pns source beside this crate.
-protocol_manifest="$HOME/.local/share/pns/crates/pns-protocol/Cargo.toml"
+crate_dir={{ $crate | quote }}
 # Scheduled jobs and the operator share this installed entry point.
 install_dir="$HOME/.local/libexec/posture"
 binary="$install_dir/posture"
@@ -77,17 +77,11 @@ if [[ ! -x $cargo_bin ]]; then
   exit 0
 fi
 
-if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
-  report_line 'posture: crate source is not deployed yet; build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
-
-if [[ ! -f $protocol_manifest ]]; then
-  report_line 'posture: the pns-protocol crate it links is not deployed yet; build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
+# The two "source is not deployed yet" deferrals that used to sit here are gone
+# with the monorepo move. Both workspaces are read out of the chezmoi source
+# directory now, and the hash comment above already `include`s each manifest at
+# render time, so a missing one aborts the apply before this script is written
+# rather than reaching a runtime guard.
 
 report_section 'posture'
 report_line 'building the release binary'

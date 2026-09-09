@@ -29,7 +29,7 @@ review.
 Measure it again with:
 
 ```bash
-find dot_local/share/pns/crates -name '*.rs' -not -path '*/target/*' -exec wc -l {} + | sort -rn | head
+find pns/crates -name '*.rs' -not -path '*/target/*' -exec wc -l {} + | sort -rn | head
 ```
 
 ## Gates the refactor added

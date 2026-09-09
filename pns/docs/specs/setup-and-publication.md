@@ -14,7 +14,7 @@ of the rendered file, which tables are commented out and which keys the roster s
 sibling specification `docs/specs/configuration.md`; this one states only that `setup` calls
 `pns::setup::compose_config`, that composition is pure, and that the composed text is put through the
 engine's own parser before anything is written. Everything below is derived from the crate at
-`dot_local/share/pns` and its tests only. Where the code does not settle a question the line begins
+`pns` and its tests only. Where the code does not settle a question the line begins
 `NOT ESTABLISHED:` and names what was looked for and where. Secrets are the centre of this document:
 every behavior carries a Privacy line, and behavior 27 is the exhaustive account.
 

@@ -9,7 +9,7 @@ crate roles, dispatch, visibility, test placement and quality gates.
 
 ## The crate
 
-Source at `dot_local/share/lights`, deployed to `~/.local/share/lights`, built at apply time. It is
+Source at `lights/`, a repository-source workspace that never deploys to $HOME, built at apply time. It is
 designed as a standalone package from the first commit: nothing outside its own folder dictates its
 shape, and no path inside it reaches outside the folder. That is what lets it move to its own repository
 later without a rewrite.
@@ -18,7 +18,7 @@ The final workspace has the five roles required by the Rust standard. Add a memb
 behavior lands; early slices do not create empty crates or placeholder implementations.
 
 ```
-dot_local/share/lights/
+lights/
   Cargo.toml                  virtual workspace root
   Cargo.lock                  committed; all builds use --locked
   crates/
@@ -137,7 +137,7 @@ unbounded fallback. The two-second production bound is fixed; adapter tests supp
 duration, without adding a public setting or reading an environment override.
 
 The monitor owns only the direct child. It does not contain descendants; pns must own their cleanup
-independently of the producer's survival. At `5cb969d0`, `dot_local/share/pns/src/main.rs`'s `deliver`
+independently of the producer's survival. At `5cb969d0`, `pns/src/main.rs`'s `deliver`
 waits without a deadline, and its daemon's `kill_group` rationale records that killing a producer can
 leave delivery alive. PR 10 therefore requires pns-owned evidence of bounded delivery cleanup first.
 Keep notification unwired if that prerequisite is unmet; do not expand this plan into pns implementation.
@@ -196,23 +196,24 @@ exist.
 
 ### Ignore entries
 
-PR (pull request) 1 adds `dot_local/share/lights/target/` to `.gitignore` as soon as Cargo can create it.
+PR (pull request) 1 adds `lights/target/` to `.gitignore` as soon as Cargo can create it.
 It also updates `.chezmoiignore`, before any operator apply could deploy build output.
 
-Source-only exclusions: `.local/share/lights/target`, `.local/share/lights/docs` and the committed test
-fixtures under each member's `tests/fixtures` directory. Match deployed target names, not chezmoi source
-prefixes. Then three entries in the darwin-conditional block, because the whole tool is macOS only:
-`.local/libexec/lights`, `.local/share/lights` and `.config/lights`.
+Source-only exclusion: the bare name `lights` at the target root, which covers the whole workspace at
+once, its target directory, its docs and the committed test fixtures under each member's
+`tests/fixtures` directory included. Match deployed target names, not chezmoi source prefixes. Then two
+entries in the darwin-conditional block, because the whole tool is macOS only: `.local/libexec/lights`
+and `.config/lights`.
 
 ### The justfile
 
 `test-rust` gains the lights manifest in PR 1, alongside the fmt and clippy lines pns and uu already get:
 
 ```
-cargo test --locked --workspace --manifest-path dot_local/share/lights/Cargo.toml
-cargo fmt --all --check --manifest-path dot_local/share/lights/Cargo.toml
+cargo test --locked --workspace --manifest-path lights/Cargo.toml
+cargo fmt --all --check --manifest-path lights/Cargo.toml
 cargo clippy --locked --workspace --all-targets \
-  --manifest-path dot_local/share/lights/Cargo.toml -- -D warnings
+  --manifest-path lights/Cargo.toml -- -D warnings
 ```
 
 ### The aerospace bindings
@@ -336,7 +337,7 @@ just lint-check
 just ship
 ```
 
-From `dot_local/share/lights`, also run the canonical Rust gates:
+From `lights`, also run the canonical Rust gates:
 
 ```
 cargo fmt --all -- --check
