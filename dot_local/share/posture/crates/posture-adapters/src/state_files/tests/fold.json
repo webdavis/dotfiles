@@ -1,0 +1,137 @@
+[
+  {
+    "name": "numeric",
+    "query": "[{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"unknown\":{\"z\":0,\"a\":1}}]",
+    "selected": "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"unknown\":{\"z\":0,\"a\":1}}",
+    "output": "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"unknown\":{\"z\":0,\"a\":1}}",
+    "seconds": 0.00966208300087601
+  },
+  {
+    "name": "strings",
+    "query": "[{\"firewall\":\"2\",\"gatekeeper\":\"0\",\"screenlock\":\"1\",\"unknown\":[2,1]}]",
+    "selected": "{\"firewall\":\"2\",\"gatekeeper\":\"0\",\"screenlock\":\"1\",\"unknown\":[2,1]}",
+    "output": "{\"firewall\":\"2\",\"gatekeeper\":\"0\",\"screenlock\":\"1\",\"unknown\":[2,1]}",
+    "seconds": 0.0061435410170815885
+  },
+  {
+    "name": "duplicate-legacy",
+    "query": "[{\"firewall\":0,\"firewall\":01,\"gatekeeper\":001,\"screenlock\":00,\"extra\":Infinity,\"nan\":NaN}]",
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"extra\":1.7976931348623157e+308,\"nan\":null}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"extra\":1.7976931348623157e+308,\"nan\":null}",
+    "seconds": 0.005745083966758102
+  },
+  {
+    "name": "refused-controls",
+    "query": "[{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"extra\":{\"fresh\":true}}]",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "refused": true,
+    "selected": "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"extra\":{\"fresh\":true}}",
+    "output": "{\"firewall\":2,\"gatekeeper\":0,\"screenlock\":1,\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"fresh\":true}}",
+    "seconds": 0.010089999996125698
+  },
+  {
+    "name": "refused-controls-inert-numbers",
+    "query": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"extra\":Infinity}]",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "refused": true,
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"extra\":1.7976931348623157e+308}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":0,\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":1.7976931348623157E+308}",
+    "seconds": 0.01112025004113093
+  },
+  {
+    "name": "unreadable-trio",
+    "query": "",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "clean": false,
+    "controls": [
+      [
+        "old",
+        "on",
+        "on",
+        ""
+      ]
+    ],
+    "selected": "",
+    "output": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"on\",\"old:expect\":\"on\"}",
+    "seconds": 0.013674582995008677
+  },
+  {
+    "name": "unreadable-trio-refused-controls",
+    "query": "",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "clean": false,
+    "refused": true,
+    "selected": "",
+    "output": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "seconds": 0.013905750005505979
+  },
+  {
+    "name": "control-pairs-retire-old",
+    "query": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "controls": [
+      [
+        "new",
+        "on",
+        "on",
+        ""
+      ]
+    ],
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1,\"new\":\"on\",\"new:expect\":\"on\"}",
+    "seconds": 0.011100124975200742
+  },
+  {
+    "name": "gapped-control",
+    "query": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "prior": "{\"firewall\":\"1\",\"gatekeeper\":\"1\",\"screenlock\":\"1\",\"old\":\"off\",\"old:expect\":\"on\",\"retired\":\"on\",\"extra\":{\"z\":0,\"a\":1}}",
+    "controls": [
+      [
+        "old",
+        "indeterminate",
+        "on",
+        ""
+      ]
+    ],
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1,\"old\":\"off\",\"old:expect\":\"on\"}",
+    "seconds": 0.012706250010523945
+  },
+  {
+    "name": "gapped-without-prior",
+    "query": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "controls": [
+      [
+        "old",
+        "indeterminate",
+        "on",
+        ""
+      ]
+    ],
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "seconds": 0.008756291994359344
+  },
+  {
+    "name": "targeted-present",
+    "query": "[{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "controls": [
+      [
+        "rule",
+        "present",
+        "present",
+        "/Applications/Tool.app/Contents/MacOS/Tool"
+      ]
+    ],
+    "selected": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "output": "{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1,\"rule\":\"present\",\"rule:expect\":\"present\",\"rule:target\":\"/Applications/Tool.app/Contents/MacOS/Tool\"}",
+    "seconds": 0.02024454198544845
+  },
+  {
+    "name": "stream-with-inert-row",
+    "query": "[{}] [{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}]",
+    "selected": "{}\n{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "output": "{}\n{\"firewall\":1,\"gatekeeper\":1,\"screenlock\":1}",
+    "seconds": 0.008510999963618815
+  }
+]

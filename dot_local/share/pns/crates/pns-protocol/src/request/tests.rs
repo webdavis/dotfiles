@@ -3,6 +3,8 @@ use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
 
+mod classes;
+
 const GOLDEN: &str = include_str!("../../fixtures/request-v1.json");
 
 fn id(text: &str) -> RequestId {

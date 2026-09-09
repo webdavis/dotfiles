@@ -89,19 +89,26 @@ function test_two_parallel_runs_deliver_a_batch_exactly_once() {
   exec {done_fd}<>"$HOME/done"
   export SEND_ALERT_READY_FD="$ready_fd" SEND_ALERT_RELEASE_FD="$release_fd"
 
-  # The process deadline also bounds a broken subject that never signals or exits.
-  timeout --kill-after=0.05 0.6 bash "$ENTRY" &
+  # Every bound below is a HANG CEILING, not a measurement. The stub blocks in
+  # `read` until this test releases it, so a healthy run reaches each waypoint as
+  # fast as the subject can get there and none of these numbers is ever spent. A
+  # green run is no slower for them being generous. They were eight times tighter
+  # and CI failed on the first one: a shared runner under load did not start bash
+  # and reach send_alert inside 250 ms, `read` returned 142 (SIGALRM), and the run
+  # was scored as a broken lock. Only a subject that really never signals waits
+  # the full ceiling, and it still fails.
+  timeout --kill-after=0.5 5 bash "$ENTRY" &
   local p1=$! p2="" ready="" second_status="" cursor_before=""
   local ready_status=0 done_status=1 first_alive=1 s1=0 s2=0
-  IFS= read -r -t 0.25 -u "$ready_fd" ready || ready_status=$?
+  IFS= read -r -t 2 -u "$ready_fd" ready || ready_status=$?
   if [[ $ready_status == 0 && $ready == ready ]]; then
     # shellcheck disable=SC2016 # Positional arguments expand in the child shell.
-    timeout --kill-after=0.05 0.4 bash -c '
+    timeout --kill-after=0.5 3 bash -c '
       bash "$1"
       printf "%s\n" "$?" >&"$2"
     ' _ "$ENTRY" "$done_fd" &
     p2=$!
-    IFS= read -r -t 0.3 -u "$done_fd" second_status && done_status=0
+    IFS= read -r -t 2.5 -u "$done_fd" second_status && done_status=0
     first_alive=0
     kill -0 "$p1" 2>/dev/null || first_alive=$?
     cursor_before="$(cursor_offset)"

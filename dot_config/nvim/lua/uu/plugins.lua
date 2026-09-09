@@ -48,7 +48,7 @@ local function run()
     index = index + 1
   end
   assert(not options.auto_commit or options.repo, "--auto-commit requires --repo")
-  local result = require("uu.writeback").run(options)
+  local result = require("uu.auto_commit").run(options)
   if result.kind == "check" then
     Manager.check({ wait = true, show = false })
     local lines, status = plugin_report()

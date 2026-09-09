@@ -17,8 +17,7 @@ pub(super) fn inputs() -> GateInputs {
         visibility: Visibility::Hidden,
         long_running: false,
         mobile_watch_card: false,
-        local_only: false,
-        remote_only: false,
+        scope: pns_domain::DeliveryScope::Automatic,
         pane_present: true,
     }
 }

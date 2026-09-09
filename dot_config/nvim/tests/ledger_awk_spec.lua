@@ -206,9 +206,18 @@ return {
     assert(listed == vim.fn.resolve(register), "filename: " .. listed)
   end,
 
+  -- The id is matched in its COLUMN, never as a substring of the whole output.
+  -- Every line begins with the register's own path, that path carries a random
+  -- component, and a two-character needle finds itself inside one sooner or
+  -- later: CI drew the temp directory `nvim.runner/cF5NkO` and this case read
+  -- its own fixture path as an F5 row. Two open rows is the behaviour anyway,
+  -- so the count carries most of the assertion.
   ["reads FIXED-NOTEST as closed as well, so the skip is a prefix match"] = function()
-    local open = table.concat(run(0), "\n")
-    assert(not open:find("F5", 1, true), "F5 listed unbanged: " .. open)
+    local open = run(0)
+    assert(#open == 2, "open entries: " .. #open .. ": " .. table.concat(open, "\n"))
+    for _, line in ipairs(open) do
+      assert(not line:find(":%d+: F5 "), "F5 listed unbanged: " .. line)
+    end
     local all = run(1)
     assert(all[5] == fixture() .. ":7: F5 LOW FIXED-NOTEST: closed, and untestable", "got " .. tostring(all[5]))
   end,

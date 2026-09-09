@@ -125,6 +125,7 @@ OSQUERY_CONVERGE_TEST_SEAMS=(
   OSQUERY_CONVERGE_TARGET_DIR
   OSQUERY_CONVERGE_SUDO
   OSQUERY_CONVERGE_OSQUERYCTL
+  OSQUERY_CONVERGE_OSQUERYD
 )
 if [[ ${OSQUERY_CONVERGE_TEST_SEAM:-} != 1 ]]; then
   osquery_converge_seam_refused=0
@@ -190,6 +191,14 @@ OSQUERY_CONVERGE_TRUSTED_UID='0'
 # Resolved once by resolve_osqueryctl and used everywhere after, so the path that
 # was checked is the path that runs.
 OSQUERY_CONVERGE_OSQUERYCTL_COMMAND=''
+# The daemon binary, resolved the same way and used ONLY for the config check.
+# `osqueryctl config-check` cannot be used while osqueryd is running: it runs
+# the daemon with no --database_path, so it opens the live /var/osquery/osquery.db
+# that the running daemon already holds a lock on, and RocksDB refuses. The check
+# then fails for a reason that has nothing to do with the configuration, which
+# reads as a config the daemon would reject and stops the converge. Calling the
+# binary directly is what lets the check have a database of its own.
+OSQUERY_CONVERGE_OSQUERYD_COMMAND=''
 # The private copy of the desired state, created per run and removed on exit.
 OSQUERY_CONVERGE_STAGE=''
 
@@ -308,6 +317,23 @@ resolve_osqueryctl() {
   [[ -n $resolved && -x $resolved ]] || return 0
   privileged_command_is_trustworthy "$resolved" || return 1
   OSQUERY_CONVERGE_OSQUERYCTL_COMMAND="$resolved"
+  return 0
+}
+
+# The daemon binary behind the config check. `osqueryi` is a symlink to the very
+# same osqueryd the vendor's osqueryctl execs, so resolving it here reaches the
+# binary without hardcoding a path inside the application bundle. Absent or
+# untrusted leaves the command empty and the check falls back to osqueryctl.
+resolve_osqueryd() {
+  local resolved
+  if [[ -n ${OSQUERY_CONVERGE_OSQUERYD:-} ]]; then
+    resolved="$OSQUERY_CONVERGE_OSQUERYD"
+  else
+    resolved="$(command -v osqueryi 2>/dev/null)" || resolved=''
+  fi
+  [[ -n $resolved && -x $resolved ]] || return 0
+  privileged_command_is_trustworthy "$resolved" || return 1
+  OSQUERY_CONVERGE_OSQUERYD_COMMAND="$resolved"
   return 0
 }
 
@@ -677,8 +703,26 @@ restart_daemon() {
   # this check itself, but it runs it AFTER the stop, so a config it rejects
   # would take the daemon down with it. Running it first turns that into a loud
   # refusal with the previous daemon still up on its previous configuration.
-  if ! run_privileged "$OSQUERY_CONVERGE_OSQUERYCTL_COMMAND" config-check >/dev/null 2>&1; then
-    fail "the converged configuration at $OSQUERY_CONVERGE_TARGET_DIR/osquery.conf does not pass 'osqueryctl config-check', so restarting would stop a working daemon and fail to start it again. The files are installed; the running daemon was NOT stopped and is still on its previous configuration."
+  # The check runs against a database of its own. osqueryctl's own config-check
+  # passes no --database_path, so it opens the live database the running daemon
+  # holds a lock on and fails on the lock rather than on the configuration, which
+  # would refuse every converge on a host whose daemon is up. The temporary
+  # directory is removed whatever the verdict.
+  local check_db check_status=0
+  check_db="$(mktemp -d)" || {
+    fail "could not create a temporary database directory for the configuration check. The files are installed; the running daemon was NOT stopped."
+    return 1
+  }
+  if [[ -n $OSQUERY_CONVERGE_OSQUERYD_COMMAND ]]; then
+    run_privileged "$OSQUERY_CONVERGE_OSQUERYD_COMMAND" \
+      --config_path "$OSQUERY_CONVERGE_TARGET_DIR/osquery.conf" \
+      --config_check --database_path "$check_db/db" >/dev/null 2>&1 || check_status=$?
+  else
+    run_privileged "$OSQUERY_CONVERGE_OSQUERYCTL_COMMAND" config-check >/dev/null 2>&1 || check_status=$?
+  fi
+  rm -rf "$check_db"
+  if ((check_status != 0)); then
+    fail "the converged configuration at $OSQUERY_CONVERGE_TARGET_DIR/osquery.conf does not pass the osquery configuration check, so restarting would stop a working daemon and fail to start it again. The files are installed; the running daemon was NOT stopped and is still on its previous configuration."
     return 1
   fi
 
@@ -723,6 +767,7 @@ main() {
   local directory_verdicts=()
 
   resolve_osqueryctl || return 1
+  resolve_osqueryd || return 1
   # osquery not installed at all: there is no daemon to converge for and no
   # vendor layout to converge into. Quiet, so a machine that simply does not run
   # osquery adds nothing to an apply.

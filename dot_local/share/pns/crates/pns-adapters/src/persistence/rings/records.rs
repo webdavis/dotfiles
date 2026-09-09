@@ -30,7 +30,12 @@ impl DecisionRing for FileRecords {
 }
 
 impl Journal for FileRecords {
-    fn journal(&self, event: &EventArgs, now: Option<u64>) {
+    fn journal(
+        &self,
+        event: &EventArgs,
+        now: Option<u64>,
+        _identity: Option<&pns_application::SubmissionIdentity>,
+    ) {
         let _ = append_ring_line(
             &self.state.join(MISSED_NOTIFICATIONS),
             &journal::entry(event, now, pns_domain::render::PREVIEW_MAX_CHARS),

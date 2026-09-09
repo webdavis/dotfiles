@@ -1,0 +1,33 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+set -euo pipefail
+{{ $lights := joinPath .chezmoi.sourceDir "dot_local/share/lights" -}}
+{{ range (glob (joinPath $lights "**/*.rs")) }}
+# {{ . }} {{ include . | sha256sum }}
+{{- end }}
+# Cargo.toml {{ include (joinPath $lights "Cargo.toml") | sha256sum }}
+# Cargo.lock {{ include (joinPath $lights "Cargo.lock") | sha256sum }}
+{{- range (glob (joinPath $lights "crates/*/Cargo.toml")) }}
+# {{ . }} {{ include . | sha256sum }}
+{{- end }}
+# A deferred zero-exit build must change the next rendered script to retry.
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/lights-build/lights.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+
+crate_dir="$HOME/.local/share/lights"
+install_dir="$HOME/.local/libexec"
+cargo_bin="$HOME/.cargo/bin/cargo"
+retry_marker="$HOME/.cache/lights-build/lights.retry"
+
+if [[ ! -x $cargo_bin || ! -f "$crate_dir/Cargo.toml" ]]; then
+  printf 'lights: cargo or deployed source missing; build deferred to next apply\n' >&2
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+  exit 0
+fi
+
+cd "$crate_dir" || exit
+"$cargo_bin" build --release --locked --quiet --bin lights
+mkdir -p "$install_dir"
+/usr/bin/install -m 755 "$crate_dir/target/release/lights" "$install_dir/lights"
+printf 'lights: installed %s/lights\n' "$install_dir"
+{{ end -}}

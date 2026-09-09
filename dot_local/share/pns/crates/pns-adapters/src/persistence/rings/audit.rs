@@ -14,7 +14,7 @@ use std::path::Path;
 /// comfortably inside the reader's 256 KiB ceiling. Without both cuts the
 /// depth alone would not bound the FILE, and a ring past that ceiling can
 /// never be pruned again: the heal fires and the trail collapses to one line.
-const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
+pub(crate) const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
 /// The policy-settings audit trail's file name, beside `DECISIONS` and
 /// `ACTIVITY`.
 const POLICY_SETTINGS_AUDIT: &str = "policy-settings-audit";

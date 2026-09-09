@@ -17,7 +17,10 @@ mod command;
 mod herdr;
 mod npm;
 mod nvim;
+mod rotate_logs;
 mod skills;
+pub use rotate_logs::RotateLogsLane;
+
 mod uv;
 pub use skills::SkillsConfig;
 

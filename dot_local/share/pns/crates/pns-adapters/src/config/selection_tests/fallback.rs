@@ -37,7 +37,7 @@ fn the_core_is_two_registered_plugins_and_the_config_still_beats_it() {
 fn a_loaded_config_is_authoritative() {
     use crate::config::LoadOutcome;
     let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
-    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(config)));
+    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert_eq!(selection_names(&selection), vec!["hermes"]);
     assert_eq!(warning, None);
 }
@@ -72,7 +72,7 @@ fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
     let config =
         parse_config("[plugins.mosih]\nenabled = true\n[plugins.hermes]\nenabled = true\n")
             .unwrap();
-    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(config)));
+    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert_eq!(
         selection_names(&selection),
         roster().names(),
@@ -94,7 +94,7 @@ fn a_hue_table_selects_hue_like_any_other_plugin_and_warns_about_nothing() {
     use crate::config::LoadOutcome;
     let config =
         parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n").unwrap();
-    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(config)));
+    let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
     assert_eq!(warning, None);
 }
@@ -112,7 +112,7 @@ fn the_old_moshi_table_name_is_refused_and_the_mobile_one_is_served() {
         roster().enabled(&old.plugin_switches()),
         Err(RegistryError::UnknownPlugin("moshi".to_string()))
     );
-    let (_, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(old)));
+    let (_, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(old))));
     assert!(
         warning
             .expect("the retired name is said aloud")
@@ -129,7 +129,7 @@ fn the_old_moshi_table_name_is_refused_and_the_mobile_one_is_served() {
 fn a_true_typo_is_still_refused() {
     use crate::config::LoadOutcome;
     let config = parse_config("[plugins.mosih]\nenabled = true\n").unwrap();
-    let (_, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(config)));
+    let (_, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert!(
         warning
             .expect("the typo is still the defect")

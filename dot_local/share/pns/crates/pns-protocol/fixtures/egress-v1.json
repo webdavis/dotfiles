@@ -1,0 +1,1 @@
+{"schema":"pns.egress/1","request_id":"shell-42","body":{"agent":"shell","branch":"work","detail":"a \"quote\"\n\t雪\\","message":"work: finished","mode":"async","pane":"w1:p2","preview":"preview","project":"dotfiles","state":"done","title":"shell · done · dotfiles"}}

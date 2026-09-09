@@ -1,58 +1,6 @@
-# pns: the decision core, its edges, and the engine binary.
-#
-# WHAT THIS BINARY IS ALLOWED TO SPAWN, and nothing else (operator-approved,
-# extended 2026-08-13 as the hooks converted): `terminal-notifier` (a banner
-# needs a signed app bundle), `moshi-hook` (third-party, owns the approval
-# socket), `herdr` (its CLI is the supported interface), `ioreg`, `pgrep` and
-# `ps` (no public API for those readings), plus `codex` (the reply condenser)
-# and `git` (the branch lookup), which arrived with the hooks. No `gtimeout`:
-# every deadline is a named constant in Rust, because macOS ships no
-# timeout(1) and shelling out for one was a spawn to bound a spawn.
-#
-# `gh` JOINED THAT ROSTER with the recap's merged-pull-request section, and it
-# is the first entry gated by a config key: nothing runs it unless `[recap]
-# repos` names a repository. One read-only `gh pr list`, bounded in count, in
-# time and in bytes, with no token read and no credential passed; `gh` carries
-# its own auth and pns never touches it.
-#
-# One spawn is not on that roster and cannot be: an EXECUTABLE CHANNEL, run by
-# name out of the channels directory. The roster above is what this binary
-# chooses to run, and a channel is what an operator dropped in for it to run.
-# The recap's `summarizer` is the same kind of thing: the operator names the
-# command, word by word, and pns runs exactly what they wrote.
-#
-# `nettop` LEFT on 2026-08-15, and `ps` arrived in the same ruling. The phone's
-# presence used to be a one-second `nettop` sample of bytes moving over moshi,
-# which passive viewing could not move; it is now the access time of the mosh
-# client's pty, and `pgrep -P` plus `ps -o tty=` are how that pty is found.
-#
-# Every dependency is taken where a format demands it and nowhere else:
-# TOML for the config edge, JSON for the event contract, TLS for the phone
-# webhook. The decision core runs on std alone, and that split is the property
-# to keep. The probe edge is std plus the JSON the herdr CLI answers in, which
-# is the same rule: a format nobody should hand-parse.
-
-# THE WORKSPACE. `crates/` holds the architectural boundaries the refactor is
-# converging on, and this manifest is still the legacy package that owns every
-# behavior until each one moves. Both facts are deliberate for the duration:
-# the binary target must stay named `pns`, the builder must keep finding it at
-# this manifest path. The shared signed-POST client now lives in pns-hermes,
-# which uu depends on without compiling the engine or the other adapters.
-#
-# The dependency edges are declared in the member manifests and nowhere else,
-# which is what enforces them: a crate that omits another cannot name it, and
-# the compiler refuses the `use` rather than a review catching it. The allowed
-# edges are
-#
-#   pns-application -> pns-domain
-#   pns-adapters    -> pns-application, pns-domain, pns-protocol, pns-hermes
-#   pns-cli         -> pns-adapters, pns-application, pns-domain, pns-protocol
-#
-# and pns-protocol depends on nothing, because an external contract crate that
-# imported the domain would let the wire format dictate the internal model.
-# No member may depend on this legacy package: the traffic runs the other way,
-# out of here and into the crates, one behavior at a time.
 [workspace]
+resolver = "3"
+default-members = ["crates/pns-cli"]
 members = [
   "crates/pns-adapters",
   "crates/pns-application",
@@ -61,45 +9,3 @@ members = [
   "crates/pns-hermes",
   "crates/pns-protocol",
 ]
-
-[package]
-name = "pns"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-# The one dependency taken for a system FACT rather than a format, and std can
-# answer none of them: which local hour an epoch second falls in is a zone
-# database, a `TZ` variable and two daylight-saving transitions a year
-# (`localtime_r`); the same second as the instant a remote search is handed is
-# `gmtime_r`; whether a process id still exists is `kill(pid, 0)`; and refusing
-# to follow a symlink on the way in is an open flag (`O_NOFOLLOW`). It is
-# already compiled in this tree behind ring and getrandom, so taking it directly
-# costs no build time. The daemon's bound adds the fifth reading, and it is the
-# same call in its other spelling: a NEGATIVE pid signals a process GROUP, which
-# is how a job that spawned a delivery of its own is stopped whole.
-libc = "0.2.189"
-# The domain crate, taken as the policy moves out of this package one behavior
-# at a time. The traffic runs one way: no member ever depends back on `pns`.
-pns-adapters = { path = "crates/pns-adapters" }
-pns-application = { path = "crates/pns-application" }
-pns-domain = { path = "crates/pns-domain" }
-pns-hermes = { path = "crates/pns-hermes" }
-serde_json = "1.0.151"
-# Parse only: the default `display` feature pulls toml_writer, and nothing here
-# ever writes TOML back out. `serde` stays because `toml::Table` and
-# `toml::Value` are gated behind it.
-toml = { version = "1.1.4", default-features = false, features = [
-  "parse",
-  "serde",
-  "std",
-] }
-ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
-
-# The integration tests drive the BINARY, so they reach the crate only through
-# its public API and need their own copies of these. hmac and sha2 are here to
-# recompute a signature INDEPENDENTLY of the signer under test.
-[dev-dependencies]
-hmac = "0.13.0"
-serde_json = "1.0.151"
-sha2 = "0.11.0"

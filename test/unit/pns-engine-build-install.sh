@@ -92,15 +92,21 @@ cat >"$home/.cargo/bin/cargo" <<STUB
 # the script installs.
 manifest=""
 locked=0
+selected_bin=""
 while [[ \$# -gt 0 ]]; do
   [[ \$1 == --manifest-path ]] && manifest="\$2"
   [[ \$1 == --locked ]] && locked=1
+  [[ \$1 == --bin ]] && selected_bin="\$2"
   shift
 done
 # The committed lock is the build: without --locked cargo may rewrite the
 # deployed lockfile and pull dependencies the lock never recorded.
 if [[ \$locked -ne 1 ]]; then
   echo "cargo was invoked without --locked" >&2
+  exit 1
+fi
+if [[ \$selected_bin != pns ]]; then
+  echo "cargo must build the pns binary from the workspace" >&2
   exit 1
 fi
 
@@ -131,7 +137,7 @@ run_script || {
 
 # --- toolchain and crate: the binary lands where the producers look --------
 mkdir -p "$home/.local/share/pns"
-printf '[package]\nname = "pns"\n' >"$home/.local/share/pns/Cargo.toml"
+cp "$REPO_ROOT/dot_local/share/pns/Cargo.toml" "$home/.local/share/pns/Cargo.toml"
 run_script || {
   echo "the build must succeed with a toolchain and a crate" >&2
   exit 1

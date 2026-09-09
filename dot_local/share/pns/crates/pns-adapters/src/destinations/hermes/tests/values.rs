@@ -4,13 +4,13 @@ use super::*;
 
 #[test]
 fn the_body_carries_the_full_message_because_discord_has_no_ceiling() {
-    let body = hermes_body(&event());
+    let body = hermes_body(&event(), "original-42");
     let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(parsed["agent"], "claude");
     assert_eq!(parsed["state"], "done");
     assert_eq!(parsed["project"], "dotfiles");
     assert_eq!(parsed["detail"], "the full message");
-    assert_eq!(parsed.as_object().unwrap().len(), 4);
+    assert_eq!(parsed.as_object().unwrap().len(), 5);
 }
 
 // --- the deadline --------------------------------------------------------
@@ -42,8 +42,8 @@ fn an_absurd_deadline_clamps_to_a_day_instead_of_panicking_the_edge() {
 #[test]
 fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
     let channel = channel_with_settings("key = \"sekrit-key-9\"\n", PostOutcome::Status(200));
-    channel.deliver(&event(), ReportMode::Silent);
-    let posts = channel.post.posts.borrow();
+    channel.deliver(&delivery_request(&event(), ReportMode::Silent));
+    let posts = channel.post.posts.lock().unwrap();
     assert!(!posts[0].0.contains("sekrit-key-9"));
     assert!(!posts[0].1.contains("sekrit-key-9"));
     assert!(!posts[0].2.contains("sekrit-key-9"));
