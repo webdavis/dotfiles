@@ -3,7 +3,7 @@
 The open task list for the pns, posture, uu, lights, Neovim and tailnet-pin program. Ordered, one task at
 a time, with stopping points that leave the tree in a state worth applying.
 
-Updated as tasks complete. Last updated 2026-09-08.
+Updated as tasks complete. Last updated 2026-09-09.
 
 ## Where things stand
 
@@ -67,24 +67,26 @@ The other two were retired by merged pull requests and named in their bodies for
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
 
-- [ ] 11c. AWAITING THE OPERATOR'S TRASH APPROVAL. The apply landed on 2026-09-09 and `uu doctor` now
-  reports the `skills` lane, so the blocker cleared; `com.webdavis.update-skills` has been booted out and
-  is gone from `launchctl list`. What is left is the removal itself, which is a destructive action the
-  operator confirms per invocation: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
+- [x] 11c. DONE 2026-09-09. The apply landed and `uu doctor` now reports the `skills` lane, so the
+  blocker cleared; `com.webdavis.update-skills` has been booted out and is gone from `launchctl list`.
+  What is left is the removal itself, which is a destructive action the operator confirmed per
+  invocation, and did: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
   `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
   `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
   delete the deployed copy, which is why these three survive. Take them together: two OTHER unmanaged
   leftovers still source `log-entries.sh`, and task 11e covers them.
 
-- [ ] 11e. Two more retired unattended-upgrades leftovers, found while clearing 11c on 2026-09-09.
-  Neither is chezmoi-managed any more (`chezmoi managed` lists only
+- [x] 11e. DONE 2026-09-09. Two more retired unattended-upgrades leftovers, found while clearing 11c on
+  2026-09-09. Neither is chezmoi-managed any more (`chezmoi managed` lists only
   `assert-hermes-superpowers-routing.sh` and `live-reconcile.sh` under that tree), and uu's `brew` and
   `claude-plugins` lanes replaced both, yet `com.webdavis.report-plugin-updates` is STILL LOADED and
   firing on its schedule. `com.webdavis.homebrew-weekly-upgrade` has a plist on disk but is not loaded.
   Bootout the first, then trash both plists and
   `~/.local/libexec/unattended-upgrades/{homebrew-weekly-upgrade.sh,claude/report-plugin-updates.sh}`.
-  Doing this with 11c is what makes `log-entries.sh` safe to remove, since these two are its only
-  remaining consumers.
+  Doing this with 11c is what made `log-entries.sh` safe to remove, since these two were its only
+  remaining consumers, verified by grep before anything moved. The agent was booted out first and
+  confirmed gone from `launchctl list`; then eight files and three now-empty directories went to the
+  trash. `agent-skills/` survives with its two live scripts.
 
 - [x] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
   open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
@@ -146,11 +148,18 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
   that directory is shared with every other cargo-installed program on the machine. The aerospace keys
   needed no change: they still call `control-hue-lights.sh`, which is task 62's job to retire.
 
-- [ ] 21. Apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a `launchctl list`
-  showing both agents loaded, and one real long-running command raising its notification through the
-  shell hook. The old binaries under `~/.local/libexec/{pns,uu,posture}/` and `~/.local/libexec/lights`
-  are NOT removed by the apply and want trashing once this is confirmed; `~/.local/libexec/pns/hooks/`
-  stays, because the Codex hook installer still lives there.
+- [ ] 21. THREE OF FOUR CONFIRMED on 2026-09-09, after the apply. `pns doctor` and `uu doctor` both
+  answer and exit 0, and `launchctl list` shows both agents loaded. The fourth is the operator's alone:
+  an agent's tool shell is not interactive, so bash-preexec never loads and the shell hook never fires,
+  which a `sleep 35` proved by leaving no trace in the decision log. `pns doctor` did surface one real
+  failure worth carrying: the mobile push is refused by the moshi endpoint while the banner and hermes
+  legs both deliver. The daemon is running the current 0.3.16 binary rather than a deleted Cellar, so the
+  known stale-daemon fix does not apply. Original text: apply, then confirm every caller still resolves:
+  `pns doctor`, `uu doctor`, a `launchctl list` showing both agents loaded, and one real long-running
+  command raising its notification through the shell hook. The old binaries under
+  `~/.local/libexec/{pns,uu,posture}/` and `~/.local/libexec/lights` are NOT removed by the apply and
+  want trashing once this is confirmed; `~/.local/libexec/pns/hooks/` stays, because the Codex hook
+  installer still lives there.
 
 ## pns closure and the rescued lanes
 
@@ -248,6 +257,28 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
 
 A delivery failure is now loud, specific, and quick to act on, so posture can be trusted to page.
 
+## pns command output
+
+`pns doctor` prints twenty lines, twelve of them opening with the same `pns doctor:` prefix, in one
+undifferentiated run. Every fact an operator needs is there and nothing says which lines belong together
+or which one is the thing to act on. The operator's ruling on 2026-09-09: sections, color, a way to turn
+color off, and the gum look rather than the plainer `hermes doctor` one, because output that reads well
+is what makes a tool feel finished.
+
+- [ ] 69. The house style module and the doctor's report. `pns/crates/pns/src/style.rs` is the only place
+  in pns that emits an escape sequence: gum's palette (the pink this repository already picked for
+  `.chezmoitemplates/cli-print-style-lib.sh.tmpl`), a rounded frame, a section heading and a set of
+  marks. `pns-domain::doctor::report` carries the report's SHAPE with no opinion about presentation, so
+  the same report renders painted for an operator and plain down a pipe without either being a second
+  copy. `--no-color` is the flag; `NO_COLOR`, `REPORT_LIB_PLAIN=1` and a destination that is not a
+  terminal each turn it off on their own, and the flag beats all of them. Glyphs survive plain mode and
+  only the color is dropped, because a mark is the row's meaning rather than its decoration. The doctor's
+  twenty lines become titled sections, each with one line saying what its rows are for, and the report
+  closes with a numbered list of what to act on. NOTE: the doctor currently refuses any argument at all,
+  with a comment saying so; that comment changes with the flag.
+- [ ] 70. Every other pns command that prints more than a sentence adopts the same vocabulary. Its scope
+  is decided by reading what each command prints today, not by a list written here in advance.
+
 ## posture foundation
 
 - [ ] 37. posture 2.4: page, domain digest, protocol codec
@@ -320,10 +351,10 @@ posture is done and osquery is retired.
   a SOURCE FINGERPRINT the builder records after installing, because a built binary's bytes do not exist
   at render time; the runner refuses every pin unless that record matches what this apply rendered, which
   is what stops a deferred build from aiming a stale binary at `/etc/hosts` as root.
-- [ ] 66c. Trash the deployed `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and its now-empty
-  directory, after an apply has installed `~/.cargo/bin/tailnet-pin`. Chezmoi does not delete a target
-  whose source entry is gone, and this repository builds no removal mechanisms, so it is one operator
-  command.
+- [x] 66c. DONE 2026-09-09. Trashed the deployed `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and
+  its now-empty directory, after an apply has installed `~/.cargo/bin/tailnet-pin`. Chezmoi does not
+  delete a target whose source entry is gone, and this repository builds no removal mechanisms, so it is
+  one operator command.
 - [x] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`. The direction
   became an enum, which closed a pair that could disagree: the word and the chord travelled side by side
   as two strings, so a call passing `"left"` with `ctrl+l` compiled and sent Neovim the wrong way. Every
@@ -347,12 +378,21 @@ posture is done and osquery is retired.
 
 Each of these gates work that cannot start without it.
 
-- [ ] Add the pns-keyed gateway route, gates every posture cutover, tasks 43 to 50
-- [ ] Certify the stable Rust toolchain, gates tasks 51 and 52. Measured 2026-09-09: this machine runs
-  nightly clippy 1.92 while CI runs a newer stable, and CI rejected `[b' ', b'\t', b'\n']` under
-  `clippy::byte_char_slices` after a local `just test-rust` had passed. A green local Rust gate is
-  therefore not evidence about CI, which is what this gate is for.
-- [ ] Stop the hourly log writer, gates task 57
+- [x] Add the pns-keyed gateway route, gated tasks 43 to 50. CLEARED 2026-09-09, and it turned out to
+  have been done already. The open question below could not confirm it because the hermes config is
+  age-encrypted; decrypting the SOURCE and counting route keys alone shows both `priority` and `pns`, so
+  the route is durable rather than a hand edit of the deployed copy that the next apply would erase.
+  `bypass_silence_classes` is in the pns config schema, which is the plan's step 0.5.
+- [x] Certify the stable Rust toolchain, gated tasks 51 and 52. CLEARED 2026-09-09, and certifying it is
+  what found the real problem. The machine's stable was 1.88.0 from June 2025 while CI's is 1.98, so the
+  two were never the same toolchain; `pns-adapters` uses `file_lock`, stabilized in 1.89, so PINNING the
+  old stable would not have compiled at all. After `rustup update stable` to 1.98.1, `just test-rust`
+  exits 0 across all six workspaces, 102 green test binaries, and no crate uses `#![feature]`. The
+  default toolchain stays nightly; task 51 is what pins stable per directory.
+- [x] Stop the hourly log writer, gated task 57. CLEARED 2026-09-09 by ruling rather than by action: task
+  57 deletes the script, the plist and the loader itself, so the operator applies once and the job is
+  gone. Stopping it by hand first would have been undone by the next apply, since the loader still exists
+  until 57 removes it.
 - [ ] The clean-home apply from PR #385, gates task 65
 - [ ] The lamp drills, gates task 64
 - [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
@@ -377,8 +417,8 @@ the operator saying so.
 
 ## Open questions
 
-- posture 0.2, the pns priority-route, could not be confirmed as done because the hermes config is
-  age-encrypted and unreadable. It is one of four pns prerequisites the posture plan names as gating the
-  cutovers, so it should be settled before task 43.
+- RESOLVED 2026-09-09. posture 0.2, the pns priority-route, could not be confirmed because the hermes
+  config is age-encrypted. Decrypting the source and counting route keys alone, with no value printed,
+  shows `priority` and `pns` side by side, which is what the plan's step 0.3 asks for.
 - `webdavis/pns.nvim` is its own repository and was not audited. Task 14 finishes its integration here,
   but unfinished work inside that repository would not have shown up.

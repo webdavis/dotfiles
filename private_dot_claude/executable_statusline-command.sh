@@ -107,10 +107,15 @@ if [[ -n $used_pct ]]; then
   else
     context_info+="/$((ceiling / 1000))k"
   fi
-  # Yellow at four fifths of the way to compaction, red at nine tenths.
-  if ((gauge_pct >= 90)); then
+  # YELLOW AT 60, RED AT 85. The bands used to sit at 80 and 90, which put the
+  # warning where the danger belonged: at 84 per cent of the way to a
+  # compaction the line still read yellow, and the yellow band opened so late
+  # there was no room left to act on it. Yellow is a nudge to start closing
+  # work out, so it takes the whole second half of the gauge; red is the last
+  # stretch, where the only useful move is to stop adding to the context.
+  if ((gauge_pct >= 85)); then
     context_color='247;118;142' # #f7768e, red
-  elif ((gauge_pct >= 80)); then
+  elif ((gauge_pct >= 60)); then
     context_color='224;175;104' # #e0af68, yellow
   fi
 fi
