@@ -344,7 +344,7 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   Action Button move between releases, and instructions that do not date themselves are worse than none:
   a reader on a later iOS cannot tell a path that moved from a step they got wrong. Verify them against
   the operator's own iOS at build time rather than writing them from memory here, and record the version
-  in the same change that writes the text. `--clear` deletes the marker. ITS CASE IS UNVERIFIED
+  in the same change that writes the text. `--delete-marker` deletes the marker. NOT `--clear`, which says nothing about what it clears, and NOT `--at-desk`, which promises a surface the command cannot produce: removing the phone signal does not assert Desk, and a stale desk clock lands on Away. "Marker" is already this feature's own vocabulary, so naming it is consistent rather than leaky. ITS CASE IS UNVERIFIED
   AND MUST BE SETTLED BEFORE IT IS BUILT. The argument for it: a tap has no expiry and stays the newest
   signal until the desk is touched, so a Back Tap fired by a bump in a pocket parks the operator on
   Mobile with nothing to cancel it while they are away from the desk. The hole in that argument: with the
