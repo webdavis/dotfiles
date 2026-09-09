@@ -83,6 +83,7 @@ end
 
 return {
   "stevearc/overseer.nvim",
+  dependencies = { "webdavis/pns.nvim" },
   opts = {},
   -- Every command overseer registers itself (overseer/init.lua `commands`) plus
   -- the five this file's `config` creates, minus `OverseerShell`, which gets the
@@ -337,10 +338,9 @@ return {
         -- FINISHED task, so tasks have to outlive the upstream five-minute
         -- dispose timeout. The "dispose all finished" action is the manual sweep
         -- that replaces it.
-        --
-        -- The pns on_complete reporter (plan task 26) belongs in this list.
         default = {
           "on_exit_set_status",
+          "pns.report",
           { "on_complete_notify", system = "unfocused" },
           {
             "on_output_quickfix",

@@ -173,7 +173,7 @@ deadline_secs = 21600
 
 # Check the committed Neovim plugin pins without changing them. Enabling
 # auto_commit also requires clean, matching source, deployed and installed pins.
-# Failed write-back retains recovery state until those pins are reconciled.
+# Failed auto-commit retains recovery state until those pins are reconciled.
 [lanes.nvim-plugins]
 type = "nvim-plugins"
 nvim = "/opt/homebrew/bin/nvim"
@@ -214,21 +214,21 @@ type = "claude-plugins"
 inventory = "{{ .chezmoi.homeDir }}/.claude/plugins/installed_plugins.json"
 deadline_secs = 21600
 
-# Reserved for the complete skills cutover. This build does not register skills.
-# [lanes.skills]
-# type = "skills"
-# lock = "{{ .chezmoi.homeDir }}/.agents/custom-skill-lock.json"
-# agents = "{{ .chezmoi.homeDir }}/.agents"
-# claude_skills = "{{ .chezmoi.homeDir }}/.claude/skills"
-# hermes = "{{ .chezmoi.homeDir }}/.hermes"
-# npx = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npx"
-# skills_cli_version = "1.5.22"
-# clawhub = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/clawhub"
-# hermes_cli = "{{ .chezmoi.homeDir }}/.local/bin/hermes"
-# cua_driver = "/opt/homebrew/bin/cua-driver"
-# routing = "{{ .chezmoi.homeDir }}/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
-# escalate_after_runs = 3
-# deadline_secs = 21600
+# Refresh the skills store and report required failures and advisory fork drift.
+[lanes.skills]
+type = "skills"
+lock = "{{ .chezmoi.homeDir }}/.agents/custom-skill-lock.json"
+agents = "{{ .chezmoi.homeDir }}/.agents"
+claude_skills = "{{ .chezmoi.homeDir }}/.claude/skills"
+hermes = "{{ .chezmoi.homeDir }}/.hermes"
+npx = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npx"
+skills_cli_version = "1.5.22"
+clawhub = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/clawhub"
+hermes_cli = "{{ .chezmoi.homeDir }}/.local/bin/hermes"
+cua_driver = "/opt/homebrew/bin/cua-driver"
+routing = "{{ .chezmoi.homeDir }}/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh"
+escalate_after_runs = 3
+deadline_secs = 21600
 
 # Available after the rotation cutover; keep the existing hourly writer until then.
 # Rotate only these logs, preserving their open descriptors. Weekly rotation keeps

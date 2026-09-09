@@ -1,3 +1,4 @@
+pub(super) mod fixture;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 pub(super) fn directory() -> PathBuf {
@@ -15,4 +16,20 @@ pub(super) fn roster() -> serde_json::Value {
 }
 pub(super) fn write_roster(path: &std::path::Path, value: &serde_json::Value) {
     std::fs::write(path, serde_json::to_vec(value).unwrap()).unwrap();
+}
+
+pub(super) fn config(root: &std::path::Path) -> crate::SkillsConfig {
+    let path = |name| root.join(name).to_string_lossy().into_owned();
+    crate::SkillsConfig {
+        lock: path("roster"),
+        agents: path(".agents"),
+        claude_skills: path(".claude/skills"),
+        hermes: path(".hermes"),
+        npx: path("bin/npx"),
+        skills_cli_version: "1.5.22".into(),
+        clawhub: path("bin/clawhub"),
+        hermes_cli: path("bin/hermes"),
+        cua_driver: path("bin/cua-driver"),
+        routing: path("bin/routing"),
+    }
 }

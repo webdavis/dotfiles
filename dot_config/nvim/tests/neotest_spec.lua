@@ -256,6 +256,7 @@ local function route()
 
   local captured, ran
   local stubs = {
+    ["pns.integrations.neotest"] = { consumer = function() end },
     ["neotest"] = {
       setup = function(options)
         captured = options
