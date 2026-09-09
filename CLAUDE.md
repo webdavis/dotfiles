@@ -149,6 +149,16 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
 holds until the vault is replaced with a password manager an agent can unlock.
 
+**NEVER tell the operator to run `chezmoi apply` without verifying it will pass first.** The operator
+running an apply, hitting an error, pasting it back, waiting for a fix, and running again is a loop that
+costs them an evening and finds one failure per round. An agent has everything it needs to find those
+failures itself: render a script with
+`CI=1 chezmoi --source "$PWD" execute-template --no-tty < .chezmoiscripts/<name>` and run it, or run the
+deployed copy directly. Do that for every script the change touches AND for every one that failed on a
+previous attempt, report the exit codes, and only then say it is safe to apply (operator ruling
+2026-09-08). A long-deferred apply fails one script at a time, so a round trip per failure is the worst
+possible way to find them; every such failure is reproducible without an apply.
+
 **Why `--exclude=templates` was retired** (it was the mandated agent apply until 2026-08-10). It left the
 deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
 hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
@@ -295,9 +305,8 @@ fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces 
 any more:** the roster guard was declaration-consistency checking, not tool behavior, so it went with the
 2026-08-05 scope ruling. Adding or removing a skill means editing the store, every lock table and every
 per-harness declaration by hand, and a missed one now surfaces as a skill quietly not reaching a harness
-rather than as a red build. `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh`
-refreshes the npx-, clawhub- and app-owned lanes weekly, publishing a new generation with one atomic
-exchange.
+rather than as a red build. `~/.local/libexec/uu/uu run skills` refreshes the npx-, clawhub- and
+app-owned lanes weekly, publishing a new generation with one atomic exchange.
 
 `docs/runbooks/agent-skills-store.md` carries the delivery model, the lane mechanics, the fork
 drift-watch states, the generation-exchange guarantee, the schedule, and how to add or remove a skill.
@@ -450,11 +459,10 @@ Four rules decide the shape below `libexec`, in this order:
    the flat-file version of the same idea), because the alternative is data under `share/` that none of
    the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
-   subdirectory lives in that subdirectory instead. `unattended-upgrades/helpers/log-entries.sh` is
-   shared by the three bash weekly jobs (`uu`, the fourth weekly job, is a standalone Rust binary and
-   shares none of it), while `agent-skills/assert-hermes-superpowers-routing.sh` stays in `agent-skills/`
-   because both of its callers, `update-skills.sh` and `live-reconcile.sh`, are there too. This mirrors
-   the `test/<suite>/helpers/` split.
+   subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
+   keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The
+   standalone Rust `uu` package owns its weekly record formatting and delivery; it does not source shell
+   helpers.
 
 Names are verb-first where a bare noun would not say what happens (`compress-and-truncate-local-logs.sh`,
 `control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:
@@ -493,7 +501,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | -------------------------------------------------- | ---------------------------------------------------- |
 | `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
 | `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
-| `com.webdavis.update-skills`                       | weekly skills-store refresh (24 Monday retry slots)  |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |

@@ -1,10 +1,10 @@
-local Git = require("uu.writeback_git")
-local State = require("uu.writeback_state")
+local Git = require("uu.auto_commit_git")
+local State = require("uu.auto_commit_state")
 local Report = require("uu.report")
 local M = {}
 
 local function check(reason)
-  return { kind = "check", lines = reason and { "plugin write-back: " .. reason .. "; checking only" } or {} }
+  return { kind = "check", lines = reason and { "plugin auto-commit: " .. reason .. "; checking only" } or {} }
 end
 
 local function agreement(repo, config, plugins)
@@ -82,7 +82,7 @@ function M.run(options)
   return {
     kind = "finished",
     status = Report.FAILED,
-    lines = { "plugin write-back failed: " .. tostring(result) .. "; recovery: " .. options.recovery },
+    lines = { "plugin auto-commit failed: " .. tostring(result) .. "; recovery: " .. options.recovery },
   }
 end
 

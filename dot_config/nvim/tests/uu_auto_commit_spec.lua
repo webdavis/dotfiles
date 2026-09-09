@@ -1,7 +1,7 @@
 local tests = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h")
 local fixture = dofile(tests .. "/uu_fixture.lua")
 local function run()
-  return require("uu.writeback").run
+  return require("uu.auto_commit").run
 end
 local function failed(result, f)
   assert(result.kind == "finished" and result.status == 1, vim.inspect(result))

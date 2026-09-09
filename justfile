@@ -314,11 +314,10 @@ defaults-show domain:
 defaults-dump:
   defaults read | less
 
-# Refresh portable agent skills in the store (~/.agents/skills) + re-symlink each harness.
-# Also runs weekly via launchd (com.webdavis.update-skills). Pass --dry-run to preview,
-# or --install-only to only install absent manifest skills (fresh-machine bootstrap).
-update-skills *args:
-  ~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh {{args}}
+# Refresh skills through the weekly uu lane.
+# uu bootstrap skills installs or repairs additively without a weekly record.
+update-skills:
+  ~/.local/libexec/uu/uu run skills
 
 # Regenerate the shipped pns config template from the committed values file.
 # `just test-unit` pins the result byte for byte, so a hand edit to the

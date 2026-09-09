@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub(super) fn destroy(path: &Path) -> Result<(), String> {
+pub(in crate::lanes::skills) fn destroy(path: &Path) -> Result<(), String> {
     match std::fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(e) => return Err(e.to_string()),

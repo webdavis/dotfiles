@@ -378,3 +378,8 @@ matches:
 
   - trigger: ",,hf"
     replace: "happy-focus"
+
+  # ── Commands (,, triggers; literal shell commands) ───────────────────────
+
+  - trigger: ",,ca"
+    replace: "chezmoi apply"

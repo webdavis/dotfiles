@@ -28,13 +28,14 @@ mod record;
 mod registration;
 mod schedule;
 
+mod adapters;
 mod delivery;
-mod run_adapters;
 mod runner;
 mod state;
 mod system;
 mod watchdog;
 
+pub use adapters::{ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock};
 pub use config::{
     BrewLane, ClaudePluginsLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane,
     NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path,
@@ -42,9 +43,6 @@ pub use config::{
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
-pub use run_adapters::{
-    ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock,
-};
 pub use schedule::{DEFAULT_LABEL, render_plist};
 pub use state::{marker_path, read_marker};
 pub use system::{home, now_epoch, resolve};
@@ -62,3 +60,7 @@ pub use lanes::{
     SkillsBuildMode, SkillsCandidate, SkillsGenerationStore, SkillsPublication, SkillsRecovery,
     exchange_skills_directories,
 };
+
+pub use lanes::SkillsForkWatch;
+
+pub use lanes::capture_skills_updater;

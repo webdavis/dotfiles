@@ -15,24 +15,24 @@ pub struct SkillsConfig {
     pub routing: String,
 }
 impl SkillsConfig {
+    pub(crate) const KEYS: &[&str] = &[
+        "type",
+        "lock",
+        "agents",
+        "claude_skills",
+        "hermes",
+        "npx",
+        "skills_cli_version",
+        "clawhub",
+        "hermes_cli",
+        "cua_driver",
+        "routing",
+        "deadline_secs",
+        "escalate_after_runs",
+    ];
     pub fn parse_fields(label: &str, fields: toml::Table) -> Result<Self, ConfigError> {
-        const KEYS: &[&str] = &[
-            "type",
-            "lock",
-            "agents",
-            "claude_skills",
-            "hermes",
-            "npx",
-            "skills_cli_version",
-            "clawhub",
-            "hermes_cli",
-            "cua_driver",
-            "routing",
-            "deadline_secs",
-            "escalate_after_runs",
-        ];
         for key in fields.keys() {
-            admits_lane(label, "skills", KEYS, key)?;
+            admits_lane(label, "skills", Self::KEYS, key)?;
         }
         let field = |key| {
             fields

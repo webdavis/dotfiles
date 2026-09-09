@@ -53,9 +53,15 @@ current_pot_tag() {
   git -C "${POT_REPO}" describe --tags --exact-match 2>/dev/null
 }
 
+# Deno runs an npm package's build script only when that package is named here,
+# and it warns rather than failing for the ones it skipped, so a provider release
+# that adds a dependency builds QUIETLY WRONG until its package is added. The 2.0.0
+# release added @swc/core, which is why it is here. The names are deliberately
+# unpinned: a version would have to be chased on every upgrade, and the decision
+# being made is which package may run code, not which release of it.
 build_pot_server() {
   echo "Building PO token server..."
-  (cd "${POT_SERVER}" && deno install --allow-scripts=npm:canvas --frozen)
+  (cd "${POT_SERVER}" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
 }
 
 # =============================================================================
