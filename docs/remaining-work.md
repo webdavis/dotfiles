@@ -316,8 +316,11 @@ posture is done and osquery is retired.
 - [ ] 66b. tailnet-pin cutover: the builder chezmoiscript, the `run_onchange_after_41` call site, and
   trashing the deployed `reconcile-hosts-pin.sh` with its bash unit suite. Held back from 66 because it
   edits a root-executed path and the caller's SHA256 pin of a source file becomes a built binary.
-- [ ] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`, approved and
-  scheduled after posture
+- [x] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`. The direction
+  became an enum, which closed a pair that could disagree: the word and the chord travelled side by side
+  as two strings, so a call passing `"left"` with `ctrl+l` compiled and sent Neovim the wrong way. Every
+  public item gained the documentation the house voice asks for, and the parse of herdr's answer states
+  why every unreadable shape means the same thing.
 - [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
   has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
   exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
