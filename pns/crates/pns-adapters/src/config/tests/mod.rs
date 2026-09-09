@@ -209,6 +209,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
 
 mod daemon;
 mod delivery;
+mod failure_wording;
 mod focus;
 mod lights_bounds;
 mod lights_defaults;

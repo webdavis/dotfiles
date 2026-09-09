@@ -194,7 +194,15 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   row already carries them, `route` was already on the leg, and a per-delivery write measurably slowed
   the suite. The read path the plan put here lands with its caller in task 33 rather than as an uncalled
   method.
-- [ ] 32. The message, both render forms, the per-destination meaning tables
+- [x] 32. The message, both render forms, the per-destination meaning tables. `pns_domain::failure`
+  rather than `pns-protocol`, whose own contract is that it holds no view of the domain model. The
+  notification form enforces its 256-character budget itself, in the order the reader can least afford to
+  lose, because a route name is as long as the producer made it and the surface would otherwise cut the
+  fix line off the end. `Surface::Terminal` is a separate type from the notification surfaces, since the
+  terminal repair names the route inside the fix line and can exceed the whole budget by itself. Two
+  design gaps closed while building: the terminal `fix` needed a repair per code, which the design gave
+  only as one worked example, and the 413 and 422 rows named no concrete subject despite the design's own
+  rule that every meaning must.
 - [ ] 33. `pns failures` and the `pns doctor` routing to it
 - [ ] 34. The `pns doctor` route check
 - [ ] 35. The banner click: `pns click`, and its three configured types
