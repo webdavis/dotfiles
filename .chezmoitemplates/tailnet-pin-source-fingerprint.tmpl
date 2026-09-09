@@ -1,0 +1,19 @@
+{{- /* Every byte the tailnet-pin binary is built from, concatenated as
+       per-file hashes. The CALLER hashes this string, so a change anywhere in
+       the workspace changes one constant.
+
+       IT IS THE ROOT GATE. `run_onchange_after_41-macos-system-setup.sh.tmpl`
+       sudo-runs the built binary, and the builder that produced it can DEFER
+       (no cargo yet on a fresh machine), which would leave an older binary in
+       place. The builder records this fingerprint after a successful install
+       and the runner compares its own against the record, so a deferred build
+       refuses the pins rather than aiming a stale binary at /etc/hosts as root.
+
+       Cargo.lock is in the set because a dependency version changes the binary
+       without changing a line of this repository's code. Cargo.toml files are
+       in it for the same reason. */ -}}
+{{- $workspace := joinPath .chezmoi.sourceDir "tailnet-pin" -}}
+{{- range (glob (joinPath $workspace "**/*.rs")) }}{{ include . | sha256sum }}{{ end -}}
+{{- include (joinPath $workspace "Cargo.lock") | sha256sum -}}
+{{- include (joinPath $workspace "Cargo.toml") | sha256sum -}}
+{{- range (glob (joinPath $workspace "crates/*/Cargo.toml")) }}{{ include . | sha256sum }}{{ end -}}

@@ -16,9 +16,11 @@ read by the osquery posture poller at runtime rather than by either runner.
   or pin, so a file of purely verify or manual records prompts for nothing.
 
 The `/etc/hosts` pin work is not inline in the Tier 2 template. The template hands one pin per line to
-`~/.local/libexec/tailscale/reconcile-hosts-pin.sh` (source:
-`dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh`), which converges the record to exactly
-one line per pin rather than guarding and appending.
+`~/.cargo/bin/tailnet-pin` (source: the `tailnet-pin` workspace at the repository root, built by
+`.chezmoiscripts/run_onchange_after_40-build-tailnet-pin.sh.tmpl`), which converges the record to exactly
+one line per pin rather than guarding and appending. The runner refuses to run any pin unless the
+builder's own record says that binary was built from the source this apply rendered, so a deferred build
+on a machine without cargo cannot aim a stale binary at `/etc/hosts` as root.
 
 ## Daily workflow
 
