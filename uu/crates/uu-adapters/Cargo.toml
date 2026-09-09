@@ -1,0 +1,36 @@
+# WHAT THIS BINARY IS ALLOWED TO SPAWN: the lane subjects themselves (`herdr`,
+# and whatever program a `command` lane's own config declares) and the
+# deployed pns binary for alerts. Nothing else. Records do not spawn anything
+# at all: they are one signed POST made in process.
+#
+# pns-hermes IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
+# transport and POST seam already live there; a second copy of an HMAC
+# (hash-based message authentication code) signer is a second thing to get wrong.
+# The record BODY is uu's own; only the plumbing is shared. The relative path
+# resolves from this member up through the uu workspace to its sibling `pns`
+# workspace at the monorepo root. Neither tree deploys to $HOME any more; the
+# builder compiles both out of this checkout.
+
+[package]
+name = "uu-adapters"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+uu-application = { path = "../uu-application" }
+uu-domain = { path = "../uu-domain" }
+uu-protocol = { path = "../uu-protocol" }
+# The one dependency taken for a system FACT rather than a format, matching
+# pns's own reasoning: std answers neither "what is this machine called"
+# (`gethostname`) nor "which UTC calendar day is this second" (`gmtime_r`), and
+# both are on every record. It is already compiled in this tree behind pns.
+libc = "0.2.189"
+pns-hermes = { path = "../../../pns/crates/pns-hermes" }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+# Parse only, matching pns: nothing here ever writes TOML back out.
+toml = { version = "1.1.4", default-features = false, features = [
+  "parse",
+  "serde",
+  "std",
+] }

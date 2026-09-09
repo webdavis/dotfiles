@@ -16,6 +16,9 @@
 # executable bit; test/validate-tests.sh pins the shape. assert_same, never
 # assert_equals: the latter normalizes control characters away (0.50.1).
 
+# shellcheck disable=SC2016  # Several redirects below rewrite a rendered script
+# so it expands $HOME at RUN time; the single quotes keeping $HOME literal are
+# the point, not an oversight.
 repo_root() {
   printf '%s' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 }
@@ -30,6 +33,27 @@ set_up_before_script() {
     >"$rendered_builder" 2>/dev/null
   [[ -s $rendered_builder ]] || {
     echo "the build script rendered empty" >&2
+    return 1
+  }
+  # The monorepo move bakes the real checkout's absolute path into crate_dir at
+  # render time, and the stub cargo derives its artifact path from the manifest
+  # it is handed, so an unredirected run would write target/release/posture into
+  # the working tree. Point the rendered copy at a per-sandbox directory under
+  # HOME instead. Nothing under test depends on the baked value: that it names
+  # the source directory is settled by the render itself, while every behavior
+  # below is about the install, the record and the refresh ordering.
+  sed -i '' 's|^crate_dir=.*|crate_dir="$HOME/crate"|' "$rendered_builder"
+  grep -q '^crate_dir="\$HOME/crate"$' "$rendered_builder" || {
+    echo "the crate_dir redirect did not apply" >&2
+    return 1
+  }
+  # install_dir is likewise baked absolute at render time, off the REAL home,
+  # so an unredirected run installs into the operator's own ~/.cargo/bin
+  # instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+  # is the shape it had before the install location moved.
+  sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$rendered_builder"
+  grep -q '^install_dir="\$HOME/.cargo/bin"$' "$rendered_builder" || {
+    echo "the install_dir redirect did not apply" >&2
     return 1
   }
   chmod +x "$rendered_builder"
@@ -50,7 +74,7 @@ set_up() {
   sandbox="$(mktemp -d)"
   sandbox_home="$sandbox/home"
   sandbox_source="$sandbox/source"
-  installed_binary="$sandbox_home/.local/libexec/posture/posture"
+  installed_binary="$sandbox_home/.cargo/bin/posture"
   retry_marker="$sandbox_home/.cache/posture-build/posture.retry"
   build_record="$sandbox_home/.local/state/posture-build-record"
   cargo_args="$sandbox/cargo.args"
@@ -108,10 +132,9 @@ STUB
   chmod +x "$sandbox_home/.cargo/bin/cargo" "$sandbox_home/.cargo/bin/rustc"
 }
 
-install_deployed_sources() {
-  mkdir -p "$sandbox_home/.local/share/posture" "$sandbox_home/.local/share/pns/crates/pns-protocol"
-  printf '[workspace]\n' >"$sandbox_home/.local/share/posture/Cargo.toml"
-  printf '[package]\nname = "pns-protocol"\n' >"$sandbox_home/.local/share/pns/crates/pns-protocol/Cargo.toml"
+install_crate_source() {
+  mkdir -p "$sandbox_home/crate"
+  printf '[workspace]\n' >"$sandbox_home/crate/Cargo.toml"
 }
 
 # The stub manifest runner records what the world looked like WHEN IT RAN: the
@@ -156,14 +179,20 @@ assert_builder_fails() {
 
 ready_to_build() {
   install_stub_toolchain
-  install_deployed_sources
+  install_crate_source
 }
 
 # --- deferral: a missing build input never fails the apply and leaves the ---
 # --- trigger retryable ----------------------------------------------------
+#
+# The two cases that pinned "a crate source not deployed yet defers the build"
+# went with the monorepo move: both workspaces are read out of the chezmoi
+# source directory now, and the builder's own hash comment `include`s each
+# manifest at render time, so a missing one aborts the apply before the script
+# is written. A missing toolchain is still a real deferral and stays covered.
 
 function test_a_missing_toolchain_defers_the_build_and_leaves_the_trigger_retryable() {
-  install_deployed_sources
+  install_crate_source
   assert_builder_succeeds
   assert_file_not_exists "$installed_binary"
   assert_file_exists "$retry_marker"
@@ -174,7 +203,9 @@ function test_a_missing_toolchain_defers_the_build_and_leaves_the_trigger_retrya
 }
 
 function test_same_second_deferrals_change_the_rendered_retry_trigger() {
-  install_stub_toolchain
+  # A bare sandbox has no cargo, which is now the only deferral left: the two
+  # missing-source deferrals went with the monorepo move. This used to install
+  # the toolchain and lean on the absent crate instead.
   local first_trigger second_trigger
   assert_builder_succeeds
   touch -t 202601010000.00 "$retry_marker"
@@ -187,29 +218,11 @@ function test_same_second_deferrals_change_the_rendered_retry_trigger() {
   assert_not_same "$first_trigger" "$second_trigger"
 }
 
-function test_a_toolchain_without_the_deployed_crate_defers_the_build() {
-  install_stub_toolchain
-  mkdir -p "$sandbox_home/.local/share/pns/crates/pns-protocol"
-  printf '[package]\nname = "pns-protocol"\n' >"$sandbox_home/.local/share/pns/crates/pns-protocol/Cargo.toml"
-  assert_builder_succeeds
-  assert_file_not_exists "$installed_binary"
-  assert_file_exists "$retry_marker"
-}
-
-function test_a_crate_without_the_sibling_pns_protocol_source_defers_the_build() {
-  install_stub_toolchain
-  mkdir -p "$sandbox_home/.local/share/posture"
-  printf '[workspace]\n' >"$sandbox_home/.local/share/posture/Cargo.toml"
-  assert_builder_succeeds
-  assert_file_not_exists "$installed_binary"
-  assert_file_exists "$retry_marker"
-}
-
 # --- install: the binary lands where the agents will look, built from the --
 # --- committed lock, and the trigger settles --------------------------------
 
 function test_a_successful_build_installs_the_binary_where_the_agents_will_run_it_and_settles_the_trigger() {
-  install_deployed_sources
+  install_crate_source
   assert_builder_succeeds
   assert_file_exists "$retry_marker"
   install_stub_toolchain
@@ -226,13 +239,13 @@ function test_the_build_runs_from_the_committed_lock_and_names_the_one_binary() 
   assert_contains ' --locked ' " $(cat "$cargo_args") "
   assert_contains ' --release ' " $(cat "$cargo_args") "
   assert_contains ' --bin posture ' " $(cat "$cargo_args") "
-  assert_contains "--manifest-path $sandbox_home/.local/share/posture/Cargo.toml" "$(cat "$cargo_args")"
+  assert_contains "--manifest-path $sandbox_home/crate/Cargo.toml" "$(cat "$cargo_args")"
 }
 
 function test_a_build_publishes_a_private_record_before_refresh_and_install() {
   ready_to_build
   assert_builder_succeeds
-  local artifact="$sandbox_home/.local/share/posture/target/release/posture"
+  local artifact="$sandbox_home/crate/target/release/posture"
   assert_contains "sha256 $(shasum -a 256 "$artifact" | awk '{print $1}')" "$(cat "$build_record")"
   assert_contains "bytes $(wc -c <"$artifact" | tr -d ' ')" "$(cat "$build_record")"
   assert_contains 'rustc 1.92.0-nightly (stub)' "$(cat "$build_record")"

@@ -1,7 +1,7 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 set -euo pipefail
-{{ $lights := joinPath .chezmoi.sourceDir "dot_local/share/lights" -}}
+{{ $lights := joinPath .chezmoi.sourceDir "lights" -}}
 {{ range (glob (joinPath $lights "**/*.rs")) }}
 # {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -13,13 +13,15 @@ set -euo pipefail
 # A deferred zero-exit build must change the next rendered script to retry.
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/lights-build/lights.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
-crate_dir="$HOME/.local/share/lights"
-install_dir="$HOME/.local/libexec"
+# Repository SOURCE at the monorepo root, never a deploy target, so the build
+# reads the chezmoi source directory rather than a copy under $HOME.
+crate_dir={{ $lights | quote }}
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
 cargo_bin="$HOME/.cargo/bin/cargo"
 retry_marker="$HOME/.cache/lights-build/lights.retry"
 
-if [[ ! -x $cargo_bin || ! -f "$crate_dir/Cargo.toml" ]]; then
-  printf 'lights: cargo or deployed source missing; build deferred to next apply\n' >&2
+if [[ ! -x $cargo_bin ]]; then
+  printf 'lights: cargo missing; build deferred to next apply\n' >&2
   mkdir -p "$(dirname "$retry_marker")"
   touch "$retry_marker"
   exit 0

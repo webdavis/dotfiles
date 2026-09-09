@@ -40,9 +40,19 @@ options = ["-i", "2", "-ci", "-s", "-w"]
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
 excludes = ["*.tmpl", "dot_agents/skills/**"]
 
+# The four tool workspaces sit at the repository root in monorepo layout; the
+# herdr plugins are still vendored under dot_local/share. Both roots are listed
+# rather than a bare "**/*.rs", which would also sweep each workspace's
+# untracked target/ tree.
 [formatter.rust-file-size]
 command = "scripts/treefmt/rust-file-size.sh"
-includes = ["dot_local/share/**/*.rs"]
+includes = [
+  "dot_local/share/**/*.rs",
+  "pns/**/*.rs",
+  "uu/**/*.rs",
+  "posture/**/*.rs",
+  "lights/**/*.rs",
+]
 
 # RULE: skill/agent/command markdown is authored prose with YAML frontmatter;
 # mdformat is never allowed to touch it (see the old treefmt.nix note; the
@@ -68,7 +78,7 @@ excludes = [
   # form where the line breaks carry the meaning. mdformat reflows the three
   # into one paragraph and destroys the shape that makes them readable, which
   # is the same reason docs/superpowers/** is excluded above.
-  "dot_local/share/pns/docs/**",
+  "pns/docs/**",
   "docs/research/2026-04-12-worktrunk.md",
 ]
 

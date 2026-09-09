@@ -1,0 +1,11 @@
+# uu: the unattended-upgrades workspace. The command crate owns the uu binary.
+
+[workspace]
+members = [
+  "crates/uu-domain",
+  "crates/uu-protocol",
+  "crates/uu-application",
+  "crates/uu-adapters",
+  "crates/uu",
+]
+resolver = "3"

@@ -6,9 +6,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 set_up() {
   CASE_ROOT="$(mktemp -d)"
   export HOME="$CASE_ROOT/home"
-  mkdir -p "$HOME/.local/libexec/posture"
+  mkdir -p "$HOME/.cargo/bin"
   export ARG_RECORD="$CASE_ROOT"
-  cat >"$HOME/.local/libexec/posture/posture" <<'STUB'
+  cat >"$HOME/.cargo/bin/posture" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s' "$#" >"$ARG_RECORD/count"
@@ -18,7 +18,7 @@ printf '%s' "${2:-}" >"$ARG_RECORD/second"
 printf 'captured fact'
 exit "${ENRICH_EXIT:-10}"
 STUB
-  chmod 755 "$HOME/.local/libexec/posture/posture"
+  chmod 755 "$HOME/.cargo/bin/posture"
 }
 
 route_case() {
@@ -46,7 +46,7 @@ function test_default_executable_receives_enrich_and_the_unsplit_path() {
 
 function test_override_is_one_executable_filename_including_spaces() {
   export OSQUERY_ENRICH_SCRIPT="$CASE_ROOT/quoted executable"
-  cp "$HOME/.local/libexec/posture/posture" "$OSQUERY_ENRICH_SCRIPT"
+  cp "$HOME/.cargo/bin/posture" "$OSQUERY_ENRICH_SCRIPT"
   route_case 10
   assert_same 2 "$(cat "$CASE_ROOT/count")"
   assert_same enrich "$(cat "$CASE_ROOT/first")"
@@ -70,7 +70,7 @@ function test_exit_five_keeps_stdout_without_promoting_notice() {
 
 function test_a_nonexecutable_override_still_skips_enrichment() {
   export OSQUERY_ENRICH_SCRIPT="$CASE_ROOT/not executable"
-  cp "$HOME/.local/libexec/posture/posture" "$OSQUERY_ENRICH_SCRIPT"
+  cp "$HOME/.cargo/bin/posture" "$OSQUERY_ENRICH_SCRIPT"
   chmod 644 "$OSQUERY_ENRICH_SCRIPT"
   route_case 10
   assert_same '' "$(cat "$CASE_ROOT/page")"

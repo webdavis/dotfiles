@@ -2,7 +2,7 @@
 
 Recorded 2026-09-05 against `origin/main` at `cac6ff3f`, which carries the presence policy merge
 `7c58f94b` and the first extraction, PR 5.1 (`10a2116d`, so `render`, `safety`, `parse_count` and
-`working_owner` are cited under `crates/pns-domain/src/`), from the crate at `dot_local/share/pns`
+`working_owner` are cited under `crates/pns-domain/src/`), from the crate at `pns`
 and its callers in this repository. This is the repository-level statement inventory the refactor
 plan at `docs/superpowers/plans/2026-09-05-pns-refactor-plan.md` moves code against. It states what
 pns does today, not what it should do. Where the code and this document disagree, the code is right
@@ -21,10 +21,10 @@ Every statement is one line of observable behavior with two citations underneath
   looked for. A statement whose pins leave one clause unreached carries that clause on an
   `UNPINNED:` line under them, with the plan step that writes its test; it counts as UNPINNED. A move
   of the code behind an UNPINNED statement or clause writes the missing test first, against the code
-  where it lives today, per `dot_local/share/pns/docs/specs/unpinned-behaviors.md`.
+  where it lives today, per `pns/docs/specs/unpinned-behaviors.md`.
 
 Scenario prose, thresholds one step either side, and the reasoning behind each rule live in the
-crate's own specifications under `dot_local/share/pns/docs/specs/` (seventeen areas, written
+crate's own specifications under `pns/docs/specs/` (seventeen areas, written
 2026-09-02, cited by file and symbol). This document does not repeat them. It is the flat inventory
 those specifications lack: one numbered statement per behavior, organized by the charter's
 vocabulary, each pinned or marked unpinned, so the plan can name exactly which statements a step
@@ -1640,8 +1640,8 @@ S144. The exact `pns: posted HTTP 200` line that the weekly log helper greps for
 
 S145. `uu` imports `SignedPost`, `UreqSignedPost`, `PostOutcome`, `delivered`, `outcome_line` and
       `sign` from `pns::channels::hermes` by path dependency, so one signed-POST seam exists.
-      Source: `dot_local/share/uu/Cargo.toml:36`, `dot_local/share/uu/src/main.rs:18`.
-      Pin: UNPINNED here; uu's own suite (`cargo test --manifest-path dot_local/share/uu/Cargo.toml`)
+      Source: `uu/Cargo.toml:36`, `uu/src/main.rs:18`.
+      Pin: UNPINNED here; uu's own suite (`cargo test --manifest-path uu/Cargo.toml`)
       is the gate.
 
 ### 6.4 Executable channels
@@ -2349,7 +2349,7 @@ S212. The other in-repo producers all call the same binary with the producer fla
       `report-plugin-updates`, `homebrew-weekly-upgrade`, `cutover-gate.sh`, and `uu` through its
       `[alerts] binary` (argv not derivable here); the weekly log helper greps the stdout line for
       `^pns: posted HTTP 2`.
-      Source: `dot_local/share/pns/docs/specs/legacy-producer-flags.md` (the callers table),
+      Source: `pns/docs/specs/legacy-producer-flags.md` (the callers table),
       `dot_config/uu/private_config.toml.tmpl:35-36`.
       Pin: `test/unit/pns-weekly-engine-resolution.sh` (the engine path resolution in the weekly
       jobs).
@@ -2371,7 +2371,7 @@ S214. The Claude Code hooks declared in the settings template are: `UserPromptSu
       Pin: UNPINNED. A declaration; the hook behaviors behind it are pinned in section 2.
 
 S215. The builder runs `cargo build --release --locked --quiet --bin pns --manifest-path
-      dot_local/share/pns/Cargo.toml` from `~/.cargo/bin/cargo`, installs `target/release/pns` to
+      pns/Cargo.toml` from `~/.cargo/bin/cargo`, installs `target/release/pns` to
       `~/.local/libexec/pns/pns` with mode 755 only when the bytes changed, and kickstarts the daemon,
       casing the status (0 loud, 113 silent on a first install, anything else fails the apply and
       leaves a retry marker).
@@ -3288,7 +3288,7 @@ clause counts as UNPINNED, so the review of the same day moved eight statements 
 | Test references (a test may pin many statements) | 776   |
 | Distinct Rust tests referenced                 | 708   |
 
-The crate's own register, `dot_local/share/pns/docs/specs/unpinned-behaviors.md`, lists 79 test-gap
+The crate's own register, `pns/docs/specs/unpinned-behaviors.md`, lists 79 test-gap
 rows and 26 open-question rows harvested from the seventeen area specifications; the UNPINNED
 statements above are the subset that reach the interface this inventory describes, plus the
 declarations (the LaunchAgent, the hook table, the justfile recipes) that the 2026-08-05 testing

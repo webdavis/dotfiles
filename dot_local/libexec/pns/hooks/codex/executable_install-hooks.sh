@@ -6,7 +6,7 @@
 set -euo pipefail
 
 hooks="$HOME/.codex/hooks.json"
-agent="$HOME/.local/libexec/pns/pns"
+agent="$HOME/.cargo/bin/pns"
 [[ -x $agent ]] || exit 0 # the engine is not deployed yet; nothing to wire
 
 done_cmd="PNS_AGENT=codex $agent hook stop"

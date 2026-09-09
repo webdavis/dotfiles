@@ -10,8 +10,8 @@ ordered ladder, the five module roles and their dependency direction, SOLID, the
 the delivery ladder, the sol review, and the completion report. This file states only how those are
 spelled and enforced in Rust, and it wins wherever the two disagree on a number or a mechanism.
 
-The Rust tools this repository owns today: `pns` (`dot_local/share/pns`), `uu`
-(`dot_local/share/uu`), and the two herdr plugins under `dot_local/share/herdr/plugins/`. The worked
+The Rust tools this repository owns today: `pns` (`pns`), `uu`
+(`uu`), and the two herdr plugins under `dot_local/share/herdr/plugins/`. The worked
 example is [`PNS-EXAMPLE.md`](PNS-EXAMPLE.md).
 
 ## The workspace

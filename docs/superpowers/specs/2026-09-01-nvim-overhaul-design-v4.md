@@ -1784,7 +1784,7 @@ The acceptance bar is "verify Neovim works and does not start with any errors". 
    and the task, and nothing under 30 s produces any card (PR 14); the editor passes `--elapsed 35`
    and pns picks the tier, so the check proves the flag reaches pns, not that the editor knows the
    thresholds. The banner is NOT part of the assertion: the engine suppresses it when the operator is
-   watching the pane the event names at delivery time (`dot_local/share/pns/src/engine.rs`, the
+   watching the pane the event names at delivery time (`pns/src/engine.rs`, the
    timing contract), and a manual check watches that pane by construction. A banner run for the human
    record, if wanted, switches to another workspace before the task ends and says so.
    `:ReviewLedger` on a real findings file fills the quickfix list and `:cnext` lands on the ledger

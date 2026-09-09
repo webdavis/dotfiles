@@ -15,7 +15,7 @@
 {{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail
 
-UU="$HOME/.local/libexec/uu/uu"
+UU={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" | quote }}
 
 # THE BINARY IS THE PRECONDITION, and it is not guaranteed: the builder beside
 # this one defers on a machine without cargo or without the crate source, and

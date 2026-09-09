@@ -1,0 +1,15 @@
+[package]
+name = "uu"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "uu"
+path = "src/main.rs"
+
+[dependencies]
+uu-adapters = { path = "../uu-adapters" }
+uu-application = { path = "../uu-application" }
+libc = "0.2.189"
+
+uu-domain = { path = "../uu-domain" }

@@ -7,6 +7,9 @@
 #
 # The script resolves cargo at a fixed $HOME-relative path, so a sandboxed
 # HOME with a stub cargo runs the real rendered script end to end.
+# shellcheck disable=SC2016  # The redirects below rewrite a rendered script so
+# it expands $HOME at RUN time; the single quotes keeping $HOME literal are the
+# point, not an oversight.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -21,12 +24,33 @@ CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
   echo "the build script rendered empty" >&2
   exit 1
 }
+# The monorepo move bakes the real checkout's absolute path into crate_dir at
+# render time, and the stub cargo derives its artifact path from the manifest it
+# is handed, so an unredirected run would write target/release/pns into the
+# working tree. Point the rendered copy at a sandbox directory instead. Nothing
+# here depends on the baked value: that it names the source directory is settled
+# by the render, while the three behaviors below are about install, trigger and
+# kickstart.
+sed -i '' 's|^crate_dir=.*|crate_dir="$HOME/crate"|' "$script"
+grep -q '^crate_dir="\$HOME/crate"$' "$script" || {
+  echo "the crate_dir redirect did not apply" >&2
+  exit 1
+}
+# install_dir is likewise baked absolute at render time, off the REAL home,
+# so an unredirected run installs into the operator's own ~/.cargo/bin
+# instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+# is the shape it had before the install location moved.
+sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$script"
+grep -q '^install_dir="\$HOME/.cargo/bin"$' "$script" || {
+  echo "the install_dir redirect did not apply" >&2
+  exit 1
+}
 chmod +x "$script"
 
 home="$scratch/home"
 marker="$home/.cache/pns-build/engine.retry"
 pending="$home/.cache/pns-build/restart-pending"
-installed="$home/.local/libexec/pns/pns"
+installed="$home/.cargo/bin/pns"
 
 # The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
 # and a sandboxed HOME does nothing to launchctl: without a stub on PATH this
@@ -84,7 +108,25 @@ run_script || {
 }
 first_attempt="$(cat "$marker")"
 
-# --- toolchain, no crate: still deferred, and the marker keeps counting ----
+# A second deferral must move the count, or the rendered trigger stops changing
+# and the script never re-fires. This used to be asserted by the toolchain-but-
+# no-crate phase; with that deferral gone, repeating the toolchain-less run is
+# what still pins it.
+run_script || {
+  echo "a repeated deferral must not fail the apply" >&2
+  exit 1
+}
+[[ "$(cat "$marker")" -gt $first_attempt ]] || {
+  echo "each deferral must change the trigger, or it stops re-firing" >&2
+  exit 1
+}
+
+# --- the toolchain arrives --------------------------------------------------
+# The phase that used to sit here pinned "a toolchain without the deployed crate
+# still defers". That deferral went with the monorepo move: the workspace is
+# read out of the chezmoi source directory now, and the builder's hash comment
+# `include`s its manifest at render time, so a missing one aborts the apply
+# before the script is written. A missing toolchain is the one deferral left.
 mkdir -p "$home/.cargo/bin"
 cat >"$home/.cargo/bin/cargo" <<STUB
 #!/usr/bin/env bash
@@ -122,22 +164,10 @@ fi
 chmod +x "\$crate/target/release/pns"
 STUB
 chmod +x "$home/.cargo/bin/cargo"
-run_script || {
-  echo "a missing crate must not fail the apply" >&2
-  exit 1
-}
-[[ ! -e $installed ]] || {
-  echo "nothing may be installed without the crate source" >&2
-  exit 1
-}
-[[ "$(cat "$marker")" -gt $first_attempt ]] || {
-  echo "each deferral must change the trigger, or it stops re-firing" >&2
-  exit 1
-}
 
 # --- toolchain and crate: the binary lands where the producers look --------
-mkdir -p "$home/.local/share/pns"
-cp "$REPO_ROOT/dot_local/share/pns/Cargo.toml" "$home/.local/share/pns/Cargo.toml"
+mkdir -p "$home/crate"
+cp "$REPO_ROOT/pns/Cargo.toml" "$home/crate/Cargo.toml"
 run_script || {
   echo "the build must succeed with a toolchain and a crate" >&2
   exit 1

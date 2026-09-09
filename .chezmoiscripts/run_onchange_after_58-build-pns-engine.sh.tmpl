@@ -4,9 +4,10 @@
 set -euo pipefail
 
 # Builds the pns engine binary and installs it beside the channels it will
-# replace. The crate deploys as SOURCE under ~/.local/share/pns; nothing else
-# compiles it, so without this script every producer repointed at the binary
-# would find nothing there.
+# replace. The workspace is repository SOURCE at the monorepo root and never
+# deploys to $HOME, so this compiles out of the chezmoi source directory;
+# nothing else compiles it, so without this script every producer repointed at
+# the binary would find nothing there.
 #
 # Re-runs whenever any build input changes: every source file, every manifest
 # and the lock are hashed below, globbed rather than listed so a new module or
@@ -14,7 +15,7 @@ set -euo pipefail
 # are globbed for the same reason as the sources: a dependency added to one of
 # them changes the binary this installs, and only the root manifest used to be
 # read.
-{{ $crate := joinPath .chezmoi.sourceDir "dot_local/share/pns" -}}
+{{ $crate := joinPath .chezmoi.sourceDir "pns" -}}
 {{ range $pattern := list "crates/*/src/**/*.rs" "crates/*/tests/**/*.rs" "crates/*/build.rs" -}}
 {{ range (glob (joinPath $crate $pattern)) }}
 #   {{ . }} {{ include . | sha256sum }}
@@ -39,10 +40,10 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-crate_dir="$HOME/.local/share/pns"
-# Beside the channels, not in bin: the operator never types this, launchd and
-# the shell notifier do.
-install_dir="$HOME/.local/libexec/pns"
+crate_dir={{ $crate | quote }}
+# ~/.cargo/bin, declared once in .chezmoidata/rust_tools.yaml: pns is a product
+# people install with `cargo install`, not a private helper of this checkout.
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
 retry_marker="$HOME/.cache/pns-build/engine.retry"
 # A kickstart failure leaves the daemon on the old binary. This marker forces
 # the NEXT apply to retry the kickstart even if that apply rebuilds bytes
@@ -69,11 +70,11 @@ if [[ ! -x $cargo_bin ]]; then
   exit 0
 fi
 
-if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
-  report_line 'pns: crate source is not deployed yet; engine build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
+# The "crate source is not deployed yet" deferral that used to sit here is gone
+# with the monorepo move. The workspace is read out of the chezmoi source
+# directory now, and the hash comment above already `include`s its manifest at
+# render time, so a missing one aborts the apply before this script is written
+# rather than reaching a runtime guard.
 
 report_section 'pns engine'
 report_line 'building the release binary'
@@ -81,8 +82,9 @@ report_line 'building the release binary'
 # on its own without touching the marker.
 # --locked: build exactly the committed lock. Without it cargo may rewrite
 # the deployed lockfile and pull dependencies the lock never recorded.
-# --bin pns: the crate also carries a test-only capture server, and only this
-# binary is ever installed. Without the flag every apply compiles both.
+# --bin pns: the package also carries two development binaries. They are gated
+# behind `required-features = ["dev-tools"]`, which this build does not pass, so
+# the flag is belt and braces rather than the thing keeping them out.
 "$cargo_bin" build --release --locked --quiet --bin pns --manifest-path "$crate_dir/Cargo.toml"
 
 # The build above is unconditional and can reinstall a binary byte-identical

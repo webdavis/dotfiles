@@ -12,7 +12,7 @@ set -euo pipefail
 # same apply, after uu is deployed. Nothing between that settings write and this
 # command may start Claude Code, which could update plugins before the baseline.
 # An existing baseline is kept; a validated legacy baseline is imported intact.
-"$HOME/.local/libexec/uu/uu" bootstrap claude-plugins ||
+{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" | quote }} bootstrap claude-plugins ||
   printf 'uu: the Claude Code plugin baseline could not be seeded; the next run will retry, and changes before a first baseline may go unreported\n' >&2
 exit 0
 {{- end }}

@@ -14,7 +14,7 @@ resulting file is projected to measure, and which earlier pull request it has to
 
 ## 1. Where the ladder starts
 
-The crate at `dot_local/share/uu` has 59 Rust files and none over 500 lines; the largest are
+The crate at `uu` has 59 Rust files and none over 500 lines; the largest are
 `src/runner.rs` and `src/lanes/brew/upgrade_record.rs` at 381. Five lane kinds exist (`brew`,
 `command`, `herdr`, `npm`, `uv`), one config module and one lane module each, and a lane type is added
 by extending seven places. This is the starting inventory, not the final extension contract. Step 0
@@ -166,9 +166,9 @@ the existing command adapter calls the use case. Sizes: each use case and privat
 
 **PR 0.4 adapters and command composition.** Moves process, filesystem, configuration parsing and
 validation, clock and transport into `crates/uu-adapters`; pns is an adapter-only dependency. Moves
-argument decoding and concrete construction into `crates/uu-cli`. Adapters consume domain, application
+argument decoding and concrete construction into `crates/uu`. Adapters consume domain, application
 ports and protocol; the command crate composes all four. Update every consumer and remove the root
-package once the real binary belongs to `uu-cli`, keeping `[[bin]] name = "uu"` and its installed
+package once the real binary belongs to `uu`, keeping `[[bin]] name = "uu"` and its installed
 path. Replace `config/shipped_template.rs`'s external `include_str!` in this row with package-owned
 config parser fixtures, so moving the module cannot break its relative include. Remove roster-equality
 assertions that test declarations alone. The outer repository renders and parses its actual template
@@ -203,7 +203,7 @@ Later rows retain the familiar source names to identify the existing behavior. R
 | record envelope and child exit-code encoding | `uu-protocol` |
 | run/bootstrap, record/alert and streak sequencing | `uu-application` |
 | config/schema, state codecs, command runner and lane technology | `uu-adapters` |
-| arguments, doctor presentation and concrete lane registration | `uu-cli` |
+| arguments, doctor presentation and concrete lane registration | `uu` |
 
 New lane parsing, spawning, storage and plugin interfaces follow the adapter owner; new pure decisions
 follow domain. A later row changes the owning crate and its consumers together. No row restores a
@@ -281,7 +281,7 @@ existing `send_alert` tests keep their names. Sizes: `delivery.rs` 178 becomes a
 ### Step B: the toolchain pin
 
 **PR B1 `channel = "stable"` in the four crate roots.** Adds `rust-toolchain.toml` with
-`[toolchain] channel = "stable"` at `dot_local/share/pns/`, `dot_local/share/uu/`,
+`[toolchain] channel = "stable"` at `pns/`, `uu/`,
 `dot_local/share/herdr/plugins/herdr-smart-nav/` and
 `dot_local/share/herdr/plugins/herdr-last-workspace/`, and a fifth at the repository root, because
 `just test-rust` runs cargo from there with
@@ -800,7 +800,7 @@ and marker contents. Do not add declaration meta-tests. Order: after E15 and its
 `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` and
 `test/unit/pns-weekly-engine-resolution.sh`; points the comment in
 `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl` at uu's `DEFAULT_RECORD_URL`; removes
-the two rows for it from `dot_local/share/pns/docs/specs/legacy-producer-flags.md` and its mention in
+the two rows for it from `pns/docs/specs/legacy-producer-flags.md` and its mention in
 `unpinned-behaviors.md`; rewrites rule 4 of "Where deployed scripts live" in `CLAUDE.md`, which uses
 this file as its example. Order: after E4 and E16.
 
@@ -854,7 +854,7 @@ Re-grep at cutover time; this is the list as of this commit.
   `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:46` (comments);
 - `dot_local/libexec/unattended-upgrades/agent-skills/executable_live-reconcile.sh:22,131,166` (its
   messages name the installer);
-- `dot_local/share/pns/docs/specs/legacy-producer-flags.md:120-128` (nine rows);
+- `pns/docs/specs/legacy-producer-flags.md:120-128` (nine rows);
 - `justfile:318-321`;
 - `test/fixtures/osquery-watchdog-lib.bash:172-174,346` (the fixture writes its own stub at that
   path; rename the stub to a neutral managed-script name);
@@ -865,14 +865,14 @@ Re-grep at cutover time; this is the list as of this commit.
 `.chezmoiscripts/run_onchange_after_69-load-report-plugin-updates-launchagent.sh.tmpl` (rewritten),
 `CLAUDE.md` (the table row and rule 4), `docs/runbooks/agent-skills-store.md` ("Plugin update
 record"), `docs/runbooks/claude-code-settings.md`,
-`dot_local/share/pns/docs/specs/legacy-producer-flags.md:119`,
+`pns/docs/specs/legacy-producer-flags.md:119`,
 `Library/LaunchAgents/com.webdavis.report-plugin-updates.plist.tmpl` (deleted),
 `test/unit/pns-weekly-engine-resolution.sh`.
 
 `log-entries.sh` (PR E17): `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl:21`,
 `CLAUDE.md` rule 4, `docs/runbooks/agent-skills-store.md`,
-`dot_local/share/pns/docs/specs/legacy-producer-flags.md:116-117`,
-`dot_local/share/pns/docs/specs/unpinned-behaviors.md`, `test/unit/pns-weekly-engine-resolution.sh`.
+`pns/docs/specs/legacy-producer-flags.md:116-117`,
+`pns/docs/specs/unpinned-behaviors.md`, `test/unit/pns-weekly-engine-resolution.sh`.
 
 `compress-and-truncate-local-logs.sh` (PR E19): `.chezmoiignore` (the Linux block),
 `.chezmoiscripts/run_onchange_after_67-load-rotate-logs-launchagent.sh.tmpl` (deleted),

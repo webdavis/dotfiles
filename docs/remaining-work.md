@@ -67,14 +67,24 @@ The other two were retired by merged pull requests and named in their bodies for
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
 
-- [ ] 11c. BLOCKED ON THE NEXT APPLY. Bootout `com.webdavis.update-skills`, then trash its plist and the
-  two scripts tasks 55 and 56 retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
+- [ ] 11c. AWAITING THE OPERATOR'S TRASH APPROVAL. The apply landed on 2026-09-09 and `uu doctor` now
+  reports the `skills` lane, so the blocker cleared; `com.webdavis.update-skills` has been booted out and
+  is gone from `launchctl list`. What is left is the removal itself, which is a destructive action the
+  operator confirms per invocation: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
   `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
   `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
-  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out. Checked 2026-09-09:
-  the deployed `uu` reports no `skills` lane, so the replacement is merged but not on disk. Doing this
-  before the apply would leave the machine with no weekly skills refresh at all. Verify with `uu doctor`
-  first; the lane must be listed before any of this runs.
+  delete the deployed copy, which is why these three survive. Take them together: two OTHER unmanaged
+  leftovers still source `log-entries.sh`, and task 11e covers them.
+
+- [ ] 11e. Two more retired unattended-upgrades leftovers, found while clearing 11c on 2026-09-09.
+  Neither is chezmoi-managed any more (`chezmoi managed` lists only
+  `assert-hermes-superpowers-routing.sh` and `live-reconcile.sh` under that tree), and uu's `brew` and
+  `claude-plugins` lanes replaced both, yet `com.webdavis.report-plugin-updates` is STILL LOADED and
+  firing on its schedule. `com.webdavis.homebrew-weekly-upgrade` has a plist on disk but is not loaded.
+  Bootout the first, then trash both plists and
+  `~/.local/libexec/unattended-upgrades/{homebrew-weekly-upgrade.sh,claude/report-plugin-updates.sh}`.
+  Doing this with 11c is what makes `log-entries.sh` safe to remove, since these two are its only
+  remaining consumers.
 
 - [x] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
   open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
@@ -112,7 +122,7 @@ products other people install, so nothing in a tool may assume this repository e
 
 Extraction into separate repositories is deferred to the tail; see task 68a.
 
-- [ ] 20. Convert to the monorepo layout, as ONE change because half-moved paths are the failure mode:
+- [x] 20. Convert to the monorepo layout, as ONE change because half-moved paths are the failure mode:
   move `dot_local/share/{pns,uu,posture,lights}` to `{pns,uu,posture,lights}` at the repository root;
   rename the CLI packages `pns-cli` to `pns`, `uu-cli` to `uu`, `posture-cli` to `posture`, so
   `cargo install --git https://github.com/webdavis/dotfiles pns` reads naturally; install the binaries to
@@ -124,9 +134,23 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
   `scripts/treefmt/rust-file-size.sh` and the tests that name the old paths. Verified by experiment on
   2026-09-08: `cargo install --git` finds a package in a nested workspace with NO root `Cargo.toml`, so
   no root workspace manifest is needed and none should be added.
+
+  Shipped as three commits on `refactor/monorepo-layout`. Four things the task did not anticipate:
+  `lights-cli` was renamed with the other three, because leaving one command crate on the old suffix
+  would have been the tree's only inconsistency. The declared value is `.chezmoidata/rust_tools.yaml`,
+  and the bashrc reads it as `"$HOME/{{ .rust_tools.install_dir }}/pns"` rather than an absolute render,
+  because a shell rc should expand `$HOME` at runtime. pns's two development binaries went behind
+  `required-features = ["dev-tools"]`, since `cargo install` installs every binary a package declares and
+  the rename would otherwise have put a bare `http-capture` in an installing user's `~/.cargo/bin`. And
+  posture's tracked-path allowlist matches `~/.cargo/bin/posture` EXACTLY rather than by prefix, because
+  that directory is shared with every other cargo-installed program on the machine. The aerospace keys
+  needed no change: they still call `control-hue-lights.sh`, which is task 62's job to retire.
+
 - [ ] 21. Apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a `launchctl list`
   showing both agents loaded, and one real long-running command raising its notification through the
-  shell hook.
+  shell hook. The old binaries under `~/.local/libexec/{pns,uu,posture}/` and `~/.local/libexec/lights`
+  are NOT removed by the apply and want trashing once this is confirmed; `~/.local/libexec/pns/hooks/`
+  stays, because the Codex hook installer still lives there.
 
 ## pns closure and the rescued lanes
 

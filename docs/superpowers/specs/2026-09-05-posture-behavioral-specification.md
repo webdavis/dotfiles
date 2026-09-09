@@ -70,7 +70,7 @@ behaviors are section 8.22. The heading above keeps its count for the pipeline p
 
 Source: the deployment map is `Library/LaunchAgents/com.webdavis.osquery-*.plist.tmpl` (seven
 files, `ProgramArguments` at lines 7 to 11 of each), `.chezmoiscripts/run_after_50-setup-osquery.sh:46`
-(the converge caller), `dot_local/share/uu/src/config/shipped_template.rs:101` (uu's
+(the converge caller), `uu/src/config/shipped_template.rs:101` (uu's
 `osquery_converge` default), `results-alerter/route.sh:115` (the enricher's path), and the eleven
 `source "$HOME/.local/libexec/osquery/..."` lines across seven files (`results-alerter.sh:34-46`,
 `firewall-gatekeeper-monitor.sh:52`, `tailscale-monitor.sh:38`, `uptime-watchdog.sh:61-76`,
@@ -155,7 +155,7 @@ Two callers outside the pipeline depend on one of those rows. `run_after_50-setu
 execs the converge and treats a missing tool as a loud stderr line with exit 0 (S368). uu's brew lane
 runs the converge after its upgrade pass and fails that step when the tool is not deployed
 (`dot_local/libexec/osquery/executable_osquery-converge.sh:14-18` states the two callers;
-`dot_local/share/uu/src/config/shipped_template.rs:101` carries the path).
+`uu/src/config/shipped_template.rs:101` carries the path).
 
 The library exit contracts in the lower half become Rust return types inside one binary, so they stop
 being process contracts. They are kept here because the plan's red-first tests pin them as typed
@@ -338,7 +338,7 @@ one target, then runs the manifest runner (S307).
 ### 3.8 The upgrade record
 
 `~/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv`, written by uu's brew lane
-(`dot_local/share/uu/src/lanes/brew/upgrade_record.rs:1-14`), read by
+(`uu/src/lanes/brew/upgrade_record.rs:1-14`), read by
 `file-integrity-triage.sh:92`. Line 1 is `<epoch>\t<iso-8601-utc>`; every later line is
 `<name>\t<added|removed|changed>\t<before>\t<after>` with the absent side empty (S110, S112). The
 literal path is duplicated by hand between producer and consumer, deliberately untested
@@ -492,19 +492,19 @@ thresholds have no direct test.
 
 pns is the operator's one notification engine (memory `pns-fully-rust-plugin-architecture`, ruling
 2026-08-10), and uu already reaches it two ways: alerts as a client of the binary
-(`dot_local/share/uu/src/alert.rs:1-15`) and records through the signed-POST seam
-(`dot_local/share/uu/src/delivery.rs:11`). The pns refactor plan lands a versioned producer protocol
+(`uu/src/alert.rs:1-15`) and records through the signed-POST seam
+(`uu/src/delivery.rs:11`). The pns refactor plan lands a versioned producer protocol
 over `pns submit --json` with a result envelope
 (`docs/superpowers/plans/2026-09-05-pns-refactor-plan.md`, PR 7.1 and PR 7.3), a write-ahead
 delivery ledger whose undelivered rows the daemon drains as leased
 jobs (PR 11.4), an idempotency key per event carried as an `Idempotency-Key` header, and a
 `pns-hermes` crate holding the signed-POST client uu depends on (section 8 of that plan). Today the
 `pns-protocol` crate is a doc comment ("Nothing has moved in yet",
-`dot_local/share/pns/crates/pns-protocol/src/lib.rs:15-17`), so none of that is a transport posture
+`pns/crates/pns-protocol/src/lib.rs:15-17`), so none of that is a transport posture
 can target yet.
 
 The two routes on the gateway differ in key and body. pns posts `{agent, state, project, detail}` to
-`/webhooks/pns` under `[plugins.hermes] key` (`dot_local/share/pns/src/channels/hermes.rs:18`,
+`/webhooks/pns` under `[plugins.hermes] key` (`pns/src/channels/hermes.rs:18`,
 `:48-57`); the pipeline posts section 3.4's body to `/webhooks/priority` under its own runtime key.
 Section 3.4 established that the priority route renders `alert.title` and `alert.detail` and reads
 nothing else, and that the `pns` route on the same gateway renders `agent · state · project` over
@@ -524,7 +524,7 @@ today (S144), so every producer's notify-before-persist rule (SI-4) keeps its ex
 the cursor, baseline or marker only when the engine answered that it holds the event.
 
 pns does not give that bit today, and the port must not pretend it does. On the event path the
-channels are dispatched first and the record written afterwards (`dot_local/share/pns/src/main.rs`,
+channels are dispatched first and the record written afterwards (`pns/src/main.rs`,
 `dispatch_legs` at 3101 and `record_decision` at 3122), and both the decision ring and the missed
 journal drop a write failure on purpose (`main.rs:814-822 record_decision`, `:839-858
 record_missed`, each `let _ = append_ring_line`). A successful exit therefore says the channels were

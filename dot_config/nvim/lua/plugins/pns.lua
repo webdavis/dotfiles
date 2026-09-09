@@ -4,7 +4,7 @@ return {
   -- Each producer loads this dependency before its first run.
   lazy = true,
   opts = {
-    binary = "~/.local/libexec/pns/pns",
+    binary = "~/.cargo/bin/pns",
     minimum_version = "0.1.0",
   },
 }

@@ -168,24 +168,24 @@ test-e2e: validate-tests
 # keeps it to the code this repository owns; a dependency's own doc warnings are
 # not ours to fix and would make the gate unfixable.
 test-rust:
-  cargo test --locked --workspace --manifest-path dot_local/share/lights/Cargo.toml
-  cargo fmt --all --check --manifest-path dot_local/share/lights/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/lights/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/lights/Cargo.toml
+  cargo test --locked --workspace --manifest-path lights/Cargo.toml
+  cargo fmt --all --check --manifest-path lights/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path lights/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path lights/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
-  cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
-  cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/pns/Cargo.toml
-  cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
-  cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/uu/Cargo.toml
-  cargo test --locked --workspace --manifest-path dot_local/share/posture/Cargo.toml
-  cargo fmt --all --check --manifest-path dot_local/share/posture/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/posture/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/posture/Cargo.toml
+  cargo test --locked --workspace --features dev-tools --manifest-path pns/Cargo.toml
+  cargo fmt --all --check --manifest-path pns/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
+  cargo test --locked --workspace --manifest-path uu/Cargo.toml
+  cargo fmt --all --check --manifest-path uu/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path uu/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path uu/Cargo.toml
+  cargo test --locked --workspace --manifest-path posture/Cargo.toml
+  cargo fmt --all --check --manifest-path posture/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path posture/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path posture/Cargo.toml
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
 # `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The
@@ -270,7 +270,7 @@ setup:
 # launchd runs), not the repo source copy. It takes uu's own run lock, so a run
 # that overlaps the scheduled one says so and exits rather than racing it.
 brew-upgrade:
-  ~/.local/libexec/uu/uu run brew
+  ~/.cargo/bin/uu run brew
 
 # Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
 # `brew shellenv`, now, instead of waiting for the next interactive shell to
@@ -325,12 +325,12 @@ defaults-dump:
 # Refresh skills through the weekly uu lane.
 # uu bootstrap skills installs or repairs additively without a weekly record.
 update-skills:
-  ~/.local/libexec/uu/uu run skills
+  ~/.cargo/bin/uu run skills
 
 # Regenerate the shipped pns config template from the committed values file.
 # `just test-unit` pins the result byte for byte, so a hand edit to the
 # template (or an honest edit to the values file) fails there; this recipe is
 # what makes it green again. Dev-only: `pns-config-render` is never installed.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":
-  cargo run --locked --quiet --manifest-path dot_local/share/pns/Cargo.toml --bin pns-config-render -- \
+  cargo run --locked --quiet --features dev-tools --manifest-path pns/Cargo.toml --bin pns-config-render -- \
     dot_config/pns/config-values.toml {{quote(output)}}

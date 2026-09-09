@@ -2,8 +2,8 @@
 
 Written 2026-09-05 against `origin/main` at `cac6ff3f`. It moves the behaviors inventoried in
 `docs/superpowers/specs/2026-09-05-pns-behavioral-specification.md` (285 statements, S001 to S285)
-out of the legacy package at `dot_local/share/pns` and into the workspace members under
-`dot_local/share/pns/crates/`, one reviewable pull request at a time. The method is the
+out of the legacy package at `pns` and into the workspace members under
+`pns/crates/`, one reviewable pull request at a time. The method is the
 `clean-code` skill's eighteen-step procedure and the `clean-code-rust` skill's spelling of it; the
 target shape is the one `dot_agents/skills/clean-code-rust/PNS-EXAMPLE.md` records. This plan does
 not restate either; it names, per step, what moves, which tests carry it, which consumer has to keep
@@ -16,13 +16,13 @@ the same day after review, with the two facts that changed under it: the presenc
 Steps 1 to 4 of the procedure are already on `main`:
 
 - Step 1, the baseline as a set of 1,257 test names with results:
-  `dot_local/share/pns/docs/test-baseline.tsv` and `.md`.
+  `pns/docs/test-baseline.tsv` and `.md`.
 - Step 2, seventeen area specifications, a glossary and the unpinned-behaviors register:
-  `dot_local/share/pns/docs/specs/`.
+  `pns/docs/specs/`.
 - Step 3, the classification of every test (permanent, adapter, mechanism, migration):
-  `dot_local/share/pns/docs/test-baseline.md`.
+  `pns/docs/test-baseline.md`.
 - Step 4, the workspace, five member crates with the dependency edges enforced by their manifests:
-  `dot_local/share/pns/Cargo.toml`, commit `f870d3de`.
+  `pns/Cargo.toml`, commit `f870d3de`.
 
 Eleven decision records (`docs/decisions/0001` to `0011`) hold the measured reasoning. Every member
 crate's `lib.rs` says "Nothing has moved in yet". The `pns` binary target and every module still live
@@ -54,10 +54,10 @@ the rows for PR 5.1 and PR 5.7. The ladder continues at PR 5.2.
   Fixed: `test-rust` already passes `--workspace`; the render recipe is a `cargo run --bin
   pns-config-render`. Proof: `just test-rust` on every PR, and
   `just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl`.
-- **uu**, `dot_local/share/uu/Cargo.toml:36` (`pns = { path = "../pns" }`) and three import sites,
+- **uu**, `uu/Cargo.toml:36` (`pns = { path = "../pns" }`) and three import sites,
   `src/delivery.rs:11` (`SignedPost`, `delivered`, `outcome_line`, `sign`), `src/delivery.rs:99`
   (`PostOutcome`, under `cfg(test)`) and `src/cli/run.rs:13` (`UreqSignedPost`). Fixed: that one
-  signed-POST seam. Proof: `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` on
+  signed-POST seam. Proof: `cargo test --locked --manifest-path uu/Cargo.toml` on
   every PR; the import path moves in PR 14.3 under the decision in section 8.
 - **The command-line surface**: `private_dot_claude/modify_settings.json:325-387`, the LaunchAgent,
   `dot_bashrc.tmpl:582-590`, the Codex installer, uu's `[alerts] binary`, and moshi's `pns pi-hook`.
@@ -600,7 +600,7 @@ Tests first: the byte-identity with today's JSON over the same event. Sizes: ~15
 id rides into the hermes body and an `Idempotency-Key` header (ruling 1), and the moshi body's `data`; a
 replay carries the ORIGINAL id (S243 gains that clause). Tests first: an end-to-end submit through the
 sandbox, the header on the wire through the capture server, the id surviving a replay. The argv
-differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus tests ~300. Order: after PR
+differential gains a `submit` row. Sizes: `pns/src/submit.rs` ~200 plus tests ~300. Order: after PR
 6.2.
 
 ### Step 8: the legacy command-line and hook adapters over the use cases
@@ -609,7 +609,7 @@ differential gains a `submit` row. Sizes: `pns-cli/src/submit.rs` ~200 plus test
 `event_mode`, `USAGE`, `PULSE_USAGE`, `LIGHTS_USAGE`, `LOOP_USAGE`, `QUIET_USAGE`, `DAEMON_USAGE`,
 `NAG_USAGE`, `Overrides::from_env`, `loop_command`, `quiet_command`, `parse_schedule`, `recap_bounds`,
 `pulse_mode`'s and `quiet_mode`'s argument arms into
-`pns-cli/src/legacy/{argv,usage,overrides,verbs}.rs`. `EventArgs` and `Record` already belong to the
+`pns/src/legacy/{argv,usage,overrides,verbs}.rs`. `EventArgs` and `Record` already belong to the
 domain through the combined step 6 delivery. This row moves argument parsing and usage adaptation
 while importing those existing values; it does not relocate them again.
 This row also decides and implements the separation of `help` and other command-only parse state
@@ -630,7 +630,7 @@ to `pns-adapters/src/harness/{payload,transcript,condenser}.rs`, and `hook_mode`
 `record_policy_settings_change`, `arm_quota_stale_wait`, `read_payload`, `payload_is_whole`,
 `payload_deadline`, `env_deadline`, `reread_*`, `pulse_threshold_secs`, `project_of` and the
 `REPLY_MAX_CHARS`, `TRANSCRIPT_TAIL_BYTES`, `*_REREAD_*`, `MAX_PAYLOAD_BYTES` constants
-(`src/main.rs:263-680`, `2075-2319`, `2608-2737`) into `pns-cli/src/hooks/{dispatch,turn,observation}.rs`
+(`src/main.rs:263-680`, `2075-2319`, `2608-2737`) into `pns/src/hooks/{dispatch,turn,observation}.rs`
 mapping each of the eleven words onto `SubmitNotification`, `RequestApproval` or `RunNag`'s clear.
 `condense`, `condenser_home`, `git_branch` become the adapters in PR 14.6. Unpinned first: S054 (empty
 stderr on a healthy hook, and the bare warning spelling), S065 (`plan-ready`), the `asking`/`blocked`
@@ -889,7 +889,7 @@ S147.
 type, so every destination here imports both through the curated `pns_domain` exports. `event_json` is a free function rather than a
 method for that reason and stays one. uu's `Cargo.toml:36` dependency and its three import sites
 (`src/delivery.rs:11`, `src/delivery.rs:99`, `src/cli/run.rs:13`) move to the crate section 8 names in
-the same PR, and `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` is run and recorded.
+the same PR, and `cargo test --locked --manifest-path uu/Cargo.toml` is run and recorded.
 Unpinned first: S144 (the exact `pns: posted HTTP 200` line as the weekly helper's contract, asserted
 through the capture server). Sizes: four files of 120 to 260 plus tests under 450. Statements: S126,
 S128, S131, S133 to S147.
@@ -918,15 +918,15 @@ to 220 plus tests under 300. Statements: S056 to S059, S076, S192, S201, S245, S
 
 ### Step 15: the executables reduced to command adaptation and composition
 
-**PR 15.1 the binary moves to `pns-cli`.** Moves `main` (`src/main.rs:48-161`) and every remaining
+**PR 15.1 the binary moves to `pns`.** Moves `main` (`src/main.rs:48-161`) and every remaining
 `*_mode` presentation (`home.rs`'s `report` and `setup_report`, `decision_log`'s `section`, `render`,
-`complaint`, `escaped`, the doctor's printing) into `pns-cli/src/{main,compose,present/*}.rs`; `[[bin]]
-name = "pns"` moves to `crates/pns-cli/Cargo.toml`; the root manifest becomes a virtual workspace with
-`default-members = ["crates/pns-cli"]` so `cargo build --release --locked --quiet --bin pns
---manifest-path dot_local/share/pns/Cargo.toml` still resolves;
+`complaint`, `escaped`, the doctor's printing) into `pns/src/{main,compose,present/*}.rs`; `[[bin]]
+name = "pns"` moves to `crates/pns/Cargo.toml`; the root manifest becomes a virtual workspace with
+`default-members = ["crates/pns"]` so `cargo build --release --locked --quiet --bin pns
+--manifest-path pns/Cargo.toml` still resolves;
 `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl:87` and
 `test/unit/pns-engine-build-install.sh` are updated and run in the same PR; `pns-config-render` and
-`http-capture` move to `pns-cli/src/bin/`. Tests: the argv differential is the whole proof, with its
+`http-capture` move to `pns/src/bin/`. Tests: the argv differential is the whole proof, with its
 control mutant; every integration suite runs against the new binary path. Sizes: `main.rs` under 120,
 `compose.rs` ~250 (the one place every adapter is constructed), presentation files under 200. Order:
 after every step above. Statements: S001 to S046 (the dispatch order is the contract).

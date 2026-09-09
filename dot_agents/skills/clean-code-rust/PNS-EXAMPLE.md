@@ -1,6 +1,6 @@
 # Worked example: the pns refactor
 
-Everything here is **specific to `pns`**, the notification engine at `dot_local/share/pns`. Read it
+Everything here is **specific to `pns`**, the notification engine at `pns`. Read it
 for what an answer to the general method looks like in practice. Do not apply any of it to another
 tool without deriving the same answer from that tool's own source.
 
@@ -12,27 +12,27 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
 ## The consumers outside the folder
 
 1. **The chezmoi builder**, `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`, runs
-   `cargo build --release --locked --quiet --bin pns --manifest-path dot_local/share/pns/Cargo.toml`
-   and installs `target/release/pns` into `~/.local/libexec/pns/pns`. Its cargo line and paths move
+   `cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml`
+   and installs `target/release/pns` into `~/.cargo/bin/pns`. Its cargo line and paths move
    to the workspace layout in the same pull request as the conversion, together with
-   `test/unit/pns-engine-build-install.sh`, which stubs that shape. Fixed: the crate deploys to
-   `~/.local/share/pns`, the binary installs at `~/.local/libexec/pns/pns`, and the build runs
-   `--locked`.
+   `test/unit/pns-engine-build-install.sh`, which stubs that shape. Fixed: the workspace lives at
+   `pns/` in the checkout and never deploys to `$HOME`, the binary installs at
+   `~/.cargo/bin/pns`, and the build runs `--locked`.
 2. **The justfile recipes** `test-rust` and `pns-config-render` pass
-   `--manifest-path dot_local/share/pns/Cargo.toml`. The workspace conversion has since landed:
+   `--manifest-path pns/Cargo.toml`. The workspace conversion has since landed:
    `crates/pns-{domain,application,protocol,adapters,cli}` exist as skeletons and `test-rust` already
    passes `--workspace` on its pns lines. `pns-config-render` is a `cargo run` and needs none. Read
    both recipes before assuming either shape.
-3. **`dot_local/share/uu`** depends on pns by path and imports
+3. **`uu`** depends on pns by path and imports
    `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
    the client in the crate where it belongs and update uu's `Cargo.toml` and imports in the same pull
-   request. Add `cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml` to the gates.
+   request. Add `cargo test --locked --manifest-path uu/Cargo.toml` to the gates.
 4. **The command-line surface** is a compatibility contract, and one caller is not ours to change:
    moshi's generated extensions hold one pathname in `helperBinary` and therefore call the bare
    spelling `pns pi-hook` rather than `pns gate pi-hook`. Enumerate the in-repo callers first:
 
-       grep -rn 'libexec/pns/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v dot_local/share/pns/
+       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
 
    They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
    LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's
@@ -52,7 +52,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
     crates/pns-application
     crates/pns-protocol
     crates/pns-adapters
-    crates/pns-cli
+    crates/pns
 
 The binary target stays `pns`.
 
@@ -178,8 +178,8 @@ client dialing hangs the suite rather than failing it.
     just test-rust
     just lint-check
     just ship
-    cargo test --locked --manifest-path dot_local/share/uu/Cargo.toml
-    cargo build --release --locked --quiet --bin pns --manifest-path dot_local/share/pns/Cargo.toml
+    cargo test --locked --manifest-path uu/Cargo.toml
+    cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml
     just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl
 
 `tests/support/mod.rs` enforces the speed guard: over `TEST_BUDGET_MS` (1,000) warns, over

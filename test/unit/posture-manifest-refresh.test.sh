@@ -2,6 +2,9 @@
 # The builder refreshes only its governing manifest. The legacy two-manifest
 # refresh can publish the first and then fail on the second.
 
+# shellcheck disable=SC2016  # Several redirects below rewrite a rendered script
+# so it expands $HOME at RUN time; the single quotes keeping $HOME literal are
+# the point, not an oversight.
 set_up_before_script() {
   local root
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -10,7 +13,19 @@ set_up_before_script() {
   HOME="$render_dir" CI=1 chezmoi --source "$root" execute-template --no-tty \
     <"$root/.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl" \
     >"$rendered_builder" 2>/dev/null
-  [[ -s $rendered_builder ]]
+  [[ -s $rendered_builder ]] || return 1
+  # The monorepo move bakes the real checkout's absolute path into crate_dir at
+  # render time. The builder reads its artifact from under that directory, so an
+  # unredirected run would look in the working tree instead of the sandbox the
+  # test staged. Point the rendered copy at a per-sandbox directory under HOME.
+  sed -i '' 's|^crate_dir=.*|crate_dir="$HOME/crate"|' "$rendered_builder"
+  grep -q '^crate_dir="\$HOME/crate"$' "$rendered_builder"
+  # install_dir is likewise baked absolute at render time, off the REAL home,
+  # so an unredirected run installs into the operator's own ~/.cargo/bin
+  # instead of the sandbox. Rewrite it to a runtime $HOME expansion, which
+  # is the shape it had before the install location moved.
+  sed -i '' 's|^install_dir=.*|install_dir="$HOME/.cargo/bin"|' "$rendered_builder"
+  grep -q '^install_dir="\$HOME/.cargo/bin"$' "$rendered_builder"
 }
 
 set_up() {
@@ -18,8 +33,8 @@ set_up() {
   stubbin="$sandbox/bin"
   sandbox_home="$sandbox/home with spaces"
   build_record="$sandbox_home/.local/state/posture-build-record"
-  binary="$sandbox_home/.local/libexec/posture/posture"
-  artifact="$sandbox_home/.local/share/posture/target/release/posture"
+  binary="$sandbox_home/.cargo/bin/posture"
+  artifact="$sandbox_home/crate/target/release/posture"
   mkdir -p "$stubbin" "$(dirname "$build_record")" "$(dirname "$binary")" "$(dirname "$artifact")"
   pipeline_manifest="$sandbox/pipeline"
   bin_manifest="$sandbox/managed-bin"
@@ -54,8 +69,8 @@ set -euo pipefail
 source_file="${@: -2:1}"
 destination="${@: -1}"
 [[ "$destination" == "$TEST_ROOT/pipeline" || "$destination" == "$TEST_ROOT/managed-bin" ]] || exit 98
-if [[ "$destination" == "$TEST_ROOT/pipeline" && -f "$HOME/.local/libexec/posture/posture" ]]; then
-  cp "$HOME/.local/libexec/posture/posture" "$TEST_ROOT/binary-at-publication"
+if [[ "$destination" == "$TEST_ROOT/pipeline" && -f "$HOME/.cargo/bin/posture" ]]; then
+  cp "$HOME/.cargo/bin/posture" "$TEST_ROOT/binary-at-publication"
 fi
 cp "$source_file" "$destination"
 STUB
@@ -259,11 +274,9 @@ function test_an_ordinary_digest_tuple_still_vouches_for_its_exact_content() {
 prepare_builder() {
   local root
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  mkdir -p "$sandbox/source/.chezmoiscripts" "$sandbox_home/.cargo/bin" \
-    "$sandbox_home/.local/share/pns/crates/pns-protocol"
+  mkdir -p "$sandbox/source/.chezmoiscripts" "$sandbox_home/.cargo/bin"
   cp "$root/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" "$sandbox/source/.chezmoiscripts/"
-  : >"$sandbox_home/.local/share/posture/Cargo.toml"
-  : >"$sandbox_home/.local/share/pns/crates/pns-protocol/Cargo.toml"
+  : >"$sandbox_home/crate/Cargo.toml"
   cat >"$sandbox_home/.cargo/bin/cargo" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
