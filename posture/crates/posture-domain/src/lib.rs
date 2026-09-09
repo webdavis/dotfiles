@@ -28,18 +28,24 @@ pub use converge_policy::{
 
 pub use finding::{Detector, EnrichmentPaths};
 
+mod cursor;
 mod digest;
 mod gate;
 mod page;
+mod records;
 mod sanitize;
 mod severity;
 
+pub use cursor::{
+    Advance, LiveLog, StoredCursor, advance, parse as parse_cursor, render as render_cursor,
+};
 pub use digest::{BULLETS_PER_GROUP, DigestEntry, GROUP_LIMIT, render_digest};
 pub use gate::{
     FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
     LaunchdIdentity, Signing, Triage, gate,
 };
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
+pub use records::{CompleteRecords, complete_records};
 pub use severity::{Action, ProtectionState, Severity, severity};
 
 mod allowlist;

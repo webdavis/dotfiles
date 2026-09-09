@@ -476,8 +476,15 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 ## posture foundation
 
 - [x] 37. posture 2.4: page, domain digest, protocol codec
-- [ ] 38. posture 2.9: `drift.rs` and `converge_policy.rs`
-- [ ] 39. posture 2.10: `cursor.rs` and `triage.rs`
+- [x] 38. posture 2.9: `drift.rs` and `converge_policy.rs`. ALREADY DONE when this was checked on
+  2026-09-09, shipped by the converge-foundation work in PR #470 rather than by a task of its own. Both
+  modules are implemented, exported and tested (20 drift cases, 9 converge-policy cases), and neither
+  carries a deferral note. Verified by running them rather than by reading the plan.
+- [x] 39. posture 2.10: `cursor.rs` and `triage.rs`. `cursor.rs` is new here. `triage.rs` is NOT a file:
+  `gate::Triage` already carries the exact three fields the bash `file_integrity_triage` emits
+  (`recorded`, `ondisk`, `upgrade`), and its three helpers read files and spawn `codesign`, so they are
+  adapter work in tasks 40 and 41 rather than domain policy. A second domain module would have been an
+  empty wrapper around a type that already exists.
 - [x] 40. posture 3.1 remainder: four adapters. Measured on 2026-09-09 by listing every `pub trait` in
   `posture-application` and asking which had no `impl` in `posture-adapters`, rather than by reading the
   plan. Sixteen of the seventeen ports already had one, shipped by earlier merged work. The seventeenth
@@ -502,9 +509,41 @@ The foundation is complete and nothing has cut over, so there is no runtime risk
 Every task in this section needs the pns-keyed gateway route to exist first. Adding it is an operator
 step, and it gates the whole section.
 
-- [ ] 43. posture 6.1: heartbeat cutover
+- [x] 43. posture 6.1: heartbeat cutover. The plist now runs `posture heartbeat` instead of
+  `bash heartbeat.sh`; the bash script and the integration test that pinned it are deleted.
+  `canary-freshness.sh` STAYS, because the watchdog still sources it and its own cutover is task 46. WHAT
+  THE OPERATOR STILL DOES, per the plan's step 6: apply, run `posture heartbeat` by hand once, watch for
+  the silent Discord line on the pns-keyed route and the silent desk banner, confirm the pns ledger
+  recorded it, and only then trash the deployed `~/.local/libexec/osquery/heartbeat.sh`. Deleting a
+  chezmoi source never deletes its target, which is why the deployed copy outlives this change.
 - [ ] 44. posture 6.2: digest cutover
-- [ ] 45. posture 6.3: alert cutover
+- [x] 45a. posture 6.3, first half: the alerter's read-to-checkpoint transaction. SPLIT FROM TASK 45 on
+  2026-09-09 because the port plan calls 6.3 "the largest cutover" and a single pull request for it would
+  be the huge diff the small-PR rule exists to prevent. This half is policy and ordering only, with no
+  adapter and no cutover, so the pipeline it replaces keeps running untouched while it lands.
+  `posture-domain/src/records.rs` splits a snapshot at its last newline, because osquery writes a row
+  before its newline and the trailing bytes are not a record yet. Retaining the torn line is the obvious
+  half; the expensive half is that COMPLETE JSON WITHOUT ITS NEWLINE IS ALSO TORN, since processing it
+  now and again once the newline lands pages one finding twice over two overlapping byte ranges. The
+  count is in BYTES, not characters, because the cursor is a byte offset and osquery rows carry paths.
+  `posture-application/src/judge_results.rs` owns the transaction: take the lock or no-op, read the log
+  once, ask the cursor where to start, replay and page loudly on a lost cursor, judge only complete
+  records, deliver, and checkpoint LAST. The judge itself is a port (`JudgeFindings`), because judging a
+  row reaches the allowlist file, the known-good manifest, the deployed state, the enricher's spawned
+  inspections and the digest spool, and keeping all of that behind one boundary is what lets the ordering
+  be tested against doubles that touch nothing. A digest row is delivered the moment the judge spools it,
+  so only a page has a delivery this run can fail. 21 tests green, clippy clean.
+- [ ] 45b. posture 6.3, second half: the adapters and the cutover. The results-log reader with its single
+  reading and bounded span, the cursor state file, the `lockf` single-instance lock, and the
+  `JudgeFindings` implementer that wires the domain's `gate`, `allowlist_verdict`, `integrity_verdict`
+  and `render_page` to the allowlist file, the manifest reader, the deployed-state reader and the digest
+  spool's append side. Then `posture alert`, the plist, and the deletions:
+  `executable_results-alerter.sh` and six private files under `results-alerter/`, keeping
+  `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still sources it and would otherwise
+  refuse BOTH manifest scans as unavailable (it retires in task 46); the four e2e and unit suites that
+  pinned them. The allowlist tuple for `com.webdavis.osquery-results-alerter` moves with the plist, the
+  same way task 44's did: the alerter matches a `persistence_launchd` finding against (label, path,
+  program), so repointing without it pages on the next launchd scan.
 - [ ] 46. posture 6.4: watchdog cutover
 - [ ] 47. posture 6.5: poll cutover
 - [ ] 48. posture 6.6: funnel cutover

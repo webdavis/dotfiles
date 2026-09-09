@@ -139,8 +139,15 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
     // published its stale window and lost the sibling's line. Its delay
     // variable exercised that file-lock interleaving; SQLite has no such
     // delay. Import the seed first, then start two owned hook processes
-    // before either receives input. Both must commit within one deadline,
-    // keeping both new lines and exactly the newest twenty entries.
+    // before either receives input, keeping both new lines and exactly the
+    // newest twenty entries.
+    //
+    // THE RACE IS THE SPAWN ORDER, NOT A CLOCK. Both children exist and are fed
+    // before either is waited on, which is what makes them contend. The waits
+    // below are therefore ceilings on a subject that never signals, and each
+    // child gets its OWN generous one: a single shared budget spent by the first
+    // child left the second almost none of it, and a loaded CI runner failed the
+    // test on scheduling rather than on the behavior it pins.
     const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
     let sandbox = Sandbox::new("config-change-policy-audit-two-racers");
     sandbox.write_config(&nag_config(300));
@@ -157,7 +164,6 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
             .expect("the initial audit import")
             .is_empty()
     );
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(650);
     let mut slow_command = with_state_dir(&sandbox);
     slow_command.args(["hook", "config-change"]);
     let mut slow =
@@ -179,8 +185,8 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
     }
     for child in [slow, fast] {
         let output = child
-            .output_within(deadline.saturating_duration_since(std::time::Instant::now()))
-            .expect("both audit writers finish within the shared deadline");
+            .output_within(std::time::Duration::from_secs(10))
+            .expect("both audit writers finish");
         assert!(output.status.success(), "{:?}", output);
     }
 
