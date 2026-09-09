@@ -265,7 +265,7 @@ or which one is the thing to act on. The operator's ruling on 2026-09-09: sectio
 color off, and the gum look rather than the plainer `hermes doctor` one, because output that reads well
 is what makes a tool feel finished.
 
-- [ ] 69. The house style module and the doctor's report. `pns/crates/pns/src/style.rs` is the only place
+- [x] 69. The house style module and the doctor's report. `pns/crates/pns/src/style.rs` is the only place
   in pns that emits an escape sequence: gum's palette (the pink this repository already picked for
   `.chezmoitemplates/cli-print-style-lib.sh.tmpl`), a rounded frame, a section heading and a set of
   marks. `pns-domain::doctor::report` carries the report's SHAPE with no opinion about presentation, so
