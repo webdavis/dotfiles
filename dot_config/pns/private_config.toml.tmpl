@@ -50,6 +50,17 @@ key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]
 enabled = true
+# What a click on a DELIVERY FAILURE banner opens: "herdr" splits a pane
+# in the running session, "window" opens a new terminal window, and
+# "command" runs `click_command` below. Left unset it is inferred: the
+# pane when herdr is on PATH, a window when it is not. A click on an
+# ordinary banner still focuses the pane its own event came from.
+# click_type = "herdr"
+# The command `click_type = "command"` runs, with `{id}` replaced by the
+# failure's id. A click runs in a bare launchd context with no PATH, so
+# every program here needs an absolute path, and the string is split on
+# whitespace rather than handed to a shell.
+# click_command = ""
 
 # The light pulse: the named rooms flash green when work finishes and red
 # when it dies. Needs the bridge's address, a key it issued, and the rooms

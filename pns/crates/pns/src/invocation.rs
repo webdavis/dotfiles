@@ -66,6 +66,12 @@ pub(crate) fn run() {
     if first == "doctor" {
         std::process::exit(doctor_mode());
     }
+    // What a click on a failure banner runs. A MODE for the reason the others
+    // are: it opens a view and delivers nothing. It is NEVER TYPED by the
+    // operator, so every path here ends in something they can see.
+    if first == "click" {
+        std::process::exit(click_mode());
+    }
     // The detail view over what is not arriving. A MODE beside the doctor's
     // for the same reason: it reads the ledger, prints, and delivers nothing,
     // so no event's plan reaches it. The doctor reports the count and names

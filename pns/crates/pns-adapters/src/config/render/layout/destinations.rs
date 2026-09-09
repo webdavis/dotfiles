@@ -64,11 +64,30 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
     name: "plugins.macos-banner",
     prose: "# The macOS banner, which is what a machine you are sitting at says.\n",
     opt_in: false,
-    keys: &[Key {
-        name: "enabled",
-        prose: "",
-        sample: Sample::Default("true"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "click_type",
+            prose: "# What a click on a DELIVERY FAILURE banner opens: \"herdr\" splits a pane\n\
+                         # in the running session, \"window\" opens a new terminal window, and\n\
+                         # \"command\" runs `click_command` below. Left unset it is inferred: the\n\
+                         # pane when herdr is on PATH, a window when it is not. A click on an\n\
+                         # ordinary banner still focuses the pane its own event came from.\n",
+            sample: Sample::Example("\"herdr\""),
+        },
+        Key {
+            name: "click_command",
+            prose: "# The command `click_type = \"command\"` runs, with `{id}` replaced by the\n\
+                         # failure's id. A click runs in a bare launchd context with no PATH, so\n\
+                         # every program here needs an absolute path, and the string is split on\n\
+                         # whitespace rather than handed to a shell.\n",
+            sample: Sample::Example("\"\""),
+        },
+    ],
 };
 pub(super) const PLUGINS_HUE: Table = Table {
     name: "plugins.hue",

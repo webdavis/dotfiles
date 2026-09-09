@@ -223,7 +223,14 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   `locks::tests::an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it` and
   `command::tests::lifecycle::inherited_publication_io_still_terminates_descendants_at_the_total_deadline`.
   Both are timing-shaped, in the same class as the hue TLS fixture repaired in PR #474.
-- [ ] 35. The banner click: `pns click`, and its three configured types
+- [x] 35. The banner click: `pns click`, and its three configured types
+- [ ] 35a. Raise the failure notification, which no task in this plan builds. The design gives the banner
+  and the phone card their own 256-character form and their own `fix` line, and
+  `pns_domain::failure::render::notification` renders both, but nothing calls it: a delivery failure is
+  still silent everywhere except `pns failures` and `pns doctor`. This is what stop point C's "loud"
+  claims, so it lands before 36. It also carries the last half of task 35 that had no producer to serve:
+  `click_command` returning the fixed `pns click <id>` for a failure event instead of the no-op `:`, and
+  whatever the event has to carry for the channel to know the id.
 - [ ] 36. The local page for moshi's browser preview
 
 ### STOP POINT C
