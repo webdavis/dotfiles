@@ -67,15 +67,21 @@ The other two were retired by merged pull requests and named in their bodies for
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
 
-- [ ] 11c. Bootout `com.webdavis.update-skills`, then trash its plist and the two scripts tasks 55 and 56
-  retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
+- [ ] 11c. BLOCKED ON THE NEXT APPLY. Bootout `com.webdavis.update-skills`, then trash its plist and the
+  two scripts tasks 55 and 56 retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
   `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
   `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
-  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out.
+  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out. Checked 2026-09-09:
+  the deployed `uu` reports no `skills` lane, so the replacement is merged but not on disk. Doing this
+  before the apply would leave the machine with no weekly skills refresh at all. Verify with `uu doctor`
+  first; the lane must be listed before any of this runs.
 
-- [ ] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
+- [x] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
   open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
-  open. Three were found on 2026-09-08, two of them nearly three days old.
+  open. Three were found on 2026-09-08, two of them nearly three days old, held by headless Neovim
+  processes an agent had leaked. Cleared, and every remaining lock was verified live by its pid. This
+  recurs whenever a headless Neovim is killed rather than quit, so it is worth re-checking, not a
+  permanent fix.
 
 - [x] 11b. Trash `~/.local/share/herdr/plugins/herdr-last-workspace` and its link. Folded into
   `herdr-workspace-jump` in PR #418. It was still registered in `~/.config/herdr/plugins.json` and still
@@ -98,15 +104,29 @@ The other two were retired by merged pull requests and named in their bodies for
 Everything above is additive. posture has not cut over, so the existing osquery pipeline keeps running
 untouched. This is the recommended place to stop and apply.
 
-## The Rust extraction program
+## The monorepo conversion
 
-The operator's standing constraint: nothing moves until a plan exists. Seven tools leave this repository
-for their own public repositories, and most of the chezmoi machinery that builds and deploys them gets
-deleted rather than rewritten.
+Operator ruling 2026-09-09, replacing the earlier extraction plan. The tools STAY in this repository for
+now, laid out like a monorepo so that lifting one out later is a move rather than a rewrite. They are
+products other people install, so nothing in a tool may assume this repository exists.
 
-- [ ] 20. Write the extraction plan: the seven repositories, what each one takes with it, what this
-  repository deletes, and the order.
-- [ ] 21. Get the plan approved before touching anything.
+Extraction into separate repositories is deferred to the tail; see task 68a.
+
+- [ ] 20. Convert to the monorepo layout, as ONE change because half-moved paths are the failure mode:
+  move `dot_local/share/{pns,uu,posture,lights}` to `{pns,uu,posture,lights}` at the repository root;
+  rename the CLI packages `pns-cli` to `pns`, `uu-cli` to `uu`, `posture-cli` to `posture`, so
+  `cargo install --git https://github.com/webdavis/dotfiles pns` reads naturally; install the binaries to
+  `~/.cargo/bin` and retire the `~/.local/libexec` rule for these four only, the bash scripts keep it.
+  Every caller reads ONE declared value rather than a literal path: the pns and uu LaunchAgents, the
+  Claude Code hook table in `modify_settings.json`, the Codex hook installer, `dot_bashrc.tmpl`, and the
+  herdr and aerospace keybindings. launchd is the exception that needs the absolute path, because it has
+  no PATH. Also update `.chezmoiignore`, the four builder scripts, the justfile, `treefmt.toml`,
+  `scripts/treefmt/rust-file-size.sh` and the tests that name the old paths. Verified by experiment on
+  2026-09-08: `cargo install --git` finds a package in a nested workspace with NO root `Cargo.toml`, so
+  no root workspace manifest is needed and none should be added.
+- [ ] 21. Apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a `launchctl list`
+  showing both agents loaded, and one real long-running command raising its notification through the
+  shell hook.
 
 ## pns closure and the rescued lanes
 
@@ -208,6 +228,9 @@ posture is done and osquery is retired.
 - [ ] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`
 - [ ] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`, approved and
   scheduled after posture
+- [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
+  has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
+  exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
 
 ## Repository hygiene
 
@@ -230,6 +253,7 @@ Each of these gates work that cannot start without it.
 - [ ] The lamp drills, gates task 64
 - [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
+- [ ] Run `chezmoi apply` to deploy the uu skills lane, which gates task 11c
 - [ ] Restart Claude Code so the old `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` leaves the process environment
 
 ## Deferred, not scheduled
