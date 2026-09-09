@@ -18,8 +18,9 @@ mod skills;
 mod spawn;
 mod text;
 mod uv;
+pub use skills::capture_skills_updater;
 pub use skills::{
-    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsGenerationStore,
+    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsForkWatch, SkillsGenerationStore,
     SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
 };
 

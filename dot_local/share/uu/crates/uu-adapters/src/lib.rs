@@ -60,3 +60,7 @@ pub use lanes::{
     SkillsBuildMode, SkillsCandidate, SkillsGenerationStore, SkillsPublication, SkillsRecovery,
     exchange_skills_directories,
 };
+
+pub use lanes::SkillsForkWatch;
+
+pub use lanes::capture_skills_updater;

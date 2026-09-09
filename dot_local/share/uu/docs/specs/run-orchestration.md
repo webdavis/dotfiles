@@ -224,8 +224,8 @@ for these retained limits.
 ## Skills roster
 
 - **Given** skills settings, **when** parsing the callable component, **then** require every path to be
-  absolute and name invalid or unknown fields. The skills type remains unavailable to run and bootstrap
-  until its complete cutover; the shipped block stays commented.
+  absolute and name invalid or unknown fields. Register the skills type for both weekly runs and additive
+  bootstrap, using the declared lane name and the already parsed settings.
 - **Given** the custom roster, **when** capturing it, **then** require one version 2 document with typed
   tables and a nonempty npx/clawhub union. Refuse conflicting Hermes registry/profile ownership and
   refuse publication if the original roster bytes changed.
@@ -265,7 +265,8 @@ for these retained limits.
 - **Given** a candidate, **when** validating, **then** require every tracked directory and SKILL.md,
   ClawHub origin metadata, one npx lock document and correct overlays. Full lock keys must equal the npx
   roster; additive candidates may retain delisted keys. Refuse the whole candidate on any failure and
-  retain its renamed HOME for diagnosis, leaving the current generation alone.
+  rename its HOME as invalid, leaving the current generation alone. The weekly and bootstrap compositions
+  then discard their owned failed workspace.
 
 ## Skills publication
 
@@ -290,3 +291,52 @@ for these retained limits.
 - **Given** mapped and existing Hermes profiles, **when** full convergence runs, **then** repair
   incorrect owned links and remove stale owned links, including in demapped profiles. Additive
   convergence preserves existing entries. Both modes preserve foreign links and real entries.
+
+## Skills follow-up phases
+
+- **Given** Hermes registry entries, **when** refreshing profiles, **then** update every entry by its
+  lock key in each declared profile, skip held entries visibly, and continue after failures. Output
+  containing `blocked` or `refused`, ignoring case, counts as failure even at exit zero.
+- **Given** a fork watch, **when** comparing upstream trees, **then** preserve all ten advisory states:
+  drift, missing path, broken lock, missing lock, absent table, unreachable upstream, headless clone,
+  unstageable clone, clone timeout and incomplete walk. Name old and new hashes for drift. Use an owned
+  clone, clear inherited Git configuration and bound each clone to five minutes within the lane budget.
+  Remove the owned clone after either outcome. These states remain pending and do not count as failure.
+- **Given** an app-owned pack link, **when** refreshing it, **then** count a failed refresh and preserve
+  its output. Check routing first, leave clean routing alone and count a failed repair with its output.
+
+## Weekly skills composition
+
+- **Given** a weekly skills execution, **when** building a candidate, **then** recover first, migrate a
+  flat store when needed and recover again. Capture before fingerprints, build or reuse a full candidate,
+  validate and publish it, and prune outgoing ownership before fan-out. A failed recovery withholds
+  another build and retains its journal. A failed build leaves the current generation alone.
+- **Given** a failed candidate phase, **when** continuing the weekly run, **then** still attempt the app
+  pack, full fan-out, live overlays, routing, Hermes registry and fork watch. Compare after fingerprints
+  with the captured before values; an unreadable fingerprint says `NOT COMPARED`. All required failures
+  remain in the report. Live managed overlays are read from the generation without writing through store
+  links; owned vendored directories may have their policy reasserted.
+- **Given** the inactive skills component, **when** later composing its cutover, **then** capture the
+  updater digest at process startup before earlier lanes can run. Sessions reuse that immutable digest.
+  This component does not register or enable weekly execution or bootstrap.
+
+## Additive skills bootstrap
+
+- **Given** a roster skill, **when** bootstrapping, **then** repair absent content, wrong generation
+  links, missing `SKILL.md` or missing npx lock entries by reinstalling only that skill. Overlay-only
+  drift rebuilds without installing; remove an obsolete owned policy from core skills as well as adding
+  missing on-demand policy. A healthy store skips publication, then still performs additive fan-out, live
+  overlay checks and routing.
+- **Given** an additive publication, **when** cloning and delivering it, **then** retain delisted
+  generation names, npx keys, store entries and existing delivery links. Fill missing Hermes destinations
+  under the same parent and child guards, both with and without publication. Do not migrate a flat store
+  or refresh a healthy skill. Required phase failures remain failures.
+
+## Skills activation
+
+- **Given** a configured skills lane, **when** parsing its registration, **then** capture the updater
+  digest before any lane can replace the running executable's path. Skills recovery uses that captured
+  identity throughout the invocation.
+- **Given** a present ClawHub skill, **when** performing a full refresh, **then** remove only its
+  candidate `.DS_Store` metadata before the package command. Additive bootstrap preserves a healthy skill
+  without invoking the package command or removing its metadata.
