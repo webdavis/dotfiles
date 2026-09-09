@@ -35,10 +35,7 @@ pub fn complete_records(snapshot: &str) -> CompleteRecords<'_> {
     match snapshot.rfind('\n') {
         // A SNAPSHOT WITH NO NEWLINE IS ALL TORN, however much of it there is,
         // so the cursor does not move and the whole thing is read again.
-        None => CompleteRecords {
-            text: "",
-            bytes: 0,
-        },
+        None => CompleteRecords { text: "", bytes: 0 },
         Some(last) => {
             let end = last + 1;
             CompleteRecords {

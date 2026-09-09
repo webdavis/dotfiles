@@ -108,12 +108,7 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
     }
 
     /// Send the batch's page, if it has one, then checkpoint if that held.
-    fn deliver(
-        &mut self,
-        batch: JudgedBatch,
-        from: u64,
-        checkpoint: StoredCursor,
-    ) -> JudgeOutcome {
+    fn deliver(&mut self, batch: JudgedBatch, from: u64, checkpoint: StoredCursor) -> JudgeOutcome {
         let Some(page) = batch.page else {
             // NO PAGE IS NOT NO WORK. The rows were spooled to the digest or
             // dropped as log-only, both of which the judge has already done, so
@@ -125,7 +120,10 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
             // THE BYTE RANGE IS THE IDENTITY. A retry of this same batch reads
             // the same rows and derives the same id, so the store and the
             // gateway both recognize it rather than delivering it twice.
-            occurrence_id: Some(format!("{}:{}:{}", checkpoint.inode, from, checkpoint.offset)),
+            occurrence_id: Some(format!(
+                "{}:{}:{}",
+                checkpoint.inode, from, checkpoint.offset
+            )),
             event: "alert",
             signal: AlertSignal::NeedsAttention,
             occurred_at: self.occurred_at,

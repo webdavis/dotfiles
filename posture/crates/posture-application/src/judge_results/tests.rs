@@ -142,7 +142,13 @@ const TWO_ROWS: &str = "{\"a\":1}\n{\"b\":2}\n";
 fn a_run_that_cannot_take_the_lock_reads_nothing_and_writes_nothing() {
     // A WatchPaths burst fires several invocations. Two runs would judge the
     // same rows, page twice and race each other's checkpoint.
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     case.lock = Lock(false);
     assert_eq!(case.run(), JudgeOutcome::Contended);
     assert!(case.judged().is_empty());
@@ -152,7 +158,13 @@ fn a_run_that_cannot_take_the_lock_reads_nothing_and_writes_nothing() {
 
 #[test]
 fn a_log_that_has_not_grown_is_not_read_and_the_cursor_is_not_rewritten() {
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 16 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 16,
+        }),
+    );
     assert_eq!(case.run(), JudgeOutcome::Quiet);
     assert!(case.judged().is_empty());
     assert!(case.written().is_empty());
@@ -170,7 +182,13 @@ fn an_absent_log_is_quiet_rather_than_an_error() {
 fn new_rows_are_read_from_the_cursor_and_bounded_by_the_size_already_taken() {
     // ONE READING, TAKEN ONCE. Reading past the size this run measured would
     // consume a row appended mid-run, which the next run would then never see.
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 8 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 8,
+        }),
+    );
     case.run();
     assert_eq!(*case.log.spans.borrow(), [(8, 8)]);
     assert_eq!(case.judged(), ["{\"b\":2}\n"]);
@@ -178,25 +196,55 @@ fn new_rows_are_read_from_the_cursor_and_bounded_by_the_size_already_taken() {
 
 #[test]
 fn a_delivered_batch_advances_the_cursor_exactly_to_the_last_complete_record() {
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     case.judge.page = page();
     assert_eq!(case.run(), JudgeOutcome::Advanced { paged: true });
-    assert_eq!(case.written(), [StoredCursor { inode: 7, offset: 16 }]);
+    assert_eq!(
+        case.written(),
+        [StoredCursor {
+            inode: 7,
+            offset: 16
+        }]
+    );
 }
 
 #[test]
 fn a_torn_trailing_line_is_neither_judged_nor_checkpointed_past() {
     // osquery writes the row before its newline. Advancing over the torn line
     // would lose that finding outright.
-    let mut case = Case::new("{\"a\":1}\n{\"b\":", Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        "{\"a\":1}\n{\"b\":",
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     assert_eq!(case.run(), JudgeOutcome::Advanced { paged: false });
     assert_eq!(case.judged(), ["{\"a\":1}\n"]);
-    assert_eq!(case.written(), [StoredCursor { inode: 7, offset: 8 }]);
+    assert_eq!(
+        case.written(),
+        [StoredCursor {
+            inode: 7,
+            offset: 8
+        }]
+    );
 }
 
 #[test]
 fn a_snapshot_that_is_only_a_torn_line_advances_nothing_at_all() {
-    let mut case = Case::new("{\"a\":", Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        "{\"a\":",
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     assert_eq!(case.run(), JudgeOutcome::Quiet);
     assert!(case.judged().is_empty());
     assert!(case.written().is_empty());
@@ -207,17 +255,35 @@ fn a_batch_with_no_page_still_advances_because_its_rows_were_already_handled() {
     // A digest row is delivered the moment the judge spools it, and a log-only
     // row is deliberately dropped. Holding the cursor for them would replay the
     // whole batch forever.
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     assert_eq!(case.run(), JudgeOutcome::Advanced { paged: false });
     assert!(case.sink.sent.is_empty());
-    assert_eq!(case.written(), [StoredCursor { inode: 7, offset: 16 }]);
+    assert_eq!(
+        case.written(),
+        [StoredCursor {
+            inode: 7,
+            offset: 16
+        }]
+    );
 }
 
 #[test]
 fn a_page_that_could_be_neither_delivered_nor_stored_leaves_the_cursor_put() {
     // AT-LEAST-ONCE. Nothing was stored, so re-judging these rows cannot
     // double-deliver, and the alternative loses the finding silently.
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 0 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 0,
+        }),
+    );
     case.judge.page = page();
     case.sink.refuse = true;
     assert_eq!(case.run(), JudgeOutcome::Retained);
@@ -226,7 +292,13 @@ fn a_page_that_could_be_neither_delivered_nor_stored_leaves_the_cursor_put() {
 
 #[test]
 fn a_pages_occurrence_id_is_the_byte_range_it_covers_so_a_retry_matches() {
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 7, offset: 8 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 7,
+            offset: 8,
+        }),
+    );
     case.judge.page = page();
     case.run();
     assert_eq!(case.sink.sent[0].occurrence_id.as_deref(), Some("7:8:16"));
@@ -237,10 +309,22 @@ fn a_pages_occurrence_id_is_the_byte_range_it_covers_so_a_retry_matches() {
 
 #[test]
 fn a_rotated_log_is_read_from_the_top_rather_than_the_old_offset() {
-    let mut case = Case::new(TWO_ROWS, Some(StoredCursor { inode: 6, offset: 8 }));
+    let mut case = Case::new(
+        TWO_ROWS,
+        Some(StoredCursor {
+            inode: 6,
+            offset: 8,
+        }),
+    );
     case.run();
     assert_eq!(*case.log.spans.borrow(), [(0, 16)]);
-    assert_eq!(case.written(), [StoredCursor { inode: 7, offset: 16 }]);
+    assert_eq!(
+        case.written(),
+        [StoredCursor {
+            inode: 7,
+            offset: 16
+        }]
+    );
 }
 
 #[test]

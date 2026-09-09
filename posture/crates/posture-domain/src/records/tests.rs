@@ -10,7 +10,10 @@ fn split(snapshot: &str) -> (&str, u64) {
 
 #[test]
 fn a_snapshot_of_whole_rows_is_taken_entirely() {
-    assert_eq!(split("{\"a\":1}\n{\"b\":2}\n"), ("{\"a\":1}\n{\"b\":2}\n", 16));
+    assert_eq!(
+        split("{\"a\":1}\n{\"b\":2}\n"),
+        ("{\"a\":1}\n{\"b\":2}\n", 16)
+    );
 }
 
 #[test]
