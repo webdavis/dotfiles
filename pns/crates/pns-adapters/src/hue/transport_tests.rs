@@ -5,13 +5,34 @@ use std::time::{Duration, Instant};
 mod server;
 use server::{Reply, Server};
 
+/// The deadline every test that is NOT about the deadline hands the bridge.
+///
+/// Long enough that it never expires, because those tests assert what came back
+/// over the wire, not how fast. They used to share the deadline test's 150 ms,
+/// which is a TLS handshake's budget on an idle machine and not on one running
+/// 700 other tests: the handshake would lose, the bridge would report nothing,
+/// and the assertion would read as a transport bug.
+const PATIENT: Duration = Duration::from_secs(10);
+
+/// The deadline the one deadline test hands the bridge, and the thing that test
+/// measures. It has to cover a TLS handshake with room to spare, because a
+/// caller that gives up mid-handshake never delivers the request the fixture is
+/// asserted to have received; 150 ms did not cover one on a loaded machine.
+const IMPATIENT: Duration = Duration::from_millis(400);
+
+/// The ceiling on that measurement. A bridge that honours its deadline returns
+/// at `IMPATIENT`; one that ignores it holds the connection until the fixture
+/// runs out of patience, which is ten seconds away, so anything in between
+/// separates the two even when the machine is busy.
+const IMPATIENT_CEILING: Duration = Duration::from_secs(3);
+
 #[test]
 fn the_bridge_reads_through_its_self_signed_certificate_and_sends_the_key() {
     let server = Server::start(Reply::Body);
     let bridge = UreqBridge {
         base: server.url(),
         key: "private-fixture-key".to_string(),
-        deadline: Duration::from_millis(150),
+        deadline: PATIENT,
     };
 
     let response = bridge.get("room");
@@ -33,7 +54,7 @@ fn the_bridge_puts_the_exact_body_through_its_self_signed_certificate() {
     let bridge = UreqBridge {
         base: server.url(),
         key: "private-fixture-key".to_string(),
-        deadline: Duration::from_millis(150),
+        deadline: PATIENT,
     };
 
     bridge.put("light/fixture", "{\"on\":{\"on\":false}}");
@@ -61,7 +82,7 @@ fn a_bridge_redirect_body_is_returned_without_following_the_location() {
     let bridge = UreqBridge {
         base: redirect.url(),
         key: "private-fixture-key".to_string(),
-        deadline: Duration::from_millis(150),
+        deadline: PATIENT,
     };
 
     let response = bridge.get("room");
@@ -81,7 +102,7 @@ fn a_bridge_that_does_not_answer_spends_only_the_callers_deadline() {
     let bridge = UreqBridge {
         base: server.url(),
         key: "private-fixture-key".to_string(),
-        deadline: Duration::from_millis(150),
+        deadline: IMPATIENT,
     };
     let started = Instant::now();
     assert!(bridge.get("room").is_none());
@@ -91,11 +112,11 @@ fn a_bridge_that_does_not_answer_spends_only_the_callers_deadline() {
         "the request reached the silent bridge"
     );
     assert!(
-        elapsed >= Duration::from_millis(125),
+        elapsed >= IMPATIENT - Duration::from_millis(25),
         "returned before the deadline: {elapsed:?}"
     );
     assert!(
-        elapsed < Duration::from_millis(275),
+        elapsed < IMPATIENT_CEILING,
         "ignored the deadline: {elapsed:?}"
     );
 }

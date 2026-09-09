@@ -1,7 +1,7 @@
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -34,8 +34,19 @@ impl Server {
     }
 }
 
+/// How long the fixture waits for a connection, and how long it spends on any
+/// one socket read or write.
+///
+/// GENEROUS ON PURPOSE, and it costs nothing on the happy path: the accept loop
+/// breaks the moment a connection arrives, so this bounds only the case where
+/// the client never comes. It used to be 250 ms, which is a budget for the
+/// client's TLS handshake rather than for a hung fixture, and 700 other tests
+/// share this machine. When the handshake lost that race the fixture reported
+/// "no request arrived" and the test blamed the bridge.
+const FIXTURE_PATIENCE: Duration = Duration::from_secs(10);
+
 fn serve(listener: TcpListener, reply: Reply) -> Result<String, String> {
-    let deadline = Instant::now() + Duration::from_millis(250);
+    let deadline = Instant::now() + FIXTURE_PATIENCE;
     let stream = loop {
         match listener.accept() {
             Ok((stream, _)) => break stream,
@@ -49,12 +60,8 @@ fn serve(listener: TcpListener, reply: Reply) -> Result<String, String> {
         }
     };
     stream.set_nonblocking(false).unwrap();
-    stream
-        .set_read_timeout(Some(Duration::from_millis(250)))
-        .unwrap();
-    stream
-        .set_write_timeout(Some(Duration::from_millis(250)))
-        .unwrap();
+    stream.set_read_timeout(Some(FIXTURE_PATIENCE)).unwrap();
+    stream.set_write_timeout(Some(FIXTURE_PATIENCE)).unwrap();
     let config = rustls::ServerConfig::builder_with_provider(Arc::new(
         rustls::crypto::ring::default_provider(),
     ))
@@ -77,9 +84,17 @@ fn serve(listener: TcpListener, reply: Reply) -> Result<String, String> {
         Reply::Redirect(location) => format!(
             "HTTP/1.1 302 Found\r\nLocation: {location}/stolen\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         ),
+        // Never answer, and hold the connection until the CLIENT lets go. This
+        // used to sleep a fixed 400 ms, which every run of the deadline test
+        // paid in full because finishing the fixture joins this thread, and
+        // which put a hard ceiling on how much headroom that test's deadline
+        // could be given. Waiting for the peer instead ends the moment the
+        // caller's own deadline fires, so the test costs its deadline and not a
+        // constant, and a bridge that never gives up is bounded by
+        // `FIXTURE_PATIENCE` rather than answered early.
         Reply::Wait => {
-            let (_keep_alive, release) = mpsc::channel::<()>();
-            let _ = release.recv_timeout(Duration::from_millis(400));
+            let mut ignored = [0; 1];
+            let _ = tls.read(&mut ignored);
             return Ok(request);
         }
     };
