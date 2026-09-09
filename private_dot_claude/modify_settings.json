@@ -119,7 +119,14 @@
 {{- $merged = setValueAtPath "env.DISABLE_TELEMETRY" "1" $merged -}}
 {{- $merged = setValueAtPath "env.DISABLE_ERROR_REPORTING" "1" $merged -}}
 {{- $merged = setValueAtPath "env.DISABLE_NON_ESSENTIAL_MODEL_CALLS" "1" $merged -}}
-{{- $merged = setValueAtPath "env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE" "75" $merged -}}
+{{- /* Auto-compact window in tokens. This is the SUPPORTED knob (it and the
+      `autoCompactWindow` setting are the two Claude Code documents; the env
+      var wins). It replaced CLAUDE_AUTOCOMPACT_PCT_OVERRIDE on 2026-09-08,
+      which is an internal test override and did not fire at its threshold.
+      Accepted range is 100k to 1M; the effective threshold is the lower of
+      this value and the model's own context window. 600000 is 60 percent of
+      the 1M window (operator, 2026-09-08). */ -}}
+{{- $merged = setValueAtPath "env.CLAUDE_CODE_AUTO_COMPACT_WINDOW" "600000" $merged -}}
 {{- /* Empty attribution strings turn off the Claude co-author/footer natively,
       which is what the global no-AI-trailer rule has enforced by hand. */ -}}
 {{- $merged = setValueAtPath "attribution.commit" "" $merged -}}
