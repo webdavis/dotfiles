@@ -44,7 +44,7 @@ fn subject() -> Heartbeat<Fixture, Fixture, Fixture> {
         clock: fixture(),
         snapshots: fixture(),
         sink: fixture(),
-        maximum_age: 1800,
+        maximum_age: HeartbeatWindow::from_override(None),
     }
 }
 #[test]

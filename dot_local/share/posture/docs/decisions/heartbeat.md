@@ -47,3 +47,28 @@ before returning. Banner composition supplies a separate bounded runner so an ex
 cannot suppress the independent attempt. The existing heartbeat script, LaunchAgent, cutover-gate
 invocation and watchdog helper remain in service until the separate caller and deployment cutover. This
 adapter work does not install a route or retire the Bash queue.
+
+The heartbeat command supplies the proposed fixed route name `posture` through the producer's existing
+validated route argument. It does not add a protocol dependency to the command crate. This name requires
+an operator-created, pns-keyed Hermes binding under specification section 5.5(5); no encrypted
+configuration or live route was inspected or changed. The prepared plist changes only its two program
+arguments, to `~/.local/libexec/posture/posture heartbeat`, and remains held for that prerequisite. The
+existing Bash script and tests are retained, and `canary-freshness.sh` still serves the watchdog.
+
+The five-second submission limit comes from the Bash remote delivery bound. The independent banner uses
+the existing ten-second posture command bound, through a separate runner. This preserves its opportunity
+to report an engine timeout. The command ignores extra operands and every submission outcome returns
+zero; an absent `HOME` is a setup refusal before submission.
+
+`HeartbeatWindow` separates validated seconds from their original display text. Captures exposed Bash's
+octal interpretation and its signed arithmetic overflow. Valid literals retain their spelling, including
+`020` for sixteen seconds. Invalid octal and values above `u64::MAX` use the existing 1800-second default
+with one fixed diagnostic. Valid unsigned values above `i64::MAX` retain their actual bound. The command
+does not reproduce negative skew or age caused by Bash overflow, because S200 and S203 require validated
+arithmetic and positive unhealthy distances. The acceptance record identifies those changed outputs.
+
+Section 3.11 retires the Bash path environment seams. Heartbeat constructs snapshot and engine paths from
+`HOME` once and accepts alternate paths only through the test configuration value. The legacy override
+captures remain evidence of this deliberate change, not a compatibility exception. The scalar
+`OSQUERY_CANARY_MAX_AGE` setting remains because S200 explicitly names it. A conflicting legacy snapshot
+override is supplied in the real command fixture and must not change the selected canary.
