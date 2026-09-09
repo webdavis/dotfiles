@@ -68,9 +68,16 @@ pub(super) fn next(
     drop(rows);
     drop(query);
     for (leg, reason) in &exhausted {
+        // This sweep reads the two COUNTER limits, so it can only ever produce
+        // Attempts or Age. Permanent is decided at the moment of the failure by
+        // `RetryLimits::verdict`, and the write path for it arrives with the
+        // schema change that widens `deadletter_reason`'s CHECK constraint to
+        // admit the spelling. Until then this arm is unreachable, and writing
+        // it would be refused by the constraint rather than stored wrongly.
         let reason = match reason {
             pns_domain::retry::DeadletterReason::Attempts => "attempts",
             pns_domain::retry::DeadletterReason::Age => "age",
+            pns_domain::retry::DeadletterReason::Permanent => "permanent",
         };
         transaction.execute(
             "UPDATE ledger_legs SET deadlettered_at = ?1, deadletter_reason = ?2,

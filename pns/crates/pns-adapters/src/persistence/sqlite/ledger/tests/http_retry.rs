@@ -274,10 +274,7 @@ fn a_stale_terminal_result_cannot_replace_the_successor_or_erase_an_interrupted_
             &current.claim,
             &pns_domain::Delivery::Failed("retry two".into()),
             15,
-            pns_domain::retry::RetryBackoff {
-                base_secs: 7,
-                random_secs: 0,
-            },
+            pns_domain::retry::RetryBackoff { base_secs: 7 },
         )
         .unwrap();
     assert!(

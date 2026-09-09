@@ -26,12 +26,7 @@ pub(super) const DELIVERY: Table = Table {
         },
         Key {
             name: "retry_base_secs",
-            prose: "# Queued retries wait this many seconds times their retry count.\n",
-            sample: Sample::Default("60"),
-        },
-        Key {
-            name: "retry_random_secs",
-            prose: "# Add one bounded random delay per failed retry. Zero disables it.\n# When omitted, it follows retry_base_secs.\n",
+            prose: "# Queued retries wait this many seconds times their retry count. The wait is\n# exact: there is no random spread, because one local daemon draining one queue\n# has no herd to spread.\n",
             sample: Sample::Default("60"),
         },
     ],

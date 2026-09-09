@@ -63,7 +63,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "max_attempts",
             "max_age_secs",
             "retry_base_secs",
-            "retry_random_secs",
         ],
     ),
     ("daemon", &["enabled"]),

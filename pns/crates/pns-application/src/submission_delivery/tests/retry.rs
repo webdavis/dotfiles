@@ -160,10 +160,7 @@ fn an_owned_retry_forwards_its_typed_rejection_and_configured_backoff_to_the_led
         decisions: &store,
         destinations: &registry,
     };
-    let backoff = pns_domain::retry::RetryBackoff {
-        base_secs: 7,
-        random_secs: 3,
-    };
+    let backoff = pns_domain::retry::RetryBackoff { base_secs: 7 };
     workflow.attempt_retry(
         RetryDelivery {
             claim: 903,
