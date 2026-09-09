@@ -24,7 +24,7 @@ pub const CARRIAGE_RETURN: u8 = b'\r';
 /// The newline is in the set because the resolver's own splitter carries it,
 /// not because a line can hold one: the caller has already split on newlines by
 /// the time anything here runs.
-const SEPARATORS: [u8; 3] = [b' ', b'\t', b'\n'];
+const SEPARATORS: [u8; 3] = *b" \t\n";
 
 /// A record needs an address and at least one name. A line with fewer items is
 /// not a record, whatever else it is.
