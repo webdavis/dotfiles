@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     mpsc,
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn root() -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -80,8 +80,11 @@ fn an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it() {
         let result = output.read_exact(&mut bytes);
         let _ = sent.send((result.is_ok(), bytes));
     });
+    // FIXTURE PATIENCE, not a measurement: this waits for a spawned shell to
+    // print five bytes, and nothing about the lock is being timed. It was
+    // 200 ms, which a loaded machine can spend on the spawn alone.
     assert_eq!(
-        received.recv_timeout(Duration::from_millis(200)),
+        received.recv_timeout(Duration::from_secs(10)),
         Ok((true, *b"ready"))
     );
     drop(guard);
@@ -89,10 +92,27 @@ fn an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it() {
         .write(true)
         .open(root.join("allowlist.lock"))
         .unwrap();
-    // This descriptor is owned by the fixture; nonblocking flock cannot hang on a leaked child fd.
-    assert_eq!(
-        unsafe { libc::flock(second.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) },
-        0,
-        "child inherited the writer lock"
-    );
+    // POLLED, NOT ASKED ONCE, and the property is unchanged: the exec child
+    // must not KEEP this lock, so the lock must become available. One try
+    // demanded that it be available in a particular instant, which is a
+    // different and untrue claim in a test binary where other tests are
+    // forking. `flock` belongs to the open file description, which a fork
+    // shares, so any concurrent spawn holds a copy of every open descriptor
+    // between its fork and its exec, close-on-exec included: CLOEXEC acts at
+    // the exec, not at the fork. Measured at 3 failures in 12 runs beside the
+    // lifecycle tests, whose scripts pin CPUs in infinite loops and stretch
+    // that window. A child that really kept the lock blocks on `read` for the
+    // rest of the test and never releases it, so the deadline still catches it.
+    let available_by = Instant::now() + Duration::from_secs(5);
+    loop {
+        // This descriptor is owned by the fixture; nonblocking flock cannot hang on a leaked child fd.
+        if unsafe { libc::flock(second.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+            break;
+        }
+        assert!(
+            Instant::now() < available_by,
+            "child inherited the writer lock"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
 }

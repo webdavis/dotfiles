@@ -115,3 +115,68 @@ fn publication_modes_keep_terminal_input_and_forward_separate_errors() {
         }
     }
 }
+
+#[test]
+fn an_inherited_socket_is_not_a_terminal_to_hand_over() {
+    const MARKER: &str = "POSTURE_INHERITED_SOCKET_STDIN";
+    if std::env::var(MARKER).is_ok() {
+        // Descriptor 0 of THIS dedicated process is one end of a socket pair the
+        // parent installed, which is what a socket-activated launchd job inherits.
+        assert_eq!(
+            unsafe { libc::isatty(0) },
+            0,
+            "stdin must not be a terminal"
+        );
+        let mut runner = SystemRunner::new(Duration::from_millis(200));
+        // An interactive mode, so the terminal handoff is attempted. Darwin answers
+        // tcgetpgrp on a socket with EOPNOTSUPP, which used to fail the probe.
+        assert_eq!(
+            runner.run(
+                Path::new("/bin/sh"),
+                &[OsStr::new("-c"), OsStr::new("printf reading")],
+                CommandIo::CaptureStdout,
+            ),
+            Ok(b"reading".to_vec())
+        );
+        return;
+    }
+    let (ours, theirs) = std::os::unix::net::UnixStream::pair().unwrap();
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
+        .args([
+            "--exact",
+            "command::tests::terminal::an_inherited_socket_is_not_a_terminal_to_hand_over",
+            "--nocapture",
+        ])
+        .env(MARKER, "1")
+        .stdin(Stdio::from(std::os::fd::OwnedFd::from(theirs)))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    // Hold our end open so the installed descriptor stays a live socket.
+    let _ours_until_the_child_exits = ours;
+    let stdout = collect(child.stdout.take().unwrap());
+    let stderr = collect(child.stderr.take().unwrap());
+    // Fixture patience, not a measurement: the fixture's own budget is 200 ms and
+    // this only has to outlast a loaded machine starting a process.
+    let end = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break Some(status);
+        }
+        if Instant::now() >= end {
+            let _ = child.kill();
+            let _ = child.wait();
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    };
+    let out = stdout.recv_timeout(Duration::from_secs(10)).unwrap();
+    let err = stderr.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(
+        status.is_some_and(|status| status.success()),
+        "{}{}",
+        String::from_utf8_lossy(&out),
+        String::from_utf8_lossy(&err)
+    );
+}
