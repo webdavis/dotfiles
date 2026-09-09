@@ -482,15 +482,16 @@ bash script under `libexec` keeps the rule, `pns/hooks/codex/install-hooks.sh` i
 Four rules decide the shape below `libexec`, in this order:
 
 1. **A directory names a DOMAIN, a SYSTEM, or a FUNCTION**, never a dependency and never a vendor.
-   `osquery/`, `macos-defaults/` and `tailscale/` name what the scripts act on (all three hold scripts
-   this repo authored, not scripts those projects ship); `pns/` names the system the scripts belong to;
+   `osquery/` and `macos-defaults/` name what the scripts act on (both hold scripts this repo authored,
+   not scripts those projects ship); `pns/` names the system the scripts belong to;
    `unattended-upgrades/` names what they do. A directory named for a CLI a script happens to shell out
    to would need `jq/` and `curl/` siblings to be consistent, so that axis is not used.
 1. **A directory exists only when it has more than one member.** A leaf with no private helpers stays a
    flat file (`compress-and-truncate-local-logs.sh`, `control-hue-lights.sh`). Make the group the day a
-   second member arrives, not in anticipation of one. The exception is a single file whose own name
-   cannot carry its domain: `tailscale/reconcile-hosts-pin.sh` keeps its directory because the filename
-   says nothing about Tailscale and it is the only root-executed script in the tree.
+   second member arrives, not in anticipation of one. `tailscale/` was the one exception, a directory
+   held open because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port
+   retired both, since `tailnet-pin` carries its domain in its own name and installs beside the other
+   Rust tools.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
    tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
    `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is

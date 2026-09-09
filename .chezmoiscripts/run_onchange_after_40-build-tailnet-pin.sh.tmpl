@@ -1,0 +1,44 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+set -euo pipefail
+{{- /* THIS BUILDS BEFORE 41, and the number says so. The pins runner
+       sudo-executes what this installs, and chezmoi runs after-phase scripts in
+       lexical order, so a builder numbered above 41 would leave the first apply
+       on a fresh machine with nothing to run. */}}
+{{ $fingerprint := includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum -}}
+# source fingerprint: {{ $fingerprint }}
+# A deferred zero-exit build must change the next rendered script to retry.
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/tailnet-pin-build/tailnet-pin.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+
+# Repository SOURCE at the monorepo root, never a deploy target, so the build
+# reads the chezmoi source directory rather than a copy under $HOME.
+crate_dir={{ joinPath .chezmoi.sourceDir "tailnet-pin" | quote }}
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+cargo_bin="$HOME/.cargo/bin/cargo"
+state_dir="$HOME/.cache/tailnet-pin-build"
+retry_marker="$state_dir/tailnet-pin.retry"
+# WHAT THE ROOT GATE READS. The pins runner refuses unless this holds the
+# fingerprint it was itself rendered from, so a deferred build cannot leave an
+# older binary aimed at /etc/hosts.
+built_marker="$state_dir/installed.fingerprint"
+fingerprint={{ $fingerprint | quote }}
+
+mkdir -p "$state_dir"
+
+if [[ ! -x $cargo_bin ]]; then
+  printf 'tailnet-pin: cargo missing; build deferred to next apply\n' >&2
+  touch "$retry_marker"
+  exit 0
+fi
+
+cd "$crate_dir" || exit
+"$cargo_bin" build --release --locked --quiet --bin tailnet-pin
+mkdir -p "$install_dir"
+/usr/bin/install -m 755 "$crate_dir/target/release/tailnet-pin" "$install_dir/tailnet-pin"
+# THE MARKER IS WRITTEN LAST, after the install it vouches for. Written first,
+# a failed install would leave the gate open on a binary that was never
+# replaced.
+printf '%s\n' "$fingerprint" >"$built_marker"
+rm -f "$retry_marker"
+printf 'tailnet-pin: installed %s/tailnet-pin\n' "$install_dir"
+{{ end -}}

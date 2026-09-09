@@ -179,67 +179,57 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      while naming nothing a machine could resolve localhost through, so a
      rebuild that filtered away the real localhost record installed a hosts
      file where nothing named localhost and exited 0.
-     Patching that regex in place would have left the next one just as
-     invisible. The logic now lives in a deployed script with named constants
-     and pure, individually testable predicates:
 
-       dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh
-         -> ~/.local/libexec/tailscale/reconcile-hosts-pin.sh
+     The logic is now a Rust tool with its own workspace, `tailnet-pin` at the
+     monorepo root, built by run_onchange_after_40 and installed to
+     ~/.cargo/bin/tailnet-pin. Read its crates for the convergence, ownership,
+     install and gate contracts; this template's only job is to hand it one pin
+     per line.
 
-     Read that file for the convergence, ownership, install and gate
-     contracts; this template's only job is to hand it one pin per line.
+     ORDERING IS THE SCRIPT NUMBERS, not a property of chezmoi's phases. The
+     binary is BUILT by an after-phase script rather than deployed as a target,
+     so it exists only once 40 has run. chezmoi runs after-phase scripts in
+     lexical order, which is what puts 40 before 41; the guard below still
+     checks, because a partial or hand-driven apply is not a full one and the
+     failure must name the missing binary rather than surface as sudo's
+     "command not found".
 
-     ORDERING: chezmoi writes the entire target state before ANY after-phase
-     script runs, so the helper is present and executable by the time this
-     runner executes, including on a first apply to an empty home. That is a
-     property of chezmoi rather than of this repo and the installed version
-     moves, so it is not asserted from memory here: it is EXECUTED against the
-     installed chezmoi on every run of
-     test/integration/tailnet-pin-helper-deploy-order.sh, which applies a
-     minimal source tree into an empty destination and fails if a before-phase
-     control does not see the helper absent and an after-phase probe in this
-     runner's own slot does not see it deployed and executable.
-     run_after_05-osquery-known-good-manifests.sh relies on the same property.
-     The guard below still checks, because a partial or hand-driven apply is not
-     the same as a full one and the failure must name the missing file rather
-     than surface as sudo's "command not found".
-
-     DEST DIR, not $HOME: chezmoi exports CHEZMOI_DEST_DIR to every script it
-     runs, and under `chezmoi apply --destination X` it is X while $HOME is
-     still the operator's home. Deriving the helper path from $HOME would look
-     for it somewhere nothing was deployed and abort every such apply.
-
-     The helper hash is embedded in this rendered body for two jobs. chezmoi
-     hash-gates run_onchange_ scripts on the body alone, so without it a change
-     to the reconciliation logic would not re-run the pins (same idiom as the
-     `plist hash:` lines in the LaunchAgent loaders). It is also CHECKED against
-     the deployed file before anything is sudo-executed: `chezmoi apply` without
-     --force prompts rather than overwriting a locally modified target, and
-     answering "skip" would otherwise leave root running a helper this render
-     never saw. An unverified hash is a re-trigger token; a verified one is a
-     gate on what runs as root.
+     THE FINGERPRINT REPLACES THE OLD SHA256 OF A SOURCE FILE, which a built
+     binary cannot have: its bytes do not exist at render time. It serves the
+     same two jobs. chezmoi hash-gates run_onchange_ scripts on the body alone,
+     so embedding it re-runs the pins when the tool's source changes (same
+     idiom as the `plist hash:` lines in the LaunchAgent loaders). And it is
+     CHECKED against what the builder recorded, which is the gate on what runs
+     as root: the builder DEFERS with exit 0 when cargo is missing on a fresh
+     machine, and without this check that deferral would aim an older binary at
+     /etc/hosts as root.
 
      Pin data still travels as POSITIONAL ARGUMENTS and never as script text.
      Earlier versions made the fields safe in the shell and then let them
      become grep PATTERNS, where a leading dash turned a field into a grep
-     OPTION and a newline turned a -xF pattern into a pattern LIST. The helper
-     compares fields only with [[ = ]], uses no grep at all, and keeps every
-     printf format constant, so a % in the data is not a directive. */ -}}
-tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailscale/reconcile-hosts-pin.sh"
-tailnet_pin_helper_expected_sha256='{{ include "dot_local/libexec/tailscale/executable_reconcile-hosts-pin.sh" | sha256sum }}'
-if [[ ! -x $tailnet_pin_helper ]]; then
-  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
+     OPTION and a newline turned a -xF pattern into a pattern LIST. The tool
+     compares fields as bytes, uses no grep at all, and builds the record from
+     constants, so a % in the data is not a directive. */ -}}
+tailnet_pin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" | quote }}
+tailnet_pin_expected_fingerprint='{{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum }}'
+tailnet_pin_built_marker="$HOME/.cache/tailnet-pin-build/installed.fingerprint"
+if [[ ! -x $tailnet_pin ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin is missing or not executable; run chezmoi apply so run_onchange_after_40 builds it" >&2
   exit 1
 fi
-tailnet_pin_helper_actual_sha256="$(shasum -a 256 "$tailnet_pin_helper" | cut -d ' ' -f 1)"
-if [[ $tailnet_pin_helper_actual_sha256 != "$tailnet_pin_helper_expected_sha256" ]]; then
-  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is not the helper this run was rendered for (found sha256 $tailnet_pin_helper_actual_sha256, expected $tailnet_pin_helper_expected_sha256); re-run chezmoi apply so the deployed helper matches" >&2
+if [[ ! -r $tailnet_pin_built_marker ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_built_marker is missing, so nothing vouches for which source $tailnet_pin was built from" >&2
+  exit 1
+fi
+tailnet_pin_built_fingerprint="$(cat "$tailnet_pin_built_marker")"
+if [[ $tailnet_pin_built_fingerprint != "$tailnet_pin_expected_fingerprint" ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin was built from source $tailnet_pin_built_fingerprint, not the $tailnet_pin_expected_fingerprint this run was rendered for; re-run chezmoi apply so the builder catches up" >&2
   exit 1
 fi
 
 {{ range $pins -}}
 echo {{ template "shellSingleQuoted" (printf "→ MagicDNS fallback pin: %s (per CLAUDE.md Tailscale DNS section)" (toString .fqdn)) }}
-sudo "$tailnet_pin_helper" {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
+sudo "$tailnet_pin" {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
 {{ end -}}
 {{ end -}}
 {{ end -}}
