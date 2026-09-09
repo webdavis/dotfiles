@@ -22,7 +22,11 @@ impl Drop for Owned {
 fn a_second_process_cannot_write_during_a_transaction_and_a_killed_writer_leaves_no_partial_record()
 {
     const STATE: &str = "PNS_SQLITE_TRANSACTION_CHILD";
-    let expires = Instant::now() + Duration::from_millis(700);
+    // FIXTURE PATIENCE, not a measurement: this bounds waits for a spawned
+    // process to reach its next line, and a fixture that never gets there fails
+    // however long this waits. It was 700 ms, a wall-clock budget for starting a
+    // process while the rest of the suite competes for the same CPU.
+    let expires = Instant::now() + Duration::from_secs(30);
     if let Some(path) = std::env::var_os(STATE) {
         let path = std::path::PathBuf::from(path);
         let store = SqliteStore::new(path.clone());
@@ -31,8 +35,13 @@ fn a_second_process_cannot_write_during_a_transaction_and_a_killed_writer_leaves
                 transaction
                     .execute("INSERT INTO journal(line) VALUES ('uncommitted event')", [])?;
                 std::fs::write(path.join("ready"), b"locked")?;
-                // The fixture itself exits even if its owning parent is interrupted.
-                let until = Instant::now() + Duration::from_millis(350);
+                // HELD UNTIL THE PARENT KILLS THIS PROCESS, which is what the
+                // parent does once it has made its observations. The bound is
+                // only so a fixture whose parent was interrupted exits on its
+                // own. It was 350 ms, which made the hold a window the parent
+                // had to fit three steps inside, and on a slower machine the
+                // transaction was already over by the time it looked.
+                let until = Instant::now() + Duration::from_secs(30);
                 while Instant::now() < until {
                     std::thread::sleep(Duration::from_millis(1));
                 }
@@ -72,8 +81,11 @@ fn a_second_process_cannot_write_during_a_transaction_and_a_killed_writer_leaves
             .is_err(),
         "another process owns the write transaction"
     );
+    // A MEASUREMENT, and it survives being generous: the writer above holds its
+    // transaction for thirty seconds, so a write that waits for the lock rather
+    // than for its own five millisecond budget blows through this by six times.
     assert!(
-        started.elapsed() < Duration::from_millis(100),
+        started.elapsed() < Duration::from_secs(5),
         "the configured busy budget must bound the wait"
     );
     drop(child);
