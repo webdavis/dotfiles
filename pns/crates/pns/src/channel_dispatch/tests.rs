@@ -126,12 +126,12 @@ fn a_backend_refusal_prevents_both_native_and_executable_delivery() {
         let selected = registration::choose(
             native,
             forced.then_some(directory.as_path()),
-            Some("push SKIPPED -- unsupported backend; nothing was sent".into()),
+            Some("push SKIPPED, unsupported backend; nothing was sent".into()),
             false,
         );
         assert_eq!(
             selected.deliver(&request(&Event::default())),
-            Delivery::Failed("push SKIPPED -- unsupported backend; nothing was sent".into())
+            Delivery::Failed("push SKIPPED, unsupported backend; nothing was sent".into())
         );
         assert_eq!(calls.load(Ordering::Relaxed), 0);
         assert!(

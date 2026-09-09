@@ -20,7 +20,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     let output = command.output().expect("the engine runs");
 
     let printed = stdout(&output);
-    let lines: Vec<&str> = printed.lines().collect();
+    let lines = report_rows(&printed);
     let summary = lines
         .iter()
         .position(|line| *line == "pns doctor: 3 sent, 0 failed, 3 skipped")

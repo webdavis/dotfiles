@@ -20,10 +20,7 @@ pub(crate) fn recap_mode() -> i32 {
 }
 
 fn recap() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_subcommand();
     let Some((since, until)) = recap_bounds(&arguments) else {
         eprintln!("{RECAP_USAGE}");
         return 2;

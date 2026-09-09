@@ -21,14 +21,17 @@ use pns_application::DOCTOR_OPENING;
 /// and the destination registry, so a doctor cannot report green through a path an
 /// event would not use.
 pub(crate) fn doctor_mode() -> i32 {
-    // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A
-    // doctor that quietly ignored an argument is a check the operator believes
-    // was narrower or wider than it was.
-    if std::env::args_os().nth(2).is_some() {
+    // ANY EXTRA WORD IS A REFUSAL, before anything is sent or printed. A doctor
+    // that quietly ignored an argument is a check the operator believes was
+    // narrower or wider than it was. `--no-color` never reaches here: it is
+    // tool-wide, so the dispatcher takes it out of argv and remembers it, which
+    // is what lets this stay a plain refusal of everything.
+    if !crate::arguments_after_subcommand().is_empty() {
         eprintln!("{DOCTOR_USAGE}");
         return 2;
     }
-    println!("{DOCTOR_OPENING}");
+    let mut report = doctor_style::Report::new(style::Paint::for_stdout());
+    print_lines(report.open(DOCTOR_OPENING));
 
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
@@ -120,7 +123,7 @@ pub(crate) fn doctor_mode() -> i32 {
     }
     let checks = pns_domain::doctor::checks(&registry.all(), &selection, config_state);
 
-    pns_application::RunDoctor {
+    let code = pns_application::RunDoctor {
         checks: &checks,
         records: &pns_adapters::SqliteStore::for_records(state_dir()),
         clock: &now_secs,
@@ -229,10 +232,21 @@ pub(crate) fn doctor_mode() -> i32 {
                 })
             },
         },
-        |line| println!("{line}"),
-    )
+        |item| print_lines(report.item(&item)),
+    );
+    print_lines(report.close());
+    code
 }
-/// What a doctor typed wrong is told. ONE WORD AND NO FLAGS: a namespace built
-/// for callers that do not exist makes the common case longer to type, and the
-/// report absorbs a new section without a new spelling.
+
+/// The report's own lines, as they are produced.
+fn print_lines(lines: Vec<String>) {
+    for line in lines {
+        println!("{line}");
+    }
+}
+/// What a doctor typed wrong is told. ONE FLAG AND NO NAMESPACE: a namespace
+/// built for callers that do not exist makes the common case longer to type,
+/// and the report absorbs a new section without a new spelling. The one flag
+/// earns its place because a report that reaches a file or a pipe wants plain
+/// text and the automatic detection cannot see through a pty.
 const DOCTOR_USAGE: &str = "pns: usage: pns doctor";

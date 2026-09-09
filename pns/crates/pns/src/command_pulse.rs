@@ -20,10 +20,7 @@ pub(crate) fn pulse_mode() -> i32 {
     // THE WHOLE TAIL IS READ, not just the word right after `pulse`: H-B
     // requires help to win in flag position anywhere, and an unknown extra
     // word to be refused rather than silently dropped.
-    let tail: Vec<String> = std::env::args_os()
-        .skip(2)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let tail: Vec<String> = crate::arguments_after_subcommand();
     if tail.iter().any(|token| crate::legacy::is_help_flag(token)) {
         println!("{PULSE_USAGE}");
         return 0;

@@ -117,7 +117,16 @@ fn report(
                     })
                 },
             },
-            |line| lines.push(line.to_string()),
+            |item| {
+                // ROWS ONLY. These tests are about what the doctor CHECKS and
+                // in what order, so a heading would shift every index by one
+                // without saying anything a row does not already say. The
+                // headings are pinned where they are read, in the command's own
+                // integration tests.
+                if let pns_domain::doctor::Item::Row { .. } = item {
+                    lines.push(item.text().to_string());
+                }
+            },
         );
     (code, lines)
 }

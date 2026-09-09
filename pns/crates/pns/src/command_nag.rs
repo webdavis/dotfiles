@@ -28,7 +28,7 @@ pub(crate) fn nag_mode() -> i32 {
     // never falls through to help with exit 0. `pns nag <session>` is a command
     // an operator would believe narrowed the fire, and coalescing means nothing
     // here can honour it.
-    if std::env::args_os().nth(2).is_some() {
+    if !crate::arguments_after_subcommand().is_empty() {
         eprintln!("{NAG_USAGE}");
         return 2;
     }

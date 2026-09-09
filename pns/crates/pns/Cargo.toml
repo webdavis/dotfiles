@@ -70,6 +70,10 @@ pns-domain = { path = "../pns-domain" }
 pns-protocol = { path = "../pns-protocol" }
 
 pns-hermes = { path = "../pns-hermes" }
+# For TIOCGWINSZ, which is how the house style measures the terminal it is
+# drawing a frame into. pns-adapters already links libc at runtime, so this is
+# a declaration rather than a new dependency in the binary.
+libc = "0.2.189"
 toml = { version = "1.1.4", default-features = false, features = [
   "parse",
   "serde",
@@ -84,4 +88,3 @@ rusqlite = { version = "=0.39.0", default-features = false, features = [
 ] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"
-libc = "0.2.189"

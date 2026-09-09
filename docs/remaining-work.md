@@ -265,7 +265,7 @@ or which one is the thing to act on. The operator's ruling on 2026-09-09: sectio
 color off, and the gum look rather than the plainer `hermes doctor` one, because output that reads well
 is what makes a tool feel finished.
 
-- [ ] 69. The house style module and the doctor's report. `pns/crates/pns/src/style.rs` is the only place
+- [x] 69. The house style module and the doctor's report. `pns/crates/pns/src/style.rs` is the only place
   in pns that emits an escape sequence: gum's palette (the pink this repository already picked for
   `.chezmoitemplates/cli-print-style-lib.sh.tmpl`), a rounded frame, a section heading and a set of
   marks. `pns-domain::doctor::report` carries the report's SHAPE with no opinion about presentation, so
@@ -277,7 +277,201 @@ is what makes a tool feel finished.
   closes with a numbered list of what to act on. NOTE: the doctor currently refuses any argument at all,
   with a comment saying so; that comment changes with the flag.
 - [ ] 70. Every other pns command that prints more than a sentence adopts the same vocabulary. Its scope
-  is decided by reading what each command prints today, not by a list written here in advance.
+  is decided by reading what each command prints today, not by a list written here in advance. Read on
+  2026-09-09, the commands that qualify are `pns failures` (a column table, and `listing()` is served by
+  the failure page as well, so it takes a `Paint` and the page passes the plain one), `pns home` (a
+  multi-line diagnostic), `pns setup` (the wizard's walk) and `pns lights` (a list of lines). Everything
+  else prints one sentence or a usage string.
+
+## Framed headers carry labels, never floating sentences
+
+- [ ] 77. NOTHING IN A FRAME FLOATS (operator ruling 2026-09-09). Task 69 shipped the doctor's frame as a
+  command name with a bare sentence under it, `pns doctor` over `every suppression gate is bypassed`, and
+  a reader has no way to tell whether that sentence is a description, a status or an error. It reads like
+  something went wrong. Every line after the command name takes a LABEL naming its role: `Note` for a
+  caveat about the report being read, `About` for what a feature is, `Steps` heading a contents list. The
+  label is what supplies the context the reader was otherwise left to guess at. THE FRAME ALSO SHOWS THE
+  WHOLE INVOCATION, `pns tap --info` rather than `pns tap`, so the reader can tell which flag produced
+  the output in front of them. This changes `pns doctor` (shipped) as well as the tap guide, and every
+  command task 70 converts.
+
+## The Back Tap marker
+
+Verified on 2026-09-09, and it is the reason the two tasks below exist. The marker is written by a FORCED
+COMMAND on an SSH key: `~/.ssh/authorized_keys` line 9 reads
+`command="/usr/bin/touch /Users/stephen/.local/state/pns/phone-attention.marker",restrict` on the key
+labelled `Shortcuts on mister`. sshd runs that command instead of whatever the client asks for, so the
+iOS Shortcut never names the file and could not: a public key has no room for a path. pns has no writer
+for it either, which its own spec records as an open question (`persistence-and-process-lifecycle.md`:
+"no writer of that path exists anywhere in `src/`"). So the path is written down TWICE, in two systems,
+one of which is not chezmoi-managed, and nothing checks that the two agree. A mismatch is silent: pns
+sees a file that never updates, reads the tap as stale, and phone cards simply stop.
+
+- [ ] 71. `pns tap` takes over the write. A new subcommand touches the marker at the SAME configured path
+  the presence probe reads, so the path exists once. The forced command becomes
+  `command="<cargo bin>/pns tap",restrict` and names no path at all, which is what makes task 72's knob
+  safe to turn: the operator edits `authorized_keys` once, here, and never again. `restrict` still holds,
+  so the key can run this and nothing else. The cost, stated rather than hidden: `/usr/bin/touch` is
+  always present and a built binary is not, so a broken build takes the tap with it. That is why the
+  doctor row below is part of this task rather than a follow-up: `pns doctor` gains a row under Pairing
+  that reads `~/.ssh/authorized_keys`, finds the forced command, and says whether a key is wired to
+  `pns tap`, so a key later deleted or mistyped is REPORTED instead of quietly ending phone cards. Its
+  flags, and what each one is for. Bare `pns tap` touches the marker and prints the surface that results,
+  because the forced command's stdout travels back over SSH and the Shortcut can show it: a tap that says
+  nothing is a tap you cannot tell from a broken one. `--info` explains the feature and reports its live
+  configuration: the marker path AND WHICH SOURCE SUPPLIED IT (the shipped default, the config file, or
+  the environment), whether the file exists, how old it is, the surface that age implies, and whether a
+  key in `~/.ssh/authorized_keys` is wired to `pns tap`. Naming the source is the point of it: an
+  operator who set the config value and still sees the default is looking at an override they forgot, and
+  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for this
+  machine, with the binary path resolved, and says where to paste it. It says that a line already wired
+  for this should be replaced rather than added beside. THERE IS NO `--write`, AND PNS NEVER READS OR
+  WRITES `~/.ssh/authorized_keys`. This task's own history went back and forth on it, so the reasoning is
+  recorded rather than the conclusion alone. Against writing: the flag would gate INTENT, never
+  CAPABILITY. The write code sits in the binary on every run, and that binary runs unattended as a
+  daemon, from every harness hook, and on every shell prompt. Any bug, config injection or compromised
+  dependency that reaches it escalates to granting SSH access to the machine, which is not a notification
+  tool's blast radius. What it buys against that is one paste, once per machine, ever. pns is also a tool
+  other people `cargo install`, and "this notifier can edit your authorized_keys" is a line that should
+  stop an auditor cold. Against reading: `--info` PRINTS what it reads, into a terminal whose contents
+  get pasted into chats and issues, and the file is the operator's whole SSH trust list. And therefore no
+  `--backup`: it only ever existed to make the write safe, and it carried its own hazard, since a copy of
+  a trust file re-grants a key that was later revoked if it is restored unread. WHAT REPLACES THE READ IS
+  A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN FRESHNESS: "last tap 3 hours ago",
+  or "never tapped". That verifies the whole chain end to end (phone, Shortcut, ssh, key, forced command,
+  file) rather than inspecting one link and inferring the rest, and it needs no access to `~/.ssh` at
+  all. A wiring mistake anywhere in that chain shows up the same way: the marker never moves. `--install`
+  IS A GUIDE, not a dump. It uses task 69's house style, so setup and `pns doctor` read as one tool: the
+  framed title, `◆` numbered step headings with a faint blurb on the rule, `·` rows for the parts of a
+  line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE FRAME
+  CARRIES A NUMBERED CONTENTS LIST, not a sentence and not a count of parts (operator ruling 2026-09-09,
+  after "two halves" and then "set up this Mac, then set up your phone" were both rejected as too vague).
+  It lists the steps by the same numbers their headings use, each with a short gloss:
+  `1. This Mac / the authorized_keys line`, `2. Your phone / the PNS Tap shortcut`,
+  `3. Trigger methods / Back Tap, Action Button, others`, NOT "A trigger": the section lists ways to fire
+  the Shortcut, so it names the category rather than one instance of it. The reader sees the whole job
+  before starting one, finds their place again after stepping away, and learns what a step involves
+  without scrolling to it. Three steps, in the order they are performed: step 1 the `authorized_keys`
+  line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
+  Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
+  text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
+  each. Host and user come from the machine, never hardcoded. EVERY WORD PNS PRINTS GOES THROUGH THE
+  `humanizer` SKILL BEFORE IT SHIPS (operator ruling 2026-09-09, standing, and it covers every pns
+  command rather than this guide alone). Terminal output is prose the operator reads under pressure, and
+  the tells that skill catches are the ones that make a tool feel generated. The first pass over this
+  guide caught four. A subjectless "Nothing is written for you" tacked on as a negation becomes "pns does
+  not edit this file". A run of fragments closing on the manufactured punchline "This key does one thing"
+  keeps the fact list and loses the punchline. "The script text is cosmetic" becomes "sshd ignores this
+  script text", which is shorter and more accurate. And "Found 3 issues to address:" carries filler ahead
+  of a numbered list, so the doctor's closing line becomes "3 issues to fix:". The doctor's seven section
+  blurbs passed unchanged. STEP 2 SHRINKS LATER. The operator intends to host a public Shortcut people
+  can install directly (2026-09-09), at which point step 2 becomes a link and an "install this" rather
+  than a field-by-field build. Write it so that swapping those is an edit to one step, not a rewrite of
+  the guide. COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only
+  one of them has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run
+  Script Over SSH, with the host, the user and which key to select) and the triggers that Shortcut can be
+  attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center, Siri. The command text
+  typed into the Shortcut is cosmetic, since sshd runs the forced command instead, but it is spelled
+  `pns tap` anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag
+  is read when something is already wrong, and burying a status report under a wall of instructions is
+  how a diagnostic stops being read. `--info` closes with one line pointing at `pns tap --install`. THE
+  PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees
+  ("Settings paths verified on iOS <version>"). The exact paths to Back Tap and the Action Button move
+  between releases, and instructions that do not date themselves are worse than none: a reader on a later
+  iOS cannot tell a path that moved from a step they got wrong. Verify them against the operator's own
+  iOS at build time rather than writing them from memory here, and record the version in the same change
+  that writes the text. `--delete-marker` IS NOT BUILT. Verified against
+  `pns/docs/specs/presence-and-visibility.md` on 2026-09-09, which settles it: "Mobile and Away both mean
+  the phone card", and "Away always cards while Mobile lets [the viewed pane suppress it]". So deleting
+  the marker while away from the desk moves the operator Mobile to AWAY, which cards MORE aggressively
+  because Away never suppresses, the opposite of what a flag called clear or delete would promise. At the
+  desk it is redundant, since typing already cancels a stray tap under newest-signal-wins. Both cases
+  fail, so the flag does not ship. The earlier names weighed for it (`--clear`, `--at-desk`) are moot.
+  `--json` emits the same answers machine-readably, so the Shortcut renders them rather than dumping a
+  sentence. `--no-color` is NOT one of these flags; it is tool-wide, task 73. DELIBERATELY NOT
+  `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is a chezmoi-rendered target
+  on this machine, so a write there is erased by the next apply and the operator would watch their change
+  disappear. `--info` names the file that really holds the value instead. DELIBERATELY NOT
+  `--for <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its
+  contents (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign
+  rather than a flag, and it is scoped separately if it is ever wanted.
+
+- [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
+  own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
+  chooses. pns serves a small endpoint the Shortcut posts to ("Get Contents of URL" rather than "Run
+  Script Over SSH") and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no
+  `authorized_keys` line, no forced command, no second system holding a copy of a path, so the decoupling
+  tasks 71 and 72 work around stops existing rather than being managed. The machinery is mostly here
+  already: the daemon runs, and `pns failures serve` is a listener. IT ASSUMES NOTHING ABOUT THE
+  OPERATOR'S NETWORK (operator ruling 2026-09-09, correcting an earlier draft of this task that said "on
+  the tailnet"). pns is a tool other people install and it has no idea what anyone's topology looks like:
+  no Tailscale, no VPN, no LAN shape, nothing detected and nothing guessed. The listener is OFF unless
+  configured, and its `bind` address is written by the operator with NO DEFAULT, because there is no safe
+  one to pick: loopback is safe and unreachable from a phone, and every other address is a guess about
+  somebody's network. Authentication is a config secret, the way the hermes webhook already is. ITS ONE
+  REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's daemon dead,
+  because sshd and the command it forces carry it end to end, and an HTTP tap does not. An operator whose
+  daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
+  secret that needs a rotation story.
+
+- [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
+  MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works
+  it beats both the SSH tap and the HTTP one: NO LISTENING PORT AT ALL, no key, no `authorized_keys`
+  line, no shared secret, nothing for pns to own but the marker it already owns. FROM TRAINING, NOT
+  VERIFIED, which is exactly why this is an investigation and not a build: whether cross-device execution
+  works on this operator's iOS and macOS versions, whether the Mac must be awake or unlocked, and what
+  the latency is. Those three answers decide it. Half an hour of testing on the real devices settles
+  whether task 74 is worth building at all.
+
+## Tool-wide output flags
+
+- [x] 73. DONE 2026-09-09, shipped with task 69 rather than after it, because a flag whose scope is wrong
+  is a contract, and the narrow form would have been the shipped one for as long as it took to widen.
+  `--no-color` is a PNS-WIDE flag, accepted in every position: `pns --no-color doctor` and
+  `pns doctor --no-color` mean the same thing, because an operator who has decided about color has
+  decided about the whole command rather than about one subcommand's report. Task 69 shipped it as a
+  `pns doctor`-only argument, which is the narrower reading and wrong; this widens it. The dispatcher
+  takes the flag out of argv wherever it appears, remembers it once, and every command that prints reads
+  that one answer with no plumbing of its own. THE EVENT PATH IS EXEMPT and keeps its argv untouched: it
+  prints nothing but an exit code, and a position-blind filter would eat a producer's
+  `--detail "--no-color"` as a flag, which is the same value-position bug the argv grammar already guards
+  against elsewhere.
+
+- [ ] 71a. FIVE THINGS THE TAP DESIGN LEFT OUT, found by re-reading it whole on 2026-09-09. Each is a
+  silent failure, which is why they are recorded rather than left to be noticed later. EXIT CODE:
+  `pns tap` exits non-zero when the touch fails, so the Shortcut can show a failure. A tap that fails
+  silently is worse than no tap, because the operator stops checking. THE STATE DIRECTORY:
+  `~/.local/state/pns/` may not exist on a fresh machine and `pns tap` may be the first thing to reach
+  for it, so it creates the directory rather than failing on it. REMOTE LOGIN IS STEP 0, and the guide
+  had no step 0 at all. The whole feature needs sshd accepting connections (System Settings, General,
+  Sharing, Remote Login). Without it every other step is wired correctly and nothing happens, which is
+  the worst kind of wrong. A SLEEPING MAC does not answer SSH, so the tap is lost with no error anywhere.
+  This is the likeliest real-world failure and nothing mentioned it; `--info` gets a section saying so.
+  NO CONFIG REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the
+  default marker path, because requiring one would fail on exactly the fresh machine `--install` is
+  walking somebody through. Still unspecified and minor: the `--json` schema, and how to undo the setup.
+
+- [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
+  `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
+  the tests and sandboxes are untouched. NOT `[presence]`: `[plugins.presence]` already exists and is the
+  Hue room sensor, and two tables a word apart meaning different things is the confusion this avoids.
+  Ordered after 71 deliberately: a knob shipped while the path is still duplicated is a knob that breaks
+  the tap when it is turned.
+
+## SSH exposure (not a pns task)
+
+- [ ] 75. BIND SSHD TO THE TAILNET. A DOTFILES TASK, NOT A PNS ONE, and it is filed in its own section
+  below rather than beside the tap tasks so it cannot be read as pns work. pns never learns that this
+  happened: it does not check for it, mention it, or behave differently either way. The tap is merely why
+  the listener exists. Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and
+  IPv6, so this Mac answers on every network it touches. Public-key-only is already enforced, so nobody
+  gets in without a key, but the machine still announces itself as an SSH server to any network it joins.
+  Tailscale is the only network its own devices are on. The change: an `ListenAddress` for the Tailscale
+  address in the drop-in at `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, which
+  `dot_local/bin/executable_ssh-hardening.sh` already generates and installs. Port 22 then answers on the
+  tailnet alone. The phone is on the tailnet, so the tap keeps working. Verify with `netstat` before and
+  after AND confirm a real tap still lands, because a wrong address silently ends both SSH and the tap at
+  once, and the script's own `--reload` refuses to claim success without a real banner exchange.
 
 ## posture foundation
 

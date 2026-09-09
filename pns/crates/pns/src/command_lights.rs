@@ -34,10 +34,7 @@ pns lights quiet [<place> [<duration>|off]]";
 /// the loser is one mute they can see is missing and retype. A lock between two
 /// interactive commands would be a mechanism with no reader.
 fn lights_quiet() -> i32 {
-    let arguments: Vec<String> = std::env::args_os()
-        .skip(3)
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect();
+    let arguments: Vec<String> = crate::arguments_after_verb();
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
     let known = match &loaded {
