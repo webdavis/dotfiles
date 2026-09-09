@@ -163,21 +163,29 @@ test-e2e: validate-tests
 # camp list: about 2.5s per crate against an empty target/, well under a
 # second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
 # developer pays the build once.
+# A rustdoc warning is a broken link in the docs the next reader opens, and it
+# never fails a build on its own, so it is stated here as a gate. `--no-deps`
+# keeps it to the code this repository owns; a dependency's own doc warnings are
+# not ours to fix and would make the gate unfixable.
 test-rust:
   cargo test --locked --workspace --manifest-path dot_local/share/lights/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/lights/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/lights/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/lights/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
   cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/pns/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/pns/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/pns/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/uu/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/uu/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/uu/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/uu/Cargo.toml
   cargo test --locked --workspace --manifest-path dot_local/share/posture/Cargo.toml
   cargo fmt --all --check --manifest-path dot_local/share/posture/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/posture/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/posture/Cargo.toml
 
 # The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
 # `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The
