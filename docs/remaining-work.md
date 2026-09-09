@@ -282,8 +282,15 @@ is what makes a tool feel finished.
 ## posture foundation
 
 - [x] 37. posture 2.4: page, domain digest, protocol codec
-- [ ] 38. posture 2.9: `drift.rs` and `converge_policy.rs`
-- [ ] 39. posture 2.10: `cursor.rs` and `triage.rs`
+- [x] 38. posture 2.9: `drift.rs` and `converge_policy.rs`. ALREADY DONE when this was checked on
+  2026-09-09, shipped by the converge-foundation work in PR #470 rather than by a task of its own. Both
+  modules are implemented, exported and tested (20 drift cases, 9 converge-policy cases), and neither
+  carries a deferral note. Verified by running them rather than by reading the plan.
+- [x] 39. posture 2.10: `cursor.rs` and `triage.rs`. `cursor.rs` is new here. `triage.rs` is NOT a file:
+  `gate::Triage` already carries the exact three fields the bash `file_integrity_triage` emits
+  (`recorded`, `ondisk`, `upgrade`), and its three helpers read files and spawn `codesign`, so they are
+  adapter work in tasks 40 and 41 rather than domain policy. A second domain module would have been an
+  empty wrapper around a type that already exists.
 - [ ] 40. posture 3.1 remainder: four adapters
 - [ ] 41. posture 3.2 remainder: tailscale, process, gateway, `LaunchdState`
 - [ ] 42. posture 3.3: the converge read half, staging, privileged
