@@ -436,21 +436,20 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   prints nothing but an exit code, and a position-blind filter would eat a producer's
   `--detail "--no-color"` as a flag, which is the same value-position bug the argv grammar already guards
   against elsewhere.
+
 - [ ] 71a. FIVE THINGS THE TAP DESIGN LEFT OUT, found by re-reading it whole on 2026-09-09. Each is a
-  silent failure, which is why they are recorded rather than left to be noticed later.
-  EXIT CODE: `pns tap` exits non-zero when the touch fails, so the Shortcut can show a failure. A tap
-  that fails silently is worse than no tap, because the operator stops checking.
-  THE STATE DIRECTORY: `~/.local/state/pns/` may not exist on a fresh machine and `pns tap` may be the
-  first thing to reach for it, so it creates the directory rather than failing on it.
-  REMOTE LOGIN IS STEP 0, and the guide had no step 0 at all. The whole feature needs sshd accepting
-  connections (System Settings, General, Sharing, Remote Login). Without it every other step is wired
-  correctly and nothing happens, which is the worst kind of wrong.
-  A SLEEPING MAC does not answer SSH, so the tap is lost with no error anywhere. This is the likeliest
-  real-world failure and nothing mentioned it; `--info` gets a section saying so.
+  silent failure, which is why they are recorded rather than left to be noticed later. EXIT CODE:
+  `pns tap` exits non-zero when the touch fails, so the Shortcut can show a failure. A tap that fails
+  silently is worse than no tap, because the operator stops checking. THE STATE DIRECTORY:
+  `~/.local/state/pns/` may not exist on a fresh machine and `pns tap` may be the first thing to reach
+  for it, so it creates the directory rather than failing on it. REMOTE LOGIN IS STEP 0, and the guide
+  had no step 0 at all. The whole feature needs sshd accepting connections (System Settings, General,
+  Sharing, Remote Login). Without it every other step is wired correctly and nothing happens, which is
+  the worst kind of wrong. A SLEEPING MAC does not answer SSH, so the tap is lost with no error anywhere.
+  This is the likeliest real-world failure and nothing mentioned it; `--info` gets a section saying so.
   NO CONFIG REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the
   default marker path, because requiring one would fail on exactly the fresh machine `--install` is
-  walking somebody through.
-  Still unspecified and minor: the `--json` schema, and how to undo the setup.
+  walking somebody through. Still unspecified and minor: the `--json` schema, and how to undo the setup.
 
 - [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
