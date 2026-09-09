@@ -1,3 +1,4 @@
+use super::super::content::copy;
 use super::super::{SkillsCandidate, SkillsGenerationStore, SkillsRoster, roster};
 use super::metadata;
 use std::collections::BTreeMap;
@@ -35,28 +36,6 @@ pub(super) fn fingerprint(path: &Path) -> Result<String, String> {
         bytes.extend(content);
     }
     Ok(roster::digest(&bytes))
-}
-fn copy(source: &Path, target: &Path) -> Result<(), String> {
-    metadata::directory(target)?;
-    for entry in std::fs::read_dir(source).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let to = target.join(entry.file_name());
-        let kind = entry.file_type().map_err(|e| e.to_string())?;
-        if kind.is_dir() {
-            copy(&entry.path(), &to)?;
-        } else if kind.is_symlink() {
-            std::os::unix::fs::symlink(
-                std::fs::read_link(entry.path()).map_err(|e| e.to_string())?,
-                to,
-            )
-            .map_err(|e| e.to_string())?;
-        } else if kind.is_file() {
-            std::fs::copy(entry.path(), to).map_err(|e| e.to_string())?;
-        } else {
-            return Err("unsupported entry in store directory".into());
-        }
-    }
-    Ok(())
 }
 impl SkillsCandidate {
     pub fn absorb_store_entries(

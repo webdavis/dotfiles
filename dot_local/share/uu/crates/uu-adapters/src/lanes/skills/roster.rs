@@ -15,6 +15,7 @@ pub struct SkillsRoster {
     pub hermes_registry: BTreeMap<String, HermesRegistryEntry>,
     pub claude_undelivered: BTreeSet<String>,
     pub hash: String,
+    pub forks: super::SkillsForkWatch,
     source: PathBuf,
 }
 impl SkillsRoster {
@@ -75,6 +76,7 @@ impl SkillsRoster {
                 hermes_registry,
                 claude_undelivered,
                 hash: digest(&bytes),
+                forks: super::SkillsForkWatch::snapshot(path, value),
                 source: path.into(),
             };
             if roster.tracked_names().is_empty() {

@@ -44,6 +44,12 @@ impl CommandRunner for Installer {
             std::fs::write(installed.join("SKILL.md"), "gamma body").unwrap();
             std::fs::write(installed.join(".clawhub/origin.json"), "origin bytes").unwrap();
         }
+        if args.contains(&"update") {
+            assert!(
+                !self.store.join("gamma/.DS_Store").exists(),
+                "Finder metadata reached the updater"
+            );
+        }
         if self.refuse {
             let overlay = self.store.join("gamma/agents/openai.yaml");
             if self.calls.borrow().len() == 1 {
@@ -154,5 +160,40 @@ fn the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped() 
     assert_eq!(
         std::fs::read_to_string(path).unwrap(),
         format!("interface: updated\n{POLICY}")
+    );
+}
+
+#[test]
+fn a_present_clawhub_refresh_discards_only_its_candidate_finder_metadata() {
+    let (c, r, env) = setup();
+    let skill = c.agents().join("skills/gamma");
+    std::fs::create_dir_all(&skill).unwrap();
+    std::fs::write(skill.join(".DS_Store"), "finder").unwrap();
+    std::fs::write(skill.join("upstream-data"), "retained").unwrap();
+    let runner = Installer {
+        calls: RefCell::new(Vec::new()),
+        refuse: false,
+        store: c.agents().join("skills"),
+    };
+    c.install_clawhub(
+        "/fixture/clawhub",
+        &r,
+        SkillsBuildMode::Additive,
+        &env,
+        &runner,
+    )
+    .unwrap();
+    assert!(runner.calls.borrow().is_empty());
+    assert!(skill.join(".DS_Store").is_file());
+    assert!(
+        c.install_clawhub("/fixture/clawhub", &r, SkillsBuildMode::Full, &env, &runner)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(runner.calls.borrow().len(), 1);
+    assert!(!skill.join(".DS_Store").exists());
+    assert_eq!(
+        std::fs::read_to_string(skill.join("upstream-data")).unwrap(),
+        "retained"
     );
 }

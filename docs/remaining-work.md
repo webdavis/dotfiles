@@ -66,6 +66,17 @@ The other two were retired by merged pull requests and named in their bodies for
 
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
+
+- [ ] 11c. Bootout `com.webdavis.update-skills`, then trash its plist and the two scripts tasks 55 and 56
+  retire: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
+  `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
+  `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
+  delete the deployed copy, and the LaunchAgent stays loaded until it is booted out.
+
+- [ ] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
+  open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
+  open. Three were found on 2026-09-08, two of them nearly three days old.
+
 - [x] 11b. Trash `~/.local/share/herdr/plugins/herdr-last-workspace` and its link. Folded into
   `herdr-workspace-jump` in PR #418. It was still registered in `~/.config/herdr/plugins.json` and still
   running an event hook on every `workspace.focused`, so it needed `herdr plugin unlink` before the
@@ -74,9 +85,9 @@ The other two were retired by merged pull requests and named in their bodies for
 ## Before the first stopping point
 
 - [x] 12. Merge PR #458, the auto-commit spec fix and module rename
-- [ ] 13. Commit and push the failure-reporting spec
-- [ ] 14. Push `feat/nvim-pns-wiring` (Neovim task 26, pns.nvim), PR, merge
-- [ ] 15. Push `feat/uu-tooling-e12-e17` (7 commits), PR, merge
+- [x] 13. Commit and push the failure-reporting spec
+- [x] 14. Push `feat/nvim-pns-wiring` (Neovim task 26, pns.nvim), PR, merge
+- [x] 15. Push `feat/uu-tooling-e12-e17` (7 commits), PR, merge
 - [x] 16. Merge main into PR #448 (herdr), merge
 - [x] 17. Pre-apply verification: build pns and posture, headless Neovim start, zero stderr
 - [x] 18. Run `chezmoi apply`
@@ -163,10 +174,10 @@ Every posture producer is Rust and the old pipeline is off.
 
 - [ ] 51. uu B1: `rust-toolchain.toml`, needs the stable toolchain certified
 - [ ] 52. uu D1, D2, D3: the cargo lane and `RustupLane`
-- [ ] 53. uu E12, E13, E14: skills hermes and forks
-- [ ] 54. uu E15a, E15: the skills orchestrator
-- [ ] 55. uu E16: retire `update-skills.sh` and its LaunchAgent
-- [ ] 56. uu E17: retire `log-entries.sh`
+- [x] 53. uu E12, E13, E14: skills hermes and forks
+- [x] 54. uu E15a, E15: the skills orchestrator
+- [x] 55. uu E16: retire `update-skills.sh` and its LaunchAgent
+- [x] 56. uu E17: retire `log-entries.sh`
 - [ ] 57. uu E19: the log rotation lane, needs the hourly log writer stopped
 
 ### STOP POINT F

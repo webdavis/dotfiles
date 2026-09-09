@@ -1,3 +1,5 @@
+mod adapter;
+mod bootstrap;
 mod roster;
 pub use roster::{HermesRegistryEntry, SkillsRoster};
 
@@ -13,6 +15,22 @@ mod clawhub;
 mod fanout;
 mod overlay;
 mod publish;
+mod validate;
+
+mod hermes;
+
+mod forks;
+pub use forks::SkillsForkWatch;
+
+mod live;
+
+mod run;
+
+mod content;
+mod migration;
+mod session;
+mod snapshot;
+
+pub use session::capture_skills_updater;
 #[cfg(test)]
 mod tests;
-mod validate;

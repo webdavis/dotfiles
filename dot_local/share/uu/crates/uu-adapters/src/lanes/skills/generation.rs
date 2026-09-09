@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 mod cleanup;
 mod exchange;
-mod garbage;
+pub(super) mod garbage;
 pub(super) mod metadata;
 mod recovery;
 pub use exchange::exchange_skills_directories;

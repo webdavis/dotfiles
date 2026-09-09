@@ -3,16 +3,16 @@
 ## Scope
 
 This file specifies the frozen compatibility contract of `pns`'s producer invocation: the deliberately
-lenient argv parser in `src/args.rs`, the ten legacy producer flags plus elapsed timing, the help and
-version spellings, the top-level dispatch in `src/main.rs:main` that decides whether an argv is a
-producer invocation or a mistyped subcommand, the subcommand table printed by `const USAGE`, and the four
-hand-typed verbs whose argv shapes callers outside this crate depend on (`pns <harness>-hook`,
-`pns gate <harness>-hook`, `pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a
-delivered event renders as, which channels exist, how the decision ring or the journal are written, or
-any behavior of the daemon, the lamps, the home probe or the router beyond the argv that reaches them.
-Everything asserted here is derived from the code in this crate and the tests in `src/args.rs`,
-`src/lights.rs`, `src/pulse.rs`, `tests/dispatch.rs` and `tests/hooks.rs`; anything a reader might expect
-and that no code or test establishes is written as a `NOT ESTABLISHED:` line rather than guessed.
+lenient argv parser in `src/args.rs`, the ten producer flags it recognizes, the two help spellings, the
+top-level dispatch in `src/main.rs:main` that decides whether an argv is a producer invocation or a
+mistyped subcommand, the subcommand table printed by `const USAGE`, and the four hand-typed verbs whose
+argv shapes callers outside this crate depend on (`pns <harness>-hook`, `pns gate <harness>-hook`,
+`pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
+which channels exist, how the decision ring or the journal are written, or any behavior of the daemon,
+the lamps, the home probe or the router beyond the argv that reaches them. Everything asserted here is
+derived from the code in this crate and the tests in `src/args.rs`, `src/lights.rs`, `src/pulse.rs`,
+`tests/dispatch.rs` and `tests/hooks.rs`; anything a reader might expect and that no code or test
+establishes is written as a `NOT ESTABLISHED:` line rather than guessed.
 
 ## The flag table
 
@@ -32,58 +32,18 @@ knows.
 | `--local-only`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:local_only_keeps_the_banner_and_reaches_nothing_off_the_machine`                                                                       |
 | `--remote-only`  | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`                                                                                             |
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
-| `--elapsed`      | nonnegative whole seconds, fitting `u64` | refuse with exit 2, without an event                                                          | refuse a nondecimal or overflowing value                                       | `tests/producer_timing.rs`                                                                                                                                |
 | `--help`, `-h`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:the_help_flag_prints_the_usage_and_reaches_nothing_at_all`                                                                             |
 
-The two lists behind the table are `src/args.rs:VALUE_FLAGS` (the eight value-taking flags) and
+The two lists behind the table are `src/args.rs:VALUE_FLAGS` (the seven value-taking flags) and
 `src/args.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`). `--help` and `-h` are
 deliberately in NEITHER list: `src/args.rs:is_help_flag` answers them separately, which is what keeps
 `--agent --help` an agent literally named `--help` rather than a warn-and-drop
 (`src/args.rs:help_in_value_position_is_still_just_a_value`).
 
-## Elapsed timing and version
-
-`--elapsed <secs>` applies the producer duration policy in `pns-domain`: below 30 seconds it returns
-silently before configuration, state or probes; from 30 seconds it uses the existing presence and
-destination rules; from 300 seconds it also selects the existing long-running tier. It appends
-` (<secs>s)` to a supplied detail, or uses `<secs>s` when detail is empty. It does not change the state,
-channel or narrowing flags. Calls without `--elapsed` retain their detail and tier.
-
-Missing, negative, fractional, nondecimal and overflowing seconds refuse with exit 2 and
-`pns: --elapsed requires a nonnegative whole number of seconds` on stderr. A later valid value does not
-erase an earlier refusal. `--elapsed` together with `--long-running`, in either order, refuses with exit
-2 and `pns: --elapsed cannot be combined with --long-running`. No event is dispatched. Help in flag
-position still wins before these refusals. Existing legacy value-position help and warn-and-ignore
-behavior remain unchanged.
-
-`--version` and `-V` as the first argument exit 0 with the Cargo package version and one newline on
-stdout, no stderr, configuration load or probes. `0.1.0` is the first emitted version supporting
-`--elapsed`; it is the explicit minimum for the released pns.nvim plugin's configuration. Earlier
-binaries carried that package version internally but answered `--version` with usage and exit 2. The
-plugin's health check is advisory and its reporting call still emits elapsed seconds.
-
-`pns shell begin --pid <pid> --command <line>` publishes the calling shell's epoch marker.
-`pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>` clears that marker
-synchronously, then starts the existing producer route in a separate process group with null streams.
-Only the immediate parent process may name its marker. Invalid arguments refuse before filesystem or
-notification work. A marker write failure costs the marker; Bash still returns success from preexec.
-A failed removal still permits the command report, as the old prompt did.
-
-The domain owns the same command-prefix skip list and word boundary, both elapsed tiers, and the
-`done`/`failed` payload. Only the command word before the first literal space enters detail, never its
-arguments. Failed detail retains `(<secs>s, exit <code>)`. Project and pane come from the shell's
-logical `PWD` basename and `HERDR_PANE_ID`. Interactive commands and elapsed times below 30 seconds
-load no configuration and deliver nothing.
-
-Bash retains PS0 timing, immediate status capture, first-command history fallback and the EXIT callback.
-The callback clears its timer before pns runs; a first prompt calls nothing. EXIT uses end with elapsed
-zero. Delivery starts only after marker removal, so an earlier command cannot erase a later command's
-marker. The external `lights-shell/<pid>` protocol and dead-owner sweep remain unchanged.
-
 ## The usage text, verbatim
 
-`const USAGE` in `src/invocation.rs` is one text printed on request and on a refusal, because an operator
-who mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
+`const USAGE` in `src/main.rs` is one text printed on request and on a refusal, because an operator who
+mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
 
 ```text
 pns: usage:
@@ -97,8 +57,6 @@ pns: usage:
   pns quiet [<duration>|off]       the operator's mute
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
-  pns shell begin --pid <pid> --command <line>
-  pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>
@@ -106,10 +64,9 @@ pns: usage:
   pns doctor                       one test send through every channel
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
-  pns --version, -V                the package version
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route> --elapsed <secs>
+                --detail <text> --pane <id> --channel <route>
                 --local-only --remote-only --long-running
 ```
 
@@ -152,23 +109,12 @@ Enumerated by `grep -rn 'libexec/pns/pns'` over the repository, excluding `.git`
 
 Producer invocations (the contract this file specifies):
 
-| Caller                                                                                | Command line                                                                                                                                   |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dot_bashrc.tmpl:576`                                                                 | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`        |
-| `dot_bashrc.tmpl:580`                                                                 | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                       |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:517`                    | `"$pns_script" --remote-only --channel "$UNATTENDED_LOG_ROUTE" --agent "$agent" --state "$state" --project "$project" --detail "$detail" 9>&-` |
-| `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:556`                    | `"$pns_script" --agent "$agent" --state log-channel-broken --project "$(unattended_log_host)" --detail "$(printf ...)" 9>&-`                   |
-| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137`     | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`                    |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:464`  | `"$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" 9>&-`                                             |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2039` | `"$relay_script" --agent update-skills --state build-failed --project skills ...`                                                              |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2048` | `"$relay_script" --agent update-skills --state validation-failed --project skills ...`                                                         |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2656` | `"$relay_script" --agent update-skills --state prereq-missing --project hermes-superpowers ...`                                                |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2675` | `"$relay_script" --agent update-skills --state routing-drift --project hermes-superpowers ...`                                                 |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2709` | `"$relay_script" --agent update-skills --state prereq-missing --project hermes ...`                                                            |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2741` | `"$relay_script" --agent update-skills --state hermes-blocked --project "$profile/$lock_key" ...`                                              |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:2752` | `"$relay_script" --agent update-skills --state hermes-update-failed --project "$profile/$lock_key" ...`                                        |
-| `dot_local/libexec/unattended-upgrades/agent-skills/executable_update-skills.sh:3098` | `"$relay_script" --agent update-skills --state "$state" --project "$fork" --detail "$detail" 9>&-`                                             |
-| `scripts/cutover-gate.sh:1012`                                                        | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                              |
+| Caller                                                                            | Command line                                                                                                                            |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `dot_bashrc.tmpl:576`                                                             | `"$pns_engine" --long-running --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"` |
+| `dot_bashrc.tmpl:580`                                                             | `"$pns_engine" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}"`                |
+| `dot_local/libexec/unattended-upgrades/executable_homebrew-weekly-upgrade.sh:137` | `"$ENGINE" --agent homebrew-weekly-upgrade --state "$state" --project "$(unattended_log_host ...)" --detail "$detail" 9>&-`             |
+| `scripts/cutover-gate.sh:1012`                                                    | `"$relay" --agent cutover-gate --state 'done' --project cutover --detail "$note"`                                                       |
 
 Non-producer callers of the same binary, listed because they share the argv[1] dispatch this contract
 lives inside:
@@ -562,8 +508,7 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
 `ReportMode::ReportOutcome`, which is what makes an undelivered log entry visible.
 
 - Success: hermes fires with `mode == "sync"`; neither the banner nor the mobile card does. The engine
-  prints one `pns: ` line naming the outcome, which is the line
-  `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh` greps for as `^pns: posted HTTP 2`.
+  prints one `pns: ` line naming the outcome.
 - Failure sources: a gateway that refuses or hangs. The outcome is REPORTED on stdout; the exit code does
   not move.
 - Fail direction: loud but non-fatal. `pns` exits 0 whatever the gateway answered, which is why the
@@ -578,15 +523,10 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
 - Timeout and cancellation: as above; the deadline is ureq's, and the process does not fork for this leg.
 - Idempotency and duplicates: one post per invocation.
 - Privacy: the detail text crosses the network to the configured gateway.
-- Process ownership and cleanup: the caller closes fd 9 (`9>&-`) on several of the weekly-job call sites,
-  because `pns` detaches channels that would otherwise inherit a held flock.
-- Compatibility contract: the stdout line's prefix `pns: ` and the substring `posted HTTP 2` are what the
-  weekly log helper depends on. Naming tests:
+- Process ownership and cleanup: durable delivery completes synchronously before the invocation returns.
+- Compatibility contract: delivery is synchronous and limited to durable legs. Naming tests:
   `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`,
   `tests/dispatch.rs:hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visible`.
-  `NOT ESTABLISHED:` no test in this crate asserts the exact string `pns: posted HTTP 200`; the comment
-  at `dot_local/libexec/unattended-upgrades/helpers/log-entries.sh:485-488` points at `tests/native.rs`
-  for the writer's side and records that the reader side is unpinned.
 
 ### 15. Both delivery-scope flags together deliver nothing and say so
 
@@ -938,8 +878,6 @@ Every `NOT ESTABLISHED:` line in this file, collected:
    example `pns doctor --agent x`). The claim rests on reading `src/main.rs:main`.
 1. Behavior 6: no test asserts that a repeated value flag is last-wins. The claim rests on the assignment
    in `src/args.rs:parse_args`.
-1. Behavior 14: no test in this crate asserts the exact stdout string `pns: posted HTTP 200` that
-   `log-entries.sh` greps for; the shell comment itself records the reader side as unpinned.
 1. Behavior 17: no test drives `--channel` from argv through to the wire. The flag's parse and the route
    name's rule are each pinned separately; the assignment at `src/main.rs:3270` is not.
 1. The callers table: the argv `uu` passes through its `[alerts] binary` is not derivable from this

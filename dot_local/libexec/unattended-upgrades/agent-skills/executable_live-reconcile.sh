@@ -19,7 +19,7 @@
 #   - the superpowers routing re-assert, delegated to its own script
 #
 # It does NOT install skills and does not rewrite the deployed lock: those
-# belong to update-skills.sh and to chezmoi. Divergence it will not fix is
+# belong to uu run skills and to chezmoi. Divergence it will not fix is
 # reported and exits non-zero in both modes, so gate 3's dry run stops the
 # cutover before the live run touches anything.
 set -euo pipefail
@@ -163,7 +163,7 @@ done
 # The profile universe is the lock's profiles UNION the profile directories that
 # already exist. A profile only reachable through the lock disappears from the
 # walk the moment its last skill is de-mapped, and its stale store links then
-# survive forever while this reports convergence. update-skills.sh walks the
+# survive forever while this reports convergence. uu run skills walks the
 # same union for the same reason.
 profiles=()
 profile_list="$scratch/profiles"
