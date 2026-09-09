@@ -18,7 +18,7 @@
 mod config;
 pub use config::DaemonConfig;
 pub use config::{
-    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, LoadOutcome,
+    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, Failures, LoadOutcome,
     MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, Recap, TABLE_KEYS,
     TOP_LEVEL, armed_mobile, config_path, enabled_hue_table, identity_placeholder, load_config,
     mobile_backend, moshi_secret, parse_config, parse_presence, render, strip_chezmoi_actions,

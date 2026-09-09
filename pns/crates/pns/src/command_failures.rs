@@ -27,6 +27,9 @@ pub(crate) fn failures_mode() -> i32 {
     let store = SqliteStore::for_records(pns_adapters::state_dir());
     match arguments.as_slice() {
         [] => list(&store),
+        // A VERB BEFORE THE NUMBER PARSE, and the two can never collide: an id
+        // is a number and a verb is a word.
+        [word] if word == "serve" => serve(),
         [word] => match word.parse::<u64>() {
             Ok(id) => show(&store, id),
             Err(_) => {
@@ -46,26 +49,61 @@ fn list(store: &SqliteStore) -> i32 {
         eprintln!("pns: the delivery ledger could not be read");
         return 1;
     };
+    print!("{}", listing(&failures));
+    0
+}
+
+/// The listing, as text.
+///
+/// A STRING RATHER THAN A PRINT, because the page serves this same table and
+/// the design's one rule about it is that there must not be two formatters that
+/// can drift. The trailing pointer is part of it: whoever is holding the list is
+/// exactly the reader who needs to know how to open one of its rows.
+pub(crate) fn listing(failures: &[StoredFailure]) -> String {
     if failures.is_empty() {
-        println!("pns: nothing is failing to deliver");
-        return 0;
+        return "pns: nothing is failing to deliver\n".to_string();
     }
-    println!(
-        "  {:<4}{:<18}{:<14}{:<11}sent by",
+    let mut out = format!(
+        "  {:<4}{:<18}{:<14}{:<11}sent by\n",
         "id", "when", "status", "route"
     );
-    for failure in &failures {
-        println!(
-            "  {:<4}{:<18}{:<14}{:<11}{}",
+    for failure in failures {
+        out.push_str(&format!(
+            "  {:<4}{:<18}{:<14}{:<11}{}\n",
             failure.id,
             when(failure.failed_at),
             short_status(failure),
             failure.route,
             failure.agent
-        );
+        ));
     }
-    println!();
-    println!("run `pns failures <id>` for one in full");
+    out.push_str("\nrun `pns failures <id>` for one in full\n");
+    out
+}
+
+/// `pns failures serve`: the page, in the foreground, until it is stopped.
+///
+/// THE DAEMON RUNS IT AS A CHILD, which is what supervises it: a listener that
+/// dies is restarted on the next tick, and an operator who wants the page
+/// without the daemon can still run this by hand.
+///
+/// `serve = false` EXITS 0 RATHER THAN REFUSING. The daemon does not start this
+/// child when the page is off, so reaching here with it off means the operator
+/// typed the command themselves, and the honest answer is that the page is
+/// switched off in their config rather than that they typed something wrong.
+fn serve() -> i32 {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let settings = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
+        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures,
+        _ => pns_adapters::Failures::default(),
+    };
+    if !settings.serve {
+        println!("pns: the failure page is off; set `[failures] serve = true` to serve it");
+        return 0;
+    }
+    // NEVER RETURNS while the daemon is up: the listener waits for its port
+    // and then serves forever, so the exit below is what a stopped child gets.
+    crate::failures_page::serve(settings.port);
     0
 }
 
@@ -161,7 +199,7 @@ fn when(epoch: u64) -> String {
     format!("{}Z", minute.replace('T', " "))
 }
 
-const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>]";
+const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|serve]";
 
 #[cfg(test)]
 #[path = "command_failures/tests.rs"]

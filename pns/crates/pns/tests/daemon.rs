@@ -72,7 +72,11 @@ fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::O
 /// delivered. HERMES rather than the banner, because the sandbox pins the
 /// operator AWAY (`PNS_IDLE_SECS` at a day), and a banner on a screen nobody is
 /// sitting at is exactly what the engine declines to raise.
-const ONE_CHANNEL: &str = "[plugins.hermes]\nenabled = true\nkey = \"k\"\n";
+/// `[failures] serve = false` because a DAEMON runs against this, and the page
+/// binds one fixed port: a sandbox that opened it would take that port away
+/// from every other test in this suite running beside it.
+const ONE_CHANNEL: &str =
+    "[plugins.hermes]\nenabled = true\nkey = \"k\"\n[failures]\nserve = false\n";
 
 /// An ordinary event for a scheduled job to deliver.
 const EVENT: [&str; 6] = [

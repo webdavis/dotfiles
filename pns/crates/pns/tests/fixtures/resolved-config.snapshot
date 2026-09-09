@@ -278,4 +278,8 @@ Config {
             zones: {},
         },
     ),
+    failures: Failures {
+        serve: true,
+        port: 8646,
+    },
 }

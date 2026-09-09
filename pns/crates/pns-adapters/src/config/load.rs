@@ -39,6 +39,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
             }
             "nag" => config.nag_after_secs = parse_nag(value)?,
+            "failures" => config.failures = parse_failures(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {

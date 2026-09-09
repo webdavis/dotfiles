@@ -267,6 +267,22 @@ summarizer_deadline_secs = 240
 [nag]
 after_secs = 300
 
+# The failure page: the same record `pns failures` prints, served over
+# loopback so moshi's browser preview can read it from your phone. The
+# listener binds 127.0.0.1 only, because the per-session SSH forward is
+# the trust boundary and nothing needs to be reachable from anywhere
+# else. moshi-hook finds it by probing local ports and remembering the
+# ones that answer, so nothing registers itself; an operator with a
+# narrowed scan-ports list adds this number to it. Two limits pns cannot
+# detect and does not pretend to: browser preview needs a moshi Pro
+# subscription, and the tunnel exists only while a terminal session is
+# open. serve = false is the fallback for either, and it costs nothing
+# else: the notification stands alone, Discord still carries the full
+# form whenever the hermes leg worked, and `pns failures` is unchanged.
+[failures]
+serve = true
+port = 8646
+
 # The lamp map: WHICH LAMP says what. A declaration names a place at one
 # of three levels, `[lights.lamp."<name>"]`, `[lights.room."<name>"]` or
 # `[lights.zone."<name>"]`, spelled as the bridge spells it, and says
