@@ -492,7 +492,7 @@ Every task in this section needs the pns-keyed gateway route to exist first. Add
 step, and it gates the whole section.
 
 - [ ] 43. posture 6.1: heartbeat cutover
-- [ ] 44. posture 6.2: digest cutover
+- [x] 44. posture 6.2: digest cutover
 - [ ] 45. posture 6.3: alert cutover
 - [ ] 46. posture 6.4: watchdog cutover
 - [ ] 47. posture 6.5: poll cutover

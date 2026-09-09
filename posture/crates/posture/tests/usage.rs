@@ -15,7 +15,6 @@ const WORDS: &[&[&str]] = &[
     &["poll"],
     &["funnel"],
     &["watchdog"],
-    &["digest"],
     &["allowlist"],
     &["ssh"],
     &["ssh", "install"],
