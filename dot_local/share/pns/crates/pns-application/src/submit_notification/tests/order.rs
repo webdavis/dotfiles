@@ -9,7 +9,6 @@ fn the_records_are_written_in_the_order_the_event_path_states() {
     assert_eq!(
         run(submission(&event, &decision, &overrides)),
         [
-            "decision",
             "marker(live)",
             "news(Done)",
             "lease",
@@ -24,10 +23,10 @@ fn the_records_are_written_in_the_order_the_event_path_states() {
 }
 
 #[test]
-fn the_decision_line_is_written_before_anything_else() {
+fn the_tail_begins_with_the_marker_after_delivery() {
     let (event, decision, overrides) = (event(), delivered_decision(), Overrides::default());
     let steps = run(submission(&event, &decision, &overrides));
-    assert_eq!(steps.first().map(String::as_str), Some("decision"));
+    assert_eq!(steps.first().map(String::as_str), Some("marker(live)"));
 }
 
 #[test]
@@ -60,7 +59,7 @@ fn the_pulse_goes_after_every_record_the_operator_might_be_waiting_on() {
         .iter()
         .position(|step| step.starts_with("pulse"))
         .unwrap();
-    for earlier in ["decision", "activity", "replay"] {
+    for earlier in ["activity", "replay"] {
         let at = steps.iter().position(|step| step == earlier).unwrap();
         assert!(at < pulse, "{earlier} ran after the pulse: {steps:?}");
     }
@@ -79,7 +78,6 @@ fn a_missed_event_is_journaled_before_its_marker_and_keeps_held_lamps() {
     assert_eq!(
         run(submission(&event, &decision, &overrides)),
         [
-            "decision",
             "journal",
             "marker(live)",
             "news(Done)",
@@ -87,5 +85,15 @@ fn a_missed_event_is_journaled_before_its_marker_and_keeps_held_lamps() {
             "activity",
             "tick"
         ]
+    );
+}
+
+#[test]
+fn outcome_contract_the_tail_does_not_append_a_second_decision() {
+    let (event, decision, overrides) = (event(), missed_decision(), Overrides::default());
+    let steps = run(submission(&event, &decision, &overrides));
+    assert!(
+        !steps.iter().any(|step| step.starts_with("decision")),
+        "{steps:?}"
     );
 }

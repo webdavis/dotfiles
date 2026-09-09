@@ -27,6 +27,8 @@ pub struct Config {
     /// key: naming no mode and switching the feature off are the same
     /// statement, and a second way to say it is a second thing to disagree.
     pub focus_silence: Vec<String>,
+    /// Exact request classes allowed through mute and named Focus for banner and phone.
+    pub bypass_silence_classes: Vec<String>,
     /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
     ///
     /// DEFAULT ON, which is the opposite of `[focus]` and of every plugin, and
@@ -35,6 +37,7 @@ pub struct Config {
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
+    pub retry_limits: pns_domain::retry::RetryLimits,
     /// `[nag] after_secs`: how long an unanswered approval waits before it is
     /// carded a second time, in seconds. ZERO IS THE FEATURE OFF.
     ///
@@ -51,10 +54,8 @@ pub struct Config {
     pub nag_after_secs: u64,
     /// `[lights]`: the lamp policy, or None when no table was written.
     ///
-    /// BOXED because it is the largest thing in here and almost no machine has
-    /// one: measured, the table is 72 of this struct's bytes and the whole
-    /// config travels by value inside `LoadOutcome`, whose empty `Missing`
-    /// variant would then be paying for a table that is usually absent.
+    /// Boxed because this is the largest optional policy. Configurations
+    /// without lamps do not reserve space for all its fields.
     pub lights: Option<Box<Lights>>,
 }
 
@@ -64,7 +65,9 @@ impl Default for Config {
             plugins: BTreeMap::new(),
             recap: Recap::default(),
             focus_silence: Vec::new(),
+            bypass_silence_classes: vec!["security".into()],
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
+            retry_limits: Default::default(),
             nag_after_secs: NAG_OFF,
             lights: None,
         }
@@ -72,6 +75,14 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn silence_policy(&self, class: Option<&str>) -> pns_domain::SilencePolicy {
+        if class.is_some_and(|class| self.bypass_silence_classes.iter().any(|name| name == class)) {
+            pns_domain::SilencePolicy::BypassBannerAndPhone
+        } else {
+            pns_domain::SilencePolicy::Respect
+        }
+    }
+
     /// Which plugin names the file mentions, and whether each is switched on.
     ///
     /// THE ONLY THING SELECTION READS off a config, handed over as itself so
@@ -115,5 +126,5 @@ impl ConfigError {
 #[derive(Debug, PartialEq)]
 pub enum LoadOutcome {
     Missing,
-    Loaded(Config),
+    Loaded(Box<Config>),
 }

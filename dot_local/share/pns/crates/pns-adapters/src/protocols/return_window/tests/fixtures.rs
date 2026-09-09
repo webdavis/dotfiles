@@ -29,6 +29,7 @@ impl Replay {
                 ..EventArgs::default()
             },
             Some(1_000),
+            None,
         );
         Self {
             moment: FileReturnMoment::new(state.clone()),
@@ -53,7 +54,17 @@ impl Replay {
 
 impl ReturnMoment for Replay {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim> {
-        self.moment.claim(now, take_journal)
+        self.moment.claim(now, take_journal).map(|mut claim| {
+            claim.replay = Some(pns_application::ReplayBatch {
+                identity: pns_application::SubmissionIdentity {
+                    producer: "fixture".into(),
+                    request_id: "one-return".into(),
+                },
+                until: now,
+                state: pns_application::ReplayState::Unsubmitted,
+            });
+            claim
+        })
     }
     fn complete(&self) {
         self.moment.complete();
@@ -76,7 +87,12 @@ impl RecapPublisher for Replay {
 }
 
 impl ReplayDelivery for Replay {
-    fn deliver(&self, event: &EventArgs, _: &[Leg]) {
+    fn deliver(
+        &self,
+        _: &pns_application::SubmissionIdentity,
+        event: &EventArgs,
+        _: &[Leg],
+    ) -> pns_application::ReplayHandoff {
         assert_eq!(
             holds(&self.state).len(),
             1,
@@ -86,9 +102,10 @@ impl ReplayDelivery for Replay {
         if self.attempt == Attempt::Interrupted {
             panic!("owned replay interrupted");
         }
-        // The legacy port returns after either outcome. Both completed paths
-        // consume the batch; retry policy is a separate delivery-ledger change.
+        // This fixture hands both completed attempts to its in-memory ledger.
+        // A failed destination is queued, so that failure can release the file hold.
         self.outcome.set(Some(self.attempt));
+        pns_application::ReplayHandoff::Queued
     }
 }
 
@@ -132,8 +149,7 @@ fn returning() -> Decision {
             now_secs: Some(2_000),
             long_running: false,
             mobile_watch_card: false,
-            local_only: false,
-            remote_only: false,
+            scope: pns_domain::DeliveryScope::Automatic,
         },
     }
 }

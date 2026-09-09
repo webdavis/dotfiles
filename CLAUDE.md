@@ -69,7 +69,7 @@ just test-unit          # Unit suite only (the fast commit gate)
 just test-bashunit      # One suite's `<name>.test.sh` files alone (default test/unit)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
-just test-rust          # cargo test for the two herdr plugins and the pns crate (+ fmt/clippy for pns)
+just test-rust          # Rust tests for herdr, pns, uu, posture and lights, plus workspace checks
 just test               # The three shell suites plus the Rust tests (CI runs this)
 just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
@@ -149,6 +149,16 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
 holds until the vault is replaced with a password manager an agent can unlock.
 
+**NEVER tell the operator to run `chezmoi apply` without verifying it will pass first.** The operator
+running an apply, hitting an error, pasting it back, waiting for a fix, and running again is a loop that
+costs them an evening and finds one failure per round. An agent has everything it needs to find those
+failures itself: render a script with
+`CI=1 chezmoi --source "$PWD" execute-template --no-tty < .chezmoiscripts/<name>` and run it, or run the
+deployed copy directly. Do that for every script the change touches AND for every one that failed on a
+previous attempt, report the exit codes, and only then say it is safe to apply (operator ruling
+2026-09-08). A long-deferred apply fails one script at a time, so a round trip per failure is the worst
+possible way to find them; every such failure is reproducible without an apply.
+
 **Why `--exclude=templates` was retired** (it was the mandated agent apply until 2026-08-10). It left the
 deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
 hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
@@ -166,11 +176,12 @@ the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts unde
 deployed state and the manifests derived from the same source state. The by-name form existed to dodge
 the vault, which is no longer a goal now that the operator applies with it unlocked.
 
-Fourteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Fifteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
 `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`,
-`~/.config/pns/config.toml`, `~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`,
-`~/.hermes/.env`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.config/pns/config.toml`, `~/.config/lights/config.toml`, `~/.config/uu/config.toml`,
+`~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
@@ -611,20 +622,20 @@ and direnv and before starship.
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework), inside a darwin gate, because the engine is macOS-only. The shell is an engine producer like
-the Claude and Codex hooks and the weekly jobs, so both tiers call `~/.local/libexec/pns/pns` rather than
-raising their own banner: the state is `done` or `failed` off the exit code, the detail is the command
-name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus that pane
-on click. Commands at 30s or longer go through the engine's normal presence gate (banner and Discord
-always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means glancing, so 30s
-is enough to earn the phone); at 5 minutes or longer they pass `--long-running`, and the lights are part
-of the engine's own delivery plan from there, pulsing green on success and red otherwise off the same
-exit code the state came from. The shell used to make a second `pns pulse` call of its own, which meant
-the tier was decided twice and could disagree with itself. `pns pulse <exit-code>` still exists, but
-nothing in this repo calls it: it is the operator's manual command for signalling the lights by hand and
-for checking that a `[plugins.hue]` table's bridge and key actually work. Interactive TUIs are skipped by
-a prefix match on the command line: `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`,
-`claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list because they fire their own relay
-hooks.
+the Claude and Codex hooks and the weekly jobs, so its begin/end callbacks call
+`~/.local/libexec/pns/pns` rather than raising their own banner: the state is `done` or `failed` off the
+exit code, the detail is the command name and how long it ran, and the pane is `HERDR_PANE_ID`, which is
+what makes the banner focus that pane on click. Commands at 30s or longer go through the engine's normal
+presence gate (banner and Discord always, phone when away; operator ruling 2026-08-06: away means mobile,
+and mobile means glancing, so 30s is enough to earn the phone); at 5 minutes or longer pns selects
+`--long-running`, and the lights are part of the engine's own delivery plan from there, pulsing green on
+success and red otherwise off the same exit code the state came from. The shell used to make a second
+`pns pulse` call of its own, which meant the tier was decided twice and could disagree with itself.
+`pns pulse <exit-code>` still exists, but nothing in this repo calls it: it is the operator's manual
+command for signalling the lights by hand and for checking that a `[plugins.hue]` table's bridge and key
+actually work. Interactive TUIs are skipped by a prefix match on the command line: `vim`, `nvim`, `less`,
+`man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on that list
+because they fire their own relay hooks.
 
 ## Code Style
 

@@ -1,108 +1,92 @@
-# Skip Herdr onboarding workflow on first run.
+# Skip Herdr onboarding on first run.
 onboarding = false
 
-# Declarative intent; run_onchange_before_15-install-herdr.sh.tmpl guarantees the
-# runtime state.
+# ╭──────────╮
+# │  Update  │
+# ╰──────────╯
+# run_onchange_before_15-install-herdr.sh.tmpl guarantees this at apply time.
 [update]
 channel = "stable"
 
+# ╭────────────╮
+# │  Terminal  │
+# ╰────────────╯
 [terminal]
 default_shell = "bash"
 shell_mode = "auto"
 
+# ╭─────────╮
+# │  Theme  │
+# ╰─────────╯
 [theme]
-# Others: terminal, tokyo-night, dracula, nord, gruvbox, one-dark, solarized,
-# kanagawa, rose-pine, vesper.
 name = "catppuccin"
+# Keep the theme fixed; ignore terminal light/dark switching.
+auto_switch = false
 
-# TOML: [ui] scalar keys must precede the [ui.*] subtables; a table cannot be
-# reopened once a subtable has started.
+# ╭──────╮
+# │  UI  │
+# ╰──────╯
 [ui]
-# Agent labels in split-pane borders when no manual pane name is set.
 show_agent_labels_on_pane_borders = true
+status_indicators = "symbols"
 
 [ui.sound]
-# Sound when an agent changes state in a background workspace.
 enabled = true
 
 [ui.sound.agents]
-# Overrides accept "default", "on", "off". droid is muted by default.
 droid = "on"
 
 [ui.toast]
-# Background notifications as in-app toasts. Others: off, terminal, system.
+# Others: off, terminal, system.
 delivery = "herdr"
 
+# ╭────────────────╮
+# │  Experimental  │
+# ╰────────────────╯
 [experimental]
-# Persist pane scrollback across full server restarts.
 pane_history = true
-# In prefix mode, switch macOS input to an ASCII layout so chords register under
-# a CJK IME; restores on exit. macOS only, best-effort.
+# Switches macOS input to ASCII in prefix mode so chords register under a CJK IME.
 switch_ascii_input_source_in_prefix = true
 
-# [keys] is authoritative (per `herdr --default-config`); the design brief's
-# [keybindings] name is wrong.
+# ╭──────────────╮
+# │  Herdr Core  │
+# ╰──────────────╯
+# [keys] is the real name (`herdr --default-config`), not [keybindings].
 [keys]
 prefix = "ctrl+d"
-
-# Workspace picker (the herdr default, set explicitly for documentation).
 goto = "prefix+g"
-
-# Rename current tab.
 rename_tab = "prefix+comma"
 
-# Agent-pane nav on the alt tier: three nav axes, three modifier tiers (plain =
-# tabs, ctrl = workspaces, alt = agents). Ghostty delivers prefix+alt; verify if
-# a chord misfires elsewhere.
-next_agent = "prefix+alt+n"
-previous_agent = "prefix+alt+p"
-focus_agent = "prefix+alt+1..9"
+# nav tiers: alt = workspaces, {/} = step agents, ctrl = agent count.
+next_agent = "prefix+}"
+previous_agent = "prefix+{"
+focus_agent = "prefix+ctrl+1..9"
+next_workspace = "prefix+alt+n"
+previous_workspace = "prefix+alt+p"
+switch_workspace = "prefix+alt+1..9"
 
-# Splits deliberately crossed against herdr's defaults for tmux muscle memory:
-# herdr names the divider, tmux names the motion. DO NOT "fix" the cross.
-#   prefix+" -> top/bottom stack, prefix+% -> side-by-side.
+new_worktree = "prefix+alt+w"
+open_worktree = "prefix+alt+o"
+remove_worktree = "prefix+alt+x"
+
 split_horizontal = "prefix+\""
 split_vertical = "prefix+%"
 
-# Navigate-mode workspace up/down on ctrl+p/ctrl+n: plain k/j would clash with
-# navigate_pane's k/j and disable pane up/down in that mode.
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
 
-# Pane-level MRU toggle; pairs with the workspace-level toggle on prefix+ctrl+\.
+# Pane-level MRU toggle; pairs with the workspace toggle below.
 last_pane = "prefix+\\"
 
-# Swap moved off prefix+shift+h/j/k/l to the alt tier, freeing prefix+shift+l
-# for clear-screen below.
 swap_pane_left = "prefix+alt+h"
 swap_pane_down = "prefix+alt+j"
 swap_pane_up = "prefix+alt+k"
 swap_pane_right = "prefix+alt+l"
 
-# Workspace quick-jump chords (prefix+ctrl+<letter>), a namespace empty in herdr
-# defaults. Each invokes an action of the herdr-workspace-jump plugin, which
-# create-or-focuses by label: REQUIRED because `herdr workspace create` is not
-# idempotent and `workspace focus` takes an id, not a label, so no built-in
-# create-or-focus exists. A keybinding passes no arguments, so the label and the
-# working directory live in the plugin manifest, one action per workspace.
-[[keys.command]]
-key = "prefix+ctrl+h"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_homelab"
-description = "jump to homelab workspace (auto-start)"
-
-[[keys.command]]
-key = "prefix+ctrl+."
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_dotfiles"
-description = "jump to dotfiles workspace (CSI-u; fallback below)"
-
-[[keys.command]]
-key = "prefix+."
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_dotfiles"
-description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
-
+# ╭────────────────────────╮
+# │  herdr-workspace-jump  │
+# ╰────────────────────────╯
+# Quick-jump chords: herdr has no create-or-focus-by-label builtin.
 [[keys.command]]
 key = "prefix+ctrl+c"
 type = "plugin_action"
@@ -110,22 +94,46 @@ command = "herdr-workspace-jump.jump_casually_concerned"
 description = "jump to casually-concerned workspace"
 
 [[keys.command]]
-key = "prefix+ctrl+i"
+key = "prefix+ctrl+."
 type = "plugin_action"
-command = "herdr-workspace-jump.jump_ivy"
-description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
+command = "herdr-workspace-jump.jump_dotfiles"
+description = "jump to dotfiles workspace (CSI-u)"
 
 [[keys.command]]
-key = "prefix+ctrl+j"
+key = "prefix+."
 type = "plugin_action"
-command = "herdr-workspace-jump.jump_justdavis_ansible"
-description = "jump to justdavis-ansible workspace"
+command = "herdr-workspace-jump.jump_dotfiles"
+description = "jump to dotfiles workspace (non-CSI-u fallback)"
 
 [[keys.command]]
 key = "prefix+ctrl+e"
 type = "plugin_action"
 command = "herdr-workspace-jump.jump_essential_feed_case_study"
 description = "jump to essential-feed-case-study workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+f"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_fitness"
+description = "jump to fitness workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+h"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_homelab"
+description = "jump to homelab workspace (auto-start)"
+
+[[keys.command]]
+key = "prefix+ctrl+i"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_ivy"
+description = "jump to Ivy vault workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+j"
+type = "plugin_action"
+command = "herdr-workspace-jump.jump_justdavis_ansible"
+description = "jump to justdavis-ansible workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+n"
@@ -139,19 +147,17 @@ type = "plugin_action"
 command = "herdr-workspace-jump.jump_plantpulse"
 description = "jump to plantpulse workspace"
 
-# Workspace-level MRU toggle, the same plugin that owns the quick-jump chords
-# (herdr has no builtin; the plugin tracks workspace.focused so mouse and picker
-# switches count too).
+# Workspace-level MRU toggle (same plugin as the jump chords).
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
 command = "herdr-workspace-jump.last_workspace"
-description = "last workspace (MRU toggle, via plugin)"
+description = "last workspace (MRU toggle)"
 
-# Raw ctrl-h/j/k/l navigate Neovim splits AND herdr panes as one space:
-# herdr-smart-nav forwards into nvim when the pane runs it (smart-splits.nvim
-# moves or crosses the edge via `herdr pane focus`), else moves herdr focus.
-# nvim side: mrjones2014/smart-splits.nvim + the custom herdr backend.
+# ╭───────────────────╮
+# │  herdr-smart-nav  │
+# ╰───────────────────╯
+# Neovim splits or herdr panes as one nav space.
 [[keys.command]]
 key = "ctrl+h"
 type = "plugin_action"
@@ -176,60 +182,61 @@ type = "plugin_action"
 command = "herdr-smart-nav.nav_right"
 description = "nav right: Neovim split or herdr pane"
 
-# Raw Ctrl-l is pane-nav above, so this sends a literal Ctrl-l to the pane:
-# readline clear-screen, no command, no history entry.
+# ╭────────────────╮
+# │  Clear Screen  │
+# ╰────────────────╯
+# Sends a literal Ctrl-l for readline clear-screen.
 [[keys.command]]
 key = "prefix+shift+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
 
-# Worktrees through worktrunk's picker (same `wt` lifecycle hooks as the shell).
-# prefix+shift+g deliberately shadows herdr's built-in new-worktree, per the
-# plugin README. Its config file stays absent: the defaults are what this
-# machine wants, and dot_config/worktrunk/config.toml already points worktrees
-# at herdr's own layout.
+# ╭─────────────╮
+# │  worktrunk  │
+# ╰─────────────╯
 [[keys.command]]
-key = "prefix+shift+g"
+key = "prefix+shift+o"
 type = "plugin_action"
 command = "worktrunk.open"
 description = "worktree: switch or create from the default branch"
 
 [[keys.command]]
-key = "prefix+shift+d"
+key = "prefix+shift+c"
+type = "plugin_action"
+command = "worktrunk.open-current"
+description = "worktree: switch or create from the current branch"
+
+[[keys.command]]
+key = "prefix+shift+g"
+type = "plugin_action"
+command = "worktrunk.open-with-remotes"
+description = "worktree: switch or create from local or remote branches"
+
+[[keys.command]]
+key = "prefix+backspace"
 type = "plugin_action"
 command = "worktrunk.remove"
 description = "worktree: remove"
 
-# seshagy: one picker over live workspaces, zoxide frecency, and fd-found
-# projects; reaches everything the quick-jump chords do not. `type = "pane"` +
-# --ephemeral makes it behave like a popup. NEVER run `seshagy keybind install
-# herdr`: it writes into ~/.config/herdr/config.toml, a chezmoi target, so its
-# edit is erased at the next apply. This block is byte-equivalent to what it
-# writes with --key k (captured 2026-08-29).
 [[keys.command]]
-key = "prefix+k"
-type = "pane"
-command = "seshagy --ephemeral"
-description = "seshagy session manager"
-
-# Files-and-git sidebar. Its settings modal persists dock/width/theme (mutable
-# state, deliberately unmanaged), so the toggle is the only host-side config.
-[[keys.command]]
-key = "prefix+b"
+key = "prefix+shift+m"
 type = "plugin_action"
-command = "herdr-sidebar.open-sidebar"
-description = "sidebar: toggle files and source control"
+command = "worktrunk.merge"
+description = "worktree: merge into the target branch"
 
-# Cmd+K-style fuzzy switcher over tabs, panes and agents.
+# ╭─────────────╮
+# │  herdr-bar  │
+# ╰─────────────╯
 [[keys.command]]
 key = "prefix+space"
 type = "plugin_action"
 command = "herdr-bar.open"
 description = "command bar: fuzzy jump to any tab, pane or agent"
 
-# Per-tab nvim sidebar + agent-touched-files picker; annotations flow back to
-# agents. The README's e/o keys shadow edit_scrollback and notification-target.
+# ╭──────────────────────╮
+# │  chmarax.herdr-nvim  │
+# ╰──────────────────────╯
 [[keys.command]]
 key = "prefix+a"
 type = "plugin_action"
@@ -242,46 +249,26 @@ type = "plugin_action"
 command = "chmarax.herdr-nvim.pick-file"
 description = "nvim sidebar: open file from agent output"
 
-# Code-review pane; config chezmoi-managed at plugins/config/persiyanov.reviewr/.
-# cmd+r reaches herdr where alt chords get swallowed by macOS terminals.
+# ╭──────────────────────╮
+# │  persiyanov.reviewr  │
+# ╰──────────────────────╯
 [[keys.command]]
-key = "cmd+r"
+key = "prefix+m"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
-# Workflow launcher. Its README wants prefix+k, which seshagy holds; declared
-# bindings win, so prefix+w is the one this machine uses.
-[[keys.command]]
-key = "prefix+w"
-type = "plugin_action"
-command = "herdr-workflows.launch"
-description = "workflows: launch a declared workflow"
-
-# Contextual tab labels in place of herdr's numbers. Deterministic process rules
-# first; a model only for what those find ambiguous, and only once a key is set
-# in plugins/config/tab-smart-rename/provider.env (none is, by default).
-# prefix+t and prefix+alt+t are the plugin README's own keys and both are free
-# here: herdr's default rename_tab is prefix+shift+t, this config moved it to
-# prefix+comma, and the alt tier holds only n, p, h, j, k, l and 1..9.
-# Renaming is on demand through this chord. The plugin's detached worker, which
-# renames automatically off herdr events, is started separately and is stopped
-# on this machine.
+# ╭────────────────────╮
+# │  tab-smart-rename  │
+# ╰────────────────────╯
 [[keys.command]]
 key = "prefix+t"
 type = "plugin_action"
 command = "tab-smart-rename.rename-now"
 description = "smart rename: the current tab"
 
-# rename-all is DELIBERATELY UNBOUND while no provider key is set. It walks tabs
-# sequentially and awaits each evaluation without recovering from a failure, so
-# the first ambiguous tab throws "AI key missing" and the walk stops there:
-# every later tab goes unvisited, including ones the deterministic rules would
-# have named on their own. That makes it worse than useless keyless, where
-# prefix+t on one tab always works. Wiring a key is then two edits, this block
-# and the one in plugins/config/tab-smart-rename/provider.env.
-# [[keys.command]]
-# key = "prefix+alt+t"
-# type = "plugin_action"
-# command = "tab-smart-rename.rename-all"
-# description = "smart rename: every tab"
+[[keys.command]]
+key = "prefix+shift+t"
+type = "plugin_action"
+command = "tab-smart-rename.rename-all"
+description = "smart rename: every tab"

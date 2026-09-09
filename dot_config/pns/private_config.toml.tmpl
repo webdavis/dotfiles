@@ -145,6 +145,18 @@ api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 [daemon]
 enabled = true
 
+# These request classes may pass your timed mute and named Focus for
+# banners and phone cards. Presence and delivery scope still decide
+# which surface receives them; muted lights stay off and hermes is
+# unchanged. Names match exactly. An empty list allows no bypass.
+# Exhausted delivery retries remain available for operator review.
+[delivery]
+bypass_silence_classes = ["security"]
+# Retry claims after the initial send, including interrupted retries. Zero permits no retries.
+max_attempts = 20
+# Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.
+max_age_secs = 604800
+
 # The return recap: what you missed while you were away. THE UNCOMMENTED
 # LINES ARE THE DEFAULTS, written out so they can be seen; each switch
 # gates only its own delivery, and deleting the whole table gets exactly
@@ -212,8 +224,9 @@ summarizer_deadline_secs = 240
 
 # The macOS Focus modes that pns reads as your own instruction not to be
 # interrupted. While one of them is active, banners, cards and light
-# pulses are held back and handed over when it ends; approvals never are,
-# and neither is the durable log. A name matches however you capitalised
+# pulses are held back and handed over when it ends. Approvals and the
+# durable log are unchanged. [delivery] classes can exempt banners and
+# phone cards. A Focus name matches however you capitalised
 # it, a mode's raw modeIdentifier works too, and an empty entry is refused
 # by name. An unreadable Focus store reads as no Focus, never as silence.
 # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no

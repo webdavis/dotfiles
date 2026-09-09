@@ -41,6 +41,7 @@ impl ReturnMoment for FileReturnMoment {
                 Some(Claim {
                     since,
                     waiting: waiting.entries,
+                    replay: None,
                 })
             }
         }
@@ -57,3 +58,5 @@ impl ReturnMoment for FileReturnMoment {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) use adoption::window_claim_is_free;

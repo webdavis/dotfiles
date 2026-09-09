@@ -22,7 +22,7 @@ const RING_LOCK_ATTEMPTS: u32 = 200;
 /// read as an orphan. Long past any real critical section, so this only ever
 /// fires for a crash, in `lights_tick_stale_secs`'s own style for its own
 /// job.
-const RING_LOCK_STALE_SECS: u64 = 5;
+pub(super) const RING_LOCK_STALE_SECS: u64 = 5;
 /// The path beside a ring's own that arbitrates between two processes
 /// touching it at once.
 fn ring_lock_path(path: &Path) -> std::path::PathBuf {

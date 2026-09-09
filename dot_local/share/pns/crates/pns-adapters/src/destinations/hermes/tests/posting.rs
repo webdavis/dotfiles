@@ -6,11 +6,11 @@ use super::*;
 fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
     let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
     assert_eq!(
-        channel.deliver(&event(), ReportMode::Silent),
+        channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
         Delivery::Delivered("posted HTTP 200".to_string()),
         "the channel reports what happened; the leg's mode decides who hears it"
     );
-    let posts = channel.post.posts.borrow();
+    let posts = channel.post.posts.lock().unwrap();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].0, "http://127.0.0.1:9/test");
     assert_eq!(
@@ -28,9 +28,9 @@ fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
 #[test]
 fn sync_carries_the_validated_sync_deadline() {
     let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
-    channel.deliver(&event(), ReportMode::ReportOutcome);
+    channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome));
     assert_eq!(
-        channel.post.posts.borrow()[0].3,
+        channel.post.posts.lock().unwrap()[0].3,
         Some(Duration::from_secs(5))
     );
 }
@@ -40,11 +40,11 @@ fn no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure() {
     for mode in [ReportMode::Silent, ReportMode::ReportOutcome] {
         let channel = channel_with_settings("", PostOutcome::Status(200));
         assert_eq!(
-            channel.deliver(&event(), mode),
+            channel.deliver(&delivery_request(&event(), mode)),
             Delivery::Failed(super::skipped_line()),
             "not set up is reported in both modes; only sync prints it"
         );
-        assert!(channel.post.posts.borrow().is_empty());
+        assert!(channel.post.posts.lock().unwrap().is_empty());
     }
 }
 
@@ -87,7 +87,7 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
     ] {
         let channel = channel_with_settings("key = \"key\"\n", outcome);
         assert_eq!(
-            channel.deliver(&event(), ReportMode::ReportOutcome),
+            channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome)),
             expected,
             "case: {outcome:?}"
         );

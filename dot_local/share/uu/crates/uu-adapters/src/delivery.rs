@@ -101,7 +101,7 @@ impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
         };
         let outcome = self
             .post
-            .post(&records.url, &body, &signature, Some(RECORD_DEADLINE));
+            .post(&records.url, &body, &signature, None, Some(RECORD_DEADLINE));
         let description = outcome_line(outcome);
         if delivered(outcome) {
             return RecordOutcome::Delivered { description };

@@ -1,4 +1,6 @@
 use pns_domain::{ABSENT, Record, count, printable, tri, verdicts, yes_no};
+mod revise;
+pub(crate) use revise::revise_leg;
 /// One decision as one line: `<epoch> <key=value ...>`.
 ///
 /// NO FREE TEXT REACHES IT. The detail, the branch, the project and the pane
@@ -57,8 +59,8 @@ pub fn line(record: &Record) -> String {
         fresh_window = count(inputs.desk_fresh_secs),
         long_running = yes_no(inputs.long_running),
         nag = yes_no(record.nag),
-        local_only = yes_no(inputs.local_only),
-        remote_only = yes_no(inputs.remote_only),
+        local_only = yes_no(inputs.scope == pns_domain::DeliveryScope::LocalOnly),
+        remote_only = yes_no(inputs.scope == pns_domain::DeliveryScope::RemoteOnly),
         // THE PANE AS THE DECISION USED IT and no further: its value is a
         // multiplexer id this crate does not own, and these two booleans are
         // everything the decision read out of it.

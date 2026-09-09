@@ -16,6 +16,7 @@ use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
 
 mod bounds;
 mod environment;
+mod file_output;
 mod overrun;
 
 /// The event handed to a command lane's child cannot exceed this, or
@@ -61,6 +62,9 @@ impl SystemRunner {
         let Ended::Exited(status) = finished.ended else {
             return Err(self.overrun(&finished.ended, &finished.stderr));
         };
+        if let Some(error) = finished.stdout_error {
+            return Err(error);
+        }
         if status.success() {
             return Ok(String::from_utf8_lossy(&finished.stdout).to_string());
         }
@@ -115,6 +119,16 @@ fn exit_description(status: &ExitStatus) -> String {
 }
 
 impl CommandRunner for SystemRunner {
+    fn run_to_file(
+        &self,
+        program: &str,
+        args: &[&str],
+        input: std::fs::File,
+        output: std::fs::File,
+    ) -> Result<(), String> {
+        file_output::run(self, program, args, input, output)
+    }
+
     fn run_in(
         &self,
         program: &str,

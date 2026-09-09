@@ -1,0 +1,24 @@
+# The room targeted when --room is absent.
+default_room = "3F - Studio"
+# Send a local pns event after each accepted write. --notify enables one command.
+notify = false
+
+[controller]
+type = "hue"
+address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
+key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
+# Maximum duration of one bridge request, in seconds.
+timeout_secs = 2
+
+[brightness]
+# Percentage points per relative step.
+step = 15
+
+[rooms]
+studio = "3F - Studio"
+bedroom = "3F - Master Bedroom"
+kitchen = "2F - Kitchen"
+
+[scenes]
+rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
+fallback = "Read"

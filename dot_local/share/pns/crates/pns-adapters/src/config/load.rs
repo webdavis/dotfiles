@@ -22,14 +22,21 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     })?;
 
     let mut config = Config::default();
-    // SIX ADMITTED KEYS AND NO MORE. The arm below is the whole schema at
-    // this level, and everything that is not one of the six is still refused
+    // The arm below is the whole schema at
+    // this level, and everything outside it is still refused
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "daemon" => config.daemon_enabled = parse_daemon(value)?,
+            "delivery" => {
+                let toml::Value::Table(mut table) = value else {
+                    return Err(ConfigError::Invalid("`delivery` is not a table".into()));
+                };
+                config.retry_limits = retry::parse_retry(&mut table)?;
+                config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
+            }
             "nag" => config.nag_after_secs = parse_nag(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {
@@ -69,7 +76,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 }
             }
             _ => {
-                // AND THE SIX ARE LISTED, off the roster's own top-level row.
+                // The admitted keys are listed off the roster's top-level row.
                 // This is the most operator-visible typo class there is (a
                 // whole table misspelled, or a table that MOVED, which refuses
                 // the file whole and takes every plugin's secret with it), and
@@ -89,7 +96,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
 /// The IO edge: read the file at `path` and hand its text to the parser.
 pub fn load_config(path: &Path) -> Result<LoadOutcome, ConfigError> {
     match read_config_text(path) {
-        Ok(text) => parse_config(&text).map(LoadOutcome::Loaded),
+        Ok(text) => parse_config(&text).map(Box::new).map(LoadOutcome::Loaded),
         // A dangling symlink also reads NotFound, and chezmoi deploys configs
         // as symlinks: the entry is PRESENT with a wrong target, so only an
         // absent entry is Missing and the broken link is an error.

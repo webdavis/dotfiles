@@ -22,6 +22,7 @@
 pub mod count;
 mod decision;
 mod decision_record;
+mod elapsed;
 pub mod home;
 pub mod jobs;
 pub mod lamps;
@@ -41,7 +42,7 @@ pub mod surface;
 
 pub use decision::{
     DEFAULT_DESK_IDLE_SECS, Decision, DecisionRequest, EnvironmentSnapshot, GateInputs, Overrides,
-    SurfaceReading, decide, surface_reading,
+    SilencePolicy, SurfaceReading, decide, surface_reading,
 };
 pub use presence::{
     Edge, Full, Narrowing, PresenceStatus, RawPresence, Snapshot, Unreadable, chosen, classify,
@@ -49,10 +50,11 @@ pub use presence::{
 };
 
 pub use decision_record::Record;
-pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdicts, yes_no};
+pub use decision_record::{ABSENT, KEPT, count, printable, tri, verdict, verdicts, yes_no};
 pub use routing::Delivery;
 
-pub use notification::{Event, EventArgs};
+pub use elapsed::elapsed_event;
+pub use notification::{DeliveryScope, Event, EventArgs};
 
 mod focus;
 pub use focus::silenced as focus_silenced;
@@ -70,3 +72,8 @@ pub use setup::{
 
 mod condenser;
 pub use condenser::{condenser_prompt, condenser_verdict};
+
+pub mod retry;
+
+mod shell;
+pub use shell::{shell_event, shell_is_interactive};

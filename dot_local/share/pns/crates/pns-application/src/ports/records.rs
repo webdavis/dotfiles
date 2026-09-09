@@ -13,12 +13,12 @@
 //! diagnostic. A ring write that returned a result would offer a decision no caller
 //! can act on.
 
+use pns_domain::Decision;
 use pns_domain::EventArgs;
 use pns_domain::Record;
 use pns_domain::jobs::Job;
 use pns_domain::lamps::config::Behaviour;
 use pns_domain::missed::Entry;
-use pns_domain::{Decision, Overrides};
 
 /// The decision log: why a card did or did not fire, newest first.
 ///
@@ -48,7 +48,12 @@ pub trait Journal {
     /// Takes the EVENT and the clock rather than a rendered entry, for
     /// `DecisionRing`'s reason: the entry's text is JSON, it is rendered in
     /// the root package until PR 11.2, and a use case cannot compose one.
-    fn journal(&self, event: &EventArgs, now: Option<u64>);
+    fn journal(
+        &self,
+        event: &EventArgs,
+        now: Option<u64>,
+        identity: Option<&crate::SubmissionIdentity>,
+    );
     /// Reads preserve absent versus unreadable for the doctor without claiming.
     fn read(&self) -> Result<Option<String>, String>;
 }
@@ -97,17 +102,31 @@ pub trait ActivityRing {
 pub trait ReturnMoment {
     fn claim(&self, now: Option<u64>, take_journal: bool) -> Option<Claim>;
 
-    /// Release readable holds after the attempt returns, including failed delivery.
-    /// An interrupted attempt leaves its holds for later adoption.
+    /// Consume only an empty batch or one transferred to the durable delivery ledger.
+    /// Failures before that handoff leave the batch for later adoption.
     fn complete(&self);
 }
 
 /// What claiming the moment yielded: the edge the marker held, absent when
 /// there was no marker to open a window with, and the journal taken with it.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Claim {
     pub since: Option<u64>,
     pub waiting: Vec<Entry>,
+    pub replay: Option<ReplayBatch>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayBatch {
+    pub identity: crate::SubmissionIdentity,
+    pub until: Option<u64>,
+    pub state: ReplayState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayState {
+    Unsubmitted,
+    Queued,
 }
 
 /// The lamp records this event writes: what is news, and what is held.
@@ -163,14 +182,13 @@ pub trait LoopLease {
 ///
 /// ITS OWN PORT BESIDE `JobSpool` RATHER THAN AN OPERATION ON IT. The spool's
 /// own vocabulary is a job id and a line, which PR 6.9's daemon speaks; this
-/// caller has a decision and a set of overrides and no opinion about either.
-/// Which lease a journalled event earns, and what the tick's argv is, are the
-/// adapter's.
+/// caller passes the same actual-miss answer used by the journal. The
+/// application registration operation chooses its lease and tick arguments.
 ///
 /// NO CLOCK IS NO REGISTRATION, never a job due at epoch zero.
 ///
 /// Checked against `register_lights_tick` (`src/main.rs:3364`). Statements:
 /// S231.
 pub trait LightsTick {
-    fn register(&self, decision: &Decision, overrides: &Overrides);
+    fn register(&self, decision: &Decision, actual_miss: bool);
 }

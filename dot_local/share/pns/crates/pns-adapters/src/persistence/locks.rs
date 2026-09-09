@@ -54,7 +54,7 @@ fn publish_lock(lock: &Path) -> std::io::Result<()> {
 /// down. That is the safe direction (one window lost, never two holders), and
 /// the case behind it is a lock that vanished between the failed create and the
 /// question, which the next attempt resolves anyway.
-fn lock_aged_out(lock: &Path, now: u64, stale_secs: u64) -> bool {
+pub(super) fn lock_aged_out(lock: &Path, now: u64, stale_secs: u64) -> bool {
     std::fs::symlink_metadata(lock)
         .ok()
         .as_ref()

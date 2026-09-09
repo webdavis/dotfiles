@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/lights-application",
+  "crates/lights-domain",
+  "crates/lights-adapters",
+  "crates/lights-protocol",
+  "crates/lights-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"

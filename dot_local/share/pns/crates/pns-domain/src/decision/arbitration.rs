@@ -11,12 +11,13 @@ pub fn decide(
     request: DecisionRequest<'_>,
 ) -> Decision {
     let DecisionRequest {
-        local_only,
-        remote_only,
+        scope,
         pane,
         now_secs,
         long_running,
         mobile_watch_card,
+        silence_policy,
+        observation,
     } = request;
     let reading = surface_reading(snapshot, overrides, now_secs);
     let session_visibility = operator_visibility(snapshot, pane);
@@ -41,8 +42,7 @@ pub fn decide(
         now_secs,
         long_running,
         mobile_watch_card,
-        local_only,
-        remote_only,
+        scope,
         pane_present: !pane.is_empty(),
     };
     let delivery = crate::surface::plan(
@@ -57,32 +57,32 @@ pub fn decide(
         phone_card: !overrides.skip_phone && (overrides.force_phone || delivery.phone_card),
         ..delivery
     };
-    // THE TWO MUTES, applied LAST and therefore beating `PNS_FORCE_PHONE`
-    // above them. Force is a producer's per-event opinion set in the
-    // environment; the operator's mute is their own typed, expiring
-    // instruction, and a macOS Focus they named in `[focus] silence` is the
-    // same instruction with the operating system as its author. A mute any
-    // producer can override is not a mute.
-    //
-    // ONE CONDITION FOR BOTH, so every downstream property (the journal, the
-    // deferred replay, beating force, the decision log) follows from one rule
-    // rather than from two that could drift. The durable log is not a field of
-    // `DeliveryPlan`, so the record survives both of them structurally.
-    //
-    // A FULL STRUCT LITERAL WITH NO `..delivery`, deliberately: it is what
-    // forces a future field of `DeliveryPlan` to state its own answer here
-    // rather than inherit an unmuted one. Do not tidy it into a struct update.
-    let delivery = if overrides.silenced() {
+    // A normalized observation is a quiet local notice plus the durable log,
+    // regardless of presence. Phone overrides cannot turn it into a card.
+    let delivery = if observation {
         crate::surface::DeliveryPlan {
-            banner: false,
+            banner: true,
             phone_card: false,
             pulse: false,
         }
     } else {
         delivery
     };
+    // A configured class can preserve the banner and phone already selected
+    // above. Silence still suppresses the pulse; caller scope and presence
+    // remain authoritative, and the durable log stays outside this plan.
+    let delivery = if overrides.silenced() {
+        crate::surface::DeliveryPlan {
+            banner: silence_policy == super::SilencePolicy::BypassBannerAndPhone && delivery.banner,
+            phone_card: silence_policy == super::SilencePolicy::BypassBannerAndPhone
+                && delivery.phone_card,
+            pulse: false,
+        }
+    } else {
+        delivery
+    };
     Decision {
-        legs: crate::routing::channel_plan(selection, local_only, remote_only, delivery),
+        legs: crate::routing::channel_plan(selection, scope, delivery),
         plan: delivery,
         pane_dropped: !pane.is_empty() && !crate::safety::pane_is_safe(pane),
         inputs: world,

@@ -3,8 +3,9 @@ use super::{
 };
 use crate::destinations::Event;
 use pns_application::CommandRunner;
+use pns_application::{DeliveryRequest, NotificationDestination};
 use pns_domain::routing::ReportMode;
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 // --- the click string ----------------------------------------------------
 
@@ -107,7 +108,7 @@ fn a_branchless_message_starting_with_a_killer_character_is_still_encoded() {
     let composed = pns_domain::render::message("", "(a parenthesised detail", "done");
     assert_eq!(composed, "(a parenthesised detail");
     assert_eq!(
-        notifier_args("t", &composed, "com.term", ": ")[3],
+        notifier_args("t", &composed, Some("default"), "com.term", ": ")[3],
         "\\(a parenthesised detail"
     );
 }
@@ -117,7 +118,7 @@ fn the_message_is_encoded_on_the_same_terms_as_the_title() {
     // Both are operator-facing text read through the identical parsing, so
     // a message beginning with a killer character needs the encoding just
     // as much as a title does.
-    let args = notifier_args("(a title", "[a preview", "com.term", ": ");
+    let args = notifier_args("(a title", "[a preview", Some("default"), "com.term", ": ");
     assert_eq!(args[1], "\\(a title");
     assert_eq!(args[3], "\\[a preview");
 }
@@ -130,14 +131,14 @@ struct RecordingRunner {
     /// deadline, and it is scripted here for the same reason hermes's post
     /// is: a failure no double can produce is a failure no test can see.
     answers: bool,
-    calls: RefCell<Vec<String>>,
+    calls: Mutex<Vec<String>>,
 }
 
 impl RecordingRunner {
     fn answering(answers: bool) -> Self {
         RecordingRunner {
             answers,
-            calls: RefCell::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
         }
     }
 }
@@ -145,7 +146,8 @@ impl RecordingRunner {
 impl CommandRunner for RecordingRunner {
     fn run(&self, program: &str, args: &[&str]) -> Option<String> {
         self.calls
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(format!("{program} {}", args.join(" ")));
         self.answers.then(String::new)
     }
@@ -173,8 +175,11 @@ fn a_delivered_leg_posts_the_banner_with_the_click_baked_in() {
     // The channel no longer decides anything: handed a leg, it fires.
     // Whether it deserved one is the plan's call, made before this.
     let banner = channel("com.term", Some("/x/herdr"));
-    banner.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
-    let calls = banner.runner.calls.borrow();
+    banner.deliver(&delivery_request(
+        &event_with_pane("wW:p1"),
+        ReportMode::Silent,
+    ));
+    let calls = banner.runner.calls.lock().unwrap();
     let notifier = calls
         .iter()
         .find(|call| call.contains("terminal-notifier"))
@@ -189,8 +194,11 @@ fn nothing_but_the_notifier_is_ever_spawned() {
     // It used to read the frontmost app to judge suppression for itself,
     // which meant two places could disagree about one event.
     let banner = channel("com.term", None);
-    banner.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
-    let calls = banner.runner.calls.borrow();
+    banner.deliver(&delivery_request(
+        &event_with_pane("wW:p1"),
+        ReportMode::Silent,
+    ));
+    let calls = banner.runner.calls.lock().unwrap();
     assert_eq!(calls.len(), 1, "one spawn only: {calls:?}");
     assert!(calls[0].starts_with("terminal-notifier"));
 }
@@ -219,7 +227,10 @@ fn a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier(
             herdr_path: None,
         };
         assert_eq!(
-            banner.deliver(&event_with_pane("wW:p1"), ReportMode::Silent),
+            banner.deliver(&delivery_request(
+                &event_with_pane("wW:p1"),
+                ReportMode::Silent
+            )),
             verdict,
             "answered: {answered}"
         );
@@ -229,15 +240,22 @@ fn a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier(
 #[test]
 fn an_unknown_terminal_activates_the_default() {
     let banner = channel("", None);
-    banner.deliver(&event_with_pane("wW:p1"), ReportMode::Silent);
-    let calls = banner.runner.calls.borrow();
+    banner.deliver(&delivery_request(
+        &event_with_pane("wW:p1"),
+        ReportMode::Silent,
+    ));
+    let calls = banner.runner.calls.lock().unwrap();
     assert!(calls[0].contains(&format!("-activate {DEFAULT_TERMINAL_BUNDLE_ID}")));
 }
 
-// --- dispatch precedence --------------------------------------------------
-
-#[test]
-fn an_explicit_channels_dir_means_executables_win() {
-    assert!(!crate::destinations::native_first(true));
-    assert!(crate::destinations::native_first(false));
+fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
+    DeliveryRequest {
+        producer: "test",
+        request_id: Some("original-42"),
+        event,
+        route: "",
+        mode,
+    }
 }
+
+mod observation;

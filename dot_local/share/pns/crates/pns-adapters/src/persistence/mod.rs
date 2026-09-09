@@ -31,3 +31,6 @@ pub use rings::FileLampState;
 
 mod lamp_tick;
 pub use lamp_tick::FileLampTick;
+
+mod sqlite;
+pub use sqlite::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};

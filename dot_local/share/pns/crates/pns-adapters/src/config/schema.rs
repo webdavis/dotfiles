@@ -26,7 +26,7 @@ use super::*;
 /// holds the part that is the schema's (one row for all three levels) and the
 /// refusal names the whole path.
 ///
-/// THE FIRST ROW IS THE FILE'S OWN TOP LEVEL, whose vocabulary is the six TABLE
+/// THE FIRST ROW IS THE FILE'S OWN TOP LEVEL, whose vocabulary is the TABLE
 /// names. It is a row like any other so that the refusal an operator gets for a
 /// misspelled or a MOVED table prints from the same source every other refusal
 /// prints from, and so the walks in this module's tests reach the outermost
@@ -38,7 +38,9 @@ use super::*;
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
-        &["daemon", "focus", "lights", "nag", "plugins", "recap"],
+        &[
+            "daemon", "delivery", "focus", "lights", "nag", "plugins", "recap",
+        ],
     ),
     (
         "recap",
@@ -54,6 +56,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     ("focus", &["silence"]),
+    (
+        "delivery",
+        &["bypass_silence_classes", "max_attempts", "max_age_secs"],
+    ),
     ("daemon", &["enabled"]),
     ("nag", &["after_secs"]),
     (

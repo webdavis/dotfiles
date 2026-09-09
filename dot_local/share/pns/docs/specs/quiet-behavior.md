@@ -35,7 +35,8 @@ Given the operator types `pns quiet 30m`
 
 When the run can read a clock and write the state directory
 
-Then `<state>/quiet-until` holds `now + 1800` followed by one newline, and stdout reads `pns: quiet for another 30 minutes`
+Then `<state>/quiet-until` holds `now + 1800` followed by one newline, and stdout reads
+`pns: quiet for another 30 minutes`
 
 - Success: `src/main.rs:quiet_mode` parses through `src/quiet.rs:parse_duration`, adds the seconds to
   `now_secs()` with `saturating_add`, and publishes through `src/main.rs:publish_state_line`. The
@@ -171,7 +172,8 @@ Given a live mute is on disk and the state directory is not writable
 
 When the operator types `pns quiet 30m`
 
-Then stderr says the write failed, stdout reports the OLD mute, the file is untouched, and the exit code is 1
+Then stderr says the write failed, stdout reports the OLD mute, the file is untouched, and the exit code
+is 1
 
 - Success: `src/main.rs:quiet_mode` sets `set_failed`, falls through to the report, reads the file back,
   and returns 1. Pinned by
@@ -202,7 +204,8 @@ Given a `quiet-until` file
 
 When any reader takes the mute
 
-Then only `<digits>` optionally followed by one trailing newline is an expiry, and every other shape complains once and reads as NOT muted
+Then only `<digits>` optionally followed by one trailing newline is an expiry, and every other shape
+complains once and reads as NOT muted
 
 - Success: `src/quiet.rs:expiry_from_state` strips exactly the one trailing newline the publish writes
   and hands the rest to the crate's one numeric gate. `src/main.rs:read_quiet_expiry` separates the three
@@ -242,9 +245,9 @@ Then only `<digits>` optionally followed by one trailing newline is an expiry, a
 - Compatibility contract: the verdict is `is_muted`'s and the report is derived from the same call, so a
   report and a behavior cannot disagree about whether a mute is on (`src/quiet.rs:status_line`).
 
-### 7. The two engine mutes zero the plan and beat every producer override
+### 7. The two engine mutes suppress decoration except configured request classes
 
-Given an event whose plan called for a banner, a phone card and a pulse
+Given an unmarked event whose plan called for a banner, a phone card and a pulse
 
 When either the operator mute is live or a Focus named in `[focus] silence` is asserted
 
@@ -282,9 +285,28 @@ Then the delivery plan becomes `banner: false, phone_card: false, pulse: false`
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: force is a producer's per-event opinion set in the environment; the mute is the
   operator's own typed instruction and a Focus is the same instruction with the operating system as its
-  author. A mute any producer can override is not a mute (`src/engine.rs:decide`). Pinned by
-  `src/engine.rs` (the forced-and-muted case) and by the `PNS_FORCE_PHONE=1` setup in
-  `tests/dispatch.rs:focus_event`.
+  author. A producer environment override cannot end that instruction. The explicit request-class policy
+  below is the exception (`crates/pns-domain/src/decision/arbitration.rs`). Pinned by `src/engine.rs`
+  (the forced-and-muted case) and by the `PNS_FORCE_PHONE=1` setup in `tests/dispatch.rs:focus_event`.
+
+For a request carrying a validated class, `[delivery] bypass_silence_classes` permits exact named matches
+through the timed mute and named Focus for the banner and phone already selected by policy. The shipped,
+uncommented default is `["security"]`; an empty list permits no exception. Names are case-sensitive, and
+each must contain 1 through 64 characters without controls. An invalid list, unknown key, missing file or
+unreadable config grants no exception. A valid config with no delivery table or no class key uses the
+default.
+
+Presence, visible-pane suppression, skip, narrowing flags and destination enablement still apply. Silence
+always suppresses the pulse. Hermes routing and payload stay unchanged. These are request metadata rules,
+independent of producer names; no numeric priority is inferred. Legacy events, heartbeat, digest and
+return summaries remain unmarked. A class-enabled original event cannot replay an aggregate through mute
+or Focus: `SubmitNotification` uses its existing silence inputs to decline the replay, while retaining
+activity and presence bookkeeping. The ledger keeps the original canonical request and resolved legs, so
+retry does not reinterpret class policy.
+
+This is deliberate behavior added for security producers. It is pinned through typed arbitration, config
+parsing and the actual JSON submission edge. There are no new waits, process owners or state stores in
+this policy.
 
 ### 8. The durable log is never silenced
 
@@ -363,49 +385,34 @@ Then the moshi forward still happens, byte for byte, and moshi's own exit code i
   (`src/main.rs:run_event`, the `attempt != Attempt::First` early return; pinned in the second half of
   `tests/hooks.rs:a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`).
 
-### 10. A silenced event is journaled as a miss and cannot replay
+### 10. A silenced, unperceived event is journaled and cannot replay
 
-Given an event silenced by the operator mute or a named Focus
+Given a first event silenced by the operator mute or a named Focus, with nobody watching its origin pane
+and no earlier route carrying it
 
-When the decision is recorded
+When delivery reaches the record tail
 
-Then the event joins the missed-notification journal, and the same run flushes nothing
+Then it joins the missed-notification journal and that run attempts no replay.
 
-- Success: `src/missed_notifications.rs:was_missed` reads the ARBITRATED plan
-  (`!plan.banner && !plan.phone_card`), so a zeroed plan is a miss by construction, and
-  `src/missed_notifications.rs:should_replay` reads the same two fields, so a silenced run can never
-  deliver the entry it just wrote. Neither function reads `overrides.muted` or `overrides.focus_active`.
-  Pinned by `tests/dispatch.rs:a_muted_event_queues_its_own_miss_and_replays_nothing` (journal grows from
-  2 to 3, no banner, exactly one durable delivery) and by
-  `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`
-  (exactly one miss queued).
-- Failure sources: a journal path that cannot be read or is not a regular file, which costs the event
-  nothing
-  (`tests/dispatch.rs:a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_replay`).
-- Fail direction: the journal is best effort and fail quiet; it never changes a verdict.
-- Thresholds: `plan.pulse` is DELIBERATELY NOT READ by `was_missed`: the lights are decoration and the
-  quiet window suppresses only them (`src/missed_notifications.rs:was_missed`).
-- Required side effects: three records are written REGARDLESS of the silencing. The activity ring records
-  unconditionally, because the recap's window is every event, delivered or not. The news record is
-  written whatever the delivery did, because a card that was suppressed or muted is exactly the news the
-  unread lamp exists to carry. The blocked marker is written when the lamps are live
-  (`src/main.rs:run_event`, the tail after `record_decision`).
-- Forbidden side effects: a nudge and an observation write NO journal entry and NO activity-ring line,
-  never claim the return moment, never trigger the replay and never pulse (`src/main.rs:run_event`,
-  `attempt != Attempt::First`).
-- Timeout and cancellation: the records are written after every channel and before the pulse, so a
-  channel hanging to its deadline can cost the decision record if the process is killed. Stated as an
-  accepted price at the record site (`src/main.rs:run_event`).
-- Idempotency and duplicates: a miss and a replay are mutually exclusive by construction, because a run
-  whose plan decorated nothing is exactly a run that journals
-  (`src/missed_notifications.rs:should_replay`).
-- Privacy: the journal holds the event's own fields.
-- Process ownership and cleanup: the journal is bounded state that prunes itself, read back under
-  `src/main.rs:RING_READ_MAX` (256 KiB).
-- Compatibility contract: suppressing is strictly MORE informative than not suppressing. macOS was going
-  to withhold the banner inside a Focus anyway, and posting it regardless would make pns believe it
-  delivered, so the event would never be journaled: no banner AND no recap entry
-  (`tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`).
+`missed::was_missed` uses actual decorative outcomes. Silencing leaves no acknowledged decoration;
+`missed::should_replay` separately reads the arbitrated plan, whose card and banner are both disabled. A
+durable log acknowledgement and a lights pulse do not count as perception. The watching and skip-phone
+exclusions still apply. This replaces the former plan-only miss predicate.
+
+The tail passes the original identity and decision clock to the journal and the same miss value to the
+lights lease. Activity and news are recorded regardless of silencing. Nudges and observations return
+before the journal, activity, replay and pulse operations.
+
+For queued delivery, dispatch commits the delivery plan before attempting destinations and records each
+outcome before this tail. A later tail failure cannot erase that retained delivery ownership. Direct
+journal and lamp writes remain best effort through their private diagnostic path; they add no hook
+output. Storage behaviors 46 and 47 define replay handoff and removal of a confirmed original's keyed
+miss.
+
+The existing muted-event and named-Focus dispatch cases cover the silencing behavior.
+`an_unconfirmed_decoration_journals_and_passes_the_same_miss_to_lamps` and
+`an_acknowledged_decoration_skips_the_journal_and_passes_no_miss_to_lamps` cover the outcome predicate
+and the lights lease's shared input.
 
 ### 11. macOS Focus is read per mode, never as "a Focus is on"
 
@@ -445,9 +452,9 @@ Then the event is silenced only if an ASSERTED mode matches a listed name or ide
   dressed as a check (`src/focus.rs:active_modes`). The store path is HOME-relative with NO environment
   hatch, so no producer can force the answer in either direction; the test seam is the sandbox's own
   `HOME` (`src/main.rs:focus_now`).
-- Timeout and cancellation: the two files are read through `src/system.rs:readable_state_file` with the 256 KiB
-  `RING_READ_MAX` ceiling and a regular-file check, so a FIFO at either path is refused rather than
-  parking the event. The live store measures 6 KiB against that ceiling (`src/main.rs:focus_now`).
+- Timeout and cancellation: the two files are read through `src/system.rs:readable_state_file` with the
+  256 KiB `RING_READ_MAX` ceiling and a regular-file check, so a FIFO at either path is refused rather
+  than parking the event. The live store measures 6 KiB against that ceiling (`src/main.rs:focus_now`).
 - Idempotency and duplicates: the reading is a SET, because the live store on this machine carries the
   SAME assertion record twice; uniqueness is not a property macOS maintains, so nothing downstream may
   count these (`src/focus.rs:active_modes`,
@@ -514,7 +521,8 @@ Given `[focus] silence = ["Coding"]` and a `ModeConfigurations.json` that cannot
 
 When the reading is taken
 
-Then no display name resolves, only a raw `modeIdentifier` entry can still match, and the doctor adds a clause of its own
+Then no display name resolves, only a raw `modeIdentifier` entry can still match, and the doctor adds a
+clause of its own
 
 - Success: `src/focus.rs:mode_names` answers an EMPTY MAP for an unreadable or unparseable catalog, never
   an error, and `src/focus.rs:silenced` still matches identifier entries with no catalog at all.
@@ -599,7 +607,8 @@ Given a window and a minute of the local day
 
 When `quiet_now` judges it
 
-Then the start minute is inside, the end minute is outside, a wrapping window is the two ends of the day joined, and a start equal to its end is never quiet
+Then the start minute is inside, the end minute is outside, a wrapping window is the two ends of the day
+joined, and a start equal to its end is never quiet
 
 - Success: `src/channels/hue.rs:quiet_now`. The minute of the local day comes from
   `src/system.rs:local_minutes_since_midnight`, which calls `localtime_r` and range-checks the result
@@ -665,7 +674,8 @@ Given a lamp whose declaration (or its room's or zone's) states `dim_window` and
 
 When a behavior is about to be shown at some minute of the local day
 
-Then the answer is `Full` outside the window, `Dimmed` inside it for a listed behavior, and `Dark` inside it for one that is not listed
+Then the answer is `Full` outside the window, `Dimmed` inside it for a listed behavior, and `Dark` inside
+it for one that is not listed
 
 - Success: `src/channels/hue.rs:dim_showing` over `src/channels/hue.rs:DimWindow`. THREE ANSWERS RATHER
   THAN A BOOLEAN, because the caller has to know which body to write. Pinned by
