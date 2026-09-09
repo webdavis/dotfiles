@@ -332,9 +332,13 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   IS A GUIDE, not a dump. It uses task 69's house style, so setup and `pns doctor` read as one tool: the
   framed title, `◆` numbered step headings with a faint blurb on the rule, `·` rows for the parts of a
   line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE
-  SUBTITLE NAMES THE WALKTHROUGH rather than counting its parts: "set up this Mac, then set up your
-  phone", never "two halves", because the reader is about to follow steps and the subtitle should tell
-  them what the steps are. Three of them, in the order they are performed: step 1 the `authorized_keys`
+  FRAME CARRIES A NUMBERED CONTENTS LIST, not a sentence and not a count of parts (operator ruling
+  2026-09-09, after "two halves" and then "set up this Mac, then set up your phone" were both rejected as
+  too vague). It lists the steps by the same numbers their headings use, each with a short gloss:
+  `1. This Mac / the authorized_keys line`, `2. Your phone / the Shortcut`, `3. A trigger / Back Tap,
+  Action Button, and others`. The reader sees the whole job before starting one, finds their place again
+  after stepping away, and learns what a step involves without scrolling to it. Three steps, in the order
+  they are performed: step 1 the `authorized_keys`
   line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
   Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
   text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
