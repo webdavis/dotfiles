@@ -30,8 +30,11 @@ pub const ID_PLACEHOLDER: &str = "{id}";
 /// rendered by a shell, so anything interpolated into it is code; a failure id
 /// is a number pns assigned and the rest is a literal, which is what keeps it
 /// from becoming a place a producer can write.
-pub fn click_command(id: u64) -> String {
-    format!("pns click {id}")
+///
+/// ABSOLUTE, because the notifier spawns it from a bare launchd context with
+/// nothing on PATH, and a machine mid-upgrade can have two pns binaries.
+pub fn click_command(pns_path: &str, id: u64) -> String {
+    format!("{pns_path} click {id}")
 }
 
 impl ClickView {

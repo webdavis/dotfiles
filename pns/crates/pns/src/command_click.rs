@@ -94,7 +94,7 @@ fn view(herdr_present: bool) -> Result<ClickView, String> {
 /// This binary's own path, so the view it opens runs THIS pns rather than
 /// whatever a new shell's PATH resolves. A click has no PATH to resolve with,
 /// and a machine mid-upgrade can have two.
-fn pns_path() -> String {
+pub(crate) fn pns_path() -> String {
     std::env::current_exe()
         .ok()
         .and_then(|path| path.to_str().map(str::to_string))

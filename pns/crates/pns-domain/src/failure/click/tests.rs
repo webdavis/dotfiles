@@ -4,11 +4,11 @@ const HERDR: &str = "/Users/o/.local/bin/herdr";
 const PNS: &str = "/Users/o/.cargo/bin/pns";
 
 /// The string the banner runs is FIXED. It is rendered by a shell, so anything
-/// composed into it from an event would be code; only a number pns assigned
-/// crosses that line.
+/// composed into it from an event would be code; only a number pns assigned and
+/// a path pns read off itself cross that line.
 #[test]
 fn the_click_command_is_a_literal_and_the_id() {
-    assert_eq!(click_command(47), "pns click 47");
+    assert_eq!(click_command(PNS, 47), format!("{PNS} click 47"));
 }
 
 /// An operator running herdr wants the pane; one who is not has no session for

@@ -15,11 +15,13 @@ use crate::retry::{DeliveryOutcome, FailureClass};
 mod click;
 mod fix;
 mod meaning;
+mod notify;
 mod render;
 
 pub use click::{ClickView, ID_PLACEHOLDER, click_command, parse_view};
 pub use fix::{NotificationSurface, Surface};
 pub use meaning::{DESTINATION_HERMES, DESTINATION_MOBILE, HERMES_KEY, MOBILE_TOKEN};
+pub use notify::warrants_notification;
 pub use render::{full, notification};
 
 /// The budget a notification body has, counting newlines, with the header

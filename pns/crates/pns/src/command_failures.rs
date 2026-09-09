@@ -92,7 +92,7 @@ fn show(store: &SqliteStore, id: u64) -> i32 {
 /// The ledger's row plus the two facts only this layer holds: where the
 /// destination lives, which comes from the config and the environment, and the
 /// command the reader is shown.
-fn compose(stored: &StoredFailure) -> Failure {
+pub(crate) fn compose(stored: &StoredFailure) -> Failure {
     Failure {
         id: stored.id,
         destination: stored.destination.clone(),
