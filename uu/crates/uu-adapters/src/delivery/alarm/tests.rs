@@ -8,15 +8,16 @@ struct Post {
     outcome: PostOutcome,
 }
 impl SignedPost for Post {
+    // The old shape carried an `idempotency_key` this double asserted was
+    // always `None`. uu's own trait has no such parameter, so the assertion is
+    // now the signature rather than a runtime check nobody could fail.
     fn post(
         &self,
         url: &str,
         body: &str,
         signature: &str,
-        idempotency_key: Option<&str>,
         deadline: Option<Duration>,
     ) -> PostOutcome {
-        assert_eq!(idempotency_key, None);
         self.calls
             .borrow_mut()
             .push((url.into(), body.into(), signature.into(), deadline));
