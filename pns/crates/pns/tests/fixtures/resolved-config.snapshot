@@ -199,8 +199,6 @@ Config {
                             Looping,
                             Blocked,
                             Unread,
-                            Done,
-                            Failed,
                         ],
                     ),
                     dim_window: None,
