@@ -1,0 +1,32 @@
+#!/bin/bash
+# run_onchange_after_74-load-scalebar-launchagent.sh
+# plist hash: {{ include "Library/LaunchAgents/com.webdavis.scalebar.plist.tmpl" | sha256sum }}
+
+{{- if eq .chezmoi.os "darwin" }}
+set -euo pipefail
+
+# Unlike uu/lights/posture, no script here builds this binary, so its existence is never
+# guaranteed. Defer rather than bootstrap a plist that points at nothing.
+SCALEBAR={{ joinPath .chezmoi.homeDir "workspaces/Ivy/webdavis/scalebar/.build/release/Scalebar" | quote }}
+if [[ ! -x $SCALEBAR ]]; then
+  printf 'scalebar: %s is missing or not executable. Clone webdavis/scalebar and run swift build -c release there, then re-run chezmoi apply.\n' "$SCALEBAR" >&2
+  exit 0
+fi
+
+PLIST="$HOME/Library/LaunchAgents/com.webdavis.scalebar.plist"
+TARGET="gui/$(id -u)/com.webdavis.scalebar"
+
+# Re-bootstrap so a changed plist takes effect; launchd sometimes answers EIO right after a
+# bootout, so retry silently before surfacing the real error (same pattern as every other
+# LaunchAgent loader in this repo).
+launchctl bootout "$TARGET" 2>/dev/null || true
+
+for _ in 1 2 3; do
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then
+    exit 0
+  fi
+  sleep 1
+done
+
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
+{{- end }}

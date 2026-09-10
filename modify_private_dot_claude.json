@@ -50,4 +50,12 @@
     "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" .chezmoi.homeDir) -}}
 {{- $merged = setValueAtPath "mcpServers.nvim" $nvimMcp $merged -}}
 
+{{- /* --- stable: the Scalebar MCP server (fitness/weight tracking) --- */ -}}
+{{- $scalebarMcp := dict
+    "type" "stdio"
+    "command" (printf "%s/workspaces/Ivy/webdavis/scalebar/.build/release/ScalebarMCP" .chezmoi.homeDir)
+    "args" (list)
+    "env" (dict) -}}
+{{- $merged = setValueAtPath "mcpServers.scalebar" $scalebarMcp $merged -}}
+
 {{ $merged | toPrettyJson }}
