@@ -107,8 +107,9 @@ fn the_link_needs_no_escaping_because_the_guard_already_bounded_its_charset() {
 #[test]
 fn the_body_carries_token_title_and_the_preview_as_the_message() {
     // The key count guards both token-bearing bodies: only the declared
-    // fields belong beside the request id, with or without an action.
-    for (link, keys) in [(None, 4), (Some("moshi://herdr?pane=wW:p21"), 4)] {
+    // fields belong beside the request id, and an actionless card carries no
+    // `data` object to hold one.
+    for (link, keys) in [(None, 3), (Some("moshi://herdr?pane=wW:p21"), 4)] {
         let body = webhook_body("tok-1", "a title", "a preview", link, "original-42");
         let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed["token"], "tok-1");
@@ -146,8 +147,8 @@ fn a_link_rides_as_the_one_url_action_and_no_link_leaves_the_slot_absent() {
     let plain = webhook_body("tok-1", "t", "p", None, "original-42");
     let parsed: serde_json::Value = serde_json::from_str(&plain).unwrap();
     assert!(
-        parsed["data"].get("type").is_none() && parsed["data"].get("url").is_none(),
-        "no pane means no action keys; only the request id remains: {plain}"
+        parsed.get("data").is_none(),
+        "no pane means no `data` member for moshi's union to reject: {plain}"
     );
 }
 
