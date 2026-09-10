@@ -31,6 +31,13 @@ pub enum Mark {
     /// A continuation of the row above, for the sentence that would not fit on
     /// it.
     Detail,
+    /// A continuation of a `Detail`, one level deeper and carrying NO GLYPH.
+    ///
+    /// A THIRD MARK RATHER THAN A THIRD GLYPH. Two levels of `→` read as two
+    /// peers rather than as a parent and its explanation, and the report
+    /// already has three glyphs competing for the reader's eye; an aside earns
+    /// its place by indent alone.
+    Aside,
 }
 
 /// One piece of the report, in the order it is printed.

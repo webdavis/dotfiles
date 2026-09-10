@@ -25,7 +25,7 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     // pairing check now sits in.
     let heading = lines
         .iter()
-        .position(|line| *line == format!("the last 2 decisions,{DECISION_HEADING_TAIL}"))
+        .position(|line| *line == format!("the last 2 decisions{DECISION_HEADING_TAIL}"))
         .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert!(
         lines[heading + 1].contains(" c2/done "),
@@ -79,9 +79,10 @@ fn the_doctors_exit_code_does_not_move_for_a_log_that_is_absent_or_unreadable() 
     assert_eq!(
         &rows[rows.len() - 2..],
         [
-            // The entry keeps the two spaces the decision section itself
-            // writes; the renderer's indent sits outside them.
-            "  unreadable entry: \"not a decision at all\"",
+            // NO SPACES OF ITS OWN any more. The row's mark supplies the
+            // indent, and the hand-written pair this used to carry put an
+            // unreadable entry two columns past its readable neighbours.
+            "unreadable entry: \"not a decision at all\"",
             NONE_WAITING
         ],
         "{printed}"

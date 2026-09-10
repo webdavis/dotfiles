@@ -76,6 +76,7 @@ fn report(
     let mut lines = Vec::new();
     let code =
         RunDoctor {
+            decisions: pns_domain::doctor::Detail::Spoken,
             checks: &checks,
             records: history,
             clock: &|| Some(100),

@@ -90,10 +90,9 @@ pub(super) fn output_before_the_deadline(
     }
 }
 
-/// The section's heading, whose second half is where the actionId is told
-/// honestly rather than printed as an empty field.
-pub(super) const DECISION_HEADING_TAIL: &str = " newest first (why a card did or did not fire). No actionId \
-     is recorded: moshi mints it inside the approval round trip and never hands it back.";
+/// The section's heading, whose second half points at the flag that prints
+/// every input rather than the sentence the report says them in.
+pub(super) const DECISION_HEADING_TAIL: &str = " (`--raw` for every input behind them)";
 
 /// What an absent ring says, parenthesis included.
 pub(super) const NO_DECISION_RECORDED: &str = "no decision has been recorded yet \

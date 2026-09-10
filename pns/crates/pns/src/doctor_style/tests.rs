@@ -26,6 +26,10 @@ fn each_mark_gets_its_own_glyph() {
         (Mark::Warn, "  ⚠ text"),
         (Mark::Note, "  · text"),
         (Mark::Detail, "    → text"),
+        // NO GLYPH, and one level deeper than the Detail it continues: two
+        // levels of `→` read as two peers rather than as a row and the
+        // sentence explaining it.
+        (Mark::Aside, "        text"),
     ] {
         let lines = report.item(&Item::row(mark, "text"));
         assert_eq!(lines, vec![expected.to_string()], "{mark:?}");
@@ -81,23 +85,24 @@ fn one_issue_is_not_pluralised() {
 }
 
 #[test]
-fn the_header_names_the_command_and_labels_the_line_under_it() {
-    // A BARE SENTENCE UNDER A COMMAND NAME reads like an error. The label is
-    // what tells the reader it is a caveat about the report below it.
+fn the_header_names_the_command_and_carries_nothing_else() {
+    // THE FRAME IS THE COMMAND AND A RULE. It used to carry a labelled note
+    // saying every suppression gate was bypassed, which met the reader with
+    // this crate's internal word for the silencing rules before any finding,
+    // and said again what the Channels blurb says three lines below with the
+    // rows that give it a meaning.
     let report = plain();
-    let opening = report.open("every suppression gate is bypassed");
+    let opening = report.open();
+    assert_eq!(opening.len(), 3, "{opening:?}");
     assert_eq!(opening[0], "", "the report opens clear of the prompt");
     assert_eq!(opening[1], "pns doctor");
-    assert_eq!(opening[2], "Note   every suppression gate is bypassed");
-    assert_eq!(opening[3].chars().count(), crate::style::width());
+    assert_eq!(opening[2].chars().count(), crate::style::width());
 }
 
 #[test]
 fn the_opening_draws_no_box() {
     // A box needs four sides to line up, so a narrow terminal mangles it.
-    let opening = plain()
-        .open("every suppression gate is bypassed")
-        .join("\n");
+    let opening = plain().open().join("\n");
     for glyph in ['\u{256d}', '\u{256e}', '\u{2570}', '\u{256f}', '\u{2502}'] {
         assert!(!opening.contains(glyph), "{glyph:?} in {opening}");
     }

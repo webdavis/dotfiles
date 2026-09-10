@@ -21,6 +21,7 @@ fn appearance(mark: Mark) -> (Tone, &'static str) {
         Mark::Warn => (Tone::Warn, "⚠"),
         Mark::Note => (Tone::Quiet, "·"),
         Mark::Detail => (Tone::Quiet, "→"),
+        Mark::Aside => (Tone::Quiet, ""),
     }
 }
 
@@ -60,21 +61,17 @@ impl Report {
     /// capturing a process's output. The doctor's own ordering comments depend
     /// on that progressive printing: the lamps section touches the network
     /// last, so a bridge that hangs must not delay a line above it.
-    /// NOTHING IN THE FRAME FLOATS. The line under the command used to be a
-    /// bare sentence, `every suppression gate is bypassed` sitting under
-    /// `pns doctor`, and a reader had no way to tell whether that was a
-    /// description, a status or an error. It reads like something went wrong.
-    /// The `Note` label is what says which of the three it is, and it costs one
-    /// word.
-    pub(crate) fn open(&self, note: &str) -> Vec<String> {
-        style::header(
-            self.paint,
-            "pns doctor",
-            &[style::HeaderLine {
-                label: "Note",
-                text: note,
-            }],
-        )
+    /// THE FRAME CARRIES NO NOTE ANY MORE. It used to hold one labelled line,
+    /// `Note   every suppression gate is bypassed`, which failed twice over:
+    /// "suppression gate" is this crate's internal word for the rules that
+    /// normally silence a notification, so a reader met jargon before any
+    /// finding; and the Channels blurb three lines below said the same thing
+    /// again, in the one place where the surrounding rows give it a meaning.
+    ///
+    /// The fact is not lost, it moved to where it lands: the section that does
+    /// the sending says what the sending ignores.
+    pub(crate) fn open(&self) -> Vec<String> {
+        style::header(self.paint, "pns doctor", &[])
     }
 
     /// One piece of the report.
@@ -93,7 +90,11 @@ impl Report {
                     self.issues.push(text.to_string());
                 }
                 let (tone, glyph) = appearance(*mark);
-                let indent = if *mark == Mark::Detail { 4 } else { 2 };
+                let indent = match mark {
+                    Mark::Aside => 7,
+                    Mark::Detail => 4,
+                    _ => 2,
+                };
                 vec![style::row(self.paint, tone, glyph, indent, text)]
             }
         }

@@ -92,27 +92,41 @@ fn the_summary_names_the_detail_view_exactly_when_something_is_not_arriving() {
         deadlettered_legs: 0,
         ..health()
     };
-    assert!(!delivery_health_line(Ok(healthy.clone())).contains("pns failures"));
+    assert!(!mentions_failures(&delivery_health_lines(Ok(
+        healthy.clone()
+    ))));
 
     let pending = DeliveryHealth {
         pending_legs: 1,
         ..healthy.clone()
     };
-    assert!(
-        delivery_health_line(Ok(pending))
-            .ends_with("; run `pns failures` for what is not arriving")
+    // THE POINTER IS THE LAST LINE, so it reads as the section's next step
+    // rather than as one more finding among the counts above it.
+    let pending = delivery_health_lines(Ok(pending));
+    assert_eq!(
+        pending.last().map(String::as_str),
+        Some("pns doctor: run `pns failures` for what is not arriving"),
+        "{pending:?}"
     );
 
     let deadlettered = DeliveryHealth {
         deadlettered_legs: 2,
         ..healthy
     };
-    assert!(delivery_health_line(Ok(deadlettered)).contains("pns failures"));
+    assert!(mentions_failures(&delivery_health_lines(Ok(deadlettered))));
 }
 
 /// An unreadable ledger says so and points nowhere: there is no count behind
 /// the pointer, so offering it would send the reader to an empty listing.
 #[test]
 fn an_unreadable_ledger_names_no_detail_view() {
-    assert!(!delivery_health_line(Err("gone".into())).contains("pns failures"));
+    assert!(!mentions_failures(&delivery_health_lines(Err(
+        "gone".into()
+    ))));
+}
+
+/// Whether the section pointed the reader at the detail view, wherever in it
+/// the pointer landed.
+fn mentions_failures(lines: &[String]) -> bool {
+    lines.iter().any(|line| line.contains("pns failures"))
 }

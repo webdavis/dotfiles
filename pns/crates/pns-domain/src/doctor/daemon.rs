@@ -55,7 +55,8 @@ pub fn daemon_line(
             if jobs == 1 { "" } else { "s" }
         ),
         Some(age) => format!(
-            "{PREFIX}the daemon is enabled, its last beat was {age}s ago, so it is not running"
+            "{PREFIX}the daemon is enabled, its last beat was {}, so it is not running",
+            super::ago(age)
         ),
         None => format!(
             "{PREFIX}the daemon is enabled, its last beat was an unknown time ago, \
@@ -145,9 +146,9 @@ mod daemon_tests {
         assert_eq!(
             daemon_line(true, Some(stale), Some(NOW), 2),
             format!(
-                "pns doctor: the daemon is enabled, its last beat was {}s ago, \
+                "pns doctor: the daemon is enabled, its last beat was {}, \
                  so it is not running",
-                HEARTBEAT_STALE_SECS + 1
+                crate::doctor::ago(HEARTBEAT_STALE_SECS + 1)
             )
         );
         let fresh = Heartbeat {
@@ -188,8 +189,9 @@ mod daemon_tests {
         assert_eq!(
             daemon_line(true, Some(beating_as_told), Some(NOW), 0),
             format!(
-                "pns doctor: the daemon is enabled, its last beat was {tick_secs}s ago, \
-                 so it is not running"
+                "pns doctor: the daemon is enabled, its last beat was {}, \
+                 so it is not running",
+                crate::doctor::ago(tick_secs)
             ),
             "a {tick_secs}s tick outruns the {HEARTBEAT_STALE_SECS}s bound"
         );

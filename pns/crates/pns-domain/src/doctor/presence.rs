@@ -13,12 +13,12 @@ pub(super) fn presence_said(
     use crate::presence::PresenceStatus;
     let reading = match status {
         PresenceStatus::Room { room, age_secs } => {
-            format!("{} ({age_secs}s ago)", shown_room(room))
+            format!("{} ({})", shown_room(room), super::ago(*age_secs))
         }
         // THE BRIDGE ANSWERED AND ANSWERED "NOT THERE", which is a different
         // fact from not knowing and is worth its own word.
         PresenceStatus::Nowhere { poll_age_secs } => {
-            format!("nowhere (poll {poll_age_secs}s ago)")
+            format!("nowhere (last poll {})", super::ago(*poll_age_secs))
         }
         PresenceStatus::Unknown(reason) => {
             format!("unknown ({})", crate::presence::unreadable_said(reason))

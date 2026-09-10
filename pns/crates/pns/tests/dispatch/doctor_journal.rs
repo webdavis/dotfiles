@@ -17,7 +17,7 @@ fn the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it() {
     let lines = report_rows(&printed);
     let heading = lines
         .iter()
-        .position(|line| *line == format!("the last decision,{DECISION_HEADING_TAIL}"))
+        .position(|line| *line == format!("the last decision{DECISION_HEADING_TAIL}"))
         .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert_eq!(
         lines.last(),
