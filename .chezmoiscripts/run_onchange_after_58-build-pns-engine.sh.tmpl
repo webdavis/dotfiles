@@ -23,6 +23,7 @@ set -euo pipefail
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
 #   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
+#   rust-toolchain.toml {{ include (joinPath $crate "rust-toolchain.toml") | sha256sum }}
 {{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -85,7 +86,11 @@ report_line 'building the release binary'
 # --bin pns: the package also carries two development binaries. They are gated
 # behind `required-features = ["dev-tools"]`, which this build does not pass, so
 # the flag is belt and braces rather than the thing keeping them out.
-"$cargo_bin" build --release --locked --quiet --bin pns --manifest-path "$crate_dir/Cargo.toml"
+# RUN FROM THE CRATE DIRECTORY, not with `--manifest-path`. rustup resolves a
+# toolchain by walking up from the CURRENT directory, so a `--manifest-path`
+# build reads $HOME's toolchain (a chezmoiscript's working directory) and
+# silently ignores the crate's `rust-toolchain.toml`.
+(cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin pns)
 
 # The build above is unconditional and can reinstall a binary byte-identical
 # to what's already deployed (a deferred build bumps the retry marker above

@@ -36,8 +36,8 @@ set_up_before_script() {
     return 1
   }
   # The monorepo move bakes the real checkout's absolute path into crate_dir at
-  # render time, and the stub cargo derives its artifact path from the manifest
-  # it is handed, so an unredirected run would write target/release/posture into
+  # render time, and the stub cargo derives its artifact path from the directory
+  # it is RUN IN, so an unredirected run would write target/release/posture into
   # the working tree. Point the rendered copy at a per-sandbox directory under
   # HOME instead. Nothing under test depends on the baked value: that it names
   # the source directory is settled by the render itself, while every behavior
@@ -103,18 +103,23 @@ install_stub_toolchain() {
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$cargo_args"
 [[ ! -f "\$HOME/.stub-cargo-failure" ]] || exit 25
-manifest=""
 locked=0
 bin=""
 while [[ \$# -gt 0 ]]; do
-  [[ \$1 == --manifest-path ]] && manifest="\$2"
+  # rustup resolves a toolchain by walking up from the CURRENT directory, so a
+  # --manifest-path build reads $HOME's toolchain and ignores the crate's pin.
+  # Refusing the flag here is what keeps the builder running from the crate.
+  if [[ \$1 == --manifest-path ]]; then
+    echo "cargo must be run from the crate directory, not with --manifest-path" >&2
+    exit 1
+  fi
   [[ \$1 == --locked ]] && locked=1
   [[ \$1 == --bin ]] && bin="\$2"
   shift
 done
 [[ \$locked -eq 1 ]] || { echo "cargo was invoked without --locked" >&2; exit 1; }
 [[ \$bin == posture ]] || { echo "cargo was invoked without --bin posture" >&2; exit 1; }
-crate="\$(dirname "\$manifest")"
+crate="\$PWD"
 mkdir -p "\$crate/target/release"
 if [[ -f "\$HOME/.stub-artifact-bytes" ]]; then
   head -c "\$(cat "\$HOME/.stub-artifact-bytes")" /dev/zero >"\$crate/target/release/posture"
@@ -239,7 +244,9 @@ function test_the_build_runs_from_the_committed_lock_and_names_the_one_binary() 
   assert_contains ' --locked ' " $(cat "$cargo_args") "
   assert_contains ' --release ' " $(cat "$cargo_args") "
   assert_contains ' --bin posture ' " $(cat "$cargo_args") "
-  assert_contains "--manifest-path $sandbox_home/crate/Cargo.toml" "$(cat "$cargo_args")"
+  # NOT a --manifest-path. The stub refuses that flag, so reaching this line at
+  # all is the assertion that the builder ran cargo from the crate directory.
+  assert_not_contains '--manifest-path' "$(cat "$cargo_args")"
 }
 
 function test_a_build_publishes_a_private_record_before_refresh_and_install() {
