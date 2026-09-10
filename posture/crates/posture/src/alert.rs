@@ -5,11 +5,16 @@ use posture_adapters::{
     LastResortBanner, PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
     SystemRunner,
 };
-use posture_application::{Clock, JudgeOutcome, JudgeResults};
-use std::{io::Write, time::Duration};
+use posture_adapters::{OwnedSigning, SystemInspection};
+use posture_application::{Clock, JudgeOutcome, JudgeResults, enrich};
+use posture_domain::CodeTrust;
+use std::{io::Write, path::Path, time::Duration};
 
 const PRODUCER_BUDGET: Duration = Duration::from_secs(5);
 const ALARM_BUDGET: Duration = Duration::from_secs(10);
+/// One budget covers every spawned inspection for a finding, plist fallback
+/// included, matching what `posture enrich` gives itself.
+const INSPECTION_BUDGET: Duration = Duration::from_secs(10);
 
 /// `posture alert`: judge whatever osquery has written since the cursor.
 ///
@@ -60,19 +65,31 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
         config.home.clone(),
     );
     let mut vouches = |path: &str| manifests.vouches(path);
-    // THE ENRICHER IS THE ONE HONEST NOT-YET, AND IT GATES THE CUTOVER.
+    // THE ENRICHER RUNS IN PROCESS, because it is already a posture use case
+    // and the shell only shelled out to it for want of a library boundary.
     //
-    // It is NOT merely a detail this run goes without. An untrusted signing
-    // verdict PROMOTES a Notice finding to Critical (`gate`, the
-    // `severity == Notice` arm), so with no enricher wired the promotion never
-    // fires and a finding the shell paged about lands in tomorrow's digest
-    // instead. That is a MISSED page, which is the one direction this pipeline
-    // exists to prevent, so the launchd job must keep running the shell until
-    // the enricher is ported.
+    // IT IS NOT A DETAIL, and getting that wrong would have shipped a pipeline
+    // that misses alerts: an untrusted signing verdict PROMOTES a Notice
+    // finding to Critical in the gate, so a run without it sends a finding the
+    // shell paged about to tomorrow's digest instead.
     //
-    // The triage facts really are display-only: a page without them fires
-    // carrying less.
-    let mut inspect = |_: &str| None;
+    // ONE BUDGET FOR EVERY SPAWNED INSPECTION OF ONE FINDING, plist fallback
+    // included, which is the same budget `posture enrich` gives itself.
+    let mut inspection = SystemInspection::new(SystemRunner::new(INSPECTION_BUDGET));
+    let mut inspect = |path: &str| {
+        if path.is_empty() {
+            return None;
+        }
+        let outcome = enrich(Path::new(path), &mut inspection);
+        Some(OwnedSigning {
+            untrusted: outcome.trust == CodeTrust::Untrusted,
+            text: String::from_utf8_lossy(&outcome.fact).trim().to_string(),
+        })
+    };
+    // THE TRIAGE FACTS REALLY ARE DISPLAY ONLY: the recorded and on-disk
+    // hashes and the upgrade correlation a file-integrity page carries. A page
+    // without them fires carrying less, and the shell tolerated the same gap
+    // whenever its optional helper was not deployed.
     let mut triage = |_: &ResultsRow| None;
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
     let mut judge = BatchJudge {

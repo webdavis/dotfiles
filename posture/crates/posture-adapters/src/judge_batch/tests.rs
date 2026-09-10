@@ -34,9 +34,17 @@ impl World {
     }
 
     fn judge(&self, records: &str, allowlist: Option<&AllowlistText>) -> JudgedBatch {
+        self.judge_with(records, allowlist, &mut |_: &str| None)
+    }
+
+    fn judge_with(
+        &self,
+        records: &str,
+        allowlist: Option<&AllowlistText>,
+        inspect: &mut dyn FnMut(&str) -> Option<OwnedSigning>,
+    ) -> JudgedBatch {
         let vouches = self.vouches_everything;
         let mut vouch = move |_: &str| vouches;
-        let mut inspect = |_: &str| None;
         let mut triage = |_: &ResultsRow| None;
         BatchJudge {
             home: HOME,
@@ -46,7 +54,7 @@ impl World {
             now: "2026-09-09T12:00:00Z",
             collaborators: Collaborators {
                 vouches: &mut vouch,
-                inspect: &mut inspect,
+                inspect,
                 triage: &mut triage,
             },
         }
@@ -238,4 +246,53 @@ fn a_finding_with_nothing_to_name_it_carries_the_placeholder_a_reader_knows() {
     let world = World::new();
     world.judge(&row("agent_authfile_changed", serde_json::json!({})), None);
     assert_eq!(world.spooled()[0].identity.as_deref(), Some("?"));
+}
+
+#[test]
+fn an_untrusted_signature_promotes_a_finding_that_would_otherwise_have_gone_quiet() {
+    // THE ENRICHER IS NOT A DETAIL, which is the whole reason it gates the
+    // launchd cutover. A signing verdict of untrusted lifts a Notice finding to
+    // Critical, so the same row pages with the enricher and reaches only the
+    // digest without it. Getting this backwards would ship a pipeline that
+    // silently misses exactly the alerts it exists to raise.
+    let world = World::new();
+    let batch = row(
+        "system_extensions_new",
+        serde_json::json!({"name": "ext", "path": "/tmp/ext", "bundle_path": "/tmp/Ext.app"}),
+    );
+
+    let quiet = world.judge_with(&batch, None, &mut |_: &str| None);
+    assert!(
+        quiet.page.is_none(),
+        "with no signing verdict the finding does not page"
+    );
+
+    let promoted = world.judge_with(&batch, None, &mut |_: &str| {
+        Some(OwnedSigning {
+            untrusted: true,
+            text: "unsigned".into(),
+        })
+    });
+    assert!(
+        promoted.page.is_some(),
+        "an untrusted signature is what makes the same row page"
+    );
+}
+
+#[test]
+fn a_trusted_signature_leaves_a_finding_at_the_tier_its_detector_gave_it() {
+    // Only the UNTRUSTED verdict promotes; a signature that checked out must
+    // not turn every ordinary finding into a page.
+    let world = World::new();
+    let batch = row(
+        "system_extensions_new",
+        serde_json::json!({"name": "ext", "path": "/tmp/ext", "bundle_path": "/tmp/Ext.app"}),
+    );
+    let judged = world.judge_with(&batch, None, &mut |_: &str| {
+        Some(OwnedSigning {
+            untrusted: false,
+            text: "Apple Inc.".into(),
+        })
+    });
+    assert!(judged.page.is_none());
 }
