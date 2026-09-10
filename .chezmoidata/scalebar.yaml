@@ -1,30 +1,24 @@
 # Where Scalebar's source is cloned and where its two binaries are installed,
 # declared ONCE because five places need them: the builder, the LaunchAgent
-# plist, and the MCP registration for Claude Code, Codex and hermes.
+# plist, and the MCP registration for Claude Code, Codex and hermes. The hermes
+# config is an age blob rather than a template, so it repeats the path; every
+# other consumer reads it from here.
 #
-# Scalebar lives in its OWN repository (webdavis/scalebar), a menu-bar app and a
-# stdio MCP server built with `swift build -c release`. This repository does not
-# vendor it; it clones nothing and it owns none of that source. What it owns is
-# the wiring: building the checkout when its sources change, installing the two
-# artifacts somewhere stable, and pointing launchd and three agents at them.
+# Scalebar lives in its own repository (webdavis/scalebar), a macOS menu-bar app
+# and a stdio MCP server built with `swift build -c release`. This repository
+# vendors none of that. What it owns is the wiring.
 #
-# WHY NOT `.build/release` DIRECTLY, which is where swift leaves them and where
-# every consumer pointed before 2026-09-09: that path is inside a working
-# checkout and it disappears. `swift package clean` removes it, a debug build
-# leaves a stale release binary beside it, and a git worktree moves it entirely.
-# The hermes config was found pointing at
-# `scalebar/.worktrees/scalebar-feature-expansion/.build/release/ScalebarMCP`,
-# a worktree that no longer exists, so that agent's Scalebar tools had been dead
-# for as long as nobody looked.
+# NOT `.build/release`, where swift leaves them and where every consumer pointed
+# before 2026-09-09. That directory is a working checkout: `swift package clean`
+# empties it and a git worktree relocates it, which is how the hermes config came
+# to name a worktree that had already been deleted.
 #
 # `~/.local/libexec` is this repository's home for what the operator never
 # types, and neither of these is typed: launchd starts the app and an agent
-# spawns the server. They get a directory of their own because there are two of
-# them, which is the rule for every group under libexec.
+# spawns the server. Two of them is why they get a directory.
 #
 # BOTH VALUES ARE HOME-RELATIVE. Templates join them onto `.chezmoi.homeDir`,
-# because launchd resolves no `~` and inherits almost no PATH, so the plist and
-# every MCP entry need the absolute form.
+# because launchd resolves no `~` and inherits almost no PATH.
 scalebar:
   source_dir: "workspaces/Ivy/webdavis/scalebar"
   install_dir: ".local/libexec/scalebar"

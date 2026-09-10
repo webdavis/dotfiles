@@ -52,14 +52,9 @@
 
 {{- /* --- stable: the Scalebar MCP server, weight and gym data ---
 
-     The command is the INSTALLED binary, not the one under the clone's
-     `.build/release`. That directory is inside a working checkout and it moves:
-     `swift package clean` empties it and a git worktree relocates it entirely,
-     which is how hermes ended up pointing at a deleted worktree and losing its
-     Scalebar tools without anything reporting it. `run_onchange_after_53`
-     installs both artifacts under `.scalebar.install_dir` and every consumer
-     reads that one declaration. Carries no secret, so like `nvim` beside it
-     this entry needs no vault lookup. --- */ -}}
+     The path is declared in `.chezmoidata/scalebar.yaml`, which says why it is
+     the installed binary and not the clone's build directory. Carries no
+     secret, so like `nvim` beside it this entry needs no vault lookup. --- */ -}}
 {{- $scalebarMcp := dict
     "type" "stdio"
     "command" (joinPath .chezmoi.homeDir .scalebar.install_dir "ScalebarMCP")
