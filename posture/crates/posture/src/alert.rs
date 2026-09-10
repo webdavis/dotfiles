@@ -60,10 +60,18 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
         config.home.clone(),
     );
     let mut vouches = |path: &str| manifests.vouches(path);
-    // THE ENRICHER IS THE ONE HONEST NOT-YET. It is a separate cutover, so no
-    // signing verdict and no triage facts reach a page here: a page that would
-    // have carried them still fires, carrying less. That is the direction that
-    // costs detail rather than the one that costs an alert.
+    // THE ENRICHER IS THE ONE HONEST NOT-YET, AND IT GATES THE CUTOVER.
+    //
+    // It is NOT merely a detail this run goes without. An untrusted signing
+    // verdict PROMOTES a Notice finding to Critical (`gate`, the
+    // `severity == Notice` arm), so with no enricher wired the promotion never
+    // fires and a finding the shell paged about lands in tomorrow's digest
+    // instead. That is a MISSED page, which is the one direction this pipeline
+    // exists to prevent, so the launchd job must keep running the shell until
+    // the enricher is ported.
+    //
+    // The triage facts really are display-only: a page without them fires
+    // carrying less.
     let mut inspect = |_: &str| None;
     let mut triage = |_: &ResultsRow| None;
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
