@@ -118,11 +118,17 @@
     "git-guardrails-claude-code": [
       "nicodemus"
     ],
-    "grill-me": [],
+    "grill-me": [
+      "default",
+      "nicodemus"
+    ],
     "grill-with-docs": [
       "nicodemus"
     ],
-    "grilling": [],
+    "grilling": [
+      "default",
+      "nicodemus"
+    ],
     "handoff": [],
     "herdr": [
       "default"
@@ -196,9 +202,15 @@
     "tdd": [
       "nicodemus"
     ],
-    "teach": [],
+    "teach": [
+      "default",
+      "nicodemus"
+    ],
     "tiktok-crawling": [],
-    "to-questionnaire": [],
+    "to-questionnaire": [
+      "default",
+      "nicodemus"
+    ],
     "to-spec": [
       "nicodemus"
     ],
@@ -212,14 +224,20 @@
       "nicodemus"
     ],
     "video-transcript-downloader": [],
-    "wait-what": [],
+    "wait-what": [
+      "default",
+      "nicodemus"
+    ],
     "wayfinder": [
       "nicodemus"
     ],
     "wizard": [
       "nicodemus"
     ],
-    "writing-for-agents": []
+    "writing-for-agents": [
+      "default",
+      "nicodemus"
+    ]
   },
   "hermesRegistry": {
     "conventional-commits": {
