@@ -27,6 +27,19 @@ struct Fixture {
     target: PathBuf,
 }
 
+/// The tuple line that records a file exactly as it stands right now.
+///
+/// The generator that writes a manifest and the reader that checks one have to
+/// agree on the field order and the formatting of the mode, so both come from
+/// here rather than from two format strings.
+fn tuple_line(target: &str) -> Option<String> {
+    let observed = observe(Path::new(target))?;
+    Some(format!(
+        "{} {} {} {target}",
+        observed.digest, observed.mode, observed.uid
+    ))
+}
+
 impl Fixture {
     fn new(contents: &[u8]) -> Self {
         let root = scratch();

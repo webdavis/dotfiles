@@ -71,12 +71,6 @@ impl Configuration {
         // THE MANIFESTS ARE ABSOLUTE, not under HOME. They are root-owned in
         // /var/osquery precisely so the account being watched cannot rewrite
         // them, which is the whole reason a manifest is worth consulting.
-        let absolute = |name: &str, default: &str| -> PathBuf {
-            match variable(name) {
-                Some(value) if !value.is_empty() => PathBuf::from(value),
-                _ => PathBuf::from(default),
-            }
-        };
         Some(Self {
             home: home.to_string_lossy().into_owned(),
             log,

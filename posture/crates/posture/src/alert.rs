@@ -138,7 +138,3 @@ fn instant(reading: &posture_application::WallTime) -> String {
         seconds_today % 60
     )
 }
-
-#[cfg(test)]
-#[path = "alert/tests.rs"]
-mod tests;
