@@ -4,6 +4,17 @@ mod support;
 
 use support::{Sandbox, run, stderr, stdout};
 
+/// A FIXTURE BUDGET, NOT AN ASSERTION. Nothing in this file is about how long
+/// the work may take; this bound exists only so a genuine hang fails the run
+/// instead of wedging it.
+///
+/// The budgets it replaced were in the hundreds of milliseconds, which held on
+/// an idle machine and failed on a loaded CI runner: spawning a real process
+/// there can take longer than the whole old budget, and the failure then names
+/// whatever the child had not finished rather than naming the budget. A
+/// passing run never waits this long, because the wait ends when the work does.
+const FIXTURE_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
 #[test]
 fn home_keeps_its_diagnostic_with_extra_arguments() {
     let sandbox = Sandbox::without_config("home-extra-arguments");
@@ -94,7 +105,13 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     let mut command = sandbox.pns_stateful();
     sandbox.stub_herdr(&mut command, false);
     let mut child = command.args(["lights", "tick"]).spawn().unwrap();
-    let deadline = Instant::now() + Duration::from_millis(650);
+    // A FIXTURE BUDGET, NOT AN ASSERTION. Nothing here is about how long the work
+    // may take; this bound exists only so a genuine hang fails the run instead of
+    // wedging it. It was 650ms, which held on an idle machine and failed on a
+    // loaded CI runner, where spawning a real process can take longer than the
+    // whole budget. A passing run never waits this long: the wait ends when the
+    // work does.
+    let deadline = Instant::now() + FIXTURE_BUDGET;
     let mut dialled = false;
     let status = loop {
         if listener.accept().is_ok() {

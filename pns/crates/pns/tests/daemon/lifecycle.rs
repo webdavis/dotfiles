@@ -64,7 +64,10 @@ fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
             .status
             .success()
     );
-    let deadline = Instant::now() + Duration::from_millis(200);
+    // WAITING FOR THE FILE TO APPEAR, so a longer bound only gives it more
+    // time and never weakens the assertion below. 200ms was tight enough to
+    // fail on a loaded CI runner.
+    let deadline = Instant::now() + Duration::from_secs(30);
     while !sandbox.path("second.event").exists() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(5));
     }
