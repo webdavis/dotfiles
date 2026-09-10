@@ -1,0 +1,7 @@
+# Scalebar chart settings
+[chart]
+min_weight = 170.0
+max_weight = 210.0
+
+[menu_bar]
+show_both_weights = true
