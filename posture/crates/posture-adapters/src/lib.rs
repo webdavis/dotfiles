@@ -80,6 +80,8 @@ pub use results_log::ResultsFile;
 mod results_row;
 pub use results_row::{ResultsRow, rows};
 
+mod results_columns;
+
 mod results_cursor;
 pub use results_cursor::{CursorFile, SingleRunLock};
 
