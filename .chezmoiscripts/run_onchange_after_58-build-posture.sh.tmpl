@@ -23,10 +23,23 @@ umask 077
 # one would mean reading settings.toml at render time; an update to a toolchain
 # cargo does not use re-fires a build that produces identical bytes and
 # installs nothing.
+#
+# THE SOURCE GLOBS TAKE EVERY EXTENSION, not `.rs` alone: an `include_str!` or
+# `include_bytes!` compiles a fixture into the binary, and this workspace has
+# several. They are also scoped to `crates/` rather than the workspace root,
+# which is what keeps cargo's `target/` out; hashing the artifacts this script
+# produces would move the trigger on every build and make a fresh checkout
+# disagree with a built one. `stat` drops the directories the glob returns
+# beside the files, because `include` on a directory errors and an erroring
+# template aborts the whole apply.
 {{ $crate := joinPath .chezmoi.sourceDir "posture" -}}
 {{ $protocol := joinPath .chezmoi.sourceDir "pns/crates/pns-protocol" -}}
-{{ range (glob (joinPath $crate "**/*.rs")) }}
+{{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
+{{ range (glob (joinPath $crate $pattern)) }}
+{{- if not (stat .).isDir }}
 #   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- range (glob (joinPath $crate "build.rs")) }}
 #   {{ . }} {{ include . | sha256sum }}
@@ -37,8 +50,12 @@ umask 077
 {{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
-{{- range (glob (joinPath $protocol "**/*.rs")) }}
+{{- range $pattern := list "src/**/*" "tests/**/*" "fixtures/**/*" }}
+{{- range (glob (joinPath $protocol $pattern)) }}
+{{- if not (stat .).isDir }}
 #   {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- end }}
 {{- end }}
 #   pns-protocol/Cargo.toml {{ include (joinPath $protocol "Cargo.toml") | sha256sum }}
 {{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
