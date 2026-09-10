@@ -18,8 +18,9 @@
 use super::{AllowlistText, DigestAppendFile, ResultsRow, rows};
 use posture_application::{BatchPage, JudgeFindings, JudgedBatch};
 use posture_domain::{
-    Allowlist, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict, LaunchdIdentity,
-    PageFinding, Severity, Signing, Triage, allowlist_verdict, gate, render_page, severity,
+    Action, Allowlist, Detector, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
+    LaunchdIdentity, PageFinding, Severity, Signing, Triage, allowlist_verdict, gate, render_page,
+    severity,
 };
 
 /// What the gate needs that is not on the row: whether a file's current bytes
@@ -183,26 +184,65 @@ impl BatchJudge<'_> {
     }
 
     fn spool_row(&self, row: &ResultsRow) {
+        let detector = row.detector.query_name();
         self.spool.append(&posture_protocol::DigestRecord {
             timestamp: Some(self.now.to_string()),
-            detector: Some(row.detector.query_name().to_string()),
+            detector: Some(detector.to_string()),
             category: Some(row.column("category").to_string()),
-            identity: Some(identity(row).to_string()),
-            action: Some(row.column("action").to_string()),
-            summary: Some(row.enrichment_path.clone()),
+            identity: Some(identity(row)),
+            // THE ROW'S OWN ACTION, not a column of the same name. osquery
+            // writes the differential verb beside the columns, and reading it
+            // out of them spooled an empty action for every finding.
+            action: Some(action(row).to_string()),
+            summary: Some(format!("{detector} {}", named(row))),
         });
     }
 }
 
-/// The one column that names WHICH thing a finding is about, per detector.
-fn identity(row: &ResultsRow) -> &str {
-    for column in ["label", "target_path", "path", "username", "name"] {
+/// The verb the row carried, as the digest prints it.
+fn action(row: &ResultsRow) -> &'static str {
+    match row.action {
+        Action::Added => "added",
+        Action::Removed => "removed",
+        Action::Other => "changed",
+    }
+}
+
+/// WHICH thing a finding is about.
+///
+/// A LISTENING PORT IS THREE FACTS, not one: the program alone does not say
+/// what it exposed, and a digest line naming only `node` is a line nobody can
+/// act on. Every other detector has one column that identifies it, tried in the
+/// order the shell tried them.
+fn identity(row: &ResultsRow) -> String {
+    if row.detector == Detector::ListeningPortsNonLoopback {
+        return format!(
+            "{} {}:{}",
+            first(row, &["name", "path"]),
+            first(row, &["address"]),
+            first(row, &["port"])
+        );
+    }
+    named(row).to_string()
+}
+
+fn named(row: &ResultsRow) -> &str {
+    first(
+        row,
+        &["label", "identifier", "target_path", "path", "username"],
+    )
+}
+
+/// The first of these columns the row actually filled, or the shell's own
+/// `"?"`, which is a placeholder a reader recognizes as one.
+fn first<'a>(row: &'a ResultsRow, columns: &[&str]) -> &'a str {
+    for column in columns {
         let value = row.column(column);
         if !value.is_empty() {
             return value;
         }
     }
-    ""
+    "?"
 }
 
 fn page_finding<'a>(

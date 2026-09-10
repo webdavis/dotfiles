@@ -114,6 +114,14 @@ fn a_finding_that_did_not_earn_a_page_is_spooled_for_the_daily_digest() {
         spooled[0].identity.as_deref(),
         Some("/Users/someone/.hermes/.env")
     );
+    // THE ROW'S OWN ACTION, not a column of the same name. Read from the
+    // columns it spooled an empty verb for every finding, which a real run
+    // against the binary is what caught.
+    assert_eq!(spooled[0].action.as_deref(), Some("added"));
+    assert_eq!(
+        spooled[0].summary.as_deref(),
+        Some("agent_authfile_changed /Users/someone/.hermes/.env")
+    );
     assert_eq!(
         spooled[0].timestamp.as_deref(),
         Some("2026-09-09T12:00:00Z")
@@ -203,4 +211,31 @@ fn an_allowlist_that_could_not_be_read_pages_rather_than_suppressing() {
         }),
     );
     assert!(world.judge(&agent, None).page.is_some());
+}
+
+#[test]
+fn a_listening_port_is_identified_by_all_three_facts_that_describe_it() {
+    // The program alone does not say what it exposed, and a digest line naming
+    // only `node` is a line nobody can act on.
+    let world = World::new();
+    world.judge(
+        &row(
+            "listening_ports_non_loopback",
+            serde_json::json!({"name": "node", "address": "0.0.0.0", "port": "8080"}),
+        ),
+        None,
+    );
+    assert_eq!(
+        world.spooled()[0].identity.as_deref(),
+        Some("node 0.0.0.0:8080")
+    );
+}
+
+#[test]
+fn a_finding_with_nothing_to_name_it_carries_the_placeholder_a_reader_knows() {
+    // An empty identity reads as a bug in the digest; `?` reads as a finding
+    // that genuinely arrived without one.
+    let world = World::new();
+    world.judge(&row("agent_authfile_changed", serde_json::json!({})), None);
+    assert_eq!(world.spooled()[0].identity.as_deref(), Some("?"));
 }
