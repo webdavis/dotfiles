@@ -37,6 +37,15 @@ pub use publisher::AllowlistPublisher;
 
 mod allowlist_projection;
 
+mod allowlist_read;
+pub use allowlist_read::AllowlistText;
+
+mod known_good_read;
+pub use known_good_read::KnownGoodManifests;
+
+mod judge_batch;
+pub use judge_batch::{BatchJudge, Collaborators, OwnedSigning, OwnedTriage};
+
 pub use allowlist_file::AllowlistFile;
 
 mod launchd_table;
@@ -70,6 +79,20 @@ pub use state_files::PollStateFiles;
 
 mod digest_spool;
 pub use digest_spool::{DigestSpoolFile, prepare_spool_directory};
+
+mod digest_appender;
+pub use digest_appender::DigestAppendFile;
+
+mod results_log;
+pub use results_log::ResultsFile;
+
+mod results_row;
+pub use results_row::{ResultsRow, rows};
+
+mod results_columns;
+
+mod results_cursor;
+pub use results_cursor::{CursorFile, SingleRunLock};
 
 mod converge;
 pub use converge::{

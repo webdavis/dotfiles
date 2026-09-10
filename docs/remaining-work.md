@@ -549,17 +549,30 @@ step, and it gates the whole section.
   inspections and the digest spool, and keeping all of that behind one boundary is what lets the ordering
   be tested against doubles that touch nothing. A digest row is delivered the moment the judge spools it,
   so only a page has a delivery this run can fail. 21 tests green, clippy clean.
-- [ ] 45b. posture 6.3, second half: the adapters and the cutover. The results-log reader with its single
-  reading and bounded span, the cursor state file, the `lockf` single-instance lock, and the
-  `JudgeFindings` implementer that wires the domain's `gate`, `allowlist_verdict`, `integrity_verdict`
-  and `render_page` to the allowlist file, the manifest reader, the deployed-state reader and the digest
-  spool's append side. Then `posture alert`, the plist, and the deletions:
-  `executable_results-alerter.sh` and six private files under `results-alerter/`, keeping
+- [ ] 45b. posture 6.3, second half. THE CODE IS DONE AND AT PARITY; ONLY THE ARMING IS LEFT (PR #506, 81
+  tests). Shipped: the results-log reader with its single reading and bounded span, the cursor published
+  by rename, the non-blocking single-instance lock (`O_CLOEXEC` replacing the shell's by-hand `9>&-` on
+  every spawn), the row decoder, the column projection, the allowlist reader, the known-good manifest
+  reader, the digest spool's append side, the `JudgeFindings` implementer, and `posture alert`. The
+  enricher runs IN PROCESS rather than through a spawn, because `posture enrich` was already a use case
+  in the same crate. WHY THE ENRICHER WAS NEVER OPTIONAL, recorded because it was twice reasoned about
+  wrongly on 2026-09-09 before being measured: an untrusted signing verdict PROMOTES a Notice finding to
+  Critical in the gate, so a cutover without it would send a finding the shell paged about to the next
+  day's digest. That is a missed page, not extra noise. Both directions are now pinned by tests. THE ONE
+  REMAINING GAP is the triage facts (recorded and on-disk hashes, upgrade correlation) that a
+  file-integrity page carries. Display-only, and the shell tolerated the same gap whenever its optional
+  helper was undeployed, so a page fires carrying less rather than not firing. FOUR DERIVATIONS WERE
+  WRONG until the binary was run against a real sandbox, and the unit tests agreed with all four because
+  they came from the same misreading of the shell's jq: the action was taken from a column rather than
+  from the row, the identity column order dropped `identifier`, a listening port lost its address and
+  port, and the timestamp carried the date without the time. Real-run verification is what caught them.
+  STILL TO DO, all of it the arming: repoint the plist to `posture alert`, move the allowlist tuple for
+  `com.webdavis.osquery-results-alerter` with it (the alerter matches a `persistence_launchd` finding
+  against label, path AND program, so repointing without it pages on the next launchd scan), and delete
+  `executable_results-alerter.sh` plus six private files under `results-alerter/`, keeping
   `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still sources it and would otherwise
-  refuse BOTH manifest scans as unavailable (it retires in task 46); the four e2e and unit suites that
-  pinned them. The allowlist tuple for `com.webdavis.osquery-results-alerter` moves with the plist, the
-  same way task 44's did: the alerter matches a `persistence_launchd` finding against (label, path,
-  program), so repointing without it pages on the next launchd scan.
+  refuse BOTH manifest scans as unavailable (it retires in task 46), and the four e2e and unit suites
+  that pinned them.
 - [ ] 46. posture 6.4: watchdog cutover
 - [ ] 47. posture 6.5: poll cutover
 - [ ] 48. posture 6.6: funnel cutover
@@ -654,7 +667,16 @@ Each of these gates work that cannot start without it.
   gone. Stopping it by hand first would have been undone by the next apply, since the loader still exists
   until 57 removes it.
 - [ ] The clean-home apply from PR #385, gates task 65
-- [ ] The lamp drills, gates task 64
+- [ ] The lamp drills, gates task 64. ONE OF FOUR DONE 2026-09-09: `bulk_read_latency` is measured and
+  answered. Seven samples each against the operator's own bridge: the shipped bulk read of
+  `/clip/v2/resource` runs a 210 ms median (127 min, 261 max), which is over the design's 150 ms bound,
+  but the targeted strategy the plan named as its alternative measures WORSE, at a 267 ms median for the
+  two-call room-plus-grouped form and 455 ms for the three-call form that adds scenes. Verdict: keep the
+  bulk read, do not adopt targeted. The other three (`seven_commands_preserve_key_intent`,
+  `brightness_floor_and_power`, `held_steps_match_isolated_steps`) still need the operator's eyes, and
+  must run against the Kitchen or MBedroom rather than the Studio: `[lights.lamp.*]` routes loop, blocked
+  and unread to four lamps including `3F - Studio - HCL3`, so pns animates the Studio while an agent is
+  working and every brightness reading taken there is mid-animation.
 - [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
 - [ ] Run `chezmoi apply` to deploy the uu skills lane, which gates task 11c
