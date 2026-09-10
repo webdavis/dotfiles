@@ -87,14 +87,14 @@ wholesale.
 
 **We test the behavior of tools we wrote, and nothing else** (operator ruling 2026-08-05). Not chezmoi,
 not Homebrew, not launchd, not any third-party behavior, and not deployment. In scope: pns, the osquery
-pipeline, rotate-logs, update-skills, the macos-defaults library, ssh-hardening, cutover-gate,
-live-reconcile, the cli-print-style library, the two herdr Rust plugins. Out of scope, and deleted on
-sight: LaunchAgent plist field assertions, "is this hook wired in", `.chezmoiignore` OS branching,
-roster-versus-lock-table agreement, justfile-versus-CI-workflow parity, markdown heading guards, and
-meta-tests about how other tests are written. The question to ask is whether gutting our source logic
-while leaving the declarations intact would turn the test red. If it would not, it is not testing our
-behavior. **This deliberately leaves declarations unguarded**, which is the accepted price: a config that
-disagrees with itself is now caught by review, not by a gate.
+pipeline, uu's lanes, the macos-defaults library, ssh-hardening, cutover-gate, live-reconcile, the
+cli-print-style library, the two herdr Rust plugins. Out of scope, and deleted on sight: LaunchAgent
+plist field assertions, "is this hook wired in", `.chezmoiignore` OS branching, roster-versus-lock-table
+agreement, justfile-versus-CI-workflow parity, markdown heading guards, and meta-tests about how other
+tests are written. The question to ask is whether gutting our source logic while leaving the declarations
+intact would turn the test red. If it would not, it is not testing our behavior. **This deliberately
+leaves declarations unguarded**, which is the accepted price: a config that disagrees with itself is now
+caught by review, not by a gate.
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs `just test-nvim`, then the
 one runner (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each
@@ -487,11 +487,10 @@ Four rules decide the shape below `libexec`, in this order:
    `unattended-upgrades/` names what they do. A directory named for a CLI a script happens to shell out
    to would need `jq/` and `curl/` siblings to be consistent, so that axis is not used.
 1. **A directory exists only when it has more than one member.** A leaf with no private helpers stays a
-   flat file (`compress-and-truncate-local-logs.sh`, `control-hue-lights.sh`). Make the group the day a
-   second member arrives, not in anticipation of one. `tailscale/` was the one exception, a directory
-   held open because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port
-   retired both, since `tailnet-pin` carries its domain in its own name and installs beside the other
-   Rust tools.
+   flat file (`control-hue-lights.sh`, `brew-shellenv-cache-refresh.sh`). Make the group the day a second
+   member arrives, not in anticipation of one. `tailscale/` was the one exception, a directory held open
+   because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port retired both,
+   since `tailnet-pin` carries its domain in its own name and installs beside the other Rust tools.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
    tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
    `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
@@ -506,9 +505,9 @@ Four rules decide the shape below `libexec`, in this order:
    standalone Rust `uu` package owns its weekly record formatting and delivery; it does not source shell
    helpers.
 
-Names are verb-first where a bare noun would not say what happens (`compress-and-truncate-local-logs.sh`,
-`control-hue-lights.sh`). A stutter is accepted when removing it would leave a meaningless basename:
-`macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
+Names are verb-first where a bare noun would not say what happens (`control-hue-lights.sh`,
+`brew-shellenv-cache-refresh.sh`). A stutter is accepted when removing it would leave a meaningless
+basename: `macos-defaults/macos-defaults-apply.sh` stays, because `apply.sh` in a log line says nothing.
 
 **`pns/` IS THE RUST ENGINE NOW, and the directory says so.** `pns` is the compiled binary, built at
 apply time from the workspace at `pns/` in this checkout and installed here because launchd and the hooks
@@ -545,7 +544,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
-| `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider            |
 | `com.webdavis.scalebar`                            | starts the Scalebar menu-bar app at login            |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                 |
