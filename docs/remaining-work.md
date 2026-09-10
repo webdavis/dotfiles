@@ -148,18 +148,22 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
   that directory is shared with every other cargo-installed program on the machine. The aerospace keys
   needed no change: they still call `control-hue-lights.sh`, which is task 62's job to retire.
 
-- [ ] 21. THREE OF FOUR CONFIRMED on 2026-09-09, after the apply. `pns doctor` and `uu doctor` both
-  answer and exit 0, and `launchctl list` shows both agents loaded. The fourth is the operator's alone:
-  an agent's tool shell is not interactive, so bash-preexec never loads and the shell hook never fires,
-  which a `sleep 35` proved by leaving no trace in the decision log. `pns doctor` did surface one real
-  failure worth carrying: the mobile push is refused by the moshi endpoint while the banner and hermes
-  legs both deliver. The daemon is running the current 0.3.16 binary rather than a deleted Cellar, so the
-  known stale-daemon fix does not apply. Original text: apply, then confirm every caller still resolves:
-  `pns doctor`, `uu doctor`, a `launchctl list` showing both agents loaded, and one real long-running
-  command raising its notification through the shell hook. The old binaries under
-  `~/.local/libexec/{pns,uu,posture}/` and `~/.local/libexec/lights` are NOT removed by the apply and
-  want trashing once this is confirmed; `~/.local/libexec/pns/hooks/` stays, because the Codex hook
-  installer still lives there.
+- [x] 21. ALL FOUR CONFIRMED on 2026-09-09, after the apply. `pns doctor` and `uu doctor` both answer and
+  exit 0, and `launchctl list` shows both agents loaded. The fourth needed the operator, because an
+  agent's tool shell is not interactive: bash-preexec never loads there, so the shell hook never fires,
+  which a `sleep 35` from an agent shell proved by leaving no trace in the decision log. The operator's
+  own `sleep 35` was silent at first for the RIGHT reason, and the surface rule is the one to remember:
+  the banner belongs to the desk and fires only when the pane that raised it is not the pane on screen
+  (`pns-domain/src/surface.rs`, `banner: surface == Surface::Desk && !watching`). Watching the pane it
+  ran in suppresses it by design. Switching away before the sleep finished raised
+  `shell / done / dotfiles, sleep (36s)`. `pns doctor` did surface one real failure worth carrying: the
+  mobile push is refused by the moshi endpoint while the banner and hermes legs both deliver. The daemon
+  is running the current 0.3.16 binary rather than a deleted Cellar, so the known stale-daemon fix does
+  not apply. Original text: apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a
+  `launchctl list` showing both agents loaded, and one real long-running command raising its notification
+  through the shell hook. The old binaries under `~/.local/libexec/{pns,uu,posture}/` and
+  `~/.local/libexec/lights` are NOT removed by the apply and want trashing once this is confirmed;
+  `~/.local/libexec/pns/hooks/` stays, because the Codex hook installer still lives there.
 
 ## pns closure and the rescued lanes
 
@@ -516,7 +520,19 @@ step, and it gates the whole section.
   the silent Discord line on the pns-keyed route and the silent desk banner, confirm the pns ledger
   recorded it, and only then trash the deployed `~/.local/libexec/osquery/heartbeat.sh`. Deleting a
   chezmoi source never deletes its target, which is why the deployed copy outlives this change.
-- [ ] 44. posture 6.2: digest cutover
+- [x] 44. posture 6.2: digest cutover. The plist now runs `posture digest` instead of `bash digest.sh`;
+  the bash script and the integration test that pinned it are deleted. The port splits one `main` into
+  three seams that test apart: the application use case owning the claim, keep and restore decisions, the
+  adapter owning the file moves, and the composition root. Two behaviors the shell could not express are
+  now pinned: a batch whose every line is unreadable is KEPT for forensics rather than sent with a count
+  and an empty body or retried forever against bytes that render empty again, and a clock that cannot
+  answer leaves the batch untouched rather than claiming one this run could not finish naming. The digest
+  spool's WRITE side stays bash until task 45b; both ends still agree because they are built from one
+  `posture-protocol` record. THE ALLOWLIST TUPLE MOVED WITH THE PLIST: the alerter matches a
+  `persistence_launchd` finding against (label, path, program), so repointing without it pages on the
+  next launchd scan. WHAT THE OPERATOR STILL DOES: apply, run `posture digest` by hand against a spool
+  the day has filled, confirm the single silent message and the `.last` rotation, then trash the deployed
+  `~/.local/libexec/osquery/digest.sh`.
 - [x] 45a. posture 6.3, first half: the alerter's read-to-checkpoint transaction. SPLIT FROM TASK 45 on
   2026-09-09 because the port plan calls 6.3 "the largest cutover" and a single pull request for it would
   be the huge diff the small-PR rule exists to prevent. This half is policy and ordering only, with no
