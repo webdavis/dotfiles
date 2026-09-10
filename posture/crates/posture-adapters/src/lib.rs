@@ -40,6 +40,9 @@ mod allowlist_projection;
 mod allowlist_read;
 pub use allowlist_read::AllowlistText;
 
+mod known_good_read;
+pub use known_good_read::KnownGoodManifests;
+
 mod judge_batch;
 pub use judge_batch::{BatchJudge, Collaborators, OwnedSigning, OwnedTriage};
 

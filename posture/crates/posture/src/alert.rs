@@ -1,8 +1,9 @@
 pub(super) mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    AllowlistText, BatchJudge, Collaborators, CursorFile, DigestAppendFile, LastResortBanner,
-    PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock, SystemRunner,
+    AllowlistText, BatchJudge, Collaborators, CursorFile, DigestAppendFile, KnownGoodManifests,
+    LastResortBanner, PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
+    SystemRunner,
 };
 use posture_application::{Clock, JudgeOutcome, JudgeResults};
 use std::{io::Write, time::Duration};
@@ -53,14 +54,16 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
         LastResortBanner::new(SystemRunner::per_command(ALARM_BUDGET), config.alarm),
     );
 
-    // THE COLLABORATORS ARE THE HONEST NOT-YET. The enricher and the
-    // known-good manifest reader are separate cutovers, so this run vouches
-    // for nothing and inspects nothing: every file event reaches the gate as
-    // unvouched, which is the direction that PAGES rather than the one that
-    // goes quiet. Wiring them is the next slice, and until then a page that
-    // should have been suppressed is noise, never a page that should have
-    // fired and did not.
-    let mut vouches = |_: &str| false;
+    let manifests = KnownGoodManifests::new(
+        config.pipeline_manifest,
+        config.managed_bin_manifest,
+        config.home.clone(),
+    );
+    let mut vouches = |path: &str| manifests.vouches(path);
+    // THE ENRICHER IS THE ONE HONEST NOT-YET. It is a separate cutover, so no
+    // signing verdict and no triage facts reach a page here: a page that would
+    // have carried them still fires, carrying less. That is the direction that
+    // costs detail rather than the one that costs an alert.
     let mut inspect = |_: &str| None;
     let mut triage = |_: &ResultsRow| None;
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
