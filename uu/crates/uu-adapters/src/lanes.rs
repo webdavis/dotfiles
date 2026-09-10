@@ -6,6 +6,7 @@
 //! The record reports each outcome.
 
 mod brew;
+mod cargo;
 mod changes;
 mod claude_plugins;
 mod command;

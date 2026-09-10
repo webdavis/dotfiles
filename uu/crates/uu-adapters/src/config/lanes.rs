@@ -12,6 +12,7 @@
 //! lives in `lanes::npm`.
 
 mod brew;
+mod cargo;
 mod claude_plugins;
 mod command;
 mod herdr;
@@ -34,6 +35,7 @@ use crate::{LaneRegistration, lanes::LaneAdapter};
 use uu_domain::DEFAULT_LANE_DEADLINE;
 
 pub use brew::BrewLane;
+pub use cargo::CargoLane;
 pub use claude_plugins::ClaudePluginsLane;
 pub use command::CommandLane;
 pub use herdr::HerdrLane;
@@ -163,6 +165,7 @@ fn lane_type<'a>(
 }
 
 pub(crate) use brew::parse_brew_lane;
+pub(crate) use cargo::parse_cargo_lane;
 pub(crate) use command::parse_command_lane;
 pub(crate) use herdr::parse_herdr_lane;
 pub(crate) use npm::parse_npm_lane;

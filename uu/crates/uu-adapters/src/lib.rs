@@ -20,7 +20,7 @@
 mod alert;
 mod bootstrap;
 mod config;
-pub use config::RotateLogsLane;
+pub use config::{CargoLane, RotateLogsLane};
 
 mod deadline;
 mod lanes;

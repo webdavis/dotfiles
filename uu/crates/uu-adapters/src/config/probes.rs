@@ -1,11 +1,12 @@
 use super::{Config, ConfigError};
 use crate::{
-    BrewLane, ClaudePluginsLane, CommandLane, HerdrLane, LaneAdapter, LaneRegistration, NpmLane,
-    NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane,
+    BrewLane, CargoLane, ClaudePluginsLane, CommandLane, HerdrLane, LaneAdapter, LaneRegistration,
+    NpmLane, NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane,
 };
 
 pub(crate) const REGISTRATIONS: &[LaneRegistration] = &[
     LaneRegistration::new::<BrewLane>("brew"),
+    LaneRegistration::new::<CargoLane>("cargo"),
     LaneRegistration::new::<ClaudePluginsLane>("claude-plugins"),
     LaneRegistration::new::<CommandLane>("command"),
     LaneRegistration::new::<HerdrLane>("herdr"),

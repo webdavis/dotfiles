@@ -91,6 +91,21 @@ pub fn non_empty(table: &str, key: &str, setting: &toml::Value) -> Result<String
     }
 }
 
+/// One key that has to be a real boolean.
+///
+/// A quoted `"true"` is refused rather than read as true, and a missing key is
+/// the caller's default rather than false: an operator who wrote a setting and
+/// had it silently ignored is the failure this prevents, and for a key that
+/// turns work ON, being ignored looks exactly like the work having nothing to
+/// do.
+pub fn boolean(table: &str, key: &str, setting: &toml::Value) -> Result<bool, ConfigError> {
+    setting.as_bool().ok_or_else(|| {
+        ConfigError::Invalid(format!(
+            "`{table}` key `{key}` must be true or false, got {setting:?}"
+        ))
+    })
+}
+
 /// A `non_empty` string that also has to be an ABSOLUTE path, for a key whose
 /// whole job is to name a file whose directory the lane then derives.
 pub fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {
@@ -188,6 +203,7 @@ mod tests {
         // A BOOLEAN IS THE PROBE, because no key this schema serves admits
         // one. An integer probe would be a LEGAL value for `deadline_secs`,
         // and this test would then read the key it is meant to walk as unread.
+        const BOOLEAN_KEYS: &[&str] = &["auto_commit", "compile"];
         let tables = TABLE_KEYS
             .iter()
             .map(|(name, keys)| (name.to_string(), *keys))
@@ -201,7 +217,14 @@ mod tests {
                 let text = if table == TOP_LEVEL {
                     format!("{key} = true\n")
                 } else {
-                    let probe = if *key == "auto_commit" { "42" } else { "true" };
+                    // A KEY THAT READS A BOOLEAN NEEDS ANOTHER PROBE, because
+                    // `true` is a legal value for it and this walk would then
+                    // read the key it exists to check as unread.
+                    let probe = if BOOLEAN_KEYS.contains(key) {
+                        "42"
+                    } else {
+                        "true"
+                    };
                     format!("[{table}]\n{key} = {probe}\n")
                 };
                 let detail = match parse_config(&text) {
