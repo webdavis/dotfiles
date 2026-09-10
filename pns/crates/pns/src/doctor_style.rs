@@ -24,6 +24,18 @@ fn appearance(mark: Mark) -> (Tone, &'static str) {
     }
 }
 
+/// A row without the `pns doctor: ` the sentence carries for other readers.
+///
+/// THE PREFIX IS STRIPPED HERE AND NOT AT THE SOURCE, because most of these
+/// sentences have a second caller. `routing_complaints` reaches `signal_lamps`
+/// and `reconcile_lights` as well, and there the sentence arrives alone with no
+/// heading above it, so it has to name what is speaking. Under a titled section
+/// the same words repeat what the frame already said, once per row, which is
+/// the noise the sections were introduced to remove.
+fn unattributed(text: &str) -> &str {
+    text.strip_prefix("pns doctor: ").unwrap_or(text)
+}
+
 /// Renders the report, and remembers what went wrong so it can say so at the
 /// end.
 pub(crate) struct Report {
@@ -76,8 +88,9 @@ impl Report {
                 vec![String::new(), style::heading(self.paint, title, blurb)]
             }
             Item::Row { mark, text } => {
+                let text = unattributed(text);
                 if *mark == Mark::Bad {
-                    self.issues.push(text.clone());
+                    self.issues.push(text.to_string());
                 }
                 let (tone, glyph) = appearance(*mark);
                 let indent = if *mark == Mark::Detail { 4 } else { 2 };

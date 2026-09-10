@@ -102,3 +102,47 @@ fn the_opening_draws_no_box() {
         assert!(!opening.contains(glyph), "{glyph:?} in {opening}");
     }
 }
+
+#[test]
+fn a_row_drops_the_command_name_the_sentence_carries_for_other_readers() {
+    // The frame already said `pns doctor`, and the section heading says which
+    // part of it this is, so repeating the command once per row is the noise
+    // the sections exist to remove.
+    let mut report = Report::new(Paint::Plain);
+    let lines = report.item(&Item::Row {
+        mark: Mark::Note,
+        text: "pns doctor: the daemon is running, pid 4321, 2 jobs scheduled".to_string(),
+    });
+    assert_eq!(
+        lines,
+        vec!["  · the daemon is running, pid 4321, 2 jobs scheduled"]
+    );
+}
+
+#[test]
+fn a_row_that_never_carried_the_prefix_is_printed_exactly_as_written() {
+    let mut report = Report::new(Paint::Plain);
+    let lines = report.item(&Item::Row {
+        mark: Mark::Good,
+        text: "mobile: sent, pushed the card".to_string(),
+    });
+    assert_eq!(lines, vec!["  ✓ mobile: sent, pushed the card"]);
+}
+
+#[test]
+fn the_closing_list_repeats_the_stripped_row_and_not_the_attributed_one() {
+    // The list quotes rows already printed, so an entry still carrying the
+    // command name would read as a different sentence from the row above it.
+    let mut report = Report::new(Paint::Plain);
+    report.item(&Item::Row {
+        mark: Mark::Bad,
+        text: "pns doctor: hermes: FAILED, post FAILED HTTP 000".to_string(),
+    });
+    let close = report.close();
+    assert!(
+        close
+            .iter()
+            .any(|line| line == "  1. hermes: FAILED, post FAILED HTTP 000"),
+        "{close:?}"
+    );
+}
