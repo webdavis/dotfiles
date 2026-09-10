@@ -27,6 +27,7 @@ mod lanes;
 mod record;
 mod registration;
 mod schedule;
+mod signed_post;
 
 mod adapters;
 mod delivery;
@@ -44,6 +45,7 @@ pub use config::{
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
 pub use schedule::{DEFAULT_LABEL, render_plist};
+pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 pub use state::{marker_path, read_marker};
 pub use system::{home, now_epoch, resolve};
 

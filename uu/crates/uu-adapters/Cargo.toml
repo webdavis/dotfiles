@@ -3,13 +3,13 @@
 # deployed pns binary for alerts. Nothing else. Records do not spawn anything
 # at all: they are one signed POST made in process.
 #
-# pns-hermes IS A PATH DEPENDENCY rather than a duplicated hermes client. The signing,
-# transport and POST seam already live there; a second copy of an HMAC
-# (hash-based message authentication code) signer is a second thing to get wrong.
-# The record BODY is uu's own; only the plumbing is shared. The relative path
-# resolves from this member up through the uu workspace to its sibling `pns`
-# workspace at the monorepo root. Neither tree deploys to $HOME any more; the
-# builder compiles both out of this checkout.
+# NOTHING HERE REACHES ANOTHER TOOL'S WORKSPACE. uu, pns, posture and lights
+# ship as separate projects installed independently with `cargo install --git`,
+# by people who do not have this repository, so a path dependency climbing into
+# a sibling workspace would make uu buildable only inside this checkout. The
+# signing and POST seam that used to come from `pns-hermes` is uu's own now, in
+# `signed_post.rs`, which says why at the top. Runtime integration is untouched
+# and unaffected: uu still SPAWNS the deployed pns binary for alerts.
 
 [package]
 name = "uu-adapters"
@@ -25,8 +25,11 @@ uu-protocol = { path = "../uu-protocol" }
 # (`gethostname`) nor "which UTC calendar day is this second" (`gmtime_r`), and
 # both are on every record. It is already compiled in this tree behind pns.
 libc = "0.2.189"
-pns-hermes = { path = "../../../pns/crates/pns-hermes" }
 serde_json = "1.0.151"
+# Rustls rather than the system TLS, matching the pinned versions this signing
+# path was moved from, so the wire behaviour does not change with the move.
+ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+hmac = "0.13.0"
 sha2 = "0.11.0"
 # Parse only, matching pns: nothing here ever writes TOML back out.
 toml = { version = "1.1.4", default-features = false, features = [
