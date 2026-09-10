@@ -65,7 +65,7 @@ declarative install and remain consistent with the design below:
 - `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, pre-bundle trust loop that runs
   `brew tap` + `brew trust --tap` for every entry in `trusted_taps`.
 - `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`, one-time pair + install +
-  `brew services start` (pulls pairing token from KeePassXC entry `Moshi :: Pairing Token`).
+  `brew services start` (pulls the device token from KeePassXC entry `moshi-hook :: Device Token`).
 - `CLAUDE.md`, adds the new chezmoiscript to the interactive-apply list.
 
 ## Locked decisions
