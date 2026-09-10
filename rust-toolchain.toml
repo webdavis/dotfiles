@@ -1,0 +1,10 @@
+# `just test-rust` runs cargo from the repository root with `--manifest-path`,
+# and rustup resolves a toolchain from the CURRENT directory upward rather than
+# from the manifest, so without this pin the suite would run on whatever
+# toolchain rustup defaults to. Every crate carries its own copy for the
+# builders, which run from the crate directory.
+#
+# This one is source only: `.chezmoiignore` excludes it by bare name, which
+# chezmoi matches at the target root alone, so the nested pins still deploy.
+[toolchain]
+channel = "stable"
