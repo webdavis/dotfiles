@@ -10,6 +10,8 @@ set -euo pipefail
 # A deferred zero-exit build must change the next rendered script to retry.
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/tailnet-pin-build/tailnet-pin.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
 # Repository SOURCE at the monorepo root, never a deploy target, so the build
 # reads the chezmoi source directory rather than a copy under $HOME.
 crate_dir={{ joinPath .chezmoi.sourceDir "tailnet-pin" | quote }}
@@ -26,11 +28,15 @@ fingerprint={{ $fingerprint | quote }}
 mkdir -p "$state_dir"
 
 if [[ ! -x $cargo_bin ]]; then
-  printf 'tailnet-pin: cargo missing; build deferred to next apply\n' >&2
+  # NAMED IN THE LINE ITSELF, because a deferral prints no section above it and
+  # goes to stderr, where it can land anywhere in the apply's output.
+  report_line 'tailnet-pin: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
   touch "$retry_marker"
   exit 0
 fi
 
+report_section 'tailnet-pin'
+report_line 'building the release binary'
 cd "$crate_dir" || exit
 "$cargo_bin" build --release --locked --quiet --bin tailnet-pin
 mkdir -p "$install_dir"
@@ -40,5 +46,5 @@ mkdir -p "$install_dir"
 # replaced.
 printf '%s\n' "$fingerprint" >"$built_marker"
 rm -f "$retry_marker"
-printf 'tailnet-pin: installed %s/tailnet-pin\n' "$install_dir"
+report_line "installed $install_dir/tailnet-pin"
 {{ end -}}

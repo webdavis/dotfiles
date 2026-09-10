@@ -13,6 +13,8 @@ set -euo pipefail
 # A deferred zero-exit build must change the next rendered script to retry.
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/lights-build/lights.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
 # Repository SOURCE at the monorepo root, never a deploy target, so the build
 # reads the chezmoi source directory rather than a copy under $HOME.
 crate_dir={{ $lights | quote }}
@@ -21,15 +23,19 @@ cargo_bin="$HOME/.cargo/bin/cargo"
 retry_marker="$HOME/.cache/lights-build/lights.retry"
 
 if [[ ! -x $cargo_bin ]]; then
-  printf 'lights: cargo missing; build deferred to next apply\n' >&2
+  # NAMED IN THE LINE ITSELF, because a deferral prints no section above it and
+  # goes to stderr, where it can land anywhere in the apply's output.
+  report_line 'lights: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
   mkdir -p "$(dirname "$retry_marker")"
   touch "$retry_marker"
   exit 0
 fi
 
+report_section 'lights'
+report_line 'building the release binary'
 cd "$crate_dir" || exit
 "$cargo_bin" build --release --locked --quiet --bin lights
 mkdir -p "$install_dir"
 /usr/bin/install -m 755 "$crate_dir/target/release/lights" "$install_dir/lights"
-printf 'lights: installed %s/lights\n' "$install_dir"
+report_line "installed $install_dir/lights"
 {{ end -}}
