@@ -36,17 +36,11 @@ fn an_alternate_registration_reaches_execution_and_doctor_with_distinct_names() 
     let event = report.lines[2..].join("\n");
     assert!(event.contains("\"lane\":\"chosen\""), "{event}");
     assert_eq!(config.lanes["chosen"].deadline, Duration::from_secs(7));
-    let lines = crate::cli::doctor::lane_descriptions(&config);
-    assert_eq!(
-        lines,
-        [
-            "uu: lane chosen: on (fixture-command)".to_string(),
-            format!(
-                "uu: lane chosen: program `{}`, found at {} (doctor resolves on this shell's PATH; the weekly run uses the plist's own PATH, which can differ)",
-                program.display(),
-                program.display()
-            )
-        ]
+    let lines = crate::cli::doctor::lanes(crate::style::Paint::Plain, &config);
+    assert_eq!(lines[0], "  \u{b7} chosen: on (fixture-command)");
+    assert!(
+        lines[1].contains(&format!("{}, found", program.display())),
+        "{lines:?}"
     );
 }
 
@@ -92,8 +86,8 @@ fn the_production_registration_list_loads_and_runs_the_selected_command() {
     );
     assert_eq!(observed.reports.borrow()[0].lines, ["actually ran"]);
     assert_eq!(
-        crate::cli::doctor::lane_descriptions(&config)[0],
-        "uu: lane mine: on (command)"
+        crate::cli::doctor::lanes(crate::style::Paint::Plain, &config)[0],
+        "  \u{b7} mine: on (command)"
     );
 }
 
