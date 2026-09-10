@@ -15,6 +15,7 @@ pub(crate) const REGISTRATIONS: &[LaneRegistration] = &[
     LaneRegistration::new::<NvimParsersLane>("nvim-parsers"),
     LaneRegistration::new::<NvimPluginsLane>("nvim-plugins"),
     LaneRegistration::new::<NvimSmokeTestLane>("nvim-smoke-test"),
+    LaneRegistration::new::<RustupLane>("rustup"),
     LaneRegistration::new::<UvLane>("uv"),
 ];
 
