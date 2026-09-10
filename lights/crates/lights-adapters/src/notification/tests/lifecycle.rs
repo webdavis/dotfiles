@@ -20,6 +20,13 @@ impl Fixture {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
+        // A PID IS NOT UNIQUE OVER TIME. macOS recycles them, and this fixture
+        // used to leave its directory behind, so the leftovers accumulated
+        // until a recycled pid met its own predecessor's and `create_dir`
+        // failed with EEXIST. The test then failed on housekeeping rather than
+        // on anything it pins. Clearing first is what makes the name reusable;
+        // the `Drop` below is what stops them piling up in the first place.
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir(&root).unwrap();
         fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
         let child = root.join("pns");
@@ -27,6 +34,15 @@ impl Fixture {
         fs::write(&child,format!("#!/bin/bash\nset -euo pipefail\ntrap '' TERM\nprintf '%s %s\\n' \"$$\" \"$PPID\" >'{}'\nexec /bin/sleep 30\n",ready.display())).unwrap();
         fs::set_permissions(&child, fs::Permissions::from_mode(0o700)).unwrap();
         Self { root, child, ready }
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        // BEST EFFORT, and never a second panic: a failing test unwinds through
+        // here, and a fixture that cannot tidy up must not replace the failure
+        // that got it here with its own.
+        let _ = fs::remove_dir_all(&self.root);
     }
 }
 fn exists(pid: &str) -> bool {

@@ -49,3 +49,9 @@ pub use poll_state::{PollGap, SavedPollControl, SavedPollState};
 
 mod poll;
 pub use poll::{Poll, PollFailure, PollMarkers, PollStateFailure};
+
+mod judge_results;
+pub use judge_results::{
+    BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
+    RunLock,
+};

@@ -32,6 +32,7 @@ mod cursor;
 mod digest;
 mod gate;
 mod page;
+mod records;
 mod sanitize;
 mod severity;
 
@@ -44,6 +45,7 @@ pub use gate::{
     LaunchdIdentity, Signing, Triage, gate,
 };
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
+pub use records::{CompleteRecords, complete_records};
 pub use severity::{Action, ProtectionState, Severity, severity};
 
 mod allowlist;
