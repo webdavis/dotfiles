@@ -1,0 +1,56 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+set -euo pipefail
+{{ $source := joinPath .chezmoi.homeDir .scalebar.source_dir -}}
+{{/*
+     THE CLONE IS NOT PART OF THIS REPOSITORY, so every read of it has to
+     tolerate its absence. `glob` answers an empty list for a directory that is
+     not there, and `stat` answers nothing rather than failing, which is why the
+     manifests below are guarded while the Rust builders beside this one may
+     `include` theirs unguarded: their crates are in the chezmoi source tree and
+     a missing one is a broken checkout worth aborting for. A machine that has
+     never cloned Scalebar must still apply.
+*/ -}}
+{{ range (glob (joinPath $source "Sources/**/*.swift")) }}
+# {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- range (list "Package.swift" "Package.resolved") }}
+{{- $manifest := joinPath $source . }}
+{{- if stat $manifest }}
+# {{ $manifest }} {{ include $manifest | sha256sum }}
+{{- end }}
+{{- end }}
+# A deferred zero-exit build must change the next rendered script to retry.
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/scalebar-build/scalebar.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+
+source_dir={{ $source | quote }}
+install_dir={{ joinPath .chezmoi.homeDir .scalebar.install_dir | quote }}
+retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
+
+defer() {
+  printf 'scalebar: %s; build deferred to next apply\n' "$1" >&2
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+  exit 0
+}
+
+# TWO PRECONDITIONS, EACH ITS OWN DEFERRAL. A fresh machine has neither the
+# clone nor necessarily a Swift toolchain, and an apply that stopped for either
+# would take the rest of the machine's configuration down with it.
+[[ -d $source_dir ]] || defer "no clone at $source_dir (git clone git@github.com:webdavis/scalebar.git)"
+command -v swift >/dev/null 2>&1 || defer 'swift not on PATH (install the Xcode command line tools)'
+
+# --disable-sandbox is deliberately NOT passed: a package that needs it to build
+# is a package doing something at build time worth noticing.
+(cd "$source_dir" && swift build -c release)
+
+built="$source_dir/.build/release"
+mkdir -p "$install_dir"
+# `install` replaces by rename, so a running Scalebar keeps its own inode and
+# the swap is atomic for anything that opens the path afterwards. Restarting the
+# app to pick the new binary up is the loader's job, not this script's.
+/usr/bin/install -m 755 "$built/Scalebar" "$install_dir/Scalebar"
+/usr/bin/install -m 755 "$built/ScalebarMCP" "$install_dir/ScalebarMCP"
+rm -f "$retry_marker"
+printf 'scalebar: installed Scalebar and ScalebarMCP into %s\n' "$install_dir"
+{{ end -}}

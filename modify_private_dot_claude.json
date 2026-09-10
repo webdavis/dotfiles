@@ -50,10 +50,19 @@
     "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" .chezmoi.homeDir) -}}
 {{- $merged = setValueAtPath "mcpServers.nvim" $nvimMcp $merged -}}
 
-{{- /* --- stable: the Scalebar MCP server (fitness/weight tracking) --- */ -}}
+{{- /* --- stable: the Scalebar MCP server, weight and gym data ---
+
+     The command is the INSTALLED binary, not the one under the clone's
+     `.build/release`. That directory is inside a working checkout and it moves:
+     `swift package clean` empties it and a git worktree relocates it entirely,
+     which is how hermes ended up pointing at a deleted worktree and losing its
+     Scalebar tools without anything reporting it. `run_onchange_after_53`
+     installs both artifacts under `.scalebar.install_dir` and every consumer
+     reads that one declaration. Carries no secret, so like `nvim` beside it
+     this entry needs no vault lookup. --- */ -}}
 {{- $scalebarMcp := dict
     "type" "stdio"
-    "command" (printf "%s/workspaces/Ivy/webdavis/scalebar/.build/release/ScalebarMCP" .chezmoi.homeDir)
+    "command" (joinPath .chezmoi.homeDir .scalebar.install_dir "ScalebarMCP")
     "args" (list)
     "env" (dict) -}}
 {{- $merged = setValueAtPath "mcpServers.scalebar" $scalebarMcp $merged -}}

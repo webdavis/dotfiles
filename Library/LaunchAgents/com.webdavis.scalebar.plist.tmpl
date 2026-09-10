@@ -6,11 +6,17 @@
 	<string>com.webdavis.scalebar</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>{{ joinPath .chezmoi.homeDir "workspaces/Ivy/webdavis/scalebar/.build/release/Scalebar" }}</string>
+		<string>{{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" }}</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
+	<!-- No KeepAlive. This is a menu-bar app the operator quits on purpose, and
+	     relaunching it against that choice would make quitting impossible. -->
 	<key>ProcessType</key>
 	<string>Interactive</string>
+	<key>StandardOutPath</key>
+	<string>{{ .chezmoi.homeDir }}/.local/log/scalebar/scalebar.log</string>
+	<key>StandardErrorPath</key>
+	<string>{{ .chezmoi.homeDir }}/.local/log/scalebar/scalebar.log</string>
 </dict>
 </plist>

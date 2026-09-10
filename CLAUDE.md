@@ -547,6 +547,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.rotate-logs`                         | rotates `~/.local/log/`                              |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider            |
+| `com.webdavis.scalebar`                            | starts the Scalebar menu-bar app at login            |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                 |
 | `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications             |
 | `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                             |

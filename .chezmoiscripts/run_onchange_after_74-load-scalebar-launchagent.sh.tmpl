@@ -1,24 +1,49 @@
 #!/bin/bash
 # run_onchange_after_74-load-scalebar-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.scalebar.plist.tmpl" | sha256sum }}
+#
+# THE BUILDER'S RETRY MARKER IS PART OF THIS SCRIPT'S CONTENT, so a loader that
+# refused for want of a binary re-fires once the build state changes. chezmoi
+# records a run_onchange script as done on ANY exit 0, and the refusal below
+# exits 0 on purpose, so without this line the first apply on a machine with no
+# Scalebar clone would record the loader as done and the app would never be
+# bootstrapped. The marker's MODIFICATION TIME is the trigger, never its
+# contents: reading a file at render time means an unreadable node aborts the
+# apply.
+#   build-retry-marker: {{ $rm := printf "%s/.cache/scalebar-build/scalebar.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+#
+# THE BINARY'S OWN MODIFICATION TIME IS A TRIGGER TOO, which the Rust loaders do
+# not need and this one does. Scalebar is a long-running app: launchd started it
+# from the binary that existed at login, and installing a new one underneath it
+# changes nothing until the process restarts. Re-firing on a rebuild is what
+# makes the bootout below pick the new build up, and it is the same step the
+# Scalebar README asks for by hand.
+#   binary: {{ $bin := printf "%s/%s/Scalebar" (env "HOME") .scalebar.install_dir }}{{ if stat $bin }}{{ (stat $bin).modTime }}{{ else }}absent{{ end }}
 
 {{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail
 
-# Unlike uu/lights/posture, no script here builds this binary, so its existence is never
-# guaranteed. Defer rather than bootstrap a plist that points at nothing.
-SCALEBAR={{ joinPath .chezmoi.homeDir "workspaces/Ivy/webdavis/scalebar/.build/release/Scalebar" | quote }}
+SCALEBAR={{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" | quote }}
+
+# THE BINARY IS THE PRECONDITION, and it is not guaranteed: the builder beside
+# this one defers on a machine with no clone or no Swift toolchain, and exits 0
+# so the apply carries on. Booting the current app out and bootstrapping a plist
+# that points at nothing would leave the menu bar empty until some later apply;
+# refusing leaves whatever is already loaded running.
 if [[ ! -x $SCALEBAR ]]; then
-  printf 'scalebar: %s is missing or not executable. Clone webdavis/scalebar and run swift build -c release there, then re-run chezmoi apply.\n' "$SCALEBAR" >&2
+  printf 'scalebar: %s is missing or not executable, so the LaunchAgent was left exactly as it is; the build is deferred to the next apply.\n' "$SCALEBAR" >&2
   exit 0
 fi
+
+# launchd will not create the log dir itself.
+mkdir -p "$HOME/.local/log/scalebar"
 
 PLIST="$HOME/Library/LaunchAgents/com.webdavis.scalebar.plist"
 TARGET="gui/$(id -u)/com.webdavis.scalebar"
 
-# Re-bootstrap so a changed plist takes effect; launchd sometimes answers EIO right after a
-# bootout, so retry silently before surfacing the real error (same pattern as every other
-# LaunchAgent loader in this repo).
+# Re-bootstrap so a changed plist or a fresh binary takes effect; launchd
+# sometimes answers EIO right after a bootout, so retry silently before
+# surfacing the real error.
 launchctl bootout "$TARGET" 2>/dev/null || true
 
 for _ in 1 2 3; do

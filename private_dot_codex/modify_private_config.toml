@@ -175,6 +175,14 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
+{{- /* scalebar is the weight and gym data server from webdavis/scalebar. Its
+       command is the INSTALLED binary rather than the clone's
+       `.build/release`, which is inside a working checkout and moves: a
+       `swift package clean` empties it and a git worktree relocates it, which
+       is how hermes came to point at a deleted worktree and lose these tools
+       silently. `run_onchange_after_53` installs it and every consumer reads
+       the one declaration in `.chezmoidata/scalebar.yaml`. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .scalebar.install_dir) $merged -}}
 {{- /* Codex 0.153.4 clears a stdio server's environment down to a fixed
        whitelist (HOME, LOGNAME, PATH, SHELL, USER, __CF_USER_TEXT_ENCODING,
        LANG, LC_ALL, TERM, TMPDIR, TZ; codex-rs/rmcp-client/src/utils.rs), so
