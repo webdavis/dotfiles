@@ -8,11 +8,12 @@ set -euo pipefail
 # compiles out of the chezmoi source directory; nothing else compiles it, so
 # without this script the LaunchAgent would find nothing to run.
 #
-# BOTH CRATES ARE HASHED. uu links pns's hermes client as a library, so a change
-# to pns alone still changes the binary this installs; hashing uu's sources only
-# would leave the deployed uu carrying stale signing and transport code with
-# nothing to trigger a rebuild. Both workspaces include member manifests in
-# their hashed inputs for the same reason.
+# ONE WORKSPACE IS HASHED, AND IT IS UU'S OWN. This used to hash pns as well,
+# because uu linked `pns-hermes` as a library and a change over there changed
+# the binary installed here. uu carries its own signing and transport now, so
+# pns is no longer a build input: hashing it would rebuild and reinstall uu
+# every time an unrelated tool changed. Member manifests are included because a
+# dependency added to one of them does change these bytes.
 #
 # EVERY EXTENSION, NOT JUST `.rs`, because an `include_str!` or `include_bytes!`
 # compiles a fixture into the binary: uu's own shipped config templates reach it
@@ -23,16 +24,8 @@ set -euo pipefail
 # build. `stat` drops the directories the glob returns beside the files, since
 # `include` on a directory errors and an erroring template aborts the apply.
 {{ $uu := joinPath .chezmoi.sourceDir "uu" -}}
-{{ $pns := joinPath .chezmoi.sourceDir "pns" -}}
 {{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
 {{ range (glob (joinPath $uu $pattern)) }}
-{{- if not (stat .).isDir }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- end }}
-{{- end }}
-{{- range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" }}
-{{- range (glob (joinPath $pns $pattern)) }}
 {{- if not (stat .).isDir }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -42,11 +35,6 @@ set -euo pipefail
 #   uu/Cargo.lock {{ include (joinPath $uu "Cargo.lock") | sha256sum }}
 #   uu/rust-toolchain.toml {{ include (joinPath $uu "rust-toolchain.toml") | sha256sum }}
 {{- range (glob (joinPath $uu "crates/*/Cargo.toml")) }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-#   pns/Cargo.toml {{ include (joinPath $pns "Cargo.toml") | sha256sum }}
-#   pns/Cargo.lock {{ include (joinPath $pns "Cargo.lock") | sha256sum }}
-{{- range (glob (joinPath $pns "crates/*/Cargo.toml")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
 #

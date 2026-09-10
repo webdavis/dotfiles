@@ -225,9 +225,16 @@ The layout exists so that lifting a tool into its own public repository later is
 rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools
 other people install, and a tool never hardcodes its own path.
 
-`posture` and `uu` both take a path dependency on a `pns` crate. Those relative paths climb out of the
-member and back down into the sibling workspace, and they survived the move unchanged because both ends
-moved by the same prefix.
+**NO WORKSPACE MAY DEPEND ON ANOTHER** (operator ruling 2026-09-10). A cargo dependency whose path climbs
+out of one workspace and into a sibling makes that tool buildable only inside this checkout, and leaves a
+dangling reference behind the `git subtree split` above. When two tools need the same thing, each gets
+its own copy; the duplication is deliberate, because the tools are not one program. Runtime integration
+is a different question and stays allowed: uu SPAWNS the deployed `pns` binary to raise alerts, the same
+way it would spawn `git`, which couples nothing at build time.
+
+One violation is left, and it predates the ruling: `posture-adapters` takes
+`pns-protocol = { path = "../../../pns/crates/pns-protocol" }`. The test for any new dependency is not
+"does this touch pns" but "does this tool still build with pns absent from the filesystem".
 
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that
