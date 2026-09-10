@@ -7,14 +7,15 @@
 #   posture-application -> posture-domain
 #   posture-protocol    -> no dependencies until its codec lands in PR 2.4
 #   posture-adapters    -> posture-application, posture-domain,
-#                          posture-protocol, pns-protocol
+#                          posture-protocol, posture-pns-wire
 #   posture         -> posture-adapters, posture-application, posture-domain
 #
 # posture-protocol owns the existing digest record shared by the alert and
 # digest processes. PR 2.4 implements its unchanged six-field wire codec;
-# this foundation declares the boundary only. The sibling pns-protocol owns
-# notification envelopes and is consumed only by posture-adapters. Its path
-# resolves in both the checkout and the deployed source tree.
+# this foundation declares the boundary only. posture-pns-wire is posture's
+# OWN copy of the notification envelopes pns defines, consumed only by
+# posture-adapters. It is a copy rather than a dependency because posture and
+# pns ship as separate projects and neither may compile against the other.
 #
 # WHAT THIS BINARY IS ALLOWED TO SPAWN is a closed roster, stated in the plan's
 # section 2.6 and enforced adapter by adapter as each one lands. Today the
@@ -32,6 +33,7 @@ members = [
   "crates/posture-application",
   "crates/posture",
   "crates/posture-domain",
+  "crates/posture-pns-wire",
   "crates/posture-protocol",
 ]
 default-members = ["crates/posture"]

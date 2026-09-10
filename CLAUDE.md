@@ -227,14 +227,19 @@ other people install, and a tool never hardcodes its own path.
 
 **NO WORKSPACE MAY DEPEND ON ANOTHER** (operator ruling 2026-09-10). A cargo dependency whose path climbs
 out of one workspace and into a sibling makes that tool buildable only inside this checkout, and leaves a
-dangling reference behind the `git subtree split` above. When two tools need the same thing, each gets
-its own copy; the duplication is deliberate, because the tools are not one program. Runtime integration
-is a different question and stays allowed: uu SPAWNS the deployed `pns` binary to raise alerts, the same
-way it would spawn `git`, which couples nothing at build time.
+dangling reference behind the `git subtree split` above. The test for a proposed dependency is not "does
+this touch pns" but "does this tool still build with pns absent from the filesystem".
 
-One violation is left, and it predates the ruling: `posture-adapters` takes
-`pns-protocol = { path = "../../../pns/crates/pns-protocol" }`. The test for any new dependency is not
-"does this touch pns" but "does this tool still build with pns absent from the filesystem".
+When two tools need the same thing, each gets its own copy, and the duplication is deliberate rather than
+a DRY violation to collapse later: they are not one program. `uu-adapters` carries its own signed-POST
+client where it once took `pns-hermes`, and `posture-pns-wire` is posture's own copy of the request and
+result envelopes pns defines. A copy of a WIRE CONTRACT is held honest by golden fixtures rather than by
+a shared type: both sides pin the same documents, so a change that moves the bytes fails a test instead
+of a delivery.
+
+Runtime integration is a different question and stays allowed. uu SPAWNS the deployed `pns` binary to
+raise alerts and posture pipes a request into `pns submit --json`, both the way either would spawn `git`,
+which couples nothing at build time.
 
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that

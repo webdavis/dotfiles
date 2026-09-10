@@ -10,12 +10,10 @@ umask 077
 # nothing else compiles it, so without this script every plist repointed at the
 # binary would find nothing there.
 #
-# Re-runs whenever a build input changes. Three kinds are hashed below, globbed
+# Re-runs whenever a build input changes. Two kinds are hashed below, globbed
 # rather than listed so a new module or workspace member cannot miss the
-# trigger: the crate's own sources, manifests and lock; the sibling
-# pns-protocol crate it links by path, because a change there changes the bytes
-# this installs while the pns builder's header fires only the pns build; and
-# the compiler, by the MODIFICATION TIME of every installed toolchain's rustc
+# trigger: the workspace's own sources, manifests and lock; and the compiler,
+# by the MODIFICATION TIME of every installed toolchain's rustc
 # (never its contents: reading a file at render time aborts the apply on an
 # unreadable node and hangs on a FIFO), so a `rustup update` re-fires the build
 # and the record below moves with the bytes in the same run. Every toolchain is
@@ -33,7 +31,6 @@ umask 077
 # beside the files, because `include` on a directory errors and an erroring
 # template aborts the whole apply.
 {{ $crate := joinPath .chezmoi.sourceDir "posture" -}}
-{{ $protocol := joinPath .chezmoi.sourceDir "pns/crates/pns-protocol" -}}
 {{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
 {{ range (glob (joinPath $crate $pattern)) }}
 {{- if not (stat .).isDir }}
@@ -50,14 +47,6 @@ umask 077
 {{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
-{{- range $pattern := list "src/**/*" "tests/**/*" "fixtures/**/*" }}
-{{- range (glob (joinPath $protocol $pattern)) }}
-{{- if not (stat .).isDir }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- end }}
-{{- end }}
-#   pns-protocol/Cargo.toml {{ include (joinPath $protocol "Cargo.toml") | sha256sum }}
 {{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
 #   {{ . }} {{ (stat .).modTime }}
 {{- end }}

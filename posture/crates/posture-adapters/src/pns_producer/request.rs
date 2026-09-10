@@ -1,5 +1,5 @@
-use pns_protocol::{Name, Request, RequestId, Signal};
 use posture_application::{Alert, AlertSignal};
+use posture_pns_wire::{Name, Request, RequestId, Signal};
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;

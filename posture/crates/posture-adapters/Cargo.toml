@@ -1,15 +1,17 @@
 # posture-adapters: everything concrete, organized by the capability it provides.
 #
 # Depends inward only: on the ports in posture-application, the policy types in
-# posture-domain, the digest record codec in posture-protocol, and pns's wire
-# contract in pns-protocol. Only this crate consumes either protocol; it maps
-# wire records to typed domain values. posture composes the adapters.
+# posture-domain, the digest record codec in posture-protocol, and posture's
+# own copy of pns's wire contract in posture-pns-wire. Only this crate consumes
+# any protocol; it maps wire records to typed domain values. posture composes
+# the adapters.
 #
-# pns-protocol is a PATH dependency on the sibling source tree: the relative
-# path climbs out of this member and into the `pns` workspace beside `posture`
-# at the monorepo root. Neither tree deploys to $HOME any more; the builder
-# compiles both out of this checkout, and hashes that crate as a build input
-# for the same reason.
+# EVERY DEPENDENCY HERE STAYS INSIDE THIS WORKSPACE. posture-pns-wire replaced
+# a path that climbed out of this member and into the sibling `pns` workspace,
+# which made posture buildable only inside the repository the two happen to
+# share. They ship as separate projects, so neither may compile against the
+# other; speaking a protocol to pns at runtime is a different thing and is
+# unchanged.
 
 [package]
 name = "posture-adapters"
@@ -17,9 +19,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-pns-protocol = { path = "../../../pns/crates/pns-protocol" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
+posture-pns-wire = { path = "../posture-pns-wire" }
 posture-protocol = { path = "../posture-protocol" }
 libc = "0.2.189"
 serde_json = { version = "1.0.151", features = ["raw_value"] }

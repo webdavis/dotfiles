@@ -3,7 +3,7 @@
 # Depends on domain, application and adapters to compose the tool. It decodes
 # argv, constructs adapters, invokes the named use case and translates its
 # outcome to stderr and an exit code. Wire codecs stay behind the adapters;
-# this crate depends on neither posture-protocol nor pns-protocol.
+# this crate depends on neither posture-protocol nor posture-pns-wire.
 #
 # The binary target keeps the tool's name because every caller (seven
 # LaunchAgent plists, the osquery setup runner, uu's brew lane and the
