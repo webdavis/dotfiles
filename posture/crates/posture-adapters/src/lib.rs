@@ -40,6 +40,9 @@ mod allowlist_projection;
 mod allowlist_read;
 pub use allowlist_read::AllowlistText;
 
+mod judge_batch;
+pub use judge_batch::{BatchJudge, Collaborators, OwnedSigning, OwnedTriage};
+
 pub use allowlist_file::AllowlistFile;
 
 mod launchd_table;
