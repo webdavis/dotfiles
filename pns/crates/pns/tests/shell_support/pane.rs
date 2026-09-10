@@ -39,7 +39,9 @@ read ignored
             let _ = BufReader::new(output).read_line(&mut line);
             let _ = send.send(line);
         });
-        let pid = recv.recv_timeout(Duration::from_millis(400)).unwrap();
+        // WAITING FOR THE PANE TO REPORT ITS PID, which is a spawn under load
+        // rather than anything this test measures.
+        let pid = recv.recv_timeout(Duration::from_secs(30)).unwrap();
         assert_eq!(pid.trim().parse::<u32>().unwrap(), pane.pid);
         pane
     }

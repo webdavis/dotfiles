@@ -12,6 +12,9 @@ fn read_events(
     mut read: impl FnMut() -> io::Result<Vec<u8>>,
     channel: &str,
 ) -> Vec<serde_json::Value> {
+    // THIS BOUND IS THE BEHAVIOUR, not a fixture budget: the test above it is
+    // named `an_unfinished_capture_gets_a_bounded_chance_to_finish`, and
+    // widening it makes that test assert nothing. Left at 250ms deliberately.
     let deadline = Instant::now() + Duration::from_millis(250);
     loop {
         let bytes = match read() {

@@ -3,6 +3,17 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 use support::{Sandbox, stderr, stdout};
 
+/// A FIXTURE BUDGET, NOT AN ASSERTION. Nothing in this file is about how long
+/// the work may take; this bound exists only so a genuine hang fails the run
+/// instead of wedging it.
+///
+/// The budgets it replaced were in the hundreds of milliseconds, which held on
+/// an idle machine and failed on a loaded CI runner: spawning a real process
+/// there can take longer than the whole old budget, and the failure then names
+/// whatever the child had not finished rather than naming the budget. A
+/// passing run never waits this long, because the wait ends when the work does.
+const FIXTURE_BUDGET: Duration = Duration::from_secs(30);
+
 fn command(sandbox: &Sandbox) -> Command {
     let mut command = sandbox.pns_stateful();
     for (key, suffix) in [
@@ -34,7 +45,13 @@ fn run(command: &mut Command) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let deadline = Instant::now() + Duration::from_millis(600);
+    // A FIXTURE BUDGET, NOT AN ASSERTION. Nothing here is about how long the work
+    // may take; this bound exists only so a genuine hang fails the run instead of
+    // wedging it. It was a tenth of a second short of a second, which held on an idle machine and failed on a
+    // loaded CI runner, where spawning a real process can take longer than the
+    // whole budget. A passing run never waits this long: the wait ends when the
+    // work does.
+    let deadline = Instant::now() + FIXTURE_BUDGET;
     while child.try_wait().unwrap().is_none() {
         if Instant::now() >= deadline {
             let _ = child.kill();
