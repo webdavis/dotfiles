@@ -68,6 +68,9 @@ pub use last_resort_banner::LastResortBanner;
 mod state_files;
 pub use state_files::PollStateFiles;
 
+mod digest_spool;
+pub use digest_spool::{DigestSpoolFile, prepare_spool_directory};
+
 mod converge;
 pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
