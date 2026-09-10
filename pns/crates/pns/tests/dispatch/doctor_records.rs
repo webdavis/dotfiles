@@ -25,9 +25,7 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     // pairing check now sits in.
     let heading = lines
         .iter()
-        .position(|line| {
-            *line == format!("the last 2 decisions,{DECISION_HEADING_TAIL}")
-        })
+        .position(|line| *line == format!("the last 2 decisions,{DECISION_HEADING_TAIL}"))
         .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert!(
         lines[heading + 1].contains(" c2/done "),
@@ -114,12 +112,7 @@ fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_co
         Some(&NONE_WAITING),
         "the journal's count still comes after it: {printed}"
     );
-    assert!(
-        lines
-            .last()
-            .unwrap()
-            .starts_with("state import decisions:")
-    );
+    assert!(lines.last().unwrap().starts_with("state import decisions:"));
     let last = lines[lines.len() - 3];
     let opening = "the decision log could not be read (";
     assert!(last.starts_with(opening), "{printed}");
@@ -161,12 +154,7 @@ fn a_fifo_at_the_rings_path_never_parks_the_doctor_and_is_named_by_its_kind() {
         Some(&NONE_WAITING),
         "the journal's count still comes after it: {printed}"
     );
-    assert!(
-        lines
-            .last()
-            .unwrap()
-            .starts_with("state import decisions:")
-    );
+    assert!(lines.last().unwrap().starts_with("state import decisions:"));
     let last = lines[lines.len() - 3];
     let opening = "the decision log could not be read (";
     assert!(last.starts_with(opening), "{printed}");

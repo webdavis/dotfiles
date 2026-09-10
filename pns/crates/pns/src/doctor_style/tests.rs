@@ -113,7 +113,10 @@ fn a_row_drops_the_command_name_the_sentence_carries_for_other_readers() {
         mark: Mark::Note,
         text: "pns doctor: the daemon is running, pid 4321, 2 jobs scheduled".to_string(),
     });
-    assert_eq!(lines, vec!["  · the daemon is running, pid 4321, 2 jobs scheduled"]);
+    assert_eq!(
+        lines,
+        vec!["  · the daemon is running, pid 4321, 2 jobs scheduled"]
+    );
 }
 
 #[test]

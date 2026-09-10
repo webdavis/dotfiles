@@ -120,8 +120,7 @@ pub(super) const PAIRED_LINE: &str =
     "moshi pairing: paired as dresden (host_b14dd2bb0b1f45899d9eaa81a71ff874).";
 
 /// The relayed line beside it, in moshi's own words.
-pub(super) const MOSHI_SAYS_LINE: &str =
-    "moshi says: Moshi Pro attached (usage scope: license)";
+pub(super) const MOSHI_SAYS_LINE: &str = "moshi says: Moshi Pro attached (usage scope: license)";
 
 /// What the doctor says about Focus on a machine whose config names no mode,
 /// which is every machine that never wrote a `[focus]` table.
@@ -131,8 +130,7 @@ pub(super) const FOCUS_OFF_LINE: &str =
 /// What the doctor says about the clock on a machine where nothing has
 /// bootstrapped the LaunchAgent, which is every sandbox in this file: the table
 /// defaults ON and no daemon has ever written a beat here.
-pub(super) const DAEMON_NEVER_RAN_LINE: &str =
-    "the daemon is enabled and has not run yet";
+pub(super) const DAEMON_NEVER_RAN_LINE: &str = "the daemon is enabled and has not run yet";
 
 /// And what it says about the nag on a machine whose config has no `[nag]`
 /// table, which is every machine until an operator writes one: the feature

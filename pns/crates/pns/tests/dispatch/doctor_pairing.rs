@@ -229,10 +229,7 @@ fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
 
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
-    assert!(
-        printed.contains("3 sent, 0 failed, 3 skipped"),
-        "{printed}"
-    );
+    assert!(printed.contains("3 sent, 0 failed, 3 skipped"), "{printed}");
     assert!(
         printed.contains(
             "moshi pairing: this host is NOT paired, so every \
@@ -319,8 +316,7 @@ fn an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read() {
 
     let printed = stdout(&output);
     assert!(
-        printed
-            .contains("moshi pairing: moshi-hook answered something this cannot read."),
+        printed.contains("moshi pairing: moshi-hook answered something this cannot read."),
         "an over-cap answer is refused before it is parsed: {printed}"
     );
     assert!(

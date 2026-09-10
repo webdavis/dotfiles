@@ -54,10 +54,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
     );
-    assert!(
-        printed.contains("1 sent, 2 failed, 3 skipped"),
-        "{printed}"
-    );
+    assert!(printed.contains("1 sent, 2 failed, 3 skipped"), "{printed}");
 }
 
 #[test]
