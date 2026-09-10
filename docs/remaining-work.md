@@ -148,18 +148,22 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
   that directory is shared with every other cargo-installed program on the machine. The aerospace keys
   needed no change: they still call `control-hue-lights.sh`, which is task 62's job to retire.
 
-- [ ] 21. THREE OF FOUR CONFIRMED on 2026-09-09, after the apply. `pns doctor` and `uu doctor` both
-  answer and exit 0, and `launchctl list` shows both agents loaded. The fourth is the operator's alone:
-  an agent's tool shell is not interactive, so bash-preexec never loads and the shell hook never fires,
-  which a `sleep 35` proved by leaving no trace in the decision log. `pns doctor` did surface one real
-  failure worth carrying: the mobile push is refused by the moshi endpoint while the banner and hermes
-  legs both deliver. The daemon is running the current 0.3.16 binary rather than a deleted Cellar, so the
-  known stale-daemon fix does not apply. Original text: apply, then confirm every caller still resolves:
-  `pns doctor`, `uu doctor`, a `launchctl list` showing both agents loaded, and one real long-running
-  command raising its notification through the shell hook. The old binaries under
-  `~/.local/libexec/{pns,uu,posture}/` and `~/.local/libexec/lights` are NOT removed by the apply and
-  want trashing once this is confirmed; `~/.local/libexec/pns/hooks/` stays, because the Codex hook
-  installer still lives there.
+- [x] 21. ALL FOUR CONFIRMED on 2026-09-09, after the apply. `pns doctor` and `uu doctor` both answer and
+  exit 0, and `launchctl list` shows both agents loaded. The fourth needed the operator, because an
+  agent's tool shell is not interactive: bash-preexec never loads there, so the shell hook never fires,
+  which a `sleep 35` from an agent shell proved by leaving no trace in the decision log. The operator's
+  own `sleep 35` was silent at first for the RIGHT reason, and the surface rule is the one to remember:
+  the banner belongs to the desk and fires only when the pane that raised it is not the pane on screen
+  (`pns-domain/src/surface.rs`, `banner: surface == Surface::Desk && !watching`). Watching the pane it
+  ran in suppresses it by design. Switching away before the sleep finished raised
+  `shell / done / dotfiles, sleep (36s)`. `pns doctor` did surface one real failure worth carrying: the
+  mobile push is refused by the moshi endpoint while the banner and hermes legs both deliver. The daemon
+  is running the current 0.3.16 binary rather than a deleted Cellar, so the known stale-daemon fix does
+  not apply. Original text: apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a
+  `launchctl list` showing both agents loaded, and one real long-running command raising its notification
+  through the shell hook. The old binaries under `~/.local/libexec/{pns,uu,posture}/` and
+  `~/.local/libexec/lights` are NOT removed by the apply and want trashing once this is confirmed;
+  `~/.local/libexec/pns/hooks/` stays, because the Codex hook installer still lives there.
 
 ## pns closure and the rescued lanes
 
