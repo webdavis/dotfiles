@@ -54,6 +54,7 @@
     "research": "on-demand",
     "resolving-merge-conflicts": "on-demand",
     "scaffold-exercises": "on-demand",
+    "scalebar": "core",
     "setup-matt-pocock-skills": "on-demand",
     "setup-pre-commit": "on-demand",
     "sql-toolkit": "core",
@@ -180,6 +181,9 @@
     ],
     "scaffold-exercises": [
       "nicodemus"
+    ],
+    "scalebar": [
+      "default"
     ],
     "setup-matt-pocock-skills": [
       "nicodemus"
