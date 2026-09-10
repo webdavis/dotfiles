@@ -81,8 +81,32 @@ fn lights_quiet() -> i32 {
     .run(&command, now, |warning| eprintln!("{warning}"))
     {
         Ok(lines) => {
-            for line in lines {
+            let paint = crate::style::Paint::for_stdout();
+            for line in crate::style::header(
+                paint,
+                "pns lights quiet",
+                &[crate::style::HeaderLine {
+                    label: "Scope",
+                    text: "the lamps only; cards, banners and `pns quiet` are untouched",
+                }],
+            ) {
                 println!("{line}");
+            }
+            println!();
+            println!(
+                "{}",
+                crate::style::heading(
+                    paint,
+                    "Quiet now",
+                    "which lamps are muted, and for how long"
+                )
+            );
+            println!();
+            for line in lines {
+                println!(
+                    "{}",
+                    crate::style::row(paint, crate::style::Tone::Quiet, "\u{b7}", 2, &line)
+                );
             }
             0
         }

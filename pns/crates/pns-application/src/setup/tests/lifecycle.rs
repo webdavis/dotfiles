@@ -91,7 +91,10 @@ fn setup_publishes_once_after_validation_and_names_the_exact_retained_backup() {
         &["compose", "validate", "publish true"]
     );
     assert_eq!(
-        &world.output.borrow()[2..],
+        // THE WHOLE OF IT. This used to skip two lines, the preamble the walk
+        // said through `say`; the preamble is now the header's own labelled
+        // lines, so everything left here is the wizard reporting its own work.
+        &*world.output.borrow(),
         &[
             "pns setup: kept the old config at private backup",
             "pns setup: wrote private config"
@@ -99,4 +102,33 @@ fn setup_publishes_once_after_validation_and_names_the_exact_retained_backup() {
     );
     assert_eq!(*world.observed.borrow(), Some(Answers::default()));
     assert!(world.answers.borrow().is_empty());
+}
+
+#[test]
+fn the_walk_opens_with_a_labelled_header_and_names_every_section_it_asks_under() {
+    // WITHOUT SECTIONS THE WALK IS A WALL OF QUESTIONS. An operator part-way
+    // through has no way to tell which feature the question in front of them
+    // arms, and the credential questions in particular read as unexplained
+    // demands for a secret.
+    let world = World::new(&DECLINED);
+    let _ = world.run(true);
+    assert_eq!(
+        &*world.furniture.borrow(),
+        &[
+            "pns setup",
+            "label: About",
+            "label: Already on",
+            "label: Enter",
+            "label: Careful",
+            // A CONTINUATION ROW, which is what an empty label is for: it hangs
+            // under the caveat above it rather than starting a new claim.
+            "label: ",
+            "section: Phone",
+            "section: Hermes",
+            "section: Lights",
+            "section: Home probe",
+            "section: Focus",
+            "section: Nagging",
+        ]
+    );
 }

@@ -132,13 +132,18 @@ pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
             let minutes = crate::quiet::minutes_left(entry.expiry, now);
             let unit = if minutes == 1 { "minute" } else { "minutes" };
             format!(
-                "pns lights: `{}` is quiet for another {minutes} {unit}",
+                // NO `pns lights:` PREFIX. Its one caller renders these as rows
+                // under a heading that already says which command produced them,
+                // and the prefix repeated down a list is the noise the report
+                // format exists to drop. The stderr warnings elsewhere in this
+                // module KEEP theirs: they arrive alone, with no heading above.
+                "`{}` is quiet for another {minutes} {unit}",
                 entry.place
             )
         })
         .collect();
     if lines.is_empty() {
-        return vec!["pns lights: nothing is quiet".to_string()];
+        return vec!["nothing is quiet".to_string()];
     }
     lines
 }

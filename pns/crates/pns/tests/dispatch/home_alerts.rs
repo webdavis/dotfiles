@@ -116,10 +116,10 @@ fn the_alert_carries_no_secret_and_no_raw_router_text() {
     // reach the alert body not at all: the sentence is built from config KEY
     // NAMES, so a client label cannot ride it out to a channel.
     assert!(
-        stdout(&output).contains(
-            "home:   device_ipv4 \"192.168.1.248\" matched a different client \
-             \"mo\\\"use\\u{1b}[2J\""
-        ),
+        stdout(&output).contains(concat!(
+            "device_ipv4       \"192.168.1.248\"   matched a different client ",
+            "\"mo\\\"use\\u{1b}[2J\"",
+        )),
         "the evidence escapes the label: {}",
         stdout(&output)
     );
@@ -154,7 +154,7 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
     );
     assert_eq!(
         stdout(&output),
-        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"),
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n"),
         "and the diagnostic itself is untouched"
     );
 }

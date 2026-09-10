@@ -15,11 +15,26 @@ use pns_domain::{
 /// arm, because a feature switched on now and credentialed later is exactly
 /// the empty-value config this wizard exists to avoid.
 pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
-    terminal.say(SETUP_PREAMBLE);
-    terminal.say(
-        "A chezmoi-managed config will be replaced on the next apply; update its source instead.
-Config diffs can expose the secrets entered here.",
+    terminal.open(
+        "pns setup",
+        &[
+            ("About", "a few questions, and a config at the end of them"),
+            (
+                "Already on",
+                "the macOS banner and the phone card; everything else is off unless you arm it",
+            ),
+            (
+                "Enter",
+                "means no, and nothing is written until the last answer",
+            ),
+            (
+                "Careful",
+                "a chezmoi-managed config is replaced on the next apply; edit its source instead",
+            ),
+            ("", "config diffs can expose the secrets you type here"),
+        ],
     );
+    terminal.section("Phone", "the card that reaches you when you are away");
     let mut answers = Answers {
         mobile_token: terminal.ask_hidden(
             "The phone card is on. Paste moshi's webhook secret to complete it, \
@@ -28,6 +43,7 @@ Config diffs can expose the secrets entered here.",
         ..Default::default()
     };
 
+    terminal.section("Hermes", "the durable log and the recap");
     if ask_yes(
         terminal,
         "Post every event to hermes, for the durable log and the recap?",
@@ -35,6 +51,7 @@ Config diffs can expose the secrets entered here.",
         answers.hermes_key =
             armed_secret(terminal, "hermes", "the signing key that route verifies")?;
     }
+    terminal.section("Lights", "a lamp that says how the work ended");
     if ask_yes(
         terminal,
         "Flash hue lights green when work finishes and red when it dies?",
@@ -59,6 +76,7 @@ Config diffs can expose the secrets entered here.",
             )?);
         }
     }
+    terminal.section("Home probe", "whether your phone is on the home wifi");
     if ask_yes(
         terminal,
         "Read whether your phone is on the home wifi, off the router's client list?",
@@ -93,6 +111,7 @@ Config diffs can expose the secrets entered here.",
             }
         }
     }
+    terminal.section("Focus", "when macOS says you are not to be interrupted");
     if ask_yes(
         terminal,
         "Hold notifications back while a macOS Focus is on?",
@@ -103,6 +122,7 @@ Config diffs can expose the secrets entered here.",
             "which Focus modes mean it, comma separated",
         )?);
     }
+    terminal.section("Nagging", "a second card about something left unanswered");
     answers.nag = ask_yes(
         terminal,
         "Card you a second time about an approval left unanswered?",
@@ -146,10 +166,3 @@ fn nothing_given(terminal: &impl Terminal, feature: &str, answer: String) -> Str
 fn ask_yes(terminal: &impl Terminal, question: &str) -> Result<bool, String> {
     Ok(means_yes(&terminal.ask(&format!("{question} [y/N]"))?))
 }
-
-/// What the walk says before it starts asking.
-const SETUP_PREAMBLE: &str = "\
-pns setup: a few questions, and a config at the end of them.
-The macOS banner and the phone card are on and are not asked about. Everything
-else is off unless you arm it here, and enter is no. Nothing is written until
-the last answer.";

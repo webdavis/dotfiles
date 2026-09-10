@@ -99,11 +99,16 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         "an ordinary, non-secret answer stopped echoing too: {:?}",
         pty.transcript
     );
-    // ECHONL IS WHAT PRODUCES THIS, with echo itself off: the prompt's own
-    // ": " is immediately followed by the driver's echo of the typed Enter,
-    // and then the next question, with no echoed secret in between.
+    // ECHONL IS WHAT PRODUCES THIS, with echo itself off: the secret prompt's
+    // own ": " is immediately followed by the driver's echo of the typed Enter,
+    // and no echoed secret in between.
+    //
+    // ANCHORED ON THE PROMPT, not on whatever follows it. Pinning the next
+    // question made this fail when a section heading was added between the two,
+    // which says nothing about echo.
     assert!(
-        pty.transcript.contains(": \r\nPost every event"),
+        pty.transcript
+            .contains("or press enter to pair later: \r\n"),
         "the hidden prompt's Enter was not echoed via ECHONL: {:?}",
         pty.transcript
     );
