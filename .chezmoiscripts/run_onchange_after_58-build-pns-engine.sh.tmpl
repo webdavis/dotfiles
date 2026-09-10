@@ -15,10 +15,28 @@ set -euo pipefail
 # are globbed for the same reason as the sources: a dependency added to one of
 # them changes the binary this installs, and only the root manifest used to be
 # read.
+#
+# EVERY EXTENSION, NOT JUST `.rs`. A crate compiles more than its Rust: an
+# `include_str!` or `include_bytes!` pulls a fixture into the binary, and this
+# workspace has four of them (`resolved-config.snapshot`, the protocol's golden
+# JSON, and the hue transport's two DER files). While these globs read `*.rs`
+# alone, editing one of those changed a build output without moving the trigger,
+# so the apply installed a binary built from the file's PREVIOUS contents.
+#
+# SCOPED TO `crates/`, WHICH IS WHAT KEEPS `target/` OUT. Cargo writes its build
+# directory at the workspace root, so a whole-workspace glob would hash the
+# artifacts this script itself produces: the trigger would then change every
+# time the build ran, and differ between a fresh checkout and a built one.
+#
+# `stat` FILTERS THE DIRECTORIES the glob returns alongside the files. `include`
+# on a directory is an error, and an erroring template aborts the WHOLE apply,
+# so the guard is what makes an extension-free pattern safe to write.
 {{ $crate := joinPath .chezmoi.sourceDir "pns" -}}
-{{ range $pattern := list "crates/*/src/**/*.rs" "crates/*/tests/**/*.rs" "crates/*/build.rs" -}}
+{{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
 {{ range (glob (joinPath $crate $pattern)) }}
+{{- if not (stat .).isDir }}
 #   {{ . }} {{ include . | sha256sum }}
+{{- end }}
 {{- end }}
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
