@@ -108,4 +108,7 @@ Library
 .config/uu
 # posture is the osquery pipeline's port, and that pipeline is macOS-only
 # (launchd, osqueryd under /var/osquery, a darwin-gated builder).
+# Scalebar is a macOS menu-bar app built with swift, so its config has nothing
+# to configure on Linux and its builder is darwin-gated too.
+.config/scalebar
 {{- end }}

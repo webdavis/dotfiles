@@ -1,0 +1,27 @@
+# Scalebar, the menu-bar weight and gym tracker (webdavis/scalebar).
+#
+# Every key is optional and falls back to a default. Following this repository's
+# convention, a key at its shipped default is written out anyway so the setting
+# is visible and its value is one edit away; a key that turns something ON stays
+# commented, so uncommenting it is the whole change.
+
+[chart]
+min_weight = 170.0
+max_weight = 210.0
+# A six-week window.
+chart_days = 42
+# Draws a goal line across the chart. No line without it.
+# goal_weight = 185.0
+
+[data]
+# An entry logged before this hour counts as the previous day's, so a late-night
+# weigh-in lands where it belongs.
+rollover_hour = 2
+# The weight log defaults to ~/workspaces/Ivy/hobbies/fitness/data/weight-log.csv
+# and this is the only data path Scalebar lets you move; the gym log and the
+# workout sessions beside it are fixed.
+# csv_file_path = "/custom/path/to/weight-log.csv"
+
+[menu_bar]
+# The default shows only the most recent weight.
+show_both_weights = true
