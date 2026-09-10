@@ -112,6 +112,27 @@ type = "uv"
 binary = "/opt/homebrew/bin/uv"
 deadline_secs = 21600
 
+# Every crate `cargo install` put on this machine, checked against the registry.
+# REPORTS RATHER THAN COMPILES: a `cargo install` builds from source, minutes per
+# crate on an unattended run, so a crate that is behind is reported as PENDING
+# with the exact command to run. Set `compile = true` to have the lane build them
+# instead. A git-installed crate is named and skipped, because crates.io has no
+# version of it to compare against.
+[lanes.cargo]
+type = "cargo"
+cargo = "{{ .chezmoi.homeDir }}/.cargo/bin/cargo"
+compile = false
+deadline_secs = 21600
+
+# Every Rust toolchain rustup installed, updated in place. One command and no
+# roster, because `rustup update` already walks all of them. The SUMMARY it
+# prints is read rather than just its exit code: rustup exits 0 whether it moved
+# a toolchain or found nothing to do, so a record of "ok" could not say which.
+[lanes.rustup]
+type = "rustup"
+rustup = "{{ .chezmoi.homeDir }}/.cargo/bin/rustup"
+deadline_secs = 21600
+
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
 # locked contract (a JSON run event on stdin, the exit code as the verdict),
 # with no core code to touch. Uncomment and rename the block to turn one on;

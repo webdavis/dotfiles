@@ -6,6 +6,7 @@
 //! The record reports each outcome.
 
 mod brew;
+mod cargo;
 mod changes;
 mod claude_plugins;
 mod command;
@@ -13,6 +14,7 @@ mod herdr;
 mod npm;
 mod nvim;
 mod rotate_logs;
+mod rustup;
 mod skills;
 
 mod spawn;

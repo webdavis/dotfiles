@@ -638,7 +638,36 @@ Every posture producer is Rust and the old pipeline is off.
   alone. Verified with `chezmoi managed`: the two herdr plugin pins deploy, the root pin and the five
   workspace pins do not (those five sit inside directories the file already ignores by name).
 
-- [ ] 52. uu D1, D2, D3: the cargo lane and `RustupLane`
+- [x] 52. uu D1, D2, D3: the cargo lane and `RustupLane`.
+
+  DONE 2026-09-09. Crates and toolchains were the last tool families nothing checked, so a crate
+  installed a year ago sat at that version until somebody noticed. Running the finished cargo lane on
+  this machine found three: `fd` 8.4.0 against 10.5.0, `nu` 0.44.0 against 0.115.1, and `selene` 0.26.1
+  against 0.31.0.
+
+  THE CARGO LANE REPORTS AND DOES NOT COMPILE by default. A `cargo install` builds from source, minutes
+  per crate on an unattended weekly run, so a crate that is behind comes back PENDING with the exact
+  command to paste. `compile = true` turns building on, and one crate that will not build does not stop
+  the next.
+
+  TWO PARSING RULES ARE LOAD-BEARING, both found by reading real output rather than guessing at a format.
+  A search is matched BY CRATE NAME, never by position: `cargo search ripgrep` answers with `gist-search`
+  and `cgx-core` below it, whose descriptions merely mention ripgrep. And a git-installed crate is named
+  and skipped rather than searched, because crates.io holds no version of it; an origin the parser cannot
+  read drops the whole header rather than passing as a registry crate, which would search for a version
+  that install never had.
+
+  THE RUSTUP LANE READS THE SUMMARY, not just the exit code. rustup exits 0 whether it moved a toolchain
+  or found nothing to do, so a record saying only "ok" could not answer the question the lane exists for.
+  A summary it cannot read is recorded as exactly that rather than as everything being current.
+
+  `schema::boolean` replaced the one hand-rolled copy of the same check in the nvim lane. The roster
+  guard that walks every declared key probes with `true`, which a boolean key legitimately accepts, so
+  `compile` joins `auto_commit` in the short list that gets an integer probe instead.
+
+  Both lanes were proved against the real tools, not only against doubles. The rustup lane read this
+  machine's two toolchains as current, and its failure path was exercised by accident and reported
+  rustup's own stderr verbatim.
 
 - [x] 53. uu E12, E13, E14: skills hermes and forks
 

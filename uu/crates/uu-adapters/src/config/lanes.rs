@@ -12,14 +12,17 @@
 //! lives in `lanes::npm`.
 
 mod brew;
+mod cargo;
 mod claude_plugins;
 mod command;
 mod herdr;
 mod npm;
 mod nvim;
 mod rotate_logs;
+mod rustup;
 mod skills;
 pub use rotate_logs::RotateLogsLane;
+pub use rustup::RustupLane;
 
 mod uv;
 pub use skills::SkillsConfig;
@@ -34,6 +37,7 @@ use crate::{LaneRegistration, lanes::LaneAdapter};
 use uu_domain::DEFAULT_LANE_DEADLINE;
 
 pub use brew::BrewLane;
+pub use cargo::CargoLane;
 pub use claude_plugins::ClaudePluginsLane;
 pub use command::CommandLane;
 pub use herdr::HerdrLane;
@@ -163,10 +167,12 @@ fn lane_type<'a>(
 }
 
 pub(crate) use brew::parse_brew_lane;
+pub(crate) use cargo::parse_cargo_lane;
 pub(crate) use command::parse_command_lane;
 pub(crate) use herdr::parse_herdr_lane;
 pub(crate) use npm::parse_npm_lane;
 pub(crate) use nvim::{parse_nvim_mason_lane, parse_nvim_parsers_lane, parse_nvim_plugins_lane};
+pub(crate) use rustup::parse_rustup_lane;
 pub(crate) use uv::parse_uv_lane;
 
 #[cfg(test)]

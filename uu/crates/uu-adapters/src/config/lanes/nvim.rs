@@ -1,5 +1,5 @@
 use crate::config::ConfigError;
-use crate::config::schema::{absolute, admits_lane, non_empty};
+use crate::config::schema::{absolute, admits_lane, boolean, non_empty};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NvimHost {
@@ -24,13 +24,7 @@ pub(crate) fn parse_nvim_plugins_lane(
     let host = host(label, &fields)?;
     let auto_commit = fields
         .get("auto_commit")
-        .map(|v| {
-            v.as_bool().ok_or_else(|| {
-                ConfigError::Invalid(format!(
-                    "`{label}` key `auto_commit` must be true or false, got {v:?}"
-                ))
-            })
-        })
+        .map(|v| boolean(label, "auto_commit", v))
         .transpose()?
         .unwrap_or(false);
     let repo = fields
