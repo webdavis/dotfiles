@@ -14,6 +14,7 @@ mod herdr;
 mod npm;
 mod nvim;
 mod rotate_logs;
+mod rustup;
 mod skills;
 
 mod spawn;

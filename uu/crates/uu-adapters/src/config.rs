@@ -17,7 +17,7 @@
 //! key is refused rather than left as a record path that can never land.
 
 mod lanes;
-pub use lanes::{CargoLane, RotateLogsLane};
+pub use lanes::{CargoLane, RotateLogsLane, RustupLane};
 
 pub use lanes::SkillsConfig;
 mod records;
@@ -39,7 +39,8 @@ pub use lanes::{
 };
 pub(crate) use lanes::{
     parse_brew_lane, parse_cargo_lane, parse_command_lane, parse_herdr_lane, parse_npm_lane,
-    parse_nvim_mason_lane, parse_nvim_parsers_lane, parse_nvim_plugins_lane, parse_uv_lane,
+    parse_nvim_mason_lane, parse_nvim_parsers_lane, parse_nvim_plugins_lane, parse_rustup_lane,
+    parse_uv_lane,
 };
 pub use schedule::Schedule;
 use schema::TOP_LEVEL;

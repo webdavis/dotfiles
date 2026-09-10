@@ -23,12 +23,15 @@ set -euo pipefail
 # A deferred zero-exit build must change the next rendered script to retry.
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/scalebar-build/scalebar.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
 source_dir={{ $source | quote }}
 install_dir={{ joinPath .chezmoi.homeDir .scalebar.install_dir | quote }}
 retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
 
 defer() {
-  printf 'scalebar: %s; build deferred to next apply\n' "$1" >&2
+  report_section 'scalebar' 'deferred'
+  report_line "$1; the build runs on the next apply" >&2
   mkdir -p "$(dirname "$retry_marker")"
   touch "$retry_marker"
   exit 0
@@ -40,9 +43,15 @@ defer() {
 [[ -d $source_dir ]] || defer "no clone at $source_dir (git clone git@github.com:webdavis/scalebar.git)"
 command -v swift >/dev/null 2>&1 || defer 'swift not on PATH (install the Xcode command line tools)'
 
+report_section 'scalebar' 'menu-bar app and MCP server'
+report_line 'building the release binaries'
+# -q drops swift's per-file progress and leaves errors, the same trade the cargo
+# builders make with --quiet: a successful build says so in one line above, and
+# a failed one still says why.
+#
 # --disable-sandbox is deliberately NOT passed: a package that needs it to build
 # is a package doing something at build time worth noticing.
-(cd "$source_dir" && swift build -c release)
+(cd "$source_dir" && swift build -c release -q)
 
 built="$source_dir/.build/release"
 mkdir -p "$install_dir"
@@ -52,5 +61,5 @@ mkdir -p "$install_dir"
 /usr/bin/install -m 755 "$built/Scalebar" "$install_dir/Scalebar"
 /usr/bin/install -m 755 "$built/ScalebarMCP" "$install_dir/ScalebarMCP"
 rm -f "$retry_marker"
-printf 'scalebar: installed Scalebar and ScalebarMCP into %s\n' "$install_dir"
+report_line "installed Scalebar and ScalebarMCP into $install_dir"
 {{ end -}}

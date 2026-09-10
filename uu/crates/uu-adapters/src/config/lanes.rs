@@ -19,8 +19,10 @@ mod herdr;
 mod npm;
 mod nvim;
 mod rotate_logs;
+mod rustup;
 mod skills;
 pub use rotate_logs::RotateLogsLane;
+pub use rustup::RustupLane;
 
 mod uv;
 pub use skills::SkillsConfig;
@@ -170,6 +172,7 @@ pub(crate) use command::parse_command_lane;
 pub(crate) use herdr::parse_herdr_lane;
 pub(crate) use npm::parse_npm_lane;
 pub(crate) use nvim::{parse_nvim_mason_lane, parse_nvim_parsers_lane, parse_nvim_plugins_lane};
+pub(crate) use rustup::parse_rustup_lane;
 pub(crate) use uv::parse_uv_lane;
 
 #[cfg(test)]
