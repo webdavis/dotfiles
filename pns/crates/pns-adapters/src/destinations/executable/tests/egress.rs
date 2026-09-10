@@ -21,6 +21,24 @@ fn capture() -> (std::path::PathBuf, std::path::PathBuf) {
     (channel, root.join("body"))
 }
 
+/// THE PRODUCTION DEADLINE, and it has to be, because the assertions below read
+/// what the child wrote. `deliver` bounds the write and the wait together, so a
+/// child that outruns this budget is abandoned PART WAY THROUGH: the fixture
+/// script writes `body`, then `id`, then `producer`, and the test then reads
+/// files the child never reached.
+///
+/// This was 100ms, fifty times tighter than the five seconds
+/// `channel_dispatch::EXECUTABLE_DEADLINE` gives a real channel, and no
+/// assertion here is about the deadline at all. It held on an idle machine and
+/// failed on a loaded CI runner, where spawning `/bin/sh`, `/bin/cat` and two
+/// `printf`s took longer than a tenth of a second. The failure named the second
+/// file (`id`, NotFound) rather than the budget, which is what made it read as
+/// a race in the test rather than a timeout in the fixture.
+///
+/// Nothing waits this long when it passes: the wait ends when the child does,
+/// measured at about 40ms locally.
+const CHANNEL_DEADLINE: Duration = Duration::from_secs(5);
+
 fn deliver(channel: &Path, request: &DeliveryRequest<'_>) -> Delivery {
     ExecutableDestination::new(
         DestinationId::new("fixture"),
@@ -31,7 +49,7 @@ fn deliver(channel: &Path, request: &DeliveryRequest<'_>) -> Delivery {
             event_dispatched: true,
         },
         channel.to_owned(),
-        Duration::from_millis(100),
+        CHANNEL_DEADLINE,
     )
     .deliver(request)
 }
