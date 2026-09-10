@@ -615,12 +615,41 @@ Every posture producer is Rust and the old pipeline is off.
 ## uu
 
 - [ ] 51. uu B1: `rust-toolchain.toml`, needs the stable toolchain certified
+
 - [ ] 52. uu D1, D2, D3: the cargo lane and `RustupLane`
+
 - [x] 53. uu E12, E13, E14: skills hermes and forks
+
 - [x] 54. uu E15a, E15: the skills orchestrator
+
 - [x] 55. uu E16: retire `update-skills.sh` and its LaunchAgent
+
 - [x] 56. uu E17: retire `log-entries.sh`
-- [ ] 57. uu E19: the log rotation lane, needs the hourly log writer stopped
+
+- [x] 57. uu E19: the log rotation lane, needs the hourly log writer stopped.
+
+  DONE 2026-09-09. The lane's code shipped in E18 but was never REGISTERED, so `uu` did not list
+  `rotate-logs` among its lane types and the config block sat commented out with a note saying it was
+  waiting on the cutover. One line in `uu/crates/uu/src/registrations.rs` is what turned it on.
+
+  The bash side is deleted: `executable_compress-and-truncate-local-logs.sh`, its plist, its loader at
+  `run_onchange_after_67`, its `.chezmoiignore` Linux-block line, and four unit tests. `CLAUDE.md` lost
+  its LaunchAgent row and stopped using the script as its flat-leaf and verb-first examples, which now
+  name `control-hue-lights.sh` and `brew-shellenv-cache-refresh.sh`.
+
+  THE LIST GAINED A FOURTEENTH LOG, `~/.local/log/scalebar/scalebar.log`, because a managed LaunchAgent
+  whose log is missing from this list grows without bound and nothing says so. A path that does not exist
+  yet is `Skipped`, not a failure, so naming it before the Scalebar work applies costs nothing.
+
+  Proved by running it, not by reading it: an 11 MB log was compressed to `big.log.1.gz` and truncated in
+  place to zero bytes, a small one was left alone, and an absent one was skipped.
+
+  WHAT THE OPERATOR STILL DOES, the same shape as task 43: apply, then
+  `launchctl bootout gui/$(id -u)/com.webdavis.rotate-logs`, then trash the deployed
+  `~/.local/libexec/compress-and-truncate-local-logs.sh` and
+  `~/Library/LaunchAgents/com.webdavis.rotate-logs.plist`. Deleting a chezmoi source never deletes its
+  target, which is why the deployed pair outlives this change. Rotation is weekly from here rather than
+  hourly, so a log can sit above the threshold until the next weekly run.
 
 ### STOP POINT F
 
