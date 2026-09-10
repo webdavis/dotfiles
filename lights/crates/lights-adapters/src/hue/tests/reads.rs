@@ -9,15 +9,43 @@ fn bulk_room_reads_share_one_snapshot() {
     assert_eq!(requests.lock().unwrap().len(), 1);
 }
 #[test]
-fn room_without_grouped_light_is_malformed() {
+fn a_room_holding_no_lamps_is_skipped_and_the_rest_of_the_read_survives() {
+    // MEASURED ON REAL HARDWARE 2026-09-09: two of eight rooms (a garage and
+    // a hallway) carry an empty service list because they hold no light, and
+    // refusing the read over them made every lamp in the house unreachable.
     let mut data = fixture();
     data["data"][0]["services"] = json!([]);
     let (c, requests) = setup(vec![(200, data)]);
-    assert!(matches!(
+    assert_eq!(
         c.room(&room()),
-        Err(LightControlError::Malformed { .. })
-    ));
+        Err(LightControlError::UnknownRoom {
+            name: "Studio".into()
+        }),
+        "the lampless room is gone, not fatal"
+    );
+    assert!(
+        !c.room(&RoomName::new("Bedroom").unwrap()).unwrap().on,
+        "and every other room still reads"
+    );
     assert_eq!(requests.lock().unwrap().len(), 1);
+}
+#[test]
+fn a_scene_carrying_no_owner_is_read_by_the_group_it_is_placed_in() {
+    // This bridge sends `owner` on no scene at all, and the field was only
+    // ever validated and thrown away.
+    let mut data = fixture();
+    for scene in data["data"].as_array_mut().unwrap() {
+        if scene["type"] == "scene" {
+            scene.as_object_mut().unwrap().remove("owner");
+        }
+    }
+    let (c, _) = setup(vec![(200, data)]);
+    let scenes = c.scenes(&c.room(&room()).unwrap().room).unwrap();
+    assert_eq!(
+        scenes.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+        ["Read", "Dimmed", "Energize", "Concentrate"]
+    );
+    assert!(scenes[0].active, "and the active one is still known");
 }
 #[test]
 fn unknown_room_has_no_write() {

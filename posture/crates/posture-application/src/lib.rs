@@ -33,7 +33,9 @@ pub use allowlist::*;
 mod snapshots;
 pub use snapshots::{SnapshotReadFailure, SnapshotsLog};
 
+mod build_digest;
 mod heartbeat;
+pub use build_digest::{BuildDigest, ClaimedBatch, DigestOutcome, DigestRow, DigestSpool};
 pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,

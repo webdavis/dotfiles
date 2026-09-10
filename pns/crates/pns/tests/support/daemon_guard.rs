@@ -1,4 +1,5 @@
 use super::Sandbox;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
 /// A `pns daemon run` that is KILLED ON EVERY EXIT PATH, including a panicking
@@ -54,6 +55,13 @@ impl DaemonGuard {
             .stdin(std::process::Stdio::null())
             .stdout(out)
             .stderr(errors)
+            // ITS OWN PROCESS GROUP, so `Drop` can take the daemon's CHILDREN
+            // with it. The daemon runs the failure page as a child of its own,
+            // and that child serves forever with nothing telling it its parent
+            // died, so killing the daemon alone left one listener per test run
+            // alive: 197 of them were counted on this machine on 2026-09-09,
+            // the oldest thirteen hours old.
+            .process_group(0)
             .spawn()
             .expect("the daemon starts");
         DaemonGuard { child, log }
@@ -87,7 +95,74 @@ impl DaemonGuard {
 
 impl Drop for DaemonGuard {
     fn drop(&mut self) {
+        // THE WHOLE GROUP, not the daemon alone. `start` made this child a
+        // group leader, so its own children share its group id and one signal
+        // reaches all of them. The daemon is still waited on afterwards,
+        // because that is what reaps it.
+        if let Ok(group) = i32::try_from(self.child.id()) {
+            unsafe { libc::kill(-group, libc::SIGKILL) };
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::process::CommandExt;
+
+    /// Every live pid in one process group, the leader included.
+    fn group_members(group: i32) -> Vec<i32> {
+        let listed = std::process::Command::new("/bin/ps")
+            .args(["-o", "pid=", "-g", &group.to_string()])
+            .output()
+            .expect("ps lists a process group");
+        String::from_utf8_lossy(&listed.stdout)
+            .split_whitespace()
+            .filter_map(|pid| pid.parse().ok())
+            .collect()
+    }
+
+    #[test]
+    fn a_group_kill_reaches_a_child_the_leader_spawned() {
+        // THE LEAK THIS EXISTS TO STOP. The daemon serves the failure page from
+        // a child of its own, and that child serves forever with nothing
+        // telling it its parent died. Killing the daemon's pid alone left one
+        // listener behind per test run; 197 were counted on this machine on
+        // 2026-09-09, the oldest thirteen hours old. A stand-in stands in for
+        // the daemon here so the claim is about the SIGNAL, not about pns.
+        let mut leader = std::process::Command::new("/bin/sh")
+            .args(["-c", "sleep 300 & sleep 300"])
+            .stdin(std::process::Stdio::null())
+            .process_group(0)
+            .spawn()
+            .expect("the stand-in starts");
+        let group = i32::try_from(leader.id()).expect("a group id");
+
+        let mut members = Vec::new();
+        for _ in 0..200 {
+            members = group_members(group);
+            if members.len() >= 3 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            members.len() >= 3,
+            "the stand-in should be a leader plus two sleeps, saw {members:?}"
+        );
+
+        unsafe { libc::kill(-group, libc::SIGKILL) };
+        let _ = leader.wait();
+
+        let mut left = group_members(group);
+        for _ in 0..200 {
+            if left.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            left = group_members(group);
+        }
+        assert!(left.is_empty(), "these outlived the group kill: {left:?}");
     }
 }

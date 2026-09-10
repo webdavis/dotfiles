@@ -52,10 +52,14 @@ pub(super) fn decode(data: Vec<Value>) -> Result<Vec<Resource>, LightControlErro
                         grouped = Some(rid.to_owned());
                     }
                 }
-                Resource::Room {
-                    id,
-                    name,
-                    grouped: grouped.ok_or_else(malformed)?,
+                // A ROOM WITH NO LAMPS IS NOT A BAD RESPONSE. The bridge
+                // gives a room a `grouped_light` service when it holds a
+                // light, and a room holding none has an empty service list
+                // (a garage, a hallway). Refusing the whole read over one is
+                // how two empty rooms take every other room down with them.
+                match grouped {
+                    Some(grouped) => Resource::Room { id, name, grouped },
+                    None => Resource::Other,
                 }
             }
             "grouped_light" => {
@@ -73,7 +77,12 @@ pub(super) fn decode(data: Vec<Value>) -> Result<Vec<Resource>, LightControlErro
                 Resource::Grouped { id, on, brightness }
             }
             "scene" => {
-                reference(&value["owner"])?;
+                // NO `owner` IS ASKED OF A SCENE. It was validated and then
+                // dropped, and this bridge (firmware measured 2026-09-09)
+                // sends none on any of its 202 scenes, so requiring it
+                // refused every read the tool has ever made against real
+                // hardware. `group` is the reference the scene is placed by,
+                // and that one is read.
                 let (room, kind) = reference(&value["group"])?;
                 if !["room", "zone"].contains(&kind) {
                     return Err(malformed());

@@ -1,5 +1,7 @@
+mod alert;
 mod allowlist;
 mod converge;
+mod digest;
 mod heartbeat;
 use posture_adapters::{SystemInspection, SystemRunner};
 use posture_application::{EnrichmentInspection, enrich};
@@ -13,7 +15,7 @@ const USAGE: &str = "usage: posture <subcommand> [args]
   allowlist add <label> | allowlist deny <label> | allowlist list
   enrich <path>
   ssh install|verify|reload|rollback|print-config|print-path
-only enrich, allowlist, converge and heartbeat are implemented; other subcommands exit 2
+only enrich, allowlist, converge, heartbeat, digest and alert are implemented; other subcommands exit 2
 ";
 
 pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> u8 {
@@ -22,6 +24,12 @@ pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) 
     }
     if args.first().is_some_and(|word| word == "heartbeat") {
         return heartbeat::run(stderr);
+    }
+    if args.first().is_some_and(|word| word == "digest") {
+        return digest::run(stderr);
+    }
+    if args.first().is_some_and(|word| word == "alert") {
+        return alert::run(stderr);
     }
     if args.first().is_some_and(|word| word == "allowlist") {
         return allowlist::run(&args[1..], stdout, stderr);
