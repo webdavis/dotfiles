@@ -25,8 +25,8 @@ CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
   exit 1
 }
 # The monorepo move bakes the real checkout's absolute path into crate_dir at
-# render time, and the stub cargo derives its artifact path from the manifest it
-# is handed, so an unredirected run would write target/release/pns into the
+# render time, and the stub cargo derives its artifact path from the directory it
+# is run in, so an unredirected run would write target/release/pns into the
 # working tree. Point the rendered copy at a sandbox directory instead. Nothing
 # here depends on the baked value: that it names the source directory is settled
 # by the render, while the three behaviors below are about install, trigger and
@@ -130,13 +130,19 @@ run_script || {
 mkdir -p "$home/.cargo/bin"
 cat >"$home/.cargo/bin/cargo" <<STUB
 #!/usr/bin/env bash
-# Stand-in for the real build: honor --manifest-path and produce the binary
-# the script installs.
-manifest=""
+# Stand-in for the real build: produce the binary the script installs, in the
+# WORKING DIRECTORY rather than at a --manifest-path. rustup resolves a
+# toolchain by walking up from the current directory, so the builder has to run
+# cargo from the crate itself or the crate's rust-toolchain.toml is read by
+# nothing. A stand-in that accepted --manifest-path would keep passing after
+# that regressed.
 locked=0
 selected_bin=""
 while [[ \$# -gt 0 ]]; do
-  [[ \$1 == --manifest-path ]] && manifest="\$2"
+  if [[ \$1 == --manifest-path ]]; then
+    echo "cargo must be run from the crate directory, not with --manifest-path" >&2
+    exit 1
+  fi
   [[ \$1 == --locked ]] && locked=1
   [[ \$1 == --bin ]] && selected_bin="\$2"
   shift
@@ -152,7 +158,7 @@ if [[ \$selected_bin != pns ]]; then
   exit 1
 fi
 
-crate="\$(dirname "\$manifest")"
+crate="\$PWD"
 mkdir -p "\$crate/target/release"
 if [[ -f "\$HOME/.stub-build-sleeper" ]]; then
   # A real Mach-O, so running it holds the text lock that makes an in-place

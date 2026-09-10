@@ -33,6 +33,7 @@ umask 077
 {{- end }}
 #   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
 #   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
+#   rust-toolchain.toml {{ include (joinPath $crate "rust-toolchain.toml") | sha256sum }}
 {{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
@@ -90,7 +91,11 @@ report_line 'building the release binary'
 # --locked: build exactly the committed lock, so an apply can never rewrite the
 # deployed lockfile or pull a dependency the lock never recorded.
 # --bin posture: the one target ever installed.
-"$cargo_bin" build --release --locked --quiet --bin posture --manifest-path "$crate_dir/Cargo.toml"
+# RUN FROM THE CRATE DIRECTORY, not with `--manifest-path`. rustup resolves a
+# toolchain by walking up from the CURRENT directory, so a `--manifest-path`
+# build reads $HOME's toolchain (a chezmoiscript's working directory) and
+# silently ignores the crate's `rust-toolchain.toml`.
+(cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin posture)
 
 # Never publish a tuple the audit cannot verify.
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
