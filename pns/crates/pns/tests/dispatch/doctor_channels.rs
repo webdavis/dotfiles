@@ -60,17 +60,17 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "macos-banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "hue: skipped, not enabled in the config",
-            "pns doctor: 3 sent, 0 failed, 3 skipped",
+            "3 sent, 0 failed, 3 skipped",
             NO_MOSHI_HOOK_LINE,
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
-            "pns doctor: delivery ledger unreadable; backlog and deadletters unknown",
+            "delivery ledger unreadable; backlog and deadletters unknown",
             // An empty ledger is an empty roster: pns learns a route only by
             // having posted to one, so this says nothing has been posted yet
             // rather than reporting a clean bill of health.
-            "pns doctor: no routes to check; nothing has been posted yet",
+            "no routes to check; nothing has been posted yet",
             NO_DECISION_RECORDED,
             NONE_WAITING,
         ],

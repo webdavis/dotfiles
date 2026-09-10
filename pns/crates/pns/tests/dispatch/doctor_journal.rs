@@ -17,7 +17,7 @@ fn the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it() {
     let lines = report_rows(&printed);
     let heading = lines
         .iter()
-        .position(|line| *line == format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"))
+        .position(|line| *line == format!("the last decision,{DECISION_HEADING_TAIL}"))
         .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert_eq!(
         lines.last(),
@@ -53,10 +53,10 @@ fn a_journal_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit
         lines
             .last()
             .unwrap()
-            .starts_with("pns doctor: state import missed-notifications:")
+            .starts_with("state import missed-notifications:")
     );
     let last = lines[lines.len() - 2];
-    let opening = "pns doctor: the missed-notification journal could not be read (";
+    let opening = "the missed-notification journal could not be read (";
     assert!(last.starts_with(opening), "{printed}");
     assert!(
         last.ends_with(").") && last.len() > opening.len() + 2,
@@ -93,10 +93,10 @@ fn a_fifo_at_the_journals_path_never_parks_the_doctor_and_is_named_by_its_kind()
         lines
             .last()
             .unwrap()
-            .starts_with("pns doctor: state import missed-notifications:")
+            .starts_with("state import missed-notifications:")
     );
     let last = lines[lines.len() - 2];
-    let opening = "pns doctor: the missed-notification journal could not be read (";
+    let opening = "the missed-notification journal could not be read (";
     assert!(last.starts_with(opening), "{printed}");
     assert!(
         last.ends_with(").") && last.len() > opening.len() + 2,

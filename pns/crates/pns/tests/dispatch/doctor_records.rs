@@ -26,7 +26,7 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     let heading = lines
         .iter()
         .position(|line| {
-            *line == format!("pns doctor: the last 2 decisions,{DECISION_HEADING_TAIL}")
+            *line == format!("the last 2 decisions,{DECISION_HEADING_TAIL}")
         })
         .unwrap_or_else(|| panic!("no decision heading in {printed}"));
     assert!(
@@ -118,10 +118,10 @@ fn a_ring_the_doctor_cannot_read_is_named_by_its_error_kind_and_moves_no_exit_co
         lines
             .last()
             .unwrap()
-            .starts_with("pns doctor: state import decisions:")
+            .starts_with("state import decisions:")
     );
     let last = lines[lines.len() - 3];
-    let opening = "pns doctor: the decision log could not be read (";
+    let opening = "the decision log could not be read (";
     assert!(last.starts_with(opening), "{printed}");
     assert!(
         last.ends_with(").") && last.len() > opening.len() + 2,
@@ -165,10 +165,10 @@ fn a_fifo_at_the_rings_path_never_parks_the_doctor_and_is_named_by_its_kind() {
         lines
             .last()
             .unwrap()
-            .starts_with("pns doctor: state import decisions:")
+            .starts_with("state import decisions:")
     );
     let last = lines[lines.len() - 3];
-    let opening = "pns doctor: the decision log could not be read (";
+    let opening = "the decision log could not be read (";
     assert!(last.starts_with(opening), "{printed}");
     assert!(
         last.ends_with(").") && last.len() > opening.len() + 2,

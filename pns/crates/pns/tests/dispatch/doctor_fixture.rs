@@ -112,39 +112,39 @@ pub(super) const UNPAIRED_STATUS_PLAIN: &str = "status:       unpaired";
 
 /// What the pairing check says when there is no moshi-hook to run at all,
 /// which is what every doctor test above gets unless it stubs one.
-pub(super) const NO_MOSHI_HOOK_LINE: &str = "pns doctor: moshi pairing: moshi-hook did not answer \
+pub(super) const NO_MOSHI_HOOK_LINE: &str = "moshi pairing: moshi-hook did not answer \
      (not installed, or it did not answer in time), so the approval path could not be checked.";
 
 /// The pairing line a healthy dresden earns.
 pub(super) const PAIRED_LINE: &str =
-    "pns doctor: moshi pairing: paired as dresden (host_b14dd2bb0b1f45899d9eaa81a71ff874).";
+    "moshi pairing: paired as dresden (host_b14dd2bb0b1f45899d9eaa81a71ff874).";
 
 /// The relayed line beside it, in moshi's own words.
 pub(super) const MOSHI_SAYS_LINE: &str =
-    "pns doctor: moshi says: Moshi Pro attached (usage scope: license)";
+    "moshi says: Moshi Pro attached (usage scope: license)";
 
 /// What the doctor says about Focus on a machine whose config names no mode,
 /// which is every machine that never wrote a `[focus]` table.
 pub(super) const FOCUS_OFF_LINE: &str =
-    "pns doctor: focus awareness is off (no [focus] table names a mode to silence)";
+    "focus awareness is off (no [focus] table names a mode to silence)";
 
 /// What the doctor says about the clock on a machine where nothing has
 /// bootstrapped the LaunchAgent, which is every sandbox in this file: the table
 /// defaults ON and no daemon has ever written a beat here.
 pub(super) const DAEMON_NEVER_RAN_LINE: &str =
-    "pns doctor: the daemon is enabled and has not run yet";
+    "the daemon is enabled and has not run yet";
 
 /// And what it says about the nag on a machine whose config has no `[nag]`
 /// table, which is every machine until an operator writes one: the feature
 /// ships OFF. It sits IMMEDIATELY BELOW the daemon's line, which is the whole
 /// mitigation for the one thing it does not say (a nag with a dead daemon never
 /// fires): the two read as one paragraph.
-pub(super) const NAG_OFF_LINE: &str = "pns doctor: the nag is off (no `[nag] after_secs`)";
+pub(super) const NAG_OFF_LINE: &str = "the nag is off (no `[nag] after_secs`)";
 
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 pub(super) const LIGHTS_OFF_LINE: &str =
-    "pns doctor: lights: off in the config, so the pulse uses the [plugins.hue] rooms";
+    "lights: off in the config, so the pulse uses the [plugins.hue] rooms";
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.

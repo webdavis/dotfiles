@@ -15,7 +15,7 @@ fn the_doctor_reports_a_dead_daemon_without_moving_its_exit_code() {
     command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let output = run(command.arg("doctor"));
     assert!(
-        stdout(&output).contains("pns doctor: the daemon is enabled and has not run yet"),
+        stdout(&output).contains("the daemon is enabled and has not run yet"),
         "the doctor must report the clock: {}",
         stdout(&output)
     );

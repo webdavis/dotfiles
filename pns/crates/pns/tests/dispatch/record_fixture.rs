@@ -96,7 +96,7 @@ pub(super) const DECISION_HEADING_TAIL: &str = " newest first (why a card did or
      is recorded: moshi mints it inside the approval round trip and never hands it back.";
 
 /// What an absent ring says, parenthesis included.
-pub(super) const NO_DECISION_RECORDED: &str = "pns doctor: no decision has been recorded yet \
+pub(super) const NO_DECISION_RECORDED: &str = "no decision has been recorded yet \
      (no event has run since this was installed, or none could be written).";
 
 // --- the missed-notification journal ----------------------------------------
@@ -174,11 +174,11 @@ pub(super) fn journal_mode(sandbox: &Sandbox) -> u32 {
 
 /// What the doctor says about a journal holding two entries. The sentence
 /// names the replayer now, because the binary has one.
-pub(super) const TWO_WAITING: &str = "pns doctor: 2 missed notifications are waiting to be replayed; \
+pub(super) const TWO_WAITING: &str = "2 missed notifications are waiting to be replayed; \
      the next event that raises a banner or a card while the operator is not away \
      delivers them.";
 
 /// What it says when there is none, which is deliberately about what is
 /// RECORDED: an empty journal means either nothing was missed or a write did
 /// not land, and the line claims neither.
-pub(super) const NONE_WAITING: &str = "pns doctor: no missed notification is recorded.";
+pub(super) const NONE_WAITING: &str = "no missed notification is recorded.";

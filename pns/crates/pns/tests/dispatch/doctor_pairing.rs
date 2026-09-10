@@ -23,7 +23,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     let lines = report_rows(&printed);
     let summary = lines
         .iter()
-        .position(|line| *line == "pns doctor: 3 sent, 0 failed, 3 skipped")
+        .position(|line| *line == "3 sent, 0 failed, 3 skipped")
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
@@ -45,7 +45,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
         // Two legs are pending, so the summary names the detail view. That
         // pointer is what the count is FOR: a reader holding a number and no
         // next step is where this line used to leave them.
-        "pns doctor: delivery ledger: 2 pending leg(s), 0 deadlettered, growth streak 0, \
+        "delivery ledger: 2 pending leg(s), 0 deadlettered, growth streak 0, \
          alarm acknowledged; recording gaps none in recent daemon log; \
          run `pns failures` for what is not arriving",
         "delivery health precedes decision history: {printed}"
@@ -56,12 +56,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // so the section is its own summary alone.
     assert_eq!(
         lines[summary + 8],
-        "pns doctor: no routes to check; nothing has been posted yet",
+        "no routes to check; nothing has been posted yet",
         "the route check sits under the ledger: {printed}"
     );
     assert_eq!(
         lines[summary + 9],
-        format!("pns doctor: the last decision,{DECISION_HEADING_TAIL}"),
+        format!("the last decision,{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );
 }
@@ -163,7 +163,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         "a call that never answered relays nothing: {printed}"
     );
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
+        printed.contains("3 sent, 0 failed, 3 skipped"),
         "and the sections printed before it survived: {printed}"
     );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
@@ -230,12 +230,12 @@ fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
-        printed.contains("pns doctor: 3 sent, 0 failed, 3 skipped"),
+        printed.contains("3 sent, 0 failed, 3 skipped"),
         "{printed}"
     );
     assert!(
         printed.contains(
-            "pns doctor: moshi pairing: this host is NOT paired, so every \
+            "moshi pairing: this host is NOT paired, so every \
              approval card is dead until `moshi-hook pair` runs."
         ),
         "{printed}"
@@ -320,7 +320,7 @@ fn an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read() {
     let printed = stdout(&output);
     assert!(
         printed
-            .contains("pns doctor: moshi pairing: moshi-hook answered something this cannot read."),
+            .contains("moshi pairing: moshi-hook answered something this cannot read."),
         "an over-cap answer is refused before it is parsed: {printed}"
     );
     assert!(
