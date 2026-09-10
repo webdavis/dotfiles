@@ -68,6 +68,15 @@ pub use last_resort_banner::LastResortBanner;
 mod state_files;
 pub use state_files::PollStateFiles;
 
+mod results_log;
+pub use results_log::ResultsFile;
+
+mod results_row;
+pub use results_row::{ResultsRow, rows};
+
+mod results_cursor;
+pub use results_cursor::{CursorFile, SingleRunLock};
+
 mod converge;
 pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
