@@ -20,7 +20,7 @@ impl<P: SignedPost, A> EngineRunDelivery<'_, P, A> {
             .ok_or_else(|| "failure webhook could not be signed".to_string())?;
         let outcome = self
             .post
-            .post(url, &body, &signature, None, Some(RECORD_DEADLINE));
+            .post(url, &body, &signature, Some(RECORD_DEADLINE));
         if delivered(outcome) {
             Ok(())
         } else {

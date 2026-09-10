@@ -8,13 +8,13 @@ existing exit behavior.
 
 ## Dependency direction
 
-| Package          | Responsibility and direct dependencies                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uu-domain`      | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                                |
-| `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                               |
-| `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                   |
-| `uu-adapters`    | Configuration, state, process, clock and delivery adapters; depends on the three inner packages, `pns-hermes` and the existing infrastructure libraries.            |
-| `uu`             | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary. |
+| Package          | Responsibility and direct dependencies                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `uu-domain`      | Reports, marker facts, deadlines and streak policy; no dependencies.                                                                                                     |
+| `uu-application` | Run sequencing and consumer-owned ports; depends only on `uu-domain`.                                                                                                    |
+| `uu-protocol`    | Existing child-event and record encodings; independent of domain and application.                                                                                        |
+| `uu-adapters`    | Configuration, state, process, clock and delivery adapters, including uu's own signed-POST client; depends on the three inner packages and the infrastructure libraries. |
+| `uu`             | Arguments, command presentation and concrete composition; depends on application and adapters, plus libc for the existing signal disposition. Owns the `uu` binary.      |
 
 `uu` also takes `uu-domain` as a test dependency for the value types in the existing application ports.
 
