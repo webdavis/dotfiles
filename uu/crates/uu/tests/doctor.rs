@@ -14,12 +14,9 @@ fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
     ));
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(stdout(&output).contains("mine: on (command)"), "{output:?}");
     assert!(
-        stdout(&output).contains("lane mine: on (command)"),
-        "{output:?}"
-    );
-    assert!(
-        stdout(&output).contains(&format!("found at {}", stub.display())),
+        stdout(&output).contains(&format!("{}, found", stub.display())),
         "{output:?}"
     );
 }
@@ -37,7 +34,7 @@ fn the_doctor_says_a_missing_program_will_fail_weekly_and_alert_only_if_configur
     // a finding on the way to the weekly run, not a reason to stop looking.
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let out = stdout(&output);
-    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(out.contains("mine: on (command)"), "{out}");
     assert!(
         out.contains(
             "NOT FOUND; every scheduled run of this lane will fail, and it alerts only when \
@@ -45,10 +42,9 @@ fn the_doctor_says_a_missing_program_will_fail_weekly_and_alert_only_if_configur
         ),
         "{out}"
     );
-    assert!(
-        out.contains("the weekly run uses the plist's own PATH"),
-        "{out}"
-    );
+    // The PATH caveat is a section blurb now rather than a per-lane sentence,
+    // so it is still on screen, once, above the row it qualifies.
+    assert!(out.contains("the run uses the plist's"), "{out}");
 }
 
 #[test]
@@ -62,11 +58,9 @@ fn the_doctor_flags_a_relative_command_path_as_resolving_differently_under_the_w
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let out = stdout(&output);
-    assert!(out.contains("lane mine: on (command)"), "{out}");
+    assert!(out.contains("mine: on (command)"), "{out}");
     assert!(
-        out.contains(
-            "RELATIVE PATH; the weekly run starts in /, so this resolves differently there"
-        ),
+        out.contains("RELATIVE PATH; the weekly run starts in /, so it resolves differently there"),
         "{out}"
     );
 }
@@ -91,7 +85,7 @@ fn the_doctor_lists_each_declared_lane_with_its_type() {
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let out = stdout(&output);
-    assert!(out.contains("lane mine: on (herdr)"), "{output:?}");
+    assert!(out.contains("mine: on (herdr)"), "{output:?}");
     assert!(!out.contains("none declared"), "{output:?}");
 }
 
@@ -100,10 +94,7 @@ fn the_doctor_says_so_when_the_config_declares_no_lane() {
     let home = Home::new("doctor-no-lanes").with_config("[schedule]\nday = \"sunday\"\n");
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert!(
-        stdout(&output).contains("lanes: none declared"),
-        "{output:?}"
-    );
+    assert!(stdout(&output).contains("none declared"), "{output:?}");
 }
 
 #[test]

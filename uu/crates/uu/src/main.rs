@@ -11,6 +11,7 @@
 
 mod cli;
 mod registrations;
+mod style;
 
 fn main() {
     // Die on a closed pipe the way every other unix tool does. Rust ignores
@@ -25,7 +26,14 @@ fn main() {
 /// The whole CLI. A slice match rather than a chain, so an extra word is an
 /// error instead of an argument nothing reads.
 fn dispatch() -> i32 {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+    let mut argv: Vec<String> = std::env::args().skip(1).collect();
+    // STRIPPED BEFORE THE MATCH BELOW, and remembered process-wide. The match
+    // is a slice pattern, so a flag left in argv would need an arm on every
+    // command instead of one line here, and the arm somebody forgot to add
+    // would reject the flag as an unknown command.
+    let forced_plain = argv.iter().any(|word| word == "--no-color");
+    argv.retain(|word| word != "--no-color");
+    style::remember_forced_plain(forced_plain);
     let words: Vec<&str> = argv.iter().map(String::as_str).collect();
     match words.as_slice() {
         ["run"] => cli::run_mode(None),
@@ -48,6 +56,8 @@ fn usage(problem: &str) -> i32 {
            uu bootstrap <lane> seed a lane without a weekly run\n  \
            uu doctor           what this config turns on, and what it cannot reach\n  \
            uu schedule render  the launchd job for the configured day and time\n\
+         options:\n  \
+           --no-color          plain text, no escape sequences (also NO_COLOR)\n\
          lane types: {}",
         registrations::LANES
             .iter()
