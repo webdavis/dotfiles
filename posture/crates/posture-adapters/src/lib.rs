@@ -37,6 +37,9 @@ pub use publisher::AllowlistPublisher;
 
 mod allowlist_projection;
 
+mod allowlist_read;
+pub use allowlist_read::AllowlistText;
+
 pub use allowlist_file::AllowlistFile;
 
 mod launchd_table;
