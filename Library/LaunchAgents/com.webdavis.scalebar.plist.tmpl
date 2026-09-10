@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.webdavis.scalebar</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" }}</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<!-- No KeepAlive. This is a menu-bar app the operator quits on purpose, and
+	     relaunching it against that choice would make quitting impossible. -->
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>StandardOutPath</key>
+	<string>{{ .chezmoi.homeDir }}/.local/log/scalebar/scalebar.log</string>
+	<key>StandardErrorPath</key>
+	<string>{{ .chezmoi.homeDir }}/.local/log/scalebar/scalebar.log</string>
+</dict>
+</plist>

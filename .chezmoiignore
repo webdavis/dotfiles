@@ -74,6 +74,13 @@ tailnet-pin
 # the shipped template it generates is what chezmoi applies.
 .config/pns/config-values.toml
 
+# The repository-root toolchain pin, which exists so `just test-rust` runs cargo
+# on stable from here. Slashless, so it matches at the target ROOT alone: the two
+# herdr plugin pins still deploy beside their vendored sources. The other five
+# crate pins never reach $HOME either, but for the reason above, their whole
+# workspace directory is ignored by name.
+rust-toolchain.toml
+
 {{- if eq .chezmoi.os "linux" }}
 Library
 .config/lights
@@ -99,4 +106,7 @@ Library
 .config/uu
 # posture is the osquery pipeline's port, and that pipeline is macOS-only
 # (launchd, osqueryd under /var/osquery, a darwin-gated builder).
+# Scalebar is a macOS menu-bar app built with swift, so its config has nothing
+# to configure on Linux and its builder is darwin-gated too.
+.config/scalebar
 {{- end }}

@@ -175,6 +175,8 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
+{{- /* scalebar's path comes from .chezmoidata/scalebar.yaml. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .scalebar.install_dir) $merged -}}
 {{- /* Codex 0.153.4 clears a stdio server's environment down to a fixed
        whitelist (HOME, LOGNAME, PATH, SHELL, USER, __CF_USER_TEXT_ENCODING,
        LANG, LC_ALL, TERM, TMPDIR, TZ; codex-rs/rmcp-client/src/utils.rs), so

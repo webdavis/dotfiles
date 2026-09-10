@@ -106,9 +106,11 @@ that is still `cfg(test)` and does not enter production builds.
 
 **Tooling that exists, and tooling that does not.** `cargo-mutants` and `cargo-fuzz` are **not
 installed**: mutation testing is done by hand, per behavior, against an unmutated control, and the
-table goes in the report. `cargo-miri` **is** installed and the local toolchain is nightly, but CI is
-stable macOS, so **Miri results are local evidence, never a CI gate**. Add `proptest` only after
-naming the input space it covers better than examples do.
+table goes in the report. Every crate pins `channel = "stable"` in its own `rust-toolchain.toml`, so
+a plain `cargo` call runs stable whatever rustup's default is. `cargo-miri` **is** installed, on a
+nightly that has to be asked for by name: run it as `cargo +nightly miri`. CI is stable macOS, so
+**Miri results are local evidence, never a CI gate**. Add `proptest` only after naming the input
+space it covers better than examples do.
 
 `cargo test --workspace` runs crates in parallel competing for the same CPU, so measure the speed gate
 under that configuration.

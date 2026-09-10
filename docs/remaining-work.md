@@ -614,7 +614,29 @@ Every posture producer is Rust and the old pipeline is off.
 
 ## uu
 
-- [ ] 51. uu B1: `rust-toolchain.toml`, needs the stable toolchain certified
+- [x] 51. uu B1: `rust-toolchain.toml`, needs the stable toolchain certified.
+
+  DONE 2026-09-09. Stable on this machine is 1.98.1, which carries the `file_lock` `pns-adapters` depends
+  on, so `channel = "stable"` is a pin the tree can actually hold. Certified by running the whole
+  `just test-rust` under `RUSTUP_TOOLCHAIN=stable` BEFORE the pins were written, rather than writing them
+  and hoping.
+
+  EIGHT PINS, not the plan's five. The plan predates `posture`, `lights` and `tailnet-pin`, so the crate
+  roots are seven (`pns`, `uu`, `posture`, `lights`, `tailnet-pin` and the two herdr plugins) plus one at
+  the repository root. The root pin is what makes `just test-rust` run on stable: it invokes cargo from
+  the root with `--manifest-path`, and rustup resolves a toolchain by walking up from the CURRENT
+  directory, never from the manifest's.
+
+  THAT SAME RULE IS WHY THREE BUILDERS CHANGED. `run_onchange_after_58-build-pns-engine`, `59-build-uu`
+  and `58-build-posture` each built with `--manifest-path`, and a chezmoiscript's working directory is
+  `$HOME`, where no toolchain file lives, so the crate pin would have been read by nothing. Each now runs
+  `(cd "$crate_dir" && cargo build ...)`. The lights, tailnet-pin and herdr builders already did this and
+  were left alone. Each pin joins its builder's hashed inputs, because moving the channel changes the
+  binary.
+
+  `.chezmoiignore` excludes `rust-toolchain.toml` by bare name, which chezmoi matches at the TARGET ROOT
+  alone. Verified with `chezmoi managed`: the two herdr plugin pins deploy, the root pin and the five
+  workspace pins do not (those five sit inside directories the file already ignores by name).
 
 - [ ] 52. uu D1, D2, D3: the cargo lane and `RustupLane`
 

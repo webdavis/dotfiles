@@ -1,0 +1,8 @@
+# Scalebar (webdavis/scalebar): a menu-bar app and an MCP server, its own repo.
+# `run_onchange_after_53` builds the clone and installs both binaries. The plist
+# and the Claude Code and Codex MCP entries read these; the hermes config is an
+# age blob, so it repeats the install path and has to be edited by hand.
+# Home-relative, because launchd resolves no `~`.
+scalebar:
+  source_dir: "workspaces/Ivy/webdavis/scalebar"
+  install_dir: ".local/libexec/scalebar"
