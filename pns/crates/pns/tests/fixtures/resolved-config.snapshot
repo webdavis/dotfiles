@@ -46,7 +46,7 @@ Config {
                     5,
                 ),
                 "token": String(
-                    "from-the-vault:Moshi :: Webhook Secret:Password",
+                    "from-the-vault:moshi-hook :: Device Token:Password",
                 ),
                 "type": String(
                     "moshi",

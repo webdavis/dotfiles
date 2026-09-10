@@ -27,7 +27,7 @@ enabled = true
 type = "moshi"
 # Pair with moshi and put the webhook secret it issues here: that pairing
 # is what completes the phone card.
-token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}
+token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
 # Whether a long command's card still fires while you are watching that
 # pane on the phone. OFF: a card describing the pane already filling the
 # screen is noise, and the light pulse alone marks the command finishing;

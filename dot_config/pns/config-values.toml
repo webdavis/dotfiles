@@ -13,7 +13,7 @@
 # (`LAYOUT`) for the schema this is walked against.
 
 [plugins.mobile]
-token = { keepassxc = "Moshi :: Webhook Secret", field = "Password" }
+token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 
 [plugins.hermes]
 key = { keepassxc = "Hermes :: Webhook Secret :: #pns", field = "Password" }
