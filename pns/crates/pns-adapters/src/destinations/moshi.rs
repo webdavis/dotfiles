@@ -77,15 +77,21 @@ fn body_with_id(
     request_id: Option<&str>,
 ) -> String {
     let mut body = serde_json::json!({ "token": token, "title": title, "message": preview });
-    if let Some(id) = request_id {
-        body["data"] = serde_json::json!({"request_id": id});
-    }
+    // NO ACTION MEANS NO `data` AT ALL, and the request id goes with it.
+    // `data` is a TAGGED UNION on moshi's side: it answers a lone
+    // `request_id` with 422 "Expected union value" and shows no card, which is
+    // how one queued recap failed fifteen straight times before this was
+    // measured against the live endpoint on 2026-09-09. The id rode there for
+    // a tap to correlate, and a card with no action has no tap, so leaving it
+    // out costs nothing and leaving it in cost every paneless notification.
     if let Some(link) = link {
         // ONE `data` object carrying ONE `type`, which is what makes a url
         // action and an image action mutually exclusive: a structural limit of
         // the field, not a rule moshi states.
-        body["data"]["type"] = serde_json::json!("url");
-        body["data"]["url"] = serde_json::json!(link);
+        body["data"] = serde_json::json!({"type": "url", "url": link});
+        if let Some(id) = request_id {
+            body["data"]["request_id"] = serde_json::json!(id);
+        }
     }
     body.to_string()
 }

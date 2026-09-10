@@ -1,10 +1,13 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{- $token := (keepassxc "Moshi :: Pairing Token").Password -}}
+{{- $token := (keepassxc "moshi-hook :: Device Token").Password -}}
 #!/bin/bash
 # One-time moshi-hook setup: pair this host with the Moshi iPhone app, install
 # agent hooks for the supported AI CLIs, and start the brew service (which
 # writes a launchd plist with KeepAlive so the daemon survives subsequent
-# restarts). The pairing token is pulled from KeePassXC at apply time.
+# restarts). The device token is pulled from KeePassXC at apply time; it is
+# the credential `moshi-hook pair` consumes, and it is NOT the webhook secret
+# the mobile plugin posts with, which is a separate entry and a separate
+# rotation.
 #
 # It sorts after the 60-load-osquery-* LaunchAgent loaders (same number, later
 # name) and before run_after_72, which wires relay's Codex hooks and depends on
