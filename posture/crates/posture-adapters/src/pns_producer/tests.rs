@@ -1,9 +1,9 @@
 use super::*;
 use crate::{CommandIo, CommandOutput};
+use posture_application::{AlarmFailed, AlertSignal, InspectionFailure};
 use posture_pns_wire::{
     DeliveryOutcome, DestinationOutcome, Request, ResultEnvelope, Status, decode_request,
 };
-use posture_application::{AlarmFailed, AlertSignal, InspectionFailure};
 use std::{ffi::OsStr, path::Path};
 
 #[derive(Default)]

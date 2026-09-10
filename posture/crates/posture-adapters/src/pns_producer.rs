@@ -1,8 +1,8 @@
 use crate::{CommandIo, CommandRunner};
-use posture_pns_wire::{Name, Status, decode_result};
 use posture_application::{
     Alert, AlertSink, IndependentAlarm, InspectionFailure, Submission, SubmissionFailure,
 };
+use posture_pns_wire::{Name, Status, decode_result};
 use std::{ffi::OsStr, path::PathBuf};
 mod request;
 
