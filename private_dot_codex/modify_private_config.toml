@@ -175,8 +175,7 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
-{{- /* scalebar's path is declared in .chezmoidata/scalebar.yaml, which says why
-       it is the installed binary and not the clone's build directory. */ -}}
+{{- /* scalebar's path comes from .chezmoidata/scalebar.yaml. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .scalebar.install_dir) $merged -}}
 {{- /* Codex 0.153.4 clears a stdio server's environment down to a fixed
        whitelist (HOME, LOGNAME, PATH, SHELL, USER, __CF_USER_TEXT_ENCODING,

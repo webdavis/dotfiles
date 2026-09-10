@@ -1,24 +1,8 @@
-# Where Scalebar's source is cloned and where its two binaries are installed,
-# declared ONCE because five places need them: the builder, the LaunchAgent
-# plist, and the MCP registration for Claude Code, Codex and hermes. The hermes
-# config is an age blob rather than a template, so it repeats the path; every
-# other consumer reads it from here.
-#
-# Scalebar lives in its own repository (webdavis/scalebar), a macOS menu-bar app
-# and a stdio MCP server built with `swift build -c release`. This repository
-# vendors none of that. What it owns is the wiring.
-#
-# NOT `.build/release`, where swift leaves them and where every consumer pointed
-# before 2026-09-09. That directory is a working checkout: `swift package clean`
-# empties it and a git worktree relocates it, which is how the hermes config came
-# to name a worktree that had already been deleted.
-#
-# `~/.local/libexec` is this repository's home for what the operator never
-# types, and neither of these is typed: launchd starts the app and an agent
-# spawns the server. Two of them is why they get a directory.
-#
-# BOTH VALUES ARE HOME-RELATIVE. Templates join them onto `.chezmoi.homeDir`,
-# because launchd resolves no `~` and inherits almost no PATH.
+# Scalebar (webdavis/scalebar): a menu-bar app and an MCP server, its own repo.
+# `run_onchange_after_53` builds the clone and installs both binaries. The plist
+# and the Claude Code and Codex MCP entries read these; the hermes config is an
+# age blob, so it repeats the install path and has to be edited by hand.
+# Home-relative, because launchd resolves no `~`.
 scalebar:
   source_dir: "workspaces/Ivy/webdavis/scalebar"
   install_dir: ".local/libexec/scalebar"

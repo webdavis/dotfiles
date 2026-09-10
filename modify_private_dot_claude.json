@@ -50,11 +50,8 @@
     "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" .chezmoi.homeDir) -}}
 {{- $merged = setValueAtPath "mcpServers.nvim" $nvimMcp $merged -}}
 
-{{- /* --- stable: the Scalebar MCP server, weight and gym data ---
-
-     The path is declared in `.chezmoidata/scalebar.yaml`, which says why it is
-     the installed binary and not the clone's build directory. Carries no
-     secret, so like `nvim` beside it this entry needs no vault lookup. --- */ -}}
+{{- /* --- stable: the Scalebar MCP server, weight and gym data. Path from
+     `.chezmoidata/scalebar.yaml`; no secret, so no vault lookup. --- */ -}}
 {{- $scalebarMcp := dict
     "type" "stdio"
     "command" (joinPath .chezmoi.homeDir .scalebar.install_dir "ScalebarMCP")
