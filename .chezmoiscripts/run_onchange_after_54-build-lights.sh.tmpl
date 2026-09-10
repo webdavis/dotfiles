@@ -1,9 +1,20 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 set -euo pipefail
+# Every build input is hashed below, at every extension rather than `.rs` alone,
+# because an `include_str!` or `include_bytes!` compiles a fixture into the
+# binary and a `.rs`-only trigger would miss an edit to one. Scoped to `crates/`
+# so cargo's own `target/` at the workspace root stays out: hashing the
+# artifacts this script produces would move the trigger on every build. `stat`
+# drops the directories the glob returns beside the files, since `include` on a
+# directory errors and an erroring template aborts the whole apply.
 {{ $lights := joinPath .chezmoi.sourceDir "lights" -}}
-{{ range (glob (joinPath $lights "**/*.rs")) }}
+{{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
+{{ range (glob (joinPath $lights $pattern)) }}
+{{- if not (stat .).isDir }}
 # {{ . }} {{ include . | sha256sum }}
+{{- end }}
+{{- end }}
 {{- end }}
 # Cargo.toml {{ include (joinPath $lights "Cargo.toml") | sha256sum }}
 # Cargo.lock {{ include (joinPath $lights "Cargo.lock") | sha256sum }}
