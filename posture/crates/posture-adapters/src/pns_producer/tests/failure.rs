@@ -59,7 +59,7 @@ fn correlated_exit_two_refusals_do_not_report_an_engine_outage() {
     for diagnostic in ["submission_conflict", "submission_plan_invalid", "invalid"] {
         let mut sut = subject(Status::Rejected, false);
         let output = sut.runner.response.as_mut().unwrap();
-        let mut result = pns_protocol::decode_result(&output.bytes).unwrap();
+        let mut result = posture_pns_wire::decode_result(&output.bytes).unwrap();
         result.diagnostics = vec![diagnostic.into()];
         output.bytes = result.encode().unwrap().into_bytes();
         output.exit = 2;
@@ -98,7 +98,7 @@ fn explicit_submission_unavailable_reports_failure_but_degraded_storage_does_not
     ] {
         let mut sut = subject(status, false);
         let output = sut.runner.response.as_mut().unwrap();
-        let mut result = pns_protocol::decode_result(&output.bytes).unwrap();
+        let mut result = posture_pns_wire::decode_result(&output.bytes).unwrap();
         result.diagnostics = vec![diagnostic.into()];
         output.bytes = result.encode().unwrap().into_bytes();
         output.exit = exit;

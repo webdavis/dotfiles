@@ -1,5 +1,5 @@
 use crate::{CommandIo, CommandRunner};
-use pns_protocol::{Name, Status, decode_result};
+use posture_pns_wire::{Name, Status, decode_result};
 use posture_application::{
     Alert, AlertSink, IndependentAlarm, InspectionFailure, Submission, SubmissionFailure,
 };
