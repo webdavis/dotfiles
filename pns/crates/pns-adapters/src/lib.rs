@@ -165,3 +165,12 @@ pub use harness::{
 
 #[cfg(test)]
 mod state_fixtures;
+
+/// How pns looks on a terminal, shared by the CLI and by the setup wizard's
+/// terminal.
+///
+/// IT LIVES HERE RATHER THAN IN THE CLI because presentation on a terminal is a
+/// concrete destination, and the wizard reaches its questions through this
+/// crate's `Terminal`. With the vocabulary in the binary crate the wizard could
+/// not use it, and the walk would have grown a second look.
+pub mod style;

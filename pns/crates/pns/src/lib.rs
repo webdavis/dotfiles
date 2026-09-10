@@ -79,7 +79,7 @@ mod presence_runtime;
 mod recap_delivery_runtime;
 mod return_replay;
 mod runtime_environment;
-mod style;
+pub(crate) use pns_adapters::style;
 mod turn_lifecycle;
 mod turn_text;
 

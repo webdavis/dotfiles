@@ -70,7 +70,7 @@ static COLUMNS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
 /// roomy enough gets the identical sixty-column report, so two panes side by
 /// side still agree, and only a genuinely narrow one differs. Measured once per
 /// run rather than per line, so a window resized mid-report cannot tear it.
-pub(crate) fn width() -> usize {
+pub fn width() -> usize {
     *COLUMNS.get_or_init(|| clamped(terminal_columns()))
 }
 
@@ -123,13 +123,13 @@ const HOUSE_PLAIN: &str = "REPORT_LIB_PLAIN";
 static FORCED_PLAIN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// Record what argv said about color. Called ONCE, by the dispatcher.
-pub(crate) fn remember_forced_plain(forced_plain: bool) {
+pub fn remember_forced_plain(forced_plain: bool) {
     let _ = FORCED_PLAIN.set(forced_plain);
 }
 
 /// Whether output is being painted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Paint {
+pub enum Paint {
     Color,
     Plain,
 }
@@ -142,7 +142,7 @@ impl Paint {
     /// that reaches a file or a pipe is corruption rather than decoration, so
     /// every signal that this is not a terminal wins; the explicit flag wins
     /// over all of them, because an operator who typed it has already decided.
-    pub(crate) fn decide(forced_plain: bool, destination_is_terminal: bool) -> Self {
+    pub fn decide(forced_plain: bool, destination_is_terminal: bool) -> Self {
         if forced_plain
             || !destination_is_terminal
             || std::env::var_os(NO_COLOR).is_some_and(|value| !value.is_empty())
@@ -154,7 +154,7 @@ impl Paint {
     }
 
     /// What printing to this process's own output means right now.
-    pub(crate) fn for_stdout() -> Self {
+    pub fn for_stdout() -> Self {
         Self::decide(
             *FORCED_PLAIN.get().unwrap_or(&false),
             std::io::stdout().is_terminal(),
@@ -169,19 +169,19 @@ impl Paint {
         }
     }
 
-    pub(crate) fn accent(self, text: &str) -> String {
+    pub fn accent(self, text: &str) -> String {
         self.wrap(ACCENT, text)
     }
 
-    pub(crate) fn faint(self, text: &str) -> String {
+    pub fn faint(self, text: &str) -> String {
         self.wrap(FAINT, text)
     }
 
-    pub(crate) fn good(self, text: &str) -> String {
+    pub fn good(self, text: &str) -> String {
         self.wrap(GOOD, text)
     }
 
-    pub(crate) fn bad(self, text: &str) -> String {
+    pub fn bad(self, text: &str) -> String {
         self.wrap(BAD, text)
     }
 }
@@ -191,7 +191,7 @@ impl Paint {
 /// The report's own `Mark` maps onto this; nothing here knows what a channel or
 /// a route is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Tone {
+pub enum Tone {
     Good,
     Bad,
     Warn,
@@ -231,7 +231,7 @@ impl Tone {
 ///
 /// IT OPENS WITH A BLANK LINE, so the report does not begin flush against the
 /// prompt the operator just typed.
-pub(crate) fn header(paint: Paint, invocation: &str, lines: &[HeaderLine<'_>]) -> Vec<String> {
+pub fn header(paint: Paint, invocation: &str, lines: &[HeaderLine<'_>]) -> Vec<String> {
     let width = lines.iter().map(|line| line.label.len()).max().unwrap_or(0);
     let mut out = vec![String::new(), paint.accent(invocation)];
     out.extend(
@@ -251,14 +251,14 @@ pub(crate) fn header(paint: Paint, invocation: &str, lines: &[HeaderLine<'_>]) -
 /// `About` says what a feature is, `Steps` heads a contents list. Without one
 /// the reader has to guess what role the text plays, and the guess that costs
 /// the most is "something went wrong".
-pub(crate) struct HeaderLine<'a> {
-    pub(crate) label: &'a str,
-    pub(crate) text: &'a str,
+pub struct HeaderLine<'a> {
+    pub label: &'a str,
+    pub text: &'a str,
 }
 
 /// A section heading: a diamond, the name, and a rule carrying the one line
 /// that says what the rows under it are for.
-pub(crate) fn heading(paint: Paint, title: &str, blurb: &str) -> String {
+pub fn heading(paint: Paint, title: &str, blurb: &str) -> String {
     format!(
         "{} {}",
         paint.accent(&format!("◆ {title}")),
@@ -267,12 +267,12 @@ pub(crate) fn heading(paint: Paint, title: &str, blurb: &str) -> String {
 }
 
 /// A closing rule, the full width of the frame.
-pub(crate) fn rule(paint: Paint) -> String {
+pub fn rule(paint: Paint) -> String {
     paint.faint(&"─".repeat(width()))
 }
 
 /// One row: its mark, then its text.
-pub(crate) fn row(paint: Paint, tone: Tone, glyph: &str, indent: usize, text: &str) -> String {
+pub fn row(paint: Paint, tone: Tone, glyph: &str, indent: usize, text: &str) -> String {
     format!(
         "{}{} {text}",
         " ".repeat(indent),

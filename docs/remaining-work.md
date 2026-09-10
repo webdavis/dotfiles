@@ -276,12 +276,33 @@ is what makes a tool feel finished.
   twenty lines become titled sections, each with one line saying what its rows are for, and the report
   closes with a numbered list of what to act on. NOTE: the doctor currently refuses any argument at all,
   with a comment saying so; that comment changes with the flag.
-- [ ] 70. Every other pns command that prints more than a sentence adopts the same vocabulary. Its scope
+
+- [x] 70. Every other pns command that prints more than a sentence adopts the same vocabulary. Its scope
   is decided by reading what each command prints today, not by a list written here in advance. Read on
   2026-09-09, the commands that qualify are `pns failures` (a column table, and `listing()` is served by
   the failure page as well, so it takes a `Paint` and the page passes the plain one), `pns home` (a
   multi-line diagnostic), `pns setup` (the wizard's walk) and `pns lights` (a list of lines). Everything
   else prints one sentence or a usage string.
+
+  DONE 2026-09-09, all four. `pns failures` gained a header that discloses its own cap, because a listing
+  that silently stops at twenty reads as "twenty things are failing"; its `listing` takes a `Paint`
+  because the failure page serves the same table into a browser's `<pre>`, where an escape sequence is
+  line noise. `pns home` became a verdict section and an evidence section, with unknown marked as a
+  WARNING rather than a verdict (the router did not answer, so nothing was established either way) and no
+  evidence heading when no keys are configured, since a heading over nothing reads as a section that
+  failed to load. `pns lights quiet` gained a header naming its own scope, the thing most often got wrong
+  about it. `pns setup` became a labelled opening plus six titled sections, so an operator part-way
+  through can tell which feature the question in front of them arms.
+
+  THE STYLE MODULE MOVED to `pns-adapters`, which is what the wizard needed: its questions go through the
+  `Terminal` port, and with the vocabulary in the binary crate the walk could not reach it and would have
+  grown a second look. Presentation on a terminal is a concrete destination, so adapters is its right
+  home; the CLI already depends on that crate. The port gained `open` and `section`, which take SHAPES
+  rather than styled strings, so `pns-application` still decides nothing about how a terminal looks.
+
+  Two domain sentences lost their `pns ...:` prefix, each having one caller that now renders it under a
+  heading supplying that context. The stderr warnings beside them KEEP theirs: those arrive alone, with
+  no heading above.
 
 ## Framed headers carry labels, never floating sentences
 
