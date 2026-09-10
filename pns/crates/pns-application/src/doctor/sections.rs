@@ -5,10 +5,14 @@
 pub(super) fn decision_section(
     records: &impl crate::DecisionRing,
     now: Option<u64>,
-) -> Vec<String> {
+    detail: pns_domain::doctor::Detail,
+) -> Vec<(pns_domain::doctor::Mark, String)> {
     match records.read() {
-        Ok(contents) => pns_domain::doctor::decision_section(contents.as_deref(), now),
-        Err(kind) => vec![format!("{DECISIONS_UNREADABLE} ({kind}).")],
+        Ok(contents) => pns_domain::doctor::decision_section(contents.as_deref(), now, detail),
+        Err(kind) => vec![(
+            pns_domain::doctor::Mark::Note,
+            format!("{DECISIONS_UNREADABLE} ({kind})."),
+        )],
     }
 }
 

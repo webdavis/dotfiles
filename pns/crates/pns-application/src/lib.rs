@@ -19,7 +19,7 @@
 //! into, and the plugin selection.
 
 mod delivery_health;
-pub use delivery_health::{delivery_health_line, report_delivery_health};
+pub use delivery_health::{delivery_health_lines, report_delivery_health};
 mod destinations;
 mod environment_reading;
 mod open_failure;
@@ -138,7 +138,7 @@ pub use ports::jobs::DaemonSettings;
 pub use presence_registration::{PRESENCE_DAEMON_FLAG, ensure_presence_poll};
 
 mod doctor;
-pub use doctor::{DOCTOR_OPENING, DoctorActions, RunDoctor, doctor_pulse};
+pub use doctor::{DoctorActions, RunDoctor, doctor_pulse};
 
 pub use doctor::{DoctorBridge, FocusReading, doctor_focus, doctor_lamps};
 mod delivery_panic;

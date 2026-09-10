@@ -29,14 +29,14 @@ fn the_room_sensor_line_names_what_the_last_decision_narrowed_the_lamps_to() {
                 ..Default::default()
             }),
         ),
-        "presence: nowhere (poll 3s ago); last narrowed nothing \
+        "presence: nowhere (last poll 3s ago); last narrowed nothing \
              (motion in no watched room)"
     );
     // AND A RING WITH NOTHING IN IT SAYS NOTHING, rather than claiming a
     // narrowing never decided: presence off, or on and never yet consulted.
     assert_eq!(
         presence_line_for(PresenceStatus::Nowhere { poll_age_secs: 3 }),
-        "presence: nowhere (poll 3s ago)"
+        "presence: nowhere (last poll 3s ago)"
     );
 }
 
@@ -91,7 +91,7 @@ fn a_known_room_is_named_with_the_age_of_its_motion_edge() {
 fn a_fresh_poll_that_found_nobody_says_nowhere_rather_than_unknown() {
     assert_eq!(
         presence_line_for(PresenceStatus::Nowhere { poll_age_secs: 3 }),
-        "presence: nowhere (poll 3s ago)"
+        "presence: nowhere (last poll 3s ago)"
     );
 }
 

@@ -99,8 +99,12 @@ pub fn reason_said(full: &Full) -> String {
 /// What the reading itself says, in one phrase.
 pub fn reading_said(status: &PresenceStatus) -> String {
     match status {
-        PresenceStatus::Room { room, age_secs } => format!("room {room:?} ({age_secs}s ago)"),
-        PresenceStatus::Nowhere { poll_age_secs } => format!("nowhere (poll {poll_age_secs}s ago)"),
+        PresenceStatus::Room { room, age_secs } => {
+            format!("room {room:?} ({})", pns_domain::doctor::ago(*age_secs))
+        }
+        PresenceStatus::Nowhere { poll_age_secs } => {
+            format!("nowhere (poll {})", pns_domain::doctor::ago(*poll_age_secs))
+        }
         PresenceStatus::Unknown(reason) => {
             format!("unknown ({})", pns_domain::unreadable_said(reason))
         }

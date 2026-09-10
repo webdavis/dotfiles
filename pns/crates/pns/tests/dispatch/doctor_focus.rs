@@ -68,8 +68,13 @@ fn the_doctor_tells_the_truth_about_a_named_focus_in_every_state() {
         ),
         "the absent state never surfaced: {printed}"
     );
+    // SCOPED TO THE FOCUS LINE. This used to search the whole report for
+    // "could not be read", which other sections legitimately say about their
+    // own files, so it failed on a sentence that had nothing to do with Focus.
     assert!(
-        !printed.contains("could not be read"),
+        !printed
+            .lines()
+            .any(|line| line.contains("Focus") && line.contains("could not be read")),
         "absent was reported as a store that could not be read: {printed}"
     );
 }

@@ -27,4 +27,4 @@ pub use report::{Item, Mark};
 pub use routes::{RouteVerdict, route_line, route_mark, routes_summary};
 
 mod decisions;
-pub use decisions::section as decision_section;
+pub use decisions::{Detail, Summary, ago, section as decision_section, summarize};

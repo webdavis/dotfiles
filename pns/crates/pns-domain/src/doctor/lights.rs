@@ -76,10 +76,18 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
                 .iter()
                 .filter(|routed| routed.shows.contains(behaviour))
                 .count();
-            format!("{word} {lamps}")
+            // THE NOUN IS WHAT THE NUMBER COUNTS. Written `done 10` this read
+            // as ten things having finished, which is the opposite of the
+            // truth: it is ten LAMPS, standing ready to answer one state. A
+            // bare number beside a state word takes the state as its subject.
+            format!("{lamps} on {word}")
         })
         .collect();
-    let mut lines = vec![format!("{PREFIX}lights: {}", counted.join(", "))];
+    let mut lines = vec![format!(
+        "{PREFIX}{} lamps are routed: {}",
+        routing.lamps.len(),
+        counted.join(", ")
+    )];
     // THE SENTENCE ITSELF IS THE CHANNEL'S, so the tick reports an unresolved
     // lamp in the same words this does and only the prefix differs.
     for missing in &routing.unresolved {

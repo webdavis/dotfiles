@@ -1,5 +1,4 @@
 use crate::*;
-use pns_application::DOCTOR_OPENING;
 
 /// The `doctor` mode: one test send through every enabled channel, and one
 /// line per REGISTERED plugin about what happened.
@@ -26,12 +25,19 @@ pub(crate) fn doctor_mode() -> i32 {
     // narrower or wider than it was. `--no-color` never reaches here: it is
     // tool-wide, so the dispatcher takes it out of argv and remembers it, which
     // is what lets this stay a plain refusal of everything.
-    if !crate::arguments_after_subcommand().is_empty() {
-        eprintln!("{DOCTOR_USAGE}");
-        return 2;
-    }
+    // ONE WORD IS ACCEPTED AND EVERY OTHER IS A REFUSAL, before anything is
+    // sent or printed. A doctor that quietly ignored an argument is a check the
+    // operator believes was narrower or wider than it was.
+    let decisions = match crate::arguments_after_subcommand().as_slice() {
+        [] => pns_domain::doctor::Detail::Spoken,
+        [only] if only == RAW_FLAG => pns_domain::doctor::Detail::Raw,
+        _ => {
+            eprintln!("{DOCTOR_USAGE}");
+            return 2;
+        }
+    };
     let mut report = doctor_style::Report::new(style::Paint::for_stdout());
-    print_lines(report.open(DOCTOR_OPENING));
+    print_lines(report.open());
 
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
@@ -124,6 +130,7 @@ pub(crate) fn doctor_mode() -> i32 {
     let checks = pns_domain::doctor::checks(&registry.all(), &selection, config_state);
 
     let code = pns_application::RunDoctor {
+        decisions,
         checks: &checks,
         records: &pns_adapters::SqliteStore::for_records(state_dir()),
         clock: &now_secs,
@@ -249,4 +256,8 @@ fn print_lines(lines: Vec<String>) {
 /// and the report absorbs a new section without a new spelling. The one flag
 /// earns its place because a report that reaches a file or a pipe wants plain
 /// text and the automatic detection cannot see through a pty.
-const DOCTOR_USAGE: &str = "pns: usage: pns doctor";
+const DOCTOR_USAGE: &str = "pns: usage: pns doctor [--raw]";
+
+/// The one argument the doctor takes: every input behind each recorded
+/// decision, instead of the sentence the report says them in.
+const RAW_FLAG: &str = "--raw";

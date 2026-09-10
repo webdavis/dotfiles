@@ -14,6 +14,10 @@ pub struct RunDoctor<'a, R, C> {
     pub clock: &'a C,
     pub replay_card: bool,
     pub nag_after_secs: u64,
+    /// How much of each recorded decision to print. A FIELD RATHER THAN AN
+    /// ARGUMENT because it is the operator's standing answer for the whole
+    /// report, not one section's parameter.
+    pub decisions: pns_domain::doctor::Detail,
 }
 
 pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO> {
@@ -188,9 +192,9 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
         emit(Item::section("Delivery", DELIVERY_BLURB));
-        emit(Item::note(crate::delivery_health_line((actions
-            .delivery_health)(
-        ))));
+        for line in crate::delivery_health_lines((actions.delivery_health)()) {
+            emit(Item::note(line));
+        }
         // IMMEDIATELY UNDER THE LEDGER, because the two answer one question
         // between them: the line above says what is not arriving, and these say
         // whether the gateway would take it if pns sent it again.
@@ -214,15 +218,14 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
             pns_domain::doctor::routes_summary(&routes),
         ));
         emit(Item::section("Recent decisions", DECISIONS_BLURB));
-        for (index, line) in sections::decision_section(self.records, self.clock.now_secs())
-            .into_iter()
-            .enumerate()
+        // THE SECTION CARRIES ITS OWN MARKS NOW. It used to be marked by
+        // position here, first row a Note and every other a Detail, which was
+        // fine while every entry was exactly one line and wrong the moment a
+        // decision grew the sentence explaining it.
+        for (mark, line) in
+            sections::decision_section(self.records, self.clock.now_secs(), self.decisions)
         {
-            // The heading sentence, then one indented entry per decision.
-            emit(Item::row(
-                if index == 0 { Mark::Note } else { Mark::Detail },
-                line,
-            ));
+            emit(Item::row(mark, line));
         }
         // HISTORY BELOW HISTORY, and last for the reason the decision section is
         // second to last: an unreplayed journal is not a failure, so it sits under
@@ -253,18 +256,14 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
 /// all bypassed and no room to say which, and knowing which is what tells an
 /// operator that a green line here does not promise a green line during an
 /// event. A heading's rule is not boxed, so it has the room.
-const CHANNELS_BLURB: &str = "one send per channel, with every suppression gate bypassed";
+const CHANNELS_BLURB: &str =
+    "a real test notification down every channel, ignoring what normally silences one";
 const PAIRING_BLURB: &str = "whether the phone that answers cards still knows this Mac";
 const DAEMON_BLURB: &str = "what is running, and what would silence a notification";
-const LIGHTS_BLURB: &str = "what the lamps were last told to do";
+const LIGHTS_BLURB: &str = "which lamps light, and which states each one answers";
 const DELIVERY_BLURB: &str = "what has not arrived, and whether the gateway would take it";
 const DECISIONS_BLURB: &str = "why a card did or did not fire, newest first";
-const HISTORY_BLURB: &str = "what went unseen, and what failed to import";
-
-/// The contract, STATED rather than measured. Whether a gate is currently in
-/// effect is the decision log's question, and reporting live gate state here
-/// would be that feature built twice, in two places, from two readings.
-pub const DOCTOR_OPENING: &str = "every suppression gate is bypassed";
+const HISTORY_BLURB: &str = "notifications that were never seen, and any this could not read";
 
 /// The payload's detail, so whoever the card wakes knows at once that nothing
 /// is wrong and nothing needs doing.

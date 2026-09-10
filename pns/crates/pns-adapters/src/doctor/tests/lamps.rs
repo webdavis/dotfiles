@@ -78,7 +78,9 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     );
     assert_eq!(
         lights_lines(&LightsReport::Resolved(routing())),
-        vec!["pns doctor: lights: done 2, failed 2, blocked 1, unread 1, loop 0"],
+        vec![
+            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unread, 0 on loop"
+        ],
         "PER BEHAVIOUR, which is the question an operator opens this section \
              with: did the thing I routed reach a bulb. A behaviour nothing carries \
              is listed at zero rather than left out, because an absence reads as fine"
@@ -104,7 +106,7 @@ fn an_unresolved_name_and_a_refused_declaration_each_get_their_own_line() {
     assert_eq!(
         lights_lines(&LightsReport::Resolved(map)),
         vec![
-            "pns doctor: lights: done 2, failed 2, blocked 1, unread 1, loop 0",
+            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unread, 0 on loop",
             "pns doctor: lights: `3F - Studio - HCL9` (lamp) is not on the bridge",
             "pns doctor: lights: `3F - Cupboard` (room) is on the bridge, but it \
                  holds no lamp",
