@@ -91,18 +91,18 @@ fn the_report_names_every_live_place_and_says_so_when_there_are_none() {
             Some(now)
         ),
         vec![
-            "pns lights: `3F - Studio` is quiet for another 1 minute".to_string(),
-            "pns lights: `3F - Master Bedroom` is quiet for another 27 minutes".to_string(),
+            "`3F - Studio` is quiet for another 1 minute".to_string(),
+            "`3F - Master Bedroom` is quiet for another 27 minutes".to_string(),
         ]
     );
     assert_eq!(
         muted_report(&muted(&[(now, "3F - Studio")]), Some(now)),
-        vec!["pns lights: nothing is quiet".to_string()],
+        vec!["nothing is quiet".to_string()],
         "an expired entry is not a place to report"
     );
     assert_eq!(
         muted_report(&[], Some(now)),
-        vec!["pns lights: nothing is quiet".to_string()],
+        vec!["nothing is quiet".to_string()],
         "and neither is an empty file"
     );
 }

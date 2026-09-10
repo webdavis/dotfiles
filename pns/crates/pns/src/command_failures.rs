@@ -1,3 +1,4 @@
+use crate::style::{self, Paint, Tone};
 use pns_adapters::{DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, SqliteStore};
 use pns_application::StoredFailure;
 use pns_domain::failure::{self, Failure};
@@ -46,7 +47,21 @@ fn list(store: &SqliteStore) -> i32 {
         eprintln!("pns: the delivery ledger could not be read");
         return 1;
     };
-    print!("{}", listing(&failures));
+    let paint = Paint::for_stdout();
+    // THE CAP IS DISCLOSED, because a listing that silently stops at twenty
+    // reads as "twenty things are failing" when the real answer may be more.
+    // The page does not carry this line: it is about this invocation.
+    for line in style::header(
+        paint,
+        "pns failures",
+        &[style::HeaderLine {
+            label: "Showing",
+            text: &format!("the {LISTING_LIMIT} most recent failing legs"),
+        }],
+    ) {
+        println!("{line}");
+    }
+    print!("{}", listing(paint, &failures));
     0
 }
 
@@ -56,26 +71,60 @@ fn list(store: &SqliteStore) -> i32 {
 /// the design's one rule about it is that there must not be two formatters that
 /// can drift. The trailing pointer is part of it: whoever is holding the list is
 /// exactly the reader who needs to know how to open one of its rows.
-pub(crate) fn listing(failures: &[StoredFailure]) -> String {
+///
+/// THE PAINT IS AN ARGUMENT FOR THE SAME REASON. The page serves this into a
+/// browser's `<pre>`, where an escape sequence renders as literal line noise
+/// rather than as colour, so it passes `Paint::Plain` while the terminal passes
+/// whatever it resolved. Reading the destination in here would give the page the
+/// terminal's answer.
+pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     if failures.is_empty() {
         return "pns: nothing is failing to deliver\n".to_string();
     }
-    let mut out = format!(
-        "  {:<4}{:<18}{:<14}{:<11}sent by\n",
+    let mut out = String::new();
+    out.push_str(&style::heading(
+        paint,
+        "Not arriving",
+        &plural(failures.len()),
+    ));
+    out.push('\n');
+    // THE COLUMN HEADER IS FAINT, not a mark: it names the columns rather than
+    // reporting anything, and a row's own glyph is what carries the verdict.
+    out.push_str(&paint.faint(&format!(
+        "    {:<4}{:<18}{:<14}{:<11}sent by",
         "id", "when", "status", "route"
-    );
+    )));
+    out.push('\n');
     for failure in failures {
-        out.push_str(&format!(
-            "  {:<4}{:<18}{:<14}{:<11}{}\n",
-            failure.id,
-            when(failure.failed_at),
-            short_status(failure),
-            failure.route,
-            failure.agent
+        out.push_str(&style::row(
+            paint,
+            Tone::Bad,
+            "·",
+            2,
+            &format!(
+                "{:<4}{:<18}{:<14}{:<11}{}",
+                failure.id,
+                when(failure.failed_at),
+                short_status(failure),
+                failure.route,
+                failure.agent
+            ),
         ));
+        out.push('\n');
     }
-    out.push_str("\nrun `pns failures <id>` for one in full\n");
+    out.push('\n');
+    out.push_str(&paint.faint("run `pns failures <id>` for one in full"));
+    out.push('\n');
     out
+}
+
+/// "3 legs" or "1 leg", for the heading's blurb.
+fn plural(count: usize) -> String {
+    if count == 1 {
+        String::from("1 delivery leg")
+    } else {
+        format!("{count} delivery legs")
+    }
 }
 
 /// `pns failures serve`: the page, in the foreground, until it is stopped.

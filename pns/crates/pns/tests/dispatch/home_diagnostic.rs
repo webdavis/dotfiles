@@ -16,7 +16,8 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
         stdout(&run(&mut probe)).to_string()
     };
     let evidence = STALE_EVIDENCE;
-    let warning = STALE_WARNING;
+    // THE ROW, not the alert's sentence: this compares stdout.
+    let warning = STALE_WARNING_ROW;
     let memory = || {
         use rusqlite::OptionalExtension;
         stored_records::at(&sandbox.path(".local/state/pns/pns.db"))
@@ -39,10 +40,13 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     router.set_listing(KEYS_AGREE);
     assert_eq!(
         home(),
-        "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
-         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
-         home:   device_hostname \"mister-2\" matched the client the verdict names\n\
-         home:   device_ipv4 \"192.168.1.248\" matched the client the verdict names\n"
+        STALE_EVIDENCE
+            .replace("matched no client", "matched the client the verdict names")
+            .replace(
+                "matched a different client \"mouse\"",
+                "matched the client the verdict names"
+            )
+            + "\n"
     );
     assert!(memory().is_none(), "a resolved episode is forgotten");
     router.set_listing(KEYS_DISAGREE);
@@ -56,10 +60,14 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     router.set_listing(KEYS_AWAY);
     assert_eq!(
         home(),
-        "home: NOT on the home network (no configured identifier matched a client)\n\
-         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
-         home:   device_hostname \"mister-2\" matched no client\n\
-         home:   device_ipv4 \"192.168.1.248\" matched no client\n"
+        STALE_EVIDENCE
+            .replace(
+                "\u{2713} on the home network, matched by device_mac \"2e:11:ab:6d:b0:4f\"",
+                "\u{b7} NOT on the home network: no configured identifier matched a client"
+            )
+            .replace("matched the client the verdict names", "matched no client")
+            .replace("matched a different client \"mouse\"", "matched no client")
+            + "\n"
     );
     assert!(
         memory().is_some(),
@@ -74,7 +82,17 @@ fn the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state(
     router.set_listing(NO_LISTING);
     assert_eq!(
         home(),
-        "home: unknown (router unreachable or its answer unreadable)\n"
+        concat!(
+            "\npns home\n",
+            "Looking for   the client [plugins.router] names, on the home network\n",
+            "\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n",
+            "\n",
+            "\u{25c6} Verdict \u{2500}\u{2500} what the router's client list says\n",
+            "\n",
+            // NO EVIDENCE SECTION: an unreachable router read no keys, and a
+            // heading over nothing reads as a section that failed to load.
+            "  \u{26a0} unknown: the router was unreachable or its answer unreadable\n",
+        )
     );
     assert!(
         memory().is_some(),
@@ -102,12 +120,12 @@ fn a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing() 
         stdout(&run(&mut probe)).to_string()
     };
 
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n"));
     // The DOCUMENTED COST, pinned so it stays a cost and not a crash:
     // nothing could be remembered, so the same state is news again. A run
     // that went quiet here would mean a write had silently succeeded
     // somewhere this test cannot see.
-    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n"));
+    assert_eq!(home(), format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n"));
     assert!(blocked.is_file(), "the blocking file is left as it was");
 }
 
@@ -133,7 +151,7 @@ fn a_new_stale_state_is_delivered_as_one_alert_carrying_the_warning_sentence() {
     // single newline `println!` ends the report with.
     assert_eq!(
         stdout(&output),
-        format!("{STALE_EVIDENCE}\n{STALE_WARNING}\n")
+        format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n")
     );
     let delivered = alerts(&sandbox);
     assert_eq!(delivered.len(), 1, "one state, one alert: {delivered:?}");

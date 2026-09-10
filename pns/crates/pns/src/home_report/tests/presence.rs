@@ -1,4 +1,6 @@
 use super::*;
+use crate::home_report::verdict_line;
+use crate::style::Paint;
 
 // --- the reported lines, pinned so the words match the verdict -----------
 
@@ -12,30 +14,27 @@ fn verdict_only(presence: HomePresence) -> HomeReading {
 }
 
 #[test]
-fn each_presence_verdict_reports_its_own_line() {
-    // The Home line NAMES the identifier that answered and the value it
+fn each_presence_verdict_reports_its_own_sentence() {
+    // The Home sentence NAMES the identifier that answered and the value it
     // answered with, which is the only observable difference precedence
     // makes: the operator can see WHICH key spoke without a per-key
     // breakdown that would expose the probe's internals.
+    //
+    // PINNED ON THE PRODUCER, not on the styled report, so the words stay
+    // covered whatever the layout around them becomes.
     assert_eq!(
-        report(
-            &verdict_only(HomePresence::Home {
-                matched_by: DeviceKey::Mac,
-                value: "2e:11:ab:6d:b0:4f".to_string(),
-            }),
-            None
-        ),
-        "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")"
+        verdict_line(&HomePresence::Home {
+            matched_by: DeviceKey::Mac,
+            value: "2e:11:ab:6d:b0:4f".to_string(),
+        }),
+        "on the home network, matched by device_mac \"2e:11:ab:6d:b0:4f\""
     );
     assert_eq!(
-        report(
-            &verdict_only(HomePresence::Home {
-                matched_by: DeviceKey::Hostname,
-                value: "mister".to_string(),
-            }),
-            None
-        ),
-        "home: on the home network (matched by device_hostname \"mister\")"
+        verdict_line(&HomePresence::Home {
+            matched_by: DeviceKey::Hostname,
+            value: "mister".to_string(),
+        }),
+        "on the home network, matched by device_hostname \"mister\""
     );
     // THE VALUE IS ESCAPED, exactly as `spell` escapes a config value next
     // door: a client name carrying a quote or an ESC byte reaches stdout as
@@ -43,31 +42,53 @@ fn each_presence_verdict_reports_its_own_line() {
     // costs nothing to read: debug-quoting a plain string is the same
     // quoted form it always had.
     assert_eq!(
-        report(
-            &verdict_only(HomePresence::Home {
-                matched_by: DeviceKey::Hostname,
-                value: "mist\"er\u{1b}[2J".to_string(),
-            }),
-            None
-        ),
-        "home: on the home network (matched by device_hostname \"mist\\\"er\\u{1b}[2J\")"
+        verdict_line(&HomePresence::Home {
+            matched_by: DeviceKey::Hostname,
+            value: "mist\"er\u{1b}[2J".to_string(),
+        }),
+        "on the home network, matched by device_hostname \"mist\\\"er\\u{1b}[2J\""
     );
     assert_eq!(
-        report(&verdict_only(HomePresence::NotHome), None),
-        "home: NOT on the home network (no configured identifier matched a client)"
+        verdict_line(&HomePresence::NotHome),
+        "NOT on the home network: no configured identifier matched a client"
     );
     assert_eq!(
-        report(&verdict_only(HomePresence::Unknown), None),
-        "home: unknown (router unreachable or its answer unreadable)"
+        verdict_line(&HomePresence::Unknown),
+        "unknown: the router was unreachable or its answer unreadable"
     );
 }
 
 #[test]
+fn a_verdict_carries_a_mark_that_says_which_of_the_three_it_is() {
+    // UNKNOWN IS A WARNING, NOT A VERDICT. The router did not answer, so
+    // nothing was established either way, and a reader who skims the glyphs
+    // must not read it as "not home".
+    let report_for = |presence| report(Paint::Plain, &verdict_only(presence), None);
+    assert!(
+        report_for(HomePresence::Home {
+            matched_by: DeviceKey::Mac,
+            value: "2e:11:ab:6d:b0:4f".to_string(),
+        })
+        .contains("\u{2713} on the home network"),
+    );
+    assert!(report_for(HomePresence::NotHome).contains("\u{b7} NOT on the home network"));
+    assert!(report_for(HomePresence::Unknown).contains("\u{26a0} unknown:"));
+}
+
+#[test]
+fn a_reading_with_no_configured_keys_shows_no_empty_evidence_section() {
+    // A heading over nothing reads as a section that failed to load.
+    let text = report(Paint::Plain, &verdict_only(HomePresence::NotHome), None);
+    assert!(!text.contains("Evidence"), "{text}");
+    assert!(text.contains("Verdict"), "{text}");
+}
+
+#[test]
 fn the_evidence_under_the_verdict_says_what_each_key_found_escaping_the_label() {
-    // Every CONFIGURED key gets a line, whatever it found, because the
+    // Every CONFIGURED key gets a row, whatever it found, because the
     // diagnostic's job is to show the disagreement rather than the
     // winner. The ROUTER is not the operator: the client label is the one
-    // string on these lines nobody here typed, so it reaches a terminal
+    // string on these rows nobody here typed, so it reaches a terminal
     // as its escape exactly as the matched value does.
     let listing = r#"{"data":[{"name":"mister","ipAddress":"192.168.1.7"},
             {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.8"}]}"#;
@@ -79,16 +100,18 @@ fn the_evidence_under_the_verdict_says_what_each_key_found_escaping_the_label() 
              device_ipv4 = \"192.168.1.8\"\n",
         ),
     );
-    assert_eq!(
-        report(&reading, stale_identifiers(&reading).as_ref()),
-        "home: on the home network (matched by device_hostname \"mister\")\n\
-         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched no client\n\
-         home:   device_hostname \"mister\" matched the client the verdict names\n\
-         home:   device_ipv4 \"192.168.1.8\" matched a different client \
-         \"mo\\\"use\\u{1b}[2J\"\n\
-         home: an identifier looks stale: device_mac, device_ipv4 disagree with \
-         device_hostname"
-    );
+    let text = report(Paint::Plain, &reading, stale_identifiers(&reading).as_ref());
+    for needle in [
+        "\u{2713} on the home network, matched by device_hostname \"mister\"",
+        "\u{b7} device_mac        \"2e:11:ab:6d:b0:4f\"   matched no client",
+        "\u{b7} device_hostname   \"mister\"   matched the client the verdict names",
+        "\u{b7} device_ipv4       \"192.168.1.8\"   matched a different client \
+         \"mo\\\"use\\u{1b}[2J\"",
+        "\u{26a0} an identifier looks stale: device_mac, device_ipv4 disagree with \
+         device_hostname",
+    ] {
+        assert!(text.contains(needle), "missing {needle:?} in {text}");
+    }
 }
 
 #[test]
@@ -104,21 +127,17 @@ fn the_staleness_line_names_the_disagreeing_keys_and_prints_only_when_it_is_news
              device_ipv4 = \"192.168.1.248\"\n",
         ),
     );
-    let evidence = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
-         home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
-         home:   device_hostname \"mister-2\" matched no client\n\
-         home:   device_ipv4 \"192.168.1.248\" matched a different client \"mouse\"";
-    assert_eq!(
-        report(&reading, stale_identifiers(&reading).as_ref()),
-        format!(
-            "{evidence}\nhome: an identifier looks stale: device_hostname, device_ipv4 \
-             disagree with device_mac"
-        )
-    );
-    // A REPEAT keeps every evidence line and drops the alert-shaped one:
+    let warned = report(Paint::Plain, &reading, stale_identifiers(&reading).as_ref());
+    assert!(warned.contains(
+        "an identifier looks stale: device_hostname, device_ipv4 disagree with device_mac"
+    ));
+    // A REPEAT keeps every evidence row and drops the alert-shaped one:
     // a hand-run diagnostic always tells the whole truth, and only the
     // warning is said once.
-    assert_eq!(report(&reading, None), evidence);
+    let quiet = report(Paint::Plain, &reading, None);
+    assert!(!quiet.contains("looks stale"), "{quiet}");
+    assert!(quiet.contains("device_hostname"), "{quiet}");
+    assert!(quiet.contains("device_ipv4"), "{quiet}");
     // ONE disagreeing key is one key: the sentence agrees with what it
     // is naming.
     let one_key = home_reading(
@@ -128,12 +147,12 @@ fn the_staleness_line_names_the_disagreeing_keys_and_prints_only_when_it_is_news
              device_ipv4 = \"192.168.1.248\"\n",
         ),
     );
-    assert_eq!(
-        report(&one_key, stale_identifiers(&one_key).as_ref())
+    assert!(
+        report(Paint::Plain, &one_key, stale_identifiers(&one_key).as_ref())
             .lines()
             .last()
-            .expect("a staleness line"),
-        "home: an identifier looks stale: device_ipv4 disagrees with device_mac"
+            .expect("a staleness row")
+            .contains("an identifier looks stale: device_ipv4 disagrees with device_mac")
     );
 }
 

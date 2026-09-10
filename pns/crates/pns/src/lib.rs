@@ -21,7 +21,9 @@ pub use shell::shell_mode;
 mod home_report;
 mod lights_command;
 
-pub use home_report::{report as home_report, setup_report as home_setup_report};
+// CRATE-VISIBLE, because `report` now takes a `Paint` and a report's paint is
+// this crate's own vocabulary. Nothing outside ever called it.
+pub(crate) use home_report::{report as home_report, setup_report as home_setup_report};
 pub use lights_command::{LoopCommand, loop_command, quiet_command};
 
 pub(crate) use std::collections::BTreeMap;

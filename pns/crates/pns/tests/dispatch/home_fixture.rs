@@ -66,13 +66,49 @@ pub(super) fn alerts(sandbox: &Sandbox) -> Vec<serde_json::Value> {
         .collect()
 }
 
-pub(super) const STALE_EVIDENCE: &str = "home: on the home network (matched by device_mac \"2e:11:ab:6d:b0:4f\")\n\
-     home:   device_mac \"2e:11:ab:6d:b0:4f\" matched the client the verdict names\n\
-     home:   device_hostname \"mister-2\" matched no client\n\
-     home:   device_ipv4 \"192.168.1.248\" matched a different client \"mouse\"";
+/// The whole diagnostic, in the house style, as `pns home` prints it to a pipe.
+///
+/// ONE PLACE. Four cases assert the whole of stdout, because "the diagnostic is
+/// untouched" is what several of them are actually about, and four copies would
+/// be four things to edit whenever the format moves.
+///
+/// WRITTEN WITHOUT LINE CONTINUATIONS. A `\` at the end of a Rust string eats
+/// the leading whitespace of the next line, which is exactly the indentation
+/// these rows are being checked for.
+pub(super) const STALE_EVIDENCE: &str = concat!(
+    "\npns home\n",
+    "Looking for   the client [plugins.router] names, on the home network\n",
+    "\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n",
+    "\n",
+    "\u{25c6} Verdict \u{2500}\u{2500} what the router's client list says\n",
+    "\n",
+    "  \u{2713} on the home network, matched by device_mac \"2e:11:ab:6d:b0:4f\"\n",
+    "\n",
+    "\u{25c6} Evidence \u{2500}\u{2500} what each configured identifier matched\n",
+    "\n",
+    "  \u{b7} device_mac        \"2e:11:ab:6d:b0:4f\"   matched the client the verdict names\n",
+    "  \u{b7} device_hostname   \"mister-2\"   matched no client\n",
+    "  \u{b7} device_ipv4       \"192.168.1.248\"   matched a different client \"mouse\"",
+);
 
-pub(super) const STALE_WARNING: &str =
-    "home: an identifier looks stale: device_hostname, device_ipv4 disagree with device_mac";
+/// The warning SENTENCE, which is what the alert body carries.
+///
+/// NO GLYPH AND NO INDENT. A notification is one sentence going to a channel,
+/// not a row in a terminal report, so the two are separate constants: sharing
+/// one made an alert-body assertion start expecting a terminal's decoration.
+pub(super) const STALE_WARNING: &str = concat!(
+    "an identifier looks stale: device_hostname, device_ipv4 ",
+    "disagree with device_mac",
+);
+
+/// The same sentence as the report's warning ROW, with the blank line above it.
+///
+/// THE BLANK IS PART OF IT so the stdout call sites can keep writing
+/// `format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n")` unchanged.
+pub(super) const STALE_WARNING_ROW: &str = concat!(
+    "\n  \u{26a0} an identifier looks stale: device_hostname, device_ipv4 ",
+    "disagree with device_mac",
+);
 
 /// The same disagreement, with the OTHER client named in text nobody here
 /// typed: a quote and an ANSI screen clear, straight out of the router.

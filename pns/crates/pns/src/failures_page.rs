@@ -120,7 +120,9 @@ fn target(line: &str) -> Option<Target> {
 fn listing(store: &SqliteStore) -> String {
     match store.failing_legs(LISTING_LIMIT) {
         Err(_) => "pns: the delivery ledger could not be read\n".to_string(),
-        Ok(failures) => crate::command_failures::listing(&failures),
+        // PLAIN, ALWAYS. This lands in a browser's `<pre>`, where an escape
+        // sequence is literal line noise rather than colour.
+        Ok(failures) => crate::command_failures::listing(crate::style::Paint::Plain, &failures),
     }
 }
 
