@@ -11,6 +11,22 @@ impl pns_application::Terminal for ConsoleTerminal {
     fn say(&self, line: &str) {
         println!("{line}");
     }
+    fn open(&self, invocation: &str, lines: &[(&str, &str)]) {
+        let paint = crate::style::Paint::for_stdout();
+        let header: Vec<crate::style::HeaderLine<'_>> = lines
+            .iter()
+            .map(|(label, text)| crate::style::HeaderLine { label, text })
+            .collect();
+        for line in crate::style::header(paint, invocation, &header) {
+            println!("{line}");
+        }
+    }
+    fn section(&self, title: &str, blurb: &str) {
+        let paint = crate::style::Paint::for_stdout();
+        println!();
+        println!("{}", crate::style::heading(paint, title, blurb));
+        println!();
+    }
     fn ask(&self, question: &str) -> Result<String, String> {
         ask(question)
     }

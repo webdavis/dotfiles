@@ -86,9 +86,10 @@ fn the_header_names_the_command_and_labels_the_line_under_it() {
     // what tells the reader it is a caveat about the report below it.
     let report = plain();
     let opening = report.open("every suppression gate is bypassed");
-    assert_eq!(opening[0], "pns doctor");
-    assert_eq!(opening[1], "Note   every suppression gate is bypassed");
-    assert_eq!(opening[2].chars().count(), crate::style::width());
+    assert_eq!(opening[0], "", "the report opens clear of the prompt");
+    assert_eq!(opening[1], "pns doctor");
+    assert_eq!(opening[2], "Note   every suppression gate is bypassed");
+    assert_eq!(opening[3].chars().count(), crate::style::width());
 }
 
 #[test]

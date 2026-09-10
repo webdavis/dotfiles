@@ -86,17 +86,53 @@ fn a_destination_with_no_width_to_report_is_drawn_at_the_ceiling() {
 }
 
 #[test]
-fn a_header_names_its_command_then_its_labelled_lines_then_a_rule() {
+fn a_header_opens_blank_then_names_its_invocation_its_labelled_lines_and_a_rule() {
     let lines = header(
         Paint::Plain,
         "pns doctor",
-        &["Note   every gate is bypassed".to_string()],
+        &[HeaderLine {
+            label: "Note",
+            text: "every gate is bypassed",
+        }],
     );
-    assert_eq!(lines[0], "pns doctor");
-    assert_eq!(lines[1], "Note   every gate is bypassed");
-    assert_eq!(lines[2].chars().count(), width());
+    // A LEADING BLANK, so the report does not begin flush against the prompt
+    // the operator just typed.
+    assert_eq!(lines[0], "");
+    assert_eq!(lines[1], "pns doctor");
+    assert_eq!(lines[2], "Note   every gate is bypassed");
+    assert_eq!(lines[3].chars().count(), width());
     // The rule ends it. The gap below belongs to whatever section opens next.
-    assert_eq!(lines.len(), 3);
+    assert_eq!(lines.len(), 4);
+}
+
+#[test]
+fn header_labels_line_up_in_one_column_however_wide_the_widest_is() {
+    // Ragged labels read as unrelated lines. One column is what makes them
+    // read as a table of facts about the same report.
+    let lines = header(
+        Paint::Plain,
+        "pns tap --info",
+        &[
+            HeaderLine {
+                label: "About",
+                text: "the marker your phone touches",
+            },
+            HeaderLine {
+                label: "Verified on",
+                text: "iOS 26.2",
+            },
+        ],
+    );
+    assert_eq!(lines[2], "About         the marker your phone touches");
+    assert_eq!(lines[3], "Verified on   iOS 26.2");
+}
+
+#[test]
+fn a_header_carries_the_whole_invocation_so_the_reader_knows_which_flag_ran() {
+    // `pns tap` and `pns tap --info` print different reports. A header naming
+    // only the subcommand leaves the reader to work out which one they got.
+    let lines = header(Paint::Plain, "pns tap --info", &[]);
+    assert_eq!(lines[1], "pns tap --info");
 }
 
 #[test]
@@ -106,10 +142,10 @@ fn a_header_draws_no_box_at_any_width() {
     let lines = header(
         Paint::Plain,
         "pns tap --install",
-        &[
-            "Steps".to_string(),
-            "  1. This Mac    the authorized_keys line".to_string(),
-        ],
+        &[HeaderLine {
+            label: "Steps",
+            text: "1. This Mac    the authorized_keys line",
+        }],
     );
     for glyph in ['\u{256d}', '\u{256e}', '\u{2570}', '\u{256f}', '\u{2502}'] {
         assert!(
@@ -120,8 +156,17 @@ fn a_header_draws_no_box_at_any_width() {
 }
 
 #[test]
-fn a_header_line_is_never_padded_so_a_narrow_terminal_wraps_it_instead() {
+fn a_header_line_is_never_truncated_so_a_narrow_terminal_wraps_it_instead() {
+    // TRUNCATION LOSES THE FACT. Wrapping costs a line and keeps it, and the
+    // reader can always widen the window.
     let long = "x".repeat(200);
-    let lines = header(Paint::Plain, "pns doctor", std::slice::from_ref(&long));
-    assert_eq!(lines[1], long);
+    let lines = header(
+        Paint::Plain,
+        "pns doctor",
+        &[HeaderLine {
+            label: "Note",
+            text: &long,
+        }],
+    );
+    assert_eq!(lines[2], format!("Note   {long}"));
 }

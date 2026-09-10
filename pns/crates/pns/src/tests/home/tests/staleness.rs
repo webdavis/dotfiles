@@ -208,7 +208,7 @@ fn the_stale_warning_is_one_sentence_that_agrees_with_the_keys_it_names() {
     );
     assert_eq!(
         stale_warning(&stale_identifiers(&two_disagree).expect("two keys point away")),
-        "home: an identifier looks stale: device_hostname, device_ipv4 \
+        "an identifier looks stale: device_hostname, device_ipv4 \
          disagree with device_mac"
     );
     // ONE disagreeing key is one key: the verb agrees with what it names.
@@ -221,6 +221,6 @@ fn the_stale_warning_is_one_sentence_that_agrees_with_the_keys_it_names() {
     );
     assert_eq!(
         stale_warning(&stale_identifiers(&one_disagrees).expect("one key points away")),
-        "home: an identifier looks stale: device_ipv4 disagrees with device_mac"
+        "an identifier looks stale: device_ipv4 disagrees with device_mac"
     );
 }

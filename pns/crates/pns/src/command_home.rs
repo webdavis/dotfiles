@@ -73,7 +73,19 @@ pub(crate) fn home_mode() {
         notifier: &HomeNotification,
     }
     .run(&settings.device, alert_route, |reading, alert| {
-        println!("{}", report(reading, alert));
+        let paint = crate::style::Paint::for_stdout();
+        for line in crate::style::header(
+            paint,
+            "pns home",
+            &[crate::style::HeaderLine {
+                label: "Looking for",
+                text: "the client [plugins.router] names, on the home network",
+            }],
+        ) {
+            println!("{line}");
+        }
+        println!();
+        println!("{}", report(paint, reading, alert));
     });
 }
 

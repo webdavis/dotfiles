@@ -91,7 +91,10 @@ pub fn is_new_staleness(remembered: Option<&str>, current: Option<&str>) -> bool
 /// in the terminal, escaped by `report`.
 pub fn stale_warning(staleness: &Staleness) -> String {
     format!(
-        "home: an identifier looks stale: {} {} with {}",
+        // NO `home:` PREFIX. Its one caller renders this under a heading
+        // that already supplies that context, and a prefix repeated on
+        // every line is the noise the report format exists to drop.
+        "an identifier looks stale: {} {} with {}",
         staleness
             .disagreeing
             .iter()

@@ -62,7 +62,7 @@ fn setup_warns_before_secrets_about_managed_replacement_and_secret_diffs() {
     }
     let warning = pty
         .transcript
-        .find("A chezmoi-managed config will be replaced on the next apply");
+        .find("a chezmoi-managed config is replaced on the next apply");
     assert!(
         warning.is_some(),
         "managed replacement warning was absent: {:?}",

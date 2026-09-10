@@ -5,6 +5,12 @@ use std::collections::VecDeque;
 
 struct World {
     trace: RefCell<Vec<String>>,
+    /// The walk's furniture: its opening and its section titles.
+    ///
+    /// ITS OWN FIELD. `trace` is indexed positionally by the lifecycle cases,
+    /// and `output` is compared whole, so furniture in either would make every
+    /// one of them assert the layout as well as the thing it is about.
+    furniture: RefCell<Vec<String>>,
     answers: RefCell<VecDeque<Result<String, String>>>,
     observed: RefCell<Option<Answers>>,
     output: RefCell<Vec<String>>,
@@ -17,6 +23,7 @@ impl World {
     fn new(answers: &[&str]) -> Self {
         Self {
             trace: RefCell::new(Vec::new()),
+            furniture: RefCell::new(Vec::new()),
             answers: RefCell::new(answers.iter().map(|s| Ok(s.to_string())).collect()),
             observed: RefCell::new(None),
             output: RefCell::new(Vec::new()),
@@ -51,6 +58,24 @@ impl Terminal for World {
     }
     fn say(&self, line: &str) {
         self.output.borrow_mut().push(line.into());
+    }
+    // THE SHAPES ARE RECORDED AS THEIR WORDS. Nothing here is a style: the
+    // adapter owns how a header and a heading look, and a double that invented
+    // one would be pinning a look this crate does not decide.
+    // RECORDED IN THE TRACE, NOT IN THE OUTPUT. `output` is what the wizard
+    // told the operator about its own work, which several cases compare whole;
+    // a header and a section heading are the walk's furniture, and putting them
+    // there would make every one of those cases assert the layout too.
+    fn open(&self, invocation: &str, lines: &[(&str, &str)]) {
+        self.furniture.borrow_mut().push(invocation.to_string());
+        for (label, _) in lines {
+            self.furniture.borrow_mut().push(format!("label: {label}"));
+        }
+    }
+    fn section(&self, title: &str, _blurb: &str) {
+        self.furniture
+            .borrow_mut()
+            .push(format!("section: {title}"));
     }
     fn ask(&self, question: &str) -> Result<String, String> {
         self.answer("plain", question)
