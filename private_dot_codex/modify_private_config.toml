@@ -98,7 +98,9 @@
        free-drift. --- */ -}}
 {{- $merged = setValueAtPath "features.hooks" true $merged -}}
 {{- $merged = setValueAtPath "features.memories" true $merged -}}
+{{- $merged = setValueAtPath "features.network_proxy" true $merged -}}
 {{- $merged = setValueAtPath "features.prevent_idle_sleep" true $merged -}}
+{{- $merged = setValueAtPath "features.worktrees" true $merged -}}
 {{- $merged = setValueAtPath "features.js_repl" false $merged -}}
 {{- $merged = setValueAtPath "memories.generate_memories" true $merged -}}
 {{- $merged = setValueAtPath "memories.use_memories" true $merged -}}
