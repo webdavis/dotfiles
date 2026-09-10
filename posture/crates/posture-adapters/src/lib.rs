@@ -71,6 +71,9 @@ pub use state_files::PollStateFiles;
 mod digest_spool;
 pub use digest_spool::{DigestSpoolFile, prepare_spool_directory};
 
+mod digest_appender;
+pub use digest_appender::DigestAppendFile;
+
 mod results_log;
 pub use results_log::ResultsFile;
 
