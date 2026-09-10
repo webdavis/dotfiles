@@ -128,8 +128,7 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
             occurred_at: self.occurred_at,
             title: format!(
                 "🗒️ osquery daily digest · {} · {} item(s)",
-                self.utc_day,
-                batch.item_count
+                self.utc_day, batch.item_count
             ),
             detail: body,
         };

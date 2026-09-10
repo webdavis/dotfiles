@@ -126,7 +126,11 @@ fn a_torn_line_still_counts_toward_the_title_even_though_it_cannot_be_rendered()
     let spool = Spool::holding(2, vec![row("alpha", "one")]);
     let mut sink = Sink::default();
     assert_eq!(run(&spool, &mut sink), DigestOutcome::Sent);
-    assert!(sink.sent[0].title.contains("2 item(s)"), "{:?}", sink.sent[0].title);
+    assert!(
+        sink.sent[0].title.contains("2 item(s)"),
+        "{:?}",
+        sink.sent[0].title
+    );
     assert!(sink.sent[0].detail.contains("alpha"));
     assert!(!sink.sent[0].detail.contains("beta"));
 }
@@ -165,5 +169,3 @@ fn the_digest_is_an_observation_and_never_a_page() {
     assert_eq!(sink.sent[0].event, "digest");
     assert_eq!(sink.sent[0].occurrence_id, None);
 }
-
-

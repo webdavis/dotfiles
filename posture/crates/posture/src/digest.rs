@@ -40,7 +40,10 @@ fn execute(
         return 1;
     };
     if let Err(error) = prepare_spool_directory(&config.store) {
-        let _ = writeln!(stderr, "posture digest: the spool directory is unusable: {error}");
+        let _ = writeln!(
+            stderr,
+            "posture digest: the spool directory is unusable: {error}"
+        );
         return 1;
     }
     let spool = DigestSpoolFile::new(config.store, now.seconds, std::process::id());

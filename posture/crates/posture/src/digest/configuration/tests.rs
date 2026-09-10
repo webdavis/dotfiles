@@ -38,9 +38,9 @@ fn an_override_names_the_spool_but_an_empty_one_does_not() {
         .unwrap()
         .store
     };
-    assert_eq!(read("/elsewhere/spool.ndjson"), PathBuf::from("/elsewhere/spool.ndjson"));
     assert_eq!(
-        read(""),
-        PathBuf::from(format!("/home{DEFAULT_STORE}"))
+        read("/elsewhere/spool.ndjson"),
+        PathBuf::from("/elsewhere/spool.ndjson")
     );
+    assert_eq!(read(""), PathBuf::from(format!("/home{DEFAULT_STORE}")));
 }

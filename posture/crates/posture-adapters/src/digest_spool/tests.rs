@@ -129,8 +129,15 @@ fn a_kept_batch_is_rotated_to_one_forensic_copy_readable_only_by_its_owner() {
     let batch = spool.claim().unwrap();
     spool.keep(&batch);
     assert!(fixture.kept().unwrap().contains("alpha"));
-    assert_eq!(mode(&fixture.root.join("state").join("digest-spool.last")), 0o600);
-    assert!(fixture.strays() == ["digest-spool.last"], "{:?}", fixture.strays());
+    assert_eq!(
+        mode(&fixture.root.join("state").join("digest-spool.last")),
+        0o600
+    );
+    assert!(
+        fixture.strays() == ["digest-spool.last"],
+        "{:?}",
+        fixture.strays()
+    );
 }
 
 #[test]
@@ -169,7 +176,11 @@ fn a_restored_batch_is_claimed_whole_by_the_next_run() {
     // Round trip: whatever went back has to come out again as one batch, or
     // "restore for the next run" is only half true.
     let fixture = Fixture::new();
-    fixture.write_spool(&format!("{}\n{}\n", line("alpha", "one"), line("beta", "two")));
+    fixture.write_spool(&format!(
+        "{}\n{}\n",
+        line("alpha", "one"),
+        line("beta", "two")
+    ));
     let first = fixture.spool(100);
     let batch = first.claim().unwrap();
     first.restore(&batch);
