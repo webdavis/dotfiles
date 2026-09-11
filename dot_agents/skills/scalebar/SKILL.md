@@ -11,6 +11,19 @@ Scalebar is a menu-bar app that owns two records: a body-weight log and a gym lo
 exposes both. Every tool carries its own schema, so this file covers only what the schemas do not
 say.
 
+## Fitness reports
+
+When Stephen asks for fitness stats, training stats, advanced stats, or a fitness report, call
+`get_fitness_report` and present its output as returned. Do not rebuild the report by combining
+the lower-level tools, and do not replace its summary table or labeled explanations with a shorter
+summary. The report is the canonical format shared by Claude, Claude Code, Codex, Hermes, and other
+harnesses that load this skill.
+
+Pass `days` when Stephen requests a specific reporting period. If no period is requested, use the
+tool default. Preserve the report's `Date Range:` and `Period:` lines, its three-column summary
+table, explicit labels such as `RIR Definition:`, `Calculation:`, `Meaning:`, `Why It Matters:`,
+and `Why Unavailable:`, and the `PERSONAL RECORDS (PRs)` heading.
+
 ## Never write the files directly
 
 The app holds these records and writes them itself. Reaching around it with an editor or a shell
@@ -54,6 +67,8 @@ something nobody asked:
 - `get_exercise_progression` shows what was lifted, set by set, over recent sessions. It makes no
   judgment about whether a target was hit, because planned reps live outside the gym log.
 - `get_volume` sums weight times reps per session. Warmups and isometrics are excluded.
+- `get_fitness_report` is the canonical user-facing report and includes the lower-level findings
+  with their definitions and interpretation.
 - `get_prs` answers "what is the most I have ever done", including the reps at one exact weight.
 - `get_training_load` answers whether the recent load is sustainable, not what was lifted.
 
