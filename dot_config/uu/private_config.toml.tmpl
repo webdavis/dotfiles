@@ -133,6 +133,12 @@ type = "rustup"
 rustup = "{{ .chezmoi.homeDir }}/.cargo/bin/rustup"
 deadline_secs = 21600
 
+# Keep CodeGraph on the same weekly schedule as the other standalone tools.
+[lanes.codegraph]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
+deadline_secs = 21600
+
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
 # locked contract (a JSON run event on stdin, the exit code as the verdict),
 # with no core code to touch. Uncomment and rename the block to turn one on;
