@@ -51,7 +51,7 @@ To use these dotfiles on your system:
    chezmoi init --apply webdavis
    ```
 
-   This initializes and applies the dotfiles.
+   This initializes and applies the dotfiles, including the configured agent skills and harness links.
 
 ## Managing Files Using Chezmoi
 

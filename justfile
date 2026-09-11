@@ -17,19 +17,11 @@ alias a := apply
 alias c := lint-check
 alias D := defaults-drift
 
-# Format everything in place. The standalone treefmt binary (brew formula,
-# configured in treefmt.toml) is the single lint/format orchestrator; the
-# per-tool recipes below just filter it. Tools come from Homebrew and the
-# uv-managed mdformat, not nix (operator ruling 2026-08-05: this repo no
-# longer depends on nix; nix stays on the machine for other uses).
+# Format all supported files through the configured treefmt binary.
 lint:
   treefmt
 
-# Drift gate, and the whole of what the pre-push hook runs. Standalone treefmt
-# has no dry-run mode and no sandbox here, so unlike the old nix check
-# derivation this WRITES the fixes it finds while failing the run: a red gate
-# leaves the tree formatted, re-stage and retry. --no-cache so a stale cache
-# can never green-light drift.
+# Drift gate used by the pre-push hook. It may write fixes before failing.
 lint-check:
   treefmt --no-cache --fail-on-change
 
@@ -51,123 +43,40 @@ lint-json:
 lint-yaml:
   treefmt --formatters yq-validate
 
-# GitHub Actions hygiene: actionlint (syntax/semantics) plus zizmor (static
-# security analysis). Split into two recipes because CI runs only the zizmor
-# half as a gate of its own, and `ship` reuses that recipe rather than
-# repeating its command line.
+# GitHub Actions syntax and security checks.
 lint-actions: lint-actions-syntax lint-actions-security
 
-# actionlint through treefmt, so it uses the same config `just l` uses.
+# Run actionlint through treefmt.
 lint-actions-syntax:
   treefmt --formatters actionlint
 
-# CI's third gate, verbatim. --offline skips the audits that need the GitHub
-# API, so the result is deterministic.
+# Run the offline zizmor audit used by CI.
 lint-actions-security:
   zizmor --offline .github/workflows
 
-# Both reach templates, so both need KeePassXC unlocked and an interactive
-# terminal. That is deliberate: excluding templates left the deployed copy of a
-# templated target behind its source, which the osquery known-good manifest
-# reads as tampering. The operator runs these until the vault is replaced by
-# something an agent can unlock.
+# Both commands render templates and require an unlocked KeePassXC database.
 diff:
   chezmoi diff
 
 apply:
   chezmoi apply -v
 
-# Test suites: test/unit (single component, stub-driven, fast), then
-# test/integration and test/e2e. Rust tests live in each plugin's own crate,
-# not under test/, and run via `test-rust`. The pre-commit hook runs
-# `just test-unit`; the pre-push hook runs no suite (lint drift only); CI and
-# `just ship` run `just test`.
+# Shell suites run through the shared runner. Rust tests run through test-rust.
 
-# Unit suite only: the commit gate. The nvim config's Lua specs run first, then
-# the one runner, which runs the suite's own two lanes in order: its bashunit
-# `*.test.sh` files, then its executable *.sh tests. --shuffle randomizes the
-# *.sh order to flush hidden ordering deps (seed printed for replay);
-# --warn-slow-ms flags slow tests in a warn-only summary. The other suites run
-# the same runner plain.
+# Unit suite and commit gate. Shuffle shell tests and report slow tests.
 test-unit: validate-tests test-nvim
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
-# One suite at a time, for focused iteration. test/run-test-suite.sh runs the
-# suite's bashunit `*.test.sh` files (host bashunit, a brew formula), then its
-# executable *.sh tests.
+# Run the integration suite alone.
 test-integration: validate-tests
   ./test/run-test-suite.sh test/integration
 
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# The five Rust crates' tests, the one camp that is not a shell suite. The two
-# herdr plugins cover the pure decision functions with inline `#[cfg(test)] mod
-# tests`, every Command call sitting behind an untested boundary by design;
-# smart-nav is a five-crate workspace and adds one integration binary under
-# tests/ that runs the real compiled plugin against a stub herdr. pns and uu
-# are NOT pure-decision libraries: each has four (pns) or six (uu) integration
-# binaries under tests/ that spawn the real compiled engine as a subprocess
-# against a private sandboxed HOME, alongside their own inline unit tests.
-#
-# THE RUST CAMP RUNS UNDER A ONE-SECOND TEST BUDGET, enforced by a Drop guard
-# on each integration binary's sandbox harness (both crates keep it at
-# tests/support/mod.rs). A sandbox alive past one second at its own drop WARNS
-# on stderr, greppable as "test budget"; past five seconds it FAILS the
-# build, unless the test called `allow_slow("reason")` on it because the cost
-# is structural (an epoch-second lease, a whole-second deadline config key)
-# rather than a regression. This is a LOWER BOUND on the test's own sandbox
-# lifetime, not an upper bound on the code, and it says nothing about a unit
-# test, none of which owns a sandbox or runs over a second alone today.
-#
-# THE AGGREGATE IS STILL MULTI-SECOND, and that is not a bug in the budget:
-# warm, parallel per-binary totals here run daemon ~5s (one structural
-# `allow_slow` test dominates it), dispatch ~4s, hooks ~1.5s, native ~0.3s.
-# The one-second line bounds each TEST's own sandbox, not the sum across a
-# binary's whole suite.
-#
-# TWO STABLE ALTERNATIVES TO THE NIGHTLY-ONLY `--report-time --ensure-time`
-# CALIBRATION FLAGS WERE REJECTED, not adopted: `RUSTC_BOOTSTRAP=1
-# RUST_TEST_TIME_UNIT=500,1000 cargo +stable test -- -Z unstable-options
-# --report-time --ensure-time` works on stable 1.88 (verified with a scratch
-# crate) but is an escape hatch that changes cargo's rustc fingerprint, and it
-# measures the same contended wall clock the guard already accounts for;
-# cargo-nextest is not installed and would be a new Brewfile.dev and CI
-# dependency for one calibration run. The Drop guard needs neither: it is
-# ordinary safe Rust, so it runs identically on nightly here and on CI's
-# stable macOS.
-#
-# THE CRATES ARE ENUMERATED BY HAND. treefmt has no Rust coverage and nothing
-# discovers a manifest, so a new crate is invisible to this gate until its
-# three lines are written here.
-#
-# --locked matches the apply-time build
-# (.chezmoitemplates/herdr-plugin-build.sh.tmpl): Cargo.lock is committed for
-# every crate and a gate must not rewrite it. cargo comes from PATH, and its
-# absence FAILS this camp rather than skipping it, because a camp that skips
-# itself when its toolchain is missing is how these tests went unrun. CI needs
-# no new step: macos-latest ships cargo, clippy and rustfmt, and `just test`
-# pulls this in.
-#
-# fmt and clippy run for pns, uu and posture ONLY. Nothing linted Rust anywhere before
-# pns, and adopting the two for the herdr plugins is a separate decision with
-# its own diff; a gate that fails on code this slice did not touch would just be
-# turned off. --all-targets so the test modules are linted too, since that is
-# where most of those crates' code lives.
-#
-# pns keeps a root package beside its workspace members. Its commands select
-# --workspace (--all for cargo fmt), or they silently skip those members.
-# uu and posture have virtual workspaces; posture defaults to the cli crate alone.
-# The same selectors reach every member of both workspaces.
-#
-# The two herdr plugins' own build cost is cheap enough to sit in the default
-# camp list: about 2.5s per crate against an empty target/, well under a
-# second warm. target/ is crate-local, gitignored and .chezmoiignore'd, so a
-# developer pays the build once.
-# A rustdoc warning is a broken link in the docs the next reader opens, and it
-# never fails a build on its own, so it is stated here as a gate. `--no-deps`
-# keeps it to the code this repository owns; a dependency's own doc warnings are
-# not ours to fix and would make the gate unfixable.
+# Rust workspaces and plugins are listed explicitly because treefmt does not
+# discover Rust manifests. Locked dependencies and documentation warnings are
+# checked with the tests.
 test-rust:
   cargo test --locked --workspace --manifest-path lights/Cargo.toml
   cargo fmt --all --check --manifest-path lights/Cargo.toml
@@ -192,73 +101,30 @@ test-rust:
   cargo clippy --locked --workspace --all-targets --manifest-path posture/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path posture/Cargo.toml
 
-# The nvim config's headless Lua specs (spec 6.3), run against the SOURCE tree.
-# `--clean` keeps the plugin tree out, so a whole run costs about 30 ms. The
-# runner globs tests/*_spec.lua itself, so a new spec file needs no registration
-# anywhere. test-unit depends on this recipe: that is what puts the specs in the
-# commit gate and, through test-unit, in `just test`.
+# Run the Neovim Lua specs against the source tree.
 test-nvim:
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
 
-# ONE suite's bashunit `<name>.test.sh` files, for focused iteration. Every
-# suite recipe above already runs its own bashunit lane through the same
-# runner, so this adds no coverage: it narrows a run to that lane, and defaults
-# to the unit suite because that is where the migration starts.
-#
-# bashunit is never handed a DIRECTORY, here or in the runner. Its own path
-# argument scans recursively for `*[tT]est.sh` plus a `.bash` twin, which
-# reaches fixtures, the executable *.sh tests the other lane runs, and every
-# other suite's files; the runner passes an exact, suite-local list instead.
-# validate-tests is a dependency for the same reason it is on every other suite
-# recipe: the mode and placement rules are what keep the two lanes from
-# claiming one file.
+# Run only the bashunit lane for one suite.
 test-bashunit suite="test/unit": validate-tests
   ./test/run-test-suite.sh --only-bashunit {{ suite }}
 
-# Placement / mode / symlink guard (test/validate-tests.sh): every *.sh below
-# test/ must sit DIRECTLY in a recognized suite (test/unit, test/integration,
-# test/e2e, test/test-system); suite *.sh must be executable, except a bashunit
-# `<name>.test.sh`, which must NOT be and which never belongs in helpers/ or
-# fixtures/; a *.bats anywhere below test/ is rejected outright, since bats-core
-# left the toolchain and no runner would execute it; no symlinks are allowed
-# anywhere below test/ (a physical find skips them, so they would evade every
-# gate). A suite's helpers/ and test/fixtures/** are otherwise exempt.
+# Validate test placement, modes, and file types.
 validate-tests:
   ./test/validate-tests.sh
 
-# All suites: what CI runs.
+# Run all test suites.
 test: test-unit test-integration test-e2e test-rust
 
-# The pre-PR sweep: the three gates .github/workflows/lint.yml runs, in CI's
-# order, as LITERAL `just` command lines so they compare byte for byte against
-# the workflow's run: steps. Keeping this list and the workflow describing the
-# same work is now a manual review step (the parity test was a declaration
-# cross-check, deleted 2026-08-05).
-#
-# A green run does NOT promise CI green: it reads the working tree; CI reads
-# the pushed commit. An edit you never staged can make ship green and CI red;
-# that is the PR #116 failure `docs/runbooks/git-hooks.md` records.
+# Run the three CI gates locally before opening a pull request.
 ship:
   just lint-check
   just test
   just lint-actions-security
 
-# Install the contributor toolchain into a fresh checkout: every gate below
-# (lint-check, test, lint-actions-security) assumes these are on PATH.
-#
-# Two lanes, because the tools split by how they drift. Binary tools come from
-# Brewfile.dev, where a floating version is fine: a newer shfmt or shellcheck
-# changes findings, not formatting bytes. mdformat is the exception and the
-# reason this recipe exists rather than a bare `brew bundle`. It REWRITES
-# markdown, so a version bump silently rewraps every file and the drift gate
-# fails on work nobody did; it and all six plugins are therefore pinned to the
-# exact versions CI installs.
-#
-# THE PIN SET LIVES HERE AND IN CI, hand-synced. The toolchain step in
-# .github/workflows/lint.yml carries the same `==` versions, nothing enforces
-# that the two agree, and they must move together or local and CI disagree
-# about what formatted markdown looks like.
+# Install the contributor toolchain. mdformat is pinned here and in CI because
+# it rewrites Markdown.
 setup:
   brew bundle --file=Brewfile.dev
   uv tool install mdformat==0.7.22 \
@@ -269,22 +135,11 @@ setup:
     --with mdformat-tables==1.0.0 \
     --with mdformat-config==0.2.1
 
-# Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
-# cleanup). The same lane the Sunday-noon com.webdavis.uu LaunchAgent runs; use
-# it for the first upgrade or any ad-hoc one. Runs the DEPLOYED binary (what
-# launchd runs), not the repo source copy. It takes uu's own run lock, so a run
-# that overlaps the scheduled one says so and exits rather than racing it.
+# Run the deployed weekly Homebrew upgrade lane manually.
 brew-upgrade:
   ~/.cargo/bin/uu run brew
 
-# Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
-# `brew shellenv`, now, instead of waiting for the next interactive shell to
-# self-heal it. Runs the DEPLOYED writer, the same artifact ~/.bashrc's
-# self-heal runs, so the atomic write has exactly one implementation and this
-# recipe cannot drift from it. The writer reaches ~/.local/bin only via
-# `chezmoi apply`, so say that plainly instead of letting the shell report a
-# bare "No such file or directory" from a path the reader has no reason to
-# recognize.
+# Refresh the deployed Homebrew shell environment cache.
 brew-cache-refresh:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -304,10 +159,7 @@ defaults-drift:
 defaults-apply:
   ~/.local/libexec/macos-defaults/macos-defaults-apply.sh
 
-# `defaults-capture <domain> <key> [current]`, capture a live setting into YAML.
-# Pass the literal `current` as the third arg to use ByHost storage
-# (`defaults -currentHost`). Any non-empty third arg triggers ByHost mode;
-# the v1 schema does not support arbitrary hostnames.
+# Capture a live macOS setting into YAML. Use `current` for ByHost storage.
 defaults-capture domain key current="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -317,7 +169,7 @@ defaults-capture domain key current="":
     ~/.local/libexec/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}"
   fi
 
-# macOS Defaults discovery, read-only wrappers around `defaults`.
+# Read-only macOS Defaults helpers.
 defaults-list:
   defaults domains | tr ',' '\n' | sort
 
@@ -328,14 +180,10 @@ defaults-dump:
   defaults read | less
 
 # Refresh skills through the weekly uu lane.
-# uu bootstrap skills installs or repairs additively without a weekly record.
 update-skills:
   ~/.cargo/bin/uu run skills
 
-# Regenerate the shipped pns config template from the committed values file.
-# `just test-unit` pins the result byte for byte, so a hand edit to the
-# template (or an honest edit to the values file) fails there; this recipe is
-# what makes it green again. Dev-only: `pns-config-render` is never installed.
+# Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":
   cargo run --locked --quiet --features dev-tools --manifest-path pns/Cargo.toml --bin pns-config-render -- \
     dot_config/pns/config-values.toml {{quote(output)}}
