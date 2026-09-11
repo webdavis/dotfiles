@@ -1,0 +1,7 @@
+#!/bin/sh
+
+set -eu
+
+# CodeGraph is installed from its standalone release bundle so its browser UI
+# is available independently of the fnm-managed npm packages.
+curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
