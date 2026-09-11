@@ -16,10 +16,7 @@ This repository contains the settings/configs for my computers, managed using
 - [Managing Files Using Chezmoi](#managing-files-using-chezmoi)
 - [Development Environment](#development-environment)
   - [Install](#install)
-  - [Usage](#usage)
-    - [Enter the Dev Shell](#enter-the-dev-shell)
-    - [Run Commands Ad Hoc](#run-commands-ad-hoc)
-  - [Bonus: justfile](#bonus-justfile)
+  - [Commands](#commands)
 
 <!-- table-of-contents -->
 
@@ -54,8 +51,7 @@ To use these dotfiles on your system:
    chezmoi init --apply webdavis
    ```
 
-   This will automatically find and clone `webdavis/dotfiles` from GitHub to the local path
-   `~/.local/share/chezmoi/`.
+   This initializes and applies the dotfiles.
 
 ## Managing Files Using Chezmoi
 
@@ -82,61 +78,31 @@ chezmoi edit <FILE>
 
 ## Development Environment
 
-This project's development environment is managed using [Nix Flakes](https://wiki.nixos.org/wiki/Flakes),
-and is defined in the [`flake.nix`](./flake.nix) file.
+This project's contributor toolchain uses Homebrew and uv. There is no Nix development shell.
 
 ### Install
 
-Install upstream Nix using the [NixOS-maintained Nix Installer](https://github.com/NixOS/nix-installer)
-(a fork of the Determinate Systems installer that continues to support upstream Nix after Determinate's
-installer sunset that path on `2026-01-01`):
+From a fresh checkout, install `just` and run the setup recipe:
 
 ```bash
-curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install
+brew install just
+just setup
 ```
 
-> [!NOTE]
-> Upstream Nix (rather than Determinate Nix) keeps the path to
-> [nix-darwin](https://github.com/nix-darwin/nix-darwin) clean, nix-darwin defaults to managing upstream
-> Nix and conflicts with Determinate's auto-update daemon. Use the NixOS fork above for both
-> fresh-machine installs and CI.
+The recipe installs the contributor tools from [`Brewfile.dev`](./Brewfile.dev) and the pinned Markdown
+formatter with its plugins through uv.
 
-### Usage
+### Commands
 
-You have two options for using the flake environment:
-
-#### Enter the Dev Shell
-
-Drop into a persistent development shell with all tools provisioned by the flake:
+Run the formatter and lint checks with:
 
 ```bash
-nix develop
+just l       # format files
+just L       # check for formatting drift
+just s       # run ShellCheck
+just test-unit
+just test
+just ship
 ```
 
-For example, once inside this shell you can lint this README by running
-[Mdformat](https://github.com/hukkin/mdformat) directly:
-
-```bash
-mdformat README.md
-```
-
-#### Run Commands Ad Hoc
-
-Run a single command in a temporary environment without entering the shell:
-
-```bash
-nix develop .#run --command treefmt
-```
-
-> [!TIP]
-> You can replace `treefmt` with any command you want to execute inside the development environment (e.g.
-> `mdformat README.md`).
-
-### Bonus: justfile
-
-This repo provides a [`justfile`](./justfile) for quick command execution. To execute the linter within
-the Nix flake shell ad-hoc style simply run:
-
-```bash
-just l
-```
+See the [`justfile`](./justfile) for the complete command list.
