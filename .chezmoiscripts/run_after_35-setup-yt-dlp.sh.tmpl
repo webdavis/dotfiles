@@ -109,28 +109,6 @@ install_plugin() {
   fi
 }
 
-# =============================================================================
-# Update
-# =============================================================================
-
-update_ytdlp() {
-  [[ -x "${YTDLP_BIN}" ]] || return 0
-  # Quiet when nothing changed: `yt-dlp -U` narrates "Latest version... is up
-  # to date" on every run, which made every apply chatty. An actual update or a
-  # failure still prints in full (operator ruling 2026-08-05: a no-op apply
-  # prints nothing).
-  local update_output
-  if update_output="$("${YTDLP_BIN}" -U 2>&1)"; then
-    if [[ $update_output != *"is up to date"* ]]; then
-      report_section "yt-dlp" "nightly update"
-      printf '%s\n' "${update_output}"
-    fi
-  else
-    report_section "yt-dlp" "update check FAILED"
-    printf '%s\n' "${update_output}"
-  fi
-}
-
 update_pot_server() {
   [[ -d "${POT_REPO}" ]] || return 1
   local latest current
@@ -189,7 +167,6 @@ main() {
   install_pot_server
   install_plugin
 
-  update_ytdlp
   if update_pot_server; then
     update_plugin
     restart_pot_launchagent
