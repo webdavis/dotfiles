@@ -19,7 +19,6 @@ packages:
       taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -44,7 +43,6 @@ packages:
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
