@@ -109,30 +109,6 @@ install_plugin() {
   fi
 }
 
-update_pot_server() {
-  [[ -d "${POT_REPO}" ]] || return 1
-  local latest current
-  latest="$(fetch_latest_pot_tag)" || true
-  current="$(current_pot_tag)" || current=""
-  [[ -n "${latest}" ]] && [[ "${current}" != "${latest}" ]] || return 1
-  echo "Updating bgutil-ytdlp-pot-provider from ${current:-unknown} to ${latest}..."
-  git -C "${POT_REPO}" fetch --tags origin 2>/dev/null
-  if git -C "${POT_REPO}" checkout "${latest}" 2>/dev/null; then
-    build_pot_server || { echo "Warning: server rebuild failed."; return 1; }
-    return 0
-  else
-    echo "Warning: failed to checkout ${latest}."
-    return 1
-  fi
-}
-
-update_plugin() {
-  echo "Re-downloading bgutil plugin to match server..."
-  if ! download_file "${POT_PLUGIN_URL}" "${PLUGIN_ZIP}"; then
-    echo "Warning: failed to re-download bgutil plugin."
-  fi
-}
-
 # =============================================================================
 # LaunchAgent
 # =============================================================================
@@ -166,11 +142,6 @@ main() {
   install_ytdlp
   install_pot_server
   install_plugin
-
-  if update_pot_server; then
-    update_plugin
-    restart_pot_launchagent
-  fi
 
   ensure_pot_launchagent
 }

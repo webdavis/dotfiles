@@ -154,6 +154,11 @@ type = "command"
 run = ["{{ joinPath .chezmoi.homeDir ".local/bin/yt-dlp" }}", "-U"]
 deadline_secs = 21600
 
+[lanes.bgutil-ytdlp-pot-provider]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/unattended-upgrades/update-bgutil-ytdlp-pot-provider.sh" }}"]
+deadline_secs = 21600
+
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
 # locked contract (a JSON run event on stdin, the exit code as the verdict),
 # with no core code to touch. Uncomment and rename the block to turn one on;
