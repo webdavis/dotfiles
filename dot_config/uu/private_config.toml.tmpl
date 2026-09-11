@@ -133,10 +133,30 @@ type = "rustup"
 rustup = "{{ .chezmoi.homeDir }}/.cargo/bin/rustup"
 deadline_secs = 21600
 
-# Keep CodeGraph on the same weekly schedule as the other standalone tools.
+# Keep standalone CLI tools on the same weekly schedule as the other updaters.
+[lanes.composio]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".composio/composio" }}", "upgrade"]
+deadline_secs = 21600
+
 [lanes.codegraph]
 type = "command"
 run = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
+deadline_secs = 21600
+
+[lanes.herdr-binary]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/bin/herdr" }}", "update"]
+deadline_secs = 21600
+
+[lanes.yt-dlp]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/bin/yt-dlp" }}", "-U"]
+deadline_secs = 21600
+
+[lanes.bgutil-ytdlp-pot-provider]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/unattended-upgrades/update-bgutil-ytdlp-pot-provider.sh" }}"]
 deadline_secs = 21600
 
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
