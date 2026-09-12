@@ -637,6 +637,7 @@
 {{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
