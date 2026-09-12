@@ -258,6 +258,13 @@ type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
+# Agent quota settings.
+[[keys.command]]
+key = "prefix+u"
+type = "plugin_action"
+command = "herdr-agent-quota.open-settings"
+description = "agent quota: open settings"
+
 # ╭────────────────────╮
 # │  tab-smart-rename  │
 # ╰────────────────────╯
