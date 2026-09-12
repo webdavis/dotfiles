@@ -258,7 +258,9 @@ type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
-# Agent quota settings.
+# ╭─────────────────────╮
+# │  herdr-agent-quota  │
+# ╰─────────────────────╯
 [[keys.command]]
 key = "prefix+u"
 type = "plugin_action"
