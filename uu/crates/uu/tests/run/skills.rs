@@ -8,7 +8,7 @@ fn a_registered_skills_lane_runs_weekly_under_its_declared_name() {
     f.ready("ready");
     let output = f.invoke(&["run", "mine"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert!(stdout(&output).contains("mine: 0 failure(s)"), "{output:?}");
+    assert!(stdout(&output).contains("mine: completed"), "{output:?}");
     assert!(
         stdout(&output).contains("reusing recovered candidate"),
         "{output:?}"

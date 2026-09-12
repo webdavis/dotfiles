@@ -20,7 +20,7 @@ fn a_weekly_plugin_lane_compares_and_advances_history_under_its_declared_name() 
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert!(stdout(&output).contains("`alpha` `1` -> `2`"), "{output:?}");
     assert!(
-        stdout(&output).contains("personal: 0 failure(s)"),
+        stdout(&output).contains("personal: completed"),
         "{output:?}"
     );
     assert_eq!(

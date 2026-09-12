@@ -191,11 +191,11 @@ fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_sta
     // code nothing checks.
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let record = stdout(&output);
-    assert!(record.contains("a-clean: 0 failure(s)"), "{record}");
-    assert!(record.contains("b-failing: 1 failure(s)"), "{record}");
+    assert!(record.contains("a-clean: completed"), "{record}");
+    assert!(record.contains("b-failing: failed"), "{record}");
     assert!(record.contains("c-deferring: deferred"), "{record}");
     assert!(
-        record.contains("=== done, 1 failure(s), 1 deferred, 0 pending ==="),
+        record.contains("done, 1 failure(s), 1 deferred, 0 pending"),
         "{record}"
     );
     let alerts = std::fs::read_to_string(home.dir.join("alert-args")).expect("the alert args");
