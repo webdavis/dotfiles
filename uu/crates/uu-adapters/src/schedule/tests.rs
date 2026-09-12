@@ -58,13 +58,9 @@ fn the_rendered_job_carries_the_environment_uu_run_needs() {
 }
 
 #[test]
-fn the_rendered_job_says_the_log_directory_has_to_be_made_first() {
-    // launchd creates the log FILE and never its directory, and a job
-    // whose StandardOutPath cannot be opened does not start. On this
-    // machine the loader script makes it; a standalone install has no
-    // loader, so the plist itself has to say so.
+fn the_rendered_job_names_the_log_owned_by_uu() {
     let plist = rendered(Schedule::default());
-    assert!(plist.contains("mkdir -p"), "{plist}");
+    assert!(plist.contains("/home/x/.local/log/uu/uu.log"), "{plist}");
 }
 
 #[test]
@@ -80,11 +76,13 @@ fn the_label_and_both_log_paths_are_the_ones_given() {
         "{plist}"
     );
     assert_eq!(
-        plist
-            .matches("<string>/home/x/.local/log/uu/uu.log</string>")
-            .count(),
+        plist.matches("<string>/dev/null</string>").count(),
         2,
-        "stdout and stderr both go to the log: {plist}"
+        "launchd output is not duplicated in the run log: {plist}"
+    );
+    assert!(
+        plist.contains("/home/x/.local/log/uu/uu.log"),
+        "uu owns the run log: {plist}"
     );
 }
 
@@ -97,7 +95,7 @@ fn a_path_holding_xml_syntax_is_escaped_rather_than_breaking_the_plist() {
         "{plist}"
     );
     assert!(
-        plist.contains("<string>/home/a&lt;b&gt;&amp;c/.local/log/uu/uu.log</string>"),
+        plist.contains("/home/a&lt;b&gt;&amp;c/.local/log/uu/uu.log"),
         "{plist}"
     );
     // The environment carries the same home twice more, and an unescaped

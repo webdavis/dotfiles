@@ -311,8 +311,8 @@
       ],
       "source": "clawhub",
       "identifier": "clawhub/tiktok-crawling",
-      "lockKey": "tiktok-crawling",
-      "note": "hub skill's frontmatter name is tiktok-scraping-yt-dlp; update by this lockKey, never the list name. Upstream re-verified live (clawhub.ai/romneyda/skills/tiktok-crawling, v1.0.0); the weekly `hermes -p concerned skills update tiktok-crawling` round-trip was exercised successfully"
+      "lockKey": "tiktok-scraping-yt-dlp",
+      "note": "hub skill's frontmatter name is tiktok-scraping-yt-dlp; update by this lockKey, never the list name. Upstream re-verified live (clawhub.ai/romneyda/skills/tiktok-crawling, v1.0.0); the weekly `hermes -p concerned skills update tiktok-scraping-yt-dlp` round-trip was exercised successfully"
     },
     "video-transcript-downloader": {
       "profiles": [

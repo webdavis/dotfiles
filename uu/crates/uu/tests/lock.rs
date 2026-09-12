@@ -52,6 +52,13 @@ fn a_second_run_finding_the_lock_already_held_refuses_and_exits_rather_than_raci
         !home.marker().exists(),
         "a run refused the lock must not pretend it ran: {output:?}"
     );
+    let log = home.dir.join(".local/log/uu/uu.log");
+    assert!(
+        std::fs::read_to_string(log)
+            .unwrap()
+            .contains("already holds"),
+        "a refused run must be recorded in the uu log"
+    );
     drop(held);
 }
 
@@ -63,6 +70,9 @@ fn a_run_that_gets_the_lock_leaves_nothing_for_the_next_run_to_trip_on() {
     let home = Home::new("lock-released").with_herdr_lane(0);
     assert_eq!(home.uu(&["run"]).status.code(), Some(0));
     assert_eq!(home.uu(&["run"]).status.code(), Some(0));
+    let log = home.dir.join(".local/log/uu/uu.log");
+    let contents = std::fs::read_to_string(log).unwrap();
+    assert_eq!(contents.matches("=== done,").count(), 2);
 }
 
 #[test]

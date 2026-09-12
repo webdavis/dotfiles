@@ -107,7 +107,7 @@ content forks (`fork: true`). `elevenlabs` is vendored because npx cannot instal
 `SKILL.md` sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`).
 `tiktok-crawling` is the one plain committed dir with no `forks` entry: a ClawHub-published skill left
 vendored because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster
-name (`tiktok-scraping-yt-dlp`).
+name (`tiktok-scraping-yt-dlp`), and the Hermes update key is that installed name.
 
 ### App-owned symlink (`cua-driver`)
 

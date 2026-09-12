@@ -27,7 +27,7 @@ if [[ ! -x $UU ]]; then
   exit 0
 fi
 
-# launchd will not create the log dir itself.
+# Keep the run-log directory ready before loading the agent.
 mkdir -p "$HOME/.local/log/uu"
 
 PLIST="$HOME/Library/LaunchAgents/com.webdavis.uu.plist"

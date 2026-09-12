@@ -37,7 +37,9 @@ fn a_pending_command_lane_keeps_its_output_and_advances_the_marker() {
         started_iso: "fixture-start".into(),
         gap: "fixture-gap".into(),
     };
-    let detail = ConsoleRunPresentation.write_record(&header, &reports);
+    let log = std::env::temp_dir().join(format!("uu-presentation-{}", std::process::id()));
+    let presentation = ConsoleRunPresentation::new(&log).unwrap();
+    let detail = presentation.write_record(&header, &reports);
     assert!(detail.contains("mine: pending"), "{detail}");
     assert!(detail.contains("two updates waiting"), "{detail}");
     assert!(detail.contains("operator must accept pins"), "{detail}");
@@ -45,6 +47,7 @@ fn a_pending_command_lane_keeps_its_output_and_advances_the_marker() {
         detail.contains("0 failure(s), 0 deferred, 1 pending"),
         "{detail}"
     );
+    let _ = std::fs::remove_file(log);
     assert_eq!(
         uu_adapters::read_marker(&fixture.marker()),
         uu_domain::Marker::Recorded {
