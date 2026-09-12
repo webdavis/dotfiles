@@ -4,7 +4,7 @@ use uu_adapters::{
     Config, config_path, gap_line, home, marker_path, now_epoch, read_marker, resolve,
 };
 
-use crate::style::{self, HeaderLine, Paint, Tone};
+use uu_adapters::style::{self, HeaderLine, Paint, Tone};
 
 /// THE PATH CAVEAT LIVES HERE, once, rather than on every lane that names a
 /// program. It was the same forty-word sentence under four lanes, which is the

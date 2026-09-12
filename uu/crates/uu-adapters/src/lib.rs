@@ -28,6 +28,7 @@ mod record;
 mod registration;
 mod schedule;
 mod signed_post;
+pub mod style;
 
 mod adapters;
 mod delivery;

@@ -11,7 +11,6 @@
 
 mod cli;
 mod registrations;
-mod style;
 
 fn main() {
     // Die on a closed pipe the way every other unix tool does. Rust ignores
@@ -33,7 +32,7 @@ fn dispatch() -> i32 {
     // would reject the flag as an unknown command.
     let forced_plain = argv.iter().any(|word| word == "--no-color");
     argv.retain(|word| word != "--no-color");
-    style::remember_forced_plain(forced_plain);
+    uu_adapters::style::remember_forced_plain(forced_plain);
     let words: Vec<&str> = argv.iter().map(String::as_str).collect();
     match words.as_slice() {
         ["run"] => cli::run_mode(None),
@@ -50,7 +49,7 @@ fn dispatch() -> i32 {
 /// fallthrough to help with exit 0.
 fn usage(problem: &str) -> i32 {
     eprintln!(
-        "uu: {problem}\n\
+        "{}\n\
          usage:\n  \
            uu run [<lane>]     run every enabled lane, or just one\n  \
            uu bootstrap <lane> seed a lane without a weekly run\n  \
@@ -59,6 +58,11 @@ fn usage(problem: &str) -> i32 {
          options:\n  \
            --no-color          plain text, no escape sequences (also NO_COLOR)\n\
          lane types: {}",
+        uu_adapters::style::row(
+            uu_adapters::style::Paint::for_stderr(),
+            uu_adapters::style::Tone::Bad,
+            &format!("uu: {problem}"),
+        ),
         registrations::LANES
             .iter()
             .map(uu_adapters::LaneRegistration::type_name)

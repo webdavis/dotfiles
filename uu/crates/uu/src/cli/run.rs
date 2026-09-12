@@ -4,6 +4,7 @@ use uu_adapters::{Config, config_path};
 use uu_application::{LockFailure, Run, RunClock, RunOutcome, RunPresentation, RunRequest};
 
 use uu_adapters::home;
+use uu_adapters::style::{self, Paint, Tone};
 use uu_adapters::{
     ConfiguredLaneExecutor, ConsoleRunPresentation, EngineRunDelivery, FileRunState,
     SystemRunClock, append_log, log_path,
@@ -23,14 +24,28 @@ pub fn run_mode(only: Option<&str>) -> i32 {
             // not run, so it is refused the way an undeclared name is below.
             if let Some(lane) = only {
                 eprintln!(
-                    "uu: no config at {}, so no lane `{lane}` is declared",
-                    path.display()
+                    "{}",
+                    style::row(
+                        Paint::for_stderr(),
+                        Tone::Bad,
+                        &format!(
+                            "uu: no config at {}, so no lane `{lane}` is declared",
+                            path.display()
+                        ),
+                    )
                 );
                 return 1;
             }
             println!(
-                "uu: no config at {}; nothing is enabled and nothing was updated",
-                path.display()
+                "{}",
+                style::row(
+                    Paint::for_stdout(),
+                    Tone::Quiet,
+                    &format!(
+                        "uu: no config at {}; nothing is enabled and nothing was updated",
+                        path.display()
+                    ),
+                )
             );
             return 0;
         }
@@ -41,7 +56,14 @@ pub fn run_mode(only: Option<&str>) -> i32 {
     let presentation = match ConsoleRunPresentation::new(&log) {
         Ok(presentation) => presentation,
         Err(error) => {
-            eprintln!("uu: could not open run log {}: {error}", log.display());
+            eprintln!(
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!("uu: could not open run log {}: {error}", log.display()),
+                )
+            );
             return 1;
         }
     };
@@ -50,8 +72,15 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         RunOutcome::UndeclaredLane => {
             if let Some(lane) = only {
                 eprintln!(
-                    "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
-                    path.display()
+                    "{}",
+                    style::row(
+                        Paint::for_stderr(),
+                        Tone::Bad,
+                        &format!(
+                            "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
+                            path.display()
+                        ),
+                    )
                 );
             }
             1
@@ -59,13 +88,13 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         RunOutcome::LockRefused(LockFailure::Contended(why)) => {
             let message =
                 format!("uu: {why}; not running, to avoid racing the run that already holds it");
-            eprintln!("{message}");
+            eprintln!("{}", style::row(Paint::for_stderr(), Tone::Bad, &message));
             append_log(&log, &message);
             1
         }
         RunOutcome::LockRefused(LockFailure::Unavailable(why)) => {
             let message = format!("uu: {why}; not running");
-            eprintln!("{message}");
+            eprintln!("{}", style::row(Paint::for_stderr(), Tone::Bad, &message));
             append_log(&log, &message);
             1
         }

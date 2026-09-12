@@ -1,3 +1,4 @@
+use uu_adapters::style::{self, Paint, Tone};
 use uu_adapters::{FileRunState, bootstrap_lane, config_path, home};
 use uu_application::{BootstrapOutcome, LockFailure, bootstrap};
 use uu_domain::LaneVerdict;
@@ -11,8 +12,15 @@ pub fn bootstrap_mode(lane: &str) -> i32 {
         Ok(Some(config)) => config,
         Ok(None) => {
             eprintln!(
-                "uu: no config at {}, so no lane `{lane}` is declared",
-                path.display()
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!(
+                        "uu: no config at {}, so no lane `{lane}` is declared",
+                        path.display()
+                    ),
+                )
             );
             return 1;
         }
@@ -23,29 +31,57 @@ pub fn bootstrap_mode(lane: &str) -> i32 {
     }) {
         BootstrapOutcome::Reported(report) => {
             for line in &report.lines {
-                println!("{line}");
+                println!("{}", style::detail(Paint::for_stdout(), line));
             }
             i32::from(report.verdict() != LaneVerdict::Completed)
         }
         BootstrapOutcome::Undeclared => {
             eprintln!(
-                "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
-                path.display()
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!(
+                        "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
+                        path.display()
+                    ),
+                )
             );
             1
         }
         BootstrapOutcome::Unsupported(kind) => {
-            eprintln!("uu: lane `{lane}` of type `{kind}` has no bootstrap step");
+            eprintln!(
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!("uu: lane `{lane}` of type `{kind}` has no bootstrap step"),
+                )
+            );
             1
         }
         BootstrapOutcome::LockRefused(LockFailure::Contended(why)) => {
             eprintln!(
-                "uu: {why}; not bootstrapping, to avoid racing the run that already holds it"
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!(
+                        "uu: {why}; not bootstrapping, to avoid racing the run that already holds it"
+                    ),
+                )
             );
             1
         }
         BootstrapOutcome::LockRefused(LockFailure::Unavailable(why)) => {
-            eprintln!("uu: {why}; not bootstrapping");
+            eprintln!(
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!("uu: {why}; not bootstrapping")
+                ),
+            );
             1
         }
     }

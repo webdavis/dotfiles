@@ -129,6 +129,13 @@ impl Paint {
         )
     }
 
+    pub fn for_stderr() -> Self {
+        Self::decide(
+            *FORCED_PLAIN.get().unwrap_or(&false),
+            std::io::stderr().is_terminal(),
+        )
+    }
+
     /// `text` in `color`, or `text` alone when nothing is being painted.
     fn wrap(self, color: &str, text: &str) -> String {
         match self {
@@ -232,5 +239,5 @@ pub fn detail(paint: Paint, text: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "style/tests.rs"]
+#[path = "tests.rs"]
 mod tests;

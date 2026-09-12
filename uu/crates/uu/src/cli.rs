@@ -13,6 +13,7 @@ pub(super) use schedule::schedule_mode;
 
 use std::path::Path;
 
+use uu_adapters::style::{self, Paint, Tone};
 use uu_adapters::{Config, ConfigError, LoadOutcome, load_config};
 
 /// The config, or `None` for a machine that has not written one. A refusal is
@@ -28,7 +29,14 @@ fn loaded(path: &Path) -> Result<Option<Config>, i32> {
                 ConfigError::Invalid(_) => "is not a config uu can use",
                 ConfigError::Unreadable(_) => "could not be read",
             };
-            eprintln!("uu: {} {what}: {}", path.display(), error.detail());
+            eprintln!(
+                "{}",
+                style::row(
+                    Paint::for_stderr(),
+                    Tone::Bad,
+                    &format!("uu: {} {what}: {}", path.display(), error.detail()),
+                )
+            );
             Err(1)
         }
     }
@@ -36,6 +44,13 @@ fn loaded(path: &Path) -> Result<Option<Config>, i32> {
 
 /// The one sentence every mode prints when the environment names no home.
 fn no_home() -> i32 {
-    eprintln!("uu: HOME is not set, so there is no config to read");
+    eprintln!(
+        "{}",
+        style::row(
+            Paint::for_stderr(),
+            Tone::Bad,
+            "uu: HOME is not set, so there is no config to read",
+        )
+    );
     1
 }
