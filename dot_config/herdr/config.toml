@@ -262,7 +262,7 @@ description = "reviewr: toggle the code-review pane"
 # │  herdr-agent-quota  │
 # ╰─────────────────────╯
 [[keys.command]]
-key = "prefix+u"
+key = "prefix+shift+q"
 type = "plugin_action"
 command = "herdr-agent-quota.open-settings"
 description = "agent quota: open settings"
