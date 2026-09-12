@@ -53,10 +53,10 @@ one is not possible and counting sets yourself is not needed.
 
 Two fields are conditional rather than optional:
 
-- `weight` is `0` for a bodyweight set. Read tools display that explicit zero as `BW`, count its
-  reps and RIR, and exclude it from added-weight volume and weight-based personal records. Omit
-  weight only when it does not apply, such as a skipped or isometric set. For paired dumbbells,
-  send the total added weight across both hands.
+- Send `weight: 0` to `log_gym_set` for a bodyweight set. Scalebar stores it as `bodyweight` and read
+  tools display it as `BW`. Its reps and RIR still count, but it is excluded from added-weight
+  volume and weight-based personal records. Omit weight only when it does not apply, such as a
+  skipped or isometric set. For paired dumbbells, send the total added weight across both hands.
 - `rir` (reps in reserve, 0 to 4, where 0 is failure) is only valid on `working`, `rest-pause` and
   `drop-set`. Sending it on a warmup or an isometric is wrong.
 
