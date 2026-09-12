@@ -5,7 +5,8 @@ use uu_application::{LockFailure, Run, RunClock, RunOutcome, RunPresentation, Ru
 
 use uu_adapters::home;
 use uu_adapters::{
-    ConfiguredLaneExecutor, ConsoleRunPresentation, EngineRunDelivery, FileRunState, SystemRunClock,
+    ConfiguredLaneExecutor, ConsoleRunPresentation, EngineRunDelivery, FileRunState,
+    SystemRunClock, append_log, log_path,
 };
 
 pub fn run_mode(only: Option<&str>) -> i32 {
@@ -36,7 +37,15 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         Err(code) => return code,
     };
 
-    match execute(&home, &config, only, SystemRunClock, ConsoleRunPresentation) {
+    let log = log_path(&home);
+    let presentation = match ConsoleRunPresentation::new(&log) {
+        Ok(presentation) => presentation,
+        Err(error) => {
+            eprintln!("uu: could not open run log {}: {error}", log.display());
+            return 1;
+        }
+    };
+    match execute(&home, &config, only, SystemRunClock, presentation) {
         RunOutcome::Completed => 0,
         RunOutcome::UndeclaredLane => {
             if let Some(lane) = only {
@@ -48,11 +57,16 @@ pub fn run_mode(only: Option<&str>) -> i32 {
             1
         }
         RunOutcome::LockRefused(LockFailure::Contended(why)) => {
-            eprintln!("uu: {why}; not running, to avoid racing the run that already holds it");
+            let message =
+                format!("uu: {why}; not running, to avoid racing the run that already holds it");
+            eprintln!("{message}");
+            append_log(&log, &message);
             1
         }
         RunOutcome::LockRefused(LockFailure::Unavailable(why)) => {
-            eprintln!("uu: {why}; not running");
+            let message = format!("uu: {why}; not running");
+            eprintln!("{message}");
+            append_log(&log, &message);
             1
         }
     }

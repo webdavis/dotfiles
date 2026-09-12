@@ -36,7 +36,9 @@ mod state;
 mod system;
 mod watchdog;
 
-pub use adapters::{ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock};
+pub use adapters::{
+    ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock, append_log,
+};
 pub use config::{
     BrewLane, ClaudePluginsLane, CommandLane, Config, ConfigError, HerdrLane, LoadOutcome, NpmLane,
     NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane, config_path,
@@ -44,7 +46,7 @@ pub use config::{
 };
 pub use delivery::EngineRunDelivery;
 pub use record::gap_line;
-pub use schedule::{DEFAULT_LABEL, render_plist};
+pub use schedule::{DEFAULT_LABEL, log_path, render_plist};
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 pub use state::{marker_path, read_marker};
 pub use system::{home, now_epoch, resolve};

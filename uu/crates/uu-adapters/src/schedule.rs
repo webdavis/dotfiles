@@ -16,8 +16,7 @@ pub fn installed_binary(home: &str) -> PathBuf {
     Path::new(home).join(".cargo/bin/uu")
 }
 
-/// Where the job's own output goes. The DIRECTORY is the operator's to make;
-/// see `render_plist`.
+/// Where every run is recorded, including manually invoked runs.
 pub fn log_path(home: &str) -> PathBuf {
     Path::new(home).join(".local/log/uu/uu.log")
 }
@@ -37,11 +36,6 @@ fn search_path(home: &str) -> String {
 /// run` refuses outright without HOME, and a lane's child processes find
 /// nothing without PATH, so a plist that omits them renders a job that cannot
 /// work. Both mirror the tracked plist this machine loads.
-///
-/// THE LOG DIRECTORY IS THE OPERATOR'S TO MAKE, and the plist says so in a
-/// comment above the paths. launchd creates the log FILE but never its
-/// directory, and a job whose output cannot be opened does not start; on this
-/// machine the loader script makes it, and a standalone install has no loader.
 ///
 /// EVERY INTERPOLATED VALUE IS XML-ESCAPED. A home directory may legitimately
 /// hold `&`, and an unescaped one renders a plist launchd refuses to parse at
@@ -74,12 +68,10 @@ pub fn render_plist(label: &str, home: &str, schedule: Schedule) -> String {
              <key>Weekday</key>\n    <integer>{weekday}</integer>\n    \
              <key>Hour</key>\n    <integer>{hour}</integer>\n    \
              <key>Minute</key>\n    <integer>{minute}</integer>\n  </dict>\n  \
-           <!-- launchd creates the log file but never its directory, and a \
-                job whose output cannot be opened does not start:\n       \
-                mkdir -p the directory holding the two paths below before \
-                loading this job. -->\n  \
-           <key>StandardOutPath</key>\n  <string>{log_path}</string>\n  \
-           <key>StandardErrorPath</key>\n  <string>{log_path}</string>\n\
+           <!-- uu writes every run to {log_path} so manual and scheduled runs share one \
+                record; launchd output is discarded to avoid duplicate entries. -->\n  \
+           <key>StandardOutPath</key>\n  <string>/dev/null</string>\n  \
+           <key>StandardErrorPath</key>\n  <string>/dev/null</string>\n\
          </dict>\n</plist>\n"
     )
 }
