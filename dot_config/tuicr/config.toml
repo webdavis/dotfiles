@@ -1,0 +1,9 @@
+# tuicr configuration. See https://tuicr.dev/ for the current reference.
+theme = "catppuccin-mocha"
+appearance = "system"
+diff_view = "side-by-side"
+mouse = true
+leader = ";"
+editor = "nvim"
+comment_vim = false
+relative_line_numbers = false

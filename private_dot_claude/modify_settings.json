@@ -14,13 +14,15 @@
   ~/.claude/settings.json on .chezmoi.stdin, overlays the stable fields below
   via setValueAtPath, and writes the merged result back.
 
-  Three categories of field, not two:
+  Field ownership:
 
     STABLE       overwritten from here on every apply, whatever the live file
-                 says: permissions, hooks, statusLine, skillOverrides,
+                 says: permissions, hooks, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
                  effortLevel, and the seven extraKnownMarketplaces entries this
                  repo declares.
+    statusLine   the managed command below, unless the quota plugin has wrapped
+                 it with its collector; that wrapper survives applies.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
     enabledPlugins  the ROSTER is fixed here and the per-plugin STATE is not.
@@ -405,10 +407,20 @@
         "timeout" 10)))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
-{{- /* --- stable: statusLine (path uses $home) --- */ -}}
+{{- /* Keep the quota plugin's collector, which chains our status line.
+       run_after_53 installs the wrapper on a fresh machine. */ -}}
 {{- $statusLine := dict
     "type" "command"
     "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
+{{- $liveStatusLine := index $merged "statusLine" -}}
+{{- if eq (kindOf $liveStatusLine) "map" -}}
+{{-   $command := index $liveStatusLine "command" -}}
+{{-   if eq (kindOf $command) "string" -}}
+{{-     if and (contains "/herdr-agent-quota" $command) (hasSuffix " claude-statusline" $command) -}}
+{{-       $statusLine = $liveStatusLine -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
 {{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
 
 {{- /* --- the declared plugin ROSTER, ON by default, with the machine's own
@@ -625,6 +637,7 @@
 {{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
