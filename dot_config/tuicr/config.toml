@@ -1,9 +1,8 @@
-# tuicr configuration. See https://tuicr.dev/ for the current reference.
+# https://github.com/agavra/tuicr/blob/main/docs/CONFIG.md
 theme = "catppuccin-mocha"
-appearance = "system"
-diff_view = "side-by-side"
-mouse = true
-leader = ";"
-editor = "nvim"
-comment_vim = false
-relative_line_numbers = false
+compact_folders = true
+show_pr_checks = true
+comment_tab_width = 2
+relative_line_numbers = true
+wrap = true
+single_file_view = true
