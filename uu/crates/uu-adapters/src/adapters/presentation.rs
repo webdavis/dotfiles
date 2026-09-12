@@ -37,38 +37,11 @@ impl ConsoleRunPresentation {
     }
 
     pub fn log_message(&self, message: &str) {
-        if let Ok(mut log) = self.log.lock() {
-            if let Err(error) = writeln!(log, "{message}") {
-                eprintln!("uu: could not write run log: {error}");
-            }
+        if let Ok(mut log) = self.log.lock()
+            && let Err(error) = writeln!(log, "{message}")
+        {
+            eprintln!("uu: could not write run log: {error}");
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn a_run_record_is_appended_to_the_uu_log() {
-        let log = PathBuf::from(format!("/tmp/uu-presentation-log-{}", std::process::id()));
-        let _ = std::fs::remove_file(&log);
-        let presentation = ConsoleRunPresentation::new(&log).expect("log");
-        let mut lane = LaneReport::new("skills");
-        lane.noted("updated".into());
-        let header = RunHeader {
-            host: "fixture-host".into(),
-            started_iso: "2026-09-11T20:00:00Z".into(),
-            gap: "last successful run: never".into(),
-        };
-
-        presentation.write_record(&header, &[lane]);
-
-        let contents = std::fs::read_to_string(&log).expect("recorded log");
-        assert!(contents.contains("run at 2026-09-11T20:00:00Z on fixture-host"));
-        assert!(contents.contains("skills: 0 failure(s)"));
-        let _ = std::fs::remove_file(log);
     }
 }
 
@@ -158,5 +131,32 @@ impl RunPresentation for ConsoleRunPresentation {
                 self.log_message(&message);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn a_run_record_is_appended_to_the_uu_log() {
+        let log = PathBuf::from(format!("/tmp/uu-presentation-log-{}", std::process::id()));
+        let _ = std::fs::remove_file(&log);
+        let presentation = ConsoleRunPresentation::new(&log).expect("log");
+        let mut lane = LaneReport::new("skills");
+        lane.noted("updated".into());
+        let header = RunHeader {
+            host: "fixture-host".into(),
+            started_iso: "2026-09-11T20:00:00Z".into(),
+            gap: "last successful run: never".into(),
+        };
+
+        presentation.write_record(&header, &[lane]);
+
+        let contents = std::fs::read_to_string(&log).expect("recorded log");
+        assert!(contents.contains("run at 2026-09-11T20:00:00Z on fixture-host"));
+        assert!(contents.contains("skills: 0 failure(s)"));
+        let _ = std::fs::remove_file(log);
     }
 }
