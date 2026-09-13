@@ -111,7 +111,7 @@ bounded() {
 # substitution would drop), so only a bare decimal pid passes.
 answers() {
   local reply
-  [[ -S $1 ]] || return 0
+  [[ $1 != *$'\n'* && ! -L $1 && -S $1 ]] || return 0
   reply="$(
     bounded nvim --server "$1" --remote-expr 'getpid()'
     printf x
