@@ -1,23 +1,20 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_domain::{Agent, AuditMemory, QueueMemory};
 use std::{
     fs,
     os::unix::fs::{PermissionsExt, symlink},
-    sync::atomic::{AtomicU64, Ordering},
 };
-fn fresh_path() -> PathBuf {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "posture-watchdog-state-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&dir).unwrap();
-    dir.join("state.json")
+/// A state-file path in a directory that removes itself. Hold the sandbox for
+/// as long as the path is used.
+fn fresh_path() -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new("watchdog-state");
+    let path = sandbox.path().join("state.json");
+    (sandbox, path)
 }
 #[test]
 fn legacy_state_migrates_without_losing_growth_or_confirmed_audit() {
-    let path = fresh_path();
+    let (_sandbox, path) = fresh_path();
     let hash = "a".repeat(64);
     fs::write(&path, format!(r#"{{"agents":{{"{}":{{"runs":8,"streak":1}}}},"pending":{{"count":7,"growth_streak":1}},"pipeline_audit":{{"fingerprint":"{hash}","streak":999,"paged_fingerprint":"{hash}"}}}}"#,Agent::Digest.label())).unwrap();
     let state = WatchdogStateFile::new(path).load();
@@ -48,7 +45,7 @@ fn only_one_complete_top_level_object_can_supply_state() {
         "{",
         r#"{"pending":{"count":4}} {}"#,
     ] {
-        let path = fresh_path();
+        let (_sandbox, path) = fresh_path();
         fs::write(&path, input).unwrap();
         assert_eq!(
             WatchdogStateFile::new(path).load(),
@@ -58,7 +55,7 @@ fn only_one_complete_top_level_object_can_supply_state() {
 }
 #[test]
 fn publication_is_private_and_round_trips_separate_growth_histories() {
-    let path = fresh_path();
+    let (_sandbox, path) = fresh_path();
     let mut store = WatchdogStateFile::new(path.clone());
     assert!(store.writable());
     assert!(!path.exists());
@@ -85,7 +82,7 @@ fn publication_is_private_and_round_trips_separate_growth_histories() {
 }
 #[test]
 fn failed_publication_and_symlinked_input_never_damage_the_referent() {
-    let path = fresh_path();
+    let (_sandbox, path) = fresh_path();
     let target = path.with_extension("target");
     fs::write(&target, b"private").unwrap();
     symlink(&target, &path).unwrap();
@@ -94,7 +91,7 @@ fn failed_publication_and_symlinked_input_never_damage_the_referent() {
     store.publish(&WatchdogState::default()).unwrap();
     assert_eq!(fs::read(&target).unwrap(), b"private");
     assert!(!fs::symlink_metadata(path).unwrap().file_type().is_symlink());
-    let path = fresh_path();
+    let (_sandbox, path) = fresh_path();
     fs::create_dir(&path).unwrap();
     assert_eq!(
         WatchdogStateFile::new(path.clone()).publish(&WatchdogState::default()),

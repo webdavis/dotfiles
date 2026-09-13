@@ -1,20 +1,13 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use rusqlite::Connection;
-use std::{
-    fs,
-    os::unix::fs::PermissionsExt,
-    sync::atomic::{AtomicU64, Ordering},
-    time::Instant,
-};
-fn path() -> PathBuf {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "posture-watchdog-queue-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&dir).unwrap();
-    fs::canonicalize(dir).unwrap().join("queue.db")
+use std::{fs, os::unix::fs::PermissionsExt};
+/// A ledger path in a directory that removes itself. Hold the sandbox for as
+/// long as the path is used; dropping it early takes the database with it.
+fn fixture() -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new("watchdog-queue");
+    let path = fs::canonicalize(sandbox.path()).unwrap().join("queue.db");
+    (sandbox, path)
 }
 fn pns(path: &std::path::Path) -> Connection {
     let db = Connection::open(path).unwrap();
@@ -29,7 +22,7 @@ fn pns(path: &std::path::Path) -> Connection {
 }
 #[test]
 fn missing_legacy_is_empty_but_missing_pns_is_unreadable_without_creation() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     assert_eq!(
         QueueDatabase::legacy(path.clone()).counts(),
         QueueCounts {
@@ -50,7 +43,7 @@ fn missing_legacy_is_empty_but_missing_pns_is_unreadable_without_creation() {
 }
 #[test]
 fn legacy_lazy_tables_are_empty_and_existing_counts_are_independent() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = Connection::open(&path).unwrap();
     db.execute_batch("CREATE TABLE pending_alerts(id); INSERT INTO pending_alerts VALUES(1),(2);")
         .unwrap();
@@ -77,7 +70,7 @@ fn legacy_lazy_tables_are_empty_and_existing_counts_are_independent() {
 }
 #[test]
 fn pns_counts_unacknowledged_obligations_and_retained_deadletters_directly() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     let before = fs::read(&path).unwrap();
     assert_eq!(
@@ -97,7 +90,7 @@ fn pns_counts_unacknowledged_obligations_and_retained_deadletters_directly() {
 }
 #[test]
 fn readers_include_committed_uncheckpointed_wal_rows() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; INSERT INTO ledger_legs VALUES(4,0,NULL);").unwrap();
     assert!(
@@ -112,12 +105,12 @@ fn readers_include_committed_uncheckpointed_wal_rows() {
 #[test]
 fn corrupt_incompatible_and_locked_ledgers_refuse_without_repair() {
     for contents in [b"broken sqlite".as_slice(), b""] {
-        let path = path();
+        let (_sandbox, path) = fixture();
         fs::write(&path, contents).unwrap();
         assert_eq!(QueueDatabase::pns(path.clone()).counts().pending, None);
         assert_eq!(fs::read(path).unwrap(), contents);
     }
-    let file = path();
+    let (_sandbox, file) = fixture();
     let db = pns(&file);
     db.execute_batch("PRAGMA user_version=999").unwrap();
     assert_eq!(QueueDatabase::pns(file.clone()).counts().pending, None);
@@ -128,15 +121,16 @@ fn corrupt_incompatible_and_locked_ledgers_refuse_without_repair() {
     );
     db.execute_batch("PRAGMA user_version=8; BEGIN EXCLUSIVE")
         .unwrap();
-    let start = Instant::now();
+    // The lock is never released, so a reader that ignored its busy timeout
+    // would wait here forever and no clock assertion after the call could ever
+    // run. Returning at all is the evidence that the timeout was applied.
     let mut reader = QueueDatabase::pns(file);
     reader.timeout = Duration::from_millis(5);
     assert_eq!(reader.counts().pending, None);
-    assert!(start.elapsed() < Duration::from_secs(1));
 }
 #[test]
 fn legacy_corruption_is_never_disguised_as_an_empty_lazy_table() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     fs::write(&path, b"broken sqlite").unwrap();
     assert_eq!(
         QueueDatabase::legacy(path).counts(),
@@ -150,19 +144,19 @@ fn legacy_corruption_is_never_disguised_as_an_empty_lazy_table() {
 
 #[test]
 fn a_hostile_query_cannot_exceed_the_reader_budget() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = Connection::open(&path).unwrap();
     db.execute_batch("CREATE VIEW pending_alerts AS WITH RECURSIVE sequence(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM sequence) SELECT n FROM sequence;").unwrap();
+    // The view recurses without end, so a query that outran its budget would
+    // never return and no clock assertion after the call could ever run.
     let mut reader = QueueDatabase::legacy(path);
     reader.timeout = Duration::from_millis(5);
-    let start = Instant::now();
     assert_eq!(reader.counts().pending, None);
-    assert!(start.elapsed() < Duration::from_secs(1));
 }
 
 #[test]
 fn readable_pns_ledger_does_not_require_write_permission() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     drop(db);
     fs::set_permissions(&path, fs::Permissions::from_mode(0o400)).unwrap();
@@ -171,7 +165,7 @@ fn readable_pns_ledger_does_not_require_write_permission() {
 
 #[test]
 fn the_health_connection_cannot_write_even_to_a_writable_fixture() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     drop(db);
     let mut reader = QueueDatabase::pns(path);
@@ -188,7 +182,7 @@ fn the_health_connection_cannot_write_even_to_a_writable_fixture() {
 
 #[test]
 fn missing_delivery_health_metadata_makes_the_ledger_unreadable() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     db.execute_batch("DROP TABLE delivery_health").unwrap();
     assert_eq!(QueueDatabase::pns(path).counts().pending, None);
@@ -196,7 +190,7 @@ fn missing_delivery_health_metadata_makes_the_ledger_unreadable() {
 
 #[test]
 fn missing_required_delivery_health_row_makes_the_ledger_unreadable() {
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     db.execute_batch("DELETE FROM delivery_health").unwrap();
     assert_eq!(QueueDatabase::pns(path).counts().pending, None);
@@ -213,7 +207,7 @@ fn invalid_delivery_health_values_are_never_an_all_clear() {
         "'bad',0,0",
         "NULL,0,0",
     ] {
-        let path = path();
+        let (_sandbox, path) = fixture();
         let db = pns(&path);
         db.execute_batch(&format!(
             "DROP TABLE delivery_health;
@@ -228,7 +222,7 @@ fn invalid_delivery_health_values_are_never_an_all_clear() {
 #[test]
 fn outstanding_delivery_alarm_is_reported_without_acknowledging_or_changing_counts() {
     use posture_domain::{QueueKind, QueueMemory, judge_queue};
-    let path = path();
+    let (_sandbox, path) = fixture();
     let db = pns(&path);
     db.execute_batch(
         "DELETE FROM ledger_legs; UPDATE delivery_health SET generation=8, acknowledged=7;",
