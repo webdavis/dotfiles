@@ -10,6 +10,8 @@ struct Installer {
     calls: RefCell<Vec<Vec<String>>>,
     refuse: bool,
     store: PathBuf,
+    upstream: &'static str,
+    updated: Result<&'static str, &'static str>,
 }
 impl CommandRunner for Installer {
     fn run(&self, _: &str, _: &[&str]) -> Result<String, String> {
@@ -53,14 +55,10 @@ impl CommandRunner for Installer {
         if self.refuse {
             let overlay = self.store.join("gamma/agents/openai.yaml");
             if self.calls.borrow().len() == 1 {
-                assert!(std::fs::read_to_string(overlay).unwrap().contains(POLICY));
                 return Ok("gamma: local changes (no match)".into());
             }
-            assert_eq!(
-                std::fs::read_to_string(&overlay).unwrap(),
-                "interface: upstream\n"
-            );
-            std::fs::write(overlay, "interface: updated\n").unwrap();
+            assert_eq!(std::fs::read_to_string(&overlay).unwrap(), self.upstream);
+            std::fs::write(overlay, self.updated?).unwrap();
         }
         Ok("updated".into())
     }
@@ -84,6 +82,8 @@ fn an_absent_clawhub_skill_is_installed_in_a_throwaway_workdir_and_moved_flat() 
         calls: RefCell::new(Vec::new()),
         refuse: false,
         store: c.agents().join("skills"),
+        upstream: "interface: upstream\n",
+        updated: Ok("interface: updated\n"),
     };
     assert!(
         c.install_clawhub("/fixture/clawhub", &r, SkillsBuildMode::Full, &env, &runner)
@@ -150,6 +150,8 @@ fn the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped() 
         calls: RefCell::new(Vec::new()),
         refuse: true,
         store: c.agents().join("skills"),
+        upstream: "interface: upstream\n",
+        updated: Ok("interface: updated\n"),
     };
     assert!(
         c.install_clawhub("/fixture/clawhub", &r, SkillsBuildMode::Full, &env, &runner)
@@ -157,9 +159,14 @@ fn the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped() 
             .is_empty()
     );
     assert_eq!(runner.calls.borrow().len(), 2);
+    let actual: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(actual["interface"], "updated");
+    assert_eq!(actual["policy"]["allow_implicit_invocation"], false);
+    overlay::strip_owned(&path).unwrap();
     assert_eq!(
         std::fs::read_to_string(path).unwrap(),
-        format!("interface: updated\n{POLICY}")
+        "interface: updated\n"
     );
 }
 
@@ -174,6 +181,8 @@ fn a_present_clawhub_refresh_discards_only_its_candidate_finder_metadata() {
         calls: RefCell::new(Vec::new()),
         refuse: false,
         store: c.agents().join("skills"),
+        upstream: "interface: upstream\n",
+        updated: Ok("interface: updated\n"),
     };
     c.install_clawhub(
         "/fixture/clawhub",
@@ -196,4 +205,41 @@ fn a_present_clawhub_refresh_discards_only_its_candidate_finder_metadata() {
         std::fs::read_to_string(skill.join("upstream-data")).unwrap(),
         "retained"
     );
+}
+
+#[test]
+fn a_policy_override_is_removed_for_hash_matching_and_restored_after_update_or_failure() {
+    let upstream = "# original bytes\npolicy: {allow_implicit_invocation: true, other: keep}\n";
+    let updated = "# new upstream bytes\npolicy: {allow_implicit_invocation: true, other: new}\n";
+    for result in [Ok(updated), Err("registry unavailable")] {
+        let (c, r, env) = setup();
+        let path = c.agents().join("skills/gamma/agents/openai.yaml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, upstream).unwrap();
+        c.assert_overlays(&r).unwrap();
+        let runner = Installer {
+            calls: RefCell::new(Vec::new()),
+            refuse: true,
+            store: c.agents().join("skills"),
+            upstream,
+            updated: result,
+        };
+        let failures = c
+            .install_clawhub("/fixture/clawhub", &r, SkillsBuildMode::Full, &env, &runner)
+            .unwrap();
+        assert_eq!(runner.calls.borrow().len(), 2);
+        assert_eq!(failures.is_empty(), result.is_ok());
+        let actual: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(actual["policy"]["allow_implicit_invocation"], false);
+        assert_eq!(
+            actual["policy"]["other"],
+            if result.is_ok() { "new" } else { "keep" }
+        );
+        overlay::strip_owned(&path).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(path).unwrap(),
+            result.unwrap_or(upstream)
+        );
+    }
 }

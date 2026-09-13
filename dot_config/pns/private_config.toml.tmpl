@@ -351,6 +351,8 @@ low = 10
 # run that DIED has no such delay and no knob. Zero arms at once.
 after_secs = 300
 
+# A live pane lease keeps condenser `asking` guesses from arming blocked;
+# real hook waits still take priority.
 [lights.loop]
 duration_ms = 4000
 high = 80

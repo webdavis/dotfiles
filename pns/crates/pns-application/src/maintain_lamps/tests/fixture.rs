@@ -5,7 +5,7 @@ use pns_domain::{
     lamps::{Inventory, config::Lights},
     lights::{phase::HeldEntry, streak::Streak, unread::News},
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Default)]
 pub(super) struct World {
@@ -13,6 +13,12 @@ pub(super) struct World {
     pub held: RefCell<Option<Vec<HeldEntry>>>,
     pub shell: Option<u64>,
     pub complaint: RefCell<String>,
+    pub silenced: Cell<bool>,
+    pub blocked: Vec<u64>,
+    pub news: News,
+    pub inventory: Inventory,
+    pub mutes: RefCell<(Vec<pns_domain::lights::mute::Muted>, Vec<String>)>,
+    pub writes: RefCell<Vec<(String, &'static str)>>,
 }
 impl World {
     pub fn empty() -> Self {
@@ -43,6 +49,7 @@ impl World {
                 available.then_some(self)
             },
             LampReadings {
+                silenced: |_| self.silenced.get(),
                 minutes: |_| {
                     self.note("minutes");
                     Some(720)
@@ -57,7 +64,14 @@ impl World {
                 },
                 interval: || {
                     self.note("interval");
-                    (|| 0, |_| {})
+                    let elapsed = std::rc::Rc::new(Cell::new(0));
+                    let slept = elapsed.clone();
+                    (
+                        move || elapsed.get(),
+                        move |duration: std::time::Duration| {
+                            slept.set(slept.get() + duration.as_millis() as u64);
+                        },
+                    )
                 },
             },
             |line| self.note(format!("said({line})")),
@@ -84,7 +98,7 @@ impl LampMarkers for World {
     }
     fn blocked(&self, _: u64, _: u64) -> Vec<u64> {
         self.note("blocked");
-        Vec::new()
+        self.blocked.clone()
     }
 }
 impl LampHouseRecords for World {
@@ -94,13 +108,13 @@ impl LampHouseRecords for World {
     }
     fn news(&self) -> News {
         self.note("news");
-        News::default()
+        self.news
     }
 }
 impl LampMutes for World {
     fn read(&self) -> (Vec<pns_domain::lights::mute::Muted>, Vec<String>) {
         self.note("mutes");
-        (Vec::new(), Vec::new())
+        self.mutes.borrow().clone()
     }
     fn write(&self, _: &[pns_domain::lights::mute::Muted]) -> Result<(), String> {
         panic!("tick never writes mutes")
@@ -154,9 +168,15 @@ impl JobSpool for World {
 impl LampBridge for &World {
     fn inventory(&self) -> Option<Inventory> {
         self.note("inventory");
-        Some(Inventory::default())
+        Some(self.inventory.clone())
     }
-    fn write(&self, path: &str, _: &LampWrite) {
+    fn write(&self, path: &str, write: &LampWrite) {
         self.note(format!("write({path})"));
+        let kind = match write {
+            LampWrite::Clear => "clear",
+            LampWrite::Fade { .. } => "fade",
+            LampWrite::Pulse { .. } => "pulse",
+        };
+        self.writes.borrow_mut().push((path.into(), kind));
     }
 }
