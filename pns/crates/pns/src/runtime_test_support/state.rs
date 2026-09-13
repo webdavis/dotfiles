@@ -26,6 +26,39 @@ mod fixtures {
             .mode()
             & 0o777
     }
+
+    pub(crate) fn in_private_process() -> bool {
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+        let thread = std::thread::current();
+        let name = thread.name().expect("the named test thread");
+        if std::env::var("PNS_PRIVATE_UNIT_TEST").as_deref() == Ok(name) {
+            return false;
+        }
+        let directory = scratch("private-unit-home");
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--nocapture"])
+            .env_clear()
+            .env("HOME", &directory)
+            .env("TMPDIR", &directory)
+            .env("PATH", "/usr/bin:/bin")
+            .env("PNS_PRIVATE_UNIT_TEST", name)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_millis(900);
+        while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        if child.try_wait().unwrap().is_none() {
+            child.kill().unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"));
+        true
+    }
 }
 
 pub(crate) use fixtures::*;

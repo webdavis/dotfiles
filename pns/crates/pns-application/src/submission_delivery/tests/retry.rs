@@ -11,6 +11,7 @@ fn a_daemon_retry_carries_the_original_payload_route_identity_and_claim_once() {
         retry: Mutex::new(Some(RetryDelivery {
             claim: 901,
             identity: original.identity,
+            producer_request: original.producer_request,
             event: original.event,
             leg: leg.clone(),
         })),
@@ -53,6 +54,7 @@ fn a_missing_retry_destination_is_recorded_unlaunched_without_an_inline_retry() 
         retry: Mutex::new(Some(RetryDelivery {
             claim: 902,
             identity: original.identity,
+            producer_request: original.producer_request,
             event: original.event,
             leg: original.legs[0].clone(),
         })),
@@ -165,6 +167,7 @@ fn an_owned_retry_forwards_its_typed_rejection_and_configured_backoff_to_the_led
         RetryDelivery {
             claim: 903,
             identity: original.identity,
+            producer_request: original.producer_request,
             event: original.event,
             leg: original.legs[0].clone(),
         },
