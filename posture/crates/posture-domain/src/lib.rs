@@ -102,9 +102,10 @@ pub use controls::{
 
 mod funnel;
 pub use funnel::{
-    AllowFunnel, FUNNEL_CRITICAL_TITLE, FunnelAlert, FunnelBaseline, FunnelPlan, FunnelReadFailure,
-    FunnelReading, FunnelState, classify_funnel, funnel_baseline, funnel_corruption_gap,
-    funnel_persistence_gap, funnel_read_gap, plan_funnel, render_funnel_exposure,
+    AllowFunnel, FUNNEL_CRITICAL_TITLE, FUNNEL_EXPOSURE_KEY_LIMIT, FunnelAlert, FunnelBaseline,
+    FunnelPlan, FunnelReadFailure, FunnelReading, FunnelState, classify_funnel, funnel_baseline,
+    funnel_corruption_gap, funnel_persistence_gap, funnel_read_gap, plan_funnel,
+    render_funnel_exposure,
 };
 
 mod poll;

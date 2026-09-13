@@ -134,6 +134,25 @@ fn exposed_keys_are_sorted_unique_inert_spans_with_exact_200_character_edges() {
 }
 
 #[test]
+fn an_exposure_past_the_key_limit_is_summarized_and_stays_under_the_wire_cap() {
+    let key = |index: usize| format!("{index:03}{}", "x".repeat(250));
+    let limit = FUNNEL_EXPOSURE_KEY_LIMIT;
+    let keys: Vec<String> = (0..limit + 7).map(key).collect();
+    let body = render_funnel_exposure(&keys);
+    assert_eq!(body.matches("- `").count(), limit);
+    assert!(body.ends_with("- …and 7 more\n"), "{body}");
+    // Truncation still applies to every key the bound keeps.
+    let first: String = key(0).chars().take(200).collect();
+    assert!(body.contains(&format!("\n- `{first}…(truncated)`\n")));
+    // The application submits the title, a newline and this body as one wire
+    // text field, capped at MAX_TEXT_CHARS in posture-pns-wire (see
+    // posture-adapters/src/pns_producer/request.rs).
+    let detail = FUNNEL_CRITICAL_TITLE.chars().count() + 1 + body.trim_end().chars().count();
+    assert!(detail < 8_000, "{detail}");
+    assert!(!render_funnel_exposure(&keys[..limit]).contains("…and"));
+}
+
+#[test]
 fn rendered_null_bytes_are_removed_after_the_key_character_limit() {
     let key = format!("{}\0suffix", "x".repeat(199));
     let rendered = render_funnel_exposure(&[key]);
