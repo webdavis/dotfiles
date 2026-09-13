@@ -24,9 +24,13 @@ impl PollStateFiles {
             PollGap::Persistence => ".persist-gap",
         })
     }
-    pub fn read(&mut self, controls: &[Control]) -> Option<SavedPollState> {
+    pub fn read(
+        &mut self,
+        controls: &[Control],
+        on_open_error: impl FnMut(&std::io::Error),
+    ) -> Option<SavedPollState> {
         self.prior_json = None;
-        let (reading, json) = baseline::read(&self.baseline, controls)?;
+        let (reading, json) = baseline::read(&self.baseline, controls, on_open_error)?;
         self.prior_json = Some(json);
         Some(reading)
     }

@@ -46,7 +46,7 @@ fn controls_files_match_bash_valid_scalar_and_compound_field_bytes() {
         .filter(|c| c["stdout_fields"][0] == "")
     {
         let fields = capture["stdout_fields"].as_array().unwrap();
-        let controls = read_controls(&fixture(&bytes(&capture)))
+        let controls = read_controls(&fixture(&bytes(&capture)), |_| {})
             .unwrap_or_else(|error| panic!("{}: {error:?}", capture["name"]));
         assert_eq!(
             controls.len(),
@@ -101,7 +101,7 @@ fn controls_files_refuse_every_captured_invalid_document_without_partial_records
         .into_iter()
         .filter(|c| c["stdout_fields"][0] != "")
     {
-        let error = read_controls(&fixture(&bytes(&capture))).unwrap_err();
+        let error = read_controls(&fixture(&bytes(&capture)), |_| {}).unwrap_err();
         assert_eq!(
             error.explanation,
             capture["stdout_fields"][0].as_str().unwrap(),
@@ -123,7 +123,7 @@ fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
     // SAFETY: the C string names only this test's private, absent path.
     assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
     for path in [&missing, &root, &broken, &fifo] {
-        let error = read_controls(path).unwrap_err();
+        let error = read_controls(path, |_| {}).unwrap_err();
         assert_eq!(error.kind, ControlsRefusalKind::Missing);
         assert_eq!(
             error.explanation,
@@ -132,7 +132,7 @@ fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
     }
     let unreadable = fixture(&valid());
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
-    let error = read_controls(&unreadable).unwrap_err();
+    let error = read_controls(&unreadable, |_| {}).unwrap_err();
     assert_eq!(error.kind, ControlsRefusalKind::Malformed);
     assert_eq!(
         error.explanation,
@@ -146,7 +146,7 @@ fn controls_files_follow_a_regular_symlink_without_rewriting_its_target() {
     let target = fixture(&bytes);
     let link = directory().join("controls.json");
     std::os::unix::fs::symlink(&target, &link).unwrap();
-    let controls = read_controls(&link).unwrap();
+    let controls = read_controls(&link, |_| {}).unwrap();
     assert_eq!(controls.len(), 1);
     assert_eq!(controls[0].id(), "filevault");
     assert_eq!(fs::read(target).unwrap(), bytes);

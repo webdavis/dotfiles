@@ -59,12 +59,11 @@ without its required partner refuses the document; an isolated low surrogate bec
 character. Command substitution removes null characters and trailing newlines before the domain sanitizes
 descriptions and remedies. A later invalid row refuses the whole set (S254 to S256).
 
-The reader returns a typed refusal without printing. The future caller still owns Bash's additional
-shell-redirection diagnostic for an unreadable file, alongside the malformed-file explanation. The
-controls array's typed length replaces the intermediate count string. The poller state adapter below owns
-its file operations. The poll flow below requires durable acceptance; concrete caller composition and the
-Funnel file adapters remain in their planned rows (S265, S270, S271, S278). The Bash callers remain
-active until those cutovers.
+The reader returns a typed refusal and reports a regular-file open error to its caller. `posture poll`
+prints that error alongside the existing malformed-file explanation. The controls array's typed length
+replaces the intermediate count string. The poller state adapter below owns its file operations. The poll
+flow requires durable acceptance. The Bash callers remain active until their deployment cutovers (S265,
+S270, S271, S278).
 
 The native poller inputs preserve each completed command's output and shell exit status. Existing
 inspection and publication callers still use success-only reads and their original total budget. Poller
@@ -86,16 +85,19 @@ newline-separated values. An invalid document clears the first projection; a sca
 that row while later stream rows still print. These bytes feed the existing domain classifiers without
 being treated as trusted readings (S241, S243).
 
-These adapters perform read-only observations when invoked. The application flow below owns page and
-baseline ordering. Concrete composition still owns the validated-control reads, adapter calls,
-diagnostics and caller cutover. No deployed caller uses these inputs yet.
+`posture poll` composes these readers with the existing application flow. It queries the trio first,
+admits the whole controls file, reads declared probes, then loads the prior baseline. Missing query
+output becomes an unreadable trio. Invalid controls never trigger their probes. Discovery selects an
+`osqueryi` executable available to the effective user on PATH, with the captured absolute fallback.
+Allowlist and converge discovery use the same native access check; converge separately validates its
+parent directories. No deployed caller uses the new poll command yet.
 
 The poller state adapter reads exactly one whole baseline object and trusts only mode 0600 with a valid
 trio. A symlink's own mode is checked while the regular-file read follows its target. Missing paths,
 directories, named pipes, unreadable files, malformed or multiple documents and out-of-domain trios
 return no trusted baseline. The saved control value, expectation and target remain separate for the
-domain's independent prior checks (S260, S261). Bash's unreadable-file shell diagnostic remains a caller
-obligation.
+domain's independent prior checks (S260, S261). The caller prints a regular-file open error while
+continuing with no trusted baseline.
 
 Gap markers retain literal-space member boundaries. Internal tabs and newlines never cover separate
 members. Refresh replaces the marker with the current members plus one newline; clearing a missing marker
@@ -133,8 +135,12 @@ Pages carry `NeedsAttention`, the supplied occurrence time and no fixed occurren
 and persistence gaps use event `gap`; exposure uses `page`. The flow leaves retained JSON inside the file
 adapter by accepting only a typed publication closure. No Bash caller is replaced here.
 
-`PollPage` retains the captured Sosumi field. The current PNS (Personal Notification System) banner uses
-its fixed default sound for `NeedsAttention`; its request and configuration do not accept a sound name.
-Exact ordinary banner sound-name parity remains a caller-cutover obligation. The independent last-resort
-alarm's fixed Sosumi behavior belongs to the separate producer adapter. This flow adds no unused sound
-field to `Alert`.
+The command submits security pages through the configured posture producer route with a five-second
+submission budget and a separate ten-second independent-alarm budget. Refused monitoring gaps and
+exposures preserve the captured failure diagnostics and return failure without advancing unaccepted
+state. Persistence failure remains failure even when its separate gap is accepted.
+
+`PollPage` retains the captured Sosumi field. Ordinary security attention banners require the separate
+PNS (Personal Notification System) security-sound fix before caller cutover. The independent last-resort
+alarm retains its fixed Sosumi behavior. The request and configuration accept no free-form sound name,
+and this flow adds no unused sound field to `Alert`.
