@@ -33,14 +33,16 @@ are in `.luacheckrc`.
 1. `config/options.lua` → `config/keymaps.lua` → `config/autocmds.lua` → `config/lazy.lua`
 
 **Plugin system**: lazy.nvim loads all specs from `lua/plugins/`. Each plugin file returns a lazy.nvim
-spec table. Plugins are **not** lazy-loaded by default (`lazy = false`).
+spec table. `config/lazy.lua` sets `defaults.lazy = true`: specs load on demand, with `event`, `keys`,
+`ft` or `cmd` triggers where declared. Specs that must load at startup explicitly set `lazy = false`;
+that setting overrides triggers. The update checker is disabled.
 
 ### Key directories
 
-- `lua/config/` — Core config: options, keymaps, autocmds, lazy.nvim setup
-- `lua/plugins/` — One file per plugin (or plugin group), each returning a lazy.nvim spec
-- `lua/custom_api/` — Custom utility modules, each required by its own name
-- `lua/overseer/template/user/` — Custom Overseer task templates
+- `lua/config/`: Core config: options, keymaps, autocmds, lazy.nvim setup
+- `lua/plugins/`: One file per plugin (or plugin group), each returning a lazy.nvim spec
+- `lua/custom_api/`: Custom utility modules, each required by its own name
+- `lua/overseer/template/user/`: Custom Overseer task templates
 
 ### Custom API (`lua/custom_api/`)
 
@@ -49,11 +51,11 @@ Each module is required by its own name, `require("custom_api.git")`. There is n
 that pulled in a module with a side effect at load ran that side effect too early. Requiring a
 `custom_api` module must do nothing but return it.
 
-- `util` — `trim()`, `normalize()`, and `run_shell_command()`, whose `cmd` is argv words as a table (no
+- `util`: `trim()`, `normalize()`, and `run_shell_command()`, whose `cmd` is argv words as a table (no
   shell) or a string for a deliberate pipeline
-- `keymap` — `map()`, the global keymap helper
-- `git` — Git CLI wrappers (branch parsing, URL generation, protocol conversion)
-- `github` — GitHub CLI (`gh`) integration for account/repo info
+- `keymap`: `map()`, the global keymap helper
+- `git`: Git CLI wrappers (branch parsing, URL generation, protocol conversion)
+- `github`: GitHub CLI (`gh`) integration for account/repo info
 - `auto_reload`: `watch()` and `unwatch()`, the `vim.uv` file-watch handles behind the
   reload-on-external-write autocmd in `config/autocmds.lua`
 - `overseer`: `overseer_runner()`, which chains commands into one Overseer orchestrator task
