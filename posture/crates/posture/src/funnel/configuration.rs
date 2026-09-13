@@ -1,5 +1,4 @@
-use posture_adapters::parse_command_duration as duration;
-use std::os::unix::fs::PermissionsExt;
+use posture_adapters::{is_executable, parse_command_duration as duration};
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 pub(super) struct Configuration {
@@ -21,10 +20,7 @@ impl Configuration {
             .or_else(|| {
                 std::env::split_paths(&variable("PATH").unwrap_or_default())
                     .map(|directory| directory.join("tailscale"))
-                    .find(|path| {
-                        std::fs::metadata(path)
-                            .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-                    })
+                    .find(|path| is_executable(path))
             })
             .unwrap_or_else(|| "/Applications/Tailscale.app/Contents/MacOS/Tailscale".into());
         let timeout = variable("OSQUERY_TAILSCALE_TIMEOUT").filter(|value| !value.is_empty());
@@ -68,6 +64,28 @@ mod tests {
         ] {
             assert!(duration(literal).is_none(), "{literal}");
         }
+    }
+    #[test]
+    fn a_path_entry_this_identity_cannot_execute_is_not_the_tailscale_binary() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("posture-funnel-path-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let candidate = root.join("tailscale");
+        std::fs::write(&candidate, "#!/bin/sh\n").unwrap();
+        let vars = |name: &str| match name {
+            "HOME" => Some(OsString::from("/private/fixture")),
+            "PATH" => Some(OsString::from(root.as_os_str())),
+            _ => None,
+        };
+        // Execute for group and other but never for this identity, the way a
+        // root-owned 0700 binary reads to an unprivileged poller.
+        std::fs::set_permissions(&candidate, std::fs::Permissions::from_mode(0o011)).unwrap();
+        assert_eq!(
+            Configuration::read(vars).unwrap().tailscale,
+            PathBuf::from("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+        );
+        std::fs::set_permissions(&candidate, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(Configuration::read(vars).unwrap().tailscale, candidate);
     }
     #[test]
     fn private_overrides_win_and_empty_values_use_the_existing_default_paths() {
