@@ -40,7 +40,7 @@ their original order. The added columns identify the assertion-bearing successor
 statements, disposition, remaining work, source status and live acceptance. Original `ok` values are
 historical Bash results. They are not new Rust test results.
 
-This is task60's preparatory mapping at main `4014ff49`, with the pending source snapshots below. It does
+This is task60's preparatory mapping at main `41423df8`, with the pending source snapshots below. It does
 not close task60 or authorize Bash retirement. Of the 187 rows, 140 have mapped assertions, seven have
 coverage distributed across components, five have an accepted transport replacement, 15 remain partial,
 five propose a mechanism-specific disposition, 13 retain their legacy queue owner, and two have a direct
@@ -54,18 +54,23 @@ Bash failure injection can be retired. `accepted-replacement` is limited to the 
 Observation and durable-receipt changes. A source reference beginning `merged` resolves under the main
 snapshot; `*-pending` resolves under its named branch, not under the documentation worktree.
 
-| Pending source                                     | Snapshot inspected                               | Assertion evidence and remaining boundary                                                                                                                                                                                                                                  |
-| -------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Task46 watchdog, `feat/posture-watchdog-health`    | `998aeeae`, integration merge in progress        | `watchdog_queue/tests.rs` pins missing/lazy/corrupt legacy counts; application watchdog tests pin alarm/delivery before state. Rows B064, B065 and B069-B071 include these pending successors. Queue retirement remains task49.                                            |
-| Task47 poll, `feat/posture-poll`                   | `b4bfe2ec`, includes main `4014ff49`             | `posture/src/poll/tests.rs::an_exposure_is_stored_before_the_baseline_changes_and_refusal_retains_it` observes state at submission and after refusal/acceptance. This composition is outside the original 187-leaf corpus.                                                 |
-| Task48 funnel, `feat/posture-funnel`               | `c6434be1`                                       | `posture/tests/funnel.rs::oversized_exposure_reports_omission_without_advancing_the_baseline` pins the bounded omission correction; domain fixtures pin opening/steady/closed transitions and unknown baseline handling. Funnel had no leaf in the original corpus.        |
-| Task50 converge, `fix/posture-converge-validation` | `4d8ed8bd`                                       | Private database, guarded validator, literal uu repair arguments and post-build caller are source-pending. Integration must preserve poll's effective-access executable helper for both control and daemon resolution. B092 includes the new no-stop validation assertion. |
-| Task58 secure shell, `feat/posture-ssh`            | `f53e1de9`, application/adapter work uncommitted | B187 maps the committed directive/path policy assertions. The original real command's pure modes, exit status and absence of writes still need their command-level successor.                                                                                              |
+| Pending source                                     | Snapshot inspected                               | Assertion evidence and remaining boundary                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task46 watchdog, `feat/posture-watchdog-health`    | `06a9d5df`, integrated branch                    | `watchdog_queue/tests.rs` pins missing/lazy/corrupt legacy counts; application watchdog tests pin alarm/delivery before state. Rows B064, B065 and B069-B071 include these pending successors. Queue retirement remains task49.                                               |
+| Task47 poll, `feat/posture-poll`                   | `b3f39b5f`, includes main `41423df8`             | `posture/src/poll/tests.rs::an_exposure_is_stored_before_the_baseline_changes_and_refusal_retains_it` observes state at submission and after refusal/acceptance. This composition is outside the original 187-leaf corpus.                                                    |
+| Task48 funnel, `feat/posture-funnel`               | `a777254f`                                       | `posture/tests/funnel.rs::oversized_exposure_reports_omission_without_advancing_the_baseline` pins the bounded omission correction; domain fixtures pin opening/steady/closed transitions and unknown baseline handling. Funnel had no leaf in the original corpus.           |
+| Task50 converge, `fix/posture-converge-validation` | `92db6325`, includes poll and main `0ec1e22f`    | Local integration retains effective-access checks for both commands and passes private regressions and full `just ship`. B092 pins validation before stop. Parent publication and privileged cleanup/live repair acceptance remain open.                                      |
+| Task58 secure shell, `feat/posture-ssh`            | `daad4344`, command/application work uncommitted | B187 includes committed directive/path policy and the pending `print_commands_and_help_do_not_construct_native_actions` assertion for exact output, zero exit and no native action. The original whole-process empty-directory assertion and operator acceptance remain open. |
 
-The pending snapshots record source availability only. A worker's later merge or passing gate does not
-silently update this table. The private mapping receipts retain the exact inspected file hashes and
-assertion bodies, including uncommitted source. Parent integration and review must refresh the affected
-rows before publication.
+The pending labels distinguish source from publication and live acceptance. Task50 has fresh integration
+gates; the other entries here are assertion-source evidence, not new passing-test claims. A worker's
+later merge or passing gate does not silently update this table. The private mapping receipts retain the
+exact inspected file hashes and assertion bodies, including uncommitted source. Parent integration and
+review must refresh the affected rows before publication.
+
+Deployed status is unverified for every row. This audit reads repository source and private fixtures; it
+does not establish an installed version or claim that a source caller cutover has reached the host.
+Operator acceptance remains recorded separately and does not block this preparatory disposition.
 
 The mapping found these unresolved behaviors:
 
