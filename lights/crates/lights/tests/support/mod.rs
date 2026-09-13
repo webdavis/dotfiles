@@ -4,7 +4,7 @@ use lights::{Response, run};
 use lights_adapters::HueLightController;
 use serde_json::{Value, json};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -12,7 +12,20 @@ use std::{
 };
 use transport::{ScriptedConnector, ScriptedResolver};
 
-pub fn home() -> PathBuf {
+/// A temporary test home directory, removed when dropped.
+pub struct Home(PathBuf);
+
+impl Home {
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+impl Drop for Home {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+pub fn home() -> Home {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
         "lights-{}-{}",
@@ -20,7 +33,7 @@ pub fn home() -> PathBuf {
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&path).unwrap();
-    path
+    Home(path)
 }
 pub fn config() -> &'static str {
     "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n"
@@ -38,7 +51,8 @@ pub fn command(
     config: Option<&str>,
     responses: Vec<(u16, Value)>,
 ) -> (Response, Vec<Vec<u8>>) {
-    let path = home().join("config.toml");
+    let home = home();
+    let path = home.path().join("config.toml");
     if let Some(config) = config {
         std::fs::write(&path, config).unwrap();
     }
@@ -73,7 +87,8 @@ pub fn failure(response: &Response, exit: u8, name: &str) {
     assert!(!response.stderr.contains("test-secret"));
 }
 pub fn timeout_command() -> Response {
-    let path = home().join("config.toml");
+    let home = home();
+    let path = home.path().join("config.toml");
     std::fs::write(&path, config()).unwrap();
     run(&["toggle".into()], &path, &Quiet, |settings| {
         HueLightController::with_transport(
