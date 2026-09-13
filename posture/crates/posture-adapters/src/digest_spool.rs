@@ -14,8 +14,8 @@
 
 use posture_application::{ClaimFailure, ClaimedBatch, DigestRow, DigestSpool};
 use std::fs;
-use std::io::ErrorKind;
-use std::os::unix::fs::PermissionsExt;
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// What a claimed batch is named while this run owns it.
@@ -54,26 +54,57 @@ impl DigestSpoolFile {
 
     /// Append `from` onto `onto`, then remove `from` only if that worked.
     ///
-    /// APPEND RATHER THAN RENAME, always. The alerter can add a finding to the
-    /// fresh spool while this run is building, and a rename would destroy that
-    /// concurrent append. Order within a grouped digest carries no meaning, so
-    /// appending costs nothing and cannot clobber.
+    /// APPEND RATHER THAN RENAME OR REWRITE, always. The alerter can add a
+    /// finding to the fresh spool while this run is building: a rename would
+    /// destroy that concurrent append, and a read-then-rewrite would lose any
+    /// line that landed between the read and the write. An `O_APPEND` write
+    /// lands after whatever is there when it runs. Order within a grouped
+    /// digest carries no meaning, so appending costs nothing and cannot clobber.
     fn fold(from: &Path, onto: &Path) {
         let Ok(bytes) = fs::read(from) else { return };
-        let mut merged = match fs::read(onto) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-            Err(_) => return,
+        // ONE HANDLE ANSWERS BOTH QUESTIONS. Reading the tail through a second
+        // open left a window: a claim could rename the spool away between the
+        // two opens, and the separator would then describe a file the write
+        // never reached, opening a fresh spool with a blank first line.
+        // `O_APPEND` ignores the read position, so seeking to read the tail
+        // cannot move where the write lands.
+        let Ok(mut spool) = fs::OpenOptions::new()
+            .read(true)
+            .append(true)
+            .create(true)
+            .mode(0o600)
+            .open(onto)
+        else {
+            return;
         };
-        if !merged.is_empty() && !merged.ends_with(b"\n") {
-            merged.push(b'\n');
+        // A concurrent append can only add whole lines after that tail, so the
+        // answer still holds when the write lands.
+        let Ok(separator) = owes_separator(&mut spool) else {
+            return;
+        };
+        let mut payload = Vec::with_capacity(bytes.len() + 1);
+        if separator {
+            payload.push(b'\n');
         }
-        merged.extend_from_slice(&bytes);
-        if fs::write(onto, merged).is_ok() {
+        payload.extend_from_slice(&bytes);
+        if spool.write_all(&payload).is_ok() {
             let _ = owner_only(onto);
             let _ = fs::remove_file(from);
         }
     }
+}
+
+/// Whether the spool's last line is still open, read through the same handle
+/// the append will use. An empty spool owes nothing.
+fn owes_separator(spool: &mut fs::File) -> std::io::Result<bool> {
+    let length = spool.metadata()?.len();
+    if length == 0 {
+        return Ok(false);
+    }
+    spool.seek(SeekFrom::Start(length - 1))?;
+    let mut last = [0u8; 1];
+    spool.read_exact(&mut last)?;
+    Ok(last[0] != b'\n')
 }
 
 /// 0600, which is what a file holding full filesystem paths gets.
