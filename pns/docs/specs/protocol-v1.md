@@ -6,7 +6,8 @@
 tap records attention; info observes it; install prints a guide. Other arguments, including conflicting
 operations, exit 2 before mutation. The tool-wide color flag still applies.
 
-JSON output is one object with `schema: "pns.tap/1"` and a trailing newline, without terminal decoration.
+JSON (JavaScript Object Notation) output is one object with `schema: "pns.tap/1"` and a trailing newline,
+without terminal decoration.
 It uses the existing envelope bounds. Its required fields are:
 
 | Field          | Type and meaning                                          |
@@ -401,7 +402,8 @@ Destination results carry typed verdicts without echoing private transport text.
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
 migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured class policy is specified in `quiet-behavior.md`, behavior 7.
+gate. The configured class policy is specified in `quiet-behavior.md`, behavior
+7\.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the

@@ -20,11 +20,12 @@ pub struct RunDoctor<'a, R, C> {
     pub decisions: pns_domain::doctor::Detail,
 }
 
-pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO> {
+pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO> {
     pub deliver: D,
     pub pulse: P,
     pub presence: PR,
     pub pairing: PA,
+    pub tap: T,
     pub focus: F,
     pub daemon: DA,
     pub lamps: L,
@@ -37,9 +38,9 @@ pub struct DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO> {
 }
 
 impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
-    pub fn run<D, P, PR, PA, F, DA, L, I, H, RO>(
+    pub fn run<D, P, PR, PA, T, F, DA, L, I, H, RO>(
         &self,
-        mut actions: DoctorActions<D, P, PR, PA, F, DA, L, I, H, RO>,
+        mut actions: DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO>,
         mut emit: impl FnMut(pns_domain::doctor::Item),
     ) -> i32
     where
@@ -47,6 +48,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         P: FnMut() -> Outcome,
         PR: FnMut() -> (PresenceStatus, Option<PresenceDecision>),
         PA: FnOnce() -> PairingReport,
+        T: FnOnce() -> pns_domain::doctor::Item,
         F: FnOnce() -> String,
         DA: FnOnce() -> String,
         L: FnOnce() -> LightsReport,
@@ -161,6 +163,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
                 line,
             ));
         }
+        emit((actions.tap)());
         // GATE STATE ABOVE THE HISTORY THE GATE EXPLAINS, and below the pairing
         // check, which is health. It must NOT move the exit code, for the reason
         // the decision section does not: a Focus being on is not a fault.
