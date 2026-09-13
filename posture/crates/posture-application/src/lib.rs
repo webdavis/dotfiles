@@ -58,6 +58,7 @@ pub use judge_results::{
 
 mod ssh;
 pub use ssh::{
-    SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshLaunchctl,
-    SshScanFailure, SshTree, Sshd,
+    SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshInstallSignals,
+    SshLaunchctl, SshOutput, SshReload, SshScanFailure, SshTree, SshVerification, SshVerifyContext,
+    Sshd, install_ssh, reload_ssh, rollback_ssh, verify_ssh,
 };

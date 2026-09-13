@@ -5,7 +5,7 @@ pub use include::{IncludePattern, IncludeRefusal, analyze_include};
 mod directives;
 pub use directives::{
     PasswordChannel, SshJudgment, SshScan, judge_ssh_output, password_channel, scan_ssh_line,
-    ssh_config, ssh_dropin_path,
+    ssh_config, ssh_directive_count, ssh_dropin_path,
 };
 mod readiness;
 pub use readiness::{ReadinessRefusal, SshReadiness, has_host_key, ssh_ports, ssh_verify_deadline};

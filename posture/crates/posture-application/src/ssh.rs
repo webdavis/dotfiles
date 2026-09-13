@@ -74,3 +74,19 @@ pub trait SshTree {
     fn scan(&self) -> Vec<SshScanFailure>;
     fn observe(&self) -> Result<Vec<SshRecord>, SshScanFailure>;
 }
+
+mod verify;
+pub use verify::{SshVerification, SshVerifyContext, verify_ssh};
+
+mod install;
+mod output;
+pub use install::{SshInstallSignals, install_ssh};
+mod reload;
+mod rollback;
+pub use output::SshOutput;
+pub use reload::{SshReload, reload_ssh};
+pub use rollback::rollback_ssh;
+
+fn succeeded(result: &SshCommandResult) -> bool {
+    matches!(result, Ok(completed) if completed.status == 0)
+}

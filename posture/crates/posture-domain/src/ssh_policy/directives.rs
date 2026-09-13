@@ -31,6 +31,10 @@ const DIRECTIVES: [(&str, &str); 7] = [
     ("hostbasedauthentication", "no"),
 ];
 
+pub fn ssh_directive_count() -> usize {
+    DIRECTIVES.len()
+}
+
 pub fn ssh_config() -> &'static str {
     include_str!("dropin.conf")
 }

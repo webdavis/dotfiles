@@ -50,12 +50,17 @@ pub struct CommandOutput {
 pub struct SystemRunner {
     budget: Budget,
     termination_grace: Duration,
+    cancelled: fn() -> bool,
 }
 enum Budget {
     Total(Instant),
     PerCommand(Duration),
 }
 impl SystemRunner {
+    pub fn with_cancellation(mut self, cancelled: fn() -> bool) -> Self {
+        self.cancelled = cancelled;
+        self
+    }
     pub fn with_termination_grace(mut self, grace: Duration) -> Self {
         self.termination_grace = grace;
         self
@@ -65,12 +70,14 @@ impl SystemRunner {
         Self {
             budget: Budget::PerCommand(budget),
             termination_grace: Duration::ZERO,
+            cancelled: || false,
         }
     }
     pub fn new(budget: Duration) -> Self {
         Self {
             budget: Budget::Total(Instant::now() + budget),
             termination_grace: Duration::ZERO,
+            cancelled: || false,
         }
     }
 }
@@ -82,6 +89,9 @@ impl CommandRunner for SystemRunner {
         args: &[&OsStr],
         io: CommandIo<'_>,
     ) -> Result<CommandOutput, InspectionFailure> {
+        if (self.cancelled)() {
+            return Err(InspectionFailure::Failed);
+        }
         let expires = match self.budget {
             Budget::Total(expires) => expires,
             Budget::PerCommand(duration) => Instant::now() + duration,
@@ -149,6 +159,10 @@ impl CommandRunner for SystemRunner {
         let mut output = Vec::new();
         let mut eof = reader.is_none();
         loop {
+            if (self.cancelled)() {
+                child.stop(self.termination_grace);
+                return Err(InspectionFailure::Failed);
+            }
             if Instant::now() >= expires {
                 child.stop(self.termination_grace);
                 return Err(InspectionFailure::TimedOut);
