@@ -99,3 +99,8 @@ pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
     resolve_osqueryctl,
 };
+
+mod funnel_status;
+pub use funnel_status::read_funnel;
+mod funnel_state;
+pub use funnel_state::FunnelStateFile;

@@ -55,3 +55,6 @@ pub use judge_results::{
     BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
     RunLock,
 };
+
+mod funnel;
+pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};

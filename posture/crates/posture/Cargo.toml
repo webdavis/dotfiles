@@ -22,3 +22,6 @@ path = "src/main.rs"
 posture-adapters = { path = "../posture-adapters" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
+
+[dev-dependencies]
+serde_json = "1.0.151"

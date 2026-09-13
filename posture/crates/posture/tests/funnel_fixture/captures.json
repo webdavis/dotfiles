@@ -1,0 +1,1102 @@
+[
+  {
+    "name": "inactive_first",
+    "input": "{}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "active_first",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "steady_active",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "closed",
+    "input": "{}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "opened",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"inactive\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"inactive\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "corrupt_idle",
+    "input": "{}",
+    "prior": "corrupt",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- The funnel monitor state file was CORRUPT (an unreadable baseline); it is being reset.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": "corrupt"
+        }
+      ],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "corrupt_active",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "corrupt",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": "corrupt"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "pretty_active",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\n \"funnel\":\"active\"\n}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "multiple_baselines",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"active\"}\n{}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}\n{}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "false_value",
+    "input": "{\"AllowFunnel\":false}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "null_value",
+    "input": "{\"AllowFunnel\":null}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "false_entries",
+    "input": "{\"AllowFunnel\":{\"a\":false}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "nested_active",
+    "input": "{\"Foreground\":[{\"child\":{\"AllowFunnel\":{\"z:443\":true,\"a:443\":true}}}],\"AllowFunnel\":{\"a:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `a:443`\n- `z:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "wrong_shape",
+    "input": "{\"AllowFunnel\":42}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "wrong_entry",
+    "input": "{\"AllowFunnel\":{\"a\":true,\"b\":null}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "invalid_wins",
+    "input": "[{\"AllowFunnel\":{\"a\":true}},{\"AllowFunnel\":[]}]",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "stream_documents",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}\n{}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "whitespace_only",
+    "input": "   \n",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` returned no output, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "malformed",
+    "input": "not JSON",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` returned output that is not valid JSON, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "null_document",
+    "input": "null",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "duplicate_values",
+    "input": "{\"AllowFunnel\":{\"a\":true},\"AllowFunnel\":{\"a\":false}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "duplicate_entry",
+    "input": "{\"AllowFunnel\":{\"a\":true,\"a\":false}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "low_surrogate",
+    "input": "{\"AllowFunnel\":{\"\\udc00:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `�:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "high_surrogate",
+    "input": "{\"AllowFunnel\":{\"\\ud800:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` returned output that is not valid JSON, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "nonnumeric_extension",
+    "input": "{\"ignored\":NaN,\"AllowFunnel\":{\"a\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `a`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "hostile_keys",
+    "input": "{\"AllowFunnel\": {\"`danger`\\r\\n\\tname\\u0000:443\": true, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\": true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<BASH_MONITOR>: line 129: warning: command substitution: ignored null byte in input\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `danger   name:443`\n- `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "command_failure",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 7,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` exited 7, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "missing_binary",
+    "input": "{}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": true,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "WARN: no tailscale binary (<HOME>/tailscale) - funnel monitoring is blind\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- No tailscale binary found at [<TAILSCALE>].\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "gap_covered",
+    "input": "",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": true,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "gap_recovered",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": true,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "persist_distrust",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": true,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "refused_exposure",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": "{\"funnel\":\"inactive\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": true,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "tailscale-monitor: send_alert could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"inactive\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"inactive\"}",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "refused_read_gap",
+    "input": "",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": true,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "tailscale-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` returned no output, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "refused_corruption_warning",
+    "input": "{}",
+    "prior": "corrupt",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": true,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- The funnel monitor state file was CORRUPT (an unreadable baseline); it is being reset.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": "corrupt"
+        }
+      ],
+      "baseline": "{\"funnel\":\"inactive\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "publish_failure",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": true,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<BASH_MONITOR>: line 60: <HOME>/state/baseline.tmp: Is a directory\nrm: <HOME>/state/baseline.tmp: is a directory\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": null
+        },
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitor degraded.**\n- The funnel monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real public exposure and blind the monitor.\n- Check the state directory free space and permissions. **Check now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": false,
+      "persist_gap": true
+    }
+  },
+  {
+    "name": "failed_close",
+    "input": "{}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": true,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<BASH_MONITOR>: line 60: <HOME>/state/baseline.tmp: Is a directory\nrm: <HOME>/state/baseline.tmp: is a directory\n",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitor degraded.**\n- The funnel monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real public exposure and blind the monitor.\n- Check the state directory free space and permissions. **Check now.**",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": false,
+      "persist_gap": true
+    }
+  },
+  {
+    "name": "persist_gap_covered",
+    "input": "{}",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": true,
+    "fail_publish": true,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<BASH_MONITOR>: line 60: <HOME>/state/baseline.tmp: Is a directory\nrm: <HOME>/state/baseline.tmp: is a directory\n",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": false,
+      "persist_gap": true
+    }
+  },
+  {
+    "name": "status_timeout",
+    "input": "",
+    "prior": "{\"funnel\":\"active\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "sleep": true,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- `tailscale funnel status --json` exited 124, so the funnel state is unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": "{\"funnel\":\"active\"}"
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}",
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "allow_nan",
+    "input": "{\"AllowFunnel\":NaN}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**\n- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable.\n- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": null,
+      "gap": true,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "deep_active",
+    "input": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{\"AllowFunnel\":{\"deep:443\":true}}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `deep:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "baseline_command_text",
+    "input": "{\"AllowFunnel\":{\"a\":true}}",
+    "prior": "{\"funnel\":\"active\\n\"}",
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  },
+  {
+    "name": "oversized_exposure",
+    "input": "{\"AllowFunnel\": {\"0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"30xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"31xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"32xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"33xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"34xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"35xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"36xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"37xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"38xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"39xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"40xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"41xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"42xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"43xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true, \"44xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\": true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `30xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `31xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `32xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `33xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `34xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `35xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `36xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `37xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `38xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `39xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `40xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `41xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `42xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `43xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `44xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`\n- `9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(truncated)`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    }
+  }
+]

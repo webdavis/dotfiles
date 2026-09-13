@@ -86,6 +86,7 @@ dependencies = [
  "posture-adapters",
  "posture-application",
  "posture-domain",
+ "serde_json",
 ]
 
 [[package]]
