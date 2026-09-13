@@ -119,6 +119,9 @@ pub(crate) fn run() {
     if first == "submit" {
         std::process::exit(event_flow::submit_mode(&flagless[1..]));
     }
+    if first == "tap" {
+        std::process::exit(crate::command_tap::tap_mode());
+    }
     // The pulse is a MODE, not a leg: it fires on a long command's exit code
     // rather than on an event, so it leaves before any of the event wiring.
     if first == "pulse" {

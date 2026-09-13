@@ -57,12 +57,7 @@ fn gate_argv(sandbox: &Sandbox, argv: &[&str], payload: &str) -> std::process::O
         .stderr(Stdio::piped())
         .spawn()
         .expect("the engine runs");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(payload.as_bytes())
-        .expect("payload");
+    write_payload(&mut child, payload.as_bytes());
     child.wait_with_output().expect("output")
 }
 

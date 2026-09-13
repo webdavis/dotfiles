@@ -53,6 +53,8 @@ pub struct Submission<'a> {
     /// Whether a lamp map AND a transport are both live. A marker written with
     /// no lamp to read it is a wait nothing will ever clear.
     pub lamps_live: bool,
+    /// This pane's lease at the decision's clock, before this event renews it.
+    pub loop_live: bool,
     /// Whether the config declared any lamps at all, which is a weaker
     /// question than `lamps_live` and the one the behaviour is read against.
     pub lights_declared: bool,
@@ -97,13 +99,15 @@ where
             );
         }
 
-        BlockedMarker::update(
-            self.ports,
-            submission.session_id,
-            &submission.event.state,
-            submission.lamps_live,
-            decision.inputs.now_secs,
-        );
+        if !(submission.loop_live && submission.event.state == "asking") {
+            BlockedMarker::update(
+                self.ports,
+                submission.session_id,
+                &submission.event.state,
+                submission.lamps_live,
+                decision.inputs.now_secs,
+            );
+        }
         LampRecords::news(
             self.ports,
             pulse::state_behaviour(&submission.event.state, true),

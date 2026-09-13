@@ -38,16 +38,17 @@ impl Session<'_> {
             .tiers
             .get(name)
             .is_some_and(|tier| tier == "on-demand");
-        let content = overlay::read(
+        if !overlay::matches(
             &self
                 .store
                 .current()
                 .join("skills")
                 .join(name)
                 .join("agents/openai.yaml"),
+            on_demand,
         )
-        .unwrap_or_default();
-        if content.contains(overlay::POLICY) != on_demand {
+        .unwrap_or(false)
+        {
             return Some("overlay");
         }
         None

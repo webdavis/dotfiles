@@ -27,6 +27,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
+            "phone" => config.phone_marker_file = phone::parse_phone(value)?,
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "daemon" => config.daemon_enabled = parse_daemon(value)?,
