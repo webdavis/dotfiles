@@ -14,7 +14,8 @@
 
 use posture_application::{ClaimedBatch, DigestRow, DigestSpool};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// What a claimed batch is named while this run owns it.
@@ -53,26 +54,53 @@ impl DigestSpoolFile {
 
     /// Append `from` onto `onto`, then remove `from` only if that worked.
     ///
-    /// APPEND RATHER THAN RENAME, always. The alerter can add a finding to the
-    /// fresh spool while this run is building, and a rename would destroy that
-    /// concurrent append. Order within a grouped digest carries no meaning, so
-    /// appending costs nothing and cannot clobber.
+    /// APPEND RATHER THAN RENAME OR REWRITE, always. The alerter can add a
+    /// finding to the fresh spool while this run is building: a rename would
+    /// destroy that concurrent append, and a read-then-rewrite would lose any
+    /// line that landed between the read and the write. An `O_APPEND` write
+    /// lands after whatever is there when it runs. Order within a grouped
+    /// digest carries no meaning, so appending costs nothing and cannot clobber.
     fn fold(from: &Path, onto: &Path) {
         let Ok(bytes) = fs::read(from) else { return };
-        let mut merged = match fs::read(onto) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        // Whether a separator is owed is read off the tail before the write.
+        // A concurrent append can only add whole lines after that tail, so the
+        // answer still holds when the write lands.
+        let separator = match last_byte(onto) {
+            Ok(last) => last.is_some_and(|byte| byte != b'\n'),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(_) => return,
         };
-        if !merged.is_empty() && !merged.ends_with(b"\n") {
-            merged.push(b'\n');
+        let Ok(mut spool) = fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .mode(0o600)
+            .open(onto)
+        else {
+            return;
+        };
+        let mut payload = Vec::with_capacity(bytes.len() + 1);
+        if separator {
+            payload.push(b'\n');
         }
-        merged.extend_from_slice(&bytes);
-        if fs::write(onto, merged).is_ok() {
+        payload.extend_from_slice(&bytes);
+        if spool.write_all(&payload).is_ok() {
             let _ = owner_only(onto);
             let _ = fs::remove_file(from);
         }
     }
+}
+
+/// The file's last byte, or `None` for an empty file.
+fn last_byte(path: &Path) -> std::io::Result<Option<u8>> {
+    let mut file = fs::File::open(path)?;
+    let length = file.metadata()?.len();
+    if length == 0 {
+        return Ok(None);
+    }
+    file.seek(SeekFrom::Start(length - 1))?;
+    let mut last = [0u8; 1];
+    file.read_exact(&mut last)?;
+    Ok(Some(last[0]))
 }
 
 /// 0600, which is what a file holding full filesystem paths gets.

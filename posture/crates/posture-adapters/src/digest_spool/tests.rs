@@ -3,6 +3,8 @@
 
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[path = "tests/concurrent_fold.rs"]
+mod concurrent_fold;
 #[path = "tests/read_failures.rs"]
 mod read_failures;
 
