@@ -1,8 +1,4 @@
--- custom_api.herdr (spec 7.4): the interrupt policy is the one piece of this
--- seam that is neither a wrapper over `herdr-nvim` nor a wrapper over the herdr
--- CLI, so it is the one piece with a unit test. `agent_pane`, `send` and
--- `send_selection_or_paragraph` are glue over a third-party API, over the CLI
--- and over `getpos`; they are checked live in the pull request body instead.
+-- custom_api.herdr (spec 7.4): routing, refusal, interrupt policy and selection.
 
 local herdr = require("custom_api.herdr")
 
@@ -25,6 +21,8 @@ local function with_stubbed_herdr(scenario, on_pane)
     exec = package.loaded["herdr-nvim.exec"],
     herdr_env = vim.env.HERDR_ENV,
     workspace_id = vim.env.HERDR_WORKSPACE_ID,
+    tab_id = vim.env.HERDR_TAB_ID,
+    select = vim.ui.select,
     -- A refusal notifies, and under `--clean` that lands on the runner's own
     -- stdout and merges into the next case's report line.
     notify = vim.notify,
@@ -33,10 +31,17 @@ local function with_stubbed_herdr(scenario, on_pane)
   package.loaded["herdr-nvim.agents"] = {
     list = function()
       calls.list = calls.list + 1
-      return { { kind = "claude", workspace_id = scenario.workspace_id, pane_id = "wW:p3K" } }
+      return scenario.agents or { { kind = "claude", workspace_id = scenario.workspace_id, pane_id = "wW:p3K" } }
     end,
+    -- The installed plugin reads the launch-time tab, not the live CLI answer.
     resolve = function(list)
-      return list[1]
+      if #list == 1 then
+        return list[1]
+      end
+      local in_tab = vim.tbl_filter(function(agent)
+        return agent.tab_id == vim.env.HERDR_TAB_ID
+      end, list)
+      return #in_tab == 1 and in_tab[1] or nil
     end,
     display = function(agent)
       return agent.kind
@@ -54,7 +59,12 @@ local function with_stubbed_herdr(scenario, on_pane)
         stderr = "",
         stdout = vim.json.encode({
           result = {
-            pane = { pane_id = scenario.live_workspace_id .. ":p9", workspace_id = scenario.live_workspace_id },
+            pane = {
+              pane_id = scenario.live_workspace_id .. ":p9",
+              workspace_id = scenario.live_workspace_id,
+              tab_id = scenario.live_tab_id == nil and "wW:t1" or scenario.live_tab_id,
+              terminal_id = "term_editor",
+            },
           },
         }),
       }
@@ -62,7 +72,11 @@ local function with_stubbed_herdr(scenario, on_pane)
   }
   vim.env.HERDR_ENV = "1"
   vim.env.HERDR_WORKSPACE_ID = scenario.workspace_id
+  vim.env.HERDR_TAB_ID = "wW:t1"
   vim.notify = function() end
+  vim.ui.select = function(items, _, choose)
+    calls.items, calls.choose = items, choose
+  end
 
   local ok, err = pcall(herdr.agent_pane, function(pane_id)
     calls.continuation = calls.continuation + 1
@@ -75,6 +89,8 @@ local function with_stubbed_herdr(scenario, on_pane)
   package.loaded["herdr-nvim.exec"] = saved.exec
   vim.env.HERDR_ENV = saved.herdr_env
   vim.env.HERDR_WORKSPACE_ID = saved.workspace_id
+  vim.env.HERDR_TAB_ID = saved.tab_id
+  vim.ui.select = saved.select
   vim.notify = saved.notify
   assert(ok, err)
   return calls
@@ -290,5 +306,82 @@ return {
     end)
     assert(calls.list == 1, "agents.list was called " .. calls.list .. " times")
     assert(calls.continuation == 1, "the continuation ran " .. calls.continuation .. " times")
+  end,
+
+  ["a move to another tab in the same workspace selects the live tab agent"] = function()
+    local calls = with_stubbed_herdr({
+      workspace_id = "wW",
+      live_workspace_id = "wW",
+      live_tab_id = "wW:t2",
+      agents = {
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t1", pane_id = "wW:p3", focused = true },
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t2", pane_id = "wW:p8", focused = false },
+      },
+    }, function(pane_id)
+      assert(pane_id == "wW:p8", "selected stale tab agent " .. tostring(pane_id))
+    end)
+    assert(calls.continuation == 1, "the live tab agent was not selected")
+    assert(not calls.choose, "an unambiguous live tab opened a picker")
+  end,
+
+  ["ambiguous live tab agents wait for the picker and cancellation does not continue"] = function()
+    local calls = with_stubbed_herdr({
+      workspace_id = "wW",
+      live_workspace_id = "wW",
+      live_tab_id = "wW:t2",
+      agents = {
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t1", pane_id = "wW:p3" },
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t2", pane_id = "wW:p8" },
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t2", pane_id = "wW:p9" },
+      },
+    })
+    assert(calls.continuation == 0, "an ambiguous move selected an agent without asking")
+    assert(calls.choose and #calls.items == 3, "workspace candidates were not offered")
+    calls.choose(nil)
+    assert(calls.continuation == 0, "cancelling the picker ran the continuation")
+  end,
+
+  ["an asynchronous picker selection continues with the chosen pane"] = function()
+    local calls = with_stubbed_herdr({
+      workspace_id = "wW",
+      live_workspace_id = "wW",
+      live_tab_id = "wW:t3",
+      agents = {
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t1", pane_id = "wW:p3" },
+        { kind = "claude", workspace_id = "wW", tab_id = "wW:t2", pane_id = "wW:p8" },
+      },
+    }, function(pane_id)
+      assert(pane_id == "wW:p8", tostring(pane_id))
+    end)
+    assert(calls.continuation == 0 and calls.choose, "selection did not wait for the picker")
+    calls.choose(calls.items[2])
+    assert(calls.continuation == 1, "selection did not continue exactly once")
+  end,
+
+  ["an unreadable live tab refuses before listing or continuing"] = function()
+    for _, tab in ipairs({ false, "", 42 }) do
+      local calls = with_stubbed_herdr({ workspace_id = "wW", live_workspace_id = "wW", live_tab_id = tab })
+      assert(calls.list == 0, "listed agents without a live tab: " .. tostring(tab))
+      assert(calls.continuation == 0, "continued without a live tab: " .. tostring(tab))
+    end
+  end,
+
+  ["a lone workspace agent remains the fallback after a same workspace move"] = function()
+    local calls = with_stubbed_herdr({
+      workspace_id = "wW",
+      live_workspace_id = "wW",
+      live_tab_id = "wW:t2",
+      agents = { { kind = "claude", workspace_id = "wW", tab_id = "wW:t1", pane_id = "wW:p3" } },
+    }, function(pane_id)
+      assert(pane_id == "wW:p3", tostring(pane_id))
+    end)
+    assert(calls.continuation == 1 and not calls.choose, "lost the lone workspace fallback")
+  end,
+
+  ["no Claude agents continues with nil so launch can create a pane"] = function()
+    local calls = with_stubbed_herdr({ workspace_id = "wW", live_workspace_id = "wW", agents = {} }, function(pane_id)
+      assert(pane_id == nil, tostring(pane_id))
+    end)
+    assert(calls.continuation == 1 and not calls.choose, "no-agent lookup did not continue once")
   end,
 }
