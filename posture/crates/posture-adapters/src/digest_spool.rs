@@ -59,8 +59,11 @@ impl DigestSpoolFile {
     /// appending costs nothing and cannot clobber.
     fn fold(from: &Path, onto: &Path) {
         let Ok(bytes) = fs::read(from) else { return };
-        let existing = fs::read(onto).unwrap_or_default();
-        let mut merged = existing;
+        let mut merged = match fs::read(onto) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(_) => return,
+        };
         if !merged.is_empty() && !merged.ends_with(b"\n") {
             merged.push(b'\n');
         }
@@ -111,7 +114,8 @@ impl DigestSpool for DigestSpoolFile {
         // A FAILED RENAME LEAVES THE SPOOL UNTOUCHED, so nothing is lost and
         // the next run retries the same bytes.
         fs::rename(&self.store, &claimed).ok()?;
-        let contents = fs::read_to_string(&claimed).unwrap_or_default();
+        // An unreadable claim stays intact for the next orphan sweep.
+        let contents = fs::read_to_string(&claimed).ok()?;
         // WHITESPACE IS NOT A FINDING. A spool holding only blank lines has
         // nothing in it, and claiming it is how those lines get cleared.
         if contents.trim().is_empty() {
