@@ -36,6 +36,13 @@ pub const GROUP_LIMIT: usize = 12;
 /// no urgency to spend the margin on.
 pub const BODY_LIMIT: usize = 1800;
 
+/// The four caps one render obeys, resolved by the caller before it starts.
+///
+/// PASSED IN RATHER THAN READ, because nothing here touches the environment:
+/// the constants above are the shipped answer and the adapter is free to hand
+/// down another. Grouped into one type rather than four arguments, so adding a
+/// cap does not re-thread every call site and two of them cannot be swapped at
+/// a call by sharing a type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DigestLimits {
     pub groups: usize,
@@ -162,6 +169,10 @@ fn block(detector: Option<&str>, members: &[DigestEntry<'_>], limits: DigestLimi
 ///
 /// CHARACTERS, not bytes, because a cut through a multi-byte character renders
 /// a replacement glyph where the operator expects a path.
+///
+/// A LIMIT LARGER THAN THE BODY CANNOT TRUNCATE IT, and nothing here allocates
+/// from the limit: `take` stops at whichever of the two runs out first, so an
+/// absurd cap costs an untruncated body rather than the memory it names.
 fn capped(body: String, limit: usize) -> String {
     if body.chars().count() <= limit {
         return body;

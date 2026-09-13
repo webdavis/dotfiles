@@ -61,6 +61,9 @@ fn an_override_names_the_spool_but_an_empty_one_does_not() {
 
 #[test]
 fn absent_or_malformed_scalars_keep_each_original_default() {
+    // One value per way a number can arrive unusable: absent, empty, a word, a
+    // sign, either surrounding space, a decimal, an exponent, and a digit that
+    // is a digit in Unicode but not in ASCII.
     for value in [
         None,
         Some(""),
@@ -68,7 +71,10 @@ fn absent_or_malformed_scalars_keep_each_original_default() {
         Some("-1"),
         Some("+1"),
         Some(" 1"),
+        Some("2 "),
         Some("1.5"),
+        Some("1e2"),
+        Some("٢"),
     ] {
         let config = Configuration::read(|key| match key {
             "HOME" => Some("/private/test-home".into()),

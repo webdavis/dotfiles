@@ -46,6 +46,7 @@ pub use gate::{
 };
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
 pub use records::{CompleteRecords, complete_records};
+pub use sanitize::FIELD_LIMIT;
 pub use severity::{Action, ProtectionState, Severity, severity};
 
 mod allowlist;

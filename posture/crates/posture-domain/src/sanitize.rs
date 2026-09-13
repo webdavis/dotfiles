@@ -17,7 +17,7 @@
 /// One giant value must not spend the whole delivery budget on its own. The
 /// whole-page cap is the backstop; this is what keeps a single field from
 /// reaching it.
-pub(crate) const FIELD_LIMIT: usize = 240;
+pub const FIELD_LIMIT: usize = 240;
 
 /// What marks a field cut short.
 pub(crate) const FIELD_TRUNCATION: &str = "…(truncated)";
@@ -28,13 +28,21 @@ const LINE_BREAKING: [char; 3] = ['\r', '\n', '\t'];
 /// A value rendered inside a Discord inline-code span.
 ///
 /// Backticks are stripped, line-breaking whitespace becomes spaces, and the
-/// result is cut to `FIELD_LIMIT` CHARACTERS rather than bytes, which is what
-/// the jq this replaces counted: cutting bytes would split a multi-byte
-/// character and render a replacement glyph in its place.
+/// result is cut at the shipped `FIELD_LIMIT` by the call below.
 pub(crate) fn code(value: &str) -> String {
     code_with_limit(value, FIELD_LIMIT)
 }
 
+/// The same value, cut at a limit the caller chose instead of the shipped one.
+///
+/// THE DIGEST'S CAPS ARE OPERATOR-OVERRIDABLE and the page's are not, so the
+/// field cap arrives as an argument here while `code` keeps the default. One
+/// body serves both, because a second copy is a second place for the escaping
+/// to be got wrong.
+///
+/// The cut counts CHARACTERS rather than bytes, which is what the jq this
+/// replaces counted: cutting bytes would split a multi-byte character and
+/// render a replacement glyph in its place.
 pub(crate) fn code_with_limit(value: &str, limit: usize) -> String {
     let squashed: String = value
         .chars()

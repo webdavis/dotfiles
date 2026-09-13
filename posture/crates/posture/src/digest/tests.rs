@@ -1,5 +1,4 @@
 use super::*;
-mod limits;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,6 +8,8 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
 };
+
+mod limits;
 
 #[derive(Default)]
 struct Effects {

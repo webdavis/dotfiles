@@ -107,7 +107,11 @@ fn a_non_numeric_cap_env_value_falls_back_without_discarding_valid_other_caps() 
         "DIGEST_MAX_BODY_CHARS",
         "DIGEST_MAX_FIELD_CHARS",
     ] {
-        for invalid in ["", "abc", "-1", "+2", " 2", "2 ", "1.5", "1e2", "٢"] {
+        // Two representatives here, because what this loop proves is that the
+        // OTHER cap survived a neighbour's fallback. Which strings are
+        // unusable is settled once, over the exact fallback values, in
+        // `configuration::tests`.
+        for invalid in ["abc", "٢"] {
             let overrides = if key == "DIGEST_MAX_FIELD_CHARS" {
                 vec![
                     (key, invalid.into()),

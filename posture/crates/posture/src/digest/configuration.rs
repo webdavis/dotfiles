@@ -56,7 +56,8 @@ fn numeric_or(value: Option<OsString>, default: usize) -> usize {
     }) else {
         return default;
     };
-    // A digit-only cap larger than addressable data cannot truncate it. Never allocate from the cap.
+    // Saturating rather than rejecting: an absurd cap is harmless where it is
+    // spent, so it reads as "uncapped" instead of failing the run.
     value
         .as_encoded_bytes()
         .iter()
