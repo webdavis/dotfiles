@@ -62,20 +62,24 @@ impl DigestSpoolFile {
     /// digest carries no meaning, so appending costs nothing and cannot clobber.
     fn fold(from: &Path, onto: &Path) {
         let Ok(bytes) = fs::read(from) else { return };
-        // Whether a separator is owed is read off the tail before the write.
-        // A concurrent append can only add whole lines after that tail, so the
-        // answer still holds when the write lands.
-        let separator = match last_byte(onto) {
-            Ok(last) => last.is_some_and(|byte| byte != b'\n'),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(_) => return,
-        };
+        // ONE HANDLE ANSWERS BOTH QUESTIONS. Reading the tail through a second
+        // open left a window: a claim could rename the spool away between the
+        // two opens, and the separator would then describe a file the write
+        // never reached, opening a fresh spool with a blank first line.
+        // `O_APPEND` ignores the read position, so seeking to read the tail
+        // cannot move where the write lands.
         let Ok(mut spool) = fs::OpenOptions::new()
+            .read(true)
             .append(true)
             .create(true)
             .mode(0o600)
             .open(onto)
         else {
+            return;
+        };
+        // A concurrent append can only add whole lines after that tail, so the
+        // answer still holds when the write lands.
+        let Ok(separator) = owes_separator(&mut spool) else {
             return;
         };
         let mut payload = Vec::with_capacity(bytes.len() + 1);
@@ -90,17 +94,17 @@ impl DigestSpoolFile {
     }
 }
 
-/// The file's last byte, or `None` for an empty file.
-fn last_byte(path: &Path) -> std::io::Result<Option<u8>> {
-    let mut file = fs::File::open(path)?;
-    let length = file.metadata()?.len();
+/// Whether the spool's last line is still open, read through the same handle
+/// the append will use. An empty spool owes nothing.
+fn owes_separator(spool: &mut fs::File) -> std::io::Result<bool> {
+    let length = spool.metadata()?.len();
     if length == 0 {
-        return Ok(None);
+        return Ok(false);
     }
-    file.seek(SeekFrom::Start(length - 1))?;
+    spool.seek(SeekFrom::Start(length - 1))?;
     let mut last = [0u8; 1];
-    file.read_exact(&mut last)?;
-    Ok(Some(last[0]))
+    spool.read_exact(&mut last)?;
+    Ok(last[0] != b'\n')
 }
 
 /// 0600, which is what a file holding full filesystem paths gets.
