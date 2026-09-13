@@ -175,6 +175,7 @@ fn push(failure: &Failure, phone: &PhoneCard) {
     let _ = pns_application::NotificationDestination::deliver(
         &crate::channel_dispatch::moshi_channel(phone.token.clone()),
         &pns_application::DeliveryRequest {
+            producer_request: None,
             producer: "pns",
             request_id: None,
             event: &event,
