@@ -1,0 +1,52 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Own only Plannotator's Stop handler. Codex trust stays in config.toml;
+       after applying, restart Codex and review/approve the hook with /hooks.
+       Upstream timeout is 345600 SECONDS (four days), unlike Gemini's milliseconds. */ -}}
+{{- $raw := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict -}}
+{{- if ($raw | trim) -}}
+{{-   $merged = fromJson $raw -}}
+{{- end -}}
+{{- if ne (kindOf $merged) "map" -}}
+{{-   fail "Codex hooks.json must contain one JSON object" -}}
+{{- end -}}
+{{- $original := toJson $merged -}}
+{{- if not (hasKey $merged "hooks") -}}
+{{-   $merged = set $merged "hooks" (dict) -}}
+{{- end -}}
+{{- $hooks := index $merged "hooks" -}}
+{{- if ne (kindOf $hooks) "map" -}}
+{{-   fail "Codex hooks must be an object" -}}
+{{- end -}}
+{{- if not (hasKey $hooks "Stop") -}}
+{{-   $hooks = set $hooks "Stop" (list) -}}
+{{- end -}}
+{{- $entries := index $hooks "Stop" -}}
+{{- if ne (kindOf $entries) "slice" -}}
+{{-   fail "Codex hooks.Stop must be an array" -}}
+{{- end -}}
+{{- $command := printf "%s/.local/bin/plannotator" .chezmoi.homeDir -}}
+{{- $found := false -}}
+{{- range $entry := $entries -}}
+{{-   if or (ne (kindOf $entry) "map") (ne (kindOf (index $entry "hooks")) "slice") -}}
+{{-     fail "Codex Stop entries must be objects with a hooks array" -}}
+{{-   end -}}
+{{-   range $handler := index $entry "hooks" -}}
+{{-     if ne (kindOf $handler) "map" -}}
+{{-       fail "Codex Stop handlers must be objects" -}}
+{{-     end -}}
+{{-     if and (eq (index $handler "type") "command") (has (index $handler "command") (list "plannotator" $command)) -}}
+{{-       $_ := set $handler "command" $command -}}
+{{-       $_ := set $handler "timeout" 345600 -}}
+{{-       $found = true -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- if not $found -}}
+{{-   $hooks = set $hooks "Stop" (append $entries (dict "hooks" (list (dict "type" "command" "command" $command "timeout" 345600)))) -}}
+{{- end -}}
+{{- if eq (toJson $merged) $original -}}
+{{-   $raw -}}
+{{- else -}}
+{{ $merged | toPrettyJson }}
+{{ end -}}

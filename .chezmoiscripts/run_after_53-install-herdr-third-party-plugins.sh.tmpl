@@ -76,4 +76,36 @@ install_plugin() {
 {{ range .packages.herdr_plugins -}}
 install_plugin {{ .id }} {{ .repo }}
 {{ end -}}
+
+# Quota needs its collectors configured after installation and target updates.
+# Action invocation is asynchronous; wait for this action's recorded result.
+quota="$("$timeout_bin" 10 herdr plugin list --plugin herdr-agent-quota --json 2>/dev/null)" || quota='{}'
+if printf '%s' "$quota" |
+  jq -e 'any(.result.plugins[]?; .plugin_id == "herdr-agent-quota" and .enabled == true)' >/dev/null; then
+  result="$("$timeout_bin" 10 herdr plugin action invoke configure --plugin herdr-agent-quota)"
+  if ! log_id="$(printf '%s' "$result" | jq -er '.result.log.log_id')"; then
+    printf 'herdr quota configuration could not start: %s\n' "$result" >&2
+    exit 1
+  fi
+  deadline=$((SECONDS + 60))
+  while ((SECONDS < deadline)); do
+    result="$("$timeout_bin" 10 herdr plugin log list --plugin herdr-agent-quota --limit 100)"
+    action_status="$(printf '%s' "$result" |
+      jq -r --arg id "$log_id" '.result.logs[]? | select(.log_id == $id) | .status')"
+    case "$action_status" in
+      succeeded)
+        printf 'herdr quota configuration completed\n'
+        exit 0
+        ;;
+      running|"") sleep 1 ;;
+      *)
+        printf 'herdr quota configuration %s; inspect: herdr plugin log list --plugin herdr-agent-quota\n' \
+          "$action_status" >&2
+        exit 1
+        ;;
+    esac
+  done
+  printf 'herdr quota configuration timed out; inspect: herdr plugin log list --plugin herdr-agent-quota\n' >&2
+  exit 1
+fi
 {{ end -}}

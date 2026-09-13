@@ -1,0 +1,55 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Own only Plannotator's exit_plan_mode handler. Preserve other settings.
+       Upstream timeout is 345600 MILLISECONDS (5m 45.6s), unlike Codex's seconds. */ -}}
+{{- $raw := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict -}}
+{{- if ($raw | trim) -}}
+{{-   $merged = fromJson $raw -}}
+{{- end -}}
+{{- if ne (kindOf $merged) "map" -}}
+{{-   fail "Gemini settings.json must contain one JSON object" -}}
+{{- end -}}
+{{- $original := toJson $merged -}}
+{{- /* Match upstream: enable plan mode only when creating settings. */ -}}
+{{- if not ($raw | trim) -}}
+{{-   $merged = set $merged "experimental" (dict "plan" true) -}}
+{{- end -}}
+{{- if not (hasKey $merged "hooks") -}}
+{{-   $merged = set $merged "hooks" (dict) -}}
+{{- end -}}
+{{- $hooks := index $merged "hooks" -}}
+{{- if ne (kindOf $hooks) "map" -}}
+{{-   fail "Gemini hooks must be an object" -}}
+{{- end -}}
+{{- if not (hasKey $hooks "BeforeTool") -}}
+{{-   $hooks = set $hooks "BeforeTool" (list) -}}
+{{- end -}}
+{{- $entries := index $hooks "BeforeTool" -}}
+{{- if ne (kindOf $entries) "slice" -}}
+{{-   fail "Gemini hooks.BeforeTool must be an array" -}}
+{{- end -}}
+{{- $command := printf "%s/.local/bin/plannotator" .chezmoi.homeDir -}}
+{{- $found := false -}}
+{{- range $entry := $entries -}}
+{{-   if or (ne (kindOf $entry) "map") (ne (kindOf (index $entry "hooks")) "slice") -}}
+{{-     fail "Gemini BeforeTool entries must be objects with a hooks array" -}}
+{{-   end -}}
+{{-   range $handler := index $entry "hooks" -}}
+{{-     if ne (kindOf $handler) "map" -}}
+{{-       fail "Gemini BeforeTool handlers must be objects" -}}
+{{-     end -}}
+{{-     if and (eq (index $entry "matcher") "exit_plan_mode") (eq (index $handler "type") "command") (has (index $handler "command") (list "plannotator" $command)) -}}
+{{-       $_ := set $handler "command" $command -}}
+{{-       $_ := set $handler "timeout" 345600 -}}
+{{-       $found = true -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- if not $found -}}
+{{-   $hooks = set $hooks "BeforeTool" (append $entries (dict "matcher" "exit_plan_mode" "hooks" (list (dict "type" "command" "command" $command "timeout" 345600)))) -}}
+{{- end -}}
+{{- if eq (toJson $merged) $original -}}
+{{-   $raw -}}
+{{- else -}}
+{{ $merged | toPrettyJson }}
+{{ end -}}

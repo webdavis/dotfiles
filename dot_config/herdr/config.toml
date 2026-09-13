@@ -40,6 +40,51 @@ droid = "on"
 # Others: off, terminal, system.
 delivery = "herdr"
 
+[ui.sidebar.agents]
+row_gap = 1 # herdr-agent-quota
+rows = [
+  [
+    "state_icon",
+    "machine",
+    "workspace",
+    "tab",
+  ],
+  [
+    { token = "$quota_provider_model", bold = true, dim = false },
+  ],
+  [
+    { token = "$quota_cache", bold = false, dim = false },
+    { token = "$quota_cache_state", fg = "#e4b957", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_cache_ttl", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_error", fg = "#e4b957", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_context_normal", fg = "#98b17d", bold = false, dim = false },
+    { token = "$quota_context_warning", fg = "#dec27f", bold = false, dim = false },
+    { token = "$quota_context_danger", fg = "#df919b", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_5h_normal", fg = "#98b17d", bold = false, dim = false },
+    { token = "$quota_5h_warning", fg = "#dec27f", bold = false, dim = false },
+    { token = "$quota_5h_danger", fg = "#df919b", bold = false, dim = false },
+    { token = "$quota_5h_unknown", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_week_inline_normal", fg = "#98b17d", bold = false, dim = false },
+    { token = "$quota_week_inline_warning", fg = "#dec27f", bold = false, dim = false },
+    { token = "$quota_week_inline_danger", fg = "#df919b", bold = false, dim = false },
+    { token = "$quota_week_inline_unknown", bold = false, dim = false },
+    { token = "$quota_week_normal", fg = "#98b17d", bold = false, dim = false },
+    { token = "$quota_week_warning", fg = "#dec27f", bold = false, dim = false },
+    { token = "$quota_week_danger", fg = "#df919b", bold = false, dim = false },
+    { token = "$quota_week_unknown", bold = false, dim = false },
+  ],
+] # herdr-agent-quota-row
+
 # ╭────────────────╮
 # │  Experimental  │
 # ╰────────────────╯
@@ -56,6 +101,10 @@ switch_ascii_input_source_in_prefix = true
 prefix = "ctrl+d"
 goto = "prefix+g"
 rename_tab = "prefix+comma"
+workspace_picker = "prefix+alt+space"
+rename_workspace = "prefix+alt+comma"
+edit_scrollback = "prefix+alt+e"
+reload_config = "prefix+shift+r"
 
 # nav tiers: alt = workspaces, {/} = step agents, ctrl = agent count.
 next_agent = "prefix+}"
@@ -196,13 +245,13 @@ description = "clear screen: send Ctrl-l to the focused pane (like bash)"
 # │  worktrunk  │
 # ╰─────────────╯
 [[keys.command]]
-key = "prefix+shift+o"
+key = "prefix+w"
 type = "plugin_action"
 command = "worktrunk.open"
 description = "worktree: switch or create from the default branch"
 
 [[keys.command]]
-key = "prefix+shift+c"
+key = "prefix+shift+w"
 type = "plugin_action"
 command = "worktrunk.open-current"
 description = "worktree: switch or create from the current branch"
@@ -234,17 +283,56 @@ type = "plugin_action"
 command = "herdr-bar.open"
 description = "command bar: fuzzy jump to any tab, pane or agent"
 
+# ╭────────────╮
+# │  annotate  │
+# ╰────────────╯
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate: comment on selected text"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.last"
+description = "annotate: review the agent's last reply"
+
+[[keys.command]]
+key = "prefix+f"
+type = "plugin_action"
+command = "annotate.open"
+description = "annotate: review documents in the current folder"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "annotate: manage annotations"
+
+[[keys.command]]
+key = "prefix+y"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "annotate: copy annotations as context"
+
+[[keys.command]]
+key = "prefix+shift+y"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "annotate: copy annotations as context and archive them"
+
 # ╭──────────────────────╮
 # │  chmarax.herdr-nvim  │
 # ╰──────────────────────╯
 [[keys.command]]
-key = "prefix+a"
+key = "prefix+e"
 type = "plugin_action"
 command = "chmarax.herdr-nvim.toggle"
 description = "nvim sidebar: toggle"
 
 [[keys.command]]
-key = "prefix+i"
+key = "prefix+shift+e"
 type = "plugin_action"
 command = "chmarax.herdr-nvim.pick-file"
 description = "nvim sidebar: open file from agent output"
@@ -253,10 +341,25 @@ description = "nvim sidebar: open file from agent output"
 # │  persiyanov.reviewr  │
 # ╰──────────────────────╯
 [[keys.command]]
-key = "prefix+m"
+key = "prefix+v"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
+
+# ╭─────────────────────╮
+# │  herdr-agent-quota  │
+# ╰─────────────────────╯
+[[keys.command]]
+key = "prefix+u"
+type = "plugin_action"
+command = "herdr-agent-quota.open-settings"
+description = "agent quota: open settings"
+
+[[keys.command]]
+key = "prefix+shift+u"
+type = "plugin_action"
+command = "herdr-agent-quota.refresh"
+description = "refresh all agent quotas"
 
 # ╭────────────────────╮
 # │  tab-smart-rename  │

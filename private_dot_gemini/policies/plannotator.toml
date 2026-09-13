@@ -1,0 +1,4 @@
+[[rule]]
+toolName = "exit_plan_mode"
+decision = "ask_user"
+priority = 100

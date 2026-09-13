@@ -144,6 +144,11 @@ type = "command"
 run = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
 deadline_secs = 21600
 
+[lanes.plannotator]
+type = "command"
+run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/unattended-upgrades/update-plannotator.sh" }}"]
+deadline_secs = 21600
+
 [lanes.herdr-binary]
 type = "command"
 run = ["{{ joinPath .chezmoi.homeDir ".local/bin/herdr" }}", "update"]

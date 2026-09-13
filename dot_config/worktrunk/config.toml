@@ -31,6 +31,8 @@ delete-branch = false
 
 [list]
 summary = false
+# ponytail: bound the Herdr picker's wait; raise if incomplete status becomes a problem.
+timeout-ms = 1000
 
 [switch.picker]
 pager = "delta --paging=never"

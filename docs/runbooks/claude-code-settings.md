@@ -67,12 +67,13 @@ Overwritten from the template on every apply, whatever the live file holds.
   Nothing enforces that the two agree: the roster guard was declaration-consistency checking and went
   with the 2026-08-05 test-scope ruling. Per key, so overrides the user sets for other skills drift
   freely.
-- `statusLine`, `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (=
-  `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts
-  the Remote Control bridge every session), `spinnerTipsEnabled` (= `false`, operator 2026-08-11: no
-  spinner tips anywhere), `effortLevel` (= `xhigh`, the top of the `low`/`medium`/`high`/`xhigh` enum;
-  stable rather than free-drift so a `/config` write cannot quietly leave a session on a lower reasoning
-  budget).
+- `statusLine` uses the managed status-line script, retaining herdr-agent-quota's collector when
+  installed. The collector forwards to that script; `run_after_53` configures it on a fresh machine.
+- `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (= `stable`, pins the
+  release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts the Remote Control
+  bridge every session), `spinnerTipsEnabled` (= `false`, operator 2026-08-11: no spinner tips anywhere),
+  `effortLevel` (= `xhigh`, the top of the `low`/`medium`/`high`/`xhigh` enum; stable rather than
+  free-drift so a `/config` write cannot quietly leave a session on a lower reasoning budget).
 - `env`, six keys, written per key so an env var the operator sets by hand drifts freely:
   `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` = `1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` = `1`,
   `DISABLE_TELEMETRY` = `1`, `DISABLE_ERROR_REPORTING` = `1`, `DISABLE_NON_ESSENTIAL_MODEL_CALLS` = `1`,
