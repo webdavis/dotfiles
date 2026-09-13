@@ -121,17 +121,21 @@ acceptance remains open. The same verification recovered these source fixes:
   upstream metadata already has one. Deployed `plannotator` and `last30days` metadata fail strict YAML
   parsing with `DUPLICATE_KEY`. Update the existing mapping, preserve other metadata and cover the
   repeated-overlay behavior before regenerating through the supported skills lane.
-- [ ] Fix verification lifecycle and timing failures. The review-tool collector checks passed 71
+- [x] Fix verification lifecycle and timing failures. The review-tool collector checks passed 71
   assertions but took 17, 21 and 94 seconds. The full planning check also left two temporary
   `pns failures serve` processes running after completion; both were identified by their test paths and
   stopped. Ensure tests reap their processes and satisfy the repository's one-second rule.
 
 Implementation progress, 2026-09-13: `fix/review-skill-delivery` contains the Claude delivery fix
 (`bd2b989c`) and parsed, reversible overlays (`c251e6d5`). All 606 uu tests passed; independent review
-approved both changes. `fix/pns-test-isolation` contains the collector fixture reduction (`6f2e3e43`) and
-owned daemon-job cleanup (`166b4830`). The three collector checks passed in 390 ms total, and the cleanup
-regressions passed against real detached test deliveries. Publication and deployment remain open; these
-commits have not reached main.
+approved both changes. Their publication and deployment remain open.
+[PR #533](https://github.com/webdavis/dotfiles/pull/533) merged the collector fixture reduction
+(`6f2e3e43`), owned daemon-job cleanup (`166b4830`) and color-test isolation. Full `just ship` and
+required checks passed; local main is at merge `adf14ff2`. The three collector checks passed in 390 ms
+total, and cleanup regressions passed against real detached test deliveries. The next full skill check
+found a separate gate-test pipe race: an invalid command may exit before the fixture writes stdin. Reuse
+the existing early-exit payload helper while retaining exit-code and forwarding assertions. All nine gate
+tests passed after that change; independent review approved it. Its publication remains open.
 
 ## Red main
 
@@ -551,11 +555,17 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
   secret that needs a rotation story.
 
-- [ ] 76. Investigate the Apple Shortcuts route before building 74. The earlier proposal assumed that iOS
-  could trigger execution of a Mac-side Shortcut over iCloud. That capability has not been verified;
-  syncing Shortcut definitions does not establish remote execution. Check supported execution methods,
-  awake/unlocked requirements and measured latency on the operator's devices. Record a go/no-go before
-  deciding whether the optional HTTP tap is needed.
+- [ ] 76. Apple Shortcuts research completed on 2026-09-13; device acceptance remains open. The proposed
+  iCloud route is a no-go: Apple's
+  [synchronization guide](https://support.apple.com/guide/shortcuts-mac/apdb3a4240b0/mac) documents
+  shared shortcut definitions, not dispatching execution to a selected Mac and returning its result. No
+  supported remote-dispatch interface was found. Retain the settled SSH (Secure Shell) route to
+  `pns tap`. [Mac command-line Shortcuts](https://support.apple.com/guide/shortcuts-mac/apd455c82f02/mac)
+  can run through SSH but add a dependency without replacing that transport. This finding alone does not
+  authorize task 74. With task 71b, measure trigger-to-confirmation and trigger-to-failure on the actual
+  phone and Mac, including locked, sleeping, unavailable and remote-network cases. Network wake is
+  conditional; do not promise that a request wakes the Mac. The acceptable latency and failure-feedback
+  deadline still require operator acceptance. No device state was changed in this investigation.
 
 ## Tool-wide output flags
 
@@ -624,7 +634,15 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 
 - [ ] 40. Complete posture 3.1 adapter behavior. `PollMarkers` and the initial adapters landed, but
   enumerating trait implementations did not establish acceptance. Finish the triage/upgrade-record
-  producer used by 45b and verify the actual producer's example from the port plan.
+  producer used by 45b and verify the actual producer's example from the port plan. Local implementation
+  is under review on `feat/posture-triage`: actual alert composition, display-only recorded/on-disk
+  hashes and a bounded upgrade-record reader. The missing-detail regression failed before implementation
+  and passed afterward; five pure correlation regressions also failed before their implementation. The
+  producer now matches a captured Bash example containing quotes and an empty added-version field.
+  Package tests, checks, Clippy and documentation passed. Independent review found and verified fixes for
+  eager triage on ignored events and parallel scratch-directory collisions. Only a domain-approved
+  integrity page now requests display facts; missing facts still preserve the page. Merge, deployment and
+  task 45b's arming/acceptance remain separate.
 
 - [ ] 41. Complete posture 3.2 health adapters with task 46. Existing process and allowlist adapters do
   not provide the planned `launchctl print` health reader. Gateway health is also separate from
@@ -836,14 +854,21 @@ Every posture producer is Rust and the old pipeline is off.
 
 The planned Rust lanes are implemented. The following deployment check remains.
 
-- [ ] 57a. Deploy and verify the later uu fixes. The installed config still names the absent
-  `/opt/homebrew/bin/cua-driver`, while source correctly names `~/.local/bin/cua-driver`. Validate the
-  touched scripts and propose a full operator-run apply. Then verify a real skills update, logging for
-  each run, styled interactive output and lock release after interruption using the merged behavior. The
-  skills lane itself is already deployed; do not repeat task 11c's retired-job cleanup. Also record the
-  tooling-lanes plan's acceptance evidence: legacy Claude-plugin snapshot history was imported or was
-  absent, the first scheduled run is recorded, and the new lane streak directories exist. A successful
-  manual skills run alone does not establish those separate conditions.
+- [ ] 57a. Finish uu runtime acceptance and the interruption fixes found on 2026-09-13. The old
+  cua-driver drift is resolved: installed config uses `~/.local/bin/cua-driver`, non-secret config and
+  the managed job match rendered source, and `uu doctor` exits 0 with styled terminal output. The
+  imported Claude-plugin history preserves all 21 rows. Two harmless private runs each logged once and
+  released their lock. A separate interruption fixture exposed a defect: SIGINT releases uu's lock while
+  its child continues writing, and the interrupted run leaves no log entry. Add bounded cleanup of owned
+  children before lock release for SIGINT and SIGTERM, plus durable start/interruption records. Scheduled
+  output also duplicates uu's own log because both job streams target that file. Give startup errors a
+  separate destination while keeping one application record per run. Track these fixes in
+  [the interruption task](https://app.todoist.com/app/task/6hVrcXJrr8FWG4fM). After publication and
+  operator deployment, verify an authorized real skills run and visual output. The audit found no
+  successful scheduled-run marker; the loaded Sunday-noon job had not run, and twelve declared lanes
+  lacked state directories. Record the first scheduled lane verdicts, notification result, success marker
+  and streaks separately. A successful manual run or notification HTTP 200 does not establish scheduled
+  acceptance. Do not repeat task 11c's retired-job cleanup.
 - [ ] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
   Current uu reinstalls plugin source tip and rejects a `pin` setting. Installed Herdr's
   `plugin install --help` exposes `--ref <REF>` (verified 2026-09-12). Record the desired pin/update
@@ -948,23 +973,22 @@ producer.
 - [ ] 68b. Review the untracked `.merge_file_*` artifacts in this checkout. Determine their origin and
   whether they contain work worth keeping, then propose the exact disposition. The artifacts were left
   untouched; recheck the current inventory before proposing cleanup.
-- [ ] 68c. Preserve and publish the finalized planning changes in their owning repositories. The audit
-  found local changes in the modernization queue and roadmap, and three untracked homelab PLAN-v12 files.
-  Review those files without sweeping unrelated staged work into a commit, then commit and publish each
-  repository's agreed plan. Untracked planning files must not be lost during cleanup. Progress,
-  2026-09-13: [homelab #38](https://github.com/webdavis/Homelab/pull/38) merged the three plan files.
-  Local homelab main contains upstream while retaining its 44 previously unpublished commits and
-  unrelated staged/unstaged work; do not push that local history. Dotfiles planning is pushed on
-  `docs/modernization-resume-plan`. Its pull request remains blocked by the
-  [GitHub outage](https://www.githubstatus.com/), incident `0rn90wk115q9`; creation attempts failed and
-  subsequent head-branch checks found no pull request. Check again before retrying creation.
+- [x] 68c. Published the approved planning edits on 2026-09-13:
+  [homelab #38](https://github.com/webdavis/Homelab/pull/38) and
+  [dotfiles #532](https://github.com/webdavis/dotfiles/pull/532) are merged. Dotfiles local main was
+  fast-forwarded to `fa26dd6e`. The original two planning edits remain in a scoped stash named
+  `preserve task68c original planning edits before reviewed main sync`; all 127 untracked paths and their
+  modes were preserved. Homelab local main contains upstream while retaining its 44 previously
+  unpublished commits and unrelated work. Do not push that local history or discard the retained edits.
+  Publication did not deploy either plan.
 - [ ] 21a. Finish the deployed binary cleanup named in task 21. The old
   `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current callers,
   preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete files
   before trashing them. The September 13 caller audit found two Codex hooks still invoking the old pns
   binary alongside current handlers. Commit `1b0cca44` on `fix/codex-pns-hook-migration` migrates
-  precisely owned legacy commands while preserving unrelated handlers and metadata; ten focused cases and
-  synthetic installer checks passed. Review, publication, operator deployment and hook-trust review
+  precisely owned legacy commands while preserving unrelated handlers and metadata. Follow-up `257cb3e1`
+  fixes four ShellCheck findings in its test. Ten focused cases, synthetic installer checks, full
+  `just ship` and independent review passed. Publication, operator deployment and hook-trust review
   remain separate from cleanup.
 
 ## Waiting on the operator
@@ -1039,8 +1063,16 @@ is missing.
   click handling. Keep `rusqlite`/SQLite and supported external-tool interfaces. Focus detection is
   already Rust; changing languages does not remove its dependence on undocumented Apple files. A general
   translation framework or rewrite of third-party implementations is outside this task. This approval
-  schedules the investigation and conditional replacements; no pns implementation changed when it was
-  recorded.
+  schedules the investigation and conditional replacements. September 13's private prototype measured the
+  parallel desk/phone probe stage at 216.7 ms median with current commands versus 18.8 ms through bounded
+  native helpers; added-load medians were 276.8 ms and 27.4 ms. Sixty live parity comparisons passed for
+  observed conditions, but this does not cover locked-state transitions or total pns runtime. The
+  direct-call variant loses interruptible deadlines. The native phone candidate also misses an `argv[0]`
+  match accepted by current `pgrep`; do not adopt it as equivalent. Resolve that selection mismatch,
+  compare a hybrid retaining `pgrep` if useful, and measure total runtime before adoption. Keep
+  production probes unchanged until those checks and required device acceptance pass. The bounded
+  prototype uses maintained `objc2-io-kit` and Core Foundation bindings with the existing `libc` version.
+  Raw activity readings remain private in the local investigation, not in this repository.
 - [ ] Finish P4's recorded loop rule: a live loop lease for the pane prevents a condenser-generated
   `asking` guess from arming the blocked marker; actual hook-driven waits still do. The current submit
   path updates that marker without checking the lease. Read the instrument evidence before implementing
@@ -1049,6 +1081,9 @@ is missing.
   shipped. Resume from `~/.claude/pipeline/slices/brief-pns-one-moment.md` and the September 1 decision
   in
   `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/pns-lights-lock-sheet.md`.
+  Local implementation `4136fd42` on `fix/pns-loop-rule` passed eight new regressions, three mutation
+  checks and package gates. Independent review passed 52 focused checks. The permission-mode filter
+  remains excluded; publication, deployment and visual acceptance remain open.
 - [ ] Resolve the historical condenser-stall task
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
   300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
@@ -1081,8 +1116,10 @@ is missing.
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
   already active when muting begins. B19/B25's nag tolerance and future-timestamp handling still need
   explicit disposition against current source; their conditional proposals are not automatic
-  implementation work.
-- [ ] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
+  implementation work. Local implementation `cf7d4866` on `feat/pns-status-quiet` passed 16 focused
+  checks, including eleven new cases, three mutation checks and package gates. Publication and actual
+  lamp/Focus acceptance remain open.
+- [x] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
   failed `a_terminal_with_nothing_asking_otherwise_is_painted` with `NO_COLOR=1` inherited from the agent
   session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
   honors these variables; make the test's assumed environment explicit without changing that behavior.
@@ -1090,7 +1127,8 @@ is missing.
   [6hVqqxHGq35Fq5Hv](https://app.todoist.com/app/task/6hVqqxHGq35Fq5Hv). Implemented locally in
   `186c7ee5` on `fix/pns-test-isolation`; independent review approved it. All 16 style tests passed with
   both disabling variables inherited. Seven private terminal comparisons against the previous binary
-  produced identical output and exit status. Publication remains open.
+  produced identical output and exit status. Merged in #533; full checks passed and local main contains
+  it.
 - [ ] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
   `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
   exclusion was measured ineffective and must not be proposed again without new evidence. The source
