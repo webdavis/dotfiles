@@ -1,6 +1,7 @@
 {{- /* controls.json: the runtime rendering of
 .chezmoidata/macos_posture_controls.yaml, read on every tick by
-posture poll or the retained firewall-gatekeeper-monitor.sh. It lives in
+firewall-gatekeeper-monitor.sh today and by `posture poll` once that port is
+cut over. It lives in
 ~/.local/libexec/posture so the pipeline-integrity watch and known-good
 manifest cover it: this file
 decides WHAT the posture poller monitors, so it is part of the monitor's body.
