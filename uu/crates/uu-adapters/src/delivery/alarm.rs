@@ -9,6 +9,9 @@ impl<P: SignedPost, A> EngineRunDelivery<'_, P, A> {
         host: &str,
         detail: &str,
     ) -> Result<(), String> {
+        if let Some(why) = crate::interruption::refusal() {
+            return Err(why);
+        }
         let state = match kind {
             AlarmKind::Failed => "failed",
             AlarmKind::Stale => "stale",

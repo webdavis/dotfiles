@@ -7,8 +7,7 @@ tap records attention; info observes it; install prints a guide. Other arguments
 operations, exit 2 before mutation. The tool-wide color flag still applies.
 
 JSON (JavaScript Object Notation) output is one object with `schema: "pns.tap/1"` and a trailing newline,
-without terminal decoration.
-It uses the existing envelope bounds. Its required fields are:
+without terminal decoration. It uses the existing envelope bounds. Its required fields are:
 
 | Field          | Type and meaning                                          |
 | -------------- | --------------------------------------------------------- |
@@ -402,8 +401,7 @@ Destination results carry typed verdicts without echoing private transport text.
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
 migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured class policy is specified in `quiet-behavior.md`, behavior
-7\.
+gate. The configured class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
@@ -422,6 +420,12 @@ class exception follows the existing silence policy without adding a phone card 
 The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
 legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
 and normal banner sound. `NeedsAttention` retains ordinary presence and visibility gating.
+
+A validated request with class `security` and signal `NeedsAttention` uses Sosumi for its native banner,
+preserving posture's ordinary critical-page sound. Other classes and signals keep the default sound;
+observations remain silent. The same selection applies to initial delivery, unretained fallback and
+ledger retry. Missing or invalid retained metadata keeps the legacy default. This adds no sound option to
+the producer protocol and does not change delivery planning or the independent last-resort alarm.
 
 The named route remains the Hermes URL path selected by the existing route mechanism. Initial and retry
 attempts carry the original request identifier in the signed body and idempotency header, and the full

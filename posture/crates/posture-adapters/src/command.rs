@@ -1,6 +1,7 @@
 use posture_application::InspectionFailure;
-use std::ffi::OsStr;
+use std::ffi::{CString, OsStr};
 use std::io::{self, Read};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
@@ -10,6 +11,18 @@ mod input;
 mod terminal;
 use child::OwnedChild;
 use std::time::{Duration, Instant};
+
+pub fn is_executable(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: the NUL-terminated path remains valid for this call. AT_FDCWD
+    // resolves relative paths; AT_EACCESS checks the identity that will execute it.
+    unsafe { libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::X_OK, libc::AT_EACCESS) == 0 }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandIo<'a> {

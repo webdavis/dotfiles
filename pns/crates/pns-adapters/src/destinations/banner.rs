@@ -126,7 +126,7 @@ impl<R: CommandRunner + Send + Sync> NotificationDestination for BannerChannel<R
         let args = notifier_args(
             &event.title,
             &event.preview,
-            (event.state != "observation").then_some("default"),
+            sound(request),
             activate,
             &click_command(self.herdr_path.as_deref(), &event.pane),
         );
@@ -143,6 +143,19 @@ impl<R: CommandRunner + Send + Sync> NotificationDestination for BannerChannel<R
             None => Delivery::Failed("banner FAILED (terminal-notifier did not run)".to_string()),
         }
     }
+}
+
+fn sound(request: &DeliveryRequest<'_>) -> Option<&'static str> {
+    if request.event.state == "observation" {
+        return None;
+    }
+    let security = request
+        .producer_request
+        .and_then(|encoded| pns_protocol::decode_request(encoded.as_bytes()).ok())
+        .filter(|decoded| decoded.request.signal == pns_protocol::Signal::NeedsAttention)
+        .and_then(|decoded| decoded.request.class)
+        .is_some_and(|class| class.as_str() == "security");
+    Some(if security { "Sosumi" } else { "default" })
 }
 
 #[cfg(test)]

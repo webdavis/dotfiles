@@ -71,6 +71,7 @@ fn an_executable_receives_the_original_id_and_exact_legacy_body_without_acknowle
                 preview: "a preview".into(),
             };
             let request = DeliveryRequest {
+                producer_request: None,
                 producer: "test",
                 request_id: Some(original),
                 event: &event,
@@ -106,6 +107,7 @@ fn an_unencodable_request_is_refused_before_the_executable_starts() {
     let event = Event::default();
     for refused in ["", "has space", "line\nfeed"] {
         let request = DeliveryRequest {
+            producer_request: None,
             producer: "test",
             request_id: Some(refused),
             event: &event,

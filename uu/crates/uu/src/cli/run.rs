@@ -69,6 +69,7 @@ pub fn run_mode(only: Option<&str>) -> i32 {
     };
     match execute(&home, &config, only, SystemRunClock, presentation) {
         RunOutcome::Completed => 0,
+        RunOutcome::Interrupted => 1,
         RunOutcome::UndeclaredLane => {
             if let Some(lane) = only {
                 eprintln!(

@@ -32,10 +32,13 @@ pub mod style;
 
 mod adapters;
 mod delivery;
+mod interruption;
 mod runner;
 mod state;
 mod system;
 mod watchdog;
+
+pub use interruption::{install_interruption, interruption};
 
 pub use adapters::{
     ConfiguredLaneExecutor, ConsoleRunPresentation, FileRunState, SystemRunClock, append_log,

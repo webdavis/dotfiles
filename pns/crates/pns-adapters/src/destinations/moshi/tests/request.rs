@@ -10,6 +10,7 @@ fn the_original_request_id_rides_a_card_that_has_an_action_to_carry_it() {
             ..event()
         };
         let request = DeliveryRequest {
+            producer_request: None,
             producer: "upgrades",
             request_id: Some(original),
             event: &event,
@@ -52,6 +53,7 @@ fn a_card_with_no_action_carries_no_data_object_at_all() {
             ..event()
         };
         let request = DeliveryRequest {
+            producer_request: None,
             producer: "upgrades",
             request_id: Some("original-42"),
             event: &event,
@@ -75,6 +77,7 @@ fn a_card_with_no_action_carries_no_data_object_at_all() {
 
 pub(super) fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
     DeliveryRequest {
+        producer_request: None,
         producer: "test",
         request_id: Some("original-42"),
         event,
