@@ -242,6 +242,17 @@ pub(super) fn execute(
         },
         session_id: &payload.session_id,
         lamps_live,
+        loop_live: lights.as_ref().zip(now_secs).is_some_and(|(lights, now)| {
+            pns_adapters::marker_files::lease_marker(&state_dir(), &event.pane)
+                .and_then(|path| pns_adapters::marker_files::read_epoch(&path))
+                .is_some_and(|at| {
+                    pns_domain::lights::held::marker_is_live(
+                        at,
+                        now,
+                        lights.looping.lease_timeout_secs,
+                    )
+                })
+        }),
         lights_declared: lights.is_some(),
         presence: presence_at_decision.as_ref(),
     });

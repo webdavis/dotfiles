@@ -1,4 +1,16 @@
 use super::*;
+
+pub(super) const PHONE: Table = Table {
+    name: "phone",
+    prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
+            # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap --install.\n",
+    opt_in: true,
+    keys: &[Key {
+        name: "marker_file",
+        prose: "# An absolute path or ~/ path. Missing config uses this default too.\n",
+        sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
+    }],
+};
 pub(super) const DAEMON: Table = Table {
     name: "daemon",
     prose: DAEMON_PROSE,

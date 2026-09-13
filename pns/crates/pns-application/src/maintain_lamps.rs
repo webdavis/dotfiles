@@ -17,11 +17,12 @@ pub struct MaintainLamps<'a, R, W, M, T, J> {
     pub jobs: &'a J,
 }
 
-pub struct LampReadings<M, P, L, I> {
+pub struct LampReadings<M, P, L, I, S> {
     pub minutes: M,
     pub presence: P,
     pub last_interaction: L,
     pub interval: I,
+    pub silenced: S,
 }
 
 impl<R, W, M, T, J> MaintainLamps<'_, R, W, M, T, J>
@@ -47,12 +48,12 @@ where
     /// THE JOURNAL IS READ AND NEVER CLAIMED. `claim_journal` is how the replay
     /// CONSUMES a queue; a tick that claimed it would delete the misses the
     /// operator has not seen yet, which is the opposite of what the glow is for.
-    pub fn run<B, MN, PR, LI, I, EL, SL>(
+    pub fn run<B, MN, PR, LI, I, EL, SL, S>(
         &self,
         lights: Option<&Lights>,
         clock: &impl Clock,
         connect: impl FnOnce(Option<u64>) -> Option<B>,
-        readings: LampReadings<MN, PR, LI, I>,
+        readings: LampReadings<MN, PR, LI, I, S>,
         mut report: impl FnMut(&str),
     ) where
         B: LampBridge,
@@ -62,6 +63,7 @@ where
         I: FnOnce() -> (EL, SL),
         EL: FnMut() -> u64,
         SL: FnMut(Duration),
+        S: FnOnce(u64) -> bool,
     {
         // A missing lamp map or clock can still clear recorded lamps. No connection
         // is constructed until the held record names something that needs clearing.
@@ -98,17 +100,17 @@ where
             complaints.push(HELD_RECORD_UNREADABLE.to_string());
         }
         let active = pns_domain::lights::held::active_held(&standing.house);
-        // NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which
-        // is what keeps an idle machine off the network several times a minute.
-        //
-        // THE GATE IS THE HOUSE STATE ALONE, and that is a deliberate narrowing from
-        // the shipped one. The old gate also asked whether any place could be awake,
-        // which took the quiet-hours chain out of the config with no bridge listing
-        // to judge it against and paid for it with two stated limits; the dim window
-        // is now a per-lamp answer that needs the listing anyway, so the cheap half
-        // of that question no longer exists. A house holding nothing still costs
-        // nothing, which is the case that matters.
-        if !active.is_empty() || held_before.as_deref().is_none_or(|held| !held.is_empty()) {
+        // Silence changes what the lamps show, not the state that renews the tick.
+        // Reconcile an empty set to clear held effects through the same claim and
+        // record checks, without listing or writing ordinary room lamps.
+        let showing = if (readings.silenced)(now) {
+            &[][..]
+        } else {
+            active.as_slice()
+        };
+        // An idle or silenced house with no held paths needs no bridge call.
+        // Held paths still pass through reconciliation to release their effects.
+        if !showing.is_empty() || held_before.as_deref().is_none_or(|held| !held.is_empty()) {
             // THE ONE MONOTONIC CLOCK THE WHOLE TICK IS MEASURED ON, started here
             // and read by nothing else: the resolve's cost, every fade's due
             // millisecond and the moment each write actually happened are all
@@ -127,7 +129,7 @@ where
                 .run(
                     TickReading {
                         lights,
-                        active: &active,
+                        active: showing,
                         reading: &Reading {
                             minutes_now: (readings.minutes)(now),
                             muted: &muted,
