@@ -118,8 +118,8 @@ const HOUSE_PLAIN: &str = "REPORT_LIB_PLAIN";
 /// them instead would be a parameter every future printing command had to
 /// remember to accept, and the one that forgot would ignore the flag silently.
 ///
-/// `decide` below stays a pure function of its arguments, which is what the
-/// tests exercise; this only supplies one of them.
+/// The decision below separates environment readings from their interpretation
+/// so tests do not inherit the operator's color preferences.
 static FORCED_PLAIN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// Record what argv said about color. Called ONCE, by the dispatcher.
@@ -143,10 +143,24 @@ impl Paint {
     /// every signal that this is not a terminal wins; the explicit flag wins
     /// over all of them, because an operator who typed it has already decided.
     pub fn decide(forced_plain: bool, destination_is_terminal: bool) -> Self {
+        Self::decide_with_env(
+            forced_plain,
+            destination_is_terminal,
+            std::env::var_os(NO_COLOR).as_deref(),
+            std::env::var_os(HOUSE_PLAIN).as_deref(),
+        )
+    }
+
+    fn decide_with_env(
+        forced_plain: bool,
+        destination_is_terminal: bool,
+        no_color: Option<&std::ffi::OsStr>,
+        house_plain: Option<&std::ffi::OsStr>,
+    ) -> Self {
         if forced_plain
             || !destination_is_terminal
-            || std::env::var_os(NO_COLOR).is_some_and(|value| !value.is_empty())
-            || std::env::var_os(HOUSE_PLAIN).is_some_and(|value| value == "1")
+            || no_color.is_some_and(|value| !value.is_empty())
+            || house_plain.is_some_and(|value| value == "1")
         {
             return Self::Plain;
         }

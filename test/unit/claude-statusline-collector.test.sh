@@ -5,8 +5,10 @@ function render_statusline_collector() {
   local repo fixture
   repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   fixture="$(mktemp -d)"
+  mkdir -p "$fixture/source/.chezmoidata"
+  cp "$repo/.chezmoidata/rust_tools.yaml" "$fixture/source/.chezmoidata/rust_tools.yaml"
   printf '%s\n' "$1" |
-    HOME="$fixture" CI=1 chezmoi --config /dev/null --config-format toml --source "$repo" execute-template \
+    HOME="$fixture" CI=1 chezmoi --config /dev/null --config-format toml --source "$fixture/source" execute-template \
       --no-tty --with-stdin --file "$repo/private_dot_claude/modify_settings.json" |
     jq -c '.statusLine'
 }
