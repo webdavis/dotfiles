@@ -273,6 +273,8 @@ mod gate;
 mod hook_contract;
 #[path = "hooks/lights_waits.rs"]
 mod lights_waits;
+#[path = "hooks/loop_waits.rs"]
+mod loop_waits;
 #[path = "hooks/model_switch.rs"]
 mod model_switch;
 #[path = "hooks/model_switch_state.rs"]
