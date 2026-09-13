@@ -40,13 +40,13 @@ type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
 /// between them, which cards a phone with no round trip behind it.
 pub struct SystemProbes<R: CommandRunner> {
     runner: Arc<R>,
-    marker_path: String,
+    marker_path: Option<std::path::PathBuf>,
     /// Where a phone reading's terminal name resolves to. Always `TTY_DIR`
     /// in production; a test points it at a fixture directory instead of
     /// stubbing `newest_terminal_atime` a second time, see `with_tty_dir`.
     tty_dir: String,
     idle: std::cell::OnceCell<Option<u64>>,
-    marker_mtime: std::cell::OnceCell<Option<u64>>,
+    marker_reading: std::cell::OnceCell<crate::MarkerReading>,
     phone_atime: std::cell::OnceCell<Option<u64>>,
     screen_locked: std::cell::OnceCell<Option<bool>>,
     now: std::cell::OnceCell<Option<u64>>,

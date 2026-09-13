@@ -59,6 +59,7 @@ mod command_pulse;
 mod command_quiet;
 mod command_recap;
 mod command_setup;
+mod command_tap;
 mod daemon_runtime;
 mod delivery_runtime;
 mod doctor_style;
@@ -69,6 +70,7 @@ mod hook_dispatch;
 mod hook_observations;
 mod hook_payload;
 mod invocation;
+mod tap_report;
 use invocation::{arguments_after_subcommand, arguments_after_verb};
 mod lamp_event_lease;
 mod lamp_pulse;
@@ -121,7 +123,7 @@ pub(crate) use presence_runtime::{
 };
 pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
-    env_deadline, executable_in_path, now_secs, overrides_from_env, resolve_path, state_dir,
+    env_deadline, executable_in_path, now_secs, overrides_from_env, state_dir,
 };
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;

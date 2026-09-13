@@ -31,7 +31,7 @@ mod submission_delivery;
 mod submit_notification;
 
 pub use destinations::{DeliveryRequest, DestinationId, Destinations, Recorded};
-pub use environment_reading::{decide, operator_surface};
+pub use environment_reading::{decide, operator_surface, operator_surface_reading};
 
 pub use open_failure::{ClickOutcome, click_banner, click_failure_line, open_failure};
 pub use ports::clock::Clock;
