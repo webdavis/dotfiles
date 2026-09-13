@@ -16,6 +16,8 @@
 //! Configuration parsing, backend settings and rendering live here.
 
 mod config;
+mod phone_marker;
+mod tap_install;
 pub use config::DaemonConfig;
 pub use config::{
     BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, Failures, LoadOutcome,
@@ -24,6 +26,11 @@ pub use config::{
     mobile_backend, moshi_secret, parse_config, parse_presence, render, strip_chezmoi_actions,
     submit_deadline,
 };
+pub use phone_marker::{
+    MarkerReading, PhoneMarkerPath, TapFailure, phone_marker_path, read_phone_marker,
+    record_phone_tap,
+};
+pub use tap_install::tap_install;
 
 pub use config::{ROOM_MAX, room_fits};
 

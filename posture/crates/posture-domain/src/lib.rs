@@ -112,3 +112,6 @@ pub use poll::{
     classify_filevault, classify_lulu_profile, classify_messages, classify_pgrep, plan_poll,
     poll_persistence_gap, trusted_poll_baseline,
 };
+
+mod triage;
+pub use triage::{UpgradeRecordRefusal, recorded_hash, upgrade_correlation};

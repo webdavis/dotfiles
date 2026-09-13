@@ -100,7 +100,7 @@ pub(crate) fn muted_now(now_secs: Option<u64>) -> bool {
     )
 }
 
-fn read_quiet_expiry(records: &SqliteStore) -> Option<u64> {
+pub(super) fn read_quiet_expiry(records: &SqliteStore) -> Option<u64> {
     match records.quiet_expiry() {
         Ok(expiry) => expiry,
         Err(pns_adapters::StoreError::InvalidState(complaint)) => {

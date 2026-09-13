@@ -267,6 +267,12 @@ summarizer_deadline_secs = 240
 [nag]
 after_secs = 300
 
+# Phone attention, shared by `pns tap` and the presence reader.
+# PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap --install.
+# [phone]
+# An absolute path or ~/ path. Missing config uses this default too.
+# marker_file = "~/.local/state/pns/phone-attention.marker"
+
 # The failure page: the same record `pns failures` prints, served over
 # loopback so moshi's browser preview can read it from your phone. The
 # listener binds 127.0.0.1 only, because the per-session SSH forward is
@@ -345,6 +351,8 @@ low = 10
 # run that DIED has no such delay and no knob. Zero arms at once.
 after_secs = 300
 
+# A live pane lease keeps condenser `asking` guesses from arming blocked;
+# real hook waits still take priority.
 [lights.loop]
 duration_ms = 4000
 high = 80

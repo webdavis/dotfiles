@@ -1,5 +1,6 @@
 use super::*;
 mod fixture;
+mod silence;
 use fixture::World;
 use pns_domain::lights::phase::HeldEntry;
 
