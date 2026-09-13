@@ -58,3 +58,8 @@ pub use judge_results::{
 
 mod funnel;
 pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};
+mod watchdog;
+pub use watchdog::{
+    AuditObservation, DaemonHealth, GatewayHealth, QueueHealth, Watchdog, WatchdogIntegrity,
+    WatchdogOutcome, WatchdogProcesses, WatchdogState, WatchdogStateFailure, WatchdogStateStore,
+};

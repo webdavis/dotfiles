@@ -261,6 +261,22 @@ function test_a_build_publishes_a_private_record_before_refresh_and_install() {
   assert_same absent "$(cat "$sandbox/binary-at-refresh")"
 }
 
+function test_the_record_uses_the_compiler_selected_by_the_build_directory() {
+  ready_to_build
+  cat >"$sandbox_home/.cargo/bin/rustc" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $PWD == "$HOME/crate" ]]; then
+  printf 'rustc workspace-compiler\n'
+else
+  printf 'rustc home-compiler\n'
+fi
+STUB
+  (cd "$sandbox_home" && assert_builder_succeeds)
+  assert_contains 'rustc workspace-compiler' "$(cat "$build_record")"
+  assert_not_contains 'rustc home-compiler' "$(cat "$build_record")"
+}
+
 function test_a_failed_refresh_restores_the_previous_record_and_binary() {
   ready_to_build
   assert_builder_succeeds

@@ -111,7 +111,7 @@ if ((artifact_bytes == 0 || artifact_bytes > 8388608)); then
 fi
 artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
 [[ $artifact_hash =~ ^[0-9a-f]{64}$ ]] || exit 1
-compiler="$("$HOME/.cargo/bin/rustc" --version --verbose)"
+compiler="$(cd "$crate_dir" && "$HOME/.cargo/bin/rustc" --version --verbose)"
 
 mkdir -p "$(dirname "$build_record")" "$install_dir"
 next_record="$(mktemp "${build_record}.new.XXXXXX")"

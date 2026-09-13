@@ -321,3 +321,29 @@ function test_a_failed_builder_refresh_preserves_the_prior_record_tuple_and_bina
   run_consumer _pipeline_deployed_state_is_known_good "$binary"
   assert_successful_code
 }
+
+function test_pns_tuple_uses_its_authorized_record_and_ignores_live_bytes() {
+  local pns_record="$sandbox_home/.local/state/pns-build-record"
+  local pns_binary="$sandbox_home/.cargo/bin/pns"
+  printf 'sha256 %s\nbytes 3\nrustc fixture\n' \
+    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb >"$pns_record"
+  printf tampered >"$pns_binary"
+  run_refresh --pipeline-only
+  assert_successful_code
+  assert_contains "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 0755 $(id -u) $pns_binary" "$(cat "$pipeline_manifest")"
+}
+
+function test_missing_pns_record_is_explicitly_unbuilt_without_adopting_the_binary() {
+  printf tampered >"$sandbox_home/.cargo/bin/pns"
+  run_refresh --pipeline-only
+  assert_successful_code
+  assert_contains "unbuilt 0755 $(id -u) $sandbox_home/.cargo/bin/pns" "$(cat "$pipeline_manifest")"
+}
+
+function test_malformed_pns_record_refuses_the_whole_pipeline_publication() {
+  printf 'sha256 malformed\nbytes 3\nrustc fixture\n' >"$sandbox_home/.local/state/pns-build-record"
+  local status=0
+  run_refresh --pipeline-only || status=$?
+  assert_not_same 0 "$status"
+  assert_same old-pipeline "$(cat "$pipeline_manifest")"
+}
