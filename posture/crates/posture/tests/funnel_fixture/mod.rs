@@ -16,7 +16,7 @@ pub fn compare(name: &str) {
         .unwrap()
         .clone();
     if name == "oversized_exposure" {
-        // This is an explicit producer-limit refusal, not Bash parity. Keep the capture unchanged.
+        // The full page exceeds the wire cap. Preserve the Bash capture and require a bounded notice.
         assert!(
             case["expected"]["alerts"][0]["body"]
                 .as_str()
@@ -27,7 +27,11 @@ pub fn compare(name: &str) {
         );
         case["expected"]["code"] = 1.into();
         case["expected"]["baseline"] = Value::Null;
-        case["expected"]["alerts"] = Value::Array(vec![]);
+        case["expected"]["alerts"] = serde_json::json!([{
+            "title": "Posture security alert omitted",
+            "body": "A security finding exceeded notification limits. The full alert was not submitted and remains unacknowledged. Inspect the originating posture check.",
+            "prior": null
+        }]);
         case["expected"]["stderr"] = "tailscale-monitor: send_alert could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n".into();
     }
     let home = std::env::temp_dir().join(format!("posture-funnel-{}-{name}", std::process::id()));
