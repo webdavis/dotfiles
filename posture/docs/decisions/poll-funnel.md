@@ -31,9 +31,9 @@ wire error becomes `Malformed`; an admitted zero-length array still refuses. No 
 fallback or dependency is introduced. The producer configuration and operational cutovers remain separate
 from this policy payload.
 
-The poll command supplies the current real user to process probes through the existing native
-binding. All three posture executable-discovery paths share the same effective-access check; permission
-bits alone can select a file the current user cannot execute. Explicit overrides and converge's separate
+The poll command supplies the current real user to process probes through the existing native binding.
+All three posture executable-discovery paths share the same effective-access check; permission bits alone
+can select a file the current user cannot execute. Explicit overrides and converge's separate
 parent-directory trust requirements retain their contracts.
 
 The composition tests keep the Bash harness's captured alert bytes and publication order. A refused
