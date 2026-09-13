@@ -3,7 +3,7 @@ use configuration::Configuration;
 use posture_adapters::{
     AllowlistText, BatchJudge, Collaborators, CursorFile, DigestAppendFile, KnownGoodManifests,
     LastResortBanner, PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
-    SystemRunner,
+    SystemRunner, file_integrity_triage,
 };
 use posture_adapters::{OwnedSigning, SystemInspection};
 use posture_application::{Clock, JudgeOutcome, JudgeResults, enrich};
@@ -28,10 +28,20 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
         let _ = stderr.write_all(b"posture alert: HOME is not set\n");
         return 1;
     };
-    execute(config, SystemClock, stderr)
+    execute(
+        config,
+        SystemClock,
+        || SystemRunner::new(INSPECTION_BUDGET),
+        stderr,
+    )
 }
 
-fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write) -> u8 {
+fn execute<R: posture_adapters::CommandRunner>(
+    config: Configuration,
+    mut clock: impl Clock,
+    inspection_runner: impl FnOnce() -> R,
+    stderr: &mut impl Write,
+) -> u8 {
     // A CLOCK THAT CANNOT ANSWER STILL JUDGES. Unlike the digest, whose title
     // names a day, the only thing the clock supplies here is the timestamp on a
     // spooled row, and a spool line with no timestamp is worth more than a
@@ -75,7 +85,7 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
     //
     // ONE BUDGET FOR EVERY SPAWNED INSPECTION OF ONE FINDING, plist fallback
     // included, which is the same budget `posture enrich` gives itself.
-    let mut inspection = SystemInspection::new(SystemRunner::new(INSPECTION_BUDGET));
+    let mut inspection = SystemInspection::new(inspection_runner());
     let mut inspect = |path: &str| {
         if path.is_empty() {
             return None;
@@ -86,11 +96,17 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
             text: String::from_utf8_lossy(&outcome.fact).trim().to_string(),
         })
     };
-    // THE TRIAGE FACTS REALLY ARE DISPLAY ONLY: the recorded and on-disk
-    // hashes and the upgrade correlation a file-integrity page carries. A page
-    // without them fires carrying less, and the shell tolerated the same gap
-    // whenever its optional helper was not deployed.
-    let mut triage = |_: &ResultsRow| None;
+    let upgrade_record = Path::new(&config.home)
+        .join(".local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv");
+    let mut triage = |row: &ResultsRow| {
+        Some(file_integrity_triage(
+            &manifests,
+            &upgrade_record,
+            row.gate_columns().target_path,
+            now.as_ref().map(|reading| reading.seconds),
+            stderr,
+        ))
+    };
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
     let mut judge = BatchJudge {
         home: &config.home,
@@ -111,7 +127,7 @@ fn execute(config: Configuration, mut clock: impl Clock, stderr: &mut impl Write
         cursor: &cursor,
         judge: &mut judge,
         sink: &mut sink,
-        occurred_at: now.map(|reading| reading.seconds),
+        occurred_at: now.as_ref().map(|reading| reading.seconds),
     }
     .run();
 
@@ -138,3 +154,6 @@ fn instant(reading: &posture_application::WallTime) -> String {
         seconds_today % 60
     )
 }
+
+#[cfg(test)]
+mod tests;

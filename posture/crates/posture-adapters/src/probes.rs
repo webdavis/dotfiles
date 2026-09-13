@@ -18,6 +18,10 @@ pub struct ControlProbes<R = SystemRunner> {
     preferences: PathBuf,
 }
 impl ControlProbes<SystemRunner> {
+    pub fn current_user(rules: PathBuf, preferences: PathBuf) -> Self {
+        // SAFETY: getuid has no preconditions and reads the current process identity.
+        Self::new(unsafe { libc::getuid() }, rules, preferences)
+    }
     pub fn new(uid: u32, rules: PathBuf, preferences: PathBuf) -> Self {
         Self {
             runner: SystemRunner::per_command(POLL_PROBE_BUDGET),
@@ -28,6 +32,14 @@ impl ControlProbes<SystemRunner> {
     }
 }
 impl<R: CommandRunner> ControlProbes<R> {
+    pub fn with_runner(runner: R, uid: u32, rules: PathBuf, preferences: PathBuf) -> Self {
+        Self {
+            runner,
+            uid,
+            rules,
+            preferences,
+        }
+    }
     pub fn read(&mut self, controls: &[Control]) -> (Vec<ControlReading>, LuluProfile) {
         // The shell preflights the base profile before any control reads, once per batch.
         let profile = if controls

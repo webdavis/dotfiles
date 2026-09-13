@@ -16,6 +16,15 @@ use support::{
     CAPTURE, KEYS_DISAGREE, RouterStub, Sandbox, router_table, run, stderr, stdout, write_script,
 };
 
+fn plugin_command(sandbox: &Sandbox) -> Command {
+    let mut command = sandbox.bare();
+    // These tests exercise delivery, not the operator's live idle and mosh sessions.
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_PHONE_INPUT_AGE", "99999");
+    command
+}
+
 /// The capture server, already bound to its ephemeral port.
 struct Capture {
     server: Child,
@@ -112,7 +121,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
         &format!("cat >\"{}/decoy.event\"", sandbox.display()),
     );
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     // At the desk, because the banner is a desk surface now: an idle of
     // 99999 is the operator being away, and away raises no banner at all.
     command.env("PNS_IDLE_SECS", "0");
@@ -138,7 +147,7 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
     );
     let capture = Capture::start(&sandbox, "mobile", None, None);
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_URL", capture.url());
@@ -171,7 +180,7 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
     );
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
@@ -189,7 +198,7 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
     let capture = Capture::start(&sandbox, "hermes", None, None);
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
@@ -215,7 +224,7 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
     let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
@@ -232,7 +241,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     // hermes key, so that run returns before any outcome exists.
     let sandbox = Sandbox::new("hermes-async-silent");
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
@@ -273,7 +282,7 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
         router_table(&router.localhost_url())
     ));
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_IDLE_SECS", "99999")
         .env("HTTP_PROXY", capture.url())
@@ -314,7 +323,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     let sandbox = Sandbox::new("recap-refused");
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_STATE_DIR", sandbox.path("state"))
         // PORT 1 REFUSES IMMEDIATELY rather than hanging, so the failure this
@@ -355,7 +364,7 @@ fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so(
     sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
     let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("2"));
 
-    let mut command = sandbox.bare();
+    let mut command = plugin_command(&sandbox);
     command
         .env("PNS_STATE_DIR", sandbox.path("state"))
         .env("HTTP_PROXY", capture.url())

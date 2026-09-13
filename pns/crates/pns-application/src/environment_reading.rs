@@ -44,7 +44,18 @@ pub fn operator_surface<P>(probes: &P, overrides: &Overrides, now_secs: Option<u
 where
     P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + ProbeStart,
 {
-    pns_domain::surface_reading(&read_surface(probes, overrides), overrides, now_secs).surface
+    operator_surface_reading(probes, overrides, now_secs).surface
+}
+
+pub fn operator_surface_reading<P>(
+    probes: &P,
+    overrides: &Overrides,
+    now_secs: Option<u64>,
+) -> pns_domain::SurfaceReading
+where
+    P: IdleProbe + PhoneMarkerProbe + PhoneInputProbe + ScreenLockProbe + ProbeStart,
+{
+    pns_domain::surface_reading(&read_surface(probes, overrides), overrides, now_secs)
 }
 
 fn read_surface<P>(probes: &P, overrides: &Overrides) -> EnvironmentSnapshot

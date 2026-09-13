@@ -25,7 +25,7 @@ pub use staging::{DesiredStaging, StagedTree};
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
-pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner};
+pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner, is_executable};
 mod command_duration;
 pub use command_duration::parse_command_duration;
 
@@ -106,3 +106,6 @@ mod funnel_status;
 pub use funnel_status::read_funnel;
 mod funnel_state;
 pub use funnel_state::FunnelStateFile;
+
+mod integrity_triage;
+pub use integrity_triage::file_integrity_triage;

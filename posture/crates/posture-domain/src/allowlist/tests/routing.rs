@@ -19,7 +19,6 @@ fn route(identity: LaunchdIdentity<'_>, untrusted: bool, vouch: bool) -> GateOut
                 text: "fixture signing",
             }),
             integrity: IntegrityVerdict::Page,
-            triage: None,
         },
         |identity| {
             judge(Allowlist::Read(&[entry()]), identity, None, |_| vouch)

@@ -25,7 +25,6 @@ fn evidence(finding: GateFinding<'_>) -> GateEvidence<'static> {
         )),
         signing: None,
         integrity: IntegrityVerdict::Page,
-        triage: None,
     }
 }
 
@@ -34,10 +33,7 @@ fn route(finding: GateFinding<'_>) -> GateOutcome<'_> {
 }
 
 fn page() -> GateOutcome<'static> {
-    GateOutcome::Page {
-        signing: None,
-        triage: None,
-    }
+    GateOutcome::Page { signing: None }
 }
 
 fn digest() -> GateOutcome<'static> {

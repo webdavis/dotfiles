@@ -74,61 +74,63 @@ fn report(
         },
     ];
     let mut lines = Vec::new();
-    let code =
-        RunDoctor {
-            decisions: pns_domain::doctor::Detail::Spoken,
-            checks: &checks,
-            records: history,
-            clock: &|| Some(100),
-            replay_card: false,
-            nag_after_secs: 0,
-        }
-        .run(
-            DoctorActions {
-                deliver: |legs: &[Leg], event: &EventArgs| {
-                    assert_eq!(
-                        legs.iter().map(|l| l.name).collect::<Vec<_>>(),
-                        ["alpha", "beta"]
-                    );
-                    assert!(legs.iter().all(|l| !l.decorative
-                        && l.mode == pns_domain::routing::ReportMode::ReportOutcome));
-                    assert_eq!(
-                        (&*event.agent, &*event.state, &*event.detail),
-                        ("pns", "doctor", DOCTOR_DETAIL)
-                    );
-                    assert!(event.pane.is_empty());
-                    delivered
-                },
-                pulse: || pulse.clone(),
-                presence: || (PresenceStatus::Nowhere { poll_age_secs: 2 }, None),
-                pairing: || PairingReport {
-                    pairing,
-                    server: Some("fixture server".into()),
-                },
-                focus: || "focus fixture".into(),
-                daemon: || "daemon fixture".into(),
-                lamps: || LightsReport::Off,
-                delivery_health: || history.health.clone(),
-                routes: || history.routes.clone(),
-                imports: || {
-                    history.imports.clone().map(|rows| {
-                        rows.into_iter()
-                            .map(|(record, reason)| ImportFailure { record, reason })
-                            .collect()
-                    })
-                },
+    let code = RunDoctor {
+        decisions: pns_domain::doctor::Detail::Spoken,
+        checks: &checks,
+        records: history,
+        clock: &|| Some(100),
+        replay_card: false,
+        nag_after_secs: 0,
+    }
+    .run(
+        DoctorActions {
+            deliver: |legs: &[Leg], event: &EventArgs| {
+                assert_eq!(
+                    legs.iter().map(|l| l.name).collect::<Vec<_>>(),
+                    ["alpha", "beta"]
+                );
+                assert!(
+                    legs.iter().all(|l| !l.decorative
+                        && l.mode == pns_domain::routing::ReportMode::ReportOutcome)
+                );
+                assert_eq!(
+                    (&*event.agent, &*event.state, &*event.detail),
+                    ("pns", "doctor", DOCTOR_DETAIL)
+                );
+                assert!(event.pane.is_empty());
+                delivered
             },
-            |item| {
-                // ROWS ONLY. These tests are about what the doctor CHECKS and
-                // in what order, so a heading would shift every index by one
-                // without saying anything a row does not already say. The
-                // headings are pinned where they are read, in the command's own
-                // integration tests.
-                if let pns_domain::doctor::Item::Row { .. } = item {
-                    lines.push(item.text().to_string());
-                }
+            pulse: || pulse.clone(),
+            presence: || (PresenceStatus::Nowhere { poll_age_secs: 2 }, None),
+            pairing: || PairingReport {
+                pairing,
+                server: Some("fixture server".into()),
             },
-        );
+            tap: || pns_domain::doctor::Item::row(pns_domain::doctor::Mark::Detail, "tap fixture"),
+            focus: || "focus fixture".into(),
+            daemon: || "daemon fixture".into(),
+            lamps: || LightsReport::Off,
+            delivery_health: || history.health.clone(),
+            routes: || history.routes.clone(),
+            imports: || {
+                history.imports.clone().map(|rows| {
+                    rows.into_iter()
+                        .map(|(record, reason)| ImportFailure { record, reason })
+                        .collect()
+                })
+            },
+        },
+        |item| {
+            // ROWS ONLY. These tests are about what the doctor CHECKS and
+            // in what order, so a heading would shift every index by one
+            // without saying anything a row does not already say. The
+            // headings are pinned where they are read, in the command's own
+            // integration tests.
+            if let pns_domain::doctor::Item::Row { .. } = item {
+                lines.push(item.text().to_string());
+            }
+        },
+    );
     (code, lines)
 }
 fn leg(name: &'static str, delivery: Delivery) -> (Leg, Delivery) {

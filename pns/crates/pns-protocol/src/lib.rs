@@ -37,6 +37,10 @@ mod envelope;
 mod identifiers;
 mod request;
 mod result;
+mod tap;
+pub use tap::{
+    TapError, TapInstall, TapInstallStep, TapMarker, TapOperation, TapResult, TapWriteStatus,
+};
 
 pub use bounds::{MAX_BYTES, MAX_DEPTH, MAX_FIELDS, MAX_ITEMS, MAX_TEXT_CHARS, Violation};
 pub use egress::{EgressEnvelope, EgressMode, RenderedEvent, decode as decode_egress};

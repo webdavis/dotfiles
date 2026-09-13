@@ -1,5 +1,48 @@
 # Request, result and egress protocol version 1
 
+## Tap result version 1
+
+`pns tap [--info | --install] [--json]` accepts one operation and an optional JSON output selector. Bare
+tap records attention; info observes it; install prints a guide. Other arguments, including conflicting
+operations, exit 2 before mutation. The tool-wide color flag still applies.
+
+JSON (JavaScript Object Notation) output is one object with `schema: "pns.tap/1"` and a trailing newline,
+without terminal decoration. It uses the existing envelope bounds. Its required fields are:
+
+| Field          | Type and meaning                                          |
+| -------------- | --------------------------------------------------------- |
+| `operation`    | `tap`, `info`, or `install`; `tap` on an argument refusal |
+| `ok`           | boolean, whether the requested operation succeeded        |
+| `write_status` | `not_requested`, `recorded`, or `failed`                  |
+| `marker`       | null when unresolved, otherwise the object below          |
+| `surface`      | `desk`, `mobile`, `away`, or null when not assessed       |
+| `message`      | human-readable operation result, never a delivery receipt |
+| `install`      | null except for an installation guide                     |
+| `error`        | null or `{ "code": string, "message": string }`           |
+
+The marker object contains `path`, `source` (`default`, `config`, `environment`), `config_file`, `exists`
+(boolean or null), `mtime_epoch_secs` and `age_secs` (unsigned integers or null), and `fresh` (boolean or
+null). Metadata errors remain unknown; only an absent entry means never tapped. Age and freshness follow
+the existing surface policy, including saturating future ages, a strict freshness boundary and desk
+winning ties. Missing config is valid. Surface is attention arbitration, not a promise that an event
+bypasses mutes, Focus, visibility or destination configuration.
+
+The install object contains `binary`, `host`, `user`, `authorized_key_line`, `shortcut_url`,
+`verified_ios`, `steps` (ordered objects with `title`, `blurb`, and `lines`), and `undo` (strings). The
+authorization line contains a public-key placeholder, never any discovered key. The public Shortcut link
+and verified iOS version are currently unavailable and represented by null. The guide states that
+limitation and does not invent Settings paths. Device acceptance remains separate.
+
+Exit 0 means success, including absent or stale metadata on info. Exit 1 means an operational failure;
+stable error codes are `config_error`, `path_error`, `mkdir_failed`, `touch_failed`, `marker_unreadable`,
+`install_context_unavailable`, and `output_failed`. Exit 2 uses `invalid_arguments`. A failed write may
+leave a created directory or marker. A later reporting failure retains `write_status: "recorded"`; no
+failure deletes or rolls back state. JSON failures are reported on stdout; plain failures go to stderr.
+Failure to write stdout itself returns 1.
+
+Optional fields may be added within version 1. Changing field meanings, required fields or enum values
+requires a new major version. Consumers must reject unsupported major versions.
+
 These requirements belong to the separate `protocol-v1/S001` through `protocol-v1/S029` namespace.
 Requirements S001 through S022 record row 7.1, already implemented in 61faeb0c; S023 through S027 add row
 7.2's egress contract. They are not the legacy inventory's S-statements or a claim that these
@@ -358,8 +401,7 @@ Destination results carry typed verdicts without echoing private transport text.
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
 migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured class policy is specified in `quiet-behavior.md`, behavior
-7\.
+gate. The configured class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
@@ -378,6 +420,12 @@ class exception follows the existing silence policy without adding a phone card 
 The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
 legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
 and normal banner sound. `NeedsAttention` retains ordinary presence and visibility gating.
+
+A validated request with class `security` and signal `NeedsAttention` uses Sosumi for its native banner,
+preserving posture's ordinary critical-page sound. Other classes and signals keep the default sound;
+observations remain silent. The same selection applies to initial delivery, unretained fallback and
+ledger retry. Missing or invalid retained metadata keeps the legacy default. This adds no sound option to
+the producer protocol and does not change delivery planning or the independent last-resort alarm.
 
 The named route remains the Hermes URL path selected by the existing route mechanism. Initial and retry
 attempts carry the original request identifier in the signed body and idempotency header, and the full
