@@ -920,7 +920,7 @@ producer.
 
 - [ ] 61. lights: finish the argument-surface differential against the independent legacy reference,
   including the changed-reference control. Current usage assertions do not fulfill that acceptance.
-  Commit `33a6a7f1` is ready for independent review on `test/lights-argument-differential`: 169 cases,
+  Commit `33a6a7f1` passed independent review on `test/lights-argument-differential`: 169 cases,
   changed-exit and changed-power-write controls, 95 Rust checks and the release build passed. Each
   differential case completed within one second. It is test-only and not yet published; tasks 62 and 63
   retain their hardware and manifest-policy gates.
@@ -1173,14 +1173,13 @@ is missing.
   exclusion was measured ineffective and must not be proposed again without new evidence. The source
   globs have changed, but that is not a reproduction or closure. B75's Rustdoc link fixes already shipped
   in `20a0c245`; keep them closed.
-- [ ] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
-  default after checking its actual requirements. Its README still says pns lacks `--version` and
-  `--elapsed`, while current pns provides both and dotfiles supplies a configured `0.1.0` minimum
-  override. Task 14 remains complete. Update the consumer pin only if an upstream correction requires it;
-  do not rebuild the installed integration solely because its old README is stale. Owning-repository
-  commit `e77799f` corrects the default and docs to `0.1.0`. Its new default-health check failed before
-  the correction; all 38 checks then passed. Independent review and publication remain. The existing
-  consumer override already supplies that value, so no pin change is needed.
+- [x] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
+  default after checking its actual requirements. Commit `e77799f` corrects the default and docs to
+  `0.1.0`; its new default-health check failed before the correction, then all 38 checks passed.
+  Independent review repeated the suite, and formatting and Lua lint passed. Owning-repository PR #1 is
+  merged at `ed51fd5`, with its clean local main fast-forwarded. GitHub has no configured checks for that
+  repository. The existing consumer override already supplies this minimum, so no pin or live
+  configuration change is needed. Task 14 remains complete.
 
 ### Neovim review follow-up
 
