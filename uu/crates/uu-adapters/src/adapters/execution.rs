@@ -8,6 +8,10 @@ use crate::runner::SystemRunner;
 pub struct ConfiguredLaneExecutor<'a>(pub &'a Config);
 
 impl LaneExecutor for ConfiguredLaneExecutor<'_> {
+    fn interrupted(&self) -> bool {
+        crate::interruption().is_some()
+    }
+
     fn execute(
         &self,
         name: &str,
