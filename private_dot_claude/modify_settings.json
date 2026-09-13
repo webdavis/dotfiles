@@ -632,10 +632,13 @@
        one entry here, core skills get none, and test/unit/skills-roster-fanout.sh
        fails the build when the two sets diverge. Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
-       via /config pass through untouched. --- */ -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
+       via /config pass through untouched. A per-key write never removes a
+       key, so a skill promoted to core keeps its stale override in the live
+       file until an explicit delete below scrubs it (a no-op when the key or
+       skillOverrides itself is absent, measured on chezmoi 2.72.1). --- */ -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code-rust" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code-swift" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
