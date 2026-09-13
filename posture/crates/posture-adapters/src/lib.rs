@@ -20,6 +20,7 @@
 //! `tailscale` or `pns`. Enrichment and allowlist curation use these boundaries.
 
 mod codesign;
+mod private_directory;
 mod staging;
 pub use staging::{DesiredStaging, StagedTree};
 mod command;
@@ -97,7 +98,7 @@ pub use results_cursor::{CursorFile, SingleRunLock};
 mod converge;
 pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
-    resolve_osqueryctl,
+    resolve_osqueryctl, resolve_osqueryd,
 };
 
 mod integrity_triage;

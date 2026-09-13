@@ -1,3 +1,4 @@
+use crate::private_directory::PrivateDirectory;
 use crate::{CommandIo, CommandRunner};
 use posture_application::{InspectionFailure, OsqueryControl, VendorPlist};
 use std::path::PathBuf;
@@ -6,14 +7,22 @@ pub struct OsqueryRestart<R> {
     pub(super) runner: R,
     sudo: PathBuf,
     command: PathBuf,
+    daemon: Option<PathBuf>,
     target: PathBuf,
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
-    pub fn new(runner: R, sudo: PathBuf, command: PathBuf, target: PathBuf) -> Self {
+    pub fn new(
+        runner: R,
+        sudo: PathBuf,
+        command: PathBuf,
+        daemon: Option<PathBuf>,
+        target: PathBuf,
+    ) -> Self {
         Self {
             runner,
             sudo,
             command,
+            daemon,
             target,
         }
     }
@@ -27,12 +36,7 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
         }
     }
     fn config_check(&mut self) -> Result<(), InspectionFailure> {
-        self.command(
-            "config-check",
-            CommandIo::Inspection {
-                merge_stderr: false,
-            },
-        )
+        self.config_check_in(&std::env::temp_dir())
     }
     fn stop(&mut self) -> Result<(), InspectionFailure> {
         self.command(
@@ -47,6 +51,35 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
     }
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
+    fn config_check_in(&mut self, scratch: &std::path::Path) -> Result<(), InspectionFailure> {
+        let database =
+            PrivateDirectory::create(scratch).map_err(|_| InspectionFailure::Unavailable)?;
+        let io = CommandIo::Inspection {
+            merge_stderr: false,
+        };
+        let result = if let Some(daemon) = &self.daemon {
+            self.runner
+                .run(
+                    &self.sudo,
+                    &[
+                        "-n".as_ref(),
+                        daemon.as_os_str(),
+                        "--config_path".as_ref(),
+                        self.target.join("osquery.conf").as_os_str(),
+                        "--config_check".as_ref(),
+                        "--database_path".as_ref(),
+                        database.path().join("db").as_os_str(),
+                    ],
+                    io,
+                )
+                .map(|_| ())
+        } else {
+            self.command("config-check", io)
+        };
+        let cleanup =
+            std::fs::remove_dir_all(database.path()).map_err(|_| InspectionFailure::Unavailable);
+        result.and(cleanup)
+    }
     fn command(&mut self, verb: &str, io: CommandIo<'_>) -> Result<(), InspectionFailure> {
         self.runner
             .run(
@@ -60,3 +93,6 @@ impl<R: CommandRunner> OsqueryRestart<R> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod validation_tests;

@@ -15,6 +15,7 @@ fn search_resolution_checks_the_selected_parent_once_and_retains_that_exact_path
     let probes = RefCell::new(Vec::new());
     let parents = RefCell::new(Vec::new());
     let result = resolve_with(
+        "osqueryctl",
         None,
         OsStr::new("/absent:/trusted"),
         |p| {
@@ -41,6 +42,7 @@ fn search_resolution_checks_the_selected_parent_once_and_retains_that_exact_path
 fn an_explicit_command_does_not_fall_back_to_an_unrelated_search_result() {
     let probes = RefCell::new(Vec::new());
     let result = resolve_with(
+        "osqueryctl",
         Some(Path::new("/chosen/ctl")),
         OsStr::new("/different"),
         |p| {
@@ -57,6 +59,7 @@ fn an_explicit_command_does_not_fall_back_to_an_unrelated_search_result() {
 fn relative_resolution_and_untrusted_parent_attributes_are_returned_as_refusals() {
     assert_eq!(
         resolve_with(
+            "osqueryctl",
             Some(Path::new("relative/ctl")),
             OsStr::new(""),
             |_| true,
@@ -88,6 +91,7 @@ fn relative_resolution_and_untrusted_parent_attributes_are_returned_as_refusals(
     ] {
         assert_eq!(
             resolve_with(
+                "osqueryctl",
                 Some(Path::new("/chosen/ctl")),
                 OsStr::new(""),
                 |_| true,
@@ -107,6 +111,7 @@ fn test_osquery_not_being_installed_at_all_is_a_quiet_no_op() {
     let mut examined = 0;
     assert_eq!(
         resolve_with(
+            "osqueryctl",
             None,
             absent.0.as_os_str(),
             |_| {
@@ -140,4 +145,34 @@ fn native_resolution_reads_parent_ownership_and_never_launches_the_candidate() {
         })
     );
     assert_eq!(std::fs::read(command).unwrap(), b"must never execute");
+}
+
+#[test]
+fn daemon_search_uses_osqueryi_and_applies_the_same_parent_trust_gate() {
+    for owner in [0, 501] {
+        let found = resolve_with(
+            "osqueryi",
+            None,
+            OsStr::new("/absent:/trusted daemon"),
+            |path| path == Path::new("/trusted daemon/osqueryi"),
+            |_| {
+                Some(LiveAttributes {
+                    mode: 0o755,
+                    uid: owner,
+                    gid: 0,
+                })
+            },
+        );
+        if owner == 0 {
+            assert_eq!(found, Ok(Some("/trusted daemon/osqueryi".into())));
+        } else {
+            assert_eq!(
+                found,
+                Err(CommandRefusal {
+                    command: "/trusted daemon/osqueryi".into(),
+                    reason: CommandTrustRefusal::Owner(owner)
+                })
+            );
+        }
+    }
 }

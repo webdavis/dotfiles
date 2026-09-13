@@ -14,8 +14,24 @@ pub fn resolve_osqueryctl(
     requested: Option<&Path>,
     path: &OsStr,
 ) -> Result<Option<PathBuf>, CommandRefusal> {
+    resolve_command("osqueryctl", requested, path)
+}
+
+pub fn resolve_osqueryd(
+    requested: Option<&Path>,
+    path: &OsStr,
+) -> Result<Option<PathBuf>, CommandRefusal> {
+    resolve_command("osqueryi", requested, path)
+}
+
+fn resolve_command(
+    name: &str,
+    requested: Option<&Path>,
+    path: &OsStr,
+) -> Result<Option<PathBuf>, CommandRefusal> {
     use std::os::unix::fs::MetadataExt;
     resolve_with(
+        name,
         requested,
         path,
         |path| std::fs::metadata(path).is_ok_and(|metadata| metadata.mode() & 0o111 != 0),
@@ -32,6 +48,7 @@ pub fn resolve_osqueryctl(
 }
 
 fn resolve_with(
+    name: &str,
     requested: Option<&Path>,
     path: &OsStr,
     mut executable: impl FnMut(&Path) -> bool,
@@ -41,7 +58,7 @@ fn resolve_with(
         executable(requested).then(|| requested.to_path_buf())
     } else {
         std::env::split_paths(path)
-            .map(|directory| directory.join("osqueryctl"))
+            .map(|directory| directory.join(name))
             .find(|candidate| executable(candidate))
     };
     let Some(command) = resolved else {
