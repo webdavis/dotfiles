@@ -12,9 +12,9 @@ Audited on 2026-09-12 against `76b37ae4`. On 2026-09-13, #530 and #531 merged an
 fast-forwarded to `origin/main` at `72f745e2`. The final #530 head passed
 [run 34747415685](https://github.com/webdavis/dotfiles/actions/runs/34747415685). The operator reported
 that `chezmoi apply` passed on 2026-09-13 after these merges. Live shortcut and harness acceptance checks
-remain pending. Task 68c tracks publication of the preserved planning edits.
+remain pending. Task 68c is published; deployment and acceptance remain separate.
 
-Two pull requests remain open: [#24](https://github.com/webdavis/dotfiles/pull/24) and
+Retained design work remains in [#24](https://github.com/webdavis/dotfiles/pull/24) and
 [#51](https://github.com/webdavis/dotfiles/pull/51), carrying security and Forzare work explicitly listed
 below. Every pull request from the 2026-09-06 Codex handoff has merged; this file replaces that handoff.
 
@@ -114,10 +114,10 @@ configuration match after TOML parsing. Worktrunk returned all 209 current branc
 seconds. All Plannotator links resolve for Hermes default and its four specialist profiles. Interactive
 acceptance remains open. The same verification recovered these source fixes:
 
-- [ ] Restore Claude delivery of `plannotator`, `plannotator-annotate` and `plannotator-review`. The
+- [x] Restore Claude delivery of `plannotator`, `plannotator-annotate` and `plannotator-review`. The
   managed lock suppresses them, but installed Plannotator 0.27.14 supplies hooks without commands or
   skills. Correct the consumer declarations and verify deployment separately.
-- [ ] Fix the shared skills overlay writer in `uu-adapters`: it appends another `policy` mapping when
+- [x] Fix the shared skills overlay writer in `uu-adapters`: it appends another `policy` mapping when
   upstream metadata already has one. Deployed `plannotator` and `last30days` metadata fail strict YAML
   parsing with `DUPLICATE_KEY`. Update the existing mapping, preserve other metadata and cover the
   repeated-overlay behavior before regenerating through the supported skills lane.
@@ -126,16 +126,26 @@ acceptance remains open. The same verification recovered these source fixes:
   `pns failures serve` processes running after completion; both were identified by their test paths and
   stopped. Ensure tests reap their processes and satisfy the repository's one-second rule.
 
-Implementation progress, 2026-09-13: `fix/review-skill-delivery` contains the Claude delivery fix
-(`bd2b989c`) and parsed, reversible overlays (`c251e6d5`). All 606 uu tests passed; independent review
-approved both changes. Their publication and deployment remain open.
+Implementation progress, 2026-09-13: [PR #535](https://github.com/webdavis/dotfiles/pull/535) merged the
+Claude delivery fix (`bd2b989c`) and parsed, reversible overlays (`c251e6d5`). All 606 uu tests, full
+`just ship`, required checks and independent review passed. The release build passed. Operator apply and
+live skills acceptance remain open; the autonomous run did not update the live skills store.
 [PR #533](https://github.com/webdavis/dotfiles/pull/533) merged the collector fixture reduction
 (`6f2e3e43`), owned daemon-job cleanup (`166b4830`) and color-test isolation. Full `just ship` and
-required checks passed; local main is at merge `adf14ff2`. The three collector checks passed in 390 ms
-total, and cleanup regressions passed against real detached test deliveries. The next full skill check
-found a separate gate-test pipe race: an invalid command may exit before the fixture writes stdin. Reuse
-the existing early-exit payload helper while retaining exit-code and forwarding assertions. All nine gate
-tests passed after that change; independent review approved it. Its publication remains open.
+required checks passed. The three collector checks passed in 390 ms total, and cleanup regressions passed
+against real detached test deliveries. The next full skill check found a separate gate-test pipe race: an
+invalid command may exit before the fixture writes stdin. Reuse the existing early-exit payload helper
+while retaining exit-code and forwarding assertions. All nine gate tests passed after that change;
+independent review approved it. The separate test-only commit `9432c139` merged in #535. The next local
+main synchronization reached `b078de0f`, containing #534 through #538. The original 127 untracked paths
+remain preserved.
+
+The posture branch's full check then exposed five native delivery fixtures querying the operator's live
+idle and mosh sessions. A test-local presence setup retained their wire, receipt, silence and exit-code
+assertions. All 25 native checks passed in 440 ms and full `just ship` passed. Independent review passed
+the same 25 checks in 430 ms. Separate commit `a7a00c1c` merged in
+[PR #538](https://github.com/webdavis/dotfiles/pull/538), whose required checks passed. Live probe
+acceptance remains open.
 
 ## Red main
 
@@ -451,7 +461,15 @@ for it either, which its own spec records as an open question (`persistence-and-
 one of which is not chezmoi-managed, and nothing checks that the two agree. A mismatch is silent: pns
 sees a file that never updates, reads the tap as stale, and phone cards simply stop.
 
-- [ ] 71. `pns tap` takes over the write. A new subcommand touches the marker at the SAME configured path
+Mac implementation merged in [PR #537](https://github.com/webdavis/dotfiles/pull/537), with ten
+fail-first behavior checks, seventeen focused checks, independent review, release build, full local
+checks and required checks passing. Tasks 71 and 72's command, shared marker resolution and doctor row
+are implemented. Task 71a's command failure, private directory creation, default configuration, typed
+`pns.tap/1` output and manual setup/undo guidance are implemented. Operator deployment, Remote Login,
+sleep/wake behavior and the actual phone artifact remain under 71a and 71b. The guide reports the missing
+verified Shortcut URL; it does not supply an invented download or edit SSH trust.
+
+- [x] 71. `pns tap` takes over the write. A new subcommand touches the marker at the SAME configured path
   the presence probe reads, so the path exists once. The forced command becomes
   `command="<cargo bin>/pns tap",restrict` and names no path at all, which is what makes task 72's knob
   safe to turn: the operator edits `authorized_keys` once, here, and never again. `restrict` still holds,
@@ -595,7 +613,7 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   marker path, because requiring one would fail on exactly the fresh machine `--install` is walking
   somebody through. Define the `--json` schema and manual undo instructions before building.
 
-- [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
+- [x] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
   the tests and sandboxes are untouched. NOT `[presence]`: `[plugins.presence]` already exists and is the
   Hue room sensor, and two tables a word apart meaning different things is the confusion this avoids.
@@ -628,21 +646,21 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   modules are implemented, exported and tested (20 drift cases, 9 converge-policy cases), and neither
   carries a deferral note. Verified by running them rather than by reading the plan.
 
-- [x] 39. posture 2.10 domain work: `cursor.rs` and `gate::Triage` are implemented. The existing triage
-  type covers the required fields; its producer still needs recorded/on-disk hash and upgrade facts.
-  Track that adapter work under 40 and 45b.
+- [x] 39. posture 2.10 domain work: cursor and triage policy are implemented. Task 40 supplies the
+  recorded/on-disk hash and upgrade facts; task 45b retains caller arming and acceptance.
 
-- [ ] 40. Complete posture 3.1 adapter behavior. `PollMarkers` and the initial adapters landed, but
-  enumerating trait implementations did not establish acceptance. Finish the triage/upgrade-record
-  producer used by 45b and verify the actual producer's example from the port plan. Local implementation
-  is under review on `feat/posture-triage`: actual alert composition, display-only recorded/on-disk
-  hashes and a bounded upgrade-record reader. The missing-detail regression failed before implementation
-  and passed afterward; five pure correlation regressions also failed before their implementation. The
-  producer now matches a captured Bash example containing quotes and an empty added-version field.
-  Package tests, checks, Clippy and documentation passed. Independent review found and verified fixes for
-  eager triage on ignored events and parallel scratch-directory collisions. Only a domain-approved
-  integrity page now requests display facts; missing facts still preserve the page. Merge, deployment and
-  task 45b's arming/acceptance remain separate.
+- [x] 40. Complete posture 3.1 adapter behavior. `PollMarkers` and the initial adapters landed, but
+  enumerating trait implementations did not establish acceptance. The triage/upgrade-record producer used
+  by 45b now matches the actual producer's example from the port plan.
+  [PR #538](https://github.com/webdavis/dotfiles/pull/538) merged actual alert composition, display-only
+  recorded/on-disk hashes and a bounded upgrade-record reader. The missing-detail regression failed
+  before implementation and passed afterward; five pure correlation regressions also failed before their
+  implementation. The producer now matches a captured Bash example containing quotes and an empty
+  added-version field. Package tests, checks, Clippy and documentation passed. Independent review found
+  and verified fixes for eager triage on ignored events and parallel scratch-directory collisions. Only a
+  domain-approved integrity page now requests display facts; missing facts still preserve the page. The
+  full local checks and required checks passed. Deployment and task 45b's arming/acceptance remain
+  separate.
 
 - [ ] 41. Complete posture 3.2 health adapters with task 46. Existing process and allowlist adapters do
   not provide the planned `launchctl print` health reader. Gateway health is also separate from
@@ -656,8 +674,8 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 
 ### STOP POINT D
 
-Finish the foundation and adapter acceptance before starting the dependent cutovers. Tasks 40 and 41
-still have implementation work; heartbeat and digest have already cut over independently.
+Finish the foundation and adapter acceptance before starting the dependent cutovers. Task 40 is merged;
+task 41 still needs review and publication. Heartbeat and digest have already cut over independently.
 
 ## posture cutovers
 
@@ -699,32 +717,32 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   inspections and the digest spool, and keeping all of that behind one boundary is what lets the ordering
   be tested against doubles that touch nothing. A digest row is delivered the moment the judge spools it,
   so only a page has a delivery this run can fail. 21 tests green, clippy clean.
-- [ ] 45b. posture 6.3, second half. The main transaction shipped in PR #506 (81 tests), but triage
-  parity and arming remain. Shipped: the results-log reader with its single reading and bounded span, the
-  cursor published by rename, the non-blocking single-instance lock (`O_CLOEXEC` replacing the shell's
-  by-hand `9>&-` on every spawn), the row decoder, the column projection, the allowlist reader, the
-  known-good manifest reader, the digest spool's append side, the `JudgeFindings` implementer, and
-  `posture alert`. The enricher runs IN PROCESS rather than through a spawn, because `posture enrich` was
-  already a use case in the same crate. WHY THE ENRICHER WAS NEVER OPTIONAL, recorded because it was
-  twice reasoned about wrongly on 2026-09-09 before being measured: an untrusted signing verdict PROMOTES
-  a Notice finding to Critical in the gate, so a cutover without it would send a finding the shell paged
-  about to the next day's digest. That is a missed page, not extra noise. Both directions are now pinned
-  by tests. THE REMAINING IMPLEMENTATION GAP is the triage facts (recorded and on-disk hashes, upgrade
-  correlation) that a file-integrity page carries. Display-only, and the shell tolerated the same gap
-  whenever its optional helper was undeployed, so a page fires carrying less rather than not firing. FOUR
+- [ ] 45b. posture 6.3, second half. The main transaction shipped in PR #506 (81 tests), and triage facts
+  merged in #538. Arming and live acceptance remain. Shipped: the results-log reader with its single
+  reading and bounded span, the cursor published by rename, the non-blocking single-instance lock
+  (`O_CLOEXEC` replacing the shell's by-hand `9>&-` on every spawn), the row decoder, the column
+  projection, the allowlist reader, the known-good manifest reader, the digest spool's append side, the
+  `JudgeFindings` implementer, and `posture alert`. The enricher runs IN PROCESS rather than through a
+  spawn, because `posture enrich` was already a use case in the same crate. WHY THE ENRICHER WAS NEVER
+  OPTIONAL, recorded because it was twice reasoned about wrongly on 2026-09-09 before being measured: an
+  untrusted signing verdict PROMOTES a Notice finding to Critical in the gate, so a cutover without it
+  would send a finding the shell paged about to the next day's digest. That is a missed page, not extra
+  noise. Both directions are now pinned by tests. The triage producer supplies recorded and on-disk
+  hashes and upgrade correlation. These are display facts, and the shell tolerated missing facts whenever
+  its optional helper was undeployed, so a page fires carrying less rather than not firing. FOUR
   DERIVATIONS WERE WRONG until the binary was run against a real sandbox, and the unit tests agreed with
   all four because they came from the same misreading of the shell's jq: the action was taken from a
   column rather than from the row, the identity column order dropped `identifier`, a listening port lost
   its address and port, and the timestamp carried the date without the time. Real-run verification is
-  what caught them. Complete and verify the actual triage producer, then arm the command: repoint the
-  plist to `posture alert`, move the allowlist tuple for `com.webdavis.osquery-results-alerter` with it
-  (the alerter matches a `persistence_launchd` finding against label, path AND program, so repointing
-  without it pages on the next launchd scan), and delete `executable_results-alerter.sh` plus six private
-  files under `results-alerter/`, keeping `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh`
-  still sources it and would otherwise refuse BOTH manifest scans as unavailable (it retires in task 46),
-  and retire the old tests by their current consumers. The canonical plan names six suites; reconcile
-  that inventory against current source before deletion. Run the sandbox composition checks and the
-  plan's live page/digest, checkpoint and retry acceptance after the operator applies.
+  what caught them. The producer is now verified; arm the command by repointing the plist to
+  `posture alert`, move the allowlist tuple for `com.webdavis.osquery-results-alerter` with it (the
+  alerter matches a `persistence_launchd` finding against label, path AND program, so repointing without
+  it pages on the next launchd scan), and delete `executable_results-alerter.sh` plus six private files
+  under `results-alerter/`, keeping `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still
+  sources it and would otherwise refuse BOTH manifest scans as unavailable (it retires in task 46), and
+  retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
+  inventory against current source before deletion. Run the sandbox composition checks and the plan's
+  live page/digest, checkpoint and retry acceptance after the operator applies.
 - [ ] 46. posture 6.4: implement and cut over watchdog. The CLI still refuses the command.
   `posture/docs/acceptance/watchdog.md` leaves state publication, delivery ordering, legacy queue and pns
   health probes unfinished. Include an authorized pns build record, independent binary integrity, daemon
@@ -901,6 +919,10 @@ producer.
 
 - [ ] 61. lights: finish the argument-surface differential against the independent legacy reference,
   including the changed-reference control. Current usage assertions do not fulfill that acceptance.
+  Commit `33a6a7f1` is ready for independent review on `test/lights-argument-differential`: 169 cases,
+  changed-exit and changed-power-write controls, 95 Rust checks and the release build passed. Each
+  differential case completed within one second. It is test-only and not yet published; tasks 62 and 63
+  retain their hardware and manifest-policy gates.
 
 - [ ] 62. lights PR 12: move all seven aerospace keys F4 to F10 to `~/.cargo/bin/lights`. Five still call
   Bash and two call OpenHue directly. Complete the three remaining command/hardware drills, then verify
@@ -925,7 +947,9 @@ producer.
   separate from this acceptance task. Write `docs/research/2026-09-nvim-overhaul-acceptance.md`. Run
   `Lazy! load all` before health capture. Retain the plan's synthetic warm-start pass condition,
   `after < baseline - 10`, and separately record a rendered Herdr start with every `VeryLazy` plugin
-  loaded. Keep cold and rendered-start timing as recorded measurements, as the plan specifies.
+  loaded. Keep cold and rendered-start timing as recorded measurements, as the plan specifies. The
+  [acceptance record](research/2026-09-nvim-overhaul-acceptance.md) now distinguishes completed private
+  checks from remaining rendered, device, agent-session and deployment checks.
 
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
@@ -988,8 +1012,9 @@ producer.
   binary alongside current handlers. Commit `1b0cca44` on `fix/codex-pns-hook-migration` migrates
   precisely owned legacy commands while preserving unrelated handlers and metadata. Follow-up `257cb3e1`
   fixes four ShellCheck findings in its test. Ten focused cases, synthetic installer checks, full
-  `just ship` and independent review passed. Publication, operator deployment and hook-trust review
-  remain separate from cleanup.
+  `just ship` and independent review passed. [PR #534](https://github.com/webdavis/dotfiles/pull/534)
+  merged and local main contains it. Operator deployment and hook-trust review remain separate from
+  exact-file cleanup approval.
 
 ## Waiting on the operator
 
@@ -1072,7 +1097,16 @@ is missing.
   compare a hybrid retaining `pgrep` if useful, and measure total runtime before adoption. Keep
   production probes unchanged until those checks and required device acceptance pass. The bounded
   prototype uses maintained `objc2-io-kit` and Core Foundation bindings with the existing `libc` version.
-  Raw activity readings remain private in the local investigation, not in this repository.
+  Raw activity readings remain private in the local investigation, not in this repository. The private
+  hybrid follow-up retained actual `pgrep -x` selection and fixed the argument-zero witness mismatch.
+  Bounded phone medians were 207.8 to 39.6 ms ambient and 238.2 to 43.2 ms under added load. A complete
+  pns process with private destination stubs measured 239.9 to 83.1 ms and 270.8 to 88.0 ms respectively.
+  All 320 whole-process runs completed and 50 bracketed comparisons agreed. These measurements exclude
+  real delivery, daemon and hook latency. The candidate combines bounded native desk probes with hybrid
+  phone selection. Its five-second total phone deadline is tighter than the existing chain's three
+  separate budgets and needs an explicit adoption decision. Actual device transitions, unreadable
+  devices, multi-user behavior and stalled native calls remain acceptance gates. All 33 original
+  investigation hashes were preserved; production is unchanged.
 - [ ] Finish P4's recorded loop rule: a live loop lease for the pane prevents a condenser-generated
   `asking` guess from arming the blocked marker; actual hook-driven waits still do. The current submit
   path updates that marker without checking the lease. Read the instrument evidence before implementing
@@ -1083,7 +1117,9 @@ is missing.
   `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/pns-lights-lock-sheet.md`.
   Local implementation `4136fd42` on `fix/pns-loop-rule` passed eight new regressions, three mutation
   checks and package gates. Independent review passed 52 focused checks. The permission-mode filter
-  remains excluded; publication, deployment and visual acceptance remain open.
+  remains excluded. [PR #536](https://github.com/webdavis/dotfiles/pull/536) combines this change with
+  B18 while preserving separate commits. Combined `just ship` and the installer release build passed;
+  required checks passed and the PR merged. Operator deployment and visual acceptance remain open.
 - [ ] Resolve the historical condenser-stall task
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
   300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
@@ -1117,8 +1153,10 @@ is missing.
   already active when muting begins. B19/B25's nag tolerance and future-timestamp handling still need
   explicit disposition against current source; their conditional proposals are not automatic
   implementation work. Local implementation `cf7d4866` on `feat/pns-status-quiet` passed 16 focused
-  checks, including eleven new cases, three mutation checks and package gates. Publication and actual
-  lamp/Focus acceptance remain open.
+  checks, including eleven new cases, three mutation checks and package gates. Independent review passed
+  17 checks. PR #536 contains this change and P4; combined full checks and the release build passed.
+  Required checks passed and #536 merged. Operator deployment and actual lamp/Focus acceptance remain
+  open.
 - [x] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
   failed `a_terminal_with_nothing_asking_otherwise_is_painted` with `NO_COLOR=1` inherited from the agent
   session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
@@ -1138,9 +1176,22 @@ is missing.
   default after checking its actual requirements. Its README still says pns lacks `--version` and
   `--elapsed`, while current pns provides both and dotfiles supplies a configured `0.1.0` minimum
   override. Task 14 remains complete. Update the consumer pin only if an upstream correction requires it;
-  do not rebuild the installed integration solely because its old README is stale.
+  do not rebuild the installed integration solely because its old README is stale. Owning-repository
+  commit `e77799f` corrects the default and docs to `0.1.0`. Its new default-health check failed before
+  the correction; all 38 checks then passed. Independent review and publication remain. The existing
+  consumer override already supplies that value, so no pin change is needed.
 
 ### Neovim review follow-up
+
+Read-only acceptance audit, 2026-09-13: Neovim 0.12.5 and all 93 source, deployed and installed plugin
+pins agree. All 380 Lua checks passed with private socket fixtures. Source and installed copies each
+passed five silent starts, and seven language servers attached to private projects, including Swift and
+clangd. Full plugin health captured 40 sections, with documented exceptions and fixture artifacts kept
+separate from defects. Synthetic warm startup measured 94.37 ms against a historical 164.18 ms, but the
+quiescent and cold conditions were not met. This is advisory evidence. Rendered keys, real agent loops,
+complete Swift/custom-plugin interaction and fresh-home/repeat applies remain operator acceptance. The
+deployed Overseer template has a different filename with identical contents; reconcile that during
+operator deployment. No source correction was warranted by this audit.
 
 - [ ] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
   nvim-mcp review. `pane_socket.lua` and `executable_nvim-mcp-connect.sh` validate the final runtime
@@ -1152,7 +1203,9 @@ is missing.
 - [ ] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
-  supported Herdr interfaces and owned integration code; do not patch the third-party plugin.
+  supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
+  `dfe28fd3` is ready for independent review in `fix/nvim-b103-routing`, with private reproduction,
+  passing regression checks and normal commit hooks. Publication and live pane-move acceptance remain.
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
@@ -1176,10 +1229,11 @@ is missing.
 
 ### Recover the remaining design from PR #24
 
-- [ ] Review #24 before deciding its disposition. Preserve its useful unbuilt requirements in current,
-  reviewed documents, then decide whether to update the existing pull request or supersede it with a
-  smaller one. Do not discard it solely because the three-tier core shipped elsewhere, and do not merge
-  its obsolete implementation instructions unchanged.
+- [x] Review #24 before deciding its disposition. Recovered on 2026-09-13 from head `2202dcbf`; four
+  historical documents and thirteen upstream snapshots passed all 17 recorded hash checks. Retain its
+  independent alert, restricted evidence and advisory-only requirements in the section below. Supersede
+  the digest trigger and obsolete recipes in a smaller reviewed plan after the security decisions are
+  settled. #24 remains open; do not merge its old instructions unchanged.
 - [ ] Reconcile the approval interface separately: Butters tap-to-approve scoped to pending findings and
   the `/osquery allow|deny|list` Hermes skill. Verify the current posture command and trust contracts;
   investigation must not grant the analyst approval authority.
@@ -1206,6 +1260,27 @@ through dotfiles, without embedding agent orchestration in posture or modifying 
 
 Trigger decision, 2026-09-12: investigate Critical alerts only. Deliver the original alert immediately,
 then publish the investigation as a separate advisory. Daily digests do not trigger this workflow.
+
+Supported-interface review, 2026-09-13: installed Hermes `a4091e49` and upstream `b6b53c69` differ.
+Docker contains tool execution, not the host controller or every plugin. Container reuse, automatic
+mounts and credential forwarding need explicit restrictions. Proxy environment variables alone do not
+enforce an outbound-network allowlist. Upstream has a separate `kanban attach` command; the old
+`kanban create --attach` recipe is invalid, and ordinary attachment reads do not replace a bounded,
+no-follow evidence collector. A named route selects one destination rather than broadcasting to two.
+Transport deduplication needs distinct delivery-attempt identifiers under one alert correlation key.
+
+Implementation remains blocked on the execution/network boundary, permitted evidence and model-provider
+disclosure, credentials, and enforceable advisory limits. Prefer networkless evidence execution and a
+separate trusted publisher; the operator must settle that security boundary. A constrained result
+validator can enforce allowed fields and actions, while a prompt cannot guarantee semantic limits on
+unrestricted advice. Verify reply correlation before wiring delivery. Preserve the original message and
+failure notice independently. No investigator, raw completion publisher or evidence upload was enabled.
+
+Current references:
+[Hermes configuration at the reviewed revision](https://github.com/NousResearch/hermes-agent/blob/b6b53c69a6ed49cb099cf1bfe76b5e6edd718e5a/website/docs/user-guide/configuration.md),
+[worker launcher](https://github.com/NousResearch/hermes-agent/blob/b6b53c69a6ed49cb099cf1bfe76b5e6edd718e5a/hermes_cli/kanban_db_dispatch.py),
+and
+[completion delivery](https://github.com/NousResearch/hermes-agent/blob/b6b53c69a6ed49cb099cf1bfe76b5e6edd718e5a/gateway/kanban_watchers.py).
 
 The original documents are on #24's `docs/osquery-design` branch, not in current main:
 
@@ -1288,7 +1363,15 @@ force.
   ends it. Process exit closes its view and clears its session, including exits while hidden. The next
   launch starts a fresh instance. Verify attachment, redraw, resizing, focus, configurable Ctrl+C
   behavior, explicit termination, and process-exit cleanup through supported Herdr interfaces before
-  building the review launcher below.
+  building the review launcher below. The 2026-09-13 feasibility audit found a supported implementation
+  path in Herdr 0.9.0: percentage popups center and resize over the shared pane surface, spanning its
+  panes while excluding sidebar and tab-bar chrome. The owned Rust attachment must handle configured
+  shortcuts while focused because native Herdr bindings bypass popup input. Read the same configured
+  prefix and plugin actions, preserve unmatched input and paste, and reject ambiguous encodings. Keep the
+  process in an owned pseudoterminal and replace its views. Hide by ending the owned attachment, never by
+  blindly closing whichever popup is active. Prove view identity, redraw, transition rollback and process
+  cleanup with fixtures before runtime acceptance. These are implementation requirements; no mandatory
+  upstream change was found.
 - [ ] Add a deterministic worktree picker and reviewr launcher. Consult
   `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
   authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
