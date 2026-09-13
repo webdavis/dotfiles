@@ -1,3 +1,4 @@
+use crate::is_executable;
 use posture_domain::{CommandTrustRefusal, LiveAttributes, command_trust};
 use std::{
     ffi::OsStr,
@@ -15,20 +16,15 @@ pub fn resolve_osqueryctl(
     path: &OsStr,
 ) -> Result<Option<PathBuf>, CommandRefusal> {
     use std::os::unix::fs::MetadataExt;
-    resolve_with(
-        requested,
-        path,
-        |path| std::fs::metadata(path).is_ok_and(|metadata| metadata.mode() & 0o111 != 0),
-        |path| {
-            std::fs::symlink_metadata(path)
-                .ok()
-                .map(|metadata| LiveAttributes {
-                    mode: metadata.mode() & 0o7777,
-                    uid: metadata.uid(),
-                    gid: metadata.gid(),
-                })
-        },
-    )
+    resolve_with(requested, path, is_executable, |path| {
+        std::fs::symlink_metadata(path)
+            .ok()
+            .map(|metadata| LiveAttributes {
+                mode: metadata.mode() & 0o7777,
+                uid: metadata.uid(),
+                gid: metadata.gid(),
+            })
+    })
 }
 
 fn resolve_with(

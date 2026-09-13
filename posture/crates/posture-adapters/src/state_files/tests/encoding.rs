@@ -47,7 +47,7 @@ fn published_baselines_preserve_captured_rows_prior_fields_and_control_declarati
             put(&store.baseline, prior, 0o600);
         }
         let controls = controls(&case);
-        let saved = store.read(&controls);
+        let saved = store.read(&controls, |_| {});
         let priors: Vec<_> = saved
             .as_ref()
             .map_or_else(Vec::new, |s| s.controls.iter().map(|c| c.prior()).collect());
