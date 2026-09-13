@@ -186,6 +186,19 @@ function test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publicatio
   done
 }
 
+# The managed rows are path-sorted, and the two built binaries are appended
+# after them because no chezmoi entry places them. They still hold path order
+# between themselves, so the whole file reads in one order rather than two.
+function test_the_appended_binary_rows_hold_path_order_between_themselves() {
+  write_record
+  write_pns_record 3
+  run_refresh --pipeline-only
+  assert_successful_code
+  local paths
+  paths="$(cut -d ' ' -f 4- <"$pipeline_manifest" | grep '/\.cargo/bin/')"
+  assert_same "$(LC_ALL=C sort <<<"$paths")" "$paths"
+}
+
 write_pns_record() {
   local record="$sandbox_home/.local/state/pns-build-record"
   mkdir -p "$(dirname "$record")"

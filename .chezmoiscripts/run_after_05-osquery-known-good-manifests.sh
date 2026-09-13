@@ -412,8 +412,11 @@ refresh_manifest() {
   done
 
   # Built binaries have no chezmoi cat/dump entry. Never adopt their live bytes.
+  # Named in PATH ORDER, which is what the rest of this manifest is sorted by:
+  # `pns` sorts before `posture` because `n` precedes `o`, and the two share a
+  # parent directory. Reversing them leaves the manifest unsorted at its tail.
   if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
-    for refresh_manifest_binary in posture pns; do
+    for refresh_manifest_binary in pns posture; do
       refresh_manifest_hash="$(authorized_record_hash "$refresh_manifest_binary")" || return 1
       printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/$refresh_manifest_binary" >>"$fresh"
     done
