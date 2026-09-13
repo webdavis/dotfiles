@@ -20,6 +20,10 @@ pub enum LaneExecution {
 }
 
 pub trait LaneExecutor {
+    fn interrupted(&self) -> bool {
+        false
+    }
+
     fn execute(
         &self,
         name: &str,

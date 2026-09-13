@@ -69,9 +69,9 @@ pub fn render_plist(label: &str, home: &str, schedule: Schedule) -> String {
              <key>Hour</key>\n    <integer>{hour}</integer>\n    \
              <key>Minute</key>\n    <integer>{minute}</integer>\n  </dict>\n  \
            <!-- uu writes every run to {log_path} so manual and scheduled runs share one \
-                record; launchd output is discarded to avoid duplicate entries. -->\n  \
+                record; stderr retains errors that precede opening the run log. -->\n  \
            <key>StandardOutPath</key>\n  <string>/dev/null</string>\n  \
-           <key>StandardErrorPath</key>\n  <string>/dev/null</string>\n\
+           <key>StandardErrorPath</key>\n  <string>{home}/.local/log/uu/launchd-stderr.log</string>\n\
          </dict>\n</plist>\n"
     )
 }

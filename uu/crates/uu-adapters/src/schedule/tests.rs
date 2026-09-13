@@ -77,7 +77,7 @@ fn the_label_and_both_log_paths_are_the_ones_given() {
     );
     assert_eq!(
         plist.matches("<string>/dev/null</string>").count(),
-        2,
+        1,
         "launchd output is not duplicated in the run log: {plist}"
     );
     assert!(

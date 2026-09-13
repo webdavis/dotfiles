@@ -29,6 +29,8 @@ pub enum Notice<'a> {
 }
 
 pub trait RunPresentation {
+    fn interrupted(&self, _header: &RunHeader, _reports: &[LaneReport]) {}
+
     fn header(&self, epoch: i64, marker: &MarkerSnapshot) -> RunHeader;
     fn write_record(&self, header: &RunHeader, reports: &[LaneReport]) -> String;
     fn notice(&self, notice: Notice<'_>);
