@@ -37,6 +37,7 @@ fi
 # Read by private_path in the sourcing test, not here.
 # shellcheck disable=SC2034
 JQ_PATH="$(command -v jq)"
+NMC_REAL_NVIM="$(command -v nvim)"
 
 # Under /tmp with a SHORT name, not the Darwin per-user temp directory: these
 # cases bind real unix sockets, and sun_path is 104 bytes, which
@@ -60,6 +61,8 @@ make_socket() {
 
 # The stubs are written ONCE and find their case through NMC_CASE at run time.
 mkdir -p "$work/bin"
+mkdir -p "$work/config/nvim/lua/custom_api" "$work/tmp"
+cp "$REPO_ROOT/dot_config/nvim/lua/custom_api/pane_socket.lua" "$work/config/nvim/lua/custom_api/"
 
 # The two things the resolver asks nvim for, and NOTHING else: the stub checks
 # the complete invocation and refuses any other with exit 99, so a resolver that
@@ -71,10 +74,9 @@ mkdir -p "$work/bin"
 # kill), answers a pid with no newline (as the real reply) if listed in
 # $NMC_CASE/live, and otherwise exits 1 the way a refused connection does. The
 # identity query is the exact headless start the resolver makes, logged to
-# $NMC_CASE/queried and answered with two lines: the contents of
-# $NMC_CASE/rundir (production: stdpath("run")) and the session hash
-# (production: vim.fn.sha256 of HERDR_SOCKET_PATH, first six characters; here
-# the fixed SESSION).
+# $NMC_CASE/queried. A real clean Neovim runs the shared filesystem checks.
+# Only stdpath("run") is supplied by the fixture, so fallback cases do not
+# depend on this host's runtime directory selection.
 cat >"$work/bin/nvim" <<'STUB'
 #!/bin/bash
 if [[ $# -eq 4 && $1 == --server && $3 == --remote-expr && $4 == 'getpid()' ]]; then
@@ -84,12 +86,12 @@ if [[ $# -eq 4 && $1 == --server && $3 == --remote-expr && $4 == 'getpid()' ]]; 
   printf 4242
   exit 0
 fi
-query='lua io.write(vim.fn.stdpath("run"), "\n", vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6))'
+query='lua local sockets = dofile(vim.fn.stdpath("config") .. "/lua/custom_api/pane_socket.lua"); local root = sockets.root(); io.write(vim.json.encode({ root = root, private = root ~= nil and sockets.private(root), session = sockets.session() }))'
 if [[ $# -eq 6 && $1 == --headless && $2 == --clean && $3 == -c && $4 == "$query" && $5 == -c && $6 == 'qa!' ]]; then
   printf '%s\n' "$*" >>"$NMC_CASE/queried"
-  cat "$NMC_CASE/rundir"
-  printf '\n%s' 9a663d
-  exit 0
+  exec "$NMC_REAL_NVIM" --headless --clean \
+    -c 'lua local file = assert(io.open(vim.env.NMC_CASE .. "/rundir")); local run = file:read("*a"); file:close(); local stdpath = vim.fn.stdpath; vim.fn.stdpath = function(name) return name == "run" and run or stdpath(name) end' \
+    "${@:3}"
 fi
 printf 'nvim stub: unexpected argv: %s\n' "$*" >&2
 exit 99
@@ -207,7 +209,10 @@ run_case() {
   env -i \
     PATH="$CASE_PATH" \
     HOME="$CASE" \
+    XDG_CONFIG_HOME="$work/config" \
+    TMPDIR="$work/tmp/" \
     NVIM_MCP_BIN="$work/bin/nvim-mcp" \
+    NMC_REAL_NVIM="$NMC_REAL_NVIM" \
     NMC_CASE="$CASE" \
     NVIM_MCP_PROBE_DEADLINE="${CASE_DEADLINE:-2}" \
     HERDR_ENV=1 \

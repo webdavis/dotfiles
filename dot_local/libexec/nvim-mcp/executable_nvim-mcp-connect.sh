@@ -126,25 +126,6 @@ fits() {
   [[ $1 =~ ^[A-Za-z0-9_-]{1,64}$ ]]
 }
 
-# root_fault <dir> -- why <dir> is not a directory this user owns at mode 0700,
-# empty when it is. Neovim itself falls back to `<temp>/nvim.<random>` when
-# `nvim.<user>` is mis-owned or too open (measured on 0.12.5), and that
-# directory's parent is `<temp>` itself, which can be a shared /tmp where any
-# account may pre-create a pane socket. A supplied XDG_RUNTIME_DIR gets the same
-# check. BSD stat first, GNU second.
-root_fault() {
-  local meta
-  [[ -d $1 ]] || {
-    printf 'is not a directory'
-    return
-  }
-  if ! meta="$(stat -f '%u %Lp' "$1" 2>/dev/null)"; then
-    meta="$(stat -c '%u %a' "$1" 2>/dev/null)" || meta=""
-  fi
-  [[ $meta == "$(id -u) 700" ]] ||
-    printf 'is owned by uid %s at mode %s, not by this user at 0700' "${meta% *}" "${meta#* }"
-}
-
 # pane_socket <terminal id> -- its socket path under $root for this session.
 pane_socket() {
   printf '%s/herdr-%s-%s.sock' "$root" "$session" "$1"
@@ -179,21 +160,16 @@ if [[ -z ${terminal:-} ]]; then
 fi
 fits "$terminal" || die 3 "herdr reports terminal '$terminal', which cannot name a socket; export NVIM_MCP_SOCKET instead"
 
-# One headless nvim answers two questions at once: its run dir, and the
-# session half of the name as vim.fn.sha256 computes it, so the hash is the SAME
-# function on both sides and needs no second tool.
+# The listener's owned module supplies the root, its native filesystem checks,
+# and the session hash. JSON keeps a newline in a rejected path from changing
+# the report's framing. --clean loads no user config; only this module is read.
 reported="$(bounded nvim --headless --clean \
-  -c 'lua io.write(vim.fn.stdpath("run"), "\n", vim.fn.sha256(vim.env.HERDR_SOCKET_PATH or ""):sub(1, 6))' -c 'qa!')"
-run_dir="${reported%%$'\n'*}"
-session="${reported#*$'\n'}"
+  -c 'lua local sockets = dofile(vim.fn.stdpath("config") .. "/lua/custom_api/pane_socket.lua"); local root = sockets.root(); io.write(vim.json.encode({ root = root, private = root ~= nil and sockets.private(root), session = sockets.session() }))' -c 'qa!')"
+session="$(jq -r '.session // empty' <<<"$reported" 2>/dev/null || true)"
 [[ $session =~ ^[0-9a-f]{6}$ ]] || die 2 'nvim did not report the session hash, so no socket can be named'
-root="${XDG_RUNTIME_DIR:-}"
-if [[ -z $root ]]; then
-  [[ $run_dir == /* ]] || die 2 'nvim did not report its run dir (stdpath("run")), so there is no root to look in'
-  root="$(dirname "$run_dir")"
-fi
-fault="$(root_fault "$root")"
-[[ -z $fault ]] || die 2 "the run root $root $fault, so no socket there can be trusted"
+root="$(jq -r '.root // empty' <<<"$reported" 2>/dev/null || true)"
+jq -e '.private == true' <<<"$reported" >/dev/null 2>&1 ||
+  die 2 "the run dir $root must be absolute, owned at 0700, protected by its ancestors, and contain no newline"
 
 own="$(pane_socket "$terminal")"
 own_bytes="$(path_bytes "$own")"
