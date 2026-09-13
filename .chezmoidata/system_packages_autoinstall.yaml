@@ -295,3 +295,5 @@ packages:
       repo: jeffarese/herdr-bar
     - id: chmarax.herdr-nvim
       repo: ChmaraX/herdr-nvim
+    - id: annotate
+      repo: plannotator/herdr-annotate
