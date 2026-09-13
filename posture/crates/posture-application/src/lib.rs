@@ -55,3 +55,9 @@ pub use judge_results::{
     BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
     RunLock,
 };
+
+mod ssh;
+pub use ssh::{
+    SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshLaunchctl,
+    SshScanFailure, SshTree, Sshd,
+};

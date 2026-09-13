@@ -102,3 +102,9 @@ pub use converge::{
 
 mod integrity_triage;
 pub use integrity_triage::file_integrity_triage;
+
+mod sshd_tree;
+pub use sshd_tree::SshConfigTree;
+
+mod ssh_commands;
+pub use ssh_commands::{SshFileInstaller, SshKeyscan, SshLaunchd, SshdCommand};
