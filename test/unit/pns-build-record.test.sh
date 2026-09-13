@@ -105,7 +105,9 @@ function test_identical_pns_build_keeps_the_record_and_skips_refresh_and_restart
 }
 function test_invalid_pns_artifact_size_cannot_publish_trusted_state() {
   local size status
-  for size in 0 8388609; do
+  # 14680065 is one byte over pns's own ceiling, about twice its measured size,
+  # declared in .chezmoidata/rust_tools.yaml. posture's is far smaller.
+  for size in 0 14680065; do
     head -c "$size" /dev/zero >"$fixture_home/crate/target/release/pns"
     status=0
     run_builder || status=$?

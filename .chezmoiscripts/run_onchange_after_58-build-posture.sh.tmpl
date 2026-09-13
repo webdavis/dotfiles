@@ -68,6 +68,9 @@ binary="$install_dir/posture"
 artifact="$crate_dir/target/release/posture"
 retry_marker="$HOME/.cache/posture-build/posture.retry"
 build_record="$HOME/.local/state/posture-build-record"
+# Per-tool, from .chezmoidata/rust_tools.yaml: pns is an order of magnitude
+# larger, so one shared ceiling means one of the two is sized wrong.
+max_artifact_bytes={{ .rust_tools.max_artifact_bytes.posture }}
 
 # Deterministic paths, never a PATH probe: a fresh machine provisions rustup
 # during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
@@ -105,8 +108,8 @@ report_line 'building the release binary'
 
 # Never publish a tuple the audit cannot verify.
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
-if ((artifact_bytes == 0 || artifact_bytes > 8388608)); then
-  printf 'posture: refusing artifact of %s bytes (allowed 1..8388608)\n' "$artifact_bytes" >&2
+if ((artifact_bytes == 0 || artifact_bytes > max_artifact_bytes)); then
+  printf 'posture: refusing artifact of %s bytes (allowed 1..%s)\n' "$artifact_bytes" "$max_artifact_bytes" >&2
   exit 1
 fi
 artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"

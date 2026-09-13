@@ -125,11 +125,39 @@ fn oversize_files_still_report_their_attribute_drift() {
     let mut audit = subject();
     audit.bounds.bytes = 1;
     fs::set_permissions(&audit.pns, fs::Permissions::from_mode(0o644)).unwrap();
+    // The manifest row now stands for an ordinary managed file rather than the
+    // engine binary: pns keeps its own ceiling and ignores a bound this small.
+    audit.pns = audit.pns.with_extension("not-the-engine");
     let report = audit.pipeline();
     assert!(report.completed);
     assert!(report.report.contains("oversize "));
     assert!(report.report.contains("mode "));
     assert!(audit.pns_problem().is_some());
+}
+
+#[test]
+fn the_pns_binary_is_judged_against_its_own_ceiling_rather_than_the_shared_one() {
+    let mut audit = subject();
+    // Above the 8 MiB default the rest of the manifest is judged against, so a
+    // shared ceiling would call both of these oversize and page every tick.
+    resize(&audit.pns, PNS_MAX_BYTES);
+    let report = audit.pipeline();
+    assert!(report.completed);
+    assert!(
+        !report.report.contains("oversize "),
+        "a binary at its ceiling was refused: {}",
+        report.report
+    );
+    resize(&audit.pns, PNS_MAX_BYTES + 1);
+    assert!(audit.pipeline().report.contains("oversize "));
+}
+fn resize(path: &Path, bytes: u64) {
+    fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_len(bytes)
+        .unwrap();
 }
 
 #[test]
