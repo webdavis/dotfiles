@@ -662,10 +662,11 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   full local checks and required checks passed. Deployment and task 45b's arming/acceptance remain
   separate.
 
-- [ ] 41. Complete posture 3.2 health adapters with task 46. Existing process and allowlist adapters do
-  not provide the planned `launchctl print` health reader. Gateway health is also separate from
-  notification delivery. Implement the required health readers and checks against their source contracts;
-  retain the existing process and Tailscale policy work.
+- [ ] 41. Complete posture 3.2 health-adapter review and publication with task 46. Local commit
+  `03b66c0b` supplies the `launchctl print` and gateway health readers, plus independent pns integrity,
+  daemon and ledger checks. Its fixture suite passed; independent review and publication remain. Gateway
+  health stays separate from notification delivery. Retain the existing process and Tailscale policy work
+  and complete the operator's health/recovery acceptance after deployment.
 
 - [x] 42. posture 3.3: the converge read half, staging, privileged. Already done, and verified the same
   way: `ConvergeStaging` in `staging.rs`, `DesiredTree` in `staging/owned.rs`, `LiveTree` in
@@ -1366,12 +1367,12 @@ force.
   building the review launcher below. The 2026-09-13 feasibility audit found a supported implementation
   path in Herdr 0.9.0: percentage popups center and resize over the shared pane surface, spanning its
   panes while excluding sidebar and tab-bar chrome. The owned Rust attachment must handle configured
-  shortcuts while focused because native Herdr bindings bypass popup input. Read the same configured
-  prefix and plugin actions, preserve unmatched input and paste, and reject ambiguous encodings. Keep the
-  process in an owned pseudoterminal and replace its views. Hide by ending the owned attachment, never by
-  blindly closing whichever popup is active. Prove view identity, redraw, transition rollback and process
-  cleanup with fixtures before runtime acceptance. These are implementation requirements; no mandatory
-  upstream change was found.
+  shortcuts while focused because popup input bypasses native Herdr binding dispatch. Read the same
+  configured prefix and plugin actions, preserve unmatched input and paste, and reject ambiguous
+  encodings. Keep the process in an owned pseudoterminal and replace its views. Hide by ending the owned
+  attachment, never by blindly closing whichever popup is active. Prove view identity, redraw, transition
+  rollback and process cleanup with fixtures before runtime acceptance. These are implementation
+  requirements; no mandatory upstream change was found.
 - [ ] Add a deterministic worktree picker and reviewr launcher. Consult
   `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
   authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
