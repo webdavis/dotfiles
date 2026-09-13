@@ -4,7 +4,7 @@ use posture_adapters::{
     CommandRunner, DigestSpoolFile, LastResortBanner, PnsProducer, SystemClock, SystemRunner,
     prepare_spool_directory,
 };
-use posture_application::{BuildDigest, Clock};
+use posture_application::{BuildDigest, Clock, DigestOutcome};
 use std::{io::Write, time::Duration};
 
 const PRODUCER_BUDGET: Duration = Duration::from_secs(5);
@@ -74,10 +74,27 @@ fn execute(
             report.dropped
         );
     }
-    // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in the
-    // spool for tomorrow, so a refused send is not this run's failure to
-    // report. The engine raises its own alarm when the pipeline itself broke.
-    0
+    match report.outcome {
+        // A SPOOL THAT COULD NOT BE TAKEN IS NOT A QUIET DAY, and exiting 0
+        // with nothing on stderr made the two identical. The batch is still on
+        // disk for the next run's sweep, so nothing is lost, but the run says
+        // what it could not read and fails. Nonzero is safe here: this
+        // LaunchAgent runs on a calendar interval with no KeepAlive, so nothing
+        // retries it, and the uptime watchdog pages only after two failing runs
+        // in a row.
+        DigestOutcome::NotClaimed(failure) => {
+            let _ = writeln!(
+                stderr,
+                "posture digest: the spool could not be claimed: {failure}"
+            );
+            1
+        }
+        // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in
+        // the spool for tomorrow, so a refused send is not this run's failure
+        // to report. The engine raises its own alarm when the pipeline itself
+        // broke.
+        _ => 0,
+    }
 }
 
 #[cfg(test)]

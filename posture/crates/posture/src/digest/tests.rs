@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     cell::RefCell,
     ffi::{OsStr, OsString},
+    fs::Permissions,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     rc::Rc,
 };
@@ -238,6 +240,29 @@ fn a_refused_send_leaves_the_batch_in_the_spool_for_tomorrow_and_still_exits_zer
     assert!(fixture.spool_contents().contains("com.example.agent"));
     assert!(fixture.kept().is_none());
     assert!(stderr.is_empty());
+}
+
+#[test]
+fn a_spool_that_cannot_be_read_says_so_and_exits_nonzero() {
+    // A READ FAILURE USED TO LOOK EXACTLY LIKE A QUIET DAY: exit 0, no output,
+    // nothing to tell the two apart. The batch is still on disk for the next
+    // run's sweep, but a run that could not take its own spool has not done its
+    // job. Nonzero is safe here: the LaunchAgent runs on a calendar interval
+    // with no KeepAlive, so nothing retries, and the uptime watchdog pages only
+    // after two failing runs in a row, which is the right threshold for a spool
+    // that stayed unreadable.
+    let fixture = Fixture::new(&finding("launchd", "com.example.agent"));
+    std::fs::set_permissions(&fixture.store, Permissions::from_mode(0o000)).unwrap();
+    let mut stderr = vec![];
+    assert_eq!(fixture.run(Reply::Committed, &mut stderr), 1);
+    let said = String::from_utf8(stderr).unwrap();
+    assert_eq!(said.lines().count(), 1, "{said}");
+    assert!(
+        said.contains(&fixture.store.display().to_string()),
+        "{said}"
+    );
+    assert!(fixture.effects.borrow().requests.is_empty());
+    assert!(fixture.kept().is_none());
 }
 
 #[test]
