@@ -57,13 +57,23 @@ fn execute(
         ),
         LastResortBanner::new(alarm, config.alarm),
     );
-    BuildDigest {
+    let report = BuildDigest {
         spool: &spool,
         sink: &mut sink,
         utc_day: &now.utc_day,
         occurred_at: Some(now.seconds),
     }
     .run();
+    // A DROPPED LINE IS A FINDING NOBODY WILL EVER READ. One torn line no
+    // longer wedges the digest, and this is what keeps that from being a
+    // silent trade: the count lands in the log beside the run that made it.
+    if report.dropped > 0 {
+        let _ = writeln!(
+            stderr,
+            "posture digest: dropped {} unreadable line(s) from the batch",
+            report.dropped
+        );
+    }
     // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in the
     // spool for tomorrow, so a refused send is not this run's failure to
     // report. The engine raises its own alarm when the pipeline itself broke.

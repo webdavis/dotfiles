@@ -191,6 +191,31 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
 }
 
 #[test]
+fn a_torn_line_is_dropped_and_the_run_says_how_many_it_lost() {
+    // The alerter appends from another process, so a partial write can leave
+    // bytes that are not UTF-8. Failing on them wedged the digest; dropping
+    // them silently would lose findings nobody ever hears about, so the count
+    // goes to the log beside the run that made it.
+    let fixture = Fixture::new("");
+    let mut bytes = finding("launchd", "com.example.agent").into_bytes();
+    bytes.extend_from_slice(b"\xff\n");
+    bytes.extend_from_slice(finding("launchd", "com.example.other").as_bytes());
+    std::fs::write(&fixture.store, &bytes).unwrap();
+
+    let mut stderr = vec![];
+    assert_eq!(fixture.run(Reply::Committed, &mut stderr), 0);
+    assert_eq!(
+        String::from_utf8(stderr).unwrap(),
+        "posture digest: dropped 1 unreadable line(s) from the batch\n"
+    );
+    let effects = fixture.effects.borrow();
+    assert_eq!(effects.requests.len(), 1);
+    let request = &effects.requests[0];
+    assert!(request.contains("3 item(s)"), "{request}");
+    assert!(request.contains("com.example.other"), "{request}");
+}
+
+#[test]
 fn a_quiet_day_sends_nothing_at_all() {
     // A daily message that says "nothing happened" every day is one the
     // operator stops reading.
