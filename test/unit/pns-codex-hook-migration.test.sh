@@ -83,19 +83,19 @@ function assert_pns_hook_generation() {
 }
 
 function test_pns_hook_migration_recognizes_the_relay_bin_script() {
-  assert_pns_hook_generation RELAY_AGENT .local/bin/relay-agent.sh done blocked
+  assert_pns_hook_generation RELAY_AGENT .local/bin/relay-agent.sh 'done' blocked
 }
 
 function test_pns_hook_migration_recognizes_the_relay_codex_hooks_script() {
-  assert_pns_hook_generation RELAY_AGENT .local/libexec/pns/codex-hooks/relay-agent.sh done blocked
+  assert_pns_hook_generation RELAY_AGENT .local/libexec/pns/codex-hooks/relay-agent.sh 'done' blocked
 }
 
 function test_pns_hook_migration_recognizes_the_relay_owned_hooks_script() {
-  assert_pns_hook_generation RELAY_AGENT .local/libexec/pns/hooks/relay-agent.sh done blocked
+  assert_pns_hook_generation RELAY_AGENT .local/libexec/pns/hooks/relay-agent.sh 'done' blocked
 }
 
 function test_pns_hook_migration_recognizes_the_pns_owned_hooks_script() {
-  assert_pns_hook_generation PNS_AGENT .local/libexec/pns/hooks/relay-agent.sh done blocked
+  assert_pns_hook_generation PNS_AGENT .local/libexec/pns/hooks/relay-agent.sh 'done' blocked
 }
 
 function test_pns_hook_migration_recognizes_the_relay_engine_command() {
