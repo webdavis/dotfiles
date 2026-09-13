@@ -16,7 +16,7 @@
 //! day it says something else looks the same as the rest.
 
 use crate::{Alert, AlertSignal, AlertSink, Submission};
-use posture_domain::{DigestEntry, render_digest};
+use posture_domain::{DigestEntry, DigestLimits, render_digest};
 
 /// One spooled finding, as the batch carries it.
 ///
@@ -92,6 +92,7 @@ pub struct BuildDigest<'a, S, K> {
     /// Today, already formatted, because asking the clock is not this crate's.
     pub utc_day: &'a str,
     pub occurred_at: Option<u64>,
+    pub limits: DigestLimits,
 }
 
 impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
@@ -109,7 +110,7 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
                 summary: row.summary.as_deref(),
             })
             .collect();
-        let body = render_digest(&entries);
+        let body = render_digest(&entries, self.limits);
         if body.trim().is_empty() {
             // EVERY LINE WAS UNREADABLE. Sending a count with an empty body
             // would promise findings the message does not show, and re-rendering

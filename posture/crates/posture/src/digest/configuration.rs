@@ -1,3 +1,4 @@
+use posture_domain::DigestLimits;
 use std::{ffi::OsString, path::PathBuf};
 
 /// The default spool, which must stay byte-identical to the alerter's own
@@ -13,6 +14,7 @@ pub(super) struct Configuration {
     pub store: PathBuf,
     pub pns: PathBuf,
     pub alarm: PathBuf,
+    pub limits: DigestLimits,
 }
 
 impl Configuration {
@@ -30,12 +32,40 @@ impl Configuration {
                 PathBuf::from(default)
             }
         };
+        let defaults = DigestLimits::default();
         Some(Self {
             store,
             pns: pns.into(),
             alarm: "/usr/bin/osascript".into(),
+            limits: DigestLimits {
+                groups: numeric_or(variable("DIGEST_MAX_GROUPS"), defaults.groups),
+                bullets_per_group: numeric_or(
+                    variable("DIGEST_MAX_BULLETS_PER_GROUP"),
+                    defaults.bullets_per_group,
+                ),
+                body_chars: numeric_or(variable("DIGEST_MAX_BODY_CHARS"), defaults.body_chars),
+                field_chars: numeric_or(variable("DIGEST_MAX_FIELD_CHARS"), defaults.field_chars),
+            },
         })
     }
+}
+
+fn numeric_or(value: Option<OsString>, default: usize) -> usize {
+    let Some(value) = value.filter(|value| {
+        !value.is_empty() && value.as_encoded_bytes().iter().all(u8::is_ascii_digit)
+    }) else {
+        return default;
+    };
+    // Saturating rather than rejecting: an absurd cap is harmless where it is
+    // spent, so it reads as "uncapped" instead of failing the run.
+    value
+        .as_encoded_bytes()
+        .iter()
+        .fold(0_usize, |number, digit| {
+            number
+                .saturating_mul(10)
+                .saturating_add(usize::from(digit - b'0'))
+        })
 }
 
 #[cfg(test)]

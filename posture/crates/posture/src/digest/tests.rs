@@ -9,6 +9,8 @@ use std::{
     rc::Rc,
 };
 
+mod limits;
+
 #[derive(Default)]
 struct Effects {
     requests: Vec<String>,
@@ -118,6 +120,7 @@ impl Fixture {
             store: self.store.clone(),
             pns: self.home.join("pns"),
             alarm: self.home.join("osascript"),
+            limits: Default::default(),
         }
     }
 
