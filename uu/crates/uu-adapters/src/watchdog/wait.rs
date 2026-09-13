@@ -42,6 +42,8 @@ pub enum Ended {
     /// It may still be running and still writing, so the collected output is
     /// whatever had arrived by the time this gave up.
     Escaped,
+    Interrupted,
+    InterruptedEscaped,
 }
 
 /// Wait for the child AND both of its pipes, or stop the whole group once
@@ -53,69 +55,82 @@ pub(super) fn wait_bounded(
     budget: Duration,
     grace: Duration,
 ) -> Ended {
-    if let Some(status) = settle(child, output, errors, budget) {
+    if settle(child, output, errors, budget, true)
+        && crate::interruption().is_none()
+        && let Ok(Some(status)) = child.try_wait()
+    {
         return Ended::Exited(status);
     }
-    // TERM, A GRACE, THEN KILL, the shape ssh-hardening.sh uses: a subject
-    // given the chance to unwind releases what it holds, and one that ignores
-    // the signal still goes.
+    let interrupted = crate::interruption().is_some();
     signal_group(child.id(), libc::SIGTERM);
-    let mut settled = settle(child, output, errors, grace).is_some();
+    let mut settled = settle(child, output, errors, grace, false);
+    // Retain the leader until the final signal. Even with both pipes closed,
+    // descendants can still be alive in this group and must not outlive the lock.
+    signal_group(child.id(), libc::SIGKILL);
     if !settled {
-        signal_group(child.id(), libc::SIGKILL);
-        settled = settle(child, output, errors, grace).is_some();
+        settled = settle(child, output, errors, grace, false);
     }
-    // The reap comes AFTER both kills and never before (see `settle`). By here
-    // no further signal is aimed at this group, so releasing its id is safe.
     let _ = child.try_wait();
-    if settled {
-        Ended::Stopped
-    } else {
-        Ended::Escaped
+    let gone = group_gone(child.id(), grace);
+    match (interrupted, settled && gone) {
+        (true, true) => Ended::Interrupted,
+        (true, false) => Ended::InterruptedEscaped,
+        (false, true) => Ended::Stopped,
+        (false, false) => Ended::Escaped,
     }
 }
 
-/// Poll until the child has exited and both pipes have reached EOF, or `grace`
-/// runs out first.
 fn settle(
-    child: &mut Child,
+    child: &Child,
     output: &Drain,
     errors: &Drain,
     grace: Duration,
-) -> Option<ExitStatus> {
+    cancellable: bool,
+) -> bool {
     let started = Instant::now();
     loop {
-        if let Some(status) = exited_with_its_pipes_closed(child, output, errors) {
-            return Some(status);
+        if cancellable && crate::interruption().is_some() {
+            return false;
+        }
+        if output.at_eof() && errors.at_eof() && exited_without_reaping(child.id()) {
+            return true;
         }
         if started.elapsed() >= grace {
-            return None;
+            return false;
         }
         std::thread::sleep(WATCHDOG_TICK);
     }
 }
 
-/// The child's status, ASKED FOR ONLY once both pipes are at EOF.
-///
-/// THE PIPE CHECKS ARE A PRECONDITION OF ASKING, never a filter on the answer,
-/// because `try_wait` REAPS. ssh-hardening.sh's watchdog leaves its child
-/// un-reaped until after both kills for this reason and says why: a process
-/// group id stays reserved only while the group still has a member, and a
-/// reaped leader whose descendants have all called `setsid` leaves the group
-/// empty and its id free to be handed to somebody else. Signalling that
-/// negative id would then reach an unrelated group. In the hang this watchdog
-/// exists for the pipes never reach EOF, so the reap below is never reached,
-/// so the id cannot be recycled underneath the kills. A child that outlives
-/// its own closed pipes keeps the group alive on its own account.
-fn exited_with_its_pipes_closed(
-    child: &mut Child,
-    output: &Drain,
-    errors: &Drain,
-) -> Option<ExitStatus> {
-    if !output.at_eof() || !errors.at_eof() {
-        return None;
+fn exited_without_reaping(pid: u32) -> bool {
+    // SAFETY: zeroed siginfo is valid for waitid to fill. WNOWAIT reserves our
+    // unreaped child's id until all group signals finish; WNOHANG never blocks.
+    unsafe {
+        let mut info: libc::siginfo_t = std::mem::zeroed();
+        libc::waitid(
+            libc::P_PID,
+            pid as libc::id_t,
+            &mut info,
+            libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
+        ) == 0
+            && info.si_pid() != 0
     }
-    child.try_wait().ok().flatten()
+}
+
+fn group_gone(pid: u32, grace: Duration) -> bool {
+    let started = Instant::now();
+    loop {
+        // SAFETY: signal zero only observes the group; it delivers no signal.
+        if unsafe { libc::kill(-(pid as i32), 0) } != 0
+            && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+        {
+            return true;
+        }
+        if started.elapsed() >= grace {
+            return false;
+        }
+        std::thread::sleep(WATCHDOG_TICK);
+    }
 }
 
 /// Signal the child's whole PROCESS GROUP, which is what makes the deadline

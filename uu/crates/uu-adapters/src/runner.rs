@@ -105,6 +105,7 @@ impl SystemRunner {
                 self.budget,
                 self.declared,
                 program,
+                crate::interruption().is_some(),
             )),
         }
     }
@@ -177,9 +178,10 @@ impl CommandRunner for SystemRunner {
             // AN OVERRUN IS A FAILURE THAT STILL KEEPS ITS STDOUT. Those lines
             // are the record of how far the lane got before it stopped, which
             // is the whole of what anyone has to diagnose a hang with.
-            ref ended @ (Ended::Stopped | Ended::Escaped) => {
-                Verdict::Failed(self.overrun(ended, &finished.stderr))
-            }
+            ref ended @ (Ended::Stopped
+            | Ended::Escaped
+            | Ended::Interrupted
+            | Ended::InterruptedEscaped) => Verdict::Failed(self.overrun(ended, &finished.stderr)),
             Ended::Exited(status) if status.success() => Verdict::Clean,
             Ended::Exited(status) => {
                 let reason = failure_reason(

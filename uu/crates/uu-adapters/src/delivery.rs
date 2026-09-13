@@ -6,7 +6,8 @@ use crate::record::record_state;
 use crate::system::host;
 mod alarm;
 use crate::signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
-use std::process::Command;
+use std::io::Write;
+use std::process::Stdio;
 use std::time::Duration;
 use uu_application::{
     AlarmKind, AlertOutcome, AlertTarget, RecordFailure, RecordOutcome, RunDelivery, RunRecord,
@@ -23,10 +24,31 @@ pub struct PnsAlerter;
 
 impl Alerter for PnsAlerter {
     fn alert(&self, binary: &str, args: &[String]) -> Result<(), String> {
-        match Command::new(binary).args(args).status() {
-            Ok(status) if status.success() => Ok(()),
-            Ok(status) => Err(format!("`{binary}` answered {status}")),
-            Err(error) => Err(format!("`{binary}` could not be run: {error}")),
+        use crate::watchdog::{Ended, Spawned, bounded_spawn};
+        let args: Vec<_> = args.iter().map(String::as_str).collect();
+        match bounded_spawn(binary, &args, Stdio::null(), uu_domain::RUN_DEADLINE) {
+            Spawned::Ran(finished) => {
+                let _ = std::io::stdout().write_all(&finished.stdout);
+                let _ = std::io::stderr().write_all(&finished.stderr);
+                match finished.ended {
+                    Ended::Exited(status) if status.success() => Ok(()),
+                    Ended::Exited(status) => Err(format!("`{binary}` answered {status}")),
+                    Ended::Interrupted => {
+                        Err(format!("`{binary}` interrupted; process group stopped"))
+                    }
+                    Ended::InterruptedEscaped => Err(format!(
+                        "`{binary}` interrupted; children may still be running"
+                    )),
+                    _ => Err(format!(
+                        "`{binary}` exceeded the run deadline: {:?}",
+                        finished.ended
+                    )),
+                }
+            }
+            Spawned::NotRunnable(error) => Err(format!("`{binary}` could not be run: {error}")),
+            Spawned::SpawnStuck => Err(format!(
+                "spawn of `{binary}` never returned; children may still be running"
+            )),
         }
     }
 }
@@ -57,6 +79,9 @@ impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
         target: AlertTarget<'_>,
         summary: &str,
     ) -> AlertOutcome {
+        if let Some(why) = crate::interruption::refusal() {
+            return AlertOutcome::Failed(why);
+        }
         let mut configured = false;
         let mut failures = Vec::new();
         if let Some(binary) = self.engine {
@@ -87,6 +112,9 @@ impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
     }
 
     fn record(&self, record: RunRecord<'_>) -> RecordOutcome {
+        if crate::interruption().is_some() {
+            return RecordOutcome::Interrupted;
+        }
         let Some(records) = self.records else {
             return RecordOutcome::NotConfigured;
         };
