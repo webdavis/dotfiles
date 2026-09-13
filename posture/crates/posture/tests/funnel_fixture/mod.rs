@@ -152,6 +152,12 @@ exit {exit}
                 .filter(|line| !line
                     .ends_with("warning: command substitution: ignored null byte in input\n"))
                 .collect::<String>()
+                // The capture names the retired Bash script and its send_alert
+                // function. posture names the command the operator ran.
+                .replace(
+                    "tailscale-monitor: send_alert could not queue",
+                    "posture funnel: could not queue"
+                )
         );
     }
     let prior = fs::read_to_string(&state).ok();
