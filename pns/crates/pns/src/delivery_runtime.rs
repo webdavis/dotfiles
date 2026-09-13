@@ -131,6 +131,7 @@ impl DeliveryRuntime<'_> {
                             .identity
                             .map_or("pns", |identity| identity.producer.as_str()),
                         request_id: input.identity.map(|identity| identity.request_id.as_str()),
+                        producer_request: input.producer_request,
                         event: &event,
                         route: "",
                         mode: ReportMode::Silent,

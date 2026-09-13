@@ -51,6 +51,7 @@ where
                     &DeliveryRequest {
                         producer: &submission.identity.producer,
                         request_id: Some(&submission.identity.request_id),
+                        producer_request: submission.producer_request.as_deref(),
                         event: &submission.event,
                         route: "",
                         mode: pns_domain::routing::ReportMode::Silent,
@@ -78,6 +79,7 @@ where
                     &DeliveryRequest {
                         producer: &submission.identity.producer,
                         request_id: Some(&submission.identity.request_id),
+                        producer_request: submission.producer_request.as_deref(),
                         event: &submission.event,
                         route: &leg.route,
                         mode: leg.mode,
@@ -125,6 +127,7 @@ where
             &DeliveryRequest {
                 producer: &retry.identity.producer,
                 request_id: Some(&retry.identity.request_id),
+                producer_request: retry.producer_request.as_deref(),
                 event: &retry.event,
                 route: &retry.leg.route,
                 mode: retry.leg.mode,

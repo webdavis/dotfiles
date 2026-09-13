@@ -32,6 +32,7 @@ impl DestinationId {
 pub struct DeliveryRequest<'a> {
     pub producer: &'a str,
     pub request_id: Option<&'a str>,
+    pub producer_request: Option<&'a str>,
     pub event: &'a Event,
     pub route: &'a str,
     pub mode: ReportMode,
