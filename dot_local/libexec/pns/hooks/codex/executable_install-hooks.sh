@@ -30,24 +30,39 @@ if [[ -f $hooks ]]; then
   fi
 fi
 
-# PRUNE, then ensure. Two retired generations are removed: entries naming the
-# retired relay-agent.sh script, and relay-era RELAY_AGENT= duplicates of the
-# PNS_AGENT= commands this script now writes (left behind because ensure only
-# ever added). An entry is ours to remove when its command matches either;
-# herdr's own entries never do.
+# Migrate only complete commands this installer generated for this home/event.
+# Keep handler and group metadata; collapse duplicates only when both agree.
+# Conflicting customizations leave the original file untouched for review.
 merged="$(printf '%s' "$base" | jq \
-  --arg d "$done_cmd" --arg b "$blocked_cmd" '
-  def prune($event):
-    .hooks[$event] = ((.hooks[$event] // [])
-      | map(.hooks |= map(select((.command // "")
-          | (test("relay-agent\\.sh") or startswith("RELAY_AGENT=")) | not)))
-      | map(select((.hooks | length) > 0)));
-  def ensure($event; $cmd):
-    .hooks[$event] = ((.hooks[$event] // [])
-      | if any(.[]?.hooks[]?; .command == $cmd) then .
-        else . + [{hooks: [{type: "command", command: $cmd}]}] end);
-  prune("Stop") | prune("PermissionRequest")
-  | ensure("Stop"; $d) | ensure("PermissionRequest"; $b)
+  --arg root "$HOME" --arg d "$done_cmd" --arg b "$blocked_cmd" '
+  def migrate($event; $cmd; $action):
+    (if $action == "stop" then "done" else $action end) as $legacy_action |
+    [$cmd,
+      (("PNS_AGENT", "RELAY_AGENT") + "=codex " + $root + "/.local/libexec/pns/pns hook " + $action),
+      ("RELAY_AGENT=codex " + $root + "/" +
+        (".local/bin/relay-agent.sh", ".local/libexec/pns/codex-hooks/relay-agent.sh",
+         ".local/libexec/pns/hooks/relay-agent.sh") + " " + $legacy_action),
+      ("PNS_AGENT=codex " + $root + "/.local/libexec/pns/hooks/relay-agent.sh " + $legacy_action)
+    ] as $owned |
+    .hooks[$event] = (
+      reduce (.hooks[$event] // [])[] as $entry
+        ({entries: [], owner: null};
+          reduce $entry.hooks[] as $handler
+            (.kept = [];
+              if $handler.type == "command" and ($owned | any(. == $handler.command)) then
+                ($handler | .command = $cmd) as $updated |
+                {group: ($entry | del(.hooks)), handler: $updated} as $identity |
+                if .owner == null then .owner = $identity | .kept += [$updated]
+                elif .owner == $identity then .
+                else error("pns " + $event + " hook metadata differs; leaving hooks.json untouched") end
+              else .kept += [$handler] end) |
+          .kept as $kept |
+          if ($kept | length) > 0 or ($entry.hooks | length) == 0 then
+            .entries += [($entry | .hooks = $kept)]
+          else . end) |
+      if .owner == null then .entries + [{hooks: [{type: "command", command: $cmd}]}]
+      else .entries end);
+  migrate("Stop"; $d; "stop") | migrate("PermissionRequest"; $b; "blocked")
 ')" || exit 0
 
 # Validate the merged candidate before writing: it must still be an object with an object "hooks".

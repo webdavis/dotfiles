@@ -204,6 +204,7 @@ fn submission<'a>(
         attempt: Attempt::First,
         session_id: "session",
         lamps_live: true,
+        loop_live: false,
         lights_declared: true,
         presence: None,
     }
