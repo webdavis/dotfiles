@@ -1,3 +1,8 @@
+mod gap;
+pub use gap::{
+    FUNNEL_CRITICAL_TITLE, FunnelReadFailure, funnel_corruption_gap, funnel_persistence_gap,
+    funnel_read_gap,
+};
 #[derive(Debug, Clone, Copy)]
 pub enum AllowFunnel<'a> {
     Omitted,
@@ -153,7 +158,7 @@ pub fn render_funnel_exposure(keys: &[String]) -> String {
     };
     format!(
         "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n{exposed}\n"
-    )
+    ).replace('\0', "")
 }
 
 #[cfg(test)]

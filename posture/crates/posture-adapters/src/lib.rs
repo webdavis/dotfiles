@@ -27,6 +27,8 @@ mod command;
 mod metadata;
 pub use codesign::SystemInspection;
 pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner, is_executable};
+mod command_duration;
+pub use command_duration::parse_command_duration;
 
 mod locks;
 pub use locks::AllowlistWriteLock;
@@ -100,6 +102,21 @@ pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
     resolve_osqueryctl, resolve_osqueryd,
 };
+
+mod funnel_status;
+pub use funnel_status::read_funnel;
+mod funnel_state;
+pub use funnel_state::FunnelStateFile;
+mod watchdog_processes;
+pub use watchdog_processes::SystemWatchdogProcesses;
+mod watchdog_state;
+pub use watchdog_state::WatchdogStateFile;
+mod watchdog_queue;
+pub use watchdog_queue::QueueDatabase;
+mod gateway_health;
+pub use gateway_health::GatewayProbe;
+mod watchdog_audit;
+pub use watchdog_audit::WatchdogAudit;
 
 mod integrity_triage;
 pub use integrity_triage::file_integrity_triage;

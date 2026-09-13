@@ -132,3 +132,11 @@ fn exposed_keys_are_sorted_unique_inert_spans_with_exact_200_character_edges() {
     }
     assert!(render_funnel_exposure(&[]).ends_with("`(unknown)`\n"));
 }
+
+#[test]
+fn rendered_null_bytes_are_removed_after_the_key_character_limit() {
+    let key = format!("{}\0suffix", "x".repeat(199));
+    let rendered = render_funnel_exposure(&[key]);
+    assert!(!rendered.contains('\0'));
+    assert!(rendered.contains(&format!("- `{}…(truncated)`", "x".repeat(199))));
+}

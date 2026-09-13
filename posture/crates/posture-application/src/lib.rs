@@ -55,3 +55,11 @@ pub use judge_results::{
     BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
     RunLock,
 };
+
+mod funnel;
+pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};
+mod watchdog;
+pub use watchdog::{
+    AuditObservation, DaemonHealth, GatewayHealth, QueueHealth, Watchdog, WatchdogIntegrity,
+    WatchdogOutcome, WatchdogProcesses, WatchdogState, WatchdogStateFailure, WatchdogStateStore,
+};

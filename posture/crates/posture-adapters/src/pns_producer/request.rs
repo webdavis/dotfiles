@@ -1,10 +1,29 @@
 use posture_application::{Alert, AlertSignal};
-use posture_pns_wire::{Name, Request, RequestId, Signal};
+use posture_pns_wire::{Name, Rejection, Request, RequestId, Signal, Violation};
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
 
-pub(super) fn encode(alert: &Alert, route: Option<Name>) -> Result<(RequestId, String), ()> {
+pub(super) enum EncodeFailure {
+    Invalid,
+    Oversized,
+}
+
+pub(super) fn omission(alert: &Alert) -> Alert {
+    Alert {
+        occurrence_id: alert.occurrence_id.as_ref().map(|id| format!("notification-omitted:{id}")),
+        event: "notification-omitted",
+        signal: AlertSignal::NeedsAttention,
+        occurred_at: alert.occurred_at,
+        title: "Posture security alert omitted".into(),
+        detail: "A security finding exceeded notification limits. The full alert was not submitted and remains unacknowledged. Inspect the originating posture check.".into(),
+    }
+}
+
+pub(super) fn encode(
+    alert: &Alert,
+    route: Option<Name>,
+) -> Result<(RequestId, String), EncodeFailure> {
     let seed = alert.occurrence_id.clone().unwrap_or_else(|| {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         // Separate calls, including separate producer instances, never collapse identical findings.
@@ -20,22 +39,30 @@ pub(super) fn encode(alert: &Alert, route: Option<Name>) -> Result<(RequestId, S
         .take(16)
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    let identity = RequestId::new(format!("posture-{digest}")).map_err(|_| ())?;
+    let identity =
+        RequestId::new(format!("posture-{digest}")).map_err(|_| EncodeFailure::Invalid)?;
     let signal = match alert.signal {
         AlertSignal::NeedsAttention => Signal::NeedsAttention,
         AlertSignal::Observation => Signal::Observation,
     };
     let mut request = Request::new(
         identity.clone(),
-        Name::new("posture").map_err(|_| ())?,
-        Name::new(alert.event).map_err(|_| ())?,
+        Name::new("posture").map_err(|_| EncodeFailure::Invalid)?,
+        Name::new(alert.event).map_err(|_| EncodeFailure::Invalid)?,
         signal,
     );
     request.occurred_at = alert.occurred_at;
     request.detail = format!("{}\n{}", alert.title, alert.detail);
     request.route = route;
     if alert.signal == AlertSignal::NeedsAttention {
-        request.class = Some(Name::new("security").map_err(|_| ())?);
+        request.class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
     }
-    Ok((identity, request.encode().map_err(|_| ())? + "\n"))
+    let encoded = request.encode().map_err(|error| match error.reason {
+        // Identifiers were validated above. Only the rendered detail is unbounded here.
+        Rejection::Bound(Violation::Text { .. } | Violation::Bytes { .. }) => {
+            EncodeFailure::Oversized
+        }
+        _ => EncodeFailure::Invalid,
+    })?;
+    Ok((identity, encoded + "\n"))
 }

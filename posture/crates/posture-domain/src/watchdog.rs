@@ -46,5 +46,8 @@ pub fn route_problem(status: Option<&str>, url: &str) -> Option<String> {
 pub fn state_problem(writable: bool, path: &str) -> Option<String> {
     (!writable).then(|| format!("the watchdog cannot persist its state ({path}); the crash-loop and backlog-growth alarms are degraded until this is fixed"))
 }
+mod queue;
+pub use queue::{QueueCounts, QueueKind, QueueMemory, judge_queue};
+
 #[cfg(test)]
 mod tests;
