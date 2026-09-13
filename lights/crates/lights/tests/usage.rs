@@ -1,24 +1,8 @@
-use std::{path::PathBuf, process::Command};
+use std::process::Command;
 
-/// A temporary test home directory, removed when dropped.
-struct Home(PathBuf);
-
-impl Home {
-    // A pid IS NOT UNIQUE OVER TIME: macOS recycles them, so a name built from
-    // just the pid can match a directory a past run left behind. Clearing
-    // first is what makes the name safe to reuse; the `Drop` below is what
-    // stops them piling up in the first place.
-    fn fresh(path: PathBuf) -> Home {
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).unwrap();
-        Home(path)
-    }
-}
-impl Drop for Home {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
+#[path = "support/home.rs"]
+mod home;
+use home::Home;
 
 #[test]
 fn help_exits_zero_without_settings() {
@@ -55,7 +39,7 @@ fn refusal(arg: &str) {
 fn config_failures_reach_process_exit_five() {
     let root = std::env::temp_dir().join(format!("lights-process-{}", std::process::id()));
     let home = Home::fresh(root);
-    let root = &home.0;
+    let root = home.path();
     std::fs::create_dir_all(root.join("lights")).unwrap();
     for content in [
         None,
