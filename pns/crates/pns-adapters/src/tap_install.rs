@@ -83,7 +83,7 @@ fn install_guide(binary: &str, host: &str, user: &str) -> Result<TapInstall, Tap
                 "Replace the public-key placeholder with the key from the phone's SSH action. pns does not read or edit this file.".into(),
             ]),
             step("2. Your phone", "the PNS Tap shortcut", vec![
-                "Public Shortcut install link: unavailable in the verified records.".into(),
+                "A Shortcut install link is not included. Use the manual setup below.".into(),
                 "Use Run Script Over SSH in Shortcuts with these fields:".into(),
                 format!("Host: {host} (local hostname; verify it is reachable from the phone)"),
                 "Port: the SSH port configured for this Mac".into(),
@@ -96,7 +96,7 @@ fn install_guide(binary: &str, host: &str, user: &str) -> Result<TapInstall, Tap
             ]),
             step("3. Trigger methods", "Back Tap, Action Button, others", vec![
                 "Attach the Shortcut to Back Tap, an Action Button, a Lock Screen widget, Control Center or Siri where your device supports it.".into(),
-                "Verified iOS version and exact trigger Settings paths: unavailable. Verify them on the phone before relying on this setup.".into(),
+                "These iOS settings paths have not been verified yet. Check them on your phone before relying on this setup.".into(),
             ]),
         ],
         undo: vec![

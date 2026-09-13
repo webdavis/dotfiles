@@ -197,7 +197,7 @@ fn the_guide_uses_the_shared_style_and_discloses_unverified_phone_setup() {
         "◆ 2. Your phone",
         "◆ 3. Trigger methods",
         "Remote Login",
-        "unavailable",
+        "not included",
         "pns tap --info",
         "restrict",
         "Port",
