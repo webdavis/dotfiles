@@ -109,6 +109,23 @@ its dated decisions when choosing the next task.
   The budget can omit slow status details. Tuicr 0.25.0 still ignores `compact_folders` with a warning;
   retain the requested preference and verify it when a supporting upstream release arrives.
 
+Read-only deployment verification on 2026-09-13 passed `herdr config check`; source and live Herdr
+configuration match after TOML parsing. Worktrunk returned all 209 current branch/path pairs in 1.624
+seconds. All Plannotator links resolve for Hermes default and its four specialist profiles. Interactive
+acceptance remains open. The same verification recovered these source fixes:
+
+- [ ] Restore Claude delivery of `plannotator`, `plannotator-annotate` and `plannotator-review`. The
+  managed lock suppresses them, but installed Plannotator 0.27.14 supplies hooks without commands or
+  skills. Correct the consumer declarations and verify deployment separately.
+- [ ] Fix the shared skills overlay writer in `uu-adapters`: it appends another `policy` mapping when
+  upstream metadata already has one. Deployed `plannotator` and `last30days` metadata fail strict YAML
+  parsing with `DUPLICATE_KEY`. Update the existing mapping, preserve other metadata and cover the
+  repeated-overlay behavior before regenerating through the supported skills lane.
+- [ ] Fix verification lifecycle and timing failures. The review-tool collector checks passed 71
+  assertions but took 17, 21 and 94 seconds. The full planning check also left two temporary
+  `pns failures serve` processes running after completion; both were identified by their test paths and
+  stopped. Ensure tests reap their processes and satisfy the repository's one-second rule.
+
 ## Red main
 
 - [x] 1. Fix `ledger_awk_spec: reads FIXED-NOTEST as closed as well, so the skip is a prefix match`. Run
