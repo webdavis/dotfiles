@@ -2,7 +2,7 @@
 name: scalebar
 description: Use when logging or reading Stephen's body weight and gym training data through the Scalebar app. Trigger on a weight said out loud ("182 this morning", "log my bedtime weight"), a set finished at the gym, a workout starting or ending, or a question about weight trend, streak, training volume, personal records, training load, or how an exercise has progressed. The mcp__scalebar__* tools are the only way in; never edit the CSV files by hand.
 metadata:
-  updatedAt: "2026-09-12"
+  updatedAt: "2026-09-13"
 ---
 
 # Scalebar
@@ -62,7 +62,7 @@ has delivered the change to another device.
 
 - Send `weight: 0` for bodyweight. Storage uses `bodyweight`, and views show `BW`. Completed reps
   and reserve ratings count; bodyweight contributes no added-weight volume or estimated one-rep max.
-  Bodyweight repetition records remain available.
+  Bodyweight repetition records are available through `get_workout_trends`.
 - Weight follows the exercise's saved `weightBasis`. With `per-hand`, enter each dumbbell's weight.
   `loadMultiplier` indicates whether each completed rep moves one or both weights. With `total`,
   enter the combined added weight and use multiplier 1. Never multiply a per-hand entry yourself.
@@ -91,12 +91,15 @@ for guessing resistance type or correcting statistics after the fact.
   previous-session comparisons. Historical targets without a saved snapshot are unknown.
 - `get_workout_trends` returns equipment- and side-specific records, user milestones, direct and
   secondary muscle sets, and separate morning/bedtime bodyweight means with sample counts.
+  Use it to compare bodyweight by completed reps and isometric holds by elapsed seconds at the
+  same load. Keep equipment and side contexts separate.
 - `get_exercise_progression` shows recent sets in their recorded weight and equipment context.
 - `get_volume` sums entered weight times the recorded load multiplier times completed reps across
   effort sets. Warmups, holds, timed activities, and bodyweight add no external weighted work.
 - `get_fitness_report` remains the canonical user-facing report, including definitions and meaning.
-- `get_prs` returns Personal Records (PRs). Compare bodyweight by completed reps and isometric holds
-  by elapsed seconds at the same load. Keep equipment and side contexts separate.
+- `get_prs` returns weight-based Personal Records (PRs) for `working`, `rest-pause`, and `drop-set`
+  sets with positive added weight and completed reps. It excludes bodyweight, isometric holds,
+  timed activities, warmups, and skipped sets.
 - `get_training_load` describes recorded workload and effort. Do not present it as an injury
   prediction or proof that a workload is safe.
 
