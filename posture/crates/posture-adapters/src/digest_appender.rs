@@ -32,28 +32,35 @@ impl DigestAppendFile {
         Self { store }
     }
 
-    /// Append one record. Answers whether the line reached the file, for a
-    /// caller that wants to say so; nothing about a page depends on it.
+    /// Append one record, reporting failure on stderr without finding contents.
+    /// Answers whether the line reached the file; nothing about a page depends on it.
     pub fn append(&self, record: &posture_protocol::DigestRecord) -> bool {
-        if super::prepare_spool_directory(&self.store).is_err() {
-            return false;
+        let result = self.write_record(record);
+        if result.is_err() {
+            let _ = writeln!(
+                std::io::stderr().lock(),
+                "posture: could not append a digest line to {}",
+                self.store.display()
+            );
         }
+        result.is_ok()
+    }
+
+    fn write_record(&self, record: &posture_protocol::DigestRecord) -> std::io::Result<()> {
+        super::prepare_spool_directory(&self.store)?;
         // 0600 AT CREATION, not after. A file holding full filesystem paths must
         // never exist world-readable, not even for the moment between the two
         // calls, because that moment is when another process gets to open it.
-        let Ok(mut file) = OpenOptions::new()
+        let mut file = OpenOptions::new()
             .append(true)
             .create(true)
             .mode(0o600)
-            .open(&self.store)
-        else {
-            return false;
-        };
+            .open(&self.store)?;
         // AND 0600 AGAIN FOR A FILE THAT ALREADY EXISTED, where `mode` said
         // nothing. This is cheap and it repairs a spool something else loosened.
         let _ = tighten(&self.store);
         let line = format!("{}\n", posture_protocol::encode(record));
-        file.write_all(line.as_bytes()).is_ok()
+        file.write_all(line.as_bytes())
     }
 }
 
