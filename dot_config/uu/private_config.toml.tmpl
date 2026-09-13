@@ -112,6 +112,22 @@ type = "uv"
 binary = "/opt/homebrew/bin/uv"
 deadline_secs = 21600
 
+# Refresh the app-owned Claude skill after uv in lane-name order. Keep the
+# installer's registration out of managed ~/.claude/CLAUDE.md. First adoption
+# requires operator preservation of the old real skill directory; see the
+# Graphify section in docs/runbooks/agent-skills-store.md before applying its link.
+[lanes.uv-graphify-skill]
+type = "command"
+run = [
+  "/usr/bin/env",
+  "CLAUDE_CONFIG_DIR={{ .chezmoi.homeDir }}/.local/share/graphify/claude",
+  "{{ .chezmoi.homeDir }}/.local/bin/graphify",
+  "install",
+  "--platform",
+  "claude",
+]
+deadline_secs = 60
+
 # Every crate `cargo install` put on this machine, checked against the registry.
 # REPORTS RATHER THAN COMPILES: a `cargo install` builds from source, minutes per
 # crate on an unattended run, so a crate that is behind is reported as PENDING
