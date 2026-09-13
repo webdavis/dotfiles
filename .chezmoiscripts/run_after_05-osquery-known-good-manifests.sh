@@ -86,7 +86,7 @@
 #     chown-ed a covered file cannot influence it. (If an operator ever applied as
 #     root, the files really would be root-owned and the manifest would record that,
 #     so the derivation stays self-consistent.)
-# The compiled posture binary instead uses its authorized builder's record.
+# The compiled posture and pns binaries use their authorized builders' records.
 # A missing record enumerates it as unbuilt; no live or target-directory bytes
 # are adopted. The record has the same user-writable trust boundary as source.
 # (`chezmoi status`/`verify` are not usable for this: nested inside an apply they
@@ -315,8 +315,8 @@ fi
 
 # The builder publishes this record before its scoped refresh and installation.
 # Reading only that record retains the tuple on applies that ran no build.
-posture_record_hash() {
-  local record="$home/.local/state/posture-build-record" digest bytes compiler
+authorized_record_hash() {
+  local tool="$1" record="$home/.local/state/$1-build-record" digest bytes compiler
   if [[ ! -e $record && ! -L $record ]]; then
     printf unbuilt
     return 0
@@ -329,7 +329,7 @@ posture_record_hash() {
     printf '%s' "${digest#sha256 }"
     return 0
   fi
-  printf 'osquery known-good manifests: malformed posture build record, refusing to rewrite the pipeline manifest\n' >&2
+  printf 'osquery known-good manifests: malformed %s build record, refusing to rewrite the pipeline manifest\n' "$tool" >&2
   return 1
 }
 
@@ -353,7 +353,7 @@ refresh_manifest() {
   local refresh_manifest_label="$1" refresh_manifest_dest="$2"
   local -n refresh_manifest_paths="$3"
   local refresh_manifest_target refresh_manifest_hash refresh_manifest_perm
-  local refresh_manifest_mode refresh_manifest_dir
+  local refresh_manifest_mode refresh_manifest_dir refresh_manifest_binary
 
   # "<sha256> <mode> <uid> <path>", path-sorted above for a byte-reproducible
   # manifest, and the path LAST so a reader's final field takes the remainder whole
@@ -390,10 +390,12 @@ refresh_manifest() {
     printf '%s %s %s %s\n' "$refresh_manifest_hash" "$refresh_manifest_mode" "$owner_uid" "$refresh_manifest_target" >>"$fresh"
   done
 
-  # This binary is built, not chezmoi-managed, so it has no cat/dump entry.
+  # Built binaries have no chezmoi cat/dump entry. Never adopt their live bytes.
   if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
-    refresh_manifest_hash="$(posture_record_hash)" || return 1
-    printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/posture" >>"$fresh"
+    for refresh_manifest_binary in posture pns; do
+      refresh_manifest_hash="$(authorized_record_hash "$refresh_manifest_binary")" || return 1
+      printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/$refresh_manifest_binary" >>"$fresh"
+    done
   fi
 
   # Never let an empty render overwrite a good manifest.

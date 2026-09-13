@@ -90,7 +90,7 @@ chmod +x "$stubbin/launchctl"
 
 stdout_log="$scratch/stdout"
 stderr_log="$scratch/stderr"
-run_script() { HOME="$home" PATH="$stubbin:$PATH" "$script" >"$stdout_log" 2>"$stderr_log"; }
+run_script() { HOME="$home" CHEZMOI_SOURCE_DIR="$scratch/source" PATH="$stubbin:$PATH" "$script" >"$stdout_log" 2>"$stderr_log"; }
 
 # --- no toolchain: nothing installed, and the trigger stays retryable ------
 mkdir -p "$home"
@@ -169,7 +169,19 @@ else
 fi
 chmod +x "\$crate/target/release/pns"
 STUB
-chmod +x "$home/.cargo/bin/cargo"
+cat >"$home/.cargo/bin/rustc" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'rustc fixture\nhost: fixture\n'
+STUB
+mkdir -p "$scratch/source/.chezmoiscripts"
+cat >"$scratch/source/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# == 1 && $1 == --pipeline-only ]]
+[[ -s $HOME/.local/state/pns-build-record ]]
+STUB
+chmod +x "$home/.cargo/bin/cargo" "$home/.cargo/bin/rustc"
 
 # --- toolchain and crate: the binary lands where the producers look --------
 mkdir -p "$home/crate"
