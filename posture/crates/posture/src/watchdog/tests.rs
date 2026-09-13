@@ -144,6 +144,11 @@ fn configuration() -> Configuration {
     let pns_ledger = dir.join("pns.db");
     let db = rusqlite::Connection::open(&pns_ledger).unwrap();
     db.execute_batch("PRAGMA user_version=8; CREATE TABLE ledger_legs(acknowledged INTEGER,deadlettered_at BLOB);").unwrap();
+    db.execute_batch("CREATE TABLE delivery_health(id INTEGER PRIMARY KEY CHECK(id=1), previous_pending INTEGER,
+        growth INTEGER NOT NULL DEFAULT 0 CHECK(growth BETWEEN 0 AND 2),
+        generation INTEGER NOT NULL DEFAULT 0 CHECK(generation >= 0),
+        acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged >= 0 AND acknowledged <= generation));
+        INSERT INTO delivery_health(id) VALUES(1);").unwrap();
     fs::set_permissions(&pns_ledger, fs::Permissions::from_mode(0o600)).unwrap();
     Configuration {
         snapshots,
@@ -239,4 +244,35 @@ fn assembled_missing_pns_uses_the_existing_independent_fallback() {
     assert_eq!(status, 1);
     assert!(!state.exists());
     assert_eq!(r.0.borrow().calls, ["alarm", "submit", "alarm"]);
+}
+
+#[test]
+fn ledger_health_refusals_alarm_before_accepted_submission_and_retain_failed_alarm_state() {
+    for damage in [
+        "DROP TABLE delivery_health",
+        "DELETE FROM delivery_health",
+        "UPDATE delivery_health SET generation=8, acknowledged=7",
+    ] {
+        let c = configuration();
+        let db = rusqlite::Connection::open(&c.pns_ledger).unwrap();
+        db.execute_batch(damage).unwrap();
+        let before = fs::read(&c.pns_ledger).unwrap();
+        let state = c.state.clone();
+        fs::write(&state, b"{}\n").unwrap();
+        let r = Runner::default();
+        r.0.borrow_mut().alarm_failed = true;
+        let (status, stderr) = call(c, &r);
+        assert_eq!(status, 1, "{damage}");
+        assert!(!stderr.is_empty());
+        assert_eq!(fs::read(state).unwrap(), b"{}\n");
+        let effects = r.0.borrow();
+        assert_eq!(effects.calls.last(), Some(&"submit"));
+        assert!(
+            effects.calls[..effects.calls.len() - 1]
+                .iter()
+                .all(|call| *call == "alarm")
+        );
+        assert!(effects.calls.len() >= 2);
+        assert_eq!(fs::read(db.path().unwrap()).unwrap(), before);
+    }
 }

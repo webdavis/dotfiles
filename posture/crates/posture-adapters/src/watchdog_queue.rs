@@ -51,7 +51,19 @@ impl QueueDatabase {
             if version != 8 {
                 return Err(rusqlite::Error::InvalidQuery);
             }
-            transaction.query_row("SELECT COUNT(CASE WHEN acknowledged = 0 AND deadlettered_at IS NULL THEN 1 END), COUNT(deadlettered_at) FROM ledger_legs", [], |row| Ok(QueueCounts { pending: Some(row.get(0)?), deadletters: Some(row.get(1)?) }))
+            let (growth, generation, acknowledged): (u8, u64, u64) = transaction.query_row(
+                "SELECT growth,generation,acknowledged FROM delivery_health WHERE id=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+            if growth > 2 || acknowledged > generation {
+                return Err(rusqlite::Error::InvalidQuery);
+            }
+            transaction.query_row("SELECT COUNT(CASE WHEN acknowledged = 0 AND deadlettered_at IS NULL THEN 1 END), COUNT(deadlettered_at) FROM ledger_legs", [], |row| Ok(QueueCounts {
+                pending: Some(row.get(0)?),
+                deadletters: Some(row.get(1)?),
+                alarm_generation: (generation > acknowledged).then_some(generation),
+            }))
         } else {
             Ok(QueueCounts {
                 pending: lazy_count(
@@ -66,6 +78,7 @@ impl QueueDatabase {
                     "SELECT COUNT(*) FROM dead_letter_alerts",
                 )
                 .ok(),
+                alarm_generation: None,
             })
         }
     }
@@ -89,6 +102,7 @@ impl QueueHealth for QueueDatabase {
         let unreadable = QueueCounts {
             pending: None,
             deadletters: None,
+            alarm_generation: None,
         };
         if !self.files_safe() {
             return unreadable;
@@ -100,6 +114,7 @@ impl QueueHealth for QueueDatabase {
             return QueueCounts {
                 pending: Some(0),
                 deadletters: Some(0),
+                alarm_generation: None,
             };
         }
         self.read().unwrap_or(unreadable)

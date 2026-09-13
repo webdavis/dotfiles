@@ -6,6 +6,7 @@ fn each_store_keeps_its_own_two_consecutive_growth_history() {
         let counts = |pending| QueueCounts {
             pending: Some(pending),
             deadletters: Some(0),
+            alarm_generation: None,
         };
         let (first, problems) = judge_queue(kind, counts(3), QueueMemory::default());
         assert_eq!(first.count, Some(3));
@@ -29,6 +30,7 @@ fn existing_deadletters_and_each_unreadable_counter_page() {
             QueueCounts {
                 pending: Some(0),
                 deadletters: Some(1),
+                alarm_generation: None,
             },
             QueueMemory::default(),
         );
@@ -38,6 +40,7 @@ fn existing_deadletters_and_each_unreadable_counter_page() {
             QueueCounts {
                 pending: None,
                 deadletters: None,
+                alarm_generation: None,
             },
             QueueMemory {
                 count: Some(5),
@@ -55,6 +58,7 @@ fn legacy_growth_survives_the_first_rust_tick_and_cannot_overflow() {
         QueueCounts {
             pending: Some(8),
             deadletters: Some(0),
+            alarm_generation: None,
         },
         QueueMemory {
             count: Some(7),
@@ -68,6 +72,7 @@ fn legacy_growth_survives_the_first_rust_tick_and_cannot_overflow() {
         QueueCounts {
             pending: Some(8),
             deadletters: Some(0),
+            alarm_generation: None,
         },
         QueueMemory {
             count: Some(7),

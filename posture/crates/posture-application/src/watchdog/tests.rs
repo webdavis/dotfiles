@@ -62,6 +62,7 @@ impl QueueHealth for Fixture {
         QueueCounts {
             pending: Some(3),
             deadletters: Some(0),
+            alarm_generation: None,
         }
     }
 }
@@ -241,6 +242,7 @@ impl QueueHealth for Ledger {
             QueueCounts {
                 pending: None,
                 deadletters: None,
+                alarm_generation: None,
             }
         } else {
             self.0.counts()

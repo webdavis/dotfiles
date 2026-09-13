@@ -7,6 +7,7 @@ pub struct QueueMemory {
 pub struct QueueCounts {
     pub pending: Option<u64>,
     pub deadletters: Option<u64>,
+    pub alarm_generation: Option<u64>,
 }
 #[derive(Debug, Clone, Copy)]
 pub enum QueueKind {
@@ -23,6 +24,11 @@ pub fn judge_queue(
         QueueKind::Pns => "pns delivery ledger",
     };
     let mut problems = Vec::new();
+    if counts.alarm_generation.is_some() {
+        problems.push(format!(
+            "{store} has an unacknowledged delivery-health alarm"
+        ));
+    }
     match counts.deadletters {
         None => problems.push(format!("{store} dead-letter count is unreadable")),
         Some(0) => {}
