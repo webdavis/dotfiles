@@ -9,7 +9,10 @@ fn painted(line: &str) -> bool {
 
 #[test]
 fn a_terminal_with_nothing_asking_otherwise_is_painted() {
-    assert_eq!(Paint::decide(false, true), Paint::Color);
+    assert_eq!(
+        Paint::decide_with_env(false, true, None, None),
+        Paint::Color
+    );
 }
 
 #[test]
@@ -17,12 +20,38 @@ fn a_destination_that_is_not_a_terminal_is_never_painted() {
     // A pipe or a file takes the escape sequence as content, so this is the
     // signal that matters most: it is the difference between decoration and
     // corruption.
-    assert_eq!(Paint::decide(false, false), Paint::Plain);
+    assert_eq!(
+        Paint::decide_with_env(false, false, None, None),
+        Paint::Plain
+    );
 }
 
 #[test]
 fn the_flag_turns_it_off_on_a_terminal() {
-    assert_eq!(Paint::decide(true, true), Paint::Plain);
+    assert_eq!(Paint::decide_with_env(true, true, None, None), Paint::Plain);
+}
+
+#[test]
+fn environment_values_disable_color_only_when_their_convention_says_so() {
+    use std::ffi::OsStr;
+
+    for (no_color, house_plain, expected) in [
+        (Some(""), Some("0"), Paint::Color),
+        (Some("0"), None, Paint::Plain),
+        (None, Some("1"), Paint::Plain),
+        (None, Some("true"), Paint::Color),
+    ] {
+        assert_eq!(
+            Paint::decide_with_env(
+                false,
+                true,
+                no_color.map(OsStr::new),
+                house_plain.map(OsStr::new),
+            ),
+            expected,
+            "NO_COLOR={no_color:?}, REPORT_LIB_PLAIN={house_plain:?}",
+        );
+    }
 }
 
 #[test]
