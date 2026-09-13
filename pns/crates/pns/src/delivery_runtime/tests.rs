@@ -10,6 +10,9 @@ use std::time::Duration;
 
 #[test]
 fn unavailable_identity_or_clock_keeps_the_owned_live_path_without_inventing_a_lease() {
+    if crate::runtime_test_support::in_private_process() {
+        return;
+    }
     let root = crate::runtime_test_support::scratch("live-without-retention");
     let executable = root.join("channel");
     std::fs::write(&executable, format!(
