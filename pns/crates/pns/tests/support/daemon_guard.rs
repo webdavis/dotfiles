@@ -55,12 +55,8 @@ impl DaemonGuard {
             .stdin(std::process::Stdio::null())
             .stdout(out)
             .stderr(errors)
-            // ITS OWN PROCESS GROUP, so `Drop` can take the daemon's CHILDREN
-            // with it. The daemon runs the failure page as a child of its own,
-            // and that child serves forever with nothing telling it its parent
-            // died, so killing the daemon alone left one listener per test run
-            // alive: 197 of them were counted on this machine on 2026-09-09,
-            // the oldest thirteen hours old.
+            // Jobs create separate groups. Drop collects them before killing
+            // this leader, while their parent still identifies our ownership.
             .process_group(0)
             .spawn()
             .expect("the daemon starts");
@@ -95,74 +91,62 @@ impl DaemonGuard {
 
 impl Drop for DaemonGuard {
     fn drop(&mut self) {
-        // THE WHOLE GROUP, not the daemon alone. `start` made this child a
-        // group leader, so its own children share its group id and one signal
-        // reaches all of them. The daemon is still waited on afterwards,
-        // because that is what reaps it.
-        if let Ok(group) = i32::try_from(self.child.id()) {
-            unsafe { libc::kill(-group, libc::SIGKILL) };
+        if !matches!(self.child.try_wait(), Ok(None)) {
+            return;
+        }
+        let pid = i32::try_from(self.child.id()).expect("an owned process ID");
+        // Stop spawning and reaping before listing children. An exited job
+        // stays unreaped, so its ID cannot be reused while we signal its group.
+        // SAFETY: pid names our live, unreaped Child, never a caller's process.
+        unsafe { libc::kill(pid, libc::SIGSTOP) };
+        let mut status = 0;
+        loop {
+            // SAFETY: status is writable and waitpid targets only our Child.
+            let waited = unsafe { libc::waitpid(pid, &mut status, libc::WUNTRACED) };
+            if waited == pid {
+                if !libc::WIFSTOPPED(status) {
+                    return; // waitpid reaped a daemon that exited before stopping.
+                }
+                break;
+            }
+            if std::io::Error::last_os_error().raw_os_error() != Some(libc::EINTR) {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                return;
+            }
+        }
+        let jobs = std::process::Command::new("/usr/bin/pgrep")
+            .args(["-P", &pid.to_string()])
+            .output()
+            .and_then(|listed| match listed.status.code() {
+                Some(0 | 1) => String::from_utf8_lossy(&listed.stdout)
+                    .split_whitespace()
+                    .map(|job| job.parse::<i32>().map_err(std::io::Error::other))
+                    .collect::<std::io::Result<Vec<_>>>(),
+                _ => Err(std::io::Error::other(
+                    "pgrep could not list the daemon's children",
+                )),
+            });
+        if let Ok(jobs) = &jobs {
+            for &job in jobs.iter().filter(|&&job| job > 1) {
+                // SAFETY: the stopped daemon pins each child ID. spawn_job
+                // gives it this group; a child still before setpgid also
+                // receives the direct signal. Delivery guardians close their
+                // own groups when the killed job's owner pipes close.
+                unsafe {
+                    libc::kill(-job, libc::SIGKILL);
+                    libc::kill(job, libc::SIGKILL);
+                }
+            }
         }
         let _ = self.child.kill();
         let _ = self.child.wait();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::os::unix::process::CommandExt;
-
-    /// Every live pid in one process group, the leader included.
-    fn group_members(group: i32) -> Vec<i32> {
-        let listed = std::process::Command::new("/bin/ps")
-            .args(["-o", "pid=", "-g", &group.to_string()])
-            .output()
-            .expect("ps lists a process group");
-        String::from_utf8_lossy(&listed.stdout)
-            .split_whitespace()
-            .filter_map(|pid| pid.parse().ok())
-            .collect()
-    }
-
-    #[test]
-    fn a_group_kill_reaches_a_child_the_leader_spawned() {
-        // THE LEAK THIS EXISTS TO STOP. The daemon serves the failure page from
-        // a child of its own, and that child serves forever with nothing
-        // telling it its parent died. Killing the daemon's pid alone left one
-        // listener behind per test run; 197 were counted on this machine on
-        // 2026-09-09, the oldest thirteen hours old. A stand-in stands in for
-        // the daemon here so the claim is about the SIGNAL, not about pns.
-        let mut leader = std::process::Command::new("/bin/sh")
-            .args(["-c", "sleep 300 & sleep 300"])
-            .stdin(std::process::Stdio::null())
-            .process_group(0)
-            .spawn()
-            .expect("the stand-in starts");
-        let group = i32::try_from(leader.id()).expect("a group id");
-
-        let mut members = Vec::new();
-        for _ in 0..200 {
-            members = group_members(group);
-            if members.len() >= 3 {
-                break;
+        if let Err(error) = jobs {
+            if std::thread::panicking() {
+                eprintln!("daemon fixture cleanup failed: {error}");
+            } else {
+                panic!("daemon fixture cleanup failed: {error}");
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        assert!(
-            members.len() >= 3,
-            "the stand-in should be a leader plus two sleeps, saw {members:?}"
-        );
-
-        unsafe { libc::kill(-group, libc::SIGKILL) };
-        let _ = leader.wait();
-
-        let mut left = group_members(group);
-        for _ in 0..200 {
-            if left.is_empty() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            left = group_members(group);
-        }
-        assert!(left.is_empty(), "these outlived the group kill: {left:?}");
     }
 }
