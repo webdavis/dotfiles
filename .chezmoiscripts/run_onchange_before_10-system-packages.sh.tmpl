@@ -44,9 +44,9 @@ trust_checkpoint '00-script-start'
 # The declared taps Homebrew must be willing to load formulae, casks and
 # commands from. Held in an array so the trust pass can both apply and VERIFY.
 trusted_taps=(
-{{ range .packages.macos.homebrew.trusted_taps -}}
+{{- range .packages.macos.homebrew.trusted_taps }}
   {{ . | quote }}
-{{ end -}}
+{{- end }}
 )
 
 # Tap, trust, then PROVE the trust persisted, and refuse to continue if it did
@@ -240,6 +240,28 @@ if command -v uv >/dev/null 2>&1; then
   report_section "uv" "tool installs" >&2
 {{- range .packages.macos.uv }}
   uv tool install {{ . | quote }}
+{{- if eq . "graphifyy" }}
+  # Seed only an absent app-owned destination. The old Claude directory is
+  # preserved for operator adoption; the weekly lane owns later refreshes.
+  graphify_config="$HOME/.local/share/graphify/claude"
+  graphify_bundle="$graphify_config/skills/graphify"
+  for graphify_dir in "$HOME/.local" "$HOME/.local/share" "$HOME/.local/share/graphify" \
+    "$graphify_config" "$graphify_config/skills" "$graphify_bundle" "$graphify_bundle/references"; do
+    if [[ -L $graphify_dir || (-e $graphify_dir && ! -d $graphify_dir) ]]; then
+      printf 'graphify seed: refusing symlink or non-directory at %s; existing data is preserved\n' "$graphify_dir" >&2
+      exit 1
+    fi
+  done
+  if [[ ! -e $graphify_config ]]; then
+    gtimeout 60 /usr/bin/env "CLAUDE_CONFIG_DIR=$graphify_config" \
+      "$HOME/.local/bin/graphify" install --platform claude
+  elif [[ ! -f $graphify_bundle/SKILL.md || ! -s $graphify_bundle/SKILL.md || -L $graphify_bundle/SKILL.md ||
+    ! -f $graphify_bundle/.graphify_version || ! -s $graphify_bundle/.graphify_version || -L $graphify_bundle/.graphify_version ||
+    ! -d $graphify_bundle/references ]]; then
+    printf 'graphify seed: incomplete or linked bundle at %s; preserving it for operator repair\n' "$graphify_config" >&2
+    exit 1
+  fi
+{{- end }}
 {{- end }}
 fi
 {{ end -}}

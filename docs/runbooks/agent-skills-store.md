@@ -116,6 +116,37 @@ covers all three harnesses (`cua-driver skills status` links Claude Code, Codex 
 itself), and the weekly run refreshes the pack via `cua-driver skills update`, the app's own
 GitHub-Releases updater, never a write through the symlink.
 
+### Graphify in Claude Code
+
+Graphify owns its Claude skill under `~/.local/share/graphify/claude/skills/graphify`. The managed
+`~/.claude/skills/graphify` link points there directly. It stays outside the canonical store and its lock
+tables, preserving Claude-only delivery without adding it to Codex or Hermes. The skills lane leaves this
+link alone because its target is outside the store.
+
+The `uv-graphify-skill` command lane runs after `uv` in a full weekly run. It sets `CLAUDE_CONFIG_DIR`
+only for `graphify install --platform claude`, so upstream writes both the skill and its registration
+under the app-owned directory. Managed global `CLAUDE.md` receives no registration. The lane has a
+60-second deadline. A failed uv lane does not prevent this refresh from the installed package, and
+`uu run uv` does not run the separate skill lane.
+
+**First adoption requires operator preservation before applying the link.** Preserve the entire existing
+real `~/.claude/skills/graphify` directory under
+`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.graphify-skill.backup/` and review its customizations. The
+upstream `SKILL.md.bak` covers only that file; references are replaced without a backup. The package
+installer seeds an absent app-owned destination after installing `graphifyy` on macOS, before target
+links are applied. It preserves an existing complete bundle and refuses symlink, non-directory or partial
+destinations. Seeding failure aborts that installer. It does not migrate the legacy Claude directory.
+
+For operator seeding after preservation, use this exact command:
+
+```bash
+/usr/bin/env CLAUDE_CONFIG_DIR="$HOME/.local/share/graphify/claude" \
+  "$HOME/.local/bin/graphify" install --platform claude
+```
+
+Adopt the declared link after preservation and successful seeding. Until then, the old directory remains
+in use; source wiring alone does not establish live or scheduled acceptance.
+
 ## Claude delivery (the lock's `claudeDelivery` table)
 
 A store entry mapped to `"none"` is one this vertical deliberately does NOT deliver to Claude Code. It
