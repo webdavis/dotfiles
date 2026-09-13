@@ -99,6 +99,109 @@ fn process_lives(pid: &str) -> bool {
         .is_ok_and(|status| status.success())
 }
 
+#[test]
+fn dropping_the_guard_stops_its_detached_delivery() {
+    guard_cleans_delivery(false);
+}
+
+#[test]
+fn unwinding_the_guard_stops_its_detached_delivery() {
+    guard_cleans_delivery(true);
+}
+
+fn guard_cleans_delivery(unwind: bool) {
+    let sandbox = Sandbox::new(&format!("daemon-guard-cleanup-{unwind}"));
+    let release = sandbox.path("release");
+    assert!(
+        Command::new("/usr/bin/mkfifo")
+            .arg(&release)
+            .status()
+            .expect("a private release pipe")
+            .success()
+    );
+    let mut owned = OwnedDelivery {
+        pids: Vec::new(),
+        release: std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(release)
+            .expect("hold both ends so cleanup cannot block or signal a closed pipe"),
+    };
+    sandbox.write_config(ONE_CHANNEL);
+    sandbox.stub_channel(
+        "hermes",
+        &format!(
+            "cat >/dev/null\n\
+             exec 3<\"{root}/release\"\n\
+             printf '%s %s\\n' \"$PPID\" \"$$\" >\"{root}/owned-pids\"\n\
+             read -r _release <&3",
+            root = sandbox.display()
+        ),
+    );
+    assert!(
+        schedule(&sandbox, &["--id", "held", "--in", "0"], &EVENT)
+            .status
+            .success()
+    );
+    // Keep the real daemon's job timeout beyond this test's deadline.
+    let guard = DaemonGuard::start(&sandbox, 100);
+    let deadline = Instant::now() + Duration::from_millis(750);
+    owned.pids = loop {
+        if let Ok(record) = std::fs::read_to_string(sandbox.path("owned-pids")) {
+            let pids: Vec<i32> = record
+                .split_whitespace()
+                .filter_map(|pid| pid.parse().ok())
+                .collect();
+            if pids.len() == 2 {
+                break pids;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "delivery never started: {}",
+            guard.said()
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert!(owned.pids.iter().all(|pid| process_lives(&pid.to_string())));
+    let result = std::panic::catch_unwind(move || {
+        let _guard = guard;
+        assert!(!unwind, "exercise fixture cleanup during unwinding");
+    });
+    assert_eq!(result.is_err(), unwind);
+    while owned.pids.iter().any(|pid| process_lives(&pid.to_string())) && Instant::now() < deadline
+    {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        owned
+            .pids
+            .iter()
+            .all(|pid| !process_lives(&pid.to_string())),
+        "owned job and delivery survived DaemonGuard: {:?}",
+        owned.pids
+    );
+}
+
+// Release the stub after a red assertion without signaling an unpinned process ID.
+struct OwnedDelivery {
+    pids: Vec<i32>,
+    release: std::fs::File,
+}
+
+impl Drop for OwnedDelivery {
+    fn drop(&mut self) {
+        use std::io::Write;
+        let _ = self.release.write_all(b"release\n");
+        let deadline = Instant::now() + Duration::from_millis(250);
+        while self.pids.iter().any(|pid| process_lives(&pid.to_string()))
+            && Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+}
+
 /// M20'S BEHAVIOR: `enabled = false` stops a daemon that is ALREADY RUNNING.
 ///
 /// Read once at startup the switch was inert. Nothing bounces this launchd job

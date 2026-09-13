@@ -10,8 +10,8 @@ use super::*;
 /// The three stub channels enabled, plus the nag scheduled (or, at zero, off).
 pub(crate) fn nag_config(after_secs: u64) -> String {
     format!(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-         [plugins.macos-banner]\nenabled = true\n[nag]\nafter_secs = {after_secs}\n"
+        "{}[nag]\nafter_secs = {after_secs}\n",
+        support::STUB_CHANNELS
     )
 }
 

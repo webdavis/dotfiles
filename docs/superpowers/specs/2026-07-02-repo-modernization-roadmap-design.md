@@ -50,8 +50,9 @@ cycles with their banked decisions so nothing has to be re-litigated.
 7. **macOS system config stays chezmoi-native, not nix-darwin** (banked 2026-07-04 via deep-research).
    S10's `defaults write` + system-setup approach is affirmed: nix-darwin would fork the chezmoi/KeePassXC
    secret model and add a second apply path for a solo maintainer, with no offsetting win at this scale.
-   A nix-darwin go/no-go (**SP-nix**) is deferred as a research-first sibling of SP4, not adopted inside
-   SP2. Source: github.com/nix-darwin/nix-darwin.
+   **Clarified 2026-09-12:** nix-darwin macOS management is out of scope; the older SP-nix research
+   gate is superseded. Optional Nix packages and per-project Nix flakes remain available. This does not
+   change the repository's Homebrew/uv contributor toolchain or chezmoi/KeePassXC/age ownership.
 8. **Secrets-at-rest stays chezmoi-native age** (affirmed 2026-07-04 via deep-research vs sops/sops-nix/
    agenix/git-crypt). One X25519 identity restored from KeePassXC is current best practice for a solo
    macOS chezmoi setup; the alternatives each add a second toolchain or a NixOS coupling the repo does
@@ -84,7 +85,7 @@ cycles with their banked decisions so nothing has to be re-litigated.
 | SP5 | Thaw install | Trivial standalone PR; slots in during SP2 | none needed |
 | SP6 | nvim-overhaul | Re-evaluate v1/v2/v3 specs, then implement | own spec |
 | SP7 | Sweep + p-tasks backlog | Small chores as interleaved PRs at the end | backlog list |
-| SP-nix | nix-darwin go/no-go | **Conditional research only**, start triggers: larger Mac fleet / material maintenance failure in the defaults system / a proven design preserving single-apply + secrets model | own spec (deferred) |
+| SP-nix | nix-darwin macOS management | **Out of scope, reaffirmed 2026-09-12.** Keep optional Nix packages and per-project flakes | supersedes the earlier research gate |
 
 **Update 2026-07-09:** the nushell evaluation is RESOLVED, **NO-GO, operator-ratified** (GH #5 closed;
 report `docs/research/2026-07-09-sp4-nushell-evaluation.md`). SP3's shell-hook seam is therefore designed
@@ -289,10 +290,10 @@ sub-projects.
   commits behind / 3 ahead of `origin/main` at audit time), before any modernization:** (1) re-check
   the branch state; (2) back up both repositories; (3) inventory the live Neovim configuration;
   (4) import the live configuration UNCHANGED first; (5) modernize only through later reviewable PRs.
-- **SP-nix, nix-darwin go/no-go (deferred, research-first).** Sibling of SP4 (nushell): evaluate whether
-  nix-darwin should manage macOS system config instead of chezmoi's `defaults`/system-setup scripts.
-  Banked prior (decision 7): chezmoi holds for now; this is the formal re-evaluation, cross-referenced to
-  P5 (Determinate Nix). Not part of SP2.
+- **SP-nix, excluded from modernization (2026-09-12).** The operator reaffirmed that macOS
+  configuration stays with chezmoi. Keep Nix available for optional packages and per-project flakes;
+  neither requires nix-darwin or sops-nix. Any existing Nix installer maintenance under P5 remains a
+  separate question, not a reason to reopen macOS-management migration.
 - **Age laptop→home-server migration (deferred).** When the always-home Linux server takes the daemon
   role: it generates its own X25519 identity, `.chezmoi.toml.tmpl` switches to a **`recipients` list**
   (both machines) so files encrypt to both. Generalizing the darwin guard on
