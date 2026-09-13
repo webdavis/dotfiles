@@ -67,8 +67,11 @@ mod tests {
     }
     #[test]
     fn a_path_entry_this_identity_cannot_execute_is_not_the_tailscale_binary() {
-        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
         let root = std::env::temp_dir().join(format!("posture-funnel-path-{}", std::process::id()));
+        // A pid comes round again, and a failed run leaves the file below
+        // unwritable, so the tree is cleared rather than reused.
+        let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let candidate = root.join("tailscale");
         std::fs::write(&candidate, "#!/bin/sh\n").unwrap();
@@ -78,12 +81,15 @@ mod tests {
             _ => None,
         };
         // Execute for group and other but never for this identity, the way a
-        // root-owned 0700 binary reads to an unprivileged poller.
+        // root-owned 0700 binary reads to an unprivileged poller. Root is
+        // exempt: faccessat grants X_OK on any execute bit at all.
         std::fs::set_permissions(&candidate, std::fs::Permissions::from_mode(0o011)).unwrap();
-        assert_eq!(
-            Configuration::read(vars).unwrap().tailscale,
-            PathBuf::from("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
-        );
+        if std::fs::metadata(&candidate).unwrap().uid() != 0 {
+            assert_eq!(
+                Configuration::read(vars).unwrap().tailscale,
+                PathBuf::from("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+            );
+        }
         std::fs::set_permissions(&candidate, std::fs::Permissions::from_mode(0o700)).unwrap();
         assert_eq!(Configuration::read(vars).unwrap().tailscale, candidate);
     }

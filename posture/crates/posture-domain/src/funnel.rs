@@ -128,14 +128,19 @@ pub fn plan_funnel(
 /// The most exposed keys a page renders in full before it summarizes the rest.
 ///
 /// The wire caps one text field at 8,000 characters (`MAX_TEXT_CHARS` in
-/// posture-pns-wire, refused by posture-adapters/src/pns_producer/request.rs),
-/// and the application prefixes the 14-character critical title and a newline.
-/// The header is 179 characters, the widest key line is 216 (a dash, a space,
-/// a backtick, 200 characters, `…(truncated)` and a closing backtick), each
-/// line after the header costs one newline, and the widest summary line is 22.
-/// So the worst case is 15 + 179 + 32 * (216 + 1) + 22 = 7,160 characters,
-/// 840 under the cap. Thirty-six keys would exceed it, so the margin here is
-/// deliberate rather than the largest count that happens to fit.
+/// posture-pns-wire, refused by posture-adapters/src/pns_producer/request.rs).
+/// At 32 keys the worst case is 7,160 of them, 840 under the cap, and the unit
+/// test measures that figure rather than trusting the sum below:
+///
+/// - 14 for the critical title, plus the 1 newline the application joins with
+/// - 179 for the three header lines, the last of which ends in a newline
+/// - 6,912 for 32 key lines at their widest, each 216: a dash, a space, a
+///   backtick, 200 characters, `…(truncated)` and a closing backtick
+/// - 32 more newlines, joining those 32 lines to the summary line
+/// - 22 for the widest summary line, `- …and `, ten digits and ` more`
+///
+/// Thirty-six keys would exceed the cap, so this margin is deliberate rather
+/// than the largest count that happens to fit.
 pub const FUNNEL_EXPOSURE_KEY_LIMIT: usize = 32;
 
 pub fn render_funnel_exposure(keys: &[String]) -> String {
