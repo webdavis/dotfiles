@@ -38,7 +38,7 @@ fn path(case: &serde_json::Value) -> PathBuf {
 fn a_baseline_read_preserves_captured_scalars_and_control_declaration_fields() {
     for case in cases().into_iter().filter(|c| c["fields"][0] == "1") {
         let mut store = PollStateFiles::new(path(&case));
-        let reading = store.read(&controls()).unwrap();
+        let reading = store.read(&controls(), |_| {}).unwrap();
         assert_eq!(store.prior_json.as_deref(), case["fields"][5].as_str());
         let wanted: Vec<_> = case["fields"].as_array().unwrap()[2..5]
             .iter()
@@ -79,7 +79,11 @@ fn baseline_trust_refuses_wrong_modes_shapes_and_symlink_own_modes_without_block
     for case in cases().into_iter().filter(|c| c["fields"][0] != "1") {
         let path = path(&case);
         let mut store = PollStateFiles::new(path.clone());
-        assert!(store.read(&controls()).is_none(), "{}", case["name"]);
+        assert!(
+            store.read(&controls(), |_| {}).is_none(),
+            "{}",
+            case["name"]
+        );
         if case["name"] == "symlink" {
             assert!(path.is_symlink());
             assert_eq!(modes(&fs::read_link(&path).unwrap()), 0o600);

@@ -25,7 +25,7 @@ pub use staging::{DesiredStaging, StagedTree};
 mod command;
 mod metadata;
 pub use codesign::SystemInspection;
-pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner};
+pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner, is_executable};
 
 mod locks;
 pub use locks::AllowlistWriteLock;

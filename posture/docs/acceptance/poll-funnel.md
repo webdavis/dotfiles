@@ -199,3 +199,18 @@ application request, not engine routing or a deployed notification. `PollPage` k
 field, but ordinary PNS banners currently request the fixed default sound. Exact sound-name parity
 remains at caller cutover; the independent alarm retains its separate fixed Sosumi contract. Caller
 stderr, concrete read order, activation and the Bash caller replacement also remain outside this slice.
+
+## Poll command composition
+
+The source command now joins the existing query, control, state, application and producer adapters. Ten
+private command tests cover successful seed and repeat, exposure acceptance and refusal, refused
+controls, unreadable controls and baseline files, query timeout, refused-gap diagnostics, failed rename
+and effective-user executable discovery. The captured exposure and refused-controls details come from
+running the existing Bash fixture with inert probes and a page recorder. Three submitted detail fields
+match those captured bytes; page submission still observes the prior baseline.
+
+The native access correction also covers allowlist and converge discovery. Four caller regressions fail
+against the former permission-bit predicate, while existing traversal checks continue to pass. Two
+private source mutations are rejected. Explicit overrides and converge's independent directory-trust
+checks retain their prior behavior. The composed command remains source only; activation and replacement
+of the Bash writer require the separate operator cutover.

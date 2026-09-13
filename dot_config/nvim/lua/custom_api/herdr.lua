@@ -1,10 +1,8 @@
--- The shared herdr seam (spec 7.4). One module answers "which pane" and "how to
--- send", and every caller in this config goes through it. It is a thin wrapper
--- over the installed `herdr-nvim` plugin, never a second implementation of what
--- that plugin already does: `herdr-nvim` owns the agent lookup (`agents.list`,
--- `agents.resolve`, `agents.display`) and the dispatch verb (`dispatch.send`),
--- and this module adds only the workspace gate, the Claude filter, the picker
--- row, the interrupt policy and the launch plan.
+-- The shared herdr seam for selection sends and launch-or-attach (spec 7.4).
+-- `herdr-nvim` owns the agent listing and display
+-- (`agents.list`, `agents.display`) and the dispatch verb (`dispatch.send`).
+-- This module adds the workspace gate, live-tab selection, Claude filter,
+-- picker row, interrupt policy and launch plan.
 --
 -- Every `require("herdr-nvim.…")` sits INSIDE the function that needs it. The
 -- headless spec runner starts `--clean` with only this config's `lua/` on
@@ -66,7 +64,11 @@ local function live_pane()
   if not ok or type(decoded) ~= "table" then
     return nil
   end
-  return (decoded.result or {}).pane
+  local pane = type(decoded.result) == "table" and decoded.result.pane
+  if type(pane) ~= "table" or type(pane.tab_id) ~= "string" or pane.tab_id == "" then
+    return nil
+  end
+  return pane
 end
 
 -- ╭────────────╮
@@ -90,11 +92,9 @@ function M.workspace_refusal(herdr_env, workspace_id)
 end
 
 -- The second half of the gate, once the live pane is known. Refusing rather than
--- adapting to the live workspace is deliberate: `agents.list` and
--- `agents.resolve` inside `herdr-nvim` read the same stale environment, so an
--- editor that has been moved cannot be served correctly by any amount of work on
--- this side. The operator restarts it in its new pane, which costs one command
--- and cannot deliver a buffer to the workspace they walked away from.
+-- adapting to the live workspace is deliberate: `agents.list` inside
+-- `herdr-nvim` scopes its listing to HERDR_WORKSPACE_ID. A cross-workspace move
+-- leaves that value stale, so the operator must restart the editor in its pane.
 function M.stale_workspace_refusal(env_workspace_id, live_workspace_id)
   if not live_workspace_id then
     return "herdr could not say which pane this editor is in, so a lookup cannot be scoped"
@@ -163,11 +163,13 @@ function M.agent_pane(on_pane)
     return on_pane(nil)
   end
 
-  -- `agents.resolve` narrows to the agent sharing HERDR_TAB_ID, else a lone
-  -- agent in the workspace, and answers nil when that is genuinely ambiguous.
-  -- Focus is never consulted (spec 7.2): herdr focus is UI-wide, so every agent
-  -- of a background workspace reports `focused = false`.
-  local one = agents.resolve(claude)
+  -- The plugin's `agents.resolve` reads launch-time HERDR_TAB_ID. A move between
+  -- tabs in this workspace leaves it stale, so select using the live tab here.
+  -- Keep the lone workspace fallback and never use UI-wide focus (spec 7.2).
+  local in_tab = vim.tbl_filter(function(agent)
+    return agent.tab_id == pane.tab_id
+  end, claude)
+  local one = #in_tab == 1 and in_tab[1] or (#claude == 1 and claude[1])
   if one then
     return on_pane(one.pane_id)
   end

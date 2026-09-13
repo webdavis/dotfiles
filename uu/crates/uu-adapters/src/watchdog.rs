@@ -88,10 +88,17 @@ fn spawn_with_environment(
     env: Option<std::collections::BTreeMap<String, String>>,
     output_file: Option<File>,
 ) -> Spawned {
+    if let Some(why) = crate::interruption::refusal() {
+        return Spawned::NotRunnable(why);
+    }
     let (send, receive) = std::sync::mpsc::channel();
     let owned_program = program.to_string();
     let owned_args: Vec<String> = args.iter().map(|word| (*word).to_string()).collect();
     std::thread::spawn(move || {
+        if let Some(why) = crate::interruption::refusal() {
+            let _ = send.send(Spawned::NotRunnable(why));
+            return;
+        }
         let started = Instant::now();
         let mut command = Command::new(&owned_program);
         if let Some(env) = env {
@@ -102,11 +109,8 @@ fn spawn_with_environment(
             .stdin(stdin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            // A PROCESS GROUP OF ITS OWN, which is what lets the kill below
-            // reach whatever the child leaves behind. The cost is that an
-            // interactive Ctrl-C no longer reaches the subject through uu's
-            // own group; under the launchd job that carries these lanes there
-            // is no terminal to send one.
+            // Keep producers in their own group. Cancellation reaches the whole
+            // owned group through the watchdog, just like deadline enforcement.
             .process_group(0)
             .spawn();
         // WHAT THE SPAWN ITSELF COST comes off the budget, so a spawn that
@@ -120,9 +124,21 @@ fn spawn_with_environment(
             Err(error) => Spawned::NotRunnable(format!("could not run {owned_program}: {error}")),
         });
     });
-    receive
-        .recv_timeout(budget + SPAWN_SLACK)
-        .unwrap_or(Spawned::SpawnStuck)
+    let mut deadline = Instant::now() + budget + SPAWN_SLACK;
+    let mut cancelling = false;
+    loop {
+        if !cancelling && crate::interruption().is_some() {
+            cancelling = true;
+            deadline = deadline.min(Instant::now() + SPAWN_SLACK);
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receive.recv_timeout(remaining.min(Duration::from_millis(25))) {
+            Ok(result) => return result,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Spawned::SpawnStuck,
+            Err(_) if remaining.is_zero() => return Spawned::SpawnStuck,
+            Err(_) => {}
+        }
+    }
 }
 
 /// Drive `child` to its end inside `budget`, draining both of its pipes.
