@@ -73,6 +73,7 @@ fn run(spool: &Spool, sink: &mut Sink) -> DigestOutcome {
         sink,
         utc_day: "2026-09-09",
         occurred_at: Some(100),
+        limits: DigestLimits::default(),
     }
     .run()
 }
