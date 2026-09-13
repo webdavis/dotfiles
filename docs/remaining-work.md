@@ -126,6 +126,13 @@ acceptance remains open. The same verification recovered these source fixes:
   `pns failures serve` processes running after completion; both were identified by their test paths and
   stopped. Ensure tests reap their processes and satisfy the repository's one-second rule.
 
+Implementation progress, 2026-09-13: `fix/review-skill-delivery` contains the Claude delivery fix
+(`bd2b989c`) and parsed, reversible overlays (`c251e6d5`). All 606 uu tests passed; independent review
+approved both changes. `fix/pns-test-isolation` contains the collector fixture reduction (`6f2e3e43`) and
+owned daemon-job cleanup (`166b4830`). The three collector checks passed in 390 ms total, and the cleanup
+regressions passed against real detached test deliveries. Publication and deployment remain open; these
+commits have not reached main.
+
 ## Red main
 
 - [x] 1. Fix `ledger_awk_spec: reads FIXED-NOTEST as closed as well, so the skip is a prefix match`. Run
@@ -944,11 +951,21 @@ producer.
 - [ ] 68c. Preserve and publish the finalized planning changes in their owning repositories. The audit
   found local changes in the modernization queue and roadmap, and three untracked homelab PLAN-v12 files.
   Review those files without sweeping unrelated staged work into a commit, then commit and publish each
-  repository's agreed plan. Untracked planning files must not be lost during cleanup.
+  repository's agreed plan. Untracked planning files must not be lost during cleanup. Progress,
+  2026-09-13: [homelab #38](https://github.com/webdavis/Homelab/pull/38) merged the three plan files.
+  Local homelab main contains upstream while retaining its 44 previously unpublished commits and
+  unrelated staged/unstaged work; do not push that local history. Dotfiles planning is pushed on
+  `docs/modernization-resume-plan`. Its pull request remains blocked by the
+  [GitHub outage](https://www.githubstatus.com/), incident `0rn90wk115q9`; creation attempts failed and
+  subsequent head-branch checks found no pull request. Check again before retrying creation.
 - [ ] 21a. Finish the deployed binary cleanup named in task 21. The old
   `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current callers,
   preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete files
-  before trashing them.
+  before trashing them. The September 13 caller audit found two Codex hooks still invoking the old pns
+  binary alongside current handlers. Commit `1b0cca44` on `fix/codex-pns-hook-migration` migrates
+  precisely owned legacy commands while preserving unrelated handlers and metadata; ten focused cases and
+  synthetic installer checks passed. Review, publication, operator deployment and hook-trust review
+  remain separate from cleanup.
 
 ## Waiting on the operator
 
@@ -1070,7 +1087,10 @@ is missing.
   session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
   honors these variables; make the test's assumed environment explicit without changing that behavior.
   The #530 verification uses a clean environment; this test repair is separate. Track it in
-  [6hVqqxHGq35Fq5Hv](https://app.todoist.com/app/task/6hVqqxHGq35Fq5Hv).
+  [6hVqqxHGq35Fq5Hv](https://app.todoist.com/app/task/6hVqqxHGq35Fq5Hv). Implemented locally in
+  `186c7ee5` on `fix/pns-test-isolation`; independent review approved it. All 16 style tests passed with
+  both disabling variables inherited. Seven private terminal comparisons against the previous binary
+  produced identical output and exit status. Publication remains open.
 - [ ] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
   `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
   exclusion was measured ineffective and must not be proposed again without new evidence. The source
