@@ -29,6 +29,7 @@ pub(crate) fn executable_in_path(name: &str) -> Option<String> {
         .map(|path| path.to_string_lossy().into_owned())
 }
 
+#[cfg(test)]
 pub(crate) use pns_adapters::resolve_path;
 
 #[cfg(test)]
