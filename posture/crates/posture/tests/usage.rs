@@ -11,7 +11,6 @@ use std::time::{Duration, Instant};
 
 const WORDS: &[&[&str]] = &[
     &[],
-    &["poll"],
     &["funnel"],
     &["watchdog"],
     &["allowlist"],
@@ -117,7 +116,7 @@ fn a_closed_stderr_reader_preserves_the_refusal_exit_code() {
     let (reader, writer) = UnixStream::pair().expect("the fixture socket pair opens");
     drop(reader);
     let output = run_with_stderr(
-        &["poll"],
+        &["frobnicate"],
         Instant::now() + Duration::from_millis(500),
         Stdio::from(OwnedFd::from(writer)),
     );
