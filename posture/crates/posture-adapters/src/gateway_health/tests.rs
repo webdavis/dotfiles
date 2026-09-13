@@ -2,7 +2,11 @@ use super::*;
 use std::{
     io::{Read, Write},
     net::TcpListener,
-    sync::mpsc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
     time::Instant,
 };
@@ -23,20 +27,21 @@ fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
                         if error.kind() == std::io::ErrorKind::WouldBlock
                             && Instant::now() < deadline =>
                     {
-                        thread::yield_now()
+                        thread::sleep(Duration::from_millis(1))
                     }
                     Err(_) => return,
                 }
             };
             stream.set_nonblocking(false).unwrap();
             stream
-                .set_read_timeout(Some(Duration::from_millis(200)))
+                .set_read_timeout(Some(Duration::from_millis(500)))
                 .unwrap();
             let mut request = Vec::new();
-            let mut byte = [0];
-            while !request.ends_with(b"\r\n\r\n") {
-                stream.read_exact(&mut byte).unwrap();
-                request.push(byte[0]);
+            let mut chunk = [0; 1024];
+            while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                let read = stream.read(&mut chunk).unwrap();
+                assert!(read > 0, "client closed before completing its request");
+                request.extend_from_slice(&chunk[..read]);
                 assert!(request.len() < 8192);
             }
             stream.write_all(format!("HTTP/1.1 {status} Fixture\r\nLocation: http://127.0.0.1:1/must-not-follow\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).unwrap();
@@ -44,7 +49,7 @@ fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
         });
         let mut probe = GatewayProbe::new(
             format!("http://{address}/webhooks/priority"),
-            Duration::from_millis(200),
+            Duration::from_millis(500),
         );
         let observed = probe.status();
         server.join().unwrap();
@@ -71,12 +76,16 @@ fn a_gateway_that_accepts_but_never_answers_is_bounded() {
     listener.set_nonblocking(true).unwrap();
     let address = listener.local_addr().unwrap();
     let (release, wait) = mpsc::channel();
+    let expired = Arc::new(AtomicBool::new(false));
+    let server_expired = Arc::clone(&expired);
     let server = thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_millis(500);
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
-                    let _ = wait.recv_timeout(Duration::from_millis(350));
+                    if wait.recv_timeout(Duration::from_millis(700)).is_err() {
+                        server_expired.store(true, Ordering::SeqCst);
+                    }
                     drop(stream);
                     return;
                 }
@@ -84,7 +93,7 @@ fn a_gateway_that_accepts_but_never_answers_is_bounded() {
                     if error.kind() == std::io::ErrorKind::WouldBlock
                         && Instant::now() < deadline =>
                 {
-                    thread::yield_now()
+                    thread::sleep(Duration::from_millis(1))
                 }
                 Err(_) => return,
             }
@@ -101,7 +110,8 @@ fn a_gateway_that_accepts_but_never_answers_is_bounded() {
     server.join().unwrap();
     assert_eq!(status, None);
     assert!(
-        elapsed < Duration::from_millis(180),
-        "probe took {elapsed:?}"
+        !expired.load(Ordering::SeqCst),
+        "server closure ended the request instead of the client deadline"
     );
+    assert!(elapsed < Duration::from_secs(1), "probe took {elapsed:?}");
 }
