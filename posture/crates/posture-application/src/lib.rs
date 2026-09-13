@@ -35,7 +35,9 @@ pub use snapshots::{SnapshotReadFailure, SnapshotsLog};
 
 mod build_digest;
 mod heartbeat;
-pub use build_digest::{BuildDigest, ClaimedBatch, DigestOutcome, DigestRow, DigestSpool};
+pub use build_digest::{
+    BuildDigest, ClaimFailure, ClaimedBatch, DigestOutcome, DigestReport, DigestRow, DigestSpool,
+};
 pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,
