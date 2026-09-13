@@ -42,6 +42,13 @@ pub fn overrun(
 ) -> String {
     let expired = out_of_time(lane, budget, declared);
     let how = match ended {
+        Ended::CleanupEscaped => format!(
+            "lane `{lane}` exited, but its process group could not be confirmed stopped after KILL; children may still be running"
+        ),
+        Ended::Interrupted => format!("lane `{lane}` interrupted; its process group was stopped"),
+        Ended::InterruptedEscaped => format!(
+            "lane `{lane}` interrupted; something it left behind may still be running after TERM and KILL"
+        ),
         Ended::Escaped => format!(
             "{expired}; something it left behind outlived TERM and KILL and may still be running"
         ),
@@ -52,7 +59,18 @@ pub fn overrun(
 
 /// The line for a spawn that never returned. No pid exists in that case, so
 /// nothing could be signalled and only the caller giving up bounded it.
-pub fn spawn_stuck(lane: &str, budget: Duration, declared: Duration, program: &str) -> String {
+pub fn spawn_stuck(
+    lane: &str,
+    budget: Duration,
+    declared: Duration,
+    program: &str,
+    interrupted: bool,
+) -> String {
+    if interrupted {
+        return format!(
+            "lane `{lane}` interrupted, but spawn of {program} never returned; no pid was available to signal and a child may still be running"
+        );
+    }
     format!(
         "{}, and the spawn of {program} never returned, so there was no pid to signal",
         out_of_time(lane, budget, declared)
@@ -62,6 +80,14 @@ pub fn spawn_stuck(lane: &str, budget: Duration, declared: Duration, program: &s
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_interrupted_spawn_does_not_claim_its_deadline_expired() {
+        let message = spawn_stuck("skills", SIX, SIX, "producer", true);
+        assert!(message.contains("interrupted"), "{message}");
+        assert!(!message.contains("exceeded"), "{message}");
+        assert!(message.contains("may still"), "{message}");
+    }
 
     const SIX: Duration = Duration::from_secs(6);
 

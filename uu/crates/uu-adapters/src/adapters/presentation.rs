@@ -39,7 +39,7 @@ impl ConsoleRunPresentation {
 
     pub fn log_message(&self, message: &str) {
         if let Ok(mut log) = self.log.lock()
-            && let Err(error) = writeln!(log, "{message}")
+            && let Err(error) = writeln!(log, "{message}").and_then(|()| log.sync_data())
         {
             eprintln!("uu: could not write run log: {error}");
         }
@@ -133,12 +133,33 @@ fn print_notice(paint: Paint, tone: style::Tone, message: &str, stderr: bool) {
 }
 
 impl RunPresentation for ConsoleRunPresentation {
+    fn interrupted(&self, header: &RunHeader, reports: &[LaneReport]) {
+        for report in reports {
+            for line in &report.lines {
+                self.log_message(&format!("uu: interrupted lane {}: {line}", report.name));
+            }
+        }
+        let message = format!(
+            "uu: run interrupted (signal {}), started {} on {}; no success recorded",
+            crate::interruption().unwrap_or(0),
+            header.started_iso,
+            header.host
+        );
+        self.log_message(&message);
+        eprintln!("{message}");
+    }
+
     fn header(&self, epoch: i64, marker: &MarkerSnapshot) -> RunHeader {
-        RunHeader {
+        let header = RunHeader {
             started_iso: iso(epoch),
             gap: gap_line(&marker.value, &marker.location, epoch),
             host: host(),
-        }
+        };
+        self.log_message(&format!(
+            "uu: run started {} on {}",
+            header.started_iso, header.host
+        ));
+        header
     }
 
     fn write_record(&self, header: &RunHeader, reports: &[LaneReport]) -> String {

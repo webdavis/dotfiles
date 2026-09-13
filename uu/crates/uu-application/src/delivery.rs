@@ -31,6 +31,7 @@ pub(crate) fn deliver_record(
 ) -> bool {
     let host = record.host;
     match delivery.record(record) {
+        RecordOutcome::Interrupted => false,
         RecordOutcome::NotConfigured => {
             presentation.notice(Notice::NoRecords);
             true
