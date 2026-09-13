@@ -131,3 +131,28 @@ fn oversize_files_still_report_their_attribute_drift() {
     assert!(report.report.contains("mode "));
     assert!(audit.pns_problem().is_some());
 }
+
+#[test]
+fn unreadable_content_retains_observed_mode_and_owner_drift() {
+    let mut audit = subject();
+    let owner = fs::metadata(&audit.pns).unwrap().uid();
+    let row = fs::read_to_string(&audit.pipeline).unwrap();
+    fs::write(
+        &audit.pipeline,
+        row.replace(&format!("0755 {owner} "), &format!("0755 {} ", owner + 1)),
+    )
+    .unwrap();
+    fs::set_permissions(&audit.pns, fs::Permissions::from_mode(0o000)).unwrap();
+    assert!(fs::File::open(&audit.pns).is_err());
+    assert_eq!(fs::symlink_metadata(&audit.pns).unwrap().mode() & 0o7777, 0);
+    let report = audit.pipeline();
+    fs::set_permissions(&audit.pns, fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(report.completed);
+    for kind in ["unreadable ", "mode ", "owner "] {
+        assert!(
+            report.report.contains(kind),
+            "lost {kind}: {}",
+            report.report
+        );
+    }
+}

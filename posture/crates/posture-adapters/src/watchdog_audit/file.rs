@@ -50,18 +50,23 @@ pub(super) fn observe(
     start: Instant,
     hash: bool,
 ) -> Result<ObservedFile, AuditRefusal> {
-    match fs::symlink_metadata(path) {
+    let observed = match fs::symlink_metadata(path) {
         Ok(metadata) if !metadata.is_file() => return Ok(ObservedFile::Irregular),
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(ObservedFile::Missing),
         Err(_) => return Ok(ObservedFile::Unreadable),
-        _ => {}
-    }
+        Ok(metadata) => metadata,
+    };
     let Ok(mut file) = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(path)
     else {
-        return Ok(ObservedFile::Unreadable);
+        return Ok(ObservedFile::Regular {
+            size: observed.len(),
+            mode: format!("{:04o}", observed.mode() & 0o7777),
+            uid: observed.uid().to_string(),
+            digest: None,
+        });
     };
     let Ok(metadata) = file.metadata() else {
         return Ok(ObservedFile::Unreadable);
