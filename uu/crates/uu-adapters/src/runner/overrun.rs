@@ -42,6 +42,9 @@ pub fn overrun(
 ) -> String {
     let expired = out_of_time(lane, budget, declared);
     let how = match ended {
+        Ended::CleanupEscaped => format!(
+            "lane `{lane}` exited, but its process group could not be confirmed stopped after KILL; children may still be running"
+        ),
         Ended::Interrupted => format!("lane `{lane}` interrupted; its process group was stopped"),
         Ended::InterruptedEscaped => format!(
             "lane `{lane}` interrupted; something it left behind may still be running after TERM and KILL"

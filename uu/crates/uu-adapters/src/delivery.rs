@@ -33,6 +33,9 @@ impl Alerter for PnsAlerter {
                 match finished.ended {
                     Ended::Exited(status) if status.success() => Ok(()),
                     Ended::Exited(status) => Err(format!("`{binary}` answered {status}")),
+                    Ended::CleanupEscaped => Err(format!(
+                        "`{binary}` exited, but its process group could not be confirmed stopped after KILL; children may still be running"
+                    )),
                     Ended::Interrupted => {
                         Err(format!("`{binary}` interrupted; process group stopped"))
                     }

@@ -42,6 +42,7 @@ pub enum Ended {
     /// It may still be running and still writing, so the collected output is
     /// whatever had arrived by the time this gave up.
     Escaped,
+    CleanupEscaped,
     Interrupted,
     InterruptedEscaped,
 }
@@ -55,11 +56,16 @@ pub(super) fn wait_bounded(
     budget: Duration,
     grace: Duration,
 ) -> Ended {
-    if settle(child, output, errors, budget, true)
-        && crate::interruption().is_none()
-        && let Ok(Some(status)) = child.try_wait()
-    {
-        return Ended::Exited(status);
+    if settle(child, output, errors, budget, true) && crate::interruption().is_none() {
+        // A completed leader and closed pipes do not prove its descendants
+        // stopped. Kill them while the unreaped leader still reserves this
+        // group id, before another lane can start.
+        signal_group(child.id(), libc::SIGKILL);
+        let status = child.try_wait();
+        return match (status, group_gone(child.id(), grace)) {
+            (Ok(Some(status)), true) => Ended::Exited(status),
+            _ => Ended::CleanupEscaped,
+        };
     }
     let interrupted = crate::interruption().is_some();
     signal_group(child.id(), libc::SIGTERM);

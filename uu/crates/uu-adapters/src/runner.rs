@@ -180,6 +180,7 @@ impl CommandRunner for SystemRunner {
             // is the whole of what anyone has to diagnose a hang with.
             ref ended @ (Ended::Stopped
             | Ended::Escaped
+            | Ended::CleanupEscaped
             | Ended::Interrupted
             | Ended::InterruptedEscaped) => Verdict::Failed(self.overrun(ended, &finished.stderr)),
             Ended::Exited(status) if status.success() => Verdict::Clean,
