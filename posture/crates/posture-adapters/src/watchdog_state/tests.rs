@@ -26,7 +26,10 @@ fn legacy_state_migrates_without_losing_growth_or_confirmed_audit() {
         state.legacy_pending,
         QueueMemory {
             count: Some(7),
-            growth_streak: 1
+            growth_streak: 1,
+            // The legacy file predates the dead-letter baseline, so the first
+            // tick after the upgrade observes the standing count afresh.
+            deadletters: None
         }
     );
     assert_eq!(state.pns_pending, QueueMemory::default());
@@ -63,10 +66,12 @@ fn publication_is_private_and_round_trips_separate_growth_histories() {
         legacy_pending: QueueMemory {
             count: Some(9),
             growth_streak: 2,
+            deadletters: Some(4),
         },
         pns_pending: QueueMemory {
             count: Some(5),
             growth_streak: 1,
+            deadletters: Some(0),
         },
         ..WatchdogState::default()
     };
