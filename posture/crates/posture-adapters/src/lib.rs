@@ -99,3 +99,14 @@ pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
     resolve_osqueryctl,
 };
+
+mod watchdog_processes;
+pub use watchdog_processes::SystemWatchdogProcesses;
+mod watchdog_state;
+pub use watchdog_state::WatchdogStateFile;
+mod watchdog_queue;
+pub use watchdog_queue::QueueDatabase;
+mod gateway_health;
+pub use gateway_health::GatewayProbe;
+mod watchdog_audit;
+pub use watchdog_audit::WatchdogAudit;

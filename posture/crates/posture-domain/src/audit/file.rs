@@ -1,11 +1,7 @@
 use super::{AuditFile, AuditKind};
 use crate::{KnownGoodTuple, ManifestDigest};
 
-pub(super) fn kinds(
-    want: KnownGoodTuple<'_>,
-    file: AuditFile<'_>,
-    max_bytes: u64,
-) -> Vec<AuditKind> {
+pub fn kinds(want: KnownGoodTuple<'_>, file: AuditFile<'_>, max_bytes: u64) -> Vec<AuditKind> {
     let (size, mode, uid, digest) = match file {
         AuditFile::Missing => return vec![AuditKind::Missing],
         AuditFile::Symlink | AuditFile::Irregular => return vec![AuditKind::Irregular],
