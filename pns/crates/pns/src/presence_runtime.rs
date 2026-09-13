@@ -1,5 +1,50 @@
 use crate::*;
 
+pub(crate) fn phone_tap_status() -> pns_domain::doctor::Item {
+    use pns_adapters::{MarkerReading, phone_marker_path, read_phone_marker};
+    use pns_domain::doctor::{Item, Mark};
+    let home = std::env::var("HOME").unwrap_or_default();
+    let resolved =
+        match phone_marker_path(&home, std::env::var_os("PNS_PHONE_MARKER_FILE").as_deref()) {
+            Ok(resolved) => resolved,
+            Err(error) => {
+                return Item::row(
+                    Mark::Warn,
+                    format!("phone tap: unknown ({}); run `pns tap --info`", error.code),
+                );
+            }
+        };
+    let metadata = read_phone_marker(&resolved.path);
+    let overrides = overrides_from_env();
+    let window = (!overrides.desk_invalid).then_some(
+        overrides
+            .desk_idle_secs
+            .unwrap_or(pns_domain::DEFAULT_DESK_IDLE_SECS),
+    );
+    let age = now_secs()
+        .zip(metadata.mtime())
+        .map(|(now, time)| now.saturating_sub(time));
+    let (mark, state) = match (metadata, age, window) {
+        (MarkerReading::Missing, _, _) => (Mark::Detail, "never tapped".into()),
+        (MarkerReading::Present(_), Some(age), Some(window)) => {
+            let fresh = if pns_domain::surface::is_fresh(Some(age), window) {
+                "fresh"
+            } else {
+                "stale"
+            };
+            (Mark::Detail, format!("{fresh}, {age} seconds ago"))
+        }
+        _ => (Mark::Warn, "unknown timestamp or freshness".into()),
+    };
+    Item::row(
+        mark,
+        format!(
+            "phone tap: {state} ({}, {:?}); run `pns tap --info`",
+            resolved.source, resolved.path
+        ),
+    )
+}
+
 /// The lamp-narrowing ring: one line per narrowing decision, `KEPT` deep,
 /// beside `decisions`. Its own file rather than a field on the decision ring,
 /// because the tick writes it too and the tick decides no event at all.
@@ -7,24 +52,23 @@ use crate::*;
 /// consumer: see `SystemProbes`.
 pub(crate) fn system_probes() -> SystemProbes<SystemCommandRunner> {
     let home = std::env::var("HOME").unwrap_or_default();
-    SystemProbes::new(
-        SystemCommandRunner,
-        resolve_path(
-            std::env::var("PNS_PHONE_MARKER_FILE").ok().as_deref(),
-            &format!("{home}/.local/state/pns/phone-attention.marker"),
+    let marker = pns_adapters::phone_marker_path(
+        &home,
+        std::env::var_os("PNS_PHONE_MARKER_FILE").as_deref(),
+    )
+    .ok()
+    .map(|resolved| resolved.path);
+    SystemProbes::new(SystemCommandRunner, String::new())
+        .with_phone_marker(marker)
+        // OFF `state_dir`, which is where the daemon publishes it and which
+        // `PNS_STATE_DIR` already redirects, so the reading follows a sandboxed
+        // run without a second environment knob of its own.
+        .with_presence_path(
+            state_dir()
+                .join(pns_adapters::PRESENCE_STATE_FILE)
+                .to_string_lossy()
+                .into_owned(),
         )
-        .to_string_lossy()
-        .into_owned(),
-    )
-    // OFF `state_dir`, which is where the daemon publishes it and which
-    // `PNS_STATE_DIR` already redirects, so the reading follows a sandboxed
-    // run without a second environment knob of its own.
-    .with_presence_path(
-        state_dir()
-            .join(pns_adapters::PRESENCE_STATE_FILE)
-            .to_string_lossy()
-            .into_owned(),
-    )
 }
 /// What the room sensor reads right now, off ONE probe set: the line and the
 /// clock it is aged against come from the same set, so the two cannot

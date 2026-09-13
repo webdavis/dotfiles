@@ -160,6 +160,7 @@ pub(crate) fn doctor_mode() -> i32 {
                 legs.iter()
                     .map(|leg| {
                         let request = pns_application::DeliveryRequest {
+                            producer_request: None,
                             producer: &identity.producer,
                             request_id: Some(&identity.request_id),
                             event: &rendered,
@@ -193,6 +194,7 @@ pub(crate) fn doctor_mode() -> i32 {
                 )
             },
             pairing: pns_adapters::read_pairing,
+            tap: presence_runtime::phone_tap_status,
             focus: || {
                 pns_application::doctor_focus(!focus_silence.is_empty(), || {
                     pns_adapters::focus_now(&home, &focus_silence).map_err(|error| error.kind())

@@ -25,6 +25,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 mod model;
+mod phone;
 pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};

@@ -98,7 +98,8 @@ pub(super) const LIGHTS_UNREAD: Table = Table {
 };
 pub(super) const LIGHTS_LOOP: Table = Table {
     name: "lights.loop",
-    prose: "",
+    prose: "# A live pane lease keeps condenser `asking` guesses from arming blocked;\n\
+            # real hook waits still take priority.\n",
     opt_in: true,
     keys: &[
         Key {

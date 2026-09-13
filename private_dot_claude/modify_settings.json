@@ -638,6 +638,9 @@
 {{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.plannotator-review" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-tui" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}

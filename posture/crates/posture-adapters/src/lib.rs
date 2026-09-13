@@ -110,3 +110,6 @@ mod gateway_health;
 pub use gateway_health::GatewayProbe;
 mod watchdog_audit;
 pub use watchdog_audit::WatchdogAudit;
+
+mod integrity_triage;
+pub use integrity_triage::file_integrity_triage;

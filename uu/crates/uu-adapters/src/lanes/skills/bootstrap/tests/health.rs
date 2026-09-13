@@ -88,3 +88,27 @@ fn a_core_skill_with_an_owned_on_demand_overlay_is_rebuilt_without_installing() 
     assert!(effects.installs.borrow().is_empty());
     assert!(!path.exists());
 }
+
+#[test]
+fn duplicate_policy_drift_rebuilds_without_installing_or_changing_upstream_hashes() {
+    let f = Fixture::new();
+    f.current(false);
+    let before = generation(&f);
+    let lock = f.store.current().join(".skill-lock.json");
+    let hashes = std::fs::read(&lock).unwrap();
+    let path = f.store.current().join("skills/alpha/agents/openai.yaml");
+    std::fs::write(
+        &path,
+        "policy:\n  allow_implicit_invocation: true\npolicy:\n  allow_implicit_invocation: false\n",
+    )
+    .unwrap();
+    let effects = Effects::new(&f);
+    let report = run(&f, &effects);
+    assert_eq!(report.failures(), 0, "{:?}", report.lines);
+    assert_ne!(generation(&f), before);
+    assert!(effects.installs.borrow().is_empty());
+    assert_eq!(std::fs::read(lock).unwrap(), hashes);
+    let actual: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert_eq!(actual["policy"]["allow_implicit_invocation"], false);
+}

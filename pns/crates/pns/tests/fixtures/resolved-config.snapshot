@@ -1,4 +1,5 @@
 Config {
+    phone_marker_file: None,
     plugins: {
         "hermes": PluginEntry {
             enabled: true,

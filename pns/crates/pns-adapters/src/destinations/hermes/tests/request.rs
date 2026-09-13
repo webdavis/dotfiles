@@ -3,6 +3,7 @@ use pns_application::DeliveryRequest;
 
 fn request(event: &Event) -> DeliveryRequest<'_> {
     DeliveryRequest {
+        producer_request: None,
         producer: "upgrades",
         request_id: Some("original-42"),
         event,
