@@ -13,10 +13,10 @@ config aside, the file modes, and every refusal along the way). What the answers
 of the rendered file, which tables are commented out and which keys the roster serves, belongs to the
 sibling specification `docs/specs/configuration.md`; this one states only that `setup` calls
 `pns::setup::compose_config`, that composition is pure, and that the composed text is put through the
-engine's own parser before anything is written. Everything below is derived from the crate at
-`pns` and its tests only. Where the code does not settle a question the line begins
-`NOT ESTABLISHED:` and names what was looked for and where. Secrets are the centre of this document:
-every behavior carries a Privacy line, and behavior 27 is the exhaustive account.
+engine's own parser before anything is written. Everything below is derived from the crate at `pns` and
+its tests only. Where the code does not settle a question the line begins `NOT ESTABLISHED:` and names
+what was looked for and where. Secrets are the centre of this document: every behavior carries a Privacy
+line, and behavior 27 is the exhaustive account.
 
 ## Warning before the questions
 
@@ -120,7 +120,8 @@ Given `pns setup` with zero or more further words
 
 When `setup_mode` reads them
 
-Then an empty list means `force = false`, the single word `--force` means `force = true`, and ANY other shape prints the usage line and exits 2
+Then an empty list means `force = false`, the single word `--force` means `force = true`, and ANY other
+shape prints the usage line and exits 2
 
 - Success: `src/main.rs:setup_mode` matches on the slice of `std::env::args_os().skip(2)`, mapped
   lossily. `[]` and `[word] if word == "--force"` are the only two accepted shapes.
@@ -181,11 +182,14 @@ Then it prints `pns setup: HOME is unset or empty; nothing was written` and exit
 
 ### 4. A config already at the name refuses without --force, and the refusal names the flag
 
-Given `$HOME/.config/pns/config.toml` exists as a non-directory name (a regular file or a symlink, dangling or not)
+Given `$HOME/.config/pns/config.toml` exists as a non-directory name (a regular file or a symlink,
+dangling or not)
 
 When `pns setup` is run without `--force`
 
-Then it prints `pns setup: <path> already exists; pass --force to replace it, which keeps the old file beside it` and exits 2, leaving the file untouched
+Then it prints
+`pns setup: <path> already exists; pass --force to replace it, which keeps the old file beside it` and
+exits 2, leaving the file untouched
 
 - Success: `src/main.rs:setup_mode` calls `path.symlink_metadata()` and takes the `Ok(_) if !force` arm.
   Pinned by
@@ -216,11 +220,14 @@ Then it prints `pns setup: <path> already exists; pass --force to replace it, wh
 
 ### 5. A path that does not resolve is refused regardless of --force
 
-Given a name standing anywhere at or above `$HOME/.config/pns/config.toml` that resolves to nothing (for example `~/.config/pns` is a symlink to a directory that was moved or never created)
+Given a name standing anywhere at or above `$HOME/.config/pns/config.toml` that resolves to nothing (for
+example `~/.config/pns` is a symlink to a directory that was moved or never created)
 
 When `pns setup` is run, with or without `--force`
 
-Then it prints `pns setup: <path> could not be checked: <ancestor> does not resolve (<cause>); nothing was written` and exits 2
+Then it prints
+`pns setup: <path> could not be checked: <ancestor> does not resolve (<cause>); nothing was written` and
+exits 2
 
 - Success: the leaf's own `symlink_metadata` fails with `NotFound`, exactly as a genuinely missing config
   does, so `src/main.rs:setup_mode` consults `src/main.rs:unresolvable_ancestor`. That function climbs
@@ -285,7 +292,9 @@ Given stdin is a pipe, a file, or `/dev/null`
 
 When `pns setup` gets past the argument, `HOME` and config checks
 
-Then it prints `pns setup: this is a walk through questions and stdin is not a terminal; nothing was written` and exits 2
+Then it prints
+`pns setup: this is a walk through questions and stdin is not a terminal; nothing was written` and exits
+2
 
 - Success: `src/main.rs:setup_mode` calls `std::io::stdin().is_terminal()`. Pinned by
   `tests/dispatch.rs:the_first_run_walk_refuses_a_terminal_nobody_is_at_and_writes_nothing`, which
@@ -311,7 +320,8 @@ Given a terminal and no config
 
 When `walk` runs
 
-Then it prints `SETUP_PREAMBLE` and then asks the questions of the table above, in that order, each feature's credentials immediately after the question that armed it
+Then it prints `SETUP_PREAMBLE` and then asks the questions of the table above, in that order, each
+feature's credentials immediately after the question that armed it
 
 - Success: `src/main.rs:walk` prints the preamble first:
 
@@ -457,7 +467,8 @@ Given the backend question
 
 When `router_backend` judges the answer
 
-Then an empty answer and any case spelling of `unifi` both name `pns::home::UNIFI_TYPE`, and every other answer is `None`
+Then an empty answer and any case spelling of `unifi` both name `pns::home::UNIFI_TYPE`, and every other
+answer is `None`
 
 - Success: `src/main.rs:router_backend` is
   `(answer.is_empty() || answer.eq_ignore_ascii_case(pns::home::UNIFI_TYPE)).then_some(pns::home::UNIFI_TYPE)`,
@@ -497,7 +508,8 @@ Given a credential prompt answered with Enter
 
 When `nothing_given` sees the empty answer
 
-Then it prints ` nothing given, so <feature> stays off; the file says how to arm it` and the remaining credentials for that feature are not asked
+Then it prints ` nothing given, so <feature> stays off; the file says how to arm it` and the remaining
+credentials for that feature are not asked
 
 - Success: `src/main.rs:armed` and `src/main.rs:armed_secret` both wrap their read in
   `src/main.rs:nothing_given`. The gating is explicit in `walk`: `if !answers.hue_bridge.is_empty()`
@@ -580,7 +592,8 @@ Given a hidden read in progress
 
 When a signal arrives
 
-Then it is BLOCKED for the read, and delivered only once `Hushed::drop` has restored the terminal and then the mask
+Then it is BLOCKED for the read, and delivered only once `Hushed::drop` has restored the terminal and
+then the mask
 
 - Success: `src/main.rs:Hushed::arm` blocks `SIGINT`, `SIGQUIT`, `SIGTSTP`, `SIGTERM`, `SIGHUP`,
   `SIGTTIN`, `SIGTTOU`, `SIGALRM` and `SIGPIPE` with `pthread_sigmask(SIG_BLOCK, ...)`, which is the set
@@ -664,7 +677,8 @@ Given `pns setup &`, so the walk's process group does not own the terminal
 
 When a hidden read fails with `EIO`
 
-Then the refusal is `this walk cannot read the terminal from the background; bring it to the foreground with fg`
+Then the refusal is
+`this walk cannot read the terminal from the background; bring it to the foreground with fg`
 
 - Success: `src/main.rs:read_answer` passes the error and `src/main.rs:reading_from_the_background()` to
   `src/main.rs:read_failure`, which requires BOTH halves: the terminal is owned by another process group
@@ -697,7 +711,8 @@ Given a byte that is not valid UTF-8 pasted at a prompt, or the input closing
 
 When `read_answer` handles it
 
-Then a failed read reports `the answers could not be read: <the io::Error>` and a closed input reports `the answers ended before the walk did`, and the two are never confused
+Then a failed read reports `the answers could not be read: <the io::Error>` and a closed input reports
+`the answers ended before the walk did`, and the two are never confused
 
 - Success: `src/main.rs:read_answer` distinguishes `Ok(0)` (input ended) from `Err(error)` (the read
   failed) from `Ok(_)` (an answer). Pinned end to end by
@@ -810,7 +825,9 @@ Given no config at the name
 
 When `publish_config` runs with `force = false`
 
-Then it creates the directory, creates a pending file with `create_new`, forces its mode to `0o600`, writes the whole composed text, hard-links it to the config path, removes the pending name, and answers `Ok(None)`
+Then it creates the directory, creates a pending file with `create_new`, forces its mode to `0o600`,
+writes the whole composed text, hard-links it to the config path, removes the pending name, and answers
+`Ok(None)`
 
 - Success: `src/main.rs:publish_config` and `src/main.rs:write_then_publish`. Pinned by
   `src/main.rs:a_first_config_is_published_for_its_operator_alone_and_leaves_no_pending_file`, which
@@ -858,7 +875,8 @@ Given a config that did not exist when the walk started but does when it ends
 
 When the publish links the pending file to the config path
 
-Then the link fails with `AlreadyExists` and the run refuses with `<path> appeared while the questions were being answered; nothing was written over it`
+Then the link fails with `AlreadyExists` and the run refuses with
+`<path> appeared while the questions were being answered; nothing was written over it`
 
 - Success: `src/main.rs:write_then_publish` matches `ErrorKind::AlreadyExists` explicitly. Pinned by
   `src/main.rs:a_config_that_appeared_during_the_walk_is_refused_rather_than_written_over`, which asserts
@@ -928,7 +946,8 @@ Given `--force` and an existing config
 
 When the publish runs
 
-Then `keep_aside` claims a stamped backup name, renames the existing config onto it, and only then does the hard link publish the new file
+Then `keep_aside` claims a stamped backup name, renames the existing config onto it, and only then does
+the hard link publish the new file
 
 - Success: `src/main.rs:write_then_publish` calls `keep_aside(path)?` before `hard_link`. Pinned by
   `src/main.rs:a_forced_replacement_keeps_the_old_config_before_it_writes_the_new_one`, and the test
@@ -938,10 +957,10 @@ Then `keep_aside` claims a stamped backup name, renames the existing config onto
 - Failure sources: the clock cannot be read (behavior 25), the name cannot be claimed (behavior 26), or
   the rename fails.
 - Fail direction: a failure before the old config is moved leaves it at its name. After the move, a
-  backup-security failure or failed publication attempts to restore the old config with an exclusive
-  hard link. A later arrival at the config name stays untouched. The backup remains in all outcomes.
-  The refusal says whether the previous config was restored, the current config was left untouched,
-  or restoration failed, and names the backup. Nothing retries the publication.
+  backup-security failure or failed publication attempts to restore the old config with an exclusive hard
+  link. A later arrival at the config name stays untouched. The backup remains in all outcomes. The
+  refusal says whether the previous config was restored, the current config was left untouched, or
+  restoration failed, and names the backup. Nothing retries the publication.
   `a_failed_forced_publication_restores_the_previous_config`,
   `a_backup_security_failure_restores_the_old_config_and_reports_the_failure`,
   `restoration_preserves_a_later_config_and_the_old_backup`, and
@@ -1011,7 +1030,8 @@ Given `--force` twice within the same wall-clock second, or a backup name alread
 
 When `keep_aside_at` claims the name
 
-Then `create_new` fails with `AlreadyExists` and the run refuses with `<backup> is already claimed by another run this same second; nothing was written`
+Then `create_new` fails with `AlreadyExists` and the run refuses with
+`<backup> is already claimed by another run this same second; nothing was written`
 
 - Success: `src/main.rs:keep_aside_at` opens the backup name with `create_new(true).write(true)` and
   `.mode(CONFIG_FILE_MODE)` BEFORE the rename. Pinned by
@@ -1125,7 +1145,8 @@ Given a machine that already has a config
 
 When `pns setup` is run again
 
-Then the second run refuses at behavior 4 unless `--force` is passed, and with `--force` it walks again and replaces the file, keeping the old one beside it
+Then the second run refuses at behavior 4 unless `--force` is passed, and with `--force` it walks again
+and replaces the file, keeping the old one beside it
 
 - Success: `src/main.rs:setup_mode`'s `Ok(_) if !force` arm refuses; the `Ok(_)` arm falls through to the
   walk. Pinned by
@@ -1158,7 +1179,8 @@ Given a successful publish
 
 When `setup_mode` returns
 
-Then stdout carries `pns setup: kept the old config at <backup>` (only when something was kept) followed by `pns setup: wrote <path>`, and the exit code is 0
+Then stdout carries `pns setup: kept the old config at <backup>` (only when something was kept) followed
+by `pns setup: wrote <path>`, and the exit code is 0
 
 - Success: `src/main.rs:setup_mode`'s `Ok(backup)` arm. Both lines are printed AFTER `publish_config`
   answered, so neither can claim work that did not happen.
@@ -1217,6 +1239,43 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
   The lamp-map starter is always present and wholly commented out, whether or not hue is armed
   (`src/setup.rs:the_lamp_map_starter_is_always_offered_and_is_wholly_commented_out`). See
   `docs/specs/configuration.md`.
+
+## Phone tap setup and manual undo
+
+The tap command creates the parent directory and updates the same marker object its presence probe reads,
+without truncating contents or following a final symlink. It refuses directories and special files.
+Repeated and concurrent taps require no daemon, journal or lock. Missing configuration uses
+`$HOME/.local/state/pns/phone-attention.marker`; nonempty `PNS_PHONE_MARKER_FILE` wins over
+`[phone] marker_file`. The config value accepts an absolute path or `~/` and rejects empty, relative and
+control-containing paths. Environment paths retain their existing literal path interpretation. Unusable
+configuration never silently redirects a write to the default. An explicit environment path can be used
+without reading configuration. These filesystem operations have no timeout on a hung filesystem; no
+background worker or new retry mechanism is introduced.
+
+`pns tap --install` is a guide only. It never reads or writes `authorized_keys`, publishes config,
+installs a daemon or sends a notification. It prints the running binary's absolute path in a forced
+`pns tap` command, with `restrict` and a public-key placeholder. It explains replacing an existing
+dedicated entry rather than adding a duplicate, Remote Login, machine-specific Host and User,
+operator-selected Port and key, and the phone's ignored Script field. Host detection establishes a local
+name, not network reachability. The guide's three numbered steps are This Mac, Your phone and Trigger
+methods. The current public Shortcut URL and actual iOS trigger-path evidence are unavailable.
+
+The forced command ignores the script supplied by the phone. The initial phone consumer can display plain
+stdout; selecting JSON requires the operator to use `pns tap --json` in the forced command. The phone
+must show errors instead of unconditional success. Actual Shortcut changes, sleep/wake, unavailable-host
+behavior, controlled write failure and real-device acceptance remain pending.
+
+Manual undo is scoped to the integration: detach its phone triggers and manually remove only its
+dedicated authorization entry. To restore a prior command for that same still-trusted key, review the old
+command and make its marker path agree with the current reader. Never restore a whole trust file. Revert
+a custom path in the configuration source that owns it and restore any environment override in its
+originating context. Leave Remote Login enabled if other workflows use it. Leave marker files in place:
+typing on the unlocked Mac supplies a newer desk signal, while deleting a marker can move Mobile to Away
+and cause more phone cards. There is no tap clear, delete, config-write or duration flag.
+
+`--info` reports provenance and metadata and points to the installation guide and Remote Login
+troubleshooting. Doctor adds a freshness row under Pairing without changing its exit-code contract. An
+old or absent marker does not prove a broken phone chain; a fresh marker can also be written locally.
 
 ## Vocabulary
 
