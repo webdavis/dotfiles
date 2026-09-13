@@ -26,7 +26,7 @@
 #     FAILED step there rather than a quiet skip.
 #
 # THE DESIRED STATE is a set of ordinary chezmoi targets under
-# osquery-converge/desired/, so every repair channel reads one rendered source
+# ~/.local/libexec/posture/converge/desired/, so every repair channel reads one rendered source
 # of truth and this file holds no heredocs. KNOWN LIMIT: `chezmoi apply
 # --exclude=templates` does not refresh the two templated ones
 # (desired/osquery.conf and desired/packs/agent-attack-surface.conf), so config
@@ -150,7 +150,7 @@ fi
 # The failure is silent because each individual value is legal.
 #
 # Only these two are required. OSQUERY_CONVERGE_DESIRED_DIR defaults to the staging
-# beside this script and OSQUERY_CONVERGE_OSQUERYCTL to a PATH lookup that
+# under the posture directory and OSQUERY_CONVERGE_OSQUERYCTL to a PATH lookup that
 # privileged_command_is_trustworthy then judges; neither defaults to something that
 # writes. These two do, so under the seam they are declared or the run is refused.
 if [[ ${OSQUERY_CONVERGE_TEST_SEAM:-} == 1 ]]; then
@@ -161,9 +161,8 @@ if [[ ${OSQUERY_CONVERGE_TEST_SEAM:-} == 1 ]]; then
   done
 fi
 
-# The desired state, beside this script in both the source tree and the deployed
-# one, so a sandbox copy resolves the same way the deployment does.
-OSQUERY_CONVERGE_DESIRED_DIR="${OSQUERY_CONVERGE_DESIRED_DIR:-$(dirname "${BASH_SOURCE[0]}")/osquery-converge/desired}"
+# Both the retained script and posture converge read the same deployed desired state.
+OSQUERY_CONVERGE_DESIRED_DIR="${OSQUERY_CONVERGE_DESIRED_DIR:-$HOME/.local/libexec/posture/converge/desired}"
 OSQUERY_CONVERGE_TARGET_DIR="${OSQUERY_CONVERGE_TARGET_DIR:-/var/osquery}"
 # osqueryd's filesystem logger writes here (osquery.conf's logger_path), so the
 # directory has to exist before the daemon loads that config.

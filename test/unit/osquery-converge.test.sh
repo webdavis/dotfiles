@@ -217,7 +217,7 @@ set_up() {
   # keeps that refusal a real assertion instead of something every test trips on.
   TEST_FIXTURE="$(mktemp -d)"
   ROOT="$(cd -P "$TEST_FIXTURE" && pwd -P)"
-  DESIRED="$ROOT/desired"
+  DESIRED="$ROOT/home/.local/libexec/posture/converge/desired"
   TARGET="$ROOT/var-osquery"
   LOG_DIR="$ROOT/log/osquery"
   SUDO_LOG="$ROOT/sudo.log"
@@ -230,6 +230,8 @@ set_up() {
   CMP_LOG="$ROOT/cmp.log"
 
   cp -R "$PROTOTYPE/." "$ROOT/"
+  mkdir -p "$(dirname "$DESIRED")"
+  mv "$ROOT/desired" "$DESIRED"
   : >"$SUDO_LOG"
   : >"$OSQUERYCTL_LOG"
   : >"$OSQUERYD_LOG"
@@ -267,7 +269,7 @@ discard_fixture() {
 # own production comparison against root is what runs here, and a test that wants
 # the untrusted case moves FAKE_STAT_UID instead.
 converge() {
-  PATH="$BIN:$PATH" \
+  HOME="$ROOT/home" PATH="$BIN:$PATH" \
     OSQUERY_CONVERGE_TEST_SEAM=1 \
     OSQUERY_CONVERGE_DESIRED_DIR="$DESIRED" \
     OSQUERY_CONVERGE_TARGET_DIR="$TARGET" \
@@ -313,6 +315,50 @@ assert_install_line() {
 }
 
 # --- the three-state converge ----------------------------------------------
+
+converge_default() {
+  local deployed="$ROOT/home/.local/libexec/osquery/osquery-converge.sh"
+  mkdir -p "$(dirname "$deployed")/osquery-converge"
+  cp "$TOOL" "$deployed"
+  cp "$(dirname "$TOOL")/osquery-converge/drift-verdict.sh" \
+    "$(dirname "$deployed")/osquery-converge/drift-verdict.sh"
+  TOOL="$deployed" DESIRED="" converge
+}
+
+function test_the_default_desired_tree_converges_silently_using_a_private_copy() {
+  local output
+  output="$(converge_default 2>&1)"
+  assert_successful_code
+  assert_empty "$output"
+  assert_same 0 "$(privileged_call_count)"
+  assert_is_file_empty "$OSQUERYCTL_LOG"
+  assert_is_file_not_empty "$CMP_LOG"
+  assert_file_not_contains "$CMP_LOG" "$DESIRED/"
+  assert_matches '/osquery-converge\.' "$(cat "$CMP_LOG")"
+}
+
+function test_a_missing_default_desired_tree_does_not_read_legacy_files() {
+  local legacy="$ROOT/home/.local/libexec/osquery/osquery-converge/desired" output
+  mkdir -p "$(dirname "$legacy")"
+  mv "$DESIRED" "$legacy"
+  output="$(converge_default 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "the desired state is not deployed at $DESIRED" "$output"
+  assert_same 0 "$(privileged_call_count)"
+  assert_is_file_empty "$OSQUERYCTL_LOG"
+  assert_file_exists "$legacy/osquery.conf"
+}
+
+function test_a_symlink_at_the_default_converge_component_is_refused_before_installing() {
+  local component="${DESIRED%/desired}" output
+  mv "$component" "$ROOT/substitute"
+  ln -s "$ROOT/substitute" "$component"
+  output="$(converge_default 2>&1)"
+  assert_unsuccessful_code
+  assert_contains "$component is a symlink" "$output"
+  assert_same 0 "$(privileged_call_count)"
+  assert_is_file_empty "$OSQUERYCTL_LOG"
+}
 
 function test_a_converged_tree_is_a_silent_no_op_nothing_printed_nothing_privileged_no_restart() {
   local output

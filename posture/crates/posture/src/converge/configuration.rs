@@ -58,7 +58,7 @@ impl Configuration {
         Ok(Self {
             desired: desired
                 .map(PathBuf::from)
-                .unwrap_or_else(|| home.join(".local/libexec/osquery/osquery-converge/desired")),
+                .unwrap_or_else(|| home.join(".local/libexec/posture/converge/desired")),
             target: target
                 .map(PathBuf::from)
                 .unwrap_or_else(|| "/var/osquery".into()),
