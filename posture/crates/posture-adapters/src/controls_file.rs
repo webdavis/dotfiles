@@ -6,21 +6,25 @@ use std::io::Read;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
-pub fn read_controls(path: &Path) -> Result<Vec<Control>, ControlsRefusal> {
+pub fn read_controls(
+    path: &Path,
+    on_open_error: impl FnMut(&std::io::Error),
+) -> Result<Vec<Control>, ControlsRefusal> {
     if !path.is_file() {
         return validate_controls(ControlsInput::Missing(&path.to_string_lossy()));
     }
-    let loaded = read_file(path).and_then(|bytes| projected_controls(&bytes));
+    let loaded = read_file(path, on_open_error).and_then(|bytes| projected_controls(&bytes));
     loaded.unwrap_or_else(|| validate_controls(ControlsInput::Malformed))
 }
 
-fn read_file(path: &Path) -> Option<Vec<u8>> {
+fn read_file(path: &Path, mut on_open_error: impl FnMut(&std::io::Error)) -> Option<Vec<u8>> {
     // Bash follows a regular-file symlink. Nonblocking open also prevents a
     // replacement FIFO between the path check and open from parking the reader.
     let mut file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
         .open(path)
+        .inspect_err(|error| on_open_error(error))
         .ok()?;
     if !file.metadata().ok()?.is_file() {
         return None;

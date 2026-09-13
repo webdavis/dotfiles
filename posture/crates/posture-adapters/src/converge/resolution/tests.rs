@@ -141,3 +141,66 @@ fn native_resolution_reads_parent_ownership_and_never_launches_the_candidate() {
     );
     assert_eq!(std::fs::read(command).unwrap(), b"must never execute");
 }
+
+fn candidate(root: &Scratch, mode: u32) -> PathBuf {
+    let path = root.0.join("osqueryctl");
+    std::fs::write(&path, b"must never execute").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+    path
+}
+
+fn ownership_refusal(command: PathBuf) -> Result<Option<PathBuf>, CommandRefusal> {
+    let uid = std::os::unix::fs::MetadataExt::uid(&std::fs::metadata(&command).unwrap());
+    assert_ne!(uid, 0, "this unprivileged fixture must not run as root");
+    Err(CommandRefusal {
+        command,
+        reason: CommandTrustRefusal::Owner(uid),
+    })
+}
+
+#[test]
+fn native_explicit_nonexecutable_command_does_not_fall_back() {
+    let shadow = Scratch::new();
+    let usable = Scratch::new();
+    let requested = candidate(&shadow, 0o601);
+    candidate(&usable, 0o700);
+    assert_eq!(
+        resolve_osqueryctl(Some(&requested), usable.0.as_os_str()),
+        Ok(None)
+    );
+}
+
+#[test]
+fn native_search_skips_nonexecutable_files_before_checking_parent_trust() {
+    let shadow = Scratch::new();
+    let usable = Scratch::new();
+    candidate(&shadow, 0o601);
+    let command = candidate(&usable, 0o700);
+    let path = std::env::join_paths([&shadow.0, &usable.0]).unwrap();
+    assert_eq!(resolve_osqueryctl(None, &path), ownership_refusal(command));
+}
+
+#[test]
+fn native_search_skips_directories_the_user_cannot_search() {
+    let shadow = Scratch::new();
+    let usable = Scratch::new();
+    candidate(&shadow, 0o700);
+    let command = candidate(&usable, 0o700);
+    let path = std::env::join_paths([&shadow.0, &usable.0]).unwrap();
+    std::fs::set_permissions(&shadow.0, std::fs::Permissions::from_mode(0o601)).unwrap();
+    let result = resolve_osqueryctl(None, &path);
+    std::fs::set_permissions(&shadow.0, std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(result, ownership_refusal(command));
+}
+
+#[test]
+fn native_resolution_never_selects_a_directory_as_a_command() {
+    let root = Scratch::new();
+    let directory = root.0.join("osqueryctl");
+    std::fs::create_dir(&directory).unwrap();
+    assert_eq!(
+        resolve_osqueryctl(Some(&directory), OsStr::new("")),
+        Ok(None)
+    );
+    assert_eq!(resolve_osqueryctl(None, root.0.as_os_str()), Ok(None));
+}
