@@ -152,3 +152,24 @@ fn an_unreadable_skills_fingerprint_is_reported_without_stopping_the_weekly_run(
     );
     assert!(effects.calls.borrow().contains(&"routing --check".into()));
 }
+
+#[test]
+fn live_duplicate_policy_is_reported_without_writing_the_published_generation() {
+    let f = Fixture::new();
+    f.current(false);
+    let path = f.store.current().join("skills/alpha/agents/openai.yaml");
+    let corrupt =
+        "policy:\n  allow_implicit_invocation: true\npolicy:\n  allow_implicit_invocation: false\n";
+    std::fs::write(&path, corrupt).unwrap();
+    let session = crate::lanes::skills::session::Session::open(&f.config, &f.root).unwrap();
+    let mut report = uu_domain::LaneReport::new("skills");
+    session.verify_overlays(&mut report);
+    assert!(
+        report
+            .lines
+            .iter()
+            .any(|s| s.contains("live overlay alpha"))
+    );
+    assert_eq!(report.failures(), 1);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), corrupt);
+}

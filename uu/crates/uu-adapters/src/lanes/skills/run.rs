@@ -147,8 +147,8 @@ impl Session<'_> {
                     .join("skills")
                     .join(name)
                     .join("agents/openai.yaml");
-                super::overlay::read(&path).and_then(|content| {
-                    if content.contains(super::overlay::POLICY) {
+                super::overlay::matches(&path, true).and_then(|current| {
+                    if current {
                         Ok(())
                     } else {
                         Err("live overlay is missing; next candidate must repair it".into())
