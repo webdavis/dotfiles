@@ -12,8 +12,9 @@
 //! set BEFORE any file exists, so even the window before a file's own mode is
 //! applied sits under an unreadable parent.
 
-use posture_application::{ClaimedBatch, DigestRow, DigestSpool};
+use posture_application::{ClaimFailure, ClaimedBatch, DigestRow, DigestSpool};
 use std::fs;
+use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -59,8 +60,11 @@ impl DigestSpoolFile {
     /// appending costs nothing and cannot clobber.
     fn fold(from: &Path, onto: &Path) {
         let Ok(bytes) = fs::read(from) else { return };
-        let existing = fs::read(onto).unwrap_or_default();
-        let mut merged = existing;
+        let mut merged = match fs::read(onto) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(_) => return,
+        };
         if !merged.is_empty() && !merged.ends_with(b"\n") {
             merged.push(b'\n');
         }
@@ -75,6 +79,38 @@ impl DigestSpoolFile {
 /// 0600, which is what a file holding full filesystem paths gets.
 fn owner_only(path: &Path) -> std::io::Result<()> {
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+}
+
+/// A claim the filesystem refused, named for whoever reads the log.
+fn unclaimable(path: &Path, error: &std::io::Error) -> ClaimFailure {
+    ClaimFailure(format!("{}: {error}", path.display()))
+}
+
+/// The text a batch can still be read from, and how many lines arrived in all.
+///
+/// A TORN LINE IS EXPECTED, NOT EXCEPTIONAL. The alerter appends from another
+/// process, so an interrupted write leaves bytes that are not a record and may
+/// not even be UTF-8. Such a line is DROPPED here rather than failing the read,
+/// because a failed read puts the whole batch back to fail again on every later
+/// run while the spool grows behind it. It still counts toward what arrived,
+/// which is what makes the drop visible instead of silent.
+fn readable_lines(bytes: &[u8]) -> (usize, String) {
+    let mut arrived = 0;
+    let mut readable = String::new();
+    for line in bytes.split(|byte| *byte == b'\n') {
+        match std::str::from_utf8(line) {
+            // WHITESPACE IS NOT A FINDING, so a blank line is neither counted
+            // nor carried.
+            Ok(text) if text.trim().is_empty() => {}
+            Ok(text) => {
+                arrived += 1;
+                readable.push_str(text);
+                readable.push('\n');
+            }
+            Err(_) => arrived += 1,
+        }
+    }
+    (arrived, readable)
 }
 
 impl DigestSpool for DigestSpoolFile {
@@ -101,28 +137,38 @@ impl DigestSpool for DigestSpoolFile {
         }
     }
 
-    fn claim(&self) -> Option<ClaimedBatch> {
-        let metadata = fs::metadata(&self.store).ok()?;
-        // ABSENT AND EMPTY ARE THE SAME ANSWER: there is nothing to summarize.
+    fn claim(&self) -> Result<Option<ClaimedBatch>, ClaimFailure> {
+        let metadata = match fs::metadata(&self.store) {
+            Ok(metadata) => metadata,
+            // ABSENT AND EMPTY ARE THE SAME ANSWER: there is nothing to
+            // summarize. Every other stat failure is a real one and says so,
+            // because a broken day that reads as a quiet day is a day nobody
+            // hears about.
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(unclaimable(&self.store, &error)),
+        };
         if metadata.len() == 0 {
-            return None;
+            return Ok(None);
         }
         let claimed = self.claim_path();
         // A FAILED RENAME LEAVES THE SPOOL UNTOUCHED, so nothing is lost and
         // the next run retries the same bytes.
-        fs::rename(&self.store, &claimed).ok()?;
-        let contents = fs::read_to_string(&claimed).unwrap_or_default();
-        // WHITESPACE IS NOT A FINDING. A spool holding only blank lines has
-        // nothing in it, and claiming it is how those lines get cleared.
-        if contents.trim().is_empty() {
-            let _ = fs::remove_file(&claimed);
-            return None;
+        if let Err(error) = fs::rename(&self.store, &claimed) {
+            return Err(unclaimable(&self.store, &error));
         }
-        let item_count = contents
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .count();
-        let rows = posture_protocol::decode_spool(&contents)
+        // An unreadable claim stays intact for the next orphan sweep.
+        let bytes = match fs::read(&claimed) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(unclaimable(&claimed, &error)),
+        };
+        let (item_count, readable) = readable_lines(&bytes);
+        // A spool holding only blank lines has nothing in it, and claiming it
+        // is how those lines get cleared.
+        if item_count == 0 {
+            let _ = fs::remove_file(&claimed);
+            return Ok(None);
+        }
+        let rows = posture_protocol::decode_spool(&readable)
             .into_iter()
             .map(|record| DigestRow {
                 detector: record.detector,
@@ -130,11 +176,11 @@ impl DigestSpool for DigestSpoolFile {
                 summary: record.summary,
             })
             .collect();
-        Some(ClaimedBatch {
+        Ok(Some(ClaimedBatch {
             handle: claimed.to_string_lossy().into_owned(),
             item_count,
             rows,
-        })
+        }))
     }
 
     fn keep(&self, batch: &ClaimedBatch) {

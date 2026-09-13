@@ -51,6 +51,20 @@ pub struct ClaimedBatch {
     pub rows: Vec<DigestRow>,
 }
 
+/// Why a batch could not be claimed, in the words the command prints.
+///
+/// A SENTENCE RATHER THAN AN `io::Error`: the port says nothing about the spool
+/// being a file, and the only thing done with this is writing one line, so
+/// whoever hit the error names what it was reaching for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaimFailure(pub String);
+
+impl std::fmt::Display for ClaimFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 /// What the spool can be asked to do. Every method is a file move; none decides
 /// anything.
 pub trait DigestSpool {
@@ -63,9 +77,11 @@ pub trait DigestSpool {
     fn sweep_orphans(&self);
     /// Take the current batch, leaving a fresh spool for the alerter.
     ///
-    /// `None` when there is nothing to take, which covers both an absent spool
-    /// and an empty one.
-    fn claim(&self) -> Option<ClaimedBatch>;
+    /// `Ok(None)` when there is nothing to take, which covers both an absent
+    /// spool and an empty one. `Err` when the spool exists and could not be
+    /// taken at all, which is a different fact and gets a different answer: an
+    /// empty day is silent, a broken one is reported.
+    fn claim(&self) -> Result<Option<ClaimedBatch>, ClaimFailure>;
     /// Keep the batch as the forensic copy. Used when it was delivered, and
     /// when it was unrenderable and re-rendering would only fail again.
     fn keep(&self, batch: &ClaimedBatch);
@@ -75,7 +91,7 @@ pub trait DigestSpool {
 
 /// What one run of the digest did, which is what its exit code and its tests
 /// read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DigestOutcome {
     /// There was nothing to say, so nothing was said.
     Silent,
@@ -83,6 +99,22 @@ pub enum DigestOutcome {
     Sent,
     /// The send failed and the batch went back for the next run.
     Restored,
+    /// The batch could not be claimed. Whatever is on disk is still on disk for
+    /// the next run's sweep, and nothing was sent.
+    NotClaimed(ClaimFailure),
+}
+
+/// What one run did, and what it could not read while doing it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DigestReport {
+    pub outcome: DigestOutcome,
+    /// Lines that arrived and decoded into nothing, so the body never showed
+    /// them.
+    ///
+    /// REPORTED RATHER THAN COUNTED IN SILENCE. Dropping a torn line is what
+    /// keeps one of them from wedging every later run, but a drop is still a
+    /// finding nobody will ever read, so the command says how many.
+    pub dropped: usize,
 }
 
 /// The digest, over its spool and its sink.
@@ -96,11 +128,17 @@ pub struct BuildDigest<'a, S, K> {
 }
 
 impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
-    pub fn run(&mut self) -> DigestOutcome {
+    pub fn run(&mut self) -> DigestReport {
         self.spool.sweep_orphans();
-        let Some(batch) = self.spool.claim() else {
-            return DigestOutcome::Silent;
+        let batch = match self.spool.claim() {
+            Ok(Some(batch)) => batch,
+            Ok(None) => return DigestReport::of(DigestOutcome::Silent),
+            Err(failure) => return DigestReport::of(DigestOutcome::NotClaimed(failure)),
         };
+        // WHAT ARRIVED MINUS WHAT RENDERS IS WHAT WAS LOST. A torn line counts
+        // as arrived and decodes into nothing, so the difference is exactly the
+        // set of findings this digest cannot show.
+        let dropped = batch.item_count.saturating_sub(batch.rows.len());
         let entries: Vec<DigestEntry<'_>> = batch
             .rows
             .iter()
@@ -117,7 +155,10 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
             // the same bytes tomorrow would only render empty again, so the
             // batch is kept for forensics rather than retried forever.
             self.spool.keep(&batch);
-            return DigestOutcome::Silent;
+            return DigestReport {
+                outcome: DigestOutcome::Silent,
+                dropped,
+            };
         }
         let alert = Alert {
             occurrence_id: None,
@@ -133,7 +174,7 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
             ),
             detail: body,
         };
-        match self.sink.submit(&alert) {
+        let outcome = match self.sink.submit(&alert) {
             Submission::Accepted => {
                 self.spool.keep(&batch);
                 DigestOutcome::Sent
@@ -144,6 +185,17 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
                 self.spool.restore(&batch);
                 DigestOutcome::Restored
             }
+        };
+        DigestReport { outcome, dropped }
+    }
+}
+
+impl DigestReport {
+    /// A run that never reached a batch, so nothing could have been dropped.
+    fn of(outcome: DigestOutcome) -> Self {
+        Self {
+            outcome,
+            dropped: 0,
         }
     }
 }
