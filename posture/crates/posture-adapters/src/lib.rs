@@ -26,6 +26,8 @@ mod command;
 mod metadata;
 pub use codesign::SystemInspection;
 pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner};
+mod command_duration;
+pub use command_duration::parse_command_duration;
 
 mod locks;
 pub use locks::AllowlistWriteLock;

@@ -1098,5 +1098,63 @@
       "gap": false,
       "persist_gap": false
     }
+  },
+  {
+    "name": "timeout_leading_space",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    },
+    "timeout": " 0.5"
+  },
+  {
+    "name": "timeout_hex",
+    "input": "{\"AllowFunnel\":{\"service.example:443\":true}}",
+    "prior": null,
+    "gap": false,
+    "persist_gap": false,
+    "fail_publish": false,
+    "reject": false,
+    "exit": 0,
+    "missing": false,
+    "expected": {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "alerts": [
+        {
+          "severity": "CRIT",
+          "title": "🔴 **CRITICAL**",
+          "body": "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n- `service.example:443`",
+          "sound": "Sosumi",
+          "prior": null
+        }
+      ],
+      "baseline": "{\"funnel\":\"active\"}\n",
+      "gap": false,
+      "persist_gap": false
+    },
+    "timeout": "0x1p-1"
   }
 ]

@@ -11,6 +11,8 @@ cases!(
     deep_active,
     baseline_command_text,
     status_timeout,
+    timeout_leading_space,
+    timeout_hex,
     inactive_first,
     active_first,
     steady_active,

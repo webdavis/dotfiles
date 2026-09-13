@@ -104,7 +104,9 @@ exit {exit}
         .env("OSQUERY_TAILSCALE_BIN", &tailscale)
         .env(
             "OSQUERY_TAILSCALE_TIMEOUT",
-            if case["sleep"] == true { "0.02" } else { "0.5" },
+            case["timeout"]
+                .as_str()
+                .unwrap_or(if case["sleep"] == true { "0.02" } else { "0.5" }),
         )
         .args(["funnel", "ignored operand"])
         .current_dir(&home)
@@ -129,8 +131,9 @@ exit {exit}
     let output = child.wait_with_output().unwrap();
     if case["missing"] != true && case["sleep"] != true {
         assert_eq!(
-            fs::read_to_string(home.join("argv")).unwrap(),
-            "funnel status --json\n"
+            fs::read_to_string(home.join("argv")).ok().as_deref(),
+            Some("funnel status --json\n"),
+            "{name}: status inspection must run"
         );
     }
     let expected = &case["expected"];

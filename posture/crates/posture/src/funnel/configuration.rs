@@ -1,3 +1,4 @@
+use posture_adapters::parse_command_duration as duration;
 use std::os::unix::fs::PermissionsExt;
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
@@ -40,25 +41,6 @@ impl Configuration {
         })
     }
 }
-fn duration(value: &str) -> Option<Duration> {
-    let (number, scale) = match value.as_bytes().last() {
-        Some(b's') => (&value[..value.len() - 1], 1.),
-        Some(b'm') => (&value[..value.len() - 1], 60.),
-        Some(b'h') => (&value[..value.len() - 1], 3600.),
-        Some(b'd') => (&value[..value.len() - 1], 86400.),
-        _ => (value, 1.),
-    };
-    let seconds = number.parse::<f64>().ok()? * scale;
-    if seconds <= 0. || !seconds.is_finite() {
-        return None;
-    }
-    Duration::try_from_secs_f64(seconds)
-        .ok()
-        .filter(|duration| {
-            !duration.is_zero() && std::time::Instant::now().checked_add(*duration).is_some()
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,6 +51,10 @@ mod tests {
     #[test]
     fn finite_fractional_seconds_and_unit_suffixes_preserve_the_timeout() {
         for (literal, seconds) in [
+            (" 0.5", 0.5),
+            ("0x1p-1", 0.5),
+            ("0x1d", 29.),
+            ("0x1p-1m", 30.),
             ("0.02", 0.02),
             ("2s", 2.),
             ("0.5m", 30.),
@@ -77,7 +63,9 @@ mod tests {
         ] {
             assert_eq!(duration(literal), Some(Duration::from_secs_f64(seconds)));
         }
-        for literal in ["0", "-1", "inf", "NaN", "bogus", "1e100"] {
+        for literal in [
+            "0", "-1", "inf", "NaN", "bogus", "1e100", "0.5 ", "0.5ms", "0.5\0s",
+        ] {
             assert!(duration(literal).is_none(), "{literal}");
         }
     }
