@@ -32,13 +32,23 @@ impl DigestAppendFile {
         Self { store }
     }
 
-    /// Append one record, reporting failure on stderr without finding contents.
-    /// Answers whether the line reached the file; nothing about a page depends on it.
-    pub fn append(&self, record: &posture_protocol::DigestRecord) -> bool {
+    /// Append one record, reporting failure through the caller's diagnostics
+    /// sink without finding contents. Answers whether the line reached the
+    /// file; nothing about a page depends on it.
+    ///
+    /// THE SINK IS THE CALLER'S, never `std::io::stderr()`. Every other
+    /// diagnostic on this path is written through the one sink the command
+    /// threads down, and a line that reaches around it is a line no test can
+    /// read without a subprocess.
+    pub fn append(
+        &self,
+        record: &posture_protocol::DigestRecord,
+        diagnostics: &mut dyn Write,
+    ) -> bool {
         let result = self.write_record(record);
         if result.is_err() {
             let _ = writeln!(
-                std::io::stderr().lock(),
+                diagnostics,
                 "posture: could not append a digest line to {}",
                 self.store.display()
             );
