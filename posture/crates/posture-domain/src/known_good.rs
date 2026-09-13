@@ -143,7 +143,7 @@ impl KnownGood<'_> {
     }
 }
 
-fn valid_digest(hash: &str) -> bool {
+pub(super) fn valid_digest(hash: &str) -> bool {
     hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 

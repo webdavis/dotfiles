@@ -99,3 +99,6 @@ pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
     resolve_osqueryctl,
 };
+
+mod integrity_triage;
+pub use integrity_triage::file_integrity_triage;

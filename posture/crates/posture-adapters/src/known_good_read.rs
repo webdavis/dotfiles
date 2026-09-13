@@ -41,12 +41,16 @@ impl KnownGoodManifests {
         }
     }
 
-    /// Whether the manifest that governs `target` vouches for it as it stands.
-    pub fn vouches(&self, target: &str) -> bool {
-        let manifest = match manifest_for(&self.home, target) {
+    pub(super) fn governing(&self, target: &str) -> &Path {
+        match manifest_for(&self.home, target) {
             ManifestKind::Pipeline => &self.pipeline,
             ManifestKind::ManagedBin => &self.managed_bin,
-        };
+        }
+    }
+
+    /// Whether the manifest that governs `target` vouches for it as it stands.
+    pub fn vouches(&self, target: &str) -> bool {
+        let manifest = self.governing(target);
         let Some(text) = trusted_text(manifest) else {
             return false;
         };
