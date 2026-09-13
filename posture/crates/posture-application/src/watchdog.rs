@@ -33,10 +33,15 @@ pub struct AuditObservation {
     pub completed: bool,
     pub report: String,
     pub fingerprint: Option<AuditFingerprint>,
+    /// Why the pns binary could not be vouched for, when it could not be. It
+    /// rides along with the rest of the audit rather than answering a second
+    /// call, because the two questions are settled by reading one manifest and
+    /// hashing one seven-megabyte binary, and a second call would do both
+    /// again against a filesystem that may have moved underneath.
+    pub pns_problem: Option<String>,
 }
 pub trait WatchdogIntegrity {
     fn pipeline(&mut self) -> AuditObservation;
-    fn pns_problem(&mut self) -> Option<String>;
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WatchdogStateFailure;
@@ -111,7 +116,7 @@ impl Watchdog<'_> {
         problems.extend(judged.problem);
 
         let mut independent = Vec::new();
-        independent.extend(self.integrity.pns_problem());
+        independent.extend(audit.pns_problem);
         independent.extend(match self.processes.pns_daemon() {
             DaemonHealth::Unloaded => {
                 Some("LaunchAgent not loaded: com.webdavis.pns-daemon".to_owned())

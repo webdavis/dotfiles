@@ -48,12 +48,14 @@ impl WatchdogAudit {
             ..self.bounds
         }
     }
-    fn scan(&self, report: &mut String) -> Result<(), AuditRefusal> {
+    fn scan(&self, scanned: &mut Scanned) -> Result<(), AuditRefusal> {
         let start = Instant::now();
-        for (path, authority) in [&self.pipeline, &self.managed_bin]
+        for (index, (path, authority)) in [&self.pipeline, &self.managed_bin]
             .into_iter()
             .zip(self.authority)
+            .enumerate()
         {
+            let governing = index == 0;
             let mut lines = ManifestLines::open(path, authority)?;
             while let Some(line) = lines.next(self.bounds, start)? {
                 let tuple = KnownGoodTuple::parse_line(&line).ok_or(AuditRefusal::Malformed)?;
@@ -64,14 +66,22 @@ impl WatchdogAudit {
                     start,
                     matches!(tuple.digest, ManifestDigest::Built(_)),
                 )?;
-                let findings = audit_file(tuple, observed.borrowed(), bounds.bytes)
+                let kinds = audit_file(tuple, observed.borrowed(), bounds.bytes);
+                // The pns verdict is this row's verdict. Only the pipeline
+                // manifest may supply it, and only one row of it may: a second
+                // row naming the same binary is a manifest that says two things.
+                if governing && Path::new(tuple.path) == self.pns {
+                    scanned.pns_rows += 1;
+                    scanned.pns_clean = kinds.is_empty();
+                }
+                let findings = kinds
                     .into_iter()
                     .map(|kind| AuditFinding {
                         kind,
                         path: tuple.path,
                     })
                     .collect();
-                report.push_str(
+                scanned.report.push_str(
                     &AuditReport {
                         findings,
                         refusal: None,
@@ -82,37 +92,19 @@ impl WatchdogAudit {
         }
         Ok(())
     }
-    fn pns_matches(&self) -> Result<bool, AuditRefusal> {
-        let start = Instant::now();
-        let mut lines = ManifestLines::open(&self.pipeline, self.authority[0])?;
-        let mut found = None;
-        while let Some(line) = lines.next(self.bounds, start)? {
-            let tuple = KnownGoodTuple::parse_line(&line).ok_or(AuditRefusal::Malformed)?;
-            if Path::new(tuple.path) == self.pns {
-                if found.is_some() {
-                    return Ok(false);
-                }
-                found = Some(line);
-            }
-        }
-        let Some(line) = found else {
-            return Ok(false);
-        };
-        let tuple = KnownGoodTuple::parse_line(&line).ok_or(AuditRefusal::Malformed)?;
-        let bounds = self.bounds_for(&self.pns);
-        let observed = file::observe(
-            &self.pns,
-            bounds,
-            start,
-            matches!(tuple.digest, ManifestDigest::Built(_)),
-        )?;
-        Ok(audit_file(tuple, observed.borrowed(), bounds.bytes).is_empty())
-    }
+}
+/// What one pass over both manifests observed.
+#[derive(Default)]
+struct Scanned {
+    report: String,
+    pns_rows: usize,
+    pns_clean: bool,
 }
 impl WatchdogIntegrity for WatchdogAudit {
     fn pipeline(&mut self) -> AuditObservation {
-        let mut report = String::new();
-        let outcome = self.scan(&mut report);
+        let mut scanned = Scanned::default();
+        let outcome = self.scan(&mut scanned);
+        let mut report = scanned.report;
         if let Err(reason) = outcome {
             report.push_str(
                 &AuditReport {
@@ -129,14 +121,15 @@ impl WatchdogIntegrity for WatchdogAudit {
                 audit_fingerprint_input(&report).as_bytes(),
             )))
         };
+        // A scan that did not finish never vouches for anything: the pns row
+        // may sit past the line the refusal stopped on.
+        let vouched = outcome.is_ok() && scanned.pns_rows == 1 && scanned.pns_clean;
         AuditObservation {
             completed: outcome.is_ok(),
             report,
             fingerprint,
+            pns_problem: (!vouched).then(|| "pns binary integrity could not be verified against its authorized build tuple; do not trust its delivery acknowledgements".into()),
         }
-    }
-    fn pns_problem(&mut self) -> Option<String> {
-        (!matches!(self.pns_matches(), Ok(true))).then(|| "pns binary integrity could not be verified against its authorized build tuple; do not trust its delivery acknowledgements".into())
     }
 }
 #[cfg(test)]

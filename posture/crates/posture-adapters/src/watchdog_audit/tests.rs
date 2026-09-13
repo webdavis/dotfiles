@@ -50,22 +50,22 @@ fn scheduled_audit_checks_every_bound_column_without_rendering_paths() {
     assert!(report.report.contains("content "));
     assert!(report.report.contains("mode "));
     assert!(report.fingerprint.is_some());
-    let problem = audit.pns_problem().unwrap();
+    let problem = report.pns_problem.unwrap();
     assert!(problem.contains("pns"));
     assert!(!problem.contains(&audit.pns.display().to_string()));
 }
 #[test]
 fn independent_pns_check_requires_its_exact_authorized_tuple() {
     let mut audit = subject();
-    assert_eq!(audit.pns_problem(), None);
+    assert_eq!(audit.pipeline().pns_problem, None);
     for line in ["", "unbuilt 0755 501 /elsewhere\n", "bad tuple\n"] {
         fs::write(&audit.pipeline, line).unwrap();
-        assert!(audit.pns_problem().is_some());
+        assert!(audit.pipeline().pns_problem.is_some());
     }
     let mut audit = subject();
     let row = fs::read_to_string(&audit.pipeline).unwrap();
     fs::write(&audit.pipeline, format!("{row}{row}")).unwrap();
-    assert!(audit.pns_problem().is_some());
+    assert!(audit.pipeline().pns_problem.is_some());
 }
 #[test]
 fn missing_and_untrusted_manifests_cannot_report_an_all_clear() {
@@ -79,7 +79,7 @@ fn missing_and_untrusted_manifests_cannot_report_an_all_clear() {
     let report = audit.pipeline();
     assert!(!report.completed);
     assert_eq!(report.report, "untrustworthy\n");
-    assert!(audit.pns_problem().is_some());
+    assert!(report.pns_problem.is_some());
 }
 #[test]
 fn limits_and_late_refusal_retain_prior_findings() {
@@ -116,8 +116,9 @@ fn symlinks_and_unbuilt_regular_files_are_never_trusted_as_matching_bytes() {
         audit.pns.display()
     );
     fs::write(&audit.pipeline, row).unwrap();
-    assert!(audit.pipeline().report.starts_with("content "));
-    assert!(audit.pns_problem().is_some());
+    let report = audit.pipeline();
+    assert!(report.report.starts_with("content "));
+    assert!(report.pns_problem.is_some());
 }
 
 #[test]
@@ -132,7 +133,7 @@ fn oversize_files_still_report_their_attribute_drift() {
     assert!(report.completed);
     assert!(report.report.contains("oversize "));
     assert!(report.report.contains("mode "));
-    assert!(audit.pns_problem().is_some());
+    assert!(report.pns_problem.is_some());
 }
 
 #[test]
