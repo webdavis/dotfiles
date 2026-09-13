@@ -6,6 +6,23 @@ function set_up_before_script() {
   mkdir -p "$SEED_SOURCE/.chezmoitemplates"
   cp "$SEED_REPO/.chezmoitemplates/cli-print-style-lib.sh.tmpl" \
     "$SEED_REPO/.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl" "$SEED_SOURCE/.chezmoitemplates/"
+  # These scripts use HOME at runtime. Render the four source variants once;
+  # each behavior still executes the complete script in its own private HOME.
+  SEED_RENDERED="$(mktemp -d)"
+  set_up
+  seed_render
+  cp "$SEED_CASE/subject.sh" "$SEED_RENDERED/default.sh"
+  SEED_PACKAGES='[]'
+  seed_render
+  cp "$SEED_CASE/subject.sh" "$SEED_RENDERED/no-package.sh"
+  SEED_PACKAGES='["graphifyy"]'
+  SEED_OS=linux
+  seed_render
+  cp "$SEED_CASE/subject.sh" "$SEED_RENDERED/linux.sh"
+  SEED_OS=darwin
+  SEED_SKIP=1
+  seed_render
+  cp "$SEED_CASE/subject.sh" "$SEED_RENDERED/skipped.sh"
 }
 
 function set_up() {
@@ -19,6 +36,7 @@ function set_up() {
   SEED_PACKAGE_EXIT=0
   SEED_INSTALL_EXIT=0
   SEED_TIMEOUT_EXIT=0
+  SEED_SCRIPT=default
   mkdir -p "$SEED_HOME/.local/bin" "$SEED_HOME/.claude/skills/graphify/references" \
     "$SEED_CASE/brew/bin" "$SEED_CASE/cache" "$SEED_CASE/tmp"
   printf 'managed instructions\n' >"$SEED_HOME/.claude/CLAUDE.md"
@@ -80,7 +98,7 @@ seed_render() {
 }
 
 seed_invoke() {
-  seed_render || return 1
+  cp "$SEED_RENDERED/$SEED_SCRIPT.sh" "$SEED_CASE/subject.sh"
   SEED_EXIT=0
   env -i HOME="$SEED_HOME" PATH=/usr/bin:/bin TMPDIR="$SEED_CASE/tmp" \
     HOMEBREW_PREFIX="$SEED_CASE/brew" NO_COLOR=1 REPORT_LIB_PLAIN=1 \
@@ -191,7 +209,7 @@ function test_a_symlink_inside_the_bundle_destination_is_refused() {
 }
 
 function test_seeding_is_absent_when_the_package_is_not_declared() {
-  SEED_PACKAGES='[]'
+  SEED_SCRIPT=no-package
   seed_invoke
   assert_same 0 "$SEED_EXIT"
   assert_file_not_exists "$SEED_HOME/uv-argv"
@@ -199,7 +217,7 @@ function test_seeding_is_absent_when_the_package_is_not_declared() {
 }
 
 function test_the_platform_guard_prevents_seeding_on_linux() {
-  SEED_OS=linux
+  SEED_SCRIPT=linux
   seed_invoke
   assert_same 0 "$SEED_EXIT"
   assert_file_not_exists "$SEED_HOME/brew-calls"
@@ -207,7 +225,7 @@ function test_the_platform_guard_prevents_seeding_on_linux() {
 }
 
 function test_the_existing_system_package_skip_also_skips_seeding() {
-  SEED_SKIP=1
+  SEED_SCRIPT=skipped
   seed_invoke
   assert_same 0 "$SEED_EXIT"
   assert_file_not_exists "$SEED_HOME/brew-calls"
