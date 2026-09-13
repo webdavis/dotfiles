@@ -628,9 +628,10 @@
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
-       dot_agents/custom-skill-lock.json, every on-demand skill gets exactly
-       one entry here, core skills get none, and test/unit/skills-roster-fanout.sh
-       fails the build when the two sets diverge. Per-key setValueAtPath (not
+       dot_agents/custom-skill-lock.json: an on-demand skill gets one entry
+       here, a core skill gets none. Nothing checks that the two agree since
+       the 2026-08-05 scope ruling, so move them together by hand (26
+       on-demand rows had no entry on 2026-09-13). Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
        via /config pass through untouched. A per-key write never removes a
        key, so a skill promoted to core keeps its stale override in the live
