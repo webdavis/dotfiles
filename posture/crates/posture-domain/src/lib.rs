@@ -77,14 +77,15 @@ pub use heartbeat::{HeartbeatText, HeartbeatWindow, heartbeat_text};
 mod audit;
 pub use audit::{
     AuditBounds, AuditFile, AuditFinding, AuditKind, AuditManifest, AuditRefusal, AuditReport,
-    AuditRow, audit_scan,
+    AuditRow, audit_file, audit_scan,
 };
 
 mod watchdog;
 pub use watchdog::{
     Agent, AgentExit, AgentJudgment, AgentReading, AgentState, AuditFingerprint, AuditJudgment,
-    AuditMemory, ExitCode, WatchdogPage, audit_fingerprint_input, judge_agent, judge_audit,
-    osquery_problem, route_problem, state_problem, watchdog_page,
+    AuditMemory, ExitCode, QueueCounts, QueueKind, QueueMemory, WatchdogPage,
+    audit_fingerprint_input, judge_agent, judge_audit, judge_queue, osquery_problem, route_problem,
+    state_problem, watchdog_page,
 };
 
 mod drift;
@@ -101,8 +102,9 @@ pub use controls::{
 
 mod funnel;
 pub use funnel::{
-    AllowFunnel, FunnelAlert, FunnelBaseline, FunnelPlan, FunnelReading, FunnelState,
-    classify_funnel, funnel_baseline, plan_funnel, render_funnel_exposure,
+    AllowFunnel, FUNNEL_CRITICAL_TITLE, FunnelAlert, FunnelBaseline, FunnelPlan, FunnelReadFailure,
+    FunnelReading, FunnelState, classify_funnel, funnel_baseline, funnel_corruption_gap,
+    funnel_persistence_gap, funnel_read_gap, plan_funnel, render_funnel_exposure,
 };
 
 mod poll;

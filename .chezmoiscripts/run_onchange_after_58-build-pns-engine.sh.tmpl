@@ -2,6 +2,7 @@
 #!/bin/bash
 
 set -euo pipefail
+umask 077
 
 # Builds the pns engine binary and installs it beside the channels it will
 # replace. The workspace is repository SOURCE at the monorepo root and never
@@ -46,6 +47,11 @@ set -euo pipefail
 #   {{ . }} {{ include . | sha256sum }}
 {{- end }}
 #
+# Compiler changes authorize a new record only when this builder runs.
+{{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
+#   {{ . }} {{ (stat .).modTime }}
+{{- end }}
+#
 # Retry state, the same mechanism the herdr plugin build uses: chezmoi records a
 # run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)
 # must change this rendered script to re-fire on the next apply.
@@ -58,7 +64,6 @@ set -euo pipefail
 #   retry-marker: {{ $rm := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
-
 crate_dir={{ $crate | quote }}
 # ~/.cargo/bin, declared once in .chezmoidata/rust_tools.yaml: pns is a product
 # people install with `cargo install`, not a private helper of this checkout.
@@ -68,6 +73,7 @@ retry_marker="$HOME/.cache/pns-build/engine.retry"
 # the NEXT apply to retry the kickstart even if that apply rebuilds bytes
 # identical to this one, which it otherwise would skip as a no-op.
 pending_marker="$HOME/.cache/pns-build/restart-pending"
+build_record="$HOME/.local/state/pns-build-record"
 
 # Deterministic path, never a PATH probe: a fresh machine provisions rustup
 # during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
@@ -110,6 +116,27 @@ report_line 'building the release binary'
 # silently ignores the crate's `rust-toolchain.toml`.
 (cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin pns)
 
+# Only this authorized build may supply the digest to the manifest publisher.
+artifact="$crate_dir/target/release/pns"
+artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
+if ((artifact_bytes == 0 || artifact_bytes > 8388608)); then
+  printf 'pns: refusing artifact of %s bytes (allowed 1..8388608)\n' "$artifact_bytes" >&2
+  exit 1
+fi
+artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
+[[ $artifact_hash =~ ^[0-9a-f]{64}$ ]] || exit 1
+compiler="$(cd "$crate_dir" && "$HOME/.cargo/bin/rustc" --version --verbose)"
+if [[ -e $build_record || -L $build_record ]] && [[ ! -f $build_record || -L $build_record ]]; then
+  printf 'pns: refusing a nonregular build record\n' >&2
+  exit 1
+fi
+mkdir -p "$(dirname "$build_record")"
+next_record="$(mktemp "${build_record}.new.XXXXXX")"
+previous_record="$(mktemp "${build_record}.previous.XXXXXX")"
+trap 'rm -f "$next_record" "$previous_record"' EXIT
+printf 'sha256 %s\nbytes %s\n%s\n' "$artifact_hash" "$artifact_bytes" "$compiler" >"$next_record"
+chmod 600 "$next_record"
+
 # The build above is unconditional and can reinstall a binary byte-identical
 # to what's already deployed (a deferred build bumps the retry marker above
 # and settles later, which fires this script again for a binary that never
@@ -136,6 +163,29 @@ mkdir -p "$install_dir"
 if [[ $binary_changed == 1 ]]; then
   mkdir -p "$(dirname "$pending_marker")"
   touch "$pending_marker"
+fi
+
+# Refresh only the governing manifest. A refusal before publication restores
+# the old record and leaves the old binary and tuple intact. An install failure
+# after publication keeps the new tuple, so the mismatch remains detectable.
+if cmp -s "$artifact" "$install_dir/pns" && cmp -s "$next_record" "$build_record"; then
+  chmod 600 "$build_record"
+else
+  had_record=0
+  if [[ -f $build_record ]]; then
+    cp -p "$build_record" "$previous_record"
+    had_record=1
+  fi
+  mv -f "$next_record" "$build_record"
+  if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" --pipeline-only; then
+    if [[ $had_record == 1 ]]; then
+      mv -f "$previous_record" "$build_record"
+    else
+      rm -f "$build_record"
+    fi
+    report_line 'pns: manifest refresh failed; binary unchanged' >&2
+    exit 1
+  fi
 fi
 
 # install(1) replaces the target through a temporary file and a rename

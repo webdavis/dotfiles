@@ -187,6 +187,50 @@ ready_to_build() {
   install_crate_source
 }
 
+run_setup_caller() {
+  HOME="$sandbox_home" CHEZMOI_HOME_DIR="$sandbox_home" \
+    TASK50_CALLS="$sandbox/converge.args" TASK50_EXIT="${1:-0}" \
+    bash "$(repo_root)/.chezmoiscripts/run_after_59-setup-osquery.sh"
+}
+
+function test_setup_caller_runs_converge_from_the_binary_the_builder_just_installed() {
+  ready_to_build
+  printf '#!/bin/bash\nexit 64\n' >"$installed_binary"
+  chmod +x "$installed_binary"
+  "$installed_binary" converge
+  assert_same 64 "$?"
+  cat >"$sandbox_home/.stub-artifact" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$@" >>"$TASK50_CALLS"
+exit "${TASK50_EXIT:-0}"
+STUB
+  assert_builder_succeeds
+  local output
+  output="$(run_setup_caller 2>&1)"
+  assert_same 0 "$?"
+  assert_empty "$output"
+  assert_file_exists "$sandbox/converge.args"
+  assert_same converge "$(cat "$sandbox/converge.args")"
+}
+
+function test_setup_caller_reports_a_deferred_posture_build_without_running_a_repair() {
+  local output
+  output="$(run_setup_caller 2>&1)"
+  assert_same 0 "$?"
+  assert_contains "$installed_binary" "$output"
+  assert_contains 'was NOT converged' "$output"
+  assert_file_not_exists "$sandbox/converge.args"
+}
+
+function test_setup_caller_preserves_the_converge_failure_status() {
+  ready_to_build
+  printf '#!/bin/bash\nexit 37\n' >"$installed_binary"
+  chmod +x "$installed_binary"
+  run_setup_caller >/dev/null 2>&1
+  assert_same 37 "$?"
+}
+
 # --- deferral: a missing build input never fails the apply and leaves the ---
 # --- trigger retryable ----------------------------------------------------
 #
@@ -259,6 +303,22 @@ function test_a_build_publishes_a_private_record_before_refresh_and_install() {
   assert_same 600 "$(stat -f '%Lp' "$build_record")"
   assert_same "$(cat "$build_record")" "$(cat "$sandbox/record-at-refresh")"
   assert_same absent "$(cat "$sandbox/binary-at-refresh")"
+}
+
+function test_the_record_uses_the_compiler_selected_by_the_build_directory() {
+  ready_to_build
+  cat >"$sandbox_home/.cargo/bin/rustc" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $PWD == "$HOME/crate" ]]; then
+  printf 'rustc workspace-compiler\n'
+else
+  printf 'rustc home-compiler\n'
+fi
+STUB
+  (cd "$sandbox_home" && assert_builder_succeeds)
+  assert_contains 'rustc workspace-compiler' "$(cat "$build_record")"
+  assert_not_contains 'rustc home-compiler' "$(cat "$build_record")"
 }
 
 function test_a_failed_refresh_restores_the_previous_record_and_binary() {

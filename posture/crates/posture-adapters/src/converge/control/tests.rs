@@ -7,6 +7,7 @@ fn control(target: PathBuf) -> OsqueryRestart<Script> {
         Script::default(),
         "/fixture/sudo".into(),
         "/trusted path/osqueryctl".into(),
+        None,
         target,
     )
 }
