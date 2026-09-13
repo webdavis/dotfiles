@@ -40,9 +40,28 @@ impl Configuration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use posture_adapters::COMMAND_DURATION_CEILING;
     #[test]
-    fn a_duration_that_cannot_be_added_to_a_deadline_is_refused() {
-        assert!(duration("10000000000000000000").is_none());
+    fn a_disabled_or_unrepresentable_timeout_reads_as_the_ceiling_not_as_a_failure() {
+        // timeout(1) runs unlimited for all five, so none of them may become a
+        // read failure that pages a gap claiming a command that never ran exited.
+        for literal in ["0", "0m", "inf", "1e100", "10000000000000000000"] {
+            assert_eq!(
+                duration(literal),
+                Some(COMMAND_DURATION_CEILING),
+                "{literal}"
+            );
+        }
+        assert_eq!(
+            Configuration::read(|name| match name {
+                "HOME" => Some(OsString::from("/private/fixture")),
+                "OSQUERY_TAILSCALE_TIMEOUT" => Some(OsString::from("0")),
+                _ => None,
+            })
+            .unwrap()
+            .budget,
+            Some(COMMAND_DURATION_CEILING)
+        );
     }
     #[test]
     fn finite_fractional_seconds_and_unit_suffixes_preserve_the_timeout() {
@@ -59,9 +78,9 @@ mod tests {
         ] {
             assert_eq!(duration(literal), Some(Duration::from_secs_f64(seconds)));
         }
-        for literal in [
-            "0", "-1", "inf", "NaN", "bogus", "1e100", "0.5 ", "0.5ms", "0.5\0s",
-        ] {
+        // timeout(1) calls each of these an invalid time interval and exits 125,
+        // which is the exit code a refusal here goes on to report.
+        for literal in ["-1", "NaN", "bogus", "0.5 ", "0.5ms", "0.5\0s"] {
             assert!(duration(literal).is_none(), "{literal}");
         }
     }
