@@ -24,6 +24,7 @@ pub struct RunRequest<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum RunOutcome {
     Completed,
+    Interrupted,
     UndeclaredLane,
     LockRefused(LockFailure),
 }
@@ -62,6 +63,9 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             marker: &marker.value,
         };
         let reports = self.run_lanes(&request, &facts);
+        if self.interrupted(&header, &reports) {
+            return RunOutcome::Interrupted;
+        }
         if request.only.is_some() && reports.is_empty() {
             return RunOutcome::UndeclaredLane;
         }
@@ -85,6 +89,9 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
                 AlertTarget::Lane(&report.name),
                 &uu_domain::alert_summary(report),
             );
+            if self.interrupted(&header, &reports) {
+                return RunOutcome::Interrupted;
+            }
         }
         track_staleness(
             &self.state,
@@ -101,6 +108,9 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             request.lanes,
             &reports,
         );
+        if self.interrupted(&header, &reports) {
+            return RunOutcome::Interrupted;
+        }
         let record = RunRecord {
             host: &header.host,
             failures,
@@ -109,6 +119,9 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             detail: &detail,
         };
         let record_lost = !deliver_record(&self.delivery, &self.presentation, record);
+        if self.interrupted(&header, &reports) {
+            return RunOutcome::Interrupted;
+        }
 
         // An unreceived record and a deferred lane both leave the old marker.
         // Read the finish clock here: using the header would add this run's own
@@ -137,6 +150,9 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
         // the next one. Each runner receives only the run's remaining budget.
         let run_started = self.clock.start();
         for (name, settings) in request.lanes {
+            if self.lanes.interrupted() {
+                break;
+            }
             if request.only.is_some_and(|wanted| wanted != name) {
                 continue;
             }
@@ -148,6 +164,14 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             }
         }
         reports
+    }
+
+    fn interrupted(&self, header: &crate::RunHeader, reports: &[LaneReport]) -> bool {
+        if !self.lanes.interrupted() {
+            return false;
+        }
+        self.presentation.interrupted(header, reports);
+        true
     }
 }
 

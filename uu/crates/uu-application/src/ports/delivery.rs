@@ -20,6 +20,7 @@ pub enum RecordFailure {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RecordOutcome {
+    Interrupted,
     NotConfigured,
     SigningFailed,
     Delivered {
