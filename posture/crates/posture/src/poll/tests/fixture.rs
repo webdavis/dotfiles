@@ -29,6 +29,7 @@ impl Subject {
         ));
         fs::create_dir(&root).unwrap();
         let subject = Self(root);
+        fs::create_dir_all(subject.controls().parent().unwrap()).unwrap();
         fs::write(subject.controls(), br#"[{"id":"vault","tier":"verify","reader":"fdesetup_status","expect":"on","description":"FileVault","remedy":"Enable FileVault"}]"#).unwrap();
         subject
     }
@@ -36,7 +37,10 @@ impl Subject {
         self.0.join("state/baseline.json")
     }
     pub fn controls(&self) -> PathBuf {
-        self.0.join("controls.json")
+        self.0.join(".local/libexec/posture/controls.json")
+    }
+    pub fn legacy_controls(&self) -> PathBuf {
+        self.0.join(".local/libexec/osquery/posture-controls.json")
     }
     pub fn marker(&self, suffix: &str) -> PathBuf {
         let mut path = self.state().into_os_string();
@@ -64,9 +68,9 @@ impl Subject {
         };
         let config = Configuration {
             state: self.state(),
-            controls: self.controls(),
             pns: "/fake/pns".into(),
             alarm: "/fake/alarm".into(),
+            ..Configuration::from_home(&self.0)
         };
         let mut error = Vec::new();
         let status = execute(

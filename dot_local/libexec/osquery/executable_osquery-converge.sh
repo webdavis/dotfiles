@@ -40,7 +40,7 @@
 # render while the deployed copy holds the old one, so the pair pages a CRIT for
 # that window. This is a property of the manifest design, not of this tool:
 # EIGHT templated targets already sit in the pipeline manifest arm
-# (posture-controls.json and the seven osquery LaunchAgent plists), and these two
+# (posture/controls.json and the seven osquery LaunchAgent plists), and these two
 # make ten. Fixing it means changing how run_after_05 derives hashes, or which
 # paths the alerter treats as pipeline infrastructure, both of which are older
 # than this tool. Do not "fix" it here by carving these two out of the manifest

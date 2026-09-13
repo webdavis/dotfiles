@@ -1,13 +1,12 @@
-{{- /* posture-controls.json: the runtime rendering of
+{{- /* controls.json: the runtime rendering of
 .chezmoidata/macos_posture_controls.yaml, read on every tick by
-firewall-gatekeeper-monitor.sh. It lives in ~/.local/libexec/osquery so the
-pipeline-integrity watch and the known-good manifest cover it: this file
+posture poll or the retained firewall-gatekeeper-monitor.sh. It lives in
+~/.local/libexec/posture so the pipeline-integrity watch and known-good
+manifest cover it: this file
 decides WHAT the posture poller monitors, so it is part of the monitor's body.
 
-NOTE for agents: this is a template, so the mandated agent apply
-(the retired excluded apply) skipped it; a posture_controls data change
-reaches the machine at the next interactive apply, the same lag every
-macos_defaults / macos_system_setup data change already has.
+A posture_controls data change reaches the machine at the next operator-run
+full apply, alongside the known-good manifest refresh.
 
 Validation mirrors the tier-guard discipline of the Tier 1/2 runners: any
 malformed record ABORTS the render (and with it the apply), naming the record.

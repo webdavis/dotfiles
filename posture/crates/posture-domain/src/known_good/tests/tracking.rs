@@ -150,3 +150,82 @@ fn every_unusable_manifest_refuses_suppression_in_both_arms() {
         }));
     }
 }
+
+#[test]
+fn only_the_pipeline_manifest_can_vouch_for_posture_controls() {
+    let controls = KnownGoodTuple {
+        path: "/fixture/.local/libexec/posture/controls.json",
+        ..tuple()
+    };
+    let entries = [controls];
+    let pipeline = manifests(Manifest::Trusted(&entries), Manifest::Trusted(&[]));
+    let crossed = manifests(Manifest::Trusted(&[]), Manifest::Trusted(&entries));
+    assert!(pipeline.vouches(controls));
+    assert!(!crossed.vouches(controls));
+}
+
+#[test]
+fn unmanifested_posture_data_pages_without_tracking_unrelated_neighbors() {
+    use crate::{FileKind, IntegrityVerdict, integrity_verdict};
+    let known = manifests(Manifest::Trusted(&[]), Manifest::Trusted(&[]));
+    for (path, expected) in [
+        (
+            "/fixture/.local/libexec/posture/controls.json",
+            IntegrityVerdict::Page,
+        ),
+        (
+            "/fixture/.local/libexec/posture/converge/desired/osquery.conf",
+            IntegrityVerdict::Page,
+        ),
+        (
+            "/fixture/.local/libexec/posturex/controls.json",
+            IntegrityVerdict::LogOnly,
+        ),
+        (
+            "/else/.local/libexec/posture/controls.json",
+            IntegrityVerdict::LogOnly,
+        ),
+    ] {
+        let observed = KnownGoodTuple { path, ..tuple() };
+        assert_eq!(
+            integrity_verdict(
+                known.is_tracked(path),
+                "UPDATED",
+                HASH,
+                FileKind::Regular,
+                |_| known.vouches(observed)
+            ),
+            expected,
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn an_unusable_pipeline_manifest_cannot_be_replaced_by_a_bin_tuple_for_controls() {
+    use crate::{FileKind, IntegrityVerdict, integrity_verdict};
+    let controls = KnownGoodTuple {
+        path: "/fixture/.local/libexec/posture/controls.json",
+        ..tuple()
+    };
+    for pipeline in [
+        Manifest::Missing,
+        Manifest::Unreadable,
+        Manifest::Empty,
+        Manifest::Untrustworthy,
+    ] {
+        let entries = [controls];
+        let known = manifests(pipeline, Manifest::Trusted(&entries));
+        assert_eq!(
+            integrity_verdict(
+                known.is_tracked(controls.path),
+                "UPDATED",
+                HASH,
+                FileKind::Regular,
+                |_| known.vouches(controls)
+            ),
+            IntegrityVerdict::Page,
+            "{pipeline:?}"
+        );
+    }
+}
