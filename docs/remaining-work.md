@@ -1,20 +1,113 @@
 # Remaining work
 
-The open task list for the pns, posture, uu, lights, Neovim and tailnet-pin program. Ordered, one task at
-a time, with stopping points that leave the tree in a state worth applying.
+The open task list for the dotfiles modernization, including pns, posture, uu, lights, Neovim, terminal
+review tools and the deferred subprojects. Use the resume order below; task numbers are stable
+references.
 
-Updated as tasks complete. Last updated 2026-09-09.
+Updated as tasks complete. Last updated 2026-09-13.
 
 ## Where things stand
 
-`main` carries eighty-six merged pull requests from 2026-09-06 onward and the first full `chezmoi apply`
-since then has now run and passed.
+Audited on 2026-09-12 against `76b37ae4`. On 2026-09-13, #530 and #531 merged and local `main`
+fast-forwarded to `origin/main` at `72f745e2`. The final #530 head passed
+[run 34747415685](https://github.com/webdavis/dotfiles/actions/runs/34747415685). The operator reported
+that `chezmoi apply` passed on 2026-09-13 after these merges. Live shortcut and harness acceptance checks
+remain pending. Task 68c tracks publication of the preserved planning edits.
 
-`main` is green as of run 34301231057. Both red cases turned out to be wrong assertions rather than
-broken code, and both repairs are mutation-verified.
+Two pull requests remain open: [#24](https://github.com/webdavis/dotfiles/pull/24) and
+[#51](https://github.com/webdavis/dotfiles/pull/51), carrying security and Forzare work explicitly listed
+below. Every pull request from the 2026-09-06 Codex handoff has merged; this file replaces that handoff.
 
-Every pull request tracked by the 2026-09-06 Codex handoff has merged. Two pull requests remain open,
-`#24` and `#51`, and both predate this program and are unrelated to it. This file replaces that handoff.
+The audit compared Claude session `32606e20-aec4-4ed6-ae95-9b9591ead0e4`, the roadmap and subsystem
+plans, current source and worktrees, GitHub issues and pull requests, Todoist's modernization, pns and
+dotfiles projects, and selected installed paths and launchd metadata. Three independent subsystem reviews
+checked pns/lights, posture/uu and Neovim/Scalebar. No new runtime acceptance, hardware drills, updates
+or applies ran during this audit. Historical test results below retain their original dates.
+
+The final sweep also checked the consolidated review backlog, all 48 open tasks across the two dotfiles
+projects and pns, the four open pull requests and 14 open issues, and the new homelab/vpp decisions.
+Recovered follow-ups are recorded below with their source and disposition. This did not run runtime
+acceptance or authorize the deferred builds.
+
+### Resume order and completion rules
+
+The Claude session stopped during branch cleanup when its usage limit was reached. It had removed
+worktrees and many temporary branches, but had not started the requested pns tap, lights or posture work.
+Resume with a fresh inventory, preserving branches and worktrees that contain retained work.
+
+1. Complete the operator acceptance checks for merged #530 and #531 below. The operator reported a
+   successful apply on 2026-09-13. Their source changes, independent reviews, required checks, merges and
+   local main synchronization are complete, including matching Scalebar #4. Continue independent work
+   while operator interaction checks are pending.
+1. Preserve the planning work in 68c and finish repository hygiene, tasks 67, 68 and 68b. Obtain approval
+   of exact removal candidates before cleanup; pending cleanup must not block independent fixes.
+1. Complete pns tap, tasks 71, 71a, 72 and 71b. Investigate 76 before deciding whether to build 74.
+   Handle SSH exposure task 75 separately and verify its listener ownership before choosing a mechanism.
+1. Finish lights acceptance and cutover, tasks 61 to 63. Task 64's conditional optimization was declined
+   by the recorded measurement. Complete the separate uu deployment check and available Neovim acceptance
+   work while waiting for device checks.
+1. Finish posture implementation and cutovers, tasks 39 to 50, then cleanup and closure, 58 to 60.
+1. Recover the remaining design from #24 and reconcile its security integrations. Hermes owns the
+   sandboxed investigation workflow that consumes alerts from posture and other security producers.
+1. Follow the deferred-project start gates below, including SP5 research before SP4. SP8 is the final
+   modernization subproject. Begin Forzare (#51) only after all other modernization work is complete, per
+   the operator's 2026-09-12 clarification.
+
+Record implementation, merge, deployment and operator acceptance separately. A merged change can still
+owe live acceptance or deployed-file cleanup. Continue independent work while an operator check is
+pending. Reconcile historical checkboxes and Todoist items against source before rebuilding anything.
+Stop-point descriptions name the target state after their prerequisites pass; they are not current
+completion claims. A research no-go or an explicitly accepted deferral needs a recorded disposition.
+
+### Remaining subprojects at a glance
+
+| Subproject               | Remaining work                                                                       | Start or decision gate                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| SP3, pns                 | Tap, configuration/device acceptance, historical validation and future platform work | Follow the active queue; future platforms retain their own approval gates      |
+| SP4, shell improvements  | Bash aliases, bindings and fzf improvements                                          | After Neovim acceptance and the SP5 verdict                                    |
+| SP5, xonsh evaluation    | Research compatibility, startup and existing shell integrations                      | Evaluate before SP4; adopting xonsh requires a separate decision               |
+| SP6, Neovim              | Socket-validation corrections and overhaul acceptance                                | Implementation fixes can proceed; rendered/device checks need the operator     |
+| SP7, sweep and backlog   | Remaining tools, installer coverage, research and task/issue reconciliation          | After earlier approved work; scope is listed below                             |
+| SP8, macOS agent manager | pstack skills and the GUI for harness tooling and configuration                      | Final modernization subproject, including after the Herdr process/review tools |
+| Forzare, #51             | Bob's executive-assistant implementation                                             | After the rest of modernization, including SP8                                 |
+
+Nix packages and per-project Nix flakes remain available by choice. Managing macOS through nix-darwin and
+migrating this repository's secrets to sops-nix are out of scope, reaffirmed by the operator on
+2026-09-12. The old SP-nix research gate and Todoist migration task are superseded. macOS configuration
+stays with chezmoi; this repository's contributor toolchain stays Homebrew and uv.
+
+The Herdr process-toggle plugin and worktree review launcher also remain planned below; neither has an
+assigned SP number. Historical plans retain older labels, including SP5 as Thaw, so use this index and
+its dated decisions when choosing the next task.
+
+## Review tools and Scalebar deployment
+
+- [x] Merge [#530](https://github.com/webdavis/dotfiles/pull/530), `feat/tuicr-config`, worktree
+  `.worktrees/tuicr-config`. Completed 2026-09-13 under explicit operator authorization. Includes tuicr,
+  quota preferences and collector preservation, Plannotator hooks and managed updates, full Herdr
+  Annotate, all approved bindings and the Worktrunk collection budget. Independent review found no
+  blockers. `env -u NO_COLOR -u REPORT_LIB_PLAIN just ship` passed; final continuous integration passed
+  at `61164ef4`. All 110 effective Herdr bindings were collision-free. The two installer scripts
+  rendered, passed Bash syntax and ShellCheck, and ran successfully. Plannotator 0.27.14 and the
+  plugin-owned plannotator-tui 0.8.0 were verified installed. Source merged as `72f745e2` and local main
+  matches upstream.
+- [x] Merge [#531](https://github.com/webdavis/dotfiles/pull/531) and owner
+  [Scalebar #4](https://github.com/webdavis/scalebar/pull/4). The skill directs bodyweight and isometric
+  records to `get_workout_trends`; `get_prs` excludes them. Owner and consumer copies match, 41 focused
+  Swift tests passed, and independent review found no blockers. Both repositories' local main branches
+  match upstream; Scalebar is at `a9d65f7`. Fitness data and Ivy widgets were not changed.
+- [x] Operator deployment: `chezmoi apply` passed, reported by the operator on 2026-09-13 after #530 and
+  #531 merged. This records deployment; it does not establish the interaction checks below.
+- [ ] Operator acceptance: reload Herdr configuration and restart the harnesses. Review changed Codex
+  hooks interactively through `/hooks`. Check quota settings/refresh, all Annotate actions, skill
+  discovery and plan-feedback delivery across Claude Code, Codex, Gemini and Hermes. Confirm the tuicr
+  skill in Hermes nicodemus. Verify that the deployed Plannotator declarations resolve to usable skills.
+  Track acceptance in [6hVr2vCjv3vqwHWM](https://app.todoist.com/app/task/6hVr2vCjv3vqwHWM).
+- [ ] Test live Worktrunk selection after apply. The reproduction preserved all 208 branch/path pairs and
+  reached the intercepted Herdr opening in about 1.6 seconds with `summary = false` and
+  `timeout-ms = 1000`; both tab and workspace paths were covered. This was not a live picker interaction.
+  The budget can omit slow status details. Tuicr 0.25.0 still ignores `compact_folders` with a warning;
+  retain the requested preference and verify it when a supporting upstream release arrives.
 
 ## Red main
 
@@ -67,26 +160,15 @@ The other two were retired by merged pull requests and named in their bodies for
 - [x] 11a. Trash `~/.local/libexec/herdr-jump.sh`. Replaced by the `herdr-workspace-jump` Rust plugin in
   PR #414.
 
-- [x] 11c. DONE 2026-09-09. The apply landed and `uu doctor` now reports the `skills` lane, so the
-  blocker cleared; `com.webdavis.update-skills` has been booted out and is gone from `launchctl list`.
-  What is left is the removal itself, which is a destructive action the operator confirmed per
-  invocation, and did: `~/Library/LaunchAgents/com.webdavis.update-skills.plist`,
-  `~/.local/libexec/unattended-upgrades/agent-skills/update-skills.sh` and
-  `~/.local/libexec/unattended-upgrades/helpers/log-entries.sh`. Deleting the chezmoi source does not
-  delete the deployed copy, which is why these three survive. Take them together: two OTHER unmanaged
-  leftovers still source `log-entries.sh`, and task 11e covers them.
+- [x] 11c. Completed 2026-09-09. The skills lane deployed and the retired updater was booted out. With
+  the operator's per-invocation approval, its plist, `agent-skills/update-skills.sh` and
+  `helpers/log-entries.sh` were trashed together with 11e's remaining consumers. Their absence was
+  verified again on 2026-09-12.
 
-- [x] 11e. DONE 2026-09-09. Two more retired unattended-upgrades leftovers, found while clearing 11c on
-  2026-09-09. Neither is chezmoi-managed any more (`chezmoi managed` lists only
-  `assert-hermes-superpowers-routing.sh` and `live-reconcile.sh` under that tree), and uu's `brew` and
-  `claude-plugins` lanes replaced both, yet `com.webdavis.report-plugin-updates` is STILL LOADED and
-  firing on its schedule. `com.webdavis.homebrew-weekly-upgrade` has a plist on disk but is not loaded.
-  Bootout the first, then trash both plists and
-  `~/.local/libexec/unattended-upgrades/{homebrew-weekly-upgrade.sh,claude/report-plugin-updates.sh}`.
-  Doing this with 11c is what made `log-entries.sh` safe to remove, since these two were its only
-  remaining consumers, verified by grep before anything moved. The agent was booted out first and
-  confirmed gone from `launchctl list`; then eight files and three now-empty directories went to the
-  trash. `agent-skills/` survives with its two live scripts.
+- [x] 11e. Completed 2026-09-09. uu's brew and Claude plugin lanes replaced the old weekly updater and
+  plugin reporter. The reporter was booted out, then the retired plists, scripts and empty directories
+  were trashed. The retired paths and labels are absent on 2026-09-12. The live `agent-skills/` helpers
+  `assert-hermes-superpowers-routing.sh` and `live-reconcile.sh` remain.
 
 - [x] 11d. Clear stale `~/.claude/ide/*.lock` files. A lock whose Neovim is gone makes claudecode.nvim
   open a plain HTTP connection to a dead port and warn `Missing or invalid Upgrade header` on every file
@@ -156,10 +238,11 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
   the banner belongs to the desk and fires only when the pane that raised it is not the pane on screen
   (`pns-domain/src/surface.rs`, `banner: surface == Surface::Desk && !watching`). Watching the pane it
   ran in suppresses it by design. Switching away before the sleep finished raised
-  `shell / done / dotfiles, sleep (36s)`. `pns doctor` did surface one real failure worth carrying: the
-  mobile push is refused by the moshi endpoint while the banner and hermes legs both deliver. The daemon
-  is running the current 0.3.16 binary rather than a deleted Cellar, so the known stale-daemon fix does
-  not apply. Original text: apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a
+  `shell / done / dotfiles, sleep (36s)`. The mobile push refusal found that day was subsequently fixed
+  in PR #503: pane-less cards carried an invalid data object. PR #505 consolidated the token source. The
+  Claude session records `pns doctor` reporting `mobile: sent` and `4 sent, 0 failed` on 2026-09-10. That
+  establishes endpoint acceptance; it does not record the operator seeing that card on the phone.
+  Original text: apply, then confirm every caller still resolves: `pns doctor`, `uu doctor`, a
   `launchctl list` showing both agents loaded, and one real long-running command raising its notification
   through the shell hook. The old binaries under `~/.local/libexec/{pns,uu,posture}/` and
   `~/.local/libexec/lights` are NOT removed by the apply and want trashing once this is confirmed;
@@ -347,87 +430,84 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   so the key can run this and nothing else. The cost, stated rather than hidden: `/usr/bin/touch` is
   always present and a built binary is not, so a broken build takes the tap with it. That is why the
   doctor row below is part of this task rather than a follow-up: `pns doctor` gains a row under Pairing
-  that reads `~/.ssh/authorized_keys`, finds the forced command, and says whether a key is wired to
-  `pns tap`, so a key later deleted or mistyped is REPORTED instead of quietly ending phone cards. Its
+  reporting the marker's freshness, so a broken tap chain is visible without inspecting SSH trust. Its
   flags, and what each one is for. Bare `pns tap` touches the marker and prints the surface that results,
   because the forced command's stdout travels back over SSH and the Shortcut can show it: a tap that says
   nothing is a tap you cannot tell from a broken one. `--info` explains the feature and reports its live
   configuration: the marker path AND WHICH SOURCE SUPPLIED IT (the shipped default, the config file, or
-  the environment), whether the file exists, how old it is, the surface that age implies, and whether a
-  key in `~/.ssh/authorized_keys` is wired to `pns tap`. Naming the source is the point of it: an
-  operator who set the config value and still sees the default is looking at an override they forgot, and
-  no other output on the machine would tell them. `--install` PRINTS the `authorized_keys` line for this
-  machine, with the binary path resolved, and says where to paste it. It says that a line already wired
-  for this should be replaced rather than added beside. THERE IS NO `--write`, AND PNS NEVER READS OR
-  WRITES `~/.ssh/authorized_keys`. This task's own history went back and forth on it, so the reasoning is
-  recorded rather than the conclusion alone. Against writing: the flag would gate INTENT, never
-  CAPABILITY. The write code sits in the binary on every run, and that binary runs unattended as a
-  daemon, from every harness hook, and on every shell prompt. Any bug, config injection or compromised
-  dependency that reaches it escalates to granting SSH access to the machine, which is not a notification
-  tool's blast radius. What it buys against that is one paste, once per machine, ever. pns is also a tool
-  other people `cargo install`, and "this notifier can edit your authorized_keys" is a line that should
-  stop an auditor cold. Against reading: `--info` PRINTS what it reads, into a terminal whose contents
-  get pasted into chats and issues, and the file is the operator's whole SSH trust list. And therefore no
-  `--backup`: it only ever existed to make the write safe, and it carried its own hazard, since a copy of
-  a trust file re-grants a key that was later revoked if it is restored unread. WHAT REPLACES THE READ IS
-  A BETTER CHECK. `--info` and the doctor row report the MARKER'S OWN FRESHNESS: "last tap 3 hours ago",
-  or "never tapped". That verifies the whole chain end to end (phone, Shortcut, ssh, key, forced command,
-  file) rather than inspecting one link and inferring the rest, and it needs no access to `~/.ssh` at
-  all. A wiring mistake anywhere in that chain shows up the same way: the marker never moves. `--install`
-  IS A GUIDE, not a dump. It uses task 69's house style, so setup and `pns doctor` read as one tool: the
-  framed title, `◆` numbered step headings with a faint blurb on the rule, `·` rows for the parts of a
-  line that need explaining, and a closing rule pointing at `pns tap --info` to check the work. THE FRAME
-  CARRIES A NUMBERED CONTENTS LIST, not a sentence and not a count of parts (operator ruling 2026-09-09,
-  after "two halves" and then "set up this Mac, then set up your phone" were both rejected as too vague).
-  It lists the steps by the same numbers their headings use, each with a short gloss:
-  `1. This Mac / the authorized_keys line`, `2. Your phone / the PNS Tap shortcut`,
-  `3. Trigger methods / Back Tap, Action Button, others`, NOT "A trigger": the section lists ways to fire
-  the Shortcut, so it names the category rather than one instance of it. The reader sees the whole job
-  before starting one, finds their place again after stepping away, and learns what a step involves
-  without scrolling to it. Three steps, in the order they are performed: step 1 the `authorized_keys`
-  line, with `command=`, `restrict` and the key placeholder each explained on their own row; step 2 the
-  Shortcut, as labelled fields (Host, User, Auth, Script) rather than prose, with a note that the script
-  text is cosmetic since step 1 overrides it; step 3 the triggers, listed with the Settings path beside
-  each. Host and user come from the machine, never hardcoded. EVERY WORD PNS PRINTS GOES THROUGH THE
-  `humanizer` SKILL BEFORE IT SHIPS (operator ruling 2026-09-09, standing, and it covers every pns
-  command rather than this guide alone). Terminal output is prose the operator reads under pressure, and
-  the tells that skill catches are the ones that make a tool feel generated. The first pass over this
-  guide caught four. A subjectless "Nothing is written for you" tacked on as a negation becomes "pns does
-  not edit this file". A run of fragments closing on the manufactured punchline "This key does one thing"
-  keeps the fact list and loses the punchline. "The script text is cosmetic" becomes "sshd ignores this
-  script text", which is shorter and more accurate. And "Found 3 issues to address:" carries filler ahead
-  of a numbered list, so the doctor's closing line becomes "3 issues to fix:". The doctor's seven section
-  blurbs passed unchanged. STEP 2 SHRINKS LATER. The operator intends to host a public Shortcut people
-  can install directly (2026-09-09), at which point step 2 becomes a link and an "install this" rather
-  than a field-by-field build. Write it so that swapping those is an edit to one step, not a rewrite of
-  the guide. COVERS THE PHONE SIDE TOO, because the wiring has two halves and an operator holding only
-  one of them has nothing working. After the `authorized_keys` line it prints the Shortcut recipe (Run
-  Script Over SSH, with the host, the user and which key to select) and the triggers that Shortcut can be
-  attached to: Back Tap, the Action Button, a Lock Screen widget, Control Center, Siri. The command text
-  typed into the Shortcut is cosmetic, since sshd runs the forced command instead, but it is spelled
-  `pns tap` anyway so the Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag
-  is read when something is already wrong, and burying a status report under a wall of instructions is
-  how a diagnostic stops being read. `--info` closes with one line pointing at `pns tap --install`. THE
-  PRINTED INSTRUCTIONS CARRY THE iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees
-  ("Settings paths verified on iOS <version>"). The exact paths to Back Tap and the Action Button move
-  between releases, and instructions that do not date themselves are worse than none: a reader on a later
-  iOS cannot tell a path that moved from a step they got wrong. Verify them against the operator's own
-  iOS at build time rather than writing them from memory here, and record the version in the same change
-  that writes the text. `--delete-marker` IS NOT BUILT. Verified against
-  `pns/docs/specs/presence-and-visibility.md` on 2026-09-09, which settles it: "Mobile and Away both mean
-  the phone card", and "Away always cards while Mobile lets [the viewed pane suppress it]". So deleting
-  the marker while away from the desk moves the operator Mobile to AWAY, which cards MORE aggressively
-  because Away never suppresses, the opposite of what a flag called clear or delete would promise. At the
-  desk it is redundant, since typing already cancels a stray tap under newest-signal-wins. Both cases
-  fail, so the flag does not ship. The earlier names weighed for it (`--clear`, `--at-desk`) are moot.
-  `--json` emits the same answers machine-readably, so the Shortcut renders them rather than dumping a
-  sentence. `--no-color` is NOT one of these flags; it is tool-wide, task 73. DELIBERATELY NOT
-  `--set-marker`, a flag that writes the config: `~/.config/pns/config.toml` is a chezmoi-rendered target
-  on this machine, so a write there is erased by the next apply and the operator would watch their change
-  disappear. `--info` names the file that really holds the value instead. DELIBERATELY NOT
-  `--for <duration>`, a tap that expires on its own: the probe reads the marker's mtime and never its
-  contents (`symlink_metadata`, so a dangling symlink still answers), so an expiry is a reader redesign
-  rather than a flag, and it is scoped separately if it is ever wanted.
+  the environment), whether the file exists, how old it is, and the surface that age implies. Naming the
+  source is the point of it: an operator who set the config value and still sees the default is looking
+  at an override they forgot, and no other output on the machine would tell them. `--install` PRINTS the
+  `authorized_keys` line for this machine, with the binary path resolved, and says where to paste it. It
+  says that a line already wired for this should be replaced rather than added beside. THERE IS NO
+  `--write`, AND PNS NEVER READS OR WRITES `~/.ssh/authorized_keys`. This task's own history went back
+  and forth on it, so the reasoning is recorded rather than the conclusion alone. Against writing: the
+  flag would gate INTENT, never CAPABILITY. The write code sits in the binary on every run, and that
+  binary runs unattended as a daemon, from every harness hook, and on every shell prompt. Any bug, config
+  injection or compromised dependency that reaches it escalates to granting SSH access to the machine,
+  which is not a notification tool's blast radius. What it buys against that is one paste, once per
+  machine, ever. pns is also a tool other people `cargo install`, and "this notifier can edit your
+  authorized_keys" is a line that should stop an auditor cold. Against reading: `--info` PRINTS what it
+  reads, into a terminal whose contents get pasted into chats and issues, and the file is the operator's
+  whole SSH trust list. And therefore no `--backup`: it only ever existed to make the write safe, and it
+  carried its own hazard, since a copy of a trust file re-grants a key that was later revoked if it is
+  restored unread. WHAT REPLACES THE READ IS A BETTER CHECK. `--info` and the doctor row report the
+  MARKER'S OWN FRESHNESS: "last tap 3 hours ago", or "never tapped". Freshness establishes that the
+  marker changed and needs no access to `~/.ssh`. A local command can also update it; task 71b's real
+  phone test verifies the complete tap chain. `--install` IS A GUIDE, not a dump. It uses task 69's house
+  style, so setup and `pns doctor` read as one tool: the framed title, `◆` numbered step headings with a
+  faint blurb on the rule, `·` rows for the parts of a line that need explaining, and a closing rule
+  pointing at `pns tap --info` to check the work. THE FRAME CARRIES A NUMBERED CONTENTS LIST, not a
+  sentence and not a count of parts (operator ruling 2026-09-09, after "two halves" and then "set up this
+  Mac, then set up your phone" were both rejected as too vague). It lists the steps by the same numbers
+  their headings use, each with a short gloss: `1. This Mac / the authorized_keys line`,
+  `2. Your phone / the PNS Tap shortcut`, `3. Trigger methods / Back Tap, Action Button, others`, NOT "A
+  trigger": the section lists ways to fire the Shortcut, so it names the category rather than one
+  instance of it. The reader sees the whole job before starting one, finds their place again after
+  stepping away, and learns what a step involves without scrolling to it. Three steps, in the order they
+  are performed: step 1 the `authorized_keys` line, with `command=`, `restrict` and the key placeholder
+  each explained on their own row; step 2 the Shortcut, as labelled fields (Host, User, Auth, Script)
+  rather than prose, with a note that the script text is cosmetic since step 1 overrides it; step 3 the
+  triggers, listed with the Settings path beside each. Host and user come from the machine, never
+  hardcoded. EVERY WORD PNS PRINTS GOES THROUGH THE `humanizer` SKILL BEFORE IT SHIPS (operator ruling
+  2026-09-09, standing, and it covers every pns command rather than this guide alone). Terminal output is
+  prose the operator reads under pressure, and the tells that skill catches are the ones that make a tool
+  feel generated. The first pass over this guide caught four. A subjectless "Nothing is written for you"
+  tacked on as a negation becomes "pns does not edit this file". A run of fragments closing on the
+  manufactured punchline "This key does one thing" keeps the fact list and loses the punchline. "The
+  script text is cosmetic" becomes "sshd ignores this script text", which is shorter and more accurate.
+  And "Found 3 issues to address:" carries filler ahead of a numbered list, so the doctor's closing line
+  becomes "3 issues to fix:". The doctor's seven section blurbs passed unchanged. The operator's
+  2026-09-09 record in `pns/docs/pns-tap-apple-shortcut.md` says the Shortcut is already public. Verify
+  its install link and use it in step 2, retaining the required machine-specific setup fields. COVERS THE
+  PHONE SIDE TOO, because the wiring has two halves and an operator holding only one of them has nothing
+  working. After the `authorized_keys` line it prints the Shortcut recipe (Run Script Over SSH, with the
+  host, the user and which key to select) and the triggers that Shortcut can be attached to: Back Tap,
+  the Action Button, a Lock Screen widget, Control Center, Siri. The command text typed into the Shortcut
+  is cosmetic, since sshd runs the forced command instead, but it is spelled `pns tap` anyway so the
+  Shortcut reads as what it does. THE SETUP PROSE STAYS OFF `--info`: that flag is read when something is
+  already wrong, and burying a status report under a wall of instructions is how a diagnostic stops being
+  read. `--info` closes with one line pointing at `pns tap --install`. THE PRINTED INSTRUCTIONS CARRY THE
+  iOS VERSION THEY WERE VERIFIED AGAINST, as a line the reader sees ("Settings paths verified on iOS
+  <version>"). The exact paths to Back Tap and the Action Button move between releases, and instructions
+  that do not date themselves are worse than none: a reader on a later iOS cannot tell a path that moved
+  from a step they got wrong. Verify them against the operator's own iOS at build time rather than
+  writing them from memory here, and record the version in the same change that writes the text.
+  `--delete-marker` IS NOT BUILT. Verified against `pns/docs/specs/presence-and-visibility.md` on
+  2026-09-09, which settles it: "Mobile and Away both mean the phone card", and "Away always cards while
+  Mobile lets [the viewed pane suppress it]". So deleting the marker while away from the desk moves the
+  operator Mobile to AWAY, which cards MORE aggressively because Away never suppresses, the opposite of
+  what a flag called clear or delete would promise. At the desk it is redundant, since typing already
+  cancels a stray tap under newest-signal-wins. Both cases fail, so the flag does not ship. The earlier
+  names weighed for it (`--clear`, `--at-desk`) are moot. `--json` emits the same answers
+  machine-readably, so the Shortcut renders them rather than dumping a sentence. `--no-color` is NOT one
+  of these flags; it is tool-wide, task 73. DELIBERATELY NOT `--set-marker`, a flag that writes the
+  config: `~/.config/pns/config.toml` is a chezmoi-rendered target on this machine, so a write there is
+  erased by the next apply and the operator would watch their change disappear. `--info` names the file
+  that really holds the value instead. DELIBERATELY NOT `--for <duration>`, a tap that expires on its
+  own: the probe reads the marker's mtime and never its contents (`symlink_metadata`, so a dangling
+  symlink still answers), so an expiry is a reader redesign rather than a flag, and it is scoped
+  separately if it is ever wanted.
 
 - [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
   own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
@@ -447,14 +527,11 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
   secret that needs a rotation story.
 
-- [ ] 76. TEST THE APPLE SHORTCUTS ROUTE BEFORE BUILDING TASK 74. iOS Shortcuts can run a Shortcut ON A
-  MAC over iCloud, and a Mac-side Shortcut's "Run Shell Script" action can call `pns tap`. If that works
-  it beats both the SSH tap and the HTTP one: NO LISTENING PORT AT ALL, no key, no `authorized_keys`
-  line, no shared secret, nothing for pns to own but the marker it already owns. FROM TRAINING, NOT
-  VERIFIED, which is exactly why this is an investigation and not a build: whether cross-device execution
-  works on this operator's iOS and macOS versions, whether the Mac must be awake or unlocked, and what
-  the latency is. Those three answers decide it. Half an hour of testing on the real devices settles
-  whether task 74 is worth building at all.
+- [ ] 76. Investigate the Apple Shortcuts route before building 74. The earlier proposal assumed that iOS
+  could trigger execution of a Mac-side Shortcut over iCloud. That capability has not been verified;
+  syncing Shortcut definitions does not establish remote execution. Check supported execution methods,
+  awake/unlocked requirements and measured latency on the operator's devices. Record a go/no-go before
+  deciding whether the optional HTTP tap is needed.
 
 ## Tool-wide output flags
 
@@ -475,14 +552,14 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   `pns tap` exits non-zero when the touch fails, so the Shortcut can show a failure. A tap that fails
   silently is worse than no tap, because the operator stops checking. THE STATE DIRECTORY:
   `~/.local/state/pns/` may not exist on a fresh machine and `pns tap` may be the first thing to reach
-  for it, so it creates the directory rather than failing on it. REMOTE LOGIN IS STEP 0, and the guide
-  had no step 0 at all. The whole feature needs sshd accepting connections (System Settings, General,
-  Sharing, Remote Login). Without it every other step is wired correctly and nothing happens, which is
-  the worst kind of wrong. A SLEEPING MAC does not answer SSH, so the tap is lost with no error anywhere.
-  This is the likeliest real-world failure and nothing mentioned it; `--info` gets a section saying so.
-  NO CONFIG REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the
-  default marker path, because requiring one would fail on exactly the fresh machine `--install` is
-  walking somebody through. Still unspecified and minor: the `--json` schema, and how to undo the setup.
+  for it, so it creates the directory rather than failing on it. REMOTE LOGIN is a prerequisite in the
+  Mac setup step. The whole feature needs sshd accepting connections (System Settings, General, Sharing,
+  Remote Login). Without it every other step is wired correctly and nothing happens, which is the worst
+  kind of wrong. Verify sleep and wake behavior on the operator's devices and explain what the Shortcut
+  reports when the Mac cannot answer. `--info` should identify this troubleshooting path. NO CONFIG
+  REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the default
+  marker path, because requiring one would fail on exactly the fresh machine `--install` is walking
+  somebody through. Define the `--json` schema and manual undo instructions before building.
 
 - [ ] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
@@ -491,43 +568,45 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
   Ordered after 71 deliberately: a knob shipped while the path is still duplicated is a knob that breaks
   the tap when it is turned.
 
+- [ ] 71b. Finish the phone-side artifact after the Mac command exists. The shipped Shortcut currently
+  points at the missing `pns tap --install`. Correct its three-global-variables/four-fields instructions
+  and feed success or failure from the command into an accurate confirmation of the resulting surface.
+  Update the actual Shortcut first, then its verbatim record in `pns/docs/pns-tap-apple-shortcut.md`.
+  Verify setup and a real tap on the operator's devices, including an unavailable Mac and a write
+  failure.
+
 ## SSH exposure (not a pns task)
 
-- [ ] 75. BIND SSHD TO THE TAILNET. A DOTFILES TASK, NOT A PNS ONE, and it is filed in its own section
-  below rather than beside the tap tasks so it cannot be read as pns work. pns never learns that this
-  happened: it does not check for it, mention it, or behave differently either way. The tap is merely why
-  the listener exists. Measured on 2026-09-09: `netstat -an | grep LISTEN` shows sshd on `*.22`, IPv4 and
-  IPv6, so this Mac answers on every network it touches. Public-key-only is already enforced, so nobody
-  gets in without a key, but the machine still announces itself as an SSH server to any network it joins.
-  Tailscale is the only network its own devices are on. The change: an `ListenAddress` for the Tailscale
-  address in the drop-in at `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`, which
-  `dot_local/bin/executable_ssh-hardening.sh` already generates and installs. Port 22 then answers on the
-  tailnet alone. The phone is on the tailnet, so the tap keeps working. Verify with `netstat` before and
-  after AND confirm a real tap still lands, because a wrong address silently ends both SSH and the tap at
-  once, and the script's own `--reload` refuses to claim success without a real banner exchange.
+- [ ] 75. Restrict this Mac's SSH exposure to the tailnet using a supported mechanism. This belongs to
+  dotfiles; pns remains network-independent. The earlier `ListenAddress` proposal did not account for
+  launchd owning Remote Login's listening socket, documented in `executable_ssh-hardening.sh` and the
+  installed `/System/Library/LaunchDaemons/ssh.plist`. Investigate that ownership and available controls
+  before choosing the change. Preserve recovery access, review the exact activation and rollback with the
+  operator, then verify allowed and disallowed reachability over IPv4 and IPv6, the listener state, a
+  real SSH login and a real phone tap. Do not infer network isolation from `sshd -T` alone.
 
 ## posture foundation
 
 - [x] 37. posture 2.4: page, domain digest, protocol codec
+
 - [x] 38. posture 2.9: `drift.rs` and `converge_policy.rs`. ALREADY DONE when this was checked on
   2026-09-09, shipped by the converge-foundation work in PR #470 rather than by a task of its own. Both
   modules are implemented, exported and tested (20 drift cases, 9 converge-policy cases), and neither
   carries a deferral note. Verified by running them rather than by reading the plan.
-- [x] 39. posture 2.10: `cursor.rs` and `triage.rs`. `cursor.rs` is new here. `triage.rs` is NOT a file:
-  `gate::Triage` already carries the exact three fields the bash `file_integrity_triage` emits
-  (`recorded`, `ondisk`, `upgrade`), and its three helpers read files and spawn `codesign`, so they are
-  adapter work in tasks 40 and 41 rather than domain policy. A second domain module would have been an
-  empty wrapper around a type that already exists.
-- [x] 40. posture 3.1 remainder: four adapters. Measured on 2026-09-09 by listing every `pub trait` in
-  `posture-application` and asking which had no `impl` in `posture-adapters`, rather than by reading the
-  plan. Sixteen of the seventeen ports already had one, shipped by earlier merged work. The seventeenth
-  was `PollMarkers`, and even its three methods existed as inherent methods on `PollStateFiles`; only the
-  trait bridge was missing.
-- [x] 41. posture 3.2 remainder: tailscale, process, gateway, `LaunchdState`. Already done.
-  `ProcessTable` is implemented in `converge/parents.rs` and `LaunchdTable` in `launchd_table.rs`; the
-  Tailscale funnel judgement lives in `posture-domain::funnel` and its watched agent in
-  `watchdog::agents`. There is no `gateway` port: delivery goes through `pns_producer.rs`, which is how
-  this repository decided a producer reaches a gateway. Nothing was left to write.
+
+- [x] 39. posture 2.10 domain work: `cursor.rs` and `gate::Triage` are implemented. The existing triage
+  type covers the required fields; its producer still needs recorded/on-disk hash and upgrade facts.
+  Track that adapter work under 40 and 45b.
+
+- [ ] 40. Complete posture 3.1 adapter behavior. `PollMarkers` and the initial adapters landed, but
+  enumerating trait implementations did not establish acceptance. Finish the triage/upgrade-record
+  producer used by 45b and verify the actual producer's example from the port plan.
+
+- [ ] 41. Complete posture 3.2 health adapters with task 46. Existing process and allowlist adapters do
+  not provide the planned `launchctl print` health reader. Gateway health is also separate from
+  notification delivery. Implement the required health readers and checks against their source contracts;
+  retain the existing process and Tailscale policy work.
+
 - [x] 42. posture 3.3: the converge read half, staging, privileged. Already done, and verified the same
   way: `ConvergeStaging` in `staging.rs`, `DesiredTree` in `staging/owned.rs`, `LiveTree` in
   `live_tree.rs`, `PrivilegedInstall` in `converge/install.rs`, plus `OsqueryControl`, `ProcessTable` and
@@ -535,12 +614,13 @@ sees a file that never updates, reads the tap as stale, and phone cards simply s
 
 ### STOP POINT D
 
-The foundation is complete and nothing has cut over, so there is no runtime risk yet.
+Finish the foundation and adapter acceptance before starting the dependent cutovers. Tasks 40 and 41
+still have implementation work; heartbeat and digest have already cut over independently.
 
 ## posture cutovers
 
-Every task in this section needs the pns-keyed gateway route to exist first. Adding it is an operator
-step, and it gates the whole section.
+The pns-keyed gateway route prerequisite was verified on 2026-09-09, as recorded below. Do not ask the
+operator to create it again. The remaining adapter, delivery and live cutover checks still apply.
 
 - [x] 43. posture 6.1: heartbeat cutover. The plist now runs `posture heartbeat` instead of
   `bash heartbeat.sh`; the bash script and the integration test that pinned it are deleted.
@@ -559,9 +639,8 @@ step, and it gates the whole section.
   spool's WRITE side stays bash until task 45b; both ends still agree because they are built from one
   `posture-protocol` record. THE ALLOWLIST TUPLE MOVED WITH THE PLIST: the alerter matches a
   `persistence_launchd` finding against (label, path, program), so repointing without it pages on the
-  next launchd scan. WHAT THE OPERATOR STILL DOES: apply, run `posture digest` by hand against a spool
-  the day has filled, confirm the single silent message and the `.last` rotation, then trash the deployed
-  `~/.local/libexec/osquery/digest.sh`.
+  next launchd scan. Task 50a tracks the filled-spool delivery and `.last` rotation acceptance still
+  needing evidence. The deployed `~/.local/libexec/osquery/digest.sh` is already absent on 2026-09-12.
 - [x] 45a. posture 6.3, first half: the alerter's read-to-checkpoint transaction. SPLIT FROM TASK 45 on
   2026-09-09 because the port plan calls 6.3 "the largest cutover" and a single pull request for it would
   be the huge diff the small-PR rule exists to prevent. This half is policy and ordering only, with no
@@ -578,35 +657,65 @@ step, and it gates the whole section.
   inspections and the digest spool, and keeping all of that behind one boundary is what lets the ordering
   be tested against doubles that touch nothing. A digest row is delivered the moment the judge spools it,
   so only a page has a delivery this run can fail. 21 tests green, clippy clean.
-- [ ] 45b. posture 6.3, second half. THE CODE IS DONE AND AT PARITY; ONLY THE ARMING IS LEFT (PR #506, 81
-  tests). Shipped: the results-log reader with its single reading and bounded span, the cursor published
-  by rename, the non-blocking single-instance lock (`O_CLOEXEC` replacing the shell's by-hand `9>&-` on
-  every spawn), the row decoder, the column projection, the allowlist reader, the known-good manifest
-  reader, the digest spool's append side, the `JudgeFindings` implementer, and `posture alert`. The
-  enricher runs IN PROCESS rather than through a spawn, because `posture enrich` was already a use case
-  in the same crate. WHY THE ENRICHER WAS NEVER OPTIONAL, recorded because it was twice reasoned about
-  wrongly on 2026-09-09 before being measured: an untrusted signing verdict PROMOTES a Notice finding to
-  Critical in the gate, so a cutover without it would send a finding the shell paged about to the next
-  day's digest. That is a missed page, not extra noise. Both directions are now pinned by tests. THE ONE
-  REMAINING GAP is the triage facts (recorded and on-disk hashes, upgrade correlation) that a
-  file-integrity page carries. Display-only, and the shell tolerated the same gap whenever its optional
-  helper was undeployed, so a page fires carrying less rather than not firing. FOUR DERIVATIONS WERE
-  WRONG until the binary was run against a real sandbox, and the unit tests agreed with all four because
-  they came from the same misreading of the shell's jq: the action was taken from a column rather than
-  from the row, the identity column order dropped `identifier`, a listening port lost its address and
-  port, and the timestamp carried the date without the time. Real-run verification is what caught them.
-  STILL TO DO, all of it the arming: repoint the plist to `posture alert`, move the allowlist tuple for
-  `com.webdavis.osquery-results-alerter` with it (the alerter matches a `persistence_launchd` finding
-  against label, path AND program, so repointing without it pages on the next launchd scan), and delete
-  `executable_results-alerter.sh` plus six private files under `results-alerter/`, keeping
-  `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still sources it and would otherwise
-  refuse BOTH manifest scans as unavailable (it retires in task 46), and the four e2e and unit suites
-  that pinned them.
-- [ ] 46. posture 6.4: watchdog cutover
-- [ ] 47. posture 6.5: poll cutover
-- [ ] 48. posture 6.6: funnel cutover
-- [ ] 49. posture 6.7: drainer retirement
-- [ ] 50. posture 7.1: converge cutover
+- [ ] 45b. posture 6.3, second half. The main transaction shipped in PR #506 (81 tests), but triage
+  parity and arming remain. Shipped: the results-log reader with its single reading and bounded span, the
+  cursor published by rename, the non-blocking single-instance lock (`O_CLOEXEC` replacing the shell's
+  by-hand `9>&-` on every spawn), the row decoder, the column projection, the allowlist reader, the
+  known-good manifest reader, the digest spool's append side, the `JudgeFindings` implementer, and
+  `posture alert`. The enricher runs IN PROCESS rather than through a spawn, because `posture enrich` was
+  already a use case in the same crate. WHY THE ENRICHER WAS NEVER OPTIONAL, recorded because it was
+  twice reasoned about wrongly on 2026-09-09 before being measured: an untrusted signing verdict PROMOTES
+  a Notice finding to Critical in the gate, so a cutover without it would send a finding the shell paged
+  about to the next day's digest. That is a missed page, not extra noise. Both directions are now pinned
+  by tests. THE REMAINING IMPLEMENTATION GAP is the triage facts (recorded and on-disk hashes, upgrade
+  correlation) that a file-integrity page carries. Display-only, and the shell tolerated the same gap
+  whenever its optional helper was undeployed, so a page fires carrying less rather than not firing. FOUR
+  DERIVATIONS WERE WRONG until the binary was run against a real sandbox, and the unit tests agreed with
+  all four because they came from the same misreading of the shell's jq: the action was taken from a
+  column rather than from the row, the identity column order dropped `identifier`, a listening port lost
+  its address and port, and the timestamp carried the date without the time. Real-run verification is
+  what caught them. Complete and verify the actual triage producer, then arm the command: repoint the
+  plist to `posture alert`, move the allowlist tuple for `com.webdavis.osquery-results-alerter` with it
+  (the alerter matches a `persistence_launchd` finding against label, path AND program, so repointing
+  without it pages on the next launchd scan), and delete `executable_results-alerter.sh` plus six private
+  files under `results-alerter/`, keeping `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh`
+  still sources it and would otherwise refuse BOTH manifest scans as unavailable (it retires in task 46),
+  and retire the old tests by their current consumers. The canonical plan names six suites; reconcile
+  that inventory against current source before deletion. Run the sandbox composition checks and the
+  plan's live page/digest, checkpoint and retry acceptance after the operator applies.
+- [ ] 46. posture 6.4: implement and cut over watchdog. The CLI still refuses the command.
+  `posture/docs/acceptance/watchdog.md` leaves state publication, delivery ordering, legacy queue and pns
+  health probes unfinished. Include an authorized pns build record, independent binary integrity, daemon
+  and ledger checks, the direct alarm path even when pns falsely acknowledges delivery, and preservation
+  of legacy growth history. Follow the port plan's acceptance before retiring `pipeline-audit.sh` and its
+  remaining `pipeline-verdict.sh` dependency.
+- [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction
+  exists; CLI dispatch does not. Preserve the existing baseline and verify exposure and recovery across
+  two ticks before removing the Bash producer.
+- [ ] 48. posture 6.6: implement funnel input projection, adapters and CLI dispatch, then cut over.
+  Policy alone shipped. Preserve the baseline and verify real-input behavior before retiring Bash.
+- [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
+  are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
+  label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
+  Preserve an export of reviewed dead letters, obtain fresh approval for exact-row removal and reread all
+  three counts. Unresolved rows retain the route, key, drainer and queue. Once empty and no other
+  consumer needs them, retire the old `priority` route/key and propose cleanup of the queue's three
+  files, `osquery-spool/`, `osquery-tailscale-funnel` and `~/.config/osquery/webhook-secret` as required
+  by the port plan. Secret values stay out of logs and review artifacts.
+- [ ] 50. posture 7.1: finish converge integration. Port the Bash isolated-database validation fix into
+  Rust, which still invokes `osqueryctl config-check`. Move the apply caller to slot 59 after its build,
+  add argument-vector support to uu's brew repair command, and update all callers. Verify composition,
+  idempotence and the operator's repair/restart drill before retiring the Bash implementation.
+- [ ] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
+  44\. Installed plists invoke Rust, but that does not prove delivery. Record the silent pns-route
+  message, banner and ledger evidence, and a filled-spool digest with `.last` rotation. Inventory retired
+  helpers and their remaining consumers before proposing removal: deployed `heartbeat.sh`, `allowlist.sh`
+  and `enrich-finding.sh` remain; `digest.sh` is already absent. See port-plan steps 6.1 to 7.1 for each
+  cutover's full acceptance and rollback requirements. Also reconcile earlier enrichment and allowlist
+  acceptance from steps 4.1 and 4.2: signed/unsigned enrichment exits and facts, deployed-list parity,
+  and own-agent tuple refresh/publication. Record previously evidenced checks as complete. Update stale
+  install paths and by-name apply instructions to the current operator-run full-apply rule when recording
+  acceptance.
 
 ### STOP POINT E
 
@@ -695,66 +804,134 @@ Every posture producer is Rust and the old pipeline is off.
   Proved by running it, not by reading it: an 11 MB log was compressed to `big.log.1.gz` and truncated in
   place to zero bytes, a small one was left alone, and an absent one was skipped.
 
-  WHAT THE OPERATOR STILL DOES, the same shape as task 43: apply, then
-  `launchctl bootout gui/$(id -u)/com.webdavis.rotate-logs`, then trash the deployed
-  `~/.local/libexec/compress-and-truncate-local-logs.sh` and
-  `~/Library/LaunchAgents/com.webdavis.rotate-logs.plist`. Deleting a chezmoi source never deletes its
-  target, which is why the deployed pair outlives this change. Rotation is weekly from here rather than
-  hourly, so a log can sit above the threshold until the next weekly run.
+  Deployment cleanup verified 2026-09-12: the retired rotation script, plist and loaded label are absent.
+  Rotation is weekly from here rather than hourly, so a log can sit above the threshold until the next
+  weekly run.
 
 ### STOP POINT F
 
-uu is complete.
+The planned Rust lanes are implemented. The following deployment check remains.
+
+- [ ] 57a. Deploy and verify the later uu fixes. The installed config still names the absent
+  `/opt/homebrew/bin/cua-driver`, while source correctly names `~/.local/bin/cua-driver`. Validate the
+  touched scripts and propose a full operator-run apply. Then verify a real skills update, logging for
+  each run, styled interactive output and lock release after interruption using the merged behavior. The
+  skills lane itself is already deployed; do not repeat task 11c's retired-job cleanup. Also record the
+  tooling-lanes plan's acceptance evidence: legacy Claude-plugin snapshot history was imported or was
+  absent, the first scheduled run is recorded, and the new lane streak directories exist. A successful
+  manual skills run alone does not establish those separate conditions.
+- [ ] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
+  Current uu reinstalls plugin source tip and rejects a `pin` setting. Installed Herdr's
+  `plugin install --help` exposes `--ref <REF>` (verified 2026-09-12). Record the desired pin/update
+  policy, then implement it through that supported interface in uu's configuration and plugin lane. Do
+  not silently freeze plugin updates or claim that source-tip reinstalls honor a configured revision
+  across weekly updates. Source:
+  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`.
 
 ## posture cleanup
 
-- [ ] 58. posture 8.1, 8.2, 8.3: the ssh-hardening port, then trash the deployed
-  `~/.local/bin/ssh-hardening.sh` it replaces
-- [ ] 59. posture 9.1: osquery leaves the tracked set
-- [ ] 60. posture 9.2: the completion report and 187-name mapping table
+- [ ] 58. posture 8.1 to 8.3: implement the SSH hardening port in its three planned stages. The command
+  is still unimplemented. Preserve process-group timeout behavior and verify live configuration/output
+  comparisons before cutover; propose removal of the deployed Bash tool after acceptance.
+- [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
+  coverage for relocated data and update its consumers, then retire the old managed scripts and approved
+  deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
+  Coordinate that removal across watch paths, manifests and Rust manifest selection. Keep osqueryd
+  installed as the query producer and perform the plan's operator-run restart after changing its watched
+  paths.
+- [ ] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
+  before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
+  inventory. The Rust size gate already covers posture; do not add it again.
 
 ### STOP POINT G
 
-posture is done and osquery is retired.
+posture owns the migrated pipeline and the legacy Bash tools are retired. osqueryd remains the query
+producer.
 
 ## The tail
 
-- [ ] 61. lights: the argument-surface differential, owed since PR 1
-- [ ] 62. lights PR 12: the aerospace keys F4 to F10 off the bash script
-- [ ] 63. lights: the manifest decision for `~/.local/libexec/lights`
-- [ ] 64. lights PR 11a, conditional on the `bulk_read_latency` drill
-- [ ] 65. Neovim task 63: the acceptance record, needs the clean-home apply
+- [ ] 61. lights: finish the argument-surface differential against the independent legacy reference,
+  including the changed-reference control. Current usage assertions do not fulfill that acceptance.
+
+- [ ] 62. lights PR 12: move all seven aerospace keys F4 to F10 to `~/.cargo/bin/lights`. Five still call
+  Bash and two call OpenHue directly. Complete the three remaining command/hardware drills, then verify
+  actual key presses and held-key behavior after apply. Retire the script and propose manual cleanup of
+  its deployed copy and obsolete logs after acceptance.
+
+- [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
+  existing generated-binary exception covers posture only. Update the stale target in the lights plan and
+  spec when recording the decision.
+
+- [x] 64. lights PR 11a is unnecessary under the recorded bulk-read decision. Bulk measured 210 ms,
+  versus 267 ms and 455 ms for the targeted alternatives. Keep bulk and record the accepted deviation
+  from the 150 ms design target. The other three hardware drills gate 62.
+
+- [ ] 65. Neovim task 63: finish the acceptance record required by PR #385. Capture five silent starts,
+  full-plugin health output, quiescent startup comparison, rendered which-key groups, both agent loops,
+  Swift/custom-plugin behavior, a clean-home apply and quiet repeat apply, and the inventory-to-merged-PR
+  mapping. Synthetic/headless runs do not establish rendered acceptance. Reconcile the stale expected
+  `X = xcode` and `d = do` groups with current `x = xcode` and `d = docker` before the operator checks.
+  Reconcile `dot_config/nvim/docs/todo.md`; bootstrap, neotest, annotation extraction and autosave/format
+  coordination already exist in source. Keep deferred formatter/linter and agent-protocol evaluations
+  separate from this acceptance task. Write `docs/research/2026-09-nvim-overhaul-acceptance.md`. Run
+  `Lazy! load all` before health capture. Retain the plan's synthetic warm-start pass condition,
+  `after < baseline - 10`, and separately record a rendered Herdr start with every `VeryLazy` plugin
+  loaded. Keep cold and rendered-start timing as recorded measurements, as the plan specifies.
+
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
   joined the two halves because no shell variable can hold one; and the temporary file is removed by
   `Drop` rather than by six signal traps, so there is no signal list to keep in step with a test.
+
 - [x] 66b. tailnet-pin cutover: the builder at `run_onchange_after_40`, the `run_onchange_after_41` call
   site, and the source script and its bash suite deleted. The caller's SHA256 pin of a source file became
   a SOURCE FINGERPRINT the builder records after installing, because a built binary's bytes do not exist
   at render time; the runner refuses every pin unless that record matches what this apply rendered, which
   is what stops a deferred build from aiming a stale binary at `/etc/hosts` as root.
+
 - [x] 66c. DONE 2026-09-09. Trashed the deployed `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and
   its now-empty directory, after an apply has installed `~/.cargo/bin/tailnet-pin`. Chezmoi does not
   delete a target whose source entry is gone, and this repository builds no removal mechanisms, so it is
   one operator command.
+
 - [x] 66a. herdr: the clean-code pass on `dot_local/share/herdr/plugins/herdr-smart-nav`. The direction
   became an enum, which closed a pair that could disagree: the word and the chord travelled side by side
   as two strings, so a call passing `"left"` with `ctrl+l` compiled and sent Neovim the wrong way. Every
   public item gained the documentation the house voice asks for, and the parse of herdr's answer states
   why every unreadable shape means the same thing.
+
 - [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
   has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
   exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
 
 ## Repository hygiene
 
-- [ ] 67. Delete the dead local branches. About a hundred of them: every `wf_*`, `worktree-agent-*` and
-  `agent-*` name, plus the old `backup/*` and throwaway experiment branches. Each group needs the
-  operator's approval before it goes.
-- [ ] 68. Remove the worktrees those branches left under `~/.herdr/worktrees/`. There are 195 of them.
-  Their cargo `target/` directories are already cleaned, so this is about clutter rather than disk.
-  Remove with `git worktree remove`, never `rm`, and keep any worktree whose branch still holds commits
-  that are not on origin.
+- [ ] 67. Reconcile local branches before further cleanup. On 2026-09-12 there are 547, of which 499 are
+  ancestors of `origin/main`. No `wf_*`, `worktree-agent-*` or `agent-*` branches remain. The four
+  `backup/*` branches contain unmerged work and were deliberately retained by the Claude session.
+  Classify the other throwaway candidates by reachability, attached worktree, dirty state and owner.
+  These counts do not authorize deletion. Obtain approval for the exact proposed groups.
+- [ ] 68. Finish the worktree inventory and approved cleanup. There are 208 registrations: 28 under
+  `~/.herdr/worktrees`, 45 in this checkout's `.worktrees`, 108 under `~/workspaces/dotfiles-worktrees`,
+  19 under `~/workspaces/dotfiles-agent-worktrees`, and eight elsewhere. One Claude scratch worktree
+  registration points at a missing directory. The old count of 195 under Herdr is obsolete. Preserve
+  active pull requests, retained commits and dirty work; recheck candidates immediately before approved
+  `git worktree remove` or registration pruning. Do not treat an old cleanup inventory as current
+  consent. In particular, compare and preserve the uncommitted source in `pns-refactor-6-5`,
+  `.worktrees/pns-executable-deadline`, `.worktrees/herdr-smart-nav-clean-code` and
+  `.worktrees/lights-implementation`. They contain source edits beyond generated graph drift; their
+  presence does not by itself prove missing implementation.
+- [ ] 68b. Review the untracked `.merge_file_*` artifacts in this checkout. Determine their origin and
+  whether they contain work worth keeping, then propose the exact disposition. The artifacts were left
+  untouched; recheck the current inventory before proposing cleanup.
+- [ ] 68c. Preserve and publish the finalized planning changes in their owning repositories. The audit
+  found local changes in the modernization queue and roadmap, and three untracked homelab PLAN-v12 files.
+  Review those files without sweeping unrelated staged work into a commit, then commit and publish each
+  repository's agreed plan. Untracked planning files must not be lost during cleanup.
+- [ ] 21a. Finish the deployed binary cleanup named in task 21. The old
+  `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current callers,
+  preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete files
+  before trashing them.
 
 ## Waiting on the operator
 
@@ -771,12 +948,10 @@ Each of these gates work that cannot start without it.
   old stable would not have compiled at all. After `rustup update stable` to 1.98.1, `just test-rust`
   exits 0 across all six workspaces, 102 green test binaries, and no crate uses `#![feature]`. The
   default toolchain stays nightly; task 51 is what pins stable per directory.
-- [x] Stop the hourly log writer, gated task 57. CLEARED 2026-09-09 by ruling rather than by action: task
-  57 deletes the script, the plist and the loader itself, so the operator applies once and the job is
-  gone. Stopping it by hand first would have been undone by the next apply, since the loader still exists
-  until 57 removes it.
+- [x] Stop and retire the hourly log writer, task 57. Source retirement landed and the deployed script,
+  plist and loaded label are absent on 2026-09-12. No further bootout or removal remains.
 - [ ] The clean-home apply from PR #385, gates task 65
-- [ ] The lamp drills, gates task 64. ONE OF FOUR DONE 2026-09-09: `bulk_read_latency` is measured and
+- [ ] The lamp drills, gates task 62. ONE OF FOUR DONE 2026-09-09: `bulk_read_latency` is measured and
   answered. Seven samples each against the operator's own bridge: the shipped bulk read of
   `/clip/v2/resource` runs a 210 ms median (127 min, 261 max), which is over the design's 150 ms bound,
   but the targeted strategy the plan named as its alternative measures WORSE, at a 267 ms median for the
@@ -786,30 +961,645 @@ Each of these gates work that cannot start without it.
   must run against the Kitchen or MBedroom rather than the Studio: `[lights.lamp.*]` routes loop, blocked
   and unread to four lamps including `3F - Studio - HCL3`, so pns animates the Studio while an agent is
   working and every brightness reading taken there is mid-animation.
-- [ ] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`
+- [x] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`. Both verified complete on
+  2026-09-12.
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
-- [ ] Run `chezmoi apply` to deploy the uu skills lane, which gates task 11c
-- [ ] Trash `~/.local/libexec/tailscale/reconcile-hosts-pin.sh` and its directory once an apply has built
-  `~/.cargo/bin/tailnet-pin`, gates task 66c
-- [ ] Restart Claude Code so the old `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` leaves the process environment
+- [x] Deploy the uu skills lane, task 11c. Live configuration, binary usage and launchd metadata confirm
+  it. The later config drift is task 57a.
+- [x] Retire the deployed tailnet pin script, task 66c. The script is absent and
+  `~/.cargo/bin/tailnet-pin` exists on 2026-09-12.
+- [x] Restart Claude Code after removing `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The operator reported
+  restarting in the 2026-09-10 handoff.
 
-## Deferred, not scheduled
+## Additional work recovered from the backlog
 
-Carried over from the Codex handoff so it is not lost when that file goes. None of these start without
-the operator saying so.
+These items were absent from this file but remain in the recorded modernization scope. The source
+references identify where to resume; an old unchecked plan or Todoist task alone is not proof that code
+is missing.
 
-- SP4 and SP5, the shell migration to xonsh. Waits until the Neovim overhaul is finished and the operator
-  says go.
-- SP3 part 2, the A to H feature proposal. Not approved; it needs an operator decision and a credential.
-- SP-nix, the nix-darwin go or no-go. Deferred, research first.
-- SP7, the sweep and backlog pass including Todoist hygiene. After everything above.
-- The babysitter execute-bit issue, draft in `~/.claude/pipeline/babysitter-issues/`. Deferred by the
-  operator on 2026-09-06.
+### pns validation follow-ups
+
+- [ ] Reconcile Part 2's remaining configuration and device acceptance against
+  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/pns-part2-scope.md` and
+  current source. That record clears the UniFi credential gate on 2026-08-20 and records implementation
+  complete on 2026-08-31, with apply/configuration/drills still pending then. Some original proposals
+  were explicitly declined or reshaped; do not revive the whole A to H proposal as unapproved new work.
+  Verify which drills subsequently passed, including actual phone display where needed. This audit did
+  not test present credential validity or run device drills. Explicitly reconcile drills 28/29 for Codex
+  and pi/Hermes, NotHome acceptance (Home was recorded passed), and the post-apply blocked/loop/daylight
+  visual comparison. Standalone lights acceptance does not close these pns checks. Include the recorded
+  total-runtime performance pass and Part 2 intent review; neither has established closure in this sweep.
+  Configuration generation and opt-in setup already exist; reconcile their acceptance records rather than
+  reimplementing them.
+- [ ] Evaluate native macOS probes for pns, approved 2026-09-13. Benchmark the current `ioreg` idle-time
+  and screen-lock probes and the `pgrep`/`ps` process queries used for phone-session activity. Compare
+  probe latency and total pns runtime under representative load with small Rust adapters using maintained
+  IOKit bindings and the existing `libc` dependency where suitable. Reuse bindings to Apple's system
+  interfaces; keep the adapter inside pns and limited to the calls it needs. Adopt a replacement only
+  when measurements show a worthwhile benefit and behavior checks pass. Preserve unknown readings,
+  lock/idle routing, process and terminal matching, bounded execution and handling of processes that exit
+  during a query. Record the measurements and retain the current commands if the replacement is not an
+  improvement. Include this in the existing
+  [pns performance task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp). Keep `terminal-notifier`
+  unless a demonstrated feature gap justifies taking over notification permissions, app identity and
+  click handling. Keep `rusqlite`/SQLite and supported external-tool interfaces. Focus detection is
+  already Rust; changing languages does not remove its dependence on undocumented Apple files. A general
+  translation framework or rewrite of third-party implementations is outside this task. This approval
+  schedules the investigation and conditional replacements; no pns implementation changed when it was
+  recorded.
+- [ ] Finish P4's recorded loop rule: a live loop lease for the pane prevents a condenser-generated
+  `asking` guess from arming the blocked marker; actual hook-driven waits still do. The current submit
+  path updates that marker without checking the lease. Read the instrument evidence before implementing
+  the companion permission-mode filter for false blocked alerts; its cause was never established in the
+  reviewed records. Do not suppress all subagent approvals. The condenser prompt correction already
+  shipped. Resume from `~/.claude/pipeline/slices/brief-pns-one-moment.md` and the September 1 decision
+  in
+  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/pns-lights-lock-sheet.md`.
+- [ ] Resolve the historical condenser-stall task
+  [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
+  300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
+  Reproduce under representative load and record closure or fix the remaining cause. The audit found no
+  demonstrated current failure and did not rerun the load drill.
+- [ ] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
+  hook fixtures still inherit the five-second payload deadline and need bounded fixture inputs. The
+  Hermes redirect fixture already consumes the complete request and keeps its socket until disconnect;
+  commit `f3b5a21b` records that repair. Verify historical closure without rebuilding it. Keep production
+  deadlines distinct from fixture ceilings and follow the repository's test-runtime policy. Explicitly
+  include B105's approval-submission exit-code failure, historically `0` instead of `42` under load. The
+  September 7 disposition leaves it unresolved after #383 and #441; #378 closed unmerged. A bounded
+  fixture is not proof of closure, and this audit did not establish a current reproduction.
+- [ ] Retain Moshi image recap cards as blocked on transport, not ready to build. The recorded reopening
+  conditions are a homelab HTTPS image host, an upstream upload interface, or a documented data-URL path.
+  An operator-approved single-card probe must establish actual image display before treating data URLs as
+  supported. Revisit usefulness before adding a renderer; the proposed recap duplicates Discord. Source:
+  `~/.claude/pipeline/slices/design-moshi-image-cards.md`.
+- [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
+  reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
+  still disables certificate verification. Define enrollment, changed-certificate handling and recovery
+  before changing that behavior.
+- [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
+  arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
+  requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
+  permission waits remain explicitly uncovered. Inspect current harness events and agree behavior before
+  changing hooks; a prompt-only guess does not establish an actual permission wait.
+- [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
+  `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
+  security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
+  already active when muting begins. B19/B25's nag tolerance and future-timestamp handling still need
+  explicit disposition against current source; their conditional proposals are not automatic
+  implementation work.
+- [ ] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
+  failed `a_terminal_with_nothing_asking_otherwise_is_painted` with `NO_COLOR=1` inherited from the agent
+  session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
+  honors these variables; make the test's assumed environment explicit without changing that behavior.
+  The #530 verification uses a clean environment; this test repair is separate. Track it in
+  [6hVqqxHGq35Fq5Hv](https://app.todoist.com/app/task/6hVqqxHGq35Fq5Hv).
+- [ ] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
+  `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
+  exclusion was measured ineffective and must not be proposed again without new evidence. The source
+  globs have changed, but that is not a reproduction or closure. B75's Rustdoc link fixes already shipped
+  in `20a0c245`; keep them closed.
+- [ ] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
+  default after checking its actual requirements. Its README still says pns lacks `--version` and
+  `--elapsed`, while current pns provides both and dotfiles supplies a configured `0.1.0` minimum
+  override. Task 14 remains complete. Update the consumer pin only if an upstream correction requires it;
+  do not rebuild the installed integration solely because its old README is stale.
+
+### Neovim review follow-up
+
+- [ ] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
+  nvim-mcp review. `pane_socket.lua` and `executable_nvim-mcp-connect.sh` validate the final runtime
+  directory but leave replaceable ancestors unchecked. The resolver's `answers()` follows socket
+  symlinks, and newline-containing runtime paths are accepted by the listener but split inconsistently
+  during discovery. Fix these shared boundary checks and verify representative failure cases. Registry
+  metadata findings are superseded by registry removal; absent-socket probing and runtime-path selection
+  already changed. Recheck the outstanding quiescent timing claim separately.
+- [ ] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
+  identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
+  selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
+  supported Herdr interfaces and owned integration code; do not patch the third-party plugin.
+- [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
+  ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
+  ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
+  absent; decide whether that language workflow is wanted before adding it.
+- [ ] Preserve B107's deferred JavaScript test-discovery responsiveness work. Caching shipped, but cold
+  parsing remains synchronous; the recorded 7.4-second UI stall was not remeasured in this audit. Source
+  for B97/B103/B107: `~/.claude/pipeline/backlog-consolidated-2026-09-02.md`. B92's canonical-hour,
+  rainbow and X11 colour cycles were deliberately excluded, not missed implementation.
+- [ ] Preserve B95's Rust neotest discovery and duplicate-client follow-up. Rust, Java and Elixir
+  adapters are absent from the configured adapter list; verify Rust's intended workflow before calling
+  language coverage complete. Record the Java/Elixir disposition against plan task 46b, step 2, which
+  permits withholding adapters that fail their verification. Their absence alone is not an instruction to
+  add them. Existing neotest infrastructure and other language adapters remain implemented.
+- [ ] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
+  missing-parser installation is asynchronous, and the Go adapter returns without discovery when its
+  parser is absent. Verify the first test request in that state and provide a working first-use path
+  through supported integration. The historical failure was not reproduced during this audit.
+- [ ] Correct B100's stale pane-selection contract in the canonical Neovim spec/plan: the owned helper
+  uses `agent_pane(on_pane)`, not a synchronous returned pane identifier. Preserve cancellation/refusal
+  behavior. This is documentation reconciliation, not a missing helper implementation.
+
+### Recover the remaining design from PR #24
+
+- [ ] Review #24 before deciding its disposition. Preserve its useful unbuilt requirements in current,
+  reviewed documents, then decide whether to update the existing pull request or supersede it with a
+  smaller one. Do not discard it solely because the three-tier core shipped elsewhere, and do not merge
+  its obsolete implementation instructions unchanged.
+- [ ] Reconcile the approval interface separately: Butters tap-to-approve scoped to pending findings and
+  the `/osquery allow|deny|list` Hermes skill. Verify the current posture command and trust contracts;
+  investigation must not grant the analyst approval authority.
+- [ ] Reconcile the June hardening-plan remainder and explicitly deferred FleetDM, beaconing and Wazuh
+  research. Record accepted scope before implementation. Issue #18's FileVault fix and dead snapshot
+  handling are already present in the current query, Bash and Rust paths; reconcile/close its stale issue
+  rather than reopen that implementation. PR #19 is closed and was not merged.
+- [ ] Give the June hardening requirements explicit dispositions: signature-chain verification,
+  interpreter-payload assessment and per-run grouping of repeated findings about the same subject.
+  Current Rust code reads signature metadata, leaves interpreter payloads unverified and retains each
+  finding in a batch. Porting the existing behavior did not implement these proposed changes.
+- [ ] Preserve deferred install-state kernel-extension monitoring and off-host machine-death detection.
+  The former needs reconciliation with July's decision to alert on untrusted loaded extensions; do not
+  restore June's obsolete delivery block. The latter needs an external host and remains homelab scope: a
+  watchdog on the monitored Mac cannot detect that Mac disappearing from outside it. Keep intentional
+  log-only `es_launchd_writes` handling and accepted residual risks out of the implementation queue.
+
+### Hermes security investigation, recovered from #24
+
+Operator clarification, 2026-09-12: the sandboxed investigator belongs to Hermes. Posture produces
+security findings; Hermes owns the downstream investigation and advisory reply. This workflow should
+accept security alerts from other producers through the same supported alert contract. It is configured
+through dotfiles, without embedding agent orchestration in posture or modifying third-party Hermes code.
+
+Trigger decision, 2026-09-12: investigate Critical alerts only. Deliver the original alert immediately,
+then publish the investigation as a separate advisory. Daily digests do not trigger this workflow.
+
+The original documents are on #24's `docs/osquery-design` branch, not in current main:
+
+- [Original analysis-agent design](https://github.com/webdavis/dotfiles/blob/docs/osquery-design/docs/superpowers/specs/2026-06-03-osquery-analysis-agent-design.md),
+  especially sections 2, 4 to 8 and 11.
+
+- [Original implementation plan](https://github.com/webdavis/dotfiles/blob/docs/osquery-design/docs/superpowers/plans/2026-06-03-osquery-analysis-agent.md),
+  including the recorded immediate-alert/separate-advisory decision and failure notification.
+
+- [Later decision addendum, D-V2-12](https://github.com/webdavis/dotfiles/blob/docs/osquery-design/docs/superpowers/decisions/2026-06-10-osquery-alerting-v2-decision-addendum.md),
+  which instead proposes a read-only advisory over the deterministic daily digest. The v2 master spec's
+  section 13 repeats that narrower digest scope.
+
+- [ ] Reconcile the original documents with the Critical-alert-only decision before implementation.
+  Supersede their daily-digest investigation scope. Keep this as a Hermes-owned workflow, with
+  source-specific facts supplied by security producers and immediate original alert delivery.
+
+- [ ] Preserve immediate deterministic alert delivery. Hermes then starts a dedicated, ephemeral
+  investigator over a bounded copy of the supplied evidence and publishes a separate advisory associated
+  with the alert. Failure or timeout must be distinguishable from an all-clear. The investigator cannot
+  suppress, delay or rewrite the original alert, approve trust, or perform remediation. Verify the
+  current correlation and evidence-transfer contract before wiring it. The recorded advisory contract
+  permits adding concern or explanation but forbids clearing the original finding, and limits suggested
+  responses to a fixed vocabulary. Verify those limits outside the prompt before promising enforcement.
+
+- [ ] Define the required alert/evidence metadata through the existing delivery path. The current pns
+  webhook forwards `agent`, `state`, `project`, `detail` and `request_id`; it does not forward the
+  producer's security class or a structured artifact reference. Verify classification and evidence
+  references before attaching an investigator, rather than inferring them from rendered prose. Also
+  reconcile route names: native posture names `posture`, while the tracked route checker covers `pns` and
+  `unattended-upgrades` as delivery-only. The encrypted route configuration was not inspected in this
+  review. Any producer/transport changes should carry data; Hermes owns the investigation.
+
+- [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
+  Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
+  untrusted evidence handling. The old plan includes unverified flags and prompt-based output checks;
+  those do not establish sandbox isolation or enforce the promised output limits. Review the actual
+  controls and their acceptance checks before building. If supported integration cannot provide them,
+  report that gap instead of patching Hermes. Use the existing research at
+  `~/Documents/Sandboxed_Agent_Prompt_Injection_Research_20260603/report.md` as a review input; it is not
+  a missing research assignment.
+
+The posture port plan's section 8 summary still says its fourth decision is waiting on the operator, but
+decision 4 itself records the security mute bypass as settled on 2026-09-06. Correct that stale summary
+during plan reconciliation; do not reopen the settled security-page behavior.
+
+## Start gates and retained deferrals
+
+On 2026-09-13, the operator authorized the active modernization goal. After task 68c, proceed through the
+resume order, including the Herdr process-toggle plugin and review launcher, SP5 research, SP4 Bash
+improvements, SP8 and Forzare/#51 when their prerequisites pass. Those projects need no further start
+instruction. Preserve Neovim acceptance and Herdr feasibility dependencies, SP5 before SP4, SP8 last in
+modernization and Forzare after everything else. Separate future-platform/presence and extraction gates,
+other explicit deferrals, unresolved product/security decisions and operator-only actions remain in
+force.
+
+- [ ] Build a persistent process-toggle plugin for Herdr in Rust, following `$clean-code-rust` and its
+  prerequisite `$clean-code`. Consult `$frontend-design:frontend-design` for terminal interface design
+  and review. Behavior agreed 2026-09-12; the 2026-09-13 goal authorizes implementation in the resume
+  order. Support any number of named window configurations and running sessions, with no hardcoded cap.
+  Each configuration supplies a program, arguments, working directory, floating dimensions, and
+  independent shortcuts for Split right, Split below, and Toggle float. tuicr, reviewr, btop, and a
+  scratch shell are example configurations; the plugin stays independent of the program. Split right
+  opens side by side with a vertical divider; Split below stacks panes with a horizontal divider. Either
+  split action starts, docks, or repositions the same session, or focuses it when already placed
+  correctly. Toggle float starts a floating session, pops out an existing split, or hides/restores an
+  existing float. Pop out/dock preserves the running program, terminal screen, position, comments, and
+  unfinished input. Popping out releases the old split's space; hiding a float keeps it hidden until
+  restored or explicitly docked. The plugin owns background session lifetime and forwards input and
+  resize events through the attached view. Shortcuts work from Neovim and shell panes and while a float
+  is focused. Show one floating window at a time: selecting another hides the previous float without
+  stopping either session. Docked sessions remain visible. Stacking floating windows is outside the
+  agreed scope. Center floats over the whole Herdr window, spanning underlying panes, with configurable
+  percentage dimensions that resize and recenter when the terminal window changes size. A hidden session
+  receives the current dimensions when restored. Keep toggling and docking fast. Per window, let users
+  configure whether Ctrl+C in the popup terminates its process or only hides the popup and keeps the
+  background session alive. The hide action must not forward Ctrl+C to the running program. Also expose a
+  separately configurable Herdr kill binding for each named session, closing its view and terminating its
+  owned processes whether floating, docked, or hidden. Hiding preserves the session; quitting or killing
+  ends it. Process exit closes its view and clears its session, including exits while hidden. The next
+  launch starts a fresh instance. Verify attachment, redraw, resizing, focus, configurable Ctrl+C
+  behavior, explicit termination, and process-exit cleanup through supported Herdr interfaces before
+  building the review launcher below.
+- [ ] Add a deterministic worktree picker and reviewr launcher. Consult
+  `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
+  authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
+  repository, list existing worktrees with the most recently updated first, including commits and
+  uncommitted file edits while excluding ignored files. Search and select a worktree without changing the
+  agent's working directory or branch. Agents may remain on main while orchestrating multiple worktrees;
+  selection needs no language-model call or agent-to-worktree registry. Keep worktree selection separate
+  from the generic process-toggle plugin; the picker can be an ordinary command rather than another
+  required plugin package. Use the shared session behavior above for Split right, Split below, and Toggle
+  float. With no selected target, open the picker first; subsequent toggles resume that review without
+  repeating discovery. Preserve the originating workspace context so reviewr can send comments to the
+  intended agent, including its agent picker when several agents are present. Opening the picker and
+  resuming a review must feel immediate with hundreds of worktrees. Measure first-load, repeat-load, and
+  review-start latency separately and agree a budget before implementation. Evaluate cached activity
+  ordering refreshed separately from display, keeping the selection stable during refresh; resolve
+  deletion timestamps, stale paths, and cache freshness before claiming accurate recency. Reuse the
+  process-toggle session handling after its feasibility checks pass; do not patch reviewr or duplicate
+  that handling here. The requested upstream proposal already exists as
+  [reviewr issue #99](https://github.com/persiyanov/herdr-reviewr/issues/99); check it when revisiting
+  supported placement actions.
+- [ ] SP5, evaluate xonsh before SP4's shell work, after Neovim acceptance. The 2026-09-13 goal supplies
+  the start authorization. The 2026-08-28 Todoist decision supersedes the old roadmap's SP5 Thaw label.
+  Research cold/warm startup against Bash, atuin, the shell hooks, starship, direnv, zoxide, carapace,
+  Herdr attachment and the existing key chords. Produce a go/no-go and reviewed spec. A migration has not
+  been approved, and scripts remain Bash.
+- [ ] SP4, improve the interactive shell after the SP5 verdict. Start from the existing Bash plan: alias
+  consolidation and one binding table that drives both key bindings and an fzf menu to view, select and
+  run them. Revisit the existing candidates for directory, stash, process, worktree and Herdr workspace
+  selection without treating every candidate as adopted. Reconcile the old Charm-tools evaluation with
+  the now-adopted gum output style, and obsolete declaration-testing requirements with today's
+  behavior-only test policy. Preserve the ratified Nushell no-go; do not assume xonsh adoption from its
+  evaluation task.
+- [ ] Future pns platforms and presence: Linux/homelab
+  [#192](https://github.com/webdavis/dotfiles/issues/192), iOS companion
+  [#193](https://github.com/webdavis/dotfiles/issues/193), Android
+  [#194](https://github.com/webdavis/dotfiles/issues/194), and the Todoist millimeter-wave Home Assistant
+  presence backend after the existing Hue presence work. Retain their prerequisite and design gates. The
+  Linux move also requires the approved age identity, recipient and credential-source design from the
+  roadmap, plus its recovery/rotation runbook. Extraction issue
+  [#195](https://github.com/webdavis/dotfiles/issues/195) is covered by 68a's hand-rewrite/v1 gate.
+- [ ] SP7, sweep and backlog reconciliation, detailed below. Finish the earlier approved work first.
+- [ ] Revisit Neovim's explicitly deferred conform.nvim/nvim-lint migration and Agent Client Protocol
+  option only after a separate decision, using the v4 design. Replacing noice with private
+  `vim._core.ui2` was excluded; it is not an approved follow-up.
+- [ ] Revisit the babysitter execute-bit issue draft in `~/.claude/pipeline/babysitter-issues/` when the
+  operator releases its 2026-09-06 deferral.
+- [ ] Reconcile babysitter's separate Stop-decision defect against a released artifact and rerun the
+  recorded A/B reproducer before lifting that hold. B112 records upstream issue #1761 and merged fix
+  #1777; do not file a duplicate or treat a merged source fix as an installed release. Source pins the
+  SDK (software development kit) to `6.0.3` because the npm `latest` tag is behind it. Preserve the
+  separate execute-bit hold too: the current Claude and Codex templates require both defects resolved
+  before normal enablement. Reconcile that condition with the operator before changing either template.
+
+### SP7 scope recovered from the roadmap and Todoist
+
+- [ ] Reconcile the package-manager audit (#11), npm/uv cleanup drift (#20), Homebrew rollback (#12),
+  remaining macOS settings (#17), and optional shell command generation (#91). Review the existing
+  installers and uu producers before proposing additions. Keep package removal and rollback decisions
+  explicit; installation tracking does not authorize removal of all undeclared packages.
+- [ ] Reconcile existing Nix installer maintenance (#10) only as needed to preserve optional Nix package
+  and project-flake use. This is separate from the rejected nix-darwin macOS-management transition.
+- [ ] Revisit the roadmap's bandwhich/doggo/ouch evaluation, remaining shell quick wins and optional Tart
+  clean-machine environment. `MANPAGER` and Git's `autocorrect = prompt` already exist. VM creation
+  remains operator-gated. Re-rule the old documentation/archive tasks S1/S2/S4 against current files.
+- [ ] Finish the recorded pi harness setup/evaluation and its configuration, skills and hook integration.
+  Reconcile babysitter's evaluation with its existing declaration and holds, and Understand-Anything with
+  its current adoption decision. OpenSpec and credential-access work have explicit entries below.
+- [ ] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and
+  version `1.12.0` is installed. The live global configuration exists with profile `core` and delivery
+  `both`, but no OpenSpec configuration or generated integrations are tracked here, and this checkout has
+  no `openspec/` root. Choose the intended global settings and project scope, then configure the
+  supported harness integrations without overwriting existing instruction files. Track reusable
+  configuration in dotfiles and project specifications in their owning repositories. The weekly uu npm
+  lane upgrades the CLI; define when `openspec update` refreshes generated project instructions
+  separately. Continue [6hPCF8hrCrjjWv2M](https://app.todoist.com/app/task/6hPCF8hrCrjjWv2M), promoting
+  its old evaluation-only scope to the requested setup work.
+- [ ] Configure [YNAB (You Need a Budget)](https://github.com/oliverames/ynab-mcp-server) through its MCP
+  (Model Context Protocol) server, added by the operator on 2026-09-12. Track the upstream npm package
+  `@oliverames/mcp-server-for-ynab` in the existing fnm package declaration and use its local stdio
+  binary from managed harness configuration. The existing weekly uu npm lane covers global package
+  upgrades; no new producer is needed. Select the intended harnesses and Hermes profiles during setup.
+  Obtain the personal access token through the existing KeePassXC-backed secret configuration, never a
+  committed value. Preserve the direct server's read-only default unless writes are explicitly requested;
+  upstream plugin manifests enable writes, so do not copy those defaults blindly. Verify tool discovery
+  and an authenticated read after setup. Track it in
+  [6hVpJxQgR7f73xmM](https://app.todoist.com/app/task/6hVpJxQgR7f73xmM). This entry schedules
+  configuration; nothing was installed in the audit.
+- [ ] Reconcile [Backpass](https://github.com/kunchenguid/backpass) configuration and finish any missing
+  integration, requested 2026-09-12. It is installed, declared in npm, and
+  `dot_config/backpass/config.json` matches the deployed copy, directing user instruction edits to
+  `.chezmoitemplates/global-agent-rules.md`. Preserve that source ownership and the interactive review of
+  proposed edits. Decide how accepted skill extractions enter the managed store and provenance lock,
+  instead of leaving undeclared directories. CLI upgrades already use uu's npm lane; do not reinstall
+  merely to complete the old evaluation task.
+- [ ] Plan installation and configuration of [no-mistakes](https://github.com/kunchenguid/no-mistakes)
+  and [firstmate](https://github.com/kunchenguid/firstmate), requested 2026-09-12. Neither has a managed
+  declaration in the reviewed source. The operator confirmed that Backpass, no-mistakes and firstmate all
+  refer to `kunchenguid`'s repositories. Verify any existing checkout before installing. Firstmate is a
+  repository-based agent distribution, not a standalone CLI; configure its Herdr backend and review its
+  treehouse dependency alongside the existing worktree workflow. Select harnesses, project roots,
+  validation commands and review/merge authority explicitly. Preserve existing hooks and per-invocation
+  destructive-action approvals when configuring no-mistakes' Git proxy and repair behavior. Track tools,
+  upstream skills and their update paths through existing uu lanes or a producer where needed. Reuse
+  [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M) for these and Backpass.
+- [x] Recheck [claude-code-owasp](https://github.com/agamm/claude-code-owasp), requested 2026-09-12.
+  `owasp-security` already has the correct upstream in `npxTracked`, an on-demand tier, the Claude
+  symlink and invocation override, and a deployed shared-store skill with its reference files. Codex
+  scans that store; uu's skills lane refreshes it. No duplicate install is needed. `hermesProfiles` is
+  currently empty; extending its delivery to Hermes needs a profile choice during configuration review.
+- [x] Implement and merge [Plannotator](https://github.com/backnotprop/plannotator) setup in #530 for
+  Claude Code, Codex, Gemini and Hermes, including nicodemus. Merged and applied on 2026-09-13;
+  interactive acceptance remains in the review-tools section above. Plannotator 0.27.14 is installed via
+  the upstream minimal installer. A weekly uu command producer reruns that installer; Claude's plugin,
+  shared skills and Herdr plugins retain their existing update lanes. Codex and Gemini hook mergers
+  preserve unrelated settings and hooks. Codex trust remains operator-owned. Gemini retains its native
+  final plan confirmation, including after hook failures or timeouts. Hermes has no native automatic
+  browser-plan hook; it receives the command/skill workflow and Herdr document/reply review.
+  `plannotator`, `plannotator-annotate` and `plannotator-review` come from the upstream core skill
+  subdirectory; `plannotator-tui` comes from Herdr Annotate. All four are on-demand, tracked by uu and
+  declared for Hermes default, butters, concerned, elaine and nicodemus. Codex and Gemini discover the
+  shared store natively. Claude retains its own plugin commands and receives the terminal skill. The
+  browser's last-reply skill is excluded from the shared store because unsupported harnesses can fall
+  back to Claude transcripts; use Herdr's reply action. Pi and OpenCode had configuration directories but
+  no installed executables in this audit; no new harness was added. Full
+  [Herdr Annotate](https://github.com/plannotator/herdr-annotate) is installed and tracked through the
+  shared installer/update roster. Its terminal review executable reports 0.8.0 and the managed launcher
+  resolves its enabled plugin root dynamically. Terminal defaults remain upstream's.
+  `$frontend-design:frontend-design` was consulted for the interface/configuration review. Bindings
+  approved 2026-09-13: `prefix+a` capture, `prefix+shift+a` recent agent replies, `prefix+f` documents,
+  `prefix+m` annotation manager, `prefix+y` copy annotations and `prefix+shift+y` copy and archive. Move
+  herdr-nvim to `prefix+e` toggle and `prefix+shift+e` pick a file, with native scrollback editing on
+  `prefix+alt+e`. Move reviewr to `prefix+v`; move quota settings/refresh to `prefix+u` /
+  `prefix+shift+u`, preserving native configuration reload on `prefix+shift+r`. Worktrunk uses `prefix+w`
+  for its default-branch picker, `prefix+shift+w` for the current-branch picker, `prefix+shift+g` to
+  include remote branches, `prefix+backspace` to remove and `prefix+shift+m` to merge. Move the native
+  workspace picker to `prefix+alt+space` and workspace rename to `prefix+alt+comma`. The operator
+  selected this Worktrunk layout with `prefix+shift+g` instead of the proposed `prefix+ctrl+w`; the
+  earlier Alt-based Worktrunk group was rejected. Preserve native worktree shortcuts and the other
+  navigation and split bindings. The combined mapping was checked against the live and PR configurations
+  plus Herdr 0.9.0 defaults; no duplicate assignments remain after these moves. The configuration is
+  merged and the operator reported a successful apply. Verify permissions, feedback delivery, placement
+  and plugin updates before acceptance. Obsidian saving remains optional; this integration does not
+  replace tuicr, reviewr or the planned process-toggle plugin. Implementation task:
+  [6hVpPJJ7662Qr9mM](https://app.todoist.com/app/task/6hVpPJJ7662Qr9mM).
+- [ ] Install and configure [Dockerfile Roast](https://github.com/immanuwell/dockerfile-roast), both the
+  `droast` CLI and [droast.nvim](https://github.com/immanuwell/droast.nvim), requested 2026-09-12. Use
+  the supported Homebrew package after verifying availability, and manage the upstream Neovim extension
+  through the existing lazy.nvim configuration and lock. It already runs the CLI and publishes native
+  diagnostics, so a second none-ls adapter is unnecessary. Preserve Docker language-server support, and
+  review overlap with the existing none-ls hadolint diagnostics before changing either linter. Verify
+  lint-on-save and command-driven diagnostics using a representative Dockerfile. Track CLI and plugin
+  upgrades through the existing uu Homebrew and Neovim lanes. Track it in
+  [6hVpPJWQq79vMM3v](https://app.todoist.com/app/task/6hVpPJWQq79vMM3v).
+- [x] Review native Neovim language-server configuration, requested 2026-09-12. Installed Neovim is
+  `0.12.5`; `dot_config/nvim/lua/plugins/lsp.lua` already uses `vim.lsp.config()` and `vim.lsp.enable()`,
+  with no legacy `require("lspconfig").SERVER.setup()` calls. Keep nvim-lspconfig for maintained server
+  definitions and Mason/mason-lspconfig for installation and native activation.
+  [Upstream guidance](https://github.com/neovim/nvim-lspconfig#readme) deprecates the old setup
+  framework, not the definitions plugin. No migration is needed. none-ls and lsp-format still provide
+  external linting/formatting; their separately deferred replacement is not a prerequisite for droast.
+- [ ] Reconcile the remaining tool evaluations for strix, apple/container, minutes and gnhf. Check prior
+  removals and rejections before proposing adoption. Herdr remains the selected multiplexer. The rejected
+  git-absorb and deferred gh-dash/companion tools are not additions to #530.
+- [ ] Review the still-open bqf, dadbod/dadbod-ui and dblab/database-workflow tasks, including the older
+  PostgreSQL shell/client configuration task and SSH `Host *` client-hardening task. Source declares
+  PostgreSQL, but that alone does not supply the requested client configuration. bqf and dadbod are
+  absent from the current source/live plugin locks. Avoid duplicating completed xcodebuild, dap and
+  neotest infrastructure; the language-specific gaps above remain separate.
+- [ ] Reconcile completed or superseded Todoist review items with evidence: Neotest parser findings
+  (`6hR5vFgFXgjHVGMv`, `6hRHmWWqFjr5RmVv`), Atlas (`6hR59h6FQWpv33p8`), Overseer (`6hR5Gg6XXRFVhfpg`) and
+  the pns builder-input fix (`6hV7jMW3jMGWcCMv`, commit `0b55db04`). Current source contains their fixes
+  or recorded replacement decisions. Preserve Atlas's deliberate omission of checkout mappings. Update
+  the remaining stale acceptance claims rather than reinstalling. B111's temporary-repository fsmonitor
+  exclusions and fixture fix already shipped; the proposed worktree reaper was rejected. Likewise, the
+  old graphify exclusion-removal proposal predates the current committed `graphify-out/graph.json` and
+  post-commit rebuilding policy; do not delete that map or its exclusions as unfinished cleanup.
+- [ ] Reconcile [6ggcw4qfqfqjxP3v](https://app.todoist.com/app/task/6ggcw4qfqfqjxP3v), the old tiling
+  window-manager task. Issue #14 is already closed as completed (2025-12-28); AeroSpace is declared and
+  configured. This needs task-list closure with that evidence, not another installation or issue closure.
+- [ ] Reconcile stale GitHub issues #8 (Kulala-LS is declared), #9 (gh-notify was superseded), #13
+  (Zellij predates the Herdr decision), and #18 (fixed), then align the surviving issues and Todoist
+  items with this file. The earlier migration's cutover ledger has all five completion markers dated
+  2026-08-10; do not confuse those completed gates with the new posture cutovers.
+- [ ] Resolve scope for the older warden import/quarterly-cleanup tasks and obsolete agent-session
+  restoration tasks. The restic script is the operator's learning exercise; keep its later LaunchAgent
+  dependent on that work and do not take over writing it without a new instruction. These older tasks
+  require disposition, not automatic inclusion in the active implementation queue.
+
+### Safe agent credentials and Infisical client integration
+
+Operator decisions, 2026-09-12: self-host Infisical for selected agent credentials. Personal passwords
+remain in the KeePass database used by KeePassXC and Strongbox, including iPhone AutoFill and offline
+access. Infisical's server and Agent Proxy are planned in homelab `docs/plans/PLAN-v12.md`, A6,
+[task 6hVpX4M8hmV4Gmr3](https://app.todoist.com/app/task/6hVpX4M8hmV4Gmr3). This is a selected service,
+not an open product comparison. Continue the
+[credential-access task](https://app.todoist.com/app/task/6hPCF99XjRP87GmM) for laptop integration and
+the separate local credential/chezmoi boundary. Planning does not authorize credential access or applies.
+
+- [ ] Track Infisical's client installation, endpoint/trust configuration and tool upgrades through uu on
+  each development laptop. Configure scoped identities for Claude Code, Codex and Hermes, including
+  nicodemus. Coordinate private connectivity with homelab A6/F4; retain the current Tailscale path until
+  an approved NetBird cutover. Credential migration inherits A6's F1 platform, F2 restore and OpenBao
+  ownership checks. Verify approved operations and denied access using dummy credentials before migrating
+  real ones. Research supported client behavior and self-hosted feature entitlements before choosing a
+  paid edition or promising the required isolation.
+- [ ] Register only credentials selected for agent use in Infisical, preferably dedicated accounts or
+  restricted tokens. If a personal login must exist in both stores, record rotation ownership and update
+  both copies. Do not introduce automatic vault synchronization or make mobile password access depend on
+  a website. Broker-dependent operations stop clearly during a home-server/network outage.
+- [ ] Evaluate supported KeePassXC access only for remaining local operations, including chezmoi's
+  file-rendering needs. An outbound credential proxy does not solve that boundary by itself. Distinguish
+  handing an agent a password from allowing a tool to use it for an approved operation. Prefer supported
+  integrations over a custom broker; Passage remains background research, not a selected migration.
+- [ ] Evaluate [kpxc-cli](https://github.com/mietzen/keepassxc-cli) as an unadopted third-party
+  candidate: it uses KeePassXC's browser protocol and macOS biometric unlock. Verify entry approval,
+  association key protection, revocation and locked-database behavior. It is not a drop-in replacement
+  for the current title/attribute-based chezmoi integration: its documented lookups use URLs, and custom
+  fields have additional requirements. Do not treat Touch ID support or masked output as proof of
+  isolation.
+- [ ] Define and verify the actual access boundary: permitted secrets and operations, approval duration,
+  revocation, audit records without secret values, and denial outside the permitted set. Account for
+  arbitrary shell access, readable rendered configuration and agent-editable templates/scripts. Hiding a
+  value from chat or putting it in a child environment does not keep it inaccessible to an unrestricted
+  process running as the same user. Establish the isolation needed for the claimed protection.
+- [ ] Include fresh-machine recovery and current secret exposure paths in that design. The age-key
+  restoration script calls `keepassxc-cli` directly, outside template lookup. Moshi's pairing script
+  currently places its token in command arguments. Review supported alternatives without printing the
+  values or modifying upstream tools; replacing the template function alone would leave both paths
+  unaddressed.
+- [ ] Demonstrate any proposed chezmoi flow with dummy credentials first, including locked/denied access,
+  secret-free output and a complete render/deployment/manifest cycle. The current operator-only apply
+  rule remains in force until a reviewed replacement is approved. `--exclude=templates` is a retired
+  workaround, not the current agent apply procedure, and must not be revived.
+
+### Homelab plan coordination
+
+- [ ] Keep the requested server deployments in `webdavis/homelab`: Infisical (A6), NetBird (F4), Dozzle
+  (F5) and Open Notebook (L6) are recorded in `docs/plans/PLAN-v12.md` and its service matrix. Dotfiles
+  owns their needed laptop configuration and managed client updates. Record actual cross-project
+  dependencies without importing the full homelab deployment backlog into this modernization.
+- [ ] Coordinate vpp's optional Open Notebook handoff with L6. Preserve one capture/transcription
+  pipeline and canonical originals; decide the handoff format during integration design. vpp and Bob must
+  not require Open Notebook merely to read or produce ordinary notes.
+
+### vpp (Voice Processing Pipeline)
+
+Planning addition, 2026-09-12. Build vpp in Rust to collect everyday Apple Voice Memos synced to the Mac,
+preserve their original audio format, transcribe them, and produce agent notes and summaries. Track the
+Mac workflow in [6hVpPJC2cjJW3V9M](https://app.todoist.com/app/task/6hVpPJC2cjJW3V9M). No ingestion or
+transcription was started during this audit.
+
+- [ ] Reconcile the existing sources before designing a second transcription system:
+  `~/workspaces/Ivy/webdavis/homelab/docs/plans/PLAN-v12-experiments-backlog.md`, L-R5, records the vpp
+  feature decisions and carries forward the earlier local transcription experiment. The vault's
+  `CLAUDE.md` already defines `agent-processing-pipeline/raw/audio/`, `transcripts/` and `analysis/`,
+  with audio excluded from Git. Homelab `PLAN-v11.md`, Phase 6, and
+  [6gjGcHp69phXmXj3](https://app.todoist.com/app/task/6gjGcHp69phXmXj3) describe the broader ElevenLabs
+  Scribe/whisply pipeline, Markdown transcripts, subtitle and word-timing exports, and local processing
+  for sensitive audio or service outages. These are related plans; none explicitly specifies a watcher
+  for Apple Voice Memos synced to macOS.
+- [ ] Design automatic discovery of fully synced recordings, preserving original audio and capture
+  metadata without modifying Apple's source recordings. Verify the supported macOS access/export path and
+  actual audio format before choosing an ingestion mechanism. Handle interrupted sync, retries and
+  repeated discovery without duplicate notes or lost audio. Keep original recordings, transcripts and
+  agent analysis separately linked using the existing vault layout.
+- [ ] Use redundant transcription and compare disagreements; flag uncertain text and unsupported notes
+  for review, notifying through pns's producer application programming interface (API). Preserve the
+  alternatives and source references. Multiple engines agreeing does not prove correctness. The proposed
+  feature for playing audio from a summary sentence was rejected; original audio preservation remains.
+- [ ] Support agent-suggested tags and relationships between recordings, with a defined metadata schema
+  and configurable output paths. Use explicit links and deterministic filing rules for automatic routing.
+  Markdown output can live in an Obsidian vault and use its existing mobile sync, but Obsidian is
+  optional.
+- [ ] Plan meeting briefs using relevant notes, with optional read-only calendar and Todoist inputs.
+  Record Bob, the future Hermes executive assistant, as a consumer of vpp's notes and briefs. The exact
+  trigger, scheduling owner, access scopes and provider choices remain under discussion. Keep source
+  references and unresolved transcription issues visible to Bob and in the brief.
+- [ ] Support a separate redacted draft for sharing, reviewed before release, preserving private
+  originals. Choose the summary format, retention, transcription engines and local/cloud processing
+  before implementation. Speaker labels and dated digests remain unapproved candidates.
+- [ ] Keep vpp application code in its own project, Mac installation and service configuration in
+  dotfiles, output content in the configured directory (Ivy for this operator), and homelab deployments
+  in homelab. Reuse existing transcription tasks. vpp must work without Bob, Forzare or the full homelab;
+  Forzare integration follows the existing post-modernization ordering.
+
+## SP8, macOS agent workflow manager
+
+Planned 2026-09-12. This is the final modernization subproject, after SP4, SP5 and the other
+modernization tasks, including the process-toggle plugin and worktree review launcher. Forzare follows
+modernization under the operator's latest ordering. The 2026-09-13 goal authorizes skill installation,
+application design and implementation after these prerequisites pass.
+
+- [ ] Install the upstream skills from [pstack](https://github.com/cursor/plugins/tree/main/pstack)
+  through the managed skills store, recording provenance, harness delivery, and updates through uu. Check
+  its Cursor-specific dependencies and compatibility with the harnesses that will build the app. Use
+  pstack's setup, engineering, design, review, and verification skills throughout development.
+- [ ] Design and build a macOS graphical frontend for managing agent tooling. Use
+  [MoltenBase](https://www.moltenbase.com/) as the product and visual reference, matching its look and
+  feel in the layout, typography, colors, spacing, and management views. Choose the application
+  architecture during this subproject rather than committing to a framework now.
+- [ ] Cover all installed harnesses and their profiles, including Claude Code, Codex, and Hermes profiles
+  such as nicodemus. Support both user-wide configuration and project-specific configuration, with a
+  clear scope selector and a view of the effective settings and their source. Discover and verify each
+  harness's supported operations before implementing its management controls.
+- [ ] Manage skills, Model Context Protocol (MCP) servers, harness instructions such as `CLAUDE.md` and
+  `AGENTS.md`, agent memory, and plugins. Provide discovery, inspection, editing, installation, removal,
+  and enable/disable controls where the owning harness supports them. Show inheritance and project
+  overrides so a user can tell which settings and instructions an agent actually receives.
+- [ ] Also track hooks, reusable commands, subagents, model/provider settings, permissions and trust, and
+  environment/credential references. Keep credential values in the existing secret manager. Include
+  search, filtering by harness and scope, provenance, installed versions, update status, connection
+  health, duplicate/stale entries, and configuration drift. Show usage and last-used data where reliable
+  harness records exist; distinguish unavailable data from zero usage.
+- [ ] Keep local files and their existing owners authoritative. Integrate with chezmoi, the shared skills
+  store and lock, and uu for installation/update workflows. Edits to managed configuration must reach its
+  source rather than a deployed copy that the next apply would overwrite. Preview changes and affected
+  scopes, provide backups and rollback, and preserve the operator-run chezmoi apply flow.
+
+## After modernization: Forzare and PR #51
+
+The operator reaffirmed on 2026-09-12 that this executive assistant is still wanted, but its
+implementation follows all other modernization work, including SP8. Preserve the proposal while that work
+finishes; reviewing its status does not start its build.
+
+- [ ] Reconcile and finish #51 after the rest of modernization. Its Bob executive-assistant spec and plan
+  are still unmerged. Reverify July's CLI contracts, paths and harness assumptions against current tools,
+  including the replacement of Bats with bashunit. Review the final documents before merging, then
+  implement their approved stages with the recorded staging and go-live gates. Todoist remains the user's
+  task store. Preserve the stopped-gateway activation transaction, external watchdog, rollback and
+  explicit approval for real outbound communication.
+- [ ] Correct #51's integration path before merging its documents. It targets `integration/modernization`
+  at remote `034d9a07`, not main; its two-file review becomes 222 changed files against current main
+  (`76b37ae4`). The local integration branch also has nine additional commits. Preserve that history and
+  carry the two reviewed Forzare documents onto current main in an isolated branch, then review the final
+  diff and explicitly supersede or update #51. Do not merge the old integration branch as a shortcut.
+- [ ] Let Bob consume vpp's transcripts, metadata and briefs for meeting preparation. Keep provenance and
+  unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
+  Decide whether Bob supplies optional calendar/Todoist context or vpp reads it directly during design.
+- [ ] After the canonical Forzare documents merge, replace the research folder's Phase 2 copy with a
+  pointer to them. Reconcile the residue in
+  `~/Documents/ADHD_Task_System_Research_20260521/REVIEW-LEDGER-2026-07-11.md`. Its post-v1 items remain
+  deferred: the mutation wrapper, per-channel delivery lease, Langfuse, email/communications triage and
+  extra delivery lanes. Old graphify/pre-commit complaints need current verification before reopening.
 
 ## Open questions
+
+Walk through operator choices one at a time and record each answer beside its affected task. These are
+decisions before the affected feature starts, not reasons to block all independent modernization work. Do
+not ask again about settled choices such as Bash, nix-darwin exclusion, optional Obsidian support,
+personal passwords staying in KeePassXC/Strongbox, or Forzare's final position in the schedule.
+
+1. RESOLVED 2026-09-12. Hermes investigates Critical alerts only, with immediate original delivery and a
+   separate advisory afterward. Daily-digest investigation is excluded.
+1. RESOLVED 2026-09-12. Pause persistent agent-status lighting during `pns quiet` and macOS Focus;
+   preserve the approved security-banner and phone-alert mute bypass. Resolve the separate hook
+   timing/card-content choices after verifying which harness events can implement them reliably.
+1. uu plugin pinning: Herdr supports `plugin install --ref`. Proposed policy, awaiting the operator:
+   retain weekly automatic updates by default, with an optional explicit revision per plugin to hold it
+   until unpinned. The alternative is requiring review before each plugin update.
+1. Zig: maintain a working Zig/ZLS development workflow, or remove the unusable unused configuration.
+   This choice gates that language's setup, not Neovim's other corrections.
+1. New development integrations: select the default harness/profile audience for no-mistakes, firstmate
+   and any additional OWASP delivery, subject to each upstream's supported integrations. Plannotator's
+   scope is resolved: all configured harnesses, with upstream support gaps recorded during
+   implementation. Existing tuicr/archify/codegraph choices already specify Claude Code, Codex and Hermes
+   nicodemus.
+1. YNAB: select the harnesses and Hermes profiles that need financial access. Keep read-only behavior;
+   this decision does not grant writes or authorize reading credentials during planning.
+1. OpenSpec and agent workflow tools: select the initial project roots. Configure global defaults without
+   automatically generating files throughout every checkout. Preserve per-project instructions and the
+   existing review/merge boundaries.
+1. vpp: decide permitted local/cloud processing and cost before selecting redundant engines. Then settle
+   whether vpp reads optional calendar/Todoist context directly or accepts it from Bob, which calendars
+   and projects it may read, and requested versus scheduled briefs. Discuss these separately rather than
+   treating them as one approval. Choose output layout and retention before ingestion starts.
+
+Research can settle API compatibility, supported permission scopes, Herdr feasibility, update mechanisms
+and measured performance without operator preference questions. Bring back choices that research makes
+necessary, such as a paid Infisical edition or a feature that upstream interfaces cannot support. Later
+feature reviews still own their configuration defaults and measured latency budgets.
+
+Live applies, hardware checks, PR review and exact deletion approvals remain execution gates in their own
+sections. Keep them separate from this decision queue; planning answers are not those approvals.
 
 - RESOLVED 2026-09-09. posture 0.2, the pns priority-route, could not be confirmed because the hermes
   config is age-encrypted. Decrypting the source and counting route keys alone, with no value printed,
   shows `priority` and `pns` side by side, which is what the plan's step 0.3 asks for.
-- `webdavis/pns.nvim` is its own repository and was not audited. Task 14 finishes its integration here,
-  but unfinished work inside that repository would not have shown up.
+- The final sweep included a bounded `webdavis/pns.nvim` source/documentation check. Its minimum-version
+  documentation correction is listed above; no fresh plugin runtime acceptance was performed.
