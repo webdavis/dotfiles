@@ -17,9 +17,9 @@ lib="$(dirname "${BASH_SOURCE[0]}")/lib-shellcheck-rendered-template.sh"
 # shellcheck source=/dev/null
 source "$lib"
 
-# chezmoi needs a writable HOME (its read-source-state pre hook chdirs there).
-HOME="$(mktemp -d)"
-export HOME
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/lib-render-context.sh"
+init_render_context || exit 1
 
 is_shell_template() {
   local file="$1" line n=0
