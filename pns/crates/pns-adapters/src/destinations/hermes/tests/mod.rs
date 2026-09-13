@@ -74,6 +74,7 @@ mod request;
 
 fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
     DeliveryRequest {
+        producer_request: None,
         producer: "test",
         request_id: Some("original-42"),
         event,

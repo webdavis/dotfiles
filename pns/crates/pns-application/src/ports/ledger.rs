@@ -72,6 +72,7 @@ pub enum PreparedSubmission<C> {
 pub struct RetryDelivery<C> {
     pub claim: C,
     pub identity: SubmissionIdentity,
+    pub producer_request: Option<String>,
     pub event: Event,
     pub leg: LedgerLeg,
 }

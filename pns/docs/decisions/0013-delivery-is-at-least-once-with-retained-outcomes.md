@@ -65,6 +65,10 @@ Including that value in submission equality prevents changed source metadata fro
 merely because its rendered notification is the same. Older rows and aggregate returns have no such
 request and stay null. Retry claims leave the value intact and use the stored rendering and route.
 
+Delivery requests and retry claims also carry those existing canonical bytes to native destinations. The
+banner decodes them through the bounded protocol reader to preserve the security attention sound.
+Application policy does not parse the bytes, and the ledger needs no additional column or migration.
+
 The optional request class is part of that canonical producer value. Its configured exception applies
 only when planning the original banner and phone delivery. Existing mute and Focus inputs remain true, so
 pulse and unmarked return summaries stay quiet. Missing class metadata preserves the prior canonical

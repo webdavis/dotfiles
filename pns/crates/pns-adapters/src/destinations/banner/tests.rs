@@ -250,6 +250,7 @@ fn an_unknown_terminal_activates_the_default() {
 
 fn delivery_request(event: &Event, mode: ReportMode) -> DeliveryRequest<'_> {
     DeliveryRequest {
+        producer_request: None,
         producer: "test",
         request_id: Some("original-42"),
         event,
