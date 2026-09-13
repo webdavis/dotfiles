@@ -21,6 +21,7 @@ set_up() {
   record="$fixture_home/.local/state/pns-build-record"
   binary="$fixture_home/.cargo/bin/pns"
   mkdir -p "$fixture_home/.cargo/bin" "$fixture_home/crate/target/release" "$source_dir/.chezmoiscripts" "$sandbox/bin"
+  : >"$sandbox/calls"
   printf old >"$binary"
   printf new >"$fixture_home/crate/target/release/pns"
   cat >"$fixture_home/.cargo/bin/cargo" <<'STUB'
@@ -56,6 +57,12 @@ run_builder() {
   HOME="$fixture_home" CHEZMOI_SOURCE_DIR="$source_dir" TEST_ROOT="$sandbox" PATH="$sandbox/bin:$PATH" \
     bash "$builder" >"$sandbox/stdout" 2>"$sandbox/stderr"
 }
+seed_record() {
+  mkdir -p "$(dirname "$record")"
+  printf 'sha256 %s\nbytes 3\nrustc fixture\nhost: fixture\n' \
+    "$(printf '%s' "$1" | shasum -a 256 | awk '{print $1}')" >"$record"
+  chmod 600 "$record"
+}
 function test_authorized_pns_record_and_manifest_precede_binary_installation() {
   local status=0
   run_builder || status=$?
@@ -69,16 +76,15 @@ function test_authorized_pns_record_and_manifest_precede_binary_installation() {
   assert_same $'refresh\nrestart' "$(cat "$sandbox/calls")"
 }
 function test_failed_pns_refresh_preserves_prior_record_and_binary() {
-  run_builder
+  seed_record old
   local previous
-  previous="$(cat "$record" 2>/dev/null)"
-  printf changed >"$fixture_home/crate/target/release/pns"
+  previous="$(cat "$record")"
   touch "$sandbox/fail-refresh"
   local status=0
   run_builder || status=$?
   assert_not_same 0 "$status"
   assert_same "$previous" "$(cat "$record" 2>/dev/null)"
-  assert_same new "$(cat "$binary")"
+  assert_same old "$(cat "$binary")"
 }
 function test_failed_first_pns_refresh_restores_absent_record() {
   touch "$sandbox/fail-refresh"
@@ -89,12 +95,13 @@ function test_failed_first_pns_refresh_restores_absent_record() {
   assert_same old "$(cat "$binary")"
 }
 function test_identical_pns_build_keeps_the_record_and_skips_refresh_and_restart() {
-  run_builder
+  seed_record new
+  printf new >"$binary"
   local inode
   inode="$(stat -f '%i' "$record" 2>/dev/null)"
   run_builder
   assert_same "$inode" "$(stat -f '%i' "$record" 2>/dev/null)"
-  assert_same $'refresh\nrestart' "$(cat "$sandbox/calls")"
+  assert_same '' "$(cat "$sandbox/calls")"
 }
 function test_invalid_pns_artifact_size_cannot_publish_trusted_state() {
   local size status
@@ -107,7 +114,7 @@ function test_invalid_pns_artifact_size_cannot_publish_trusted_state() {
     assert_same old "$(cat "$binary")"
   done
 }
-function test_failed_pns_install_retains_published_record_and_retries() {
+function test_failed_pns_install_retains_the_published_record() {
   chmod 500 "$fixture_home/.cargo/bin"
   local status=0
   run_builder || status=$?
@@ -115,8 +122,18 @@ function test_failed_pns_install_retains_published_record_and_retries() {
   assert_not_same 0 "$status"
   assert_same old "$(cat "$binary")"
   assert_contains "sha256 $(printf new | shasum -a 256 | awk '{print $1}')" "$(cat "$record" 2>/dev/null)"
-  run_builder
+}
+
+function test_pns_install_retries_after_publication_left_the_old_binary() {
+  seed_record new
+  cp "$record" "$sandbox/manifest-record"
+  mkdir -p "$fixture_home/.cache/pns-build"
+  touch "$fixture_home/.cache/pns-build/restart-pending"
+  local status=0
+  run_builder || status=$?
+  assert_same 0 "$status"
   assert_same new "$(cat "$binary")"
+  assert_same $'refresh\nrestart' "$(cat "$sandbox/calls")"
 }
 
 function test_symlinked_pns_build_record_is_refused_before_reading_or_publication() {
