@@ -1,12 +1,25 @@
 use super::*;
 impl<R: CommandRunner> SystemProbes<R> {
+    pub fn with_phone_marker(mut self, path: Option<std::path::PathBuf>) -> Self {
+        self.marker_path = path;
+        self.marker_reading.take();
+        self
+    }
+
+    pub fn marker_reading(&self) -> crate::MarkerReading {
+        *self.marker_reading.get_or_init(|| match &self.marker_path {
+            Some(path) => crate::read_phone_marker(path),
+            None => crate::MarkerReading::Unreadable(std::io::ErrorKind::InvalidInput),
+        })
+    }
+
     pub fn new(runner: R, marker_path: String) -> Self {
         Self {
             runner: Arc::new(runner),
-            marker_path,
+            marker_path: Some(marker_path.into()),
             tty_dir: TTY_DIR.to_string(),
             idle: std::cell::OnceCell::new(),
-            marker_mtime: std::cell::OnceCell::new(),
+            marker_reading: std::cell::OnceCell::new(),
             phone_atime: std::cell::OnceCell::new(),
             screen_locked: std::cell::OnceCell::new(),
             now: std::cell::OnceCell::new(),
@@ -115,21 +128,7 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ScreenLockProbe
 
 impl<R: CommandRunner> pns_application::PhoneMarkerProbe for SystemProbes<R> {
     fn marker_mtime_secs(&self) -> Option<u64> {
-        *self.marker_mtime.get_or_init(|| {
-            // The LINK itself, never its target, matching BSD `stat -f %m`: the
-            // Back Tap touch lands on this path, so a dangling link still
-            // carries the reading and following it would erase one.
-            let modified = std::fs::symlink_metadata(&self.marker_path)
-                .ok()?
-                .modified()
-                .ok()?;
-            Some(
-                modified
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .ok()?
-                    .as_secs(),
-            )
-        })
+        self.marker_reading().mtime()
     }
 }
 

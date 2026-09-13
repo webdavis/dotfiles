@@ -17,6 +17,7 @@ pub struct PluginEntry {
 /// whose config was written before the table existed.
 #[derive(Debug, PartialEq)]
 pub struct Config {
+    pub phone_marker_file: Option<String>,
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
     /// `[focus] silence`: the Focus MODE NAMES that mean it, each written
@@ -69,6 +70,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            phone_marker_file: None,
             plugins: BTreeMap::new(),
             recap: Recap::default(),
             focus_silence: Vec::new(),

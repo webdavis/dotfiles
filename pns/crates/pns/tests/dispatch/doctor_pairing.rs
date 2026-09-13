@@ -27,30 +27,34 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
+    assert!(
+        lines[summary + 3].contains("phone tap: never tapped"),
+        "{printed}"
+    );
     // GATE STATE BETWEEN THE TWO, which is the same rule one rung down: a
     // Focus being on is not a fault, so it sits below the check that can move
     // the exit code and above the history it explains.
-    assert_eq!(lines[summary + 3], FOCUS_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 4], FOCUS_OFF_LINE, "{printed}");
     // AND THE CLOCK BESIDE IT, for the same reason and under the same rule: a
     // daemon that is down is not a fault either, so it reports here rather
     // than moving the exit code.
-    assert_eq!(lines[summary + 4], DAEMON_NEVER_RAN_LINE, "{printed}");
+    assert_eq!(lines[summary + 5], DAEMON_NEVER_RAN_LINE, "{printed}");
     // AND THE NAG IMMEDIATELY UNDER THE CLOCK, which is the placement that
     // carries the one fact its own sentence leaves out: a nag with a dead daemon
     // never fires, and the line above already says whether the daemon is up.
-    assert_eq!(lines[summary + 5], NAG_OFF_LINE, "{printed}");
-    assert_eq!(lines[summary + 6], LIGHTS_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 6], NAG_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 7], LIGHTS_OFF_LINE, "{printed}");
     // TWO ROWS NOW, not one sentence carrying five facts. Two notifications are
     // waiting, so the section states that and then names the detail view: the
     // pointer is what the count is FOR, since a reader holding a number and no
     // next step is where this line used to leave them.
     assert_eq!(
-        lines[summary + 7],
+        lines[summary + 8],
         "2 notifications still waiting to reach a channel",
         "delivery health precedes decision history: {printed}"
     );
     assert_eq!(
-        lines[summary + 8],
+        lines[summary + 9],
         "run `pns failures` for what is not arriving",
         "{printed}"
     );
@@ -59,12 +63,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // would take it if pns sent it again. This fixture has posted to no route,
     // so the section is its own summary alone.
     assert_eq!(
-        lines[summary + 9],
+        lines[summary + 10],
         "no routes to check; nothing has been posted yet",
         "the route check sits under the ledger: {printed}"
     );
     assert_eq!(
-        lines[summary + 10],
+        lines[summary + 11],
         format!("the last decision{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

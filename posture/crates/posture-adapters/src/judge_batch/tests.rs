@@ -296,3 +296,6 @@ fn a_trusted_signature_leaves_a_finding_at_the_tier_its_detector_gave_it() {
     });
     assert!(judged.page.is_none());
 }
+
+#[path = "tests/triage.rs"]
+mod triage;
