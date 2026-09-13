@@ -19,7 +19,12 @@ fn main() {
     // SAFETY: restoring a signal's default disposition, before any thread or
     // handler of this program's own exists.
     unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL) };
-    std::process::exit(dispatch());
+    if let Err(error) = uu_adapters::install_interruption() {
+        eprintln!("uu: could not install interruption handlers: {error}");
+        std::process::exit(1);
+    }
+    let status = dispatch();
+    std::process::exit(uu_adapters::interruption().map_or(status, |signal| 128 + signal));
 }
 
 /// The whole CLI. A slice match rather than a chain, so an extra word is an

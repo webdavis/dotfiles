@@ -51,6 +51,7 @@ fn a_new_destination_dispatches_without_a_name_branch() {
         ..Event::default()
     };
     let request = DeliveryRequest {
+        producer_request: None,
         producer: "posture",
         request_id: Some("original-id"),
         event: &event,
@@ -149,6 +150,7 @@ impl NotificationDestination for Reply<'_> {
 fn every_delivery_verdict_is_recorded_after_dispatch_despite_a_sink_error() {
     let event = Event::default();
     let request = DeliveryRequest {
+        producer_request: None,
         producer: "posture",
         request_id: Some("original-id"),
         event: &event,
@@ -200,6 +202,7 @@ fn a_panicking_destination_records_its_sanitized_failure() {
         },
     );
     let request = DeliveryRequest {
+        producer_request: None,
         producer: "pns",
         request_id: Some("panic-id"),
         event: &event,

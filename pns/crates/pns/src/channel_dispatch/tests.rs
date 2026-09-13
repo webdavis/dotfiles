@@ -69,6 +69,7 @@ fn fixture(name: &str) -> PathBuf {
 
 fn request(event: &Event) -> DeliveryRequest<'_> {
     DeliveryRequest {
+        producer_request: None,
         producer: "fixture",
         request_id: Some("original-92"),
         event,

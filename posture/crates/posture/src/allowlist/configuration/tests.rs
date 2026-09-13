@@ -1,5 +1,6 @@
 use super::*;
 use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
 #[test]
 fn explicit_configuration_keeps_unsplit_paths_and_nonempty_manifest_override() {
     let values = BTreeMap::from([
@@ -52,4 +53,48 @@ fn executable_discovery_skips_nonexecutable_files_and_keeps_path_order() {
     }
     let path = std::env::join_paths([root.join("a"), root.join("b"), root.join("c")]).unwrap();
     assert_eq!(executable("osqueryi", &path), Some(root.join("b/osqueryi")));
+}
+
+fn discovery_candidates(name: &str, file_mode: u32, directory_mode: u32) -> PathBuf {
+    let root =
+        std::env::temp_dir().join(format!("posture-discovery-{name}-{}", std::process::id()));
+    std::fs::create_dir(&root).unwrap();
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+    for (directory, mode) in [("shadow", file_mode), ("usable", 0o700)] {
+        let directory = root.join(directory);
+        std::fs::create_dir(&directory).unwrap();
+        for name in ["osqueryi", "chezmoi"] {
+            let file = directory.join(name);
+            std::fs::write(&file, b"must never execute").unwrap();
+            std::fs::set_permissions(file, std::fs::Permissions::from_mode(mode)).unwrap();
+        }
+    }
+    std::fs::set_permissions(
+        root.join("shadow"),
+        std::fs::Permissions::from_mode(directory_mode),
+    )
+    .unwrap();
+    root
+}
+
+fn discovered_configuration(root: &std::path::Path) -> Configuration {
+    let path = std::env::join_paths([root.join("shadow"), root.join("usable")]).unwrap();
+    Configuration::read(|name| (name == "PATH").then(|| path.clone()))
+}
+
+#[test]
+fn configuration_discovery_skips_files_executable_only_by_other_users() {
+    let root = discovery_candidates("owner", 0o601, 0o700);
+    let config = discovered_configuration(&root);
+    assert_eq!(config.osqueryi, root.join("usable/osqueryi"));
+    assert_eq!(config.chezmoi, root.join("usable/chezmoi"));
+}
+
+#[test]
+fn configuration_discovery_skips_directories_the_user_cannot_search() {
+    let root = discovery_candidates("traversal", 0o700, 0o601);
+    let config = discovered_configuration(&root);
+    std::fs::set_permissions(root.join("shadow"), std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(config.osqueryi, root.join("usable/osqueryi"));
+    assert_eq!(config.chezmoi, root.join("usable/chezmoi"));
 }

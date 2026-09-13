@@ -103,6 +103,7 @@ fn alarm_banner(
         herdr_path: None,
     }
     .deliver(&pns_application::DeliveryRequest {
+        producer_request: None,
         producer: "pns",
         request_id: None,
         event: &event,
