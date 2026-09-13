@@ -53,6 +53,14 @@ fn a_candidate_whose_overlays_drifted_fails_validation() {
     for (name, text) in [
         ("alpha", "interface: upstream\n"),
         ("beta", "policy:\n  allow_implicit_invocation: false\n"),
+        (
+            "alpha",
+            "policy:\n  allow_implicit_invocation: true\npolicy:\n  allow_implicit_invocation: false\n",
+        ),
+        (
+            "alpha",
+            "interface: [broken\npolicy:\n  allow_implicit_invocation: false\n",
+        ),
     ] {
         let (c, r) = setup();
         std::fs::write(

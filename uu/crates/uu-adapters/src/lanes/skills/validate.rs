@@ -61,8 +61,9 @@ pub(super) fn validate_content(
         if !skill.exists() {
             continue;
         }
-        let content = overlay::read(&skill.join("agents/openai.yaml"))?;
-        if content.contains(overlay::POLICY) != (tier == "on-demand") {
+        let current = overlay::matches(&skill.join("agents/openai.yaml"), tier == "on-demand")
+            .map_err(|why| format!("skill `{name}` overlay: {why}"))?;
+        if !current {
             return Err(format!("skill `{name}` has a drifted Codex overlay"));
         }
     }

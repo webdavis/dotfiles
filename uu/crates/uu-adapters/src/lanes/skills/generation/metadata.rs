@@ -16,6 +16,9 @@ pub(in crate::lanes::skills) fn directory(p: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 pub(in crate::lanes::skills) fn write(p: &Path, value: &Value) -> Result<(), String> {
+    write_bytes(p, value.to_string().as_bytes())
+}
+pub(in crate::lanes::skills) fn write_bytes(p: &Path, bytes: &[u8]) -> Result<(), String> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let temporary = p.with_extension(format!(
         "{}-{}.tmp",
@@ -28,7 +31,7 @@ pub(in crate::lanes::skills) fn write(p: &Path, value: &Value) -> Result<(), Str
             .create_new(true)
             .mode(0o600)
             .open(&temporary)?;
-        f.write_all(value.to_string().as_bytes())?;
+        f.write_all(bytes)?;
         f.sync_all()?;
         std::fs::rename(&temporary, p)
     };
