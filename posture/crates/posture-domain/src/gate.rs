@@ -60,18 +60,13 @@ pub struct GateEvidence<'a> {
     pub severity: Option<Severity>,
     pub signing: Option<Signing<'a>>,
     pub integrity: IntegrityVerdict,
-    pub triage: Option<Triage<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateOutcome<'a> {
-    Page {
-        signing: Option<&'a str>,
-        triage: Option<Triage<'a>>,
-    },
-    Digest {
-        signing: Option<&'a str>,
-    },
+    Page { signing: Option<&'a str> },
+    IntegrityPage { signing: Option<&'a str> },
+    Digest { signing: Option<&'a str> },
     LogOnly,
 }
 
@@ -93,10 +88,7 @@ pub fn gate<'a>(
     let signing = signing
         .map(|signing| signing.text)
         .filter(|text| !text.is_empty());
-    let page = GateOutcome::Page {
-        signing,
-        triage: None,
-    };
+    let page = GateOutcome::Page { signing };
     let digest = GateOutcome::Digest { signing };
     let critical = if severity == Severity::Critical {
         page
@@ -162,10 +154,7 @@ pub fn gate<'a>(
             | FileCategory::LaunchAgents
             | FileCategory::LaunchDaemons
             | FileCategory::AllowlistFile => match evidence.integrity {
-                IntegrityVerdict::Page => GateOutcome::Page {
-                    signing,
-                    triage: evidence.triage,
-                },
+                IntegrityVerdict::Page => GateOutcome::IntegrityPage { signing },
                 IntegrityVerdict::LogOnly => GateOutcome::LogOnly,
             },
             FileCategory::Sudoers => digest,

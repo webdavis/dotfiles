@@ -58,7 +58,6 @@ fn extension_arms_honor_untrusted_promotion() {
             signed(finding(detector), "UNSIGNED", true),
             GateOutcome::Page {
                 signing: Some("UNSIGNED"),
-                triage: None
             }
         );
     }
@@ -89,7 +88,6 @@ fn c4d_allowlisted_but_untrusted_program_pages() {
         signed(finding(PersistenceLaunchd), "UNSIGNED", true),
         GateOutcome::Page {
             signing: Some("UNSIGNED"),
-            triage: None
         }
     );
 }
@@ -113,7 +111,6 @@ fn signing_text_is_attached_to_pages_trusted_or_untrusted() {
             signed(finding(SuidBinUnexpected), text, untrusted),
             GateOutcome::Page {
                 signing: Some(text),
-                triage: None
             }
         );
     }
@@ -125,7 +122,6 @@ fn failed_enricher_nonempty_stdout_remains_on_a_page() {
         signed(finding(SuidBinUnexpected), "partial signing fact", false),
         GateOutcome::Page {
             signing: Some("partial signing fact"),
-            triage: None
         }
     );
 }
@@ -158,7 +154,7 @@ fn unavailable_severity_pages_the_fallback_detector() {
 }
 
 #[test]
-fn integrity_page_verdict_survives_absent_or_present_display_facts() {
+fn integrity_page_verdict_requests_display_facts_after_the_decision() {
     for category in [
         FileCategory::PipelineIntegrity,
         FileCategory::ManagedBin,
@@ -166,43 +162,14 @@ fn integrity_page_verdict_survives_absent_or_present_display_facts() {
         FileCategory::LaunchDaemons,
         FileCategory::AllowlistFile,
     ] {
-        let row = file(category, "/fixture/tracked");
-        for triage in [
-            None,
-            Some(Triage {
-                recorded: "abc",
-                ondisk: "def",
-                upgrade: "upgrade recorded",
-            }),
-        ] {
-            assert_eq!(
-                gate(
-                    row,
-                    GateEvidence {
-                        triage,
-                        ..evidence(row)
-                    },
-                    |_| false
-                ),
-                GateOutcome::Page {
-                    signing: None,
-                    triage
-                }
-            );
-        }
+        assert_eq!(
+            route(file(category, "/fixture/tracked")),
+            GateOutcome::IntegrityPage { signing: None }
+        );
     }
 }
 
 #[test]
-fn display_facts_attach_only_to_integrity_pages() {
-    let row = finding(NewAdminUser);
-    let evidence = GateEvidence {
-        triage: Some(Triage {
-            recorded: "a",
-            ondisk: "b",
-            upgrade: "c",
-        }),
-        ..evidence(row)
-    };
-    assert_eq!(gate(row, evidence, |_| false), page());
+fn ordinary_pages_do_not_request_integrity_facts() {
+    assert_eq!(route(finding(NewAdminUser)), page());
 }

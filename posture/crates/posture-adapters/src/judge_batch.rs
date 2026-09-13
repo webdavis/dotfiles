@@ -23,12 +23,7 @@ use posture_domain::{
     severity,
 };
 
-/// What the gate needs that is not on the row: whether a file's current bytes
-/// are vouched for, and what a spawned inspection said about a binary.
-///
-/// TWO CLOSURES RATHER THAN TWO TRAITS, because each is asked exactly once per
-/// row and neither has state of its own. The composition root supplies the real
-/// ones; a test supplies answers.
+/// External readings for the gate, and display facts requested after an integrity page decision.
 pub struct Collaborators<'a> {
     /// Whether the pipeline manifest vouches for the file at this path as it
     /// stands right now, content mode and owner together.
@@ -67,27 +62,37 @@ impl JudgeFindings for BatchJudge<'_> {
     fn judge(&mut self, records: &str) -> JudgedBatch {
         let batch = rows(records);
         let entries = self.allowlist.map(AllowlistText::entries);
-        // EVERY COLLABORATOR ASKED BEFORE ANY ROW IS JUDGED, so the answers
-        // outlive the loop that borrows them. It also puts every spawned
-        // inspection in one pass rather than interleaved with rendering, which
-        // is what a later concurrent enricher would need.
-        let evidence: Vec<(Option<OwnedSigning>, Option<OwnedTriage>)> = batch
+        let signing: Vec<_> = batch
             .iter()
-            .map(|row| {
-                (
-                    (self.collaborators.inspect)(&row.enrichment_path),
-                    (self.collaborators.triage)(row),
-                )
+            .map(|row| (self.collaborators.inspect)(&row.enrichment_path))
+            .collect();
+        // Display-only reads follow the decision so ignored files cannot delay a page.
+        let judged: Vec<_> = batch
+            .iter()
+            .zip(&signing)
+            .map(|(row, signing)| {
+                let outcome = self.outcome(row, entries.as_deref(), signing.as_ref());
+                let triage = if matches!(outcome, GateOutcome::IntegrityPage { .. }) {
+                    (self.collaborators.triage)(row)
+                } else {
+                    None
+                };
+                (outcome, triage)
             })
             .collect();
         let mut page_findings = Vec::new();
-        for (row, (signing, triage)) in batch.iter().zip(&evidence) {
-            match self.outcome(row, entries.as_deref(), signing.as_ref(), triage.as_ref()) {
-                Outcome::Page { signing, triage } => {
-                    page_findings.push(page_finding(row, signing, triage));
+        for (row, (outcome, triage)) in batch.iter().zip(&judged) {
+            match outcome {
+                GateOutcome::Page { signing } | GateOutcome::IntegrityPage { signing } => {
+                    let triage = triage.as_ref().map(|facts| Triage {
+                        recorded: &facts.recorded,
+                        ondisk: &facts.ondisk,
+                        upgrade: &facts.upgrade,
+                    });
+                    page_findings.push(page_finding(row, *signing, triage));
                 }
-                Outcome::Digest => self.spool_row(row),
-                Outcome::Quiet => {}
+                GateOutcome::Digest { .. } => self.spool_row(row),
+                GateOutcome::LogOnly => {}
             }
         }
         JudgedBatch {
@@ -96,25 +101,13 @@ impl JudgeFindings for BatchJudge<'_> {
     }
 }
 
-/// The gate's answer, with the borrowed lifetimes resolved away so the loop can
-/// hold it past the call.
-enum Outcome<'a> {
-    Page {
-        signing: Option<&'a str>,
-        triage: Option<Triage<'a>>,
-    },
-    Digest,
-    Quiet,
-}
-
 impl BatchJudge<'_> {
     fn outcome<'a>(
         &mut self,
         row: &'a ResultsRow,
         entries: Option<&'a [posture_domain::AllowlistEntry<'a>]>,
         signing: Option<&'a OwnedSigning>,
-        triage: Option<&'a OwnedTriage>,
-    ) -> Outcome<'a> {
+    ) -> GateOutcome<'a> {
         let columns = row.gate_columns();
         let finding = GateFinding {
             detector: row.detector,
@@ -132,18 +125,9 @@ impl BatchJudge<'_> {
             // manifest could vouch for. A row that is not a file event has
             // nothing to compare and stays at its detector's own tier.
             integrity: self.integrity(row),
-            triage: triage.map(|triage| Triage {
-                recorded: &triage.recorded,
-                ondisk: &triage.ondisk,
-                upgrade: &triage.upgrade,
-            }),
         };
         let allowlisted = |identity: LaunchdIdentity<'_>| self.allowlisted(entries, identity);
-        match gate(finding, evidence, allowlisted) {
-            GateOutcome::Page { signing, triage } => Outcome::Page { signing, triage },
-            GateOutcome::Digest { .. } => Outcome::Digest,
-            GateOutcome::LogOnly => Outcome::Quiet,
-        }
+        gate(finding, evidence, allowlisted)
     }
 
     fn integrity(&mut self, row: &ResultsRow) -> IntegrityVerdict {
