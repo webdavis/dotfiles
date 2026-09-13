@@ -55,7 +55,10 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
             brew: DEFAULT_BREW.to_string(),
             mas: DEFAULT_MAS.to_string(),
             tailscaled: DEFAULT_TAILSCALED.to_string(),
-            osquery_converge: "/stand-in/.local/libexec/osquery/osquery-converge.sh".to_string(),
+            osquery_converge: vec![
+                "/stand-in/.cargo/bin/posture".to_string(),
+                "converge".to_string()
+            ],
             mas_manifest: "/stand-in/.local/state/homebrew/mas.Brewfile".to_string(),
             upgrade_record:
                 "/stand-in/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
