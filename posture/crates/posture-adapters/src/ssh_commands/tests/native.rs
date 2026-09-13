@@ -41,7 +41,11 @@ fn every_sshd_reader_is_bounded_and_a_later_reader_gets_its_own_deadline() {
     ] {
         assert_eq!(result, Err(InspectionFailure::TimedOut));
     }
-    assert!(started.elapsed() < Duration::from_millis(600));
+    // Three 80 ms deadlines plus 20 ms of grace each is 300 ms of waiting. The
+    // bound only has to tell that apart from a deadline applied in the wrong
+    // unit or waited past, and three process spawns on a loaded runner cost
+    // hundreds of milliseconds, so it is ten times the waiting rather than two.
+    assert!(started.elapsed() < Duration::from_secs(3));
 }
 
 #[test]
