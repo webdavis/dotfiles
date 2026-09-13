@@ -1,0 +1,6 @@
+#!/bin/bash
+# updater-hash: {{ include "dot_local/libexec/unattended-upgrades/executable_update-plannotator.sh" | sha256sum }}
+
+set -euo pipefail
+
+exec bash {{ joinPath .chezmoi.sourceDir "dot_local/libexec/unattended-upgrades/executable_update-plannotator.sh" | quote }}
