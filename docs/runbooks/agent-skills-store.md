@@ -63,11 +63,12 @@ Assistant config and YAML authoring guidance, not runtime control. It complement
 hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools.
 
 Also includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
-`obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note what on-demand costs
-`defuddle`: it advertises itself as an automatic substitute for WebFetch whenever a user pastes a URL, so
-demoted it never fires unless the agent is told to use it. That is deliberate, and reverting it takes two
-committed edits, the `tiers` value in the lock and the matching `skillOverrides` line in
-`private_dot_claude/modify_settings.json`, so the declared tier and Claude behavior continue to agree.
+`obsidian-cli`, `obsidian-markdown`), all `hermesProfiles: []`. `json-canvas` is on-demand; the other
+four are core since 2026-09-13, so `defuddle` fires on its own as the WebFetch substitute it advertises.
+Moving a skill between tiers takes two committed edits, the `tiers` value in the lock and the matching
+`skillOverrides` line in `private_dot_claude/modify_settings.json` (a promotion to core swaps that line
+for a `deleteValueAtPath` so the next apply scrubs the stale override from the live file), so the
+declared tier and Claude behavior continue to agree.
 
 Also includes `owasp-security` (from `agamm/claude-code-owasp`): the OWASP Top 10:2025 table, a
 finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement ids, as markdown with no
@@ -169,7 +170,7 @@ next full weekly run.
 
 ## Tier model (the lock's `tiers` table)
 
-Every roster skill is `core` (8) or `on-demand` (27). Core skills auto-load in every harness; on-demand
+Every roster skill is `core` (21) or `on-demand` (55). Core skills auto-load in every harness; on-demand
 skills stay installed everywhere but load only when explicitly invoked:
 
 - Claude Code: `skillOverrides.<name> = "user-invocable-only"`, one `setValueAtPath` per skill in the
