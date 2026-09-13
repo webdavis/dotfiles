@@ -1218,6 +1218,43 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
   (`src/setup.rs:the_lamp_map_starter_is_always_offered_and_is_wholly_commented_out`). See
   `docs/specs/configuration.md`.
 
+## Phone tap setup and manual undo
+
+The tap command creates the parent directory and updates the same marker object its presence probe reads,
+without truncating contents or following a final symlink. It refuses directories and special files.
+Repeated and concurrent taps require no daemon, journal or lock. Missing configuration uses
+`$HOME/.local/state/pns/phone-attention.marker`; nonempty `PNS_PHONE_MARKER_FILE` wins over
+`[phone] marker_file`. The config value accepts an absolute path or `~/` and rejects empty, relative and
+control-containing paths. Environment paths retain their existing literal path interpretation. Unusable
+configuration never silently redirects a write to the default. An explicit environment path can be used
+without reading configuration. These filesystem operations have no timeout on a hung filesystem; no
+background worker or new retry mechanism is introduced.
+
+`pns tap --install` is a guide only. It never reads or writes `authorized_keys`, publishes config,
+installs a daemon or sends a notification. It prints the running binary's absolute path in a forced
+`pns tap` command, with `restrict` and a public-key placeholder. It explains replacing an existing
+dedicated entry rather than adding a duplicate, Remote Login, machine-specific Host and User,
+operator-selected Port and key, and the phone's ignored Script field. Host detection establishes a local
+name, not network reachability. The guide's three numbered steps are This Mac, Your phone and Trigger
+methods. The current public Shortcut URL and actual iOS trigger-path evidence are unavailable.
+
+The forced command ignores the script supplied by the phone. The initial phone consumer can display plain
+stdout; selecting JSON requires the operator to use `pns tap --json` in the forced command. The phone
+must show errors instead of unconditional success. Actual Shortcut changes, sleep/wake, unavailable-host
+behavior, controlled write failure and real-device acceptance remain pending.
+
+Manual undo is scoped to the integration: detach its phone triggers and manually remove only its
+dedicated authorization entry. To restore a prior command for that same still-trusted key, review the old
+command and make its marker path agree with the current reader. Never restore a whole trust file. Revert
+a custom path in the configuration source that owns it and restore any environment override in its
+originating context. Leave Remote Login enabled if other workflows use it. Leave marker files in place:
+typing on the unlocked Mac supplies a newer desk signal, while deleting a marker can move Mobile to Away
+and cause more phone cards. There is no tap clear, delete, config-write or duration flag.
+
+`--info` reports provenance and metadata and points to the installation guide and Remote Login
+troubleshooting. Doctor adds a freshness row under Pairing without changing its exit-code contract. An
+old or absent marker does not prove a broken phone chain; a fresh marker can also be written locally.
+
 ## Vocabulary
 
 | Term             | Defining symbol                                                                                                                     |

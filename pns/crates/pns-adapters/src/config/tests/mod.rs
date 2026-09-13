@@ -107,6 +107,8 @@ fn presence_config(body: &str) -> Config {
 /// TOML as the heading each of them would otherwise be written as, and it
 /// is what lets one walk cover a level with no heading of its own.
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
+    (super::TOP_LEVEL, "phone", "{ marker_file = '~/attention' }"),
+    ("phone", "marker_file", "'~/attention'"),
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
     (
         super::TOP_LEVEL,

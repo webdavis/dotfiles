@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn a_phone_marker_override_survives_rendering_and_parsing() {
+    let values = "[phone]\nmarker_file = '~/custom/attention'"
+        .parse()
+        .unwrap();
+    let text = render(&values).expect("phone override renders");
+    assert_eq!(
+        parse_config(&text).unwrap().phone_marker_file.as_deref(),
+        Some("~/custom/attention")
+    );
+}
+
+#[test]
 fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     let text = render(&every_table_armed()).expect("a fully answered walk renders");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));

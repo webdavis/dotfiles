@@ -265,6 +265,10 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "hue: skipped, not enabled in the config",
             "0 sent, 0 failed, 6 skipped",
             NO_MOSHI_HOOK_LINE,
+            &format!(
+                "phone tap: never tapped (default, {:?}); run `pns tap --info`",
+                sandbox.path(".local/state/pns/phone-attention.marker")
+            ),
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,

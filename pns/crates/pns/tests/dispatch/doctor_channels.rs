@@ -62,6 +62,10 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "hue: skipped, not enabled in the config",
             "3 sent, 0 failed, 3 skipped",
             NO_MOSHI_HOOK_LINE,
+            &format!(
+                "phone tap: never tapped (default, {:?}); run `pns tap --info`",
+                sandbox.path(".local/state/pns/phone-attention.marker")
+            ),
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
