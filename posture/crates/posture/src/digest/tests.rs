@@ -1,4 +1,5 @@
 use super::*;
+mod limits;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -118,6 +119,7 @@ impl Fixture {
             store: self.store.clone(),
             pns: self.home.join("pns"),
             alarm: self.home.join("osascript"),
+            limits: Default::default(),
         }
     }
 

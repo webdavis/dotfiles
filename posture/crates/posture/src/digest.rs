@@ -62,6 +62,7 @@ fn execute(
         sink: &mut sink,
         utc_day: &now.utc_day,
         occurred_at: Some(now.seconds),
+        limits: config.limits,
     }
     .run();
     // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in the

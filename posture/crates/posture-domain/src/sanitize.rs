@@ -32,6 +32,10 @@ const LINE_BREAKING: [char; 3] = ['\r', '\n', '\t'];
 /// the jq this replaces counted: cutting bytes would split a multi-byte
 /// character and render a replacement glyph in its place.
 pub(crate) fn code(value: &str) -> String {
+    code_with_limit(value, FIELD_LIMIT)
+}
+
+pub(crate) fn code_with_limit(value: &str, limit: usize) -> String {
     let squashed: String = value
         .chars()
         .filter(|character| *character != '`')
@@ -45,8 +49,8 @@ pub(crate) fn code(value: &str) -> String {
         .collect();
     let mut wrapped = String::with_capacity(squashed.len() + 2);
     wrapped.push('`');
-    if squashed.chars().count() > FIELD_LIMIT {
-        wrapped.extend(squashed.chars().take(FIELD_LIMIT));
+    if squashed.chars().count() > limit {
+        wrapped.extend(squashed.chars().take(limit));
         wrapped.push_str(FIELD_TRUNCATION);
     } else {
         wrapped.push_str(&squashed);

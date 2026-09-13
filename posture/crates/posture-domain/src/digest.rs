@@ -36,6 +36,25 @@ pub const GROUP_LIMIT: usize = 12;
 /// no urgency to spend the margin on.
 pub const BODY_LIMIT: usize = 1800;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DigestLimits {
+    pub groups: usize,
+    pub bullets_per_group: usize,
+    pub body_chars: usize,
+    pub field_chars: usize,
+}
+
+impl Default for DigestLimits {
+    fn default() -> Self {
+        Self {
+            groups: GROUP_LIMIT,
+            bullets_per_group: BULLETS_PER_GROUP,
+            body_chars: BODY_LIMIT,
+            field_chars: sanitize::FIELD_LIMIT,
+        }
+    }
+}
+
 /// What marks a body cut short.
 const BODY_TRUNCATION: &str = "\n… (truncated)";
 
@@ -65,22 +84,22 @@ pub struct DigestEntry<'a> {
 /// AN EMPTY BODY IS A REAL ANSWER, returned when there was nothing to render.
 /// The caller reads it as "say nothing today" rather than sending a message
 /// whose count promises findings its body does not show.
-pub fn render_digest(entries: &[DigestEntry<'_>]) -> String {
+pub fn render_digest(entries: &[DigestEntry<'_>], limits: DigestLimits) -> String {
     if entries.is_empty() {
         return String::new();
     }
     let groups = grouped(entries);
     let mut blocks: Vec<String> = groups
         .iter()
-        .take(GROUP_LIMIT)
-        .map(|(detector, members)| block(*detector, members))
+        .take(limits.groups)
+        .map(|(detector, members)| block(*detector, members, limits))
         .collect();
-    if let Some(dropped) = groups.len().checked_sub(GROUP_LIMIT).filter(|n| *n > 0) {
+    if let Some(dropped) = groups.len().checked_sub(limits.groups).filter(|n| *n > 0) {
         blocks.push(format!(
             "… and {dropped} more detector group(s) - see results.log"
         ));
     }
-    capped(blocks.join("\n"))
+    capped(blocks.join("\n"), limits.body_chars)
 }
 
 /// The entries by detector, in detector order.
@@ -115,22 +134,22 @@ fn grouped<'a>(entries: &[DigestEntry<'a>]) -> Vec<(Option<&'a str>, Vec<DigestE
 /// THE TRAILING BLANK LINE IS PART OF THE BLOCK rather than a separator the
 /// join adds, so the last group ends the body the same way the others end
 /// theirs and the overflow marker below always sits on its own.
-fn block(detector: Option<&str>, members: &[DigestEntry<'_>]) -> String {
+fn block(detector: Option<&str>, members: &[DigestEntry<'_>], limits: DigestLimits) -> String {
     let mut lines = vec![format!(
         "**{}** ({})",
         detector.unwrap_or(UNKNOWN),
         members.len()
     )];
-    for member in members.iter().take(BULLETS_PER_GROUP) {
+    for member in members.iter().take(limits.bullets_per_group) {
         lines.push(format!(
             "- {} - {}",
-            sanitize::code(member.identity.unwrap_or(UNKNOWN)),
-            sanitize::code(member.summary.unwrap_or(UNKNOWN))
+            sanitize::code_with_limit(member.identity.unwrap_or(UNKNOWN), limits.field_chars),
+            sanitize::code_with_limit(member.summary.unwrap_or(UNKNOWN), limits.field_chars)
         ));
     }
     if let Some(dropped) = members
         .len()
-        .checked_sub(BULLETS_PER_GROUP)
+        .checked_sub(limits.bullets_per_group)
         .filter(|n| *n > 0)
     {
         lines.push(format!("… +{dropped} more"));
@@ -139,15 +158,15 @@ fn block(detector: Option<&str>, members: &[DigestEntry<'_>]) -> String {
     lines.join("\n")
 }
 
-/// The body, cut to `BODY_LIMIT` characters if it overruns.
+/// The body, cut to the configured character limit if it overruns.
 ///
 /// CHARACTERS, not bytes, because a cut through a multi-byte character renders
 /// a replacement glyph where the operator expects a path.
-fn capped(body: String) -> String {
-    if body.chars().count() <= BODY_LIMIT {
+fn capped(body: String, limit: usize) -> String {
+    if body.chars().count() <= limit {
         return body;
     }
-    let mut cut: String = body.chars().take(BODY_LIMIT).collect();
+    let mut cut: String = body.chars().take(limit).collect();
     cut.push_str(BODY_TRUNCATION);
     cut
 }

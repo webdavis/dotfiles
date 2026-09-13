@@ -10,11 +10,25 @@ fn home_names_the_spool_the_alerter_writes_and_the_engine_that_delivers() {
         match key {
             "HOME" => Some(home.clone()),
             "OSQUERY_DIGEST_STORE" => None,
+            "DIGEST_MAX_GROUPS"
+            | "DIGEST_MAX_BULLETS_PER_GROUP"
+            | "DIGEST_MAX_BODY_CHARS"
+            | "DIGEST_MAX_FIELD_CHARS" => None,
             other => panic!("unexpected environment read: {other}"),
         }
     })
     .unwrap();
-    assert_eq!(reads, ["HOME", "OSQUERY_DIGEST_STORE"]);
+    assert_eq!(
+        reads,
+        [
+            "HOME",
+            "OSQUERY_DIGEST_STORE",
+            "DIGEST_MAX_GROUPS",
+            "DIGEST_MAX_BULLETS_PER_GROUP",
+            "DIGEST_MAX_BODY_CHARS",
+            "DIGEST_MAX_FIELD_CHARS"
+        ]
+    );
     let mut store = home.clone();
     store.push(DEFAULT_STORE);
     assert_eq!(config.store, PathBuf::from(store));
@@ -43,4 +57,33 @@ fn an_override_names_the_spool_but_an_empty_one_does_not() {
         PathBuf::from("/elsewhere/spool.ndjson")
     );
     assert_eq!(read(""), PathBuf::from(format!("/home{DEFAULT_STORE}")));
+}
+
+#[test]
+fn absent_or_malformed_scalars_keep_each_original_default() {
+    for value in [
+        None,
+        Some(""),
+        Some("abc"),
+        Some("-1"),
+        Some("+1"),
+        Some(" 1"),
+        Some("1.5"),
+    ] {
+        let config = Configuration::read(|key| match key {
+            "HOME" => Some("/private/test-home".into()),
+            "OSQUERY_DIGEST_STORE" => None,
+            _ => value.map(OsString::from),
+        })
+        .unwrap();
+        assert_eq!(
+            config.limits,
+            DigestLimits {
+                groups: 12,
+                bullets_per_group: 10,
+                body_chars: 1800,
+                field_chars: 240,
+            }
+        );
+    }
 }
