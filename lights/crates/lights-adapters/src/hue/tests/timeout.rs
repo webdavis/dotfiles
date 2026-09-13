@@ -26,6 +26,24 @@ impl Drop for OwnedChild {
         let _ = self.0.wait();
     }
 }
+/// A temporary test home directory, removed when dropped.
+struct Home(std::path::PathBuf);
+impl Home {
+    // A pid IS NOT UNIQUE OVER TIME: macOS recycles them, so a name built from
+    // just the pid can match a directory a past run left behind. Clearing
+    // first is what makes the name safe to reuse; the `Drop` below is what
+    // stops them piling up in the first place.
+    fn fresh(path: std::path::PathBuf) -> Home {
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        Home(path)
+    }
+}
+impl Drop for Home {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 #[test]
 fn transport_timeout_exits_four_without_success() {
     if std::env::var_os("LIGHTS_TIMEOUT_CHILD").is_some() {
@@ -48,21 +66,22 @@ fn transport_timeout_exits_four_without_success() {
         return;
     }
     let logs = std::env::temp_dir().join(format!("lights-timeout-{}", std::process::id()));
-    std::fs::create_dir_all(&logs).unwrap();
+    let home = Home::fresh(logs);
+    let logs = &home.0;
     let mut command = Command::new(std::env::current_exe().unwrap());
     command
         .env_clear()
         .env("LIGHTS_TIMEOUT_CHILD", "1")
-        .env("HOME", &logs)
-        .env("TMPDIR", &logs)
-        .env("TMP", &logs)
-        .env("TEMP", &logs)
-        .env("XDG_CONFIG_HOME", &logs)
-        .env("XDG_DATA_HOME", &logs)
-        .env("XDG_STATE_HOME", &logs)
-        .env("XDG_CACHE_HOME", &logs)
-        .env("XDG_RUNTIME_DIR", &logs)
-        .env("CLAUDE_CONFIG_DIR", &logs)
+        .env("HOME", logs)
+        .env("TMPDIR", logs)
+        .env("TMP", logs)
+        .env("TEMP", logs)
+        .env("XDG_CONFIG_HOME", logs)
+        .env("XDG_DATA_HOME", logs)
+        .env("XDG_STATE_HOME", logs)
+        .env("XDG_CACHE_HOME", logs)
+        .env("XDG_RUNTIME_DIR", logs)
+        .env("CLAUDE_CONFIG_DIR", logs)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_SYSTEM", "/dev/null")
         .args([
