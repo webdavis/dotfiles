@@ -108,6 +108,7 @@ pub(super) fn next(
     Ok(Some(RetryDelivery {
         claim,
         identity: record.submission.identity,
+        producer_request: record.submission.producer_request,
         event: record.submission.event,
         leg: route,
     }))

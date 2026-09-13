@@ -160,6 +160,7 @@ pub(crate) fn doctor_mode() -> i32 {
                 legs.iter()
                     .map(|leg| {
                         let request = pns_application::DeliveryRequest {
+                            producer_request: None,
                             producer: &identity.producer,
                             request_id: Some(&identity.request_id),
                             event: &rendered,
