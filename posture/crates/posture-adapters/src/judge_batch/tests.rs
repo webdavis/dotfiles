@@ -45,13 +45,15 @@ impl World {
     ) -> JudgedBatch {
         let vouches = self.vouches_everything;
         let mut vouch = move |_: &str| vouches;
-        let mut triage = |_: &ResultsRow| None;
+        let mut triage = |_: &ResultsRow, _: &mut dyn std::io::Write| None;
+        let mut diagnostics = std::io::sink();
         BatchJudge {
             home: HOME,
             allowlist_path: "/tmp/allowlist",
             allowlist,
             spool: &self.spool,
             now: "2026-09-09T12:00:00Z",
+            diagnostics: &mut diagnostics,
             collaborators: Collaborators {
                 vouches: &mut vouch,
                 inspect,

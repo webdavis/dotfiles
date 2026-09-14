@@ -7,6 +7,7 @@ use std::cell::RefCell;
 #[derive(Default)]
 struct Spool {
     batch: Option<ClaimedBatch>,
+    unreadable: bool,
     calls: RefCell<Vec<&'static str>>,
 }
 
@@ -18,7 +19,13 @@ impl Spool {
                 item_count,
                 rows,
             }),
-            calls: RefCell::new(Vec::new()),
+            ..Self::default()
+        }
+    }
+    fn unreadable() -> Self {
+        Self {
+            unreadable: true,
+            ..Self::default()
         }
     }
     fn did(&self) -> Vec<&'static str> {
@@ -30,9 +37,12 @@ impl DigestSpool for Spool {
     fn sweep_orphans(&self) {
         self.calls.borrow_mut().push("sweep");
     }
-    fn claim(&self) -> Option<ClaimedBatch> {
+    fn claim(&self) -> Result<Option<ClaimedBatch>, ClaimFailure> {
         self.calls.borrow_mut().push("claim");
-        self.batch.clone()
+        if self.unreadable {
+            return Err(ClaimFailure("the spool: Permission denied".into()));
+        }
+        Ok(self.batch.clone())
     }
     fn keep(&self, _: &ClaimedBatch) {
         self.calls.borrow_mut().push("keep");
@@ -67,12 +77,13 @@ fn row(detector: &str, identity: &str) -> DigestRow {
     }
 }
 
-fn run(spool: &Spool, sink: &mut Sink) -> DigestOutcome {
+fn run(spool: &Spool, sink: &mut Sink) -> DigestReport {
     BuildDigest {
         spool,
         sink,
         utc_day: "2026-09-09",
         occurred_at: Some(100),
+        limits: DigestLimits::default(),
     }
     .run()
 }
@@ -93,7 +104,7 @@ fn an_empty_spool_says_nothing_and_keeps_nothing() {
     // operator stops reading.
     let spool = Spool::default();
     let mut sink = Sink::default();
-    assert_eq!(run(&spool, &mut sink), DigestOutcome::Silent);
+    assert_eq!(run(&spool, &mut sink).outcome, DigestOutcome::Silent);
     assert!(sink.sent.is_empty());
 }
 
@@ -101,7 +112,7 @@ fn an_empty_spool_says_nothing_and_keeps_nothing() {
 fn a_batch_of_findings_is_sent_once_and_kept_for_forensics() {
     let spool = Spool::holding(2, vec![row("alpha", "one"), row("beta", "two")]);
     let mut sink = Sink::default();
-    assert_eq!(run(&spool, &mut sink), DigestOutcome::Sent);
+    assert_eq!(run(&spool, &mut sink).outcome, DigestOutcome::Sent);
     assert_eq!(sink.sent.len(), 1);
     assert_eq!(spool.did(), ["sweep", "claim", "keep"]);
 }
@@ -125,7 +136,11 @@ fn a_torn_line_still_counts_toward_the_title_even_though_it_cannot_be_rendered()
     // Two lines arrived; only one decoded, so the adapter counted two.
     let spool = Spool::holding(2, vec![row("alpha", "one")]);
     let mut sink = Sink::default();
-    assert_eq!(run(&spool, &mut sink), DigestOutcome::Sent);
+    let report = run(&spool, &mut sink);
+    assert_eq!(report.outcome, DigestOutcome::Sent);
+    // Two arrived and one rendered, so one finding is missing from the body and
+    // the run says so instead of leaving the gap to be noticed.
+    assert_eq!(report.dropped, 1);
     assert!(
         sink.sent[0].title.contains("2 item(s)"),
         "{:?}",
@@ -136,12 +151,27 @@ fn a_torn_line_still_counts_toward_the_title_even_though_it_cannot_be_rendered()
 }
 
 #[test]
+fn a_claim_that_failed_is_reported_rather_than_read_as_a_quiet_day() {
+    // Whatever is on disk is still on disk for the next run's sweep, but a run
+    // that could not take its own spool has not done its job, and answering the
+    // way an empty day answers is what let that go unnoticed.
+    let spool = Spool::unreadable();
+    let mut sink = Sink::default();
+    assert_eq!(
+        run(&spool, &mut sink).outcome,
+        DigestOutcome::NotClaimed(ClaimFailure("the spool: Permission denied".into()))
+    );
+    assert!(sink.sent.is_empty());
+    assert_eq!(spool.did(), ["sweep", "claim"]);
+}
+
+#[test]
 fn a_batch_whose_every_line_is_unreadable_is_kept_rather_than_sent_or_retried() {
     // Sending a count with an empty body would promise findings the message does
     // not show, and re-rendering the same bytes tomorrow renders empty again.
     let spool = Spool::holding(2, Vec::new());
     let mut sink = Sink::default();
-    assert_eq!(run(&spool, &mut sink), DigestOutcome::Silent);
+    assert_eq!(run(&spool, &mut sink).outcome, DigestOutcome::Silent);
     assert!(sink.sent.is_empty());
     assert_eq!(spool.did(), ["sweep", "claim", "keep"]);
 }
@@ -154,7 +184,7 @@ fn a_refused_send_puts_the_batch_back_for_the_next_run() {
         refuse: true,
         ..Sink::default()
     };
-    assert_eq!(run(&spool, &mut sink), DigestOutcome::Restored);
+    assert_eq!(run(&spool, &mut sink).outcome, DigestOutcome::Restored);
     assert_eq!(spool.did(), ["sweep", "claim", "restore"]);
 }
 
