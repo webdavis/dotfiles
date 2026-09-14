@@ -175,6 +175,10 @@ return {
       "gitattributes",
       "gitcommit",
       "gitignore",
+      -- Here for neotest-golang, which discovers Go tests with this grammar and finds none at all
+      -- without it. Core rather than left to the FileType hook below, because the apply-time
+      -- bootstrap installs this list and WAITS for it, so a Go test request never has to.
+      "go",
       "gpg",
       "graphql",
       "haskell",
