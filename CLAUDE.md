@@ -205,8 +205,14 @@ block that drops `Library` and the macOS-only helpers on Linux. Read the file ra
 here; this paragraph used to transcribe it and drifted twice. Templates branch on
 `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content.
 
-One thing the file does not say: `.worktrees/` is deliberately NOT in it; it is gitignored and
-treefmt-excluded instead.
+**No worktree may live inside the source tree.** chezmoi reads every `.chezmoidata` directory at any
+depth of the source tree and merges them, and a nested copy wins over the root, so a worktree under
+`.worktrees/` feeds its own (often stale) data into every render and apply. `.chezmoiignore` does not
+help: it filters targets, not data (measured 2026-09-14, when the posture artifact ceiling stayed at its
+old value after the source file had moved). The same walk is why a template render in a checkout with
+nested worktrees took ~40 s. Worktrees go to `~/.herdr/worktrees/<repo>/<branch>`, which is where
+`herdr worktree create` and worktrunk both put them; `.worktrees/` stays gitignored and treefmt-excluded
+only so a stray one cannot be committed or formatted.
 
 ### The Rust monorepo
 

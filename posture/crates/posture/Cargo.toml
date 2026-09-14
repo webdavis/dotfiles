@@ -24,6 +24,9 @@ posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
 
 [dev-dependencies]
+# The SSH install fixtures state their own signal dispositions rather than
+# inheriting whatever started the suite.
+libc = "0.2.189"
 rusqlite = { version = "=0.39.0", default-features = false, features = [
   "bundled",
 ] }
