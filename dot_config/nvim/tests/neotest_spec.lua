@@ -41,6 +41,11 @@ for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE }) do
   )
 end
 
+-- The keys whose handler goes through the parser gate rather than straight to the module. Each
+-- reads the current buffer to decide what to discover, so each needs the grammar that discovery
+-- parses with, and each is measured below: pinning one leaves the other two revertible.
+local GATED_KEYS = { "<leader>tt", "<leader>tf", "<leader>ts" }
+
 -- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
 -- one, so a working directory read back after `:cd` would not string-compare against the path
 -- the fixture was written to.
@@ -245,7 +250,7 @@ end
 
 --- Run the plugin spec's `config` against stubbed adapters and return each JavaScript adapter's
 --- configured `is_test_file`, the adapter list neotest was handed, and a way to press `<leader>ta`
---- or `<leader>tt`.
+--- or any of `GATED_KEYS`.
 local function route()
   local vitest = { name = "neotest-vitest", root = package_root }
 
@@ -312,6 +317,13 @@ local function route()
           ran = args
         end,
       },
+      -- `<leader>ts` reaches the module here rather than through `run.run`, so the count has to
+      -- see it, or the summary key would read as never having got past the gate.
+      summary = {
+        toggle = function()
+          requests = requests + 1
+        end,
+      },
     },
     ["neotest-vitest"] = vitest,
     ["neotest-jest"] = jest,
@@ -347,16 +359,18 @@ local function route()
   -- `<leader>ta` reads the live adapter list to work out which adapters attach where.
   package.loaded["neotest.config"] = { adapters = captured.adapters }
 
-  local run_all, run_nearest
+  local run_all, gated = nil, {}
   for _, key in ipairs(plugin_spec.keys) do
     if key[1] == "<leader>ta" then
       run_all = key[2]
-    elseif key[1] == "<leader>tt" then
-      run_nearest = key[2]
+    elseif vim.list_contains(GATED_KEYS, key[1]) then
+      gated[key[1]] = key[2]
     end
   end
   assert(run_all, "<leader>ta is not in the plugin spec's keys")
-  assert(run_nearest, "<leader>tt is not in the plugin spec's keys")
+  for _, key in ipairs(GATED_KEYS) do
+    assert(gated[key], key .. " is not in the plugin spec's keys")
+  end
 
   --- Press `<leader>ta` in `directory`. `choose` is the item the operator picks when asked.
   ---@return { ran: table|string|nil, prompted: string[]|nil, notified: string[] }
@@ -382,12 +396,13 @@ local function route()
     return { ran = ran, prompted = prompted, notified = notified }
   end
 
-  --- Press `<leader>tt` from a scratch buffer of `filetype`, and report what the request waited
-  --- for on its way to neotest. A pure notify recorder, never a pass-through: headless noice
-  --- drops the continuation.
+  --- Press one of `GATED_KEYS` from a scratch buffer of `filetype`, and report what the request
+  --- waited for on its way to neotest. A pure notify recorder, never a pass-through: headless
+  --- noice drops the continuation.
+  ---@param key string
   ---@param filetype string
   ---@return { installs: string[], requests: integer, notified: string[] }
-  local function press_nearest(filetype)
+  local function press_gated(key, filetype)
     parser.installs = {}
     local installs, notified, before = parser.installs, {}, requests
     local previous_notify = vim.notify
@@ -398,11 +413,11 @@ local function route()
     local previous_buffer = vim.api.nvim_get_current_buf()
     vim.api.nvim_set_option_value("filetype", filetype, { buf = buffer })
     vim.api.nvim_set_current_buf(buffer)
-    local pressed, pressed_error = pcall(run_nearest)
+    local pressed, pressed_error = pcall(gated[key])
     vim.api.nvim_set_current_buf(previous_buffer)
     vim.api.nvim_buf_delete(buffer, { force = true })
     vim.notify = previous_notify
-    assert(pressed, "<leader>tt failed: " .. tostring(pressed_error))
+    assert(pressed, key .. " failed: " .. tostring(pressed_error))
     return { installs = installs, requests = requests - before, notified = notified }
   end
 
@@ -412,7 +427,7 @@ local function route()
     node = by_name["neotest-nodejs"].is_test_file,
     by_name = by_name,
     press_run_all = press_run_all,
-    press_nearest = press_nearest,
+    press_gated = press_gated,
   }
 end
 
@@ -837,24 +852,28 @@ cases["a test request waits for the parser its discovery needs"] = function()
   -- request is what has to wait for the one it needs.
   local routed = route()
 
-  local waited = routed.press_nearest(PARSERLESS_LANGUAGE)
-  assert(
-    vim.deep_equal(waited.installs, { PARSERLESS_LANGUAGE }),
-    "the request did not wait for its parser: " .. vim.inspect(waited.installs)
-  )
-  assert(waited.requests == 1, "the request never reached neotest")
-  assert(#waited.notified == 1, "the editor blocked on a build without saying why")
+  -- Every gated key, because each one discovers from the current buffer and "the request waits for
+  -- the parser its discovery needs" is the same sentence for all three.
+  for _, key in ipairs(GATED_KEYS) do
+    local waited = routed.press_gated(key, PARSERLESS_LANGUAGE)
+    assert(
+      vim.deep_equal(waited.installs, { PARSERLESS_LANGUAGE }),
+      key .. " did not wait for its parser: " .. vim.inspect(waited.installs)
+    )
+    assert(waited.requests == 1, key .. " never reached neotest")
+    assert(#waited.notified == 1, key .. " blocked on a build without saying why")
+  end
 
   -- `lua` is bundled with Neovim, so its parser is on every machine this config runs on. A
   -- request that reinstalls what is already loaded would stall every press, not just the first.
-  local loaded = routed.press_nearest("lua")
+  local loaded = routed.press_gated("<leader>tt", "lua")
   assert(#loaded.installs == 0, "a parser already loaded was installed again: " .. vim.inspect(loaded.installs))
   assert(loaded.requests == 1, "the request never reached neotest")
   assert(#loaded.notified == 0, "an installed parser still announced an install")
 
   -- snacks.nvim names its notification buffers, and no grammar is called that. Waiting there
   -- would be waiting for a build that is never coming, which is the FileType installer's own rule.
-  local unbuildable = routed.press_nearest("snacks_notif")
+  local unbuildable = routed.press_gated("<leader>tt", "snacks_notif")
   assert(
     #unbuildable.installs == 0,
     "a filetype no grammar exists for was installed: " .. vim.inspect(unbuildable.installs)
@@ -864,9 +883,9 @@ cases["a test request waits for the parser its discovery needs"] = function()
   -- A build that ran out of time is waited for once. `pwait` reports its timeout rather than
   -- raising, and a gate that discards that answer pays the whole 30 s ceiling again on the next
   -- press, and on every press after it, for a build that is never coming.
-  local stalled = routed.press_nearest(STALLED_LANGUAGE)
+  local stalled = routed.press_gated("<leader>tt", STALLED_LANGUAGE)
   assert(vim.deep_equal(stalled.installs, { STALLED_LANGUAGE }), "the first press did not wait for its parser")
-  local retried = routed.press_nearest(STALLED_LANGUAGE)
+  local retried = routed.press_gated("<leader>tt", STALLED_LANGUAGE)
   assert(
     #retried.installs == 0,
     "a build that already ran out of time was waited for again: " .. vim.inspect(retried.installs)
