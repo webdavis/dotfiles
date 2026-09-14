@@ -847,13 +847,25 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   reads `/Users/stephen/.cargo/bin/posture watchdog`; since its interval is 900 seconds, kick it directly
   with `launchctl kickstart gui/$(id -u)/com.webdavis.osquery-uptime-watchdog`, then
   `launchctl print gui/$(id -u)/com.webdavis.osquery-uptime-watchdog | grep -E 'runs|last exit code'`
-  expecting exit code 0, and `tail -n 20 ~/.local/log/osquery/uptime-watchdog.log` expecting nothing on a
-  healthy pipeline; `jq . ~/.local/state/osquery-watchdog-state.json` should show all six agents with
-  `runs`/`streak`, a `pending` block and a `pipeline_audit` block whose `fingerprint` clears by the next
-  15-minute tick rather than reaching the streak-of-two page threshold on this first post-apply tick.
-  Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and `results-alerter/pipeline-verdict.sh` retire
-  from source together in a follow-up pull request that also retires the firewall-gatekeeper-monitor and
-  tailscale-monitor Bash producers, after all three lanes' live acceptance; nothing was trashed by #575.
+  expecting exit code 0. `tail -n 20 ~/.local/log/osquery/uptime-watchdog.log` stays EMPTY whether or not
+  the tick pages, because a page is the `Reported` outcome and that outcome prints nothing and exits 0
+  (`posture/crates/posture/src/watchdog.rs:79`), so log silence is not evidence of phone silence. EXPECT
+  EXACTLY ONE CRIT watchdog page on this first tick, plus one independent banner titled "Posture
+  notification engine unhealthy" naming 11 dead-lettered pns delivery obligations, and do NOT read it as
+  a regression or roll back on it. The Bash-written state carries no `pns_pending` key (measured
+  2026-09-13: its only keys are `agents`, `pending` and `pipeline_audit`), so the first Rust tick decodes
+  the prior dead-letter count as never observed and reports the standing count once by design: only an
+  INCREASE is news, the count is then carried forward, and the next 15-minute tick is silent. The count
+  is real: a read-only `sqlite3 "file:$HOME/.local/state/pns/pns.db?immutable=1"` over `ledger_legs`
+  reports 0 unacknowledged and 11 dead-lettered, with `delivery_health` generation 23 and acknowledged
+  23, so no delivery-health alarm rides along. Then `jq . ~/.local/state/osquery-watchdog-state.json`
+  should show all six agents with `runs`/`streak`, a `pending` block, a NEW `pns_pending` block reading
+  `{"count":0,"growth_streak":0,"deadletters":11}`, and a `pipeline_audit` block whose `fingerprint`
+  clears by the next 15-minute tick rather than reaching the streak-of-two page threshold on this first
+  post-apply tick. Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and
+  `results-alerter/pipeline-verdict.sh` retire from source together in a follow-up pull request that also
+  retires the firewall-gatekeeper-monitor and tailscale-monitor Bash producers, after all three lanes'
+  live acceptance; nothing was trashed by #575.
 - [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
