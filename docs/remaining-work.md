@@ -1701,7 +1701,37 @@ producer.
   [PR #608](https://github.com/webdavis/dotfiles/pull/608)
   (`feat(aerospace): point the seven light keys at the lights binary`, merged): F4 to F10 in
   `dot_aerospace.toml` now call the `lights` binary for the Studio. Operator steps left: run
-  `aerospace reload-config` after the apply, then press the keys in the Studio to verify.
+  `aerospace reload-config` after the apply, then press the keys in the Studio to verify. Separately, on
+  2026-09-14 lights gained whole-house presets bound to aerospace keys f1 through f3, merged in
+  [PR #611](https://github.com/webdavis/dotfiles/pull/611)
+  (`feat(lights): whole-house presets and bedroom alias fix`, merged): a `[presets]` table names each
+  preset's ordered per-room plan, `lights preset <name>` walks it reporting every room and exiting
+  non-zero on the first failure, `lights preset` alone lists the configured names, and `--room` alongside
+  a preset is refused. Three presets (morning, afternoon, evening) ship uncommented, mirroring the Studio
+  and bedroom's existing Hue automation slots and reusing the Studio's scene names for the kitchen, since
+  `--room` cannot address the `Kitchen` zone the kitchen's own automation actually drives. The same PR
+  fixed the shipped `bedroom` alias, which had expanded to the nonexistent `3F - Master Bedroom` and made
+  every `--room bedroom` command exit 2; it now reads `3F - MBedroom`, correcting the config template,
+  the compiled default, both fixtures, the argument-surface case list and the two documents that had
+  recorded the stale name. No lamp was changed in this work; all nine room-and-scene pairs were checked
+  only against a read-only bridge listing. Operator steps left: run a full `chezmoi apply` with KeePassXC
+  unlocked (rebuilds and reinstalls `lights`, deploys `~/.config/lights/config.toml` and
+  `~/.aerospace.toml`); run `aerospace reload-config`; confirm `lights preset` lists `afternoon`,
+  `evening` and `morning`; press f1, f2 and f3 and watch the Studio, bedroom and kitchen move to
+  Energize, Concentrate and Read; confirm `lights --room bedroom status` now reports `3F - MBedroom`
+  instead of exiting 2; edit a preset through the `[presets]` table in
+  `dot_config/lights/private_config.toml.tmpl` and re-apply, mirroring any change into
+  `lights/crates/lights-adapters/tests/fixtures/defaults.toml`. Open questions: whether a fourth and
+  fifth preset (night, late) should cover the 20:00 Relax and 23:00 Nightlight automation slots and on
+  which keys; whether `lights` should learn to recall a Hue smart scene, since the kitchen and bedroom
+  motion automations ramp colour temperature through a `smart_scene` resource no preset step can express;
+  whether `lights` should learn to target a zone, starting with the kitchen's own `Kitchen` zone ladder,
+  instead of borrowing the Studio's scene names; whether evening should also turn off the pass-through
+  rooms the shipped presets leave alone (`1F - Front door`, `2F - Staircase`, `1.5F - Staircase`);
+  whether f1 through f3, which sit under the macOS brightness and Mission Control glyphs, are the right
+  keys versus F4 through F10 or the fn row beyond F10; whether `lights preset` with no name should also
+  print each preset's steps; and that an acceptance run against real hardware, one press of each key with
+  all three rooms in view, has not happened yet.
 
 - [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
   existing generated-binary exception covers posture only. Update the stale target in the lights plan and
@@ -3177,6 +3207,90 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the Bash alerter's `{alert.title}`/`{alert.detail}` shape, so even with the secret reconciled a
   pns-shaped CRIT body delivers literal placeholders until the stale-escalation PR's prompt-template
   change lands too.
+
+- [ ] 2026-09-14: pns learned to say who an event is from, a structured sender header on every hermes
+  message, merged in [PR #612](https://github.com/webdavis/dotfiles/pull/612)
+  (`feat(pns): structured sender header on every hermes message`, merged). A harness payload now carries
+  the prompt and the harness's own session title, flattened on the way in; schema migration 9 added a
+  sessions table whose row the prompt hook writes, naming the session from its first prompt (cut to sixty
+  characters) and never relabeling it on a later prompt, with the stale-block escalation's two columns
+  created unwritten. One bounded
+  `git rev-parse --path-format=absolute --git-common-dir --show-toplevel --abbrev-ref HEAD` per event
+  replaced the working directory's last segment as the project, so a linked worktree reports the
+  repository instead of its branch slug, the worktree's own name fills the branch slot on a detached
+  head, and the directory name is the fallback outside a repo. Every hermes post gained `header`,
+  `subheader`, `body` and an always-empty `thread_id` beside its five existing keys, composed by two
+  total functions that drop an empty part with its separator, and the `pns` route's prompt in the
+  encrypted hermes config became the three-line layout A template (bold header, Discord subtext
+  subheader, bare body); the phone card's title stayed byte for byte the same, because an iOS
+  notification title truncates before a header would reach the state word. Sixteen behaviors are pinned
+  test-first and the whole pns workspace stayed green at 2261 tests. Operator steps: run `chezmoi apply`
+  (rebuilds and installs `pns`, no dependency change, kickstarts `com.webdavis.pns-daemon` onto the new
+  binary, writes the new `~/.hermes/config.yaml`; schema migration 9 runs on the first invocation after
+  that); run `hermes gateway restart` so the pns route's new prompt loads, since the running gateway
+  otherwise keeps rendering the old two-line template; fire one live event from a worktree and confirm
+  `#pns` shows a bold `repository · branch · state` line, a dim `claude · <four characters> · <title>`
+  line, and the body underneath; expect a session already running when the apply landed to show no title
+  on that dim line until its next prompt names it. Open questions: which upstream hermes ask to file
+  first for a real Discord thread per session, `deliver_extra.thread_name` or a returned `raw_response`
+  on a `deliver_only` response; whether a retried hermes post's dim line, which names only the agent
+  because the delivery ledger keeps no session, needs a session column on `ledger_events` if that reads
+  wrong in the channel; and whether the sixty-character title cap and the state's position at the end of
+  the header's first line hold up once the operator sees them in front of them.
+
+- [ ] 2026-09-14: the stale-block escalation shipped, the second pull request of the pns
+  session-attribution design, merged in [PR #613](https://github.com/webdavis/dotfiles/pull/613)
+  (`feat(pns): escalate a session blocked for an hour`, merged). An event that starts a session's wait
+  (any state in `pulse::LAMP_BLOCKED`) now stamps `blocked_since` on that session's row at the same seam
+  that writes the blocked marker, ungated by the lamps, and registers one leased job on the existing
+  pns-daemon clock; a later non-blocking event, and the prompt and resolved hook arms, clear the row. A
+  new `pns stale` subcommand selects the rows waiting since now minus the window with no escalation
+  stamped, stamps each one under `escalated_at IS NULL` so the database arbitrates two fires woken in one
+  tick, and raises one ordinary event per stuck session on the priority route, carrying the sender header
+  and subheader plus a body reading how many minutes the block has stood. The gate reads one surface
+  reading before any claim: away is silent, a screen locked for the whole window is silent, a screen
+  locked for part of it still pages, and a suppressed fire stamps nothing so the block is escalated the
+  first time the operator is reachable. The window is `[nag] stale_after_secs`, 60 to 86400 seconds with
+  zero the feature off, shipped uncommented at its 3600 default in the regenerated config template. The
+  priority route's prompt in the encrypted hermes capture was retemplated from the retired Bash alerter's
+  placeholders to the same three-line layout the pns route carries. Decision made for the operator on
+  2026-09-14 (commit d17ce40a in PR #613): the `priority` hermes route now carries the pns key instead of
+  the retired Bash alerter's, because every escalation page answered 401 under the old key; the alert
+  drainer's store was measured empty (pending_alerts 0) and nothing writes to it any more, so nothing
+  queued was lost; revert that commit if you want the old key back. Operator steps: run a full
+  `chezmoi apply` with KeePassXC unlocked (rebuilds and installs `pns` with the escalation and the
+  `stale` subcommand, rewrites `~/.config/pns/config.toml` with `[nag] stale_after_secs = 3600`, decrypts
+  the new `~/.hermes/config.yaml` carrying the priority route's layout A prompt); run
+  `hermes gateway restart` so the priority route stops rendering the retired alerter's template (the
+  restart drains in-flight runs for up to 180 seconds); no restart is needed for `pns-daemon` itself,
+  since each job spawn re-executes `std::env::current_exe`; before this PR, the drainer
+  (`~/.local/libexec/osquery/drain-undelivered-alerts.sh`, on `com.webdavis.osquery-alert-drainer`) still
+  posted alerter-shaped bodies to `priority`, but the store held zero rows and all three Bash monitors'
+  LaunchAgents already ran `posture` subcommands, so no live page path was affected; observe one
+  escalation on purpose, either by staying blocked past the hour or by backdating a session's
+  `blocked_since` in `~/.local/state/pns/pns.db` and running `pns stale` by hand, which prints
+  `1 stuck session(s); one page attempted each` or a held-back count if the gate suppressed it, and
+  `nothing is stuck` on a second run; leave `graphify-out/graph.json`, rebuilt by the post-commit hook,
+  out of any related PR. Open questions: whether the default of escalating after 60 minutes, with no
+  explicit opt-in, is the right default given the nag beside it defaults off; whether the recap section
+  from the design's second pull-request bullet, deferred here, should be scheduled to surface a
+  suppressed escalation later or left as an unmentioned self-resolving block; whether a fire suppressed
+  while away should re-arm itself one window out instead of staying a one-shot, if missed pages while
+  away matter more than the extra spawns; and whether the escalation's `blocked <n> minutes, no answer`
+  wording should share one renderer with the nag's more compact `<n>m` form.
+
+- [ ] 2026-09-14: the hermes unattended-upgrades route was renamed to `uu`, merged in
+  [PR #592](https://github.com/webdavis/dotfiles/pull/592)
+  (`chore(hermes): rename the unattended-upgrades route to uu`, merged), moving the shipped `[records]`
+  URL, the commented-out `failure_webhook` example and the apply-time route check to `/webhooks/uu`
+  together with the Discord channel rename.
+
+- [ ] 2026-09-14: the pns session-attribution, threads and stale-block escalation design was written and
+  merged as [PR #593](https://github.com/webdavis/dotfiles/pull/593)
+  (`docs(specs): pns session attribution, threads and stale-block escalation design`, merged), the spec
+  behind PR #612 and PR #613, at
+  `docs/superpowers/specs/2026-09-14-pns-session-attribution-and-threads-design.md`; one Discord thread
+  per session was verified unbuildable on hermes 0.17.0 webhooks and stays an upstream ask.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
