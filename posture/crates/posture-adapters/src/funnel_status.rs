@@ -8,8 +8,7 @@ pub fn read_funnel(
     runner: &mut impl CommandRunner,
     executable: &Path,
 ) -> Result<FunnelReading, FunnelReadFailure> {
-    use std::os::unix::fs::PermissionsExt;
-    if !std::fs::metadata(executable).is_ok_and(|m| m.permissions().mode() & 0o111 != 0) {
+    if !crate::is_executable(executable) {
         return Err(FunnelReadFailure::MissingBinary(
             executable.to_string_lossy().into_owned(),
         ));
@@ -38,3 +37,6 @@ pub fn read_funnel(
     }
     projection::read(&output.bytes)
 }
+
+#[cfg(test)]
+mod tests;
