@@ -76,6 +76,7 @@ packages:
         - deno
         - difftastic
         - direnv
+        - droast
         - dust
         - espeak-ng
         - eza
@@ -273,6 +274,7 @@ packages:
           - "@fission-ai/openspec"
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
+          - "@oliverames/mcp-server-for-ynab"
           - "@tobilu/qmd"
           - acpx
           - agentmail-cli

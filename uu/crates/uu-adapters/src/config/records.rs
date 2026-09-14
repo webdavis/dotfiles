@@ -14,7 +14,7 @@ pub struct Records {
 }
 
 /// The gateway route the record goes to when no key states one.
-pub const DEFAULT_RECORD_URL: &str = "http://127.0.0.1:8644/webhooks/unattended-upgrades";
+pub const DEFAULT_RECORD_URL: &str = "http://127.0.0.1:8644/webhooks/uu";
 
 pub(super) fn parse_records(value: toml::Value) -> Result<Records, ConfigError> {
     let table = table_of("records", value)?;

@@ -495,12 +495,12 @@
        `pns@pns`, `strategy@strategy` and `clean-code@clean-code` ARE THIS REPO'S
        OWN, out of marketplaces deployed under ~/.claude/pns-marketplace,
        ~/.claude/strategy-marketplace and ~/.claude/clean-code-marketplace rather
-       than fetched from anywhere. Installing one is still one deliberate command:
-       `claude plugin install pns@pns` fails on 2.1.257 with "Invalid channel"
-       (the release-channel parser takes the `@marketplace` suffix as a channel
-       name), even though `--help` still documents that `plugin@marketplace`
-       spelling. The WORKAROUND on 2.1.257 is the bare `claude plugin install
-       pns`, which is what worked on this machine on 2026-09-01. --- */ -}}
+       than fetched from anywhere. Installing one is still one deliberate
+       command: `claude plugin install clean-code@clean-code` (exit 0 on
+       2.1.270, 2026-09-13). The bare name resolves to the same plugin once
+       that marketplace is registered; the namespaced spelling is preferred
+       because it names the marketplace rather than whatever happens to be
+       registered. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -640,17 +640,10 @@
        one whole-dict overwrite) so overrides the user sets for other skills
        via /config pass through untouched. A per-key write never removes a
        key, so a skill promoted to core keeps its stale override in the live
-       file until an explicit delete below scrubs it (a no-op when the key or
-       skillOverrides itself is absent, measured on chezmoi 2.72.1). --- */ -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code-rust" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code-swift" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.defuddle" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-bases" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-cli" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-markdown" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.owasp-security" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.tuicr" $merged -}}
+       file until a deleteValueAtPath "skillOverrides.<name>" line scrubs it (a
+       no-op when the key or skillOverrides itself is absent, measured on
+       chezmoi 2.72.1). Such a line is a TOMBSTONE: add it with the promotion
+       and delete it again once every machine has applied. --- */ -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
