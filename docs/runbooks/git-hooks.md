@@ -89,7 +89,7 @@ union-merge via the `graphify-union` driver (`.gitattributes` plus `[merge "grap
 with `graphify update .`.
 
 **The detached rebuild versus the pre-push gate.** Two pushes made straight after their commit failed
-`just lint-check` on 2026-09-14 with
+`just lint-check` on 2026-09-13 with
 `chezmoi: lstat .../graphify-out/cache/ast/<name>.tmp: no such file or directory`, reported as lint drift
 with no file changed; a push a minute later passed. Neither hook was at fault and no wait was needed.
 treefmt walks the git index and excludes `graphify-out/**`, so it never reads the cache; the walker was
