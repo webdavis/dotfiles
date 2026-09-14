@@ -41,6 +41,10 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
     assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
     assert_eq!(config.nag_after_secs, 300);
+    assert_eq!(
+        config.stale_after_secs, 3600,
+        "a defaulted key ships uncommented at its default (operator ruling, 2026-08-31)"
+    );
 }
 
 #[test]

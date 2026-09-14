@@ -152,9 +152,15 @@ fn nothing_is_armed_when_nothing_should_be() {
             !nag_record(&sandbox, "s1").exists(),
             "{case}: no record is written"
         );
+        // THE NAG'S OWN JOBS, not the whole spool. The stale-block
+        // escalation is a sibling rider on the same event with its own
+        // window, its own default and no agent gate, so its job standing
+        // here says nothing about whether the NAG was armed.
         assert!(
-            spool_entries(&sandbox).is_empty(),
-            "{case}: and no job is registered"
+            spool_entries(&sandbox)
+                .iter()
+                .all(|entry| !entry.starts_with("nag:")),
+            "{case}: and no nag job is registered"
         );
     }
 }

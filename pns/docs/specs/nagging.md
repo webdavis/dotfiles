@@ -1,7 +1,8 @@
 # Nagging: the second card about an approval nobody answered
 
-This is the one path in pns that speaks about an event minutes after it happened, and the only one whose
-delivery is decided in a process the harness never started. When Claude Code blocks on a permission
+This is the path in pns that speaks about an event minutes after it happened, and one of two whose
+delivery is decided in a process the harness never started (the other is its sibling, the stale-block
+escalation, in `stale-block-escalation.md`). When Claude Code blocks on a permission
 prompt, `pns hook blocked` arms a nag: it writes one record naming the approval and registers one leased
 job with the daemon. If nothing clears that record before the schedule runs out, the daemon re-executes
 this same binary as `pns nag`, and that run (the "fire") cards every outstanding approval at once, as one

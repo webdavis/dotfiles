@@ -38,6 +38,7 @@ pub mod registry;
 pub mod render;
 pub mod routing;
 pub mod safety;
+pub mod stale;
 pub mod surface;
 
 pub use decision::{

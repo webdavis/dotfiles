@@ -67,7 +67,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("daemon", &["enabled"]),
     ("phone", &["marker_file"]),
-    ("nag", &["after_secs"]),
+    ("nag", &["after_secs", "stale_after_secs"]),
     ("failures", &["port", "serve"]),
     (
         "lights",

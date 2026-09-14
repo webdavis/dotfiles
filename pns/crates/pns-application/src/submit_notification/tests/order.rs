@@ -10,6 +10,7 @@ fn the_records_are_written_in_the_order_the_event_path_states() {
         run(submission(&event, &decision, &overrides)),
         [
             "marker(live)",
+            "wait",
             "news(Done)",
             "lease",
             "activity",
@@ -80,6 +81,7 @@ fn a_missed_event_is_journaled_before_its_marker_and_keeps_held_lamps() {
         [
             "journal",
             "marker(live)",
+            "wait",
             "news(Done)",
             "lease",
             "activity",

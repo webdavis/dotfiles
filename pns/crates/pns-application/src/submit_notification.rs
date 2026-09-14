@@ -13,6 +13,7 @@ use crate::SubmissionIdentity;
 use crate::ports::delivery::{LampSignal, MissedReplay};
 use crate::ports::records::{
     ActivityRing, BlockedMarker, Journal, LampRecords, LightsTick, LoopLease, ReturnMoment,
+    SessionWait,
 };
 use pns_domain::EventArgs;
 use pns_domain::Snapshot;
@@ -70,6 +71,7 @@ impl<P> SubmitNotification<'_, P>
 where
     P: Journal
         + BlockedMarker
+        + SessionWait
         + LampRecords
         + LoopLease
         + ActivityRing
@@ -105,6 +107,15 @@ where
                 submission.session_id,
                 &submission.event.state,
                 submission.lamps_live,
+                decision.inputs.now_secs,
+            );
+            // INSIDE THE SAME GUARD, so a loop holding the lamp holds the
+            // escalation too: an `asking` turn inside a live loop is the loop
+            // working rather than a session waiting on the operator.
+            SessionWait::track(
+                self.ports,
+                submission.session_id,
+                &submission.event.state,
                 decision.inputs.now_secs,
             );
         }

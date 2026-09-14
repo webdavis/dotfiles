@@ -39,7 +39,11 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.retry_backoff = retry::parse_backoff(&mut table)?;
                 config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
             }
-            "nag" => config.nag_after_secs = parse_nag(value)?,
+            "nag" => {
+                let schedules = parse_nag(value)?;
+                config.nag_after_secs = schedules.after_secs;
+                config.stale_after_secs = schedules.stale_after_secs;
+            }
             "failures" => config.failures = parse_failures(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {

@@ -18,6 +18,9 @@ pub(super) struct EventRecords<'a> {
     pub(super) recap: pns_adapters::Recap,
     pub(super) durable_route: bool,
     pub(super) json: bool,
+    /// How long a block stands before it is escalated, off the config this
+    /// event already loaded, so the tail reads no file of its own.
+    pub(super) stale_after_secs: u64,
     /// The pulse seam, carried because the readings it is handed are taken
     /// hundreds of lines above the call.
     pub(super) pulse: PulseSink<'a>,
@@ -48,6 +51,12 @@ impl pns_application::ActivityRing for EventRecords<'_> {
 impl pns_application::BlockedMarker for EventRecords<'_> {
     fn update(&self, session_id: &str, event_state: &str, lamps_live: bool, now: Option<u64>) {
         update_blocked_marker(&state_dir(), session_id, event_state, lamps_live, now);
+    }
+}
+
+impl pns_application::SessionWait for EventRecords<'_> {
+    fn track(&self, session_id: &str, event_state: &str, now: Option<u64>) {
+        track_wait(session_id, event_state, self.stale_after_secs, now);
     }
 }
 

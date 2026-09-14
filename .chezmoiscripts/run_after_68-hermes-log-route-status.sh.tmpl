@@ -14,9 +14,9 @@
 # FIVE routes are checked, because they fail differently and most of them fail quietly:
 #   pns                   agent events. One that never arrives is usually noticed anyway, because
 #                         whatever it was about is still open.
-#   priority              machine health and security. Only the alert drainer posts here today: posture
-#                         holds its own pages on `posture` while this route cannot deliver a pns body
-#                         (docs/runbooks/local-daemons.md, third gotcha).
+#   priority              machine health and security, plus the stale-block escalation, which is what
+#                         made pns a signer here. posture still holds every tier on `posture`; flipping
+#                         its critical arm back is the last step (docs/runbooks/local-daemons.md).
 #   posture               every page the osquery pipeline raises, plus its daily digest and heartbeat.
 #   uu                    the weekly RECORD from the unattended jobs. A record that never arrives looks
 #                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
@@ -35,15 +35,13 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-# THE ROUTES PNS POSTS TO SHARE ONE KEY. Every producer in this repository submits through pns, which
-# signs with `[plugins.hermes] key`, so one of those routes carrying any other secret answers 401 and the
-# message is lost with nothing in the channel to show for it. `priority` is NOT one of them: its key is
-# the retired Bash alerter's, the value in ~/.config/osquery/webhook-secret, and the one live signer left
-# holding that key is drain-undelivered-alerts.sh on the alert-drainer LaunchAgent. So reconciling it is
-# not a one-line fix to nudge anyone toward: it costs the drainer its queue, and the route's prompt names
-# `{alert.title}` and `{alert.detail}`, so it has to be retemplated in the same sitting or a reconciled
-# route delivers two literal placeholders instead of a page. It is left out of the comparison below and
-# the trade is recorded in docs/runbooks/local-daemons.md, third gotcha.
+# EVERY ROUTE SHARES ONE KEY. Every producer in this repository submits through pns, which signs with
+# `[plugins.hermes] key`, so a route carrying any other secret answers 401 and the message is lost with
+# nothing in the channel to show for it. `priority` was the one exception, holding the retired Bash
+# alerter's key (the value in ~/.config/osquery/webhook-secret) and a prompt naming `{alert.title}` and
+# `{alert.detail}`; the stale-block escalation settled both in one sitting, so it is compared here like
+# the rest. The one signer left holding the old key is drain-undelivered-alerts.sh on the alert-drainer
+# LaunchAgent, draining a store that is empty: anything it somehow queues now answers 401.
 pns_secret="$(yq -r '.platforms.webhook.extra.routes.pns.secret // ""' "$cfg" 2>/dev/null || echo '')"
 
 expected_routes=(pns priority posture uu pns-recap)
@@ -66,10 +64,9 @@ for route in "${expected_routes[@]}"; do
       "$route" "$route"
   fi
   # A DIFFERENT SECRET, on a route pns posts to. Compared, never printed: the values are in this file
-  # either way, and the fix is the comparison, not the value. `pns` is where the reference above is read
-  # from, so comparing it would compare a value to itself; `priority` is skipped for the reason above,
-  # where a mismatch is the expected state rather than a fault.
-  if [[ $route != pns && $route != priority ]] && [[ -n $pns_secret ]] &&
+  # either way, and the fix is the comparison, not the value. `pns` is the only one left out, because it
+  # is where the reference above is read from, so comparing it would compare a value to itself.
+  if [[ $route != pns ]] && [[ -n $pns_secret ]] &&
     [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$cfg" 2>/dev/null || echo '')" != "$pns_secret" ]]; then
     printf '\n  ⚠ hermes: the %s route is signed with a different secret than the pns route, so every\n    message pns submits to it answers 401 and is dropped without a trace in the channel.\n    Reconcile .platforms.webhook.extra.routes.%s.secret in the encrypted hermes config, then: chezmoi apply\n\n' \
       "$route" "$route"
