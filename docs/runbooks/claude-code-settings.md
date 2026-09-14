@@ -92,7 +92,13 @@ Overwritten from the template on every apply, whatever the live file holds.
   it would be a startup refresh that always fails. The write is per marketplace key, so a marketplace
   added with `claude plugin marketplace add` keeps its own entry. What those silent startup updates
   changed is recorded weekly by the `claude-plugins` lane in `uu`; see the plugin update record in
-  `docs/runbooks/agent-skills-store.md`.
+  `docs/runbooks/agent-skills-store.md`. One consequence for `pns`: Claude Code runs the INSTALLED copy
+  under `~/.claude/plugins/cache/pns/pns/<version>/`, not the marketplace directory, and
+  `claude plugin update pns@pns` copies it again only when `plugin.json` declares a new version (measured
+  2026-09-13: a skill added under the same 0.1.0 stayed invisible, "already at the latest version").
+  Adding or changing a skill in `private_dot_claude/pns-marketplace/plugins/pns/` therefore bumps that
+  version in the same change; after the apply, run `claude plugin update pns@pns` and restart Claude
+  Code.
 
 `plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That
 script writes a binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are
