@@ -31,6 +31,7 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | `docs/runbooks/agent-tooling.md`                  | OpenSpec: the tracked global config and the per-project init           |
 | `docs/runbooks/claude-code-settings.md`           | the `modify_settings.json` field model and plugin-state trade          |
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
+| `docs/runbooks/gitbutler.md`                      | the `but` CLI, the vendored skill, and the workspace-mode decision     |
 | `docs/runbooks/local-agents.md`                   | gnhf: its config, its Claude wiring, and its worktree rule             |
 | `docs/runbooks/local-daemons.md`                  | atuin, happy, tailscaled and the hermes gateway's webhook routes       |
 | `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |

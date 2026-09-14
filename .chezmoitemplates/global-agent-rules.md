@@ -94,6 +94,30 @@ with `git worktree add` or a harness helper stays invisible there.
 - Without `HERDR_ENV`, plain `git worktree add` is the fallback.
 - Sub-agents inherit this rule. A brief that sends work to a worktree carries the create line verbatim.
 
+## GitButler
+
+The `gitbutler` cask ships the desktop app and the `but` CLI, and the on-demand `gitbutler` skill carries
+the command recipes. No repository on this machine is a GitButler project yet, so these rules are
+conditional.
+
+- In a repository where `but status` succeeds, `but` is the version-control interface: status, diffs,
+  branches, commits, pushes and history edits. Invoke the `gitbutler` skill for syntax rather than
+  guessing flags or translating git habits.
+- Everywhere else keep using `git`. Never run `but setup` to make `but` work in a repository: it switches
+  the checkout onto a `gitbutler/workspace` branch and installs hooks, which is the operator's call, not
+  an agent's.
+- Assume other agents are working in the same repository. Do not move, amend, squash, discard, commit,
+  push or otherwise modify another agent's work unless asked.
+- Use one GitButler branch per agent session and commit only what belongs to that session. Do not push or
+  open a pull request unless asked.
+- Amend an unpublished local commit when a follow-up fix clearly belongs with it instead of adding a
+  fixup commit, and split unrelated changes within one file by hunk. Ask before rewriting pushed,
+  reviewed or shared history.
+
+`but agent setup` writes this text into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, which chezmoi
+renders from this partial, so a write there is erased by the next apply. Edit this section instead, and
+leave out the `gitbutler-agent-setup` marker comments so the wizard never claims the rendered block.
+
 ## Work recaps
 
 A work recap is always agent-initiated, never fired by a hook. Produce one when:
@@ -153,13 +177,16 @@ Readability rules:
 - Collapse a long file list to counts per status (`A 3  M 4  D 1`) rather than truncating mid-list.
 - Short replies still hold for everything that is not the recap.
 
-Where the data comes from: the Git block and the file list come from `git` in the worktree
-(`git diff --name-status origin/main...HEAD` for the file list, `git log` for stack position), and the PR
-line comes from `npx -y gh-axi pr view`. Never guess a PR number.
+Where the data comes from: `pns recap git`, run in the worktree the work happened in, prints the Git
+block, the stack graph and the file list already in this layout. It reads git for the branch, the
+worktree, the trunk, the stack and the diff, and `gh` for the PR number and state. Paste its output
+rather than composing those parts by hand, and never guess a PR number: `none` is `gh` saying there is
+none, `unknown` is `gh` not answering.
 
-Delivery: today the recap goes in the chat reply and nowhere else. Forwarding it to the `#pns` Discord
-channel through pns is planned as `pns recap agent --stdin` and is not built, so never claim the recap
-was posted anywhere.
+Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the `#pns-recap`
+Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the file list and
+then shedding whole sections, never by cutting a line in half, and it never sheds User Tasks. It prints
+one line saying where the post landed; claim the recap was posted only when that line says it was.
 
 ## Pull request descriptions
 
