@@ -35,6 +35,44 @@ pub fn ssh_directive_count() -> usize {
     DIRECTIVES.len()
 }
 
+/// The `refuseconnection` directive is deliberately NOT one of `DIRECTIVES`: it
+/// resolves `no` outside the drop-in's Match block, which is correct, so the
+/// unconditioned checks must not judge it. It is judged only against a resolved
+/// local address.
+const REFUSE_CONNECTION: &str = "refuseconnection";
+
+/// The arrival addresses the verification resolves, each paired with the
+/// `refuseconnection` value the drop-in's Match block must produce for it.
+///
+/// One allowed sample per negated term of that block, so a typo in any single
+/// term turns a sample red instead of silently refusing a path the operator
+/// depends on: the two ranges Tailscale documents for every tailnet, over both
+/// address families, and loopback over both. Then one refused sample per
+/// family. Every address is documented for universal use and none is one
+/// host's own.
+///
+/// `fd00::1` is the refused IPv6 sample because it is a unique-local address
+/// OUTSIDE the tailnet's own unique-local prefix, which is what proves the
+/// IPv6 negation is prefix precise rather than admitting `fc00::/7` wholesale.
+pub const SSH_LOCAL_ADDRESS_SAMPLES: [(&str, &str); 6] = [
+    ("100.64.0.1", "no"),
+    ("fd7a:115c:a1e0::1", "no"),
+    ("127.0.0.1", "no"),
+    ("::1", "no"),
+    ("192.168.0.1", "yes"),
+    ("fd00::1", "yes"),
+];
+
+/// The refusal verdict for one resolved connection, as a judgment list so it
+/// composes with `judge_ssh_output` behind a single check.
+pub fn judge_ssh_refusal(output: &[u8], required: &'static str) -> Vec<SshJudgment> {
+    let actual =
+        first_value(output, REFUSE_CONNECTION.as_bytes()).filter(|value| !value.is_empty());
+    judgment(REFUSE_CONNECTION, required, actual)
+        .into_iter()
+        .collect()
+}
+
 pub fn ssh_config() -> &'static str {
     include_str!("dropin.conf")
 }
