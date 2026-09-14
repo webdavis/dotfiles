@@ -980,8 +980,8 @@ same `post_return_recap` the night recap uses
   RECAP. Nothing was piped in, or the pipe broke; posting a blank message to the channel would report
   work nobody can read" (`crates/pns/src/command_recap.rs:agent_recap`). Delivery keeps behavior 15's
   direction: loud, reporting, and still exit 0. Pinned by
-  `tests/native.rs:an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message` and
-  `tests/native.rs:an_agent_recap_with_no_source_named_refuses_rather_than_reading_a_terminal`.
+  `tests/recap_commands.rs:an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message`
+  and `tests/recap_commands.rs:an_agent_recap_with_no_source_named_refuses_rather_than_reading_a_terminal`.
 - Thresholds: `MAX_CHARS` = 1,800, behavior 13's own ceiling and the same gateway's, reached through
   `crates/pns-domain/src/recap/agent.rs:fits`. A body at or under it is returned sanitized and otherwise
   UNCHANGED (`recap/tests/agent.rs:a_recap_already_under_the_ceiling_is_posted_exactly_as_it_was_written`);
@@ -1013,7 +1013,7 @@ same `post_return_recap` the night recap uses
 - Compatibility contract: `[recap] digest_as_thread` selects the route for THIS recap as well as for the
   night's, which is what that key's own config comment already says it is for ("whether that recap posts
   to the `pns-recap` route rather than the default one"). Pinned on the wire by
-  `tests/native.rs:an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`,
+  `tests/recap_commands.rs:an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`,
   which proxies the gateway, answers 404, and asserts
   `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]`.
 
