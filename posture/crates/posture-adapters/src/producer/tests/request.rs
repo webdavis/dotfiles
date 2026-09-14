@@ -86,11 +86,11 @@ fn a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configu
     let mut input = alert();
     input.severity = Some(posture_domain::Severity::Critical);
     assert_eq!(sut.submit(&input), Submission::Accepted);
-    // The tier names `posture` while `priority` cannot deliver a pns body
-    // (posture_domain::severity_route); the producer spends whatever it names.
+    // The tier names `priority` (posture_domain::severity_route), and the
+    // producer spends the tier's route rather than the one it was built with.
     assert_eq!(
         sut.runner.requests[0].route.as_ref().unwrap().as_str(),
-        "posture"
+        "priority"
     );
 }
 #[test]

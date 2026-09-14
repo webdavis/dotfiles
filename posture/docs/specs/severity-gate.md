@@ -25,12 +25,12 @@ files and sudoers digest. The five integrity categories use the supplied page/lo
 triage facts attach only after an integrity page decision, and cannot silence it. Other categories stay
 log-only (S056 to S063). The category decision uses whole values, including empty and hostile strings.
 
-Given an optional tier, `severity_route` names the hermes route a submission belongs on. Critical belongs
-on `priority`, which the operator reserved for machine health and security on 2026-09-14, and is held on
-`posture` until that route carries the key `pns submit` signs with and a prompt naming a pns body's
-fields. A page posted to `priority` today answers 401, and pns reports a submission accepted off its own
-ledger rather than the destination's answer, so posture would advance its cursor with nothing in either
-channel. Notice and Info are `posture`, the pipeline's own channel. No tier at all names no route, and
+Given an optional tier, `severity_route` names the hermes route a submission belongs on. Critical is
+`priority`, which the operator reserved for machine health and security on 2026-09-14. Two things must
+hold on the gateway for such a page to land, and both are properties of the route: it must be signed with
+the key the sender holds for it, which is why the direct delivery path carries one key per route, and its
+prompt must name fields the posted body carries, which is why that body serves both prompt shapes the
+gateway's routes are written in. Notice and Info are `posture`, the pipeline's own channel. No tier at all names no route, and
 the sink then keeps the route it was configured with, which is how the heartbeat, the daily digest, the
 poll and funnel pages and the cursor-reset warning all keep the route their command built. The watchdog
 is unchanged: it still probes `priority`, because that is the route whose health it reports on.
@@ -99,7 +99,7 @@ These leaf names have no Bash predecessor: nothing in the shell pipeline chose a
 
 | Behavior                                                             | Leaf name                                                                                                                                                                                                                         |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a critical finding is held on `posture` until `priority` can deliver | `severity::tests::a_critical_finding_is_held_on_the_posture_route_until_priority_can_deliver`                                                                                                                                     |
+| a critical finding belongs on `priority` | `severity::tests::a_critical_finding_belongs_on_the_priority_route` |
 | every lesser tier goes to `posture`                                  | `severity::tests::every_tier_below_critical_belongs_on_the_posture_route`                                                                                                                                                         |
 | no tier names no route                                               | `severity::tests::a_submission_carrying_no_tier_names_no_route_of_its_own`                                                                                                                                                        |
 | the producer spends the tier's route, not its configured one         | `producer::tests::request::a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configured`; `producer::tests::request::a_finding_below_critical_takes_the_posture_route_whatever_the_caller_configured` |
