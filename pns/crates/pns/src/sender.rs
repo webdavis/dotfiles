@@ -62,8 +62,8 @@ fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_do
     }
 }
 
-fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) -> String {
-    noted(
+fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) {
+    drop(noted(
         store,
         &SessionNote {
             id: tracked(&payload.session_id).unwrap_or_default(),
@@ -73,7 +73,7 @@ fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) -> String {
             title: &session_label(payload),
             now: stamp(),
         },
-    )
+    ));
 }
 
 /// Record the session and answer the title it is known by. An id pns cannot
