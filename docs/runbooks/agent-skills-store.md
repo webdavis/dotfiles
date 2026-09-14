@@ -120,6 +120,31 @@ covers all three harnesses (`cua-driver skills status` links Claude Code, Codex 
 itself), and the weekly run refreshes the pack via `cua-driver skills update`, the app's own
 GitHub-Releases updater, never a write through the symlink.
 
+### Locally extracted (`backpass`)
+
+`backpass apply --scope user` is the only writer that can create a store entry out of this machine's own
+agent sessions. Its overflow target is the store itself (`USER_CONFIG_DEFAULTS.skillsDir` is
+`.agents/skills`, and `backpass status --scope user` resolves it under `$HOME`), so an accepted
+extraction lands as a real directory with no lock row, no Claude symlink and no hermes link: Codex's
+native store scan is the one harness that reaches it, and it is not in version control.
+
+Nothing removes it either. The generation exchange absorbs only roster names (`absorb_store_entries`
+walks `roster.tracked_names()`), `live-reconcile.sh` prunes undeclared hermes profile links and never a
+real store directory, and `chezmoi apply` does not delete what it does not manage. The Claude fan-out is
+safe too: backpass plants `~/.claude/skills` only when that path is missing and warns when it is a real
+directory, which is what it is here.
+
+An extraction is locally authored content with no upstream, so it is promoted through the vendored lane,
+with no `forks` entry, the way `tiktok-crawling` is a plain committed dir. `backpass apply` is
+interactive and gates every edit, so the operator is present when one is accepted and the promotion
+belongs to that same sitting:
+
+1. Copy `~/.agents/skills/<name>/` into `dot_agents/skills/<name>/`.
+1. Follow "Adding a skill" below from its `tiers` step, taking the vendored lane in step 1.
+
+Until that lands, the extraction reaches one harness and a store rebuild loses it. Rejecting it at the
+`backpass apply` prompt is the other complete answer.
+
 ### Graphify in Claude Code
 
 Graphify owns its Claude skill under `~/.local/share/graphify/claude/skills/graphify`. The managed
@@ -398,7 +423,8 @@ state. A failed or contended bootstrap retains and advances its retry marker; on
 1. Pick the lane. An official full-tree GitHub upstream gets an `npxTracked` entry
    (`{"repo": "owner/repo"}`). A ClawHub-published skill gets a `clawhubTracked` entry
    (`{"slug": "@owner/name", "registry": "https://clawhub.ai"}`). Anything else is vendored under
-   `dot_agents/skills/`, with a `forks` drift-watch entry when it has a watchable upstream.
+   `dot_agents/skills/`, with a `forks` drift-watch entry when it has a watchable upstream. A `backpass`
+   extraction is that lane with no upstream; see "Locally extracted" above.
 1. Add its row to `tiers`, plus the `skillOverrides` template entry and the `agents/openai.yaml` overlay
    when on-demand.
 1. Add its `hermesProfiles` row (`[]` when hermes should not carry it from the store, the named profiles
