@@ -32,8 +32,10 @@ Upgrading the CLI and refreshing a project are separate jobs. The weekly uu npm 
 `dot_config/uu/private_config.toml.tmpl`) does the first, since it upgrades every globally installed npm
 package. `@fission-ai/openspec` sits in the fnm node package list in
 `.chezmoidata/system_packages_autoinstall.yaml` with no version pin, so nothing pulls it back to a fixed
-version after the lane moves it. Nothing re-runs `openspec update`, which is the command that refreshes a
-project's GENERATED instruction files, and no `chezmoi apply` runs it either. Run it by hand, in the
-project, after the CLI upgrade lands a new template generation, or after changing `profile` or `delivery`
-in the tracked config, since both of those choices are baked into the generated per-project files at init
-time.
+version after the lane moves it. An apply can move it too: the fnm block of
+`run_onchange_before_10-system-packages.sh.tmpl` re-runs `npm install -g` for already-installed packages
+as its update pass, so a version bump is not the weekly lane's alone. Nothing re-runs `openspec update`,
+which is the command that refreshes a project's GENERATED instruction files, and no `chezmoi apply` runs
+it either. Run it by hand, in the project, after either path lands a new template generation, or after
+changing `profile` or `delivery` in the tracked config, since both of those choices are baked into the
+generated per-project files at init time.
