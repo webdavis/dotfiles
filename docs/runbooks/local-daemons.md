@@ -94,19 +94,19 @@ REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu
 | ----------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `general`   | nothing in this repo yet  | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one. |
 | `pns`       | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                       |
-| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture cannot reach it; see below.         |
+| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`. |
 | `uu`        | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`.                                 |
 | `posture`   | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.  |
 | `pns-recap` | pns                       | The return recap.                                                                                          |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks its route from the finding's tier in one place (`severity_route`,
-`posture/crates/posture-domain/src/severity.rs`), and that one place holds every tier on `posture` while
-`priority` cannot deliver a pns body (third gotcha); uu's default is `DEFAULT_RECORD_URL`
-(`uu/crates/uu-adapters/src/config/records.rs`); pns's recap route is `RECAP_ROUTE`
-(`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the SHAPE of a route name
-(`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so adding a route to the
-gateway is the only registration a new route needs.
+`posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture`,
+critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
+gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`); pns's
+recap route is `RECAP_ROUTE` (`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the
+SHAPE of a route name (`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so
+adding a route to the gateway is the only registration a new route needs.
 
 ### Where they live, and what a route carries
 
