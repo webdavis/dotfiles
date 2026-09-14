@@ -30,6 +30,7 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | `docs/runbooks/agent-skills-store.md`             | the cross-harness skills store, its lock, and the plugin update record |
 | `docs/runbooks/claude-code-settings.md`           | the `modify_settings.json` field model and plugin-state trade          |
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
+| `docs/runbooks/local-agents.md`                   | gnhf: its config, its Claude wiring, and its worktree rule             |
 | `docs/runbooks/local-daemons.md`                  | atuin, happy and tailscaled: config, gotchas, diagnostic ladders       |
 | `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |
 | `docs/runbooks/macos-fresh-machine-quickstart.md` | first-apply setup, TCC grants, LuLu, and SSH hardening                 |
