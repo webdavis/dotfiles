@@ -25,6 +25,29 @@ fn a_denied_marker_write_is_nonzero_and_preserves_existing_state() {
 }
 
 #[test]
+fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
+    let s = Sandbox::without_config("tap-remote-login");
+    let guide = stdout(&tap(&s, &["--no-color", "tap", "--install"]));
+    let lines: Vec<&str> = guide.lines().collect();
+    let step = lines
+        .iter()
+        .position(|line| line.contains("1. This Mac") && line.contains('◆'))
+        .expect("the first Mac step");
+    let first = lines.get(step + 1).expect("a line under the first step");
+    for expected in ["Remote Login", "System Settings", "General", "Sharing"] {
+        assert!(first.contains(expected), "missing {expected}: {first}");
+    }
+    let info = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
+    let cannot_answer = info
+        .lines()
+        .find(|line| line.contains("SSH"))
+        .expect("a line about a Mac that cannot answer");
+    assert!(cannot_answer.contains("notification"), "{cannot_answer}");
+    assert!(info.contains("Remote Login"), "{info}");
+    assert!(info.contains("System Settings"), "{info}");
+}
+
+#[test]
 fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
     let s = Sandbox::without_config("tap-failure-line");
     let parent = s.path("private");
