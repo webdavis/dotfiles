@@ -14,7 +14,7 @@
 # TWO routes are checked, because they fail differently and only one of them is noticeable:
 #   pns                   alerts. An alert that never arrives is usually noticed anyway, because whatever
 #                         it was about is still broken.
-#   unattended-upgrades   the weekly RECORD from the unattended jobs. A record that never arrives looks
+#   uu                    the weekly RECORD from the unattended jobs. A record that never arrives looks
 #                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
 #                         to look. This check is the only thing standing between a mistyped or unapplied
 #                         route and a channel that stays empty forever.
@@ -27,7 +27,7 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-expected_routes=(pns unattended-upgrades)
+expected_routes=(pns uu)
 for route in "${expected_routes[@]}"; do
   # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
   # so a config that had lost a route was indistinguishable from a machine with no hermes at all.
