@@ -15,6 +15,7 @@ use pns_application::{RECAP_USAGE, recap_bounds};
 /// hook path's always-zero: this is hand-runnable, and a subcommand that
 /// swallows a typo is a recap the operator believes was posted. The spawner
 /// never reads the code.
+///
 /// THREE VERBS, ONE ROUTE. The window form is the night's, spawned detached;
 /// `agent` posts a recap an agent wrote to the same destination; `git` prints
 /// the part of that recap only git, worktrunk and `gh` can answer, so the
