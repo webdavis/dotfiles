@@ -163,7 +163,7 @@ Then each field is read as a string if present and as the empty string otherwise
 - Idempotency and duplicates: pure, so repeated decoding of the same text is identical.
 - Privacy: Not applicable at this layer; see behaviors 6 through 8.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the nineteen fields on `HookPayload` are a superset across harnesses. A
+- Compatibility contract: the seventeen fields on `HookPayload` are a superset across harnesses. A
   harness that adds a key pns does not read costs nothing; one that stops sending a key pns reads
   degrades that key to its absent state.
 
