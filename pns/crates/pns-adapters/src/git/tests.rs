@@ -1,20 +1,21 @@
 //! What git's own answer says about the checkout an event fired in. The
 //! fixtures are `git rev-parse --path-format=absolute --git-common-dir
 //! --show-toplevel --abbrev-ref HEAD` as git 2.55.0 answered it, measured
-//! 2026-09-14 in a linked worktree of this repository and in a detached
-//! checkout.
+//! 2026-09-14 in a linked worktree and in a detached checkout, with the
+//! directories renamed to neutral ones: this crate is installed on machines
+//! that are not this one, so no fixture names a path only its author has.
 
 use super::checkout_of;
 
 #[test]
 fn the_repository_comes_off_the_common_directory_so_a_worktree_is_not_the_project() {
     let checkout = checkout_of(
-        "/Users/stephen/workspaces/Ivy/webdavis/dotfiles/.git\n\
-         /Users/stephen/.herdr/worktrees/dotfiles/feat-pns-sender-header\n\
-         feat/pns-sender-header\n",
+        "/repos/dotfiles/.git\n\
+         /worktrees/dotfiles/feat-sender-header\n\
+         feat/sender-header\n",
     );
     assert_eq!(checkout.repository, "dotfiles");
-    assert_eq!(checkout.branch, "feat/pns-sender-header");
+    assert_eq!(checkout.branch, "feat/sender-header");
 }
 
 #[test]
