@@ -158,7 +158,7 @@ mod git;
 mod moshi_hook;
 mod recap_child;
 pub use codex::condense;
-pub use git::{Checkout, git_branch, git_checkout};
+pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_child::{run_recap_bounded, spawn_recap};
 
