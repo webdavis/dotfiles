@@ -2528,12 +2528,23 @@ force.
   configuration in dotfiles and project specifications in their owning repositories. The weekly uu npm
   lane upgrades the CLI; define when `openspec update` refreshes generated project instructions
   separately. Continue [6hPCF8hrCrjjWv2M](https://app.todoist.com/app/task/6hPCF8hrCrjjWv2M), promoting
-  its old evaluation-only scope to the requested setup work. Tooling wave 1 attempt (2026-09-14) did not
-  ship: the `feat/openspec-config` worktree already carries three commits (`95841b11`, `6378209d`,
-  `2811528e`) tracking the global config and two runbook fixes, but `graphify-out/graph.json` was left
-  modified by the post-commit hook, so ship stopped at the clean-tree check before fetch, build, push, or
-  a pull request. Gated on an operator decision to commit or discard that file in the worktree, then
-  re-running ship from that first step.
+  its old evaluation-only scope to the requested setup work. A second tooling wave 1 attempt (2026-09-14)
+  got further: the `feat/openspec-config` worktree folded the stray `graphify-out/graph.json` (commit
+  `c33ff50e`), merged `origin/main` clean, passed `just ship` on the documented one-rerun retry (the
+  first run's failure was an unrelated `uu` signal-timing test with several sibling worktrees running
+  `just ship`/`just test-rust` concurrently on the same machine), pushed, and opened
+  [PR #586](https://github.com/webdavis/dotfiles/pull/586)
+  (`feat(openspec): track the global OpenSpec configuration`, branch `feat/openspec-config`, not merged).
+  CI never ran: the check suite sat at 0 check-runs for about 45 minutes across the PR's open, a
+  close/reopen, and a fresh empty commit (new head `a454043d`), while sibling PRs' `lint` runs started
+  and finished normally in the same window, and a direct check-suite rerequest returned 404 (insufficient
+  permission over a suite owned by another app). This is not the pre-authorized `Could not resolve host`
+  retry case, so the branch was left open rather than merged without a real result. `origin/main` has
+  since advanced past this branch's merge point, and a fresh merge-tree check now shows real conflicts in
+  `docs/remaining-work.md` and `.chezmoidata/macos_posture_controls.yaml`, outside the pre-approved
+  conflict scope, so no further merge was attempted. Gated on GitHub Actions/Blacksmith CI recovering
+  (verify with `gh-axi pr checks 586`), then merging `origin/main` again, rerunning `just ship`, pushing,
+  and resuming.
 - [ ] Configure [YNAB (You Need a Budget)](https://github.com/oliverames/ynab-mcp-server) through its MCP
   (Model Context Protocol) server, added by the operator on 2026-09-12. Track the upstream npm package
   `@oliverames/mcp-server-for-ynab` in the existing fnm package declaration and use its local stdio
@@ -2544,17 +2555,21 @@ force.
   upstream plugin manifests enable writes, so do not copy those defaults blindly. Verify tool discovery
   and an authenticated read after setup. Track it in
   [6hVpJxQgR7f73xmM](https://app.todoist.com/app/task/6hVpJxQgR7f73xmM). This entry schedules
-  configuration; nothing was installed in the audit. Tooling wave 1 attempt (2026-09-14) did not ship:
-  the `feat/ynab-mcp` worktree already carries four commits (`896b9098`, `7f412742`, `b52279ef`,
-  `4a07b72c`) declaring the read-only stdio server for Claude Code and Codex, pinning the read-only
-  default with `YNAB_ALLOW_WRITES`/`YNAB_DISABLE_AGENT_CONFIG_FALLBACK` after review found it unpinned,
-  and fixing two stale marketplace-count comments; `main` merged in cleanly at `4df81abf`, but
-  `just ship` failed at the `test-rust` gate on a pns hook test unrelated to this branch's diff
-  (`delivery_class::json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_hermes`,
-  `TimedOut: pipe stayed open`), so nothing was pushed and no pull request was opened. Gated on
-  re-running `just ship` (or, narrower,
-  `cargo test --locked --workspace --features dev-tools --manifest-path pns/Cargo.toml -p pns --test hooks`)
-  to confirm flake versus regression, then continuing from the push step.
+  configuration; nothing was installed in the audit. A second tooling wave 1 attempt (2026-09-14) got
+  further: the `feat/ynab-mcp` worktree merged `origin/main` clean, passed `just ship` on the documented
+  one-rerun retry (the first run's failure was three unrelated `pns` dispatch test panics in a workspace
+  this branch's diff never touches), pushed, and opened
+  [PR #585](https://github.com/webdavis/dotfiles/pull/585)
+  (`feat(mcp): declare the read-only YNAB server for Claude Code and Codex`, branch `feat/ynab-mcp`, not
+  merged). CI's `lint` check then failed for real: GitHub Actions run `34811977849` failed a
+  `pns-adapters` timing-budget test
+  (`persistence::sqlite::ledger::tests::failures::busy_ledger_writes_refuse_within_the_budget_without_recording_sensitive_content`,
+  `assertion failed: started.elapsed() < Duration::from_millis(100)`) in a crate this PR's diff (limited
+  to `.chezmoidata/system_packages_autoinstall.yaml`, `CLAUDE.md`, `modify_private_dot_claude.json`,
+  `private_dot_codex/modify_private_config.toml`) never touches. This is not the pre-authorized
+  `Could not resolve host` retry case, so the branch was left open rather than rerun or merged. Gated on
+  confirming whether the failure is CI-runner load or a real `pns-adapters` regression, then rerunning
+  the failed workflow once confirmed as flake and resuming from the poll step.
 - [ ] Reconcile [Backpass](https://github.com/kunchenguid/backpass) configuration and finish any missing
   integration, requested 2026-09-12. It is installed, declared in npm, and
   `dot_config/backpass/config.json` matches the deployed copy, directing user instruction edits to
@@ -2997,12 +3012,18 @@ process-toggle plugin and worktree review launcher.
   which repository and objective it runs against first, and wire its run into the same worktree rule as
   every other agent (`herdr worktree create`). Its overnight runs are one of the four triggers for the
   Discord progress recap (see the pns recap task), so land that recap producer before the first
-  unattended night. Tooling wave 1 attempt (2026-09-14) did not ship: the `feat/gnhf-install` worktree
-  already carries five commits (`31a2c10a`, `beda508f`, `dc23e83e`, `153703e1`, `cedbabca`) implementing
-  the install, the config deploy, the first objective file and its runbook, but `graphify-out/graph.json`
-  was left modified by the post-commit hook, so ship stopped at the clean-tree check before fetch, build,
-  push, or a pull request. Gated on an operator decision to commit or discard that file in the worktree,
-  then re-running ship from that first step.
+  unattended night. A second tooling wave 1 attempt (2026-09-14) got further: the `feat/gnhf-install`
+  worktree folded the stray `graphify-out/graph.json` (commit `268a3543`) and merged `origin/main` clean
+  (merge commit `89ff0f58`), but `just ship` failed at
+  `cargo test --workspace --manifest-path pns/Cargo.toml -p pns --test daemon` on both the initial run
+  and the one authorized rerun, in a workspace this branch never touches:
+  `lifecycle::a_hung_child_does_not_stall_the_tick_and_is_killed` panicked "the hung job never started"
+  on both runs, and the rerun also failed
+  `spool::an_irregular_spool_entry_is_left_alone_and_never_opened` with a "database is locked" panic,
+  with interleaved stdout consistent with concurrent machine load from other active sessions. No pull
+  request was opened; the worktree is clean at merge commit `89ff0f58` on `feat/gnhf-install`, not
+  pushed. Gated on rerunning `just ship` (or at minimum `just test-rust -p pns --test daemon`) once
+  machine load has settled, then continuing from the push step.
 
 ## Late in the goal: slim the global instruction files
 
