@@ -5,13 +5,14 @@ created for this run. Read `CLAUDE.md` at the repository root before the first c
 
 Constraints:
 
-- One small change per iteration, committed with its own conventional-commits message.
+- One small change per iteration, left uncommitted. gnhf makes the commit; report the Conventional
+  Commits type and optional scope in the iteration output.
 - Never run `chezmoi apply`, and never write outside this worktree. The operator runs applies.
 - Never edit `docs/gnhf-objective.md` or `docs/remaining-work.md`.
 - Tests cover the behavior of tools this repository wrote, and nothing else.
 - No secret value enters the repository. Templates read secrets through `keepassxc`.
 
-Verify every iteration with `just lint-check` and `just test-unit`, and record both command lines with
-their exit codes in the iteration notes. Do not report an iteration as successful without them.
+Verify every iteration with `just lint-check` and `just test-unit`. Put both command lines and their exit
+codes in `key_learnings`, and set `success: false` if either is red.
 
-If you are blocked, commit nothing and write the blocker plus the evidence for it into `notes.md`.
+If you are blocked, set `success: false` and put the blocker plus its evidence in `key_learnings`.
