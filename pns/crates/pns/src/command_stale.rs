@@ -84,8 +84,15 @@ impl pns_application::RaiseNotification for StaleNotification {
             // answers 401 or 404, the ledger records the refusal for
             // `pns failures`, and this line is what puts it in front of an
             // operator who is not watching.
+            //
+            // "NOT CONFIRMED" RATHER THAN "DID NOT ARRIVE", because those are
+            // different facts and only one of them is known here. On a machine
+            // running EXECUTABLE channels a channel that RAN answers `Silent`
+            // whatever the gateway then said (the limit `post_return_recap`
+            // states), so a page that landed reads as unconfirmed there; a
+            // line claiming it never arrived would be the false half.
             eprintln!(
-                "pns stale: the page about {} did not reach the {} route",
+                "pns stale: the page about {} is not confirmed on the {} route",
                 event.project,
                 pns_domain::stale::PRIORITY_ROUTE
             );
