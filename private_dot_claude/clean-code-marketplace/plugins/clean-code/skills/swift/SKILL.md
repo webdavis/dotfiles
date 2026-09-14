@@ -11,8 +11,6 @@ applying anything.
 
 That store copy is the canonical standard for every harness, so it is the only statement of it. Never
 restate, summarize or paraphrase it here: read it, then apply it to the work in front of you. Every
-relative link in those two files (`ESSENTIAL-FEED-EXAMPLE.md` beside the Swift bindings,
-`ARCHITECTURE.md`, `TESTING.md` and `PERSISTENCE.md` beside the method) resolves in the store
-directory that holds it.
+relative link in those two files resolves in the store directory that holds it.
 
 If the store copy is not there, say so and stop. Do not work the standard from memory.
