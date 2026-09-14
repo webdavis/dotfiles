@@ -194,6 +194,19 @@
       "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)
       "env_vars" (list "HERDR_ENV" "HERDR_PANE_ID" "HERDR_SESSION" "HERDR_SOCKET_PATH" "HERDR_TAB_ID" "HERDR_WORKSPACE_ID" "NVIM_MCP_SOCKET" "XDG_RUNTIME_DIR")) $merged -}}
 
+{{- /* ynab is the local YNAB stdio server and it is READ-ONLY. Its whole map
+       is written for the same reason nvim's is: write tools are gated on an
+       environment variable (`YNAB_ALLOW_WRITES=1`), which upstream's own plugin
+       manifests set, so a per-key overlay would leave a live one in place and
+       silently arm writes against real financial data. Measured on 5.2.0: 38
+       tools with no flag, 62 with it. Omitting the variable IS the read-only
+       setting; there is nothing to set to false. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "ynab")
+    (dict
+      "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" $home)
+      "env" (dict
+        "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
+
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.
 

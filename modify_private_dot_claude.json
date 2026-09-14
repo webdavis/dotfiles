@@ -60,4 +60,19 @@
     "env" (dict) -}}
 {{- $merged = setValueAtPath "mcpServers.scalebar" $scalebarMcp $merged -}}
 
+{{- /* --- stable: the local YNAB MCP server, READ-ONLY.
+
+     The whole map is written, not just the command, for the reason nvim's is:
+     write tools are gated on an environment variable (`YNAB_ALLOW_WRITES=1`),
+     which upstream's own plugin manifests set, so a per-key overlay would
+     leave a live one in place and silently arm writes against real financial
+     data. Measured on 5.2.0: 38 tools with no flag, 62 with it. Omitting the
+     variable IS the read-only setting; there is nothing to set to false. --- */ -}}
+{{- $ynabMcp := dict
+    "type" "stdio"
+    "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" .chezmoi.homeDir)
+    "env" (dict
+      "YNAB_API_TOKEN" ((keepassxc "YNAB :: Personal Access Token").Password)) -}}
+{{- $merged = setValueAtPath "mcpServers.ynab" $ynabMcp $merged -}}
+
 {{ $merged | toPrettyJson }}
