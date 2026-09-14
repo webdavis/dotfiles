@@ -189,7 +189,7 @@ ready_to_build() {
 
 run_setup_caller() {
   HOME="$sandbox_home" CHEZMOI_HOME_DIR="$sandbox_home" \
-    TASK50_CALLS="$sandbox/converge.args" TASK50_EXIT="${1:-0}" \
+    CONVERGE_ARGV_LOG="$sandbox/converge.args" CONVERGE_EXIT="${1:-0}" \
     bash "$(repo_root)/.chezmoiscripts/run_after_59-setup-osquery.sh"
 }
 
@@ -202,8 +202,8 @@ function test_setup_caller_runs_converge_from_the_binary_the_builder_just_instal
   cat >"$sandbox_home/.stub-artifact" <<'STUB'
 #!/bin/bash
 set -euo pipefail
-printf '%s\n' "$@" >>"$TASK50_CALLS"
-exit "${TASK50_EXIT:-0}"
+printf '%s\n' "$@" >>"$CONVERGE_ARGV_LOG"
+exit "${CONVERGE_EXIT:-0}"
 STUB
   assert_builder_succeeds
   local output
