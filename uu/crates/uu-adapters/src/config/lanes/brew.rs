@@ -15,7 +15,7 @@ pub struct BrewLane {
     pub(crate) brew: String,
     pub(crate) mas: String,
     pub(crate) tailscaled: String,
-    pub(crate) osquery_converge: String,
+    pub(crate) osquery_converge: Vec<String>,
     pub(crate) mas_manifest: String,
     pub(crate) upgrade_record: String,
 }
@@ -33,7 +33,7 @@ impl Default for BrewLane {
             brew: DEFAULT_BREW.to_string(),
             mas: DEFAULT_MAS.to_string(),
             tailscaled: DEFAULT_TAILSCALED.to_string(),
-            osquery_converge: String::new(),
+            osquery_converge: Vec::new(),
             mas_manifest: String::new(),
             upgrade_record: String::new(),
         }
@@ -51,7 +51,13 @@ pub(crate) fn parse_brew_lane(
             "brew" => lane.brew = non_empty(table_label, &name, &setting)?,
             "mas" => lane.mas = non_empty(table_label, &name, &setting)?,
             "tailscaled" => lane.tailscaled = non_empty(table_label, &name, &setting)?,
-            "osquery_converge" => lane.osquery_converge = non_empty(table_label, &name, &setting)?,
+            "osquery_converge" => {
+                lane.osquery_converge = if setting.is_str() {
+                    vec![non_empty(table_label, &name, &setting)?]
+                } else {
+                    super::command::parse_argv(table_label, &name, &setting)?
+                }
+            }
             "mas_manifest" => lane.mas_manifest = non_empty(table_label, &name, &setting)?,
             "upgrade_record" => lane.upgrade_record = non_empty(table_label, &name, &setting)?,
             // Read by `lane_type` before this block was dispatched; nothing
@@ -93,7 +99,7 @@ mod tests {
         assert_eq!(lane.mas, DEFAULT_MAS);
         assert_eq!(lane.tailscaled, DEFAULT_TAILSCALED);
         // The three under the operator's home have no default to guess.
-        assert_eq!(lane.osquery_converge, "");
+        assert!(lane.osquery_converge.is_empty());
         assert_eq!(lane.mas_manifest, "");
         assert_eq!(lane.upgrade_record, "");
     }
@@ -112,11 +118,26 @@ mod tests {
                 lane.brew.as_str(),
                 lane.mas.as_str(),
                 lane.tailscaled.as_str(),
-                lane.osquery_converge.as_str(),
+                lane.osquery_converge.as_slice(),
                 lane.mas_manifest.as_str(),
                 lane.upgrade_record.as_str()
             ),
-            ("/b", "/m", "/t", "/c", "/f", "/r")
+            ("/b", "/m", "/t", &[String::from("/c")][..], "/f", "/r")
         );
+    }
+
+    #[test]
+    fn invalid_converge_argv_is_refused_by_its_own_key() {
+        use crate::config::probes::refusal;
+        for (value, why) in [
+            ("[]", "is empty"),
+            ("[1]", "not a string"),
+            ("['']", "blank entry"),
+            ("['/p', ' ']", "blank entry"),
+        ] {
+            let detail = refusal(&format!("[lanes.brew]\nosquery_converge = {value}\n"));
+            assert!(detail.contains("osquery_converge"), "{detail}");
+            assert!(detail.contains(why), "{detail}");
+        }
     }
 }

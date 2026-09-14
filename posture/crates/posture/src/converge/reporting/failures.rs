@@ -58,7 +58,7 @@ fn restart(
         ),
         RestartFailure::Configuration(_) => writeln!(
             output,
-            "osquery-converge: the converged configuration at {} does not pass 'osqueryctl config-check'. The files are installed; the running daemon was NOT stopped and is still on its previous configuration.",
+            "osquery-converge: the converged configuration at {} could not pass the osquery configuration check. The files are installed; the running daemon was NOT stopped and is still on its previous configuration.",
             config.target.join("osquery.conf").display()
         ),
         RestartFailure::Start(_) => writeln!(

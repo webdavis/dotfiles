@@ -19,6 +19,7 @@ fn test_a_seam_variable_set_without_the_test_seam_is_refused_so_it_is_not_a_prod
         "OSQUERY_CONVERGE_TARGET_DIR",
         "OSQUERY_CONVERGE_SUDO",
         "OSQUERY_CONVERGE_OSQUERYCTL",
+        "OSQUERY_CONVERGE_OSQUERYD",
     ] {
         for value in ["", "/fixture/override"] {
             assert_eq!(
@@ -89,6 +90,7 @@ fn a_complete_test_seam_keeps_all_explicit_paths_and_bound_values() {
         ("OSQUERY_CONVERGE_SUDO", "/fixture/sudo"),
         ("OSQUERY_CONVERGE_DESIRED_DIR", "/fixture/desired"),
         ("OSQUERY_CONVERGE_OSQUERYCTL", "/fixture/ctl"),
+        ("OSQUERY_CONVERGE_OSQUERYD", "/fixture/daemon"),
         ("OSQUERY_CONVERGE_RESTART_DEADLINE", "12"),
         ("OSQUERY_CONVERGE_SETTLE_SECONDS", "3"),
     ])
@@ -97,6 +99,7 @@ fn a_complete_test_seam_keeps_all_explicit_paths_and_bound_values() {
     assert_eq!(config.sudo, PathBuf::from("/fixture/sudo"));
     assert_eq!(config.desired, PathBuf::from("/fixture/desired"));
     assert_eq!(config.osqueryctl, Some(PathBuf::from("/fixture/ctl")));
+    assert_eq!(config.osqueryd, Some(PathBuf::from("/fixture/daemon")));
     assert_eq!(config.bounds.deadline(), Duration::from_secs(12));
     assert_eq!(config.bounds.settle(), Duration::from_secs(3));
 }
@@ -124,6 +127,7 @@ fn ordinary_configuration_uses_the_existing_deployed_paths_and_command_search() 
     assert_eq!(config.target, PathBuf::from("/var/osquery"));
     assert_eq!(config.sudo, PathBuf::from("/usr/bin/sudo"));
     assert_eq!(config.osqueryctl, None);
+    assert_eq!(config.osqueryd, None);
     assert_eq!(config.search_path, OsString::from("/fixture/bin"));
     assert_eq!(
         config.log_directory,

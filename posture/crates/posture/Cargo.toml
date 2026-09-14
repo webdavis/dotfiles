@@ -24,6 +24,7 @@ posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
 
 [dev-dependencies]
+serde_json = "1.0.151"
 # The SSH install fixtures state their own signal dispositions rather than
 # inheriting whatever started the suite.
 libc = "0.2.189"

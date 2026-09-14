@@ -58,6 +58,8 @@ pub use judge_results::{
     RunLock,
 };
 
+mod funnel;
+pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};
 mod ssh;
 pub use ssh::{
     SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshInstallSignals,

@@ -51,21 +51,28 @@ fn a_supplied_occurrence_is_stable_but_missing_occurrences_are_unique_per_call()
     );
 }
 #[test]
-fn invalid_or_oversized_requests_are_refused_before_any_child_or_alarm() {
+fn invalid_requests_are_refused_before_any_child_or_alarm_even_with_oversized_text() {
     for event in ["", "invalid\nevent"] {
-        let mut sut = subject(Status::Accepted, true);
-        let mut input = alert();
-        input.event = event;
-        assert_eq!(
-            sut.submit(&input),
-            Submission::NotAccepted(SubmissionFailure::Refused)
-        );
-        assert!(sut.runner.requests.is_empty());
-        assert!(sut.alarm.calls.is_empty());
+        for detail in ["ordinary".to_string(), "x".repeat(300_000)] {
+            let mut sut = subject(Status::Accepted, true);
+            let mut input = alert();
+            input.event = event;
+            input.detail = detail;
+            assert_eq!(
+                sut.submit(&input),
+                Submission::NotAccepted(SubmissionFailure::Refused)
+            );
+            assert!(sut.runner.requests.is_empty());
+            assert!(sut.alarm.calls.is_empty());
+        }
     }
+}
+#[test]
+fn oversized_observations_remain_refused_without_a_security_notification() {
     let mut sut = subject(Status::Accepted, true);
     let mut input = alert();
     input.detail = "x".repeat(300_000);
+    input.signal = AlertSignal::Observation;
     assert_eq!(
         sut.submit(&input),
         Submission::NotAccepted(SubmissionFailure::Refused)
