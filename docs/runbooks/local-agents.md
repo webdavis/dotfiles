@@ -47,8 +47,8 @@ already exists instead of cutting a `gnhf/` branch of its own:
 herdr worktree create --cwd ~/workspaces/Ivy/webdavis/dotfiles \
   --branch gnhf/<slug> --no-focus
 cd ~/.herdr/worktrees/dotfiles/gnhf-<slug>
-gnhf --current-branch --max-iterations <n> --stop-when "<observable condition>" \
-  < docs/gnhf-objective.md
+GRAPHIFY_SKIP_HOOK=1 gnhf --current-branch --max-iterations <n> \
+  --stop-when "<observable condition>" < docs/gnhf-objective.md
 ```
 
 `--current-branch` and `--worktree` together are an error in gnhf, which is the guardrail that keeps the
@@ -66,6 +66,14 @@ line, the objective itself, changes night to night.
 
 ## Facts that bite
 
+- `GRAPHIFY_SKIP_HOOK=1` on that launch line is load-bearing here. `graphify-out/graph.json` is tracked
+  and 24 MB, and `.githooks/post-commit` rebuilds it after every commit that touched anything outside
+  `graphify-out/`. gnhf's own `git add -A` would fold that rebuild into every iteration commit from the
+  second one on, and the rebuild left unstaged after the last one makes the NEXT run refuse to start:
+  gnhf's clean-tree check runs on both the fresh-run and the resume path, and throws on any
+  `git status --porcelain` output. gnhf passes its whole environment to every `git` call, so the variable
+  reaches the hook. For the same reason the tree has to be clean before the first run: a manual commit
+  in that worktree leaves the same rebuild behind, and gnhf then refuses to start.
 - gnhf commits with `git -c commit.gpgsign=false -c tag.gpgsign=false commit -m <message>`, so hooks RUN.
   Here that means `just test-unit` plus gitleaks gate every iteration, which is what you want, and a red
   gate is a failed iteration that gets rolled back. Three consecutive failures abort the run. The
