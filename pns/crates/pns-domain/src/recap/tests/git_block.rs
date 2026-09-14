@@ -187,10 +187,22 @@ fn a_rename_names_both_ends_and_a_diff_nobody_could_read_says_so() {
         "{block}"
     );
 
-    let unreadable = git_block(&facts(vec![branch("feat/x", open(1))], None));
+    // THE TRUNK IT WAS HANDED, never the literal `main`: the adapter asks
+    // every repository for its own, and a clone whose trunk is `master` gets a
+    // diff read against `origin/master`, so a line naming `origin/main` would
+    // report a branch nothing was compared with.
+    let mut elsewhere = facts(vec![branch("feat/x", open(1))], None);
+    elsewhere.trunk = "master".to_string();
+    let unreadable = git_block(&elsewhere);
     assert!(
-        unreadable.contains("(the diff against origin/main could not be read)"),
+        unreadable.contains("(the diff against origin/master could not be read)"),
         "{unreadable}"
+    );
+    elsewhere.changes = Some(Vec::new());
+    let nothing = git_block(&elsewhere);
+    assert!(
+        nothing.contains("(no files changed against origin/master)"),
+        "{nothing}"
     );
 }
 

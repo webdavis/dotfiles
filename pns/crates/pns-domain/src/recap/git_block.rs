@@ -32,7 +32,11 @@ pub fn git_block(facts: &GitFacts) -> String {
     );
     let _ = writeln!(block, "- Stack: {}", stack_line(facts));
     let _ = write!(block, "\n{FENCE}\n{}", graph(facts));
-    let _ = write!(block, "\n{}{FENCE}\n", file_list(facts.changes.as_deref()));
+    let _ = write!(
+        block,
+        "\n{}{FENCE}\n",
+        file_list(facts.changes.as_deref(), &facts.trunk)
+    );
     block
 }
 
@@ -180,12 +184,12 @@ fn row(branch: &Branch) -> String {
 
 /// The file list: one row per path, its counts once it runs long, or one line
 /// saying the diff could not be read.
-fn file_list(changes: Option<&[Change]>) -> String {
+fn file_list(changes: Option<&[Change]>, trunk: &str) -> String {
     let Some(changes) = changes else {
-        return "(the diff against origin/main could not be read)\n".to_string();
+        return format!("(the diff against {ORIGIN}/{trunk} could not be read)\n");
     };
     if changes.is_empty() {
-        return "(no files changed against origin/main)\n".to_string();
+        return format!("(no files changed against {ORIGIN}/{trunk})\n");
     }
     if changes.len() > COLLAPSE_ABOVE {
         return format!(
@@ -202,6 +206,12 @@ fn file_list(changes: Option<&[Change]>) -> String {
         .collect()
 }
 
+/// The remote the diff the file list reports was read against, which is the
+/// one the layout names and the one `recap::worktree` states every bound
+/// against. THE TRUNK IS NOT A CONST beside it: it is asked for per
+/// repository, so the two degraded lines name the branch the diff actually
+/// ran on rather than this machine's habit.
+const ORIGIN: &str = "origin";
 /// The order the layout's own example writes the statuses in.
 const STATUS_ORDER: [char; 4] = ['A', 'M', 'R', 'D'];
 /// What marks the branch the recap is about.
