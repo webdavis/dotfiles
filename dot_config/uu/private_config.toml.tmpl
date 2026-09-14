@@ -27,7 +27,7 @@ time = "12:00"
 # covering three weeks and a missing entry says nothing on its own.
 [records]
 url = "http://127.0.0.1:8644/webhooks/uu"
-key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu)").Password }}"
 # Optional second destination for failed, stale, pending and record-lost alarms.
 # Signed with the same key. Each configured destination is attempted once;
 # a refusal stays retryable for one-shot alarms without changing the run verdict.
