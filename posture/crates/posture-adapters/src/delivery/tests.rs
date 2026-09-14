@@ -126,3 +126,14 @@ fn formatting_a_delivery_names_the_routes_and_never_prints_a_signing_key() {
     assert!(formatted.contains("posture"), "{formatted}");
     assert!(formatted.contains("priority"), "{formatted}");
 }
+
+#[test]
+fn a_config_path_left_by_a_broken_link_is_refused_rather_than_read_as_unconfigured() {
+    let sandbox = crate::test_sandbox::Sandbox::new("delivery-dangling-link");
+    let home = sandbox.path();
+    std::fs::create_dir_all(home.join(".config/posture")).unwrap();
+    std::os::unix::fs::symlink(home.join("nowhere"), config_path(home)).unwrap();
+    let delivery = Delivery::read(home);
+    assert!(delivery.refusal.is_some(), "{delivery:?}");
+    assert_eq!(delivery.path, Delivery::default().path);
+}

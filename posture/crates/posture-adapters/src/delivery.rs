@@ -110,9 +110,12 @@ impl Delivery {
     /// itself.
     ///
     /// A DANGLING SYMLINK IS NOT AN ABSENT FILE, though the kernel reports both
-    /// as NotFound. chezmoi deploys configs as symlinks, so a broken link is a
-    /// CONFIGURED machine whose file stopped resolving, and reading that as an
-    /// unconfigured one would hide the breakage behind a default.
+    /// as NotFound. An operator may point this path at a store of their own,
+    /// an external volume or a checkout, and a link whose target went away is
+    /// a CONFIGURED machine whose file stopped resolving. Either way no page
+    /// is delivered, because the fail-closed default holds no key; the
+    /// difference is whether the operator is told WHY, and a broken link read
+    /// as an unconfigured machine is told nothing.
     pub fn read(home: &Path) -> Self {
         let path = config_path(home);
         let text = match std::fs::read_to_string(&path) {
