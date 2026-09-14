@@ -57,3 +57,9 @@ pub use judge_results::{
     BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
     RunLock,
 };
+
+mod watchdog;
+pub use watchdog::{
+    AuditObservation, DaemonHealth, GatewayHealth, QueueHealth, Watchdog, WatchdogIntegrity,
+    WatchdogOutcome, WatchdogProcesses, WatchdogState, WatchdogStateFailure, WatchdogStateStore,
+};

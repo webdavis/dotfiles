@@ -4,6 +4,7 @@ mod bounds;
 mod file;
 
 pub use bounds::AuditBounds;
+pub use file::kinds as audit_file;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuditKind {

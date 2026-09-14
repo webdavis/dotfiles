@@ -100,5 +100,19 @@ pub use converge::{
     resolve_osqueryctl,
 };
 
+mod watchdog_processes;
+pub use watchdog_processes::SystemWatchdogProcesses;
+mod watchdog_state;
+pub use watchdog_state::WatchdogStateFile;
+mod watchdog_queue;
+pub use watchdog_queue::QueueDatabase;
+mod gateway_health;
+pub use gateway_health::GatewayProbe;
+mod watchdog_audit;
+pub use watchdog_audit::WatchdogAudit;
+
 mod integrity_triage;
 pub use integrity_triage::file_integrity_triage;
+
+#[cfg(test)]
+mod test_sandbox;
