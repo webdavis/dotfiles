@@ -86,13 +86,13 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 
 ### The routes
 
-| Route       | Who posts                         | What                                                                       |
-| ----------- | --------------------------------- | -------------------------------------------------------------------------- |
-| `pns`       | pns hook and daemon paths         | Every routine agent event. The default route when nothing names one.       |
-| `priority`  | the bash osquery alerter, posture | Machine health and security ONLY (operator ruling 2026-09-14).             |
-| `uu`        | uu                                | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`. |
-| `posture`   | posture                           | Non-critical pages, the daily digest, the heartbeat, poll and funnel.      |
-| `pns-recap` | pns                               | The return recap.                                                          |
+| Route       | Who posts                  | What                                                                       |
+| ----------- | -------------------------- | -------------------------------------------------------------------------- |
+| `pns`       | pns hook and daemon paths  | Every routine agent event. The default route when nothing names one.       |
+| `priority`  | posture, the alert drainer | Machine health and security ONLY (operator ruling 2026-09-14).             |
+| `uu`        | uu                         | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`. |
+| `posture`   | posture                    | Non-critical pages, the daily digest, the heartbeat, poll and funnel.      |
+| `pns-recap` | pns                        | The return recap.                                                          |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks between `priority` and `posture` by the finding's tier, in one place (`severity_route`,
@@ -112,13 +112,16 @@ The table is `platforms.webhook.extra.routes` inside the age-encrypted
 yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 ```
 
-Every route carries four things: a `secret` (one `Hermes :: Webhook Secret :: #pns` covers all of them,
-and it is the same key `[plugins.hermes] key` hands pns), `deliver: discord`, `deliver_only: true` so the
-body is posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its
-channel. `run_after_68-hermes-log-route-status.sh.tmpl` checks all four on every apply and says so when
-one is missing.
+Every route carries four things: a `secret`, `deliver: discord`, `deliver_only: true` so the body is
+posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its channel.
+`run_after_68-hermes-log-route-status.sh.tmpl` checks all four on every apply and says so when one is
+missing.
 
-### Two gotchas
+Four of the five carry the same secret, `Hermes :: Webhook Secret :: #pns`, which is the key
+`[plugins.hermes] key` hands pns. `priority` is the exception, and it is the one that matters (see the
+third gotcha).
+
+### Three gotchas
 
 **The gateway does not expand `${VAR}` in its platform config.** `gateway/config.py` loads `config.yaml`
 with a bare `yaml.safe_load` and merges `platforms` straight through, so a `chat_id` written as
@@ -131,6 +134,16 @@ key with `{the.key}` rather than failing, so a route whose template does not mat
 shape delivers literal placeholders and no content. pns-shaped bodies carry `agent`, `state`, `project`
 and `detail`; the bash osquery alerter's carry `alert.title` and `alert.detail`. `priority` is templated
 for the latter today, which is why a route serving both shapes needs its template settled first.
+
+**`priority` is signed with a different key, so pns cannot reach it.** Its `secret` is the Bash alerter's
+own key, the value in `~/.config/osquery/webhook-secret`, while every other route carries the pns one.
+posture submits through `pns submit --json`, which signs with `[plugins.hermes] key`, so a CRIT page
+routed to `priority` answers 401. Worse, pns commits the request to its ledger and reports the submission
+accepted whatever a destination did with it, so posture advances its cursor and the page is gone with
+nothing in either channel to show for it. `run_after_68` compares the two secrets on every apply and says
+so. The one live signer still using the old key is `drain-undelivered-alerts.sh` on the alert-drainer
+LaunchAgent, draining what the retired Bash alerter left behind; every other osquery agent now runs a
+`posture` subcommand. Reconciling the two is an operator decision, not an apply.
 
 ### When a route changes
 
