@@ -131,6 +131,7 @@ Config {
         base_secs: 60,
     },
     nag_after_secs: 300,
+    stale_after_secs: 3600,
     lights: Some(
         Lights {
             refresh_secs: 12,

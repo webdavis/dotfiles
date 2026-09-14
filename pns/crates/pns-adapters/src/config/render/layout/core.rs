@@ -149,11 +149,28 @@ pub(super) const NAG: Table = Table {
                  # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
                  # name; no table at all, and after_secs of zero, are the same statement.\n",
     opt_in: true,
-    keys: &[Key {
-        name: "after_secs",
-        prose: "",
-        sample: Sample::Default("300"),
-    }],
+    keys: &[
+        Key {
+            name: "after_secs",
+            prose: "",
+            sample: Sample::Default("300"),
+        },
+        Key {
+            name: "stale_after_secs",
+            prose: "# And the OTHER end of the same wait: how long a session stays blocked before\n\
+                         # ONE page about it goes to the priority route, the one reserved for things\n\
+                         # that need a human. It fires once per block and then says nothing until\n\
+                         # that block resolves, and only when you could act on it: nothing is sent\n\
+                         # while you are away from both the desk and the phone, or while the screen\n\
+                         # has been locked for the whole window, because a page nobody can answer is\n\
+                         # how the route reserved for the ones you must answer stops being read. A\n\
+                         # screen locked for PART of the window still pages, which is the case this\n\
+                         # exists for: you were here, you stepped away, and a session is stuck. It\n\
+                         # needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,\n\
+                         # anything outside is refused by name, and zero is the feature off.\n",
+            sample: Sample::Default("3600"),
+        },
+    ],
 };
 pub(super) const FAILURES: Table = Table {
     name: "failures",

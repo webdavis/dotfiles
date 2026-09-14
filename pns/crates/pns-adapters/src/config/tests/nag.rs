@@ -84,3 +84,63 @@ fn a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name() {
         }
     }
 }
+
+/// The escalation's own key in the same table, on the same terms: the switch
+/// and the window in one value.
+///
+/// DEFAULT AN HOUR AND NOT OFF, which is where it differs from `after_secs`
+/// beside it. The nudge INTERRUPTS a session the operator is already looking
+/// at, so it waits to be asked for; an hour-old block is a session nobody is
+/// coming back to, and the default that does nothing is the one that lets it
+/// sit there.
+#[test]
+fn the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error() {
+    assert_eq!(
+        parse_config("[nag]\n").unwrap().stale_after_secs,
+        3600,
+        "an armed table with nothing said carries the default window"
+    );
+    assert_eq!(
+        parse_config("[nag]\nstale_after_secs = 0\n")
+            .unwrap()
+            .stale_after_secs,
+        0,
+        "zero is the feature off, and it is not an error"
+    );
+    assert_eq!(
+        parse_config("[nag]\nstale_after_secs = 60\n")
+            .unwrap()
+            .stale_after_secs,
+        60
+    );
+    assert_eq!(
+        parse_config("[nag]\nstale_after_secs = 86400\n")
+            .unwrap()
+            .stale_after_secs,
+        86400
+    );
+    assert_eq!(
+        parse_config("").unwrap().stale_after_secs,
+        3600,
+        "a file with no table at all still escalates, because the window is \
+         the default rather than the table's presence"
+    );
+}
+
+#[test]
+fn an_escalation_window_that_is_not_a_count_of_seconds_is_refused_by_name() {
+    for (case, text) in [
+        ("negative", "[nag]\nstale_after_secs = -1\n"),
+        ("a duration string", "[nag]\nstale_after_secs = \"1h\"\n"),
+        ("under the floor", "[nag]\nstale_after_secs = 59\n"),
+        ("over the ceiling", "[nag]\nstale_after_secs = 86401\n"),
+    ] {
+        match parse_config(text).unwrap_err() {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("nag") && message.contains("stale_after_secs"),
+                "{case}: the offender is named: {message}"
+            ),
+            other => panic!("{case}: expected Invalid, got {other:?}"),
+        }
+    }
+}

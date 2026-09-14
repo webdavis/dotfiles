@@ -47,7 +47,7 @@ mod retry;
 pub use daemon::DaemonConfig;
 use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
 mod nag;
-use nag::{NAG_OFF, backstop_outlasts_the_nag, parse_nag};
+use nag::{DEFAULT_STALE_AFTER_SECS, NAG_OFF, backstop_outlasts_the_nag, parse_nag};
 mod failures;
 pub use failures::Failures;
 use failures::parse_failures;
