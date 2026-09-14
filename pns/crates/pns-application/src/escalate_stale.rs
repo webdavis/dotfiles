@@ -5,9 +5,9 @@
 //! sequence of calls at the composition root. The rows are read before the
 //! gate so a suppressed fire can SAY how many waits it held back rather than
 //! going quiet; the gate is read before any claim so a suppression leaves
-//! `escalated_at` unset and the block is still escalated once the operator is
-//! reachable; and the claim is taken before the page so a page that is
-//! attempted is never attempted twice.
+//! `escalated_at` unset and a later fire can still escalate the block; and the
+//! claim is taken before the page so a page that is attempted is never
+//! attempted twice.
 
 use crate::{RaiseNotification, StaleWaits};
 use pns_domain::SurfaceReading;
@@ -48,8 +48,13 @@ impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
             return StaleOutcome::Nothing;
         }
         // BEFORE ANY CLAIM. A suppressed fire must leave every row exactly as
-        // it found it, so the block is escalated the first time the operator
-        // is somewhere a page can reach them.
+        // it found it, so a later fire can still escalate the block.
+        //
+        // WHICH LATER FIRE, IF ANY, IS NOT PROMISED HERE. The job `track_wait`
+        // arms is a one-shot, the shape `arm_nag` already uses and for its
+        // reason (a held-back nag is lost rather than queued), so what reaches
+        // a suppressed row is the session's next wait-starting event, another
+        // session's fire sweeping globally, or `pns stale` typed at the desk.
         if let Gate::Skip(why) = stale::gate(
             reading.surface,
             reading.screen_locked,

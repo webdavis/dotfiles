@@ -101,8 +101,9 @@ fn a_stale_block_is_claimed_before_it_is_paged_about() {
 
 #[test]
 fn an_away_operator_is_not_paged_and_no_row_is_stamped() {
-    // Suppressed, never lost: nothing is claimed, so the block is escalated
-    // the first time the operator is reachable.
+    // Nothing is claimed, so the row is left exactly as it was found and a
+    // later fire can still escalate the block. Which fire that is, if any, is
+    // not this use case's promise: the job is a one-shot.
     let recorder = Recorder {
         rows: vec![row("s1", NOW - WINDOW)],
         ..Default::default()

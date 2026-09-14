@@ -137,12 +137,15 @@ window is silent, and anything else pages.
   operator was there, stepped away, and a session is stuck.
 - Only `Some(true)` locks, matching `surface`'s own rule, so an `ioreg` that stops answering costs the
   suppression rather than the page; an unknown idle age is the same direction.
-- The gate is read BEFORE any claim, so a suppressed fire leaves every row as it found it and the block
-  is escalated the first time the operator is reachable. It says how many it held back, and why, on
-  stderr, because that is the stream the daemon keeps.
-- ACCEPTED LIMIT: the job is a one-shot, so a fire suppressed while the operator is away does not fire
-  again by itself; the block is escalated by the NEXT wait-starting event of that session, or not at all
-  until the operator looks. The recap section the design names for this is not built yet.
+- The gate is read BEFORE any claim, so a suppressed fire leaves every row as it found it and a later
+  fire can still escalate the block. It says how many it held back, and why, on stderr, because that is
+  the stream the daemon keeps.
+- ACCEPTED LIMIT: the job is a one-shot, the shape `arm_nag` already uses and for its reason (a
+  held-back nag is lost rather than queued), so a fire suppressed while the operator is away does not
+  fire again by itself. What reaches that row is the NEXT wait-starting event of that session, another
+  session's fire sweeping every row at once, or `pns stale` typed at the desk, and nothing at all until
+  one of those happens: a block that stands through a night on an idle machine is never paged about. The
+  recap section the design names for this is not built yet.
 
 ## 6. The page
 
