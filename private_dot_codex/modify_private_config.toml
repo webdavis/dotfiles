@@ -206,10 +206,13 @@
        their own input: the two deletes, the two bulk-filter writes
        (`approve_transactions`, `reassign_payee_transactions`), the three
        category and split operations, `undo_operation`, and the generic
-       `ynab_write_tool_execute`. It is a required SCHEMA field upstream offers
-       no switch for, not a second permission gate, so an agent supplies it
-       itself as part of the call and does not stop to ask the operator per
-       call.
+       `ynab_write_tool_execute`. Upstream means it as a human confirmation
+       gate (every one of those fields is described as "Pass true only after
+       the user explicitly confirms"), but nothing except the schema enforces
+       it and upstream offers no switch to turn it off, so a caller can satisfy
+       it unaided. The 2026-09-14 ruling is that agents do exactly that: supply
+       the field as part of the call rather than stopping to ask the operator
+       per call.
 
        The client-side rate limiter keeps its upstream defaults,
        `YNAB_RATE_LIMIT_PER_HOUR` 190 and `YNAB_RATE_LIMIT_BURST` 10, and is
