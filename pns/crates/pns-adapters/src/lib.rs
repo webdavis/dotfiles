@@ -138,7 +138,7 @@ pub use herdr::HerdrWork;
 pub use protocols::markers::FileLampMarkers;
 
 mod recap;
-pub use recap::{GitHubMerges, ProcessSummarizer, ReviewNotes};
+pub use recap::{GitHubMerges, ProcessSummarizer, ReviewNotes, git_facts};
 
 mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};

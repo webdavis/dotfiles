@@ -7,9 +7,11 @@ one window off the activity ring, how it reaches the two sources it cannot find 
 requests through `gh`, review notes matching a glob), how it spends one summarizer budget across up to
 three questions, how it composes a body under two budgets at once, how it renders a local wall clock, and
 how it posts to one durable route with one fallback. It also covers the other caller: the event path
-starts this same mode in a detached process at the return moment. Everything below is derived from the
-crate at `pns` and its tests only. Where the code does not settle a question, the line
-begins `NOT ESTABLISHED:` and names what was looked for and where.
+starts this same mode in a detached process at the return moment. Behaviors 17 and 18 cover the
+subcommand's two other verbs, which serve an AGENT rather than the event path: `pns recap agent --stdin`
+posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and `gh`
+can answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does
+not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 ## Vocabulary, in the code's own words
 
@@ -957,6 +959,120 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since
   reads, so an event landing in the shared `until` second between them, or a prune, can leave the two
   counts one apart. "Each is honest about what IT read ... reconciling them would mean serializing a
   snapshot the child is deliberately free to re-read" (`src/main.rs:spawn_recap`, `src/recap.rs:header`).
+
+### 17. An agent's own recap is made safe, fitted, and posted on the same route
+
+Given a markdown recap on stdin, in the layout the shared agent rules lock
+
+When `pns recap agent --stdin` runs
+
+Then every character a reader cannot see is dropped, a body over `MAX_CHARS` is shortened by collapsing
+its file list and then by shedding whole sections in a fixed order, and the result is posted through the
+same `post_return_recap` the night recap uses
+
+- Success: `crates/pns/src/command_recap.rs:agent_recap` reads stdin whole, hands it to
+  `pns_domain::recap::agent::fitted`, and posts through `crates/pns/src/command_recap.rs:post`, which is
+  the same `pns_application::post_return_recap` call the window form makes. The route-first-with-one-
+  fallback behavior is behavior 15's, unchanged and not re-implemented.
+- Failure sources: a missing or misspelled `--stdin`; a stdin that will not read; a body that is empty or
+  whitespace once sanitized; every delivery failure behavior 15 already names.
+- Fail direction: REFUSING, with exit 2, for all three input failures. "EMPTY IS A TYPO, NOT AN EMPTY
+  RECAP. Nothing was piped in, or the pipe broke; posting a blank message to the channel would report
+  work nobody can read" (`crates/pns/src/command_recap.rs:agent_recap`). Delivery keeps behavior 15's
+  direction: loud, reporting, and still exit 0. Pinned by
+  `tests/recap_commands.rs:an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message`
+  and `tests/recap_commands.rs:an_agent_recap_with_no_source_named_refuses_rather_than_reading_a_terminal`.
+- Thresholds: `MAX_CHARS` = 1,800, behavior 13's own ceiling and the same gateway's, reached through
+  `crates/pns-domain/src/recap/agent.rs:fits`. A body at or under it is returned sanitized and otherwise
+  UNCHANGED (`recap/tests/agent.rs:a_recap_already_under_the_ceiling_is_posted_exactly_as_it_was_written`);
+  one over it is collapsed and then shed until it is under.
+- Required side effects: THE LAYOUT SURVIVES. Sanitizing is
+  `crates/pns-domain/src/recap/sanitize.rs:printable_line`, which is `safe_line`'s own character filter
+  with the flatten removed, "because run over the agent recap's stack graph it would leave every branch
+  at the same depth". Pinned both ways by
+  `recap/tests/agent.rs:the_characters_the_night_recap_drops_are_dropped_here_too` and
+  `recap/tests/agent.rs:the_stack_graph_keeps_the_indentation_that_makes_it_a_tree`.
+- Forbidden side effects: NO LINE IS EVER CUT IN HALF, which is the layout's own readability rule
+  ("collapse a long file list to counts per status rather than truncating mid-list"). A line survives
+  whole or is replaced by a count, pinned by
+  `recap/tests/agent.rs:a_recap_over_the_ceiling_is_never_cut_in_the_middle_of_a_line`. And
+  `**User Tasks**` is NOT in `SHED_ORDER`, so it is carried whole even when the message then runs over,
+  which is behavior 14's direction applied to the section that holds it here
+  (`recap/tests/agent.rs:a_recap_whose_user_tasks_alone_fill_the_message_still_carries_every_one_of_them`).
+- Timeout and cancellation: this verb does NOT run under `run_recap_bounded`. That watchdog exists for a
+  detached child nobody is watching; an agent is waiting on this one, and the only unbounded thing it
+  could do is the POST, which behavior 15's `remote_deadline` already bounds.
+- Idempotency and duplicates: `fitted` is pure and its collapse is idempotent. A body whose file list
+  `pns recap git` ALREADY collapsed is left exactly as it is, because a row is told from a counts line by
+  its two-space column (`recap/tests/agent.rs:a_file_list_pns_recap_git_already_collapsed_is_left_exactly_as_it_is`).
+  The POST itself is not idempotent, which is behavior 15's own note. NOT ESTABLISHED: nothing dedupes
+  two runs of this command over the same recap; a second run posts a second message.
+- Privacy: the whole fitted body leaves the machine, HMAC-signed, exactly as behavior 15 describes. The
+  body is the agent's own text and pns adds nothing to it but the fallback line.
+- Process ownership and cleanup: no child at all. One stdin read, one pure fit, one POST.
+- Compatibility contract: `[recap] digest_as_thread` selects the route for THIS recap as well as for the
+  night's, which is what that key's own config comment already says it is for ("whether that recap posts
+  to the `pns-recap` route rather than the default one"). Pinned on the wire by
+  `tests/recap_commands.rs:an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`,
+  which proxies the gateway, answers 404, and asserts
+  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]`.
+
+### 18. The Git block is read from git and `gh`, and a PR number is never guessed
+
+Given a worktree
+
+When `pns recap git` runs
+
+Then it prints the recap's `**Git**` block and, inside ONE fenced code block, the stack graph and the
+file list, and exits 0 without delivering anything
+
+- Success: `crates/pns/src/command_recap.rs:git_recap` reads the facts with
+  `pns_adapters::git_facts` and renders them with `pns_domain::recap::git_block::git_block`. The reads
+  are `git rev-parse --show-toplevel`, `git symbolic-ref --short refs/remotes/origin/HEAD`,
+  `git branch --merged HEAD`, `git branch --merged origin/<trunk>`, `git rev-list --count`,
+  `git diff --name-status origin/<trunk>...HEAD`, and one
+  `gh pr list --head <branch> --state all --json number,state --limit 1` per stack branch.
+- Failure sources: no repository; no `origin/HEAD`; no `origin/<trunk>` ref; a `gh` that is not
+  installed, refuses, or times out; a listing in a shape this was not written against.
+- Fail direction: EACH READ DEGRADES ON ITS OWN and the PR line fails CLOSED into "unknown". "`none` is
+  `gh` saying there is no pull request; a `gh` that never ran said nothing at all, and printing
+  `none` for it is the guess the rule forbids"
+  (`crates/pns-domain/src/recap/git_block/facts.rs:PullRequestLookup`). The three answers are pinned by
+  `recap/tests/git_block.rs:a_branch_with_a_pull_request_names_its_number_and_its_state`,
+  `recap/tests/git_block.rs:a_branch_with_no_pull_request_says_none_and_never_a_number` and
+  `recap/tests/git_block.rs:a_listing_nobody_could_run_is_unknown_rather_than_none`, and the listing
+  parse by
+  `recap/worktree/tests.rs:anything_that_is_not_the_listing_that_was_asked_for_is_unavailable`.
+- Thresholds: `COLLAPSE_ABOVE` = 20 rows, past which the file list prints its counts per status instead,
+  in the layout's own `A 3  M 4  D 1` shape. One step either side is pinned by
+  `recap/tests/git_block.rs:a_file_list_past_the_collapse_line_says_its_counts_instead_of_its_rows`. The
+  git reads are bounded at 10 seconds and 524,288 bytes each; the `gh` listing at 30 seconds and 65,536
+  bytes, which is `recap::merges`' own bound on the same tool, "to stop a wedged network call holding
+  the whole recap rather than to hurry a slow one".
+- Required side effects: THE STACK IS DERIVED FROM GIT ANCESTRY. Worktrunk has no stack to ask for
+  (`wt list` reports worktrees and their status), and a stack listing needs the `github/gh-stack`
+  extension, which is not installed on this machine (both MEASURED 2026-09-14). A branch is below HEAD in
+  the stack when its tip is an ancestor of HEAD and is not already in the trunk, ordered by
+  `rev-list --count` from the trunk, with the current branch last. The trunk listing FAILS CLOSED: without
+  it, every stale local branch merged into HEAD would read as part of this stack, so the stack is the
+  current branch alone.
+- Forbidden side effects: IT DELIVERS NOTHING AND WRITES NOTHING. Every spawn is a query; nothing checks
+  out, fetches, rebases or posts. Printing here and posting in behavior 17 is what keeps one recap from
+  being sent twice.
+- Timeout and cancellation: per-spawn deadlines only, through the same `run_bounded` seam behavior 6
+  uses. No group watchdog, for behavior 17's reason.
+- Idempotency and duplicates: pure reads; running it twice prints the same thing twice.
+- Privacy: the branch name is sent to GitHub through `gh`, which carries its own auth and is never
+  handed a token by pns. Nothing else leaves the machine, and the block is printed rather than posted.
+- Process ownership and cleanup: `run_bounded` owns every child, and its kill reaches the child PID
+  rather than a process group, which is the same accepted limit the `gh` spawn in behavior 8 already
+  carries in this document's Gaps.
+- Compatibility contract: `pr view` takes a NUMBER and has no branch form, so the branch is resolved
+  with `pr list --head`, read as JSON through the same `--json` flag `recap::merges` already uses. ONE
+  GITHUB CLI FOR THE WHOLE PRODUCT: pns is installed by people who do not have this machine's npm
+  cache, so it may not fetch a package from a registry at recap time, nor parse a text listing with no
+  stability contract. `gh` answers the state in UPPER case and the layout writes it in lower, folded in
+  `crates/pns-adapters/src/recap/worktree.rs:listed`.
 
 ## Gaps
 
