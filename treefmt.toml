@@ -69,6 +69,7 @@ excludes = [
   "private_dot_claude/output-styles/**",
   "private_dot_claude/pns-marketplace/**",
   "private_dot_claude/strategy-marketplace/**",
+  "private_dot_claude/clean-code-marketplace/**",
   "dot_agents/**",
   # Same rule one directory over: a vendored skill with YAML frontmatter, kept
   # byte-identical to its upstream so a comparison against it stays meaningful.
