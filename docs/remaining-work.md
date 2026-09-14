@@ -786,18 +786,25 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
   inventory against current source before deletion. Run the sandbox composition checks and the plan's
   live page/digest, checkpoint and retry acceptance after the operator applies. On 2026-09-14 branch
-  `feat/posture-alert-cutover` did this work in four commits: `b80dbfde` repoints the plist and allowlist
-  tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private helpers
-  and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for `pipeline-audit.sh`;
-  `f1d5cd31` corrects the surviving producer-list comments; and `3b43aa0c` fixes five SEV-3 review
-  findings, comments across four osquery scripts that still named the deleted Bash helpers, rewritten to
-  name posture's `sanitize.rs` chokepoint and `page.rs::block` instead. NOT MERGED: the ship stage
-  stopped at its first gate, `git status --porcelain` in the worktree showed `graphify-out/graph.json`
-  modified by the post-commit hook after `3b43aa0c` and nothing else dirty, so no fetch, no `just ship`,
-  no push and no pull request ran; fold that regenerated file into a commit (repo precedent `d6012066`)
-  or discard it, then resume from the fetch/merge step. Operator steps once it ships: a full
-  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
-  pipeline known-good manifest arm); confirm the swap with
+  `feat/posture-alert-cutover` carried this work through six commits: `b80dbfde` repoints the plist and
+  allowlist tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private
+  helpers and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for
+  `pipeline-audit.sh`; `f1d5cd31` corrects the surviving producer-list comments; `502bb3b6` merges
+  `origin/main` in; `701d93b9` names the three Bash monitors that still source the dispatch library; and
+  `f1f6cc4f` gates the cutover on a live hermes posture route. Independent review returned two SEV-1s and
+  one SEV-3, all fixed on the branch: a content conflict in the launchd allowlist (fixed by `502bb3b6`,
+  keeping main's file and repointing only the results-alerter row, verified by a zero-exit
+  `git merge-tree`); posture's pns route having no hermes endpoint, so every alert and digest leg
+  dead-letters at HTTP 404 (fixed by gating the apply on that route existing rather than guessing a
+  routing change, `f1f6cc4f`); and stale producer-list comments left by the merge (fixed by `701d93b9`).
+  [PR #584](https://github.com/webdavis/dotfiles/pull/584) opened against `main` with `just ship` green
+  locally and pushed. NOT MERGED as of 2026-09-14: GitHub Actions never triggered a Lint check-suite for
+  the PR across three retrigger attempts (open, an empty synchronize commit, reopen) over roughly 30
+  minutes, while sibling PRs in the same window triggered normally; `gh-axi pr checks 584` still reads
+  "no CI checks configured". This is an environmental GitHub-side blocker, not a code or merge problem;
+  per standing instructions the branch stays open rather than merging without a real "0 failed" result.
+  Operator steps once it ships: a full `chezmoi apply` (no by-name apply, no `--exclude=templates`, the
+  plist and allowlist both sit in the pipeline known-good manifest arm); confirm the swap with
   `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
   live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
   `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
@@ -805,10 +812,13 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   page from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a
   file, and a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next
   daily digest; and verify at-least-once retry against the live cursor with the daemon or gateway
-  unreachable. Stays open: whether `posture/docs/acceptance/allowlist-integrity.md` and `enrichment.md`
-  need annotating for the shell tests this branch retires (left untouched as dated port plans), and a
-  stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming the deleted
-  `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
+  unreachable. Stays open: getting Actions to trigger a Lint run on PR #584, without which it cannot
+  merge (either a manual re-run from the GitHub UI or a look at whether the `blacksmith-sh` app has
+  broken Actions dispatch for this repository); whether `posture/docs/acceptance/allowlist-integrity.md`
+  and `enrichment.md` need annotating for the shell tests this branch retires (left untouched as dated
+  port plans); and a stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8`
+  naming the deleted `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this
+  slice.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -934,7 +944,15 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   sibling, cross-checked by hand against `/opt/homebrew/bin/tailscale funnel status --json`. Stays open:
   the Bash `tailscale-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the same follow-up pull request as task 47, after this acceptance; nothing was trashed by
-  #575.
+  #575. Also on 2026-09-14, `git cherry origin/main feat/posture-funnel` still listed all five fix
+  commits as absent from main, because PR #551 merged into `feat/posture-watchdog-health` after that
+  branch had already merged into main, so the merge carried the fixes onto a side branch rather than onto
+  the trunk. This pull request carries them to main in their original order: bound the funnel exposure
+  page by key count (`0037bc33`), name the funnel command in its queue failures (`b1a8b777`), read the
+  funnel binary through the shared executable check (`4ea6e8b9`), pin the exposure sort, the worst case
+  and the executable arms (`4cb11f21`), and read a disabled funnel timeout as no limit rather than a
+  failure (`c50f95d6`). It matters because #575 already points the tailscale-monitor LaunchAgent at
+  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
