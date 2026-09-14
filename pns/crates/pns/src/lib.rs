@@ -132,7 +132,7 @@ pub(crate) use runtime_environment::{
 pub(crate) use sender::{attribution, name_session};
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;
-pub(crate) use wait_runtime::{WINDOW_OFF, end_blocked_wait, stale_after_secs, track_wait};
+pub(crate) use wait_runtime::{end_blocked_wait, stale_after_secs, track_wait};
 
 pub fn run() {
     invocation::run();

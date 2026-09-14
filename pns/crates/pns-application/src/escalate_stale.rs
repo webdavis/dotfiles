@@ -84,7 +84,13 @@ impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
 }
 
 /// The window that means the escalation is off.
-const WINDOW_OFF: u64 = 0;
+///
+/// THE FIRE OWNS IT and `track_wait` reads this one, so arming and firing
+/// cannot disagree about what switches the feature off. The other two
+/// spellings are each a different layer's own (`config`'s accepted value and
+/// the composition root's fallback for a config it could not read), which is
+/// the shape `NAG_OFF` already has.
+pub(crate) const WINDOW_OFF: u64 = 0;
 
 #[cfg(test)]
 mod tests;

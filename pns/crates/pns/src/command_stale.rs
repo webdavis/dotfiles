@@ -21,11 +21,14 @@ pub(crate) fn stale_mode() -> i32 {
         eprintln!("{STALE_USAGE}");
         return 2;
     }
+    // ONE GUARD, AND IT IS THE FIRE'S. The window is read here and judged
+    // there, so the `Off` arm below is the only place that answers a feature
+    // switched off between arming and firing; a second check here would be the
+    // same policy stated twice, with the arm unreachable.
+    //
+    // WHICH IS WHY THE CLOCK IS READ FIRST. A machine with no clock cannot ask
+    // the fire anything, off or not, so it says so and stops.
     let window = stale_after_secs();
-    if window == WINDOW_OFF {
-        println!("pns stale: the stale-block escalation is off");
-        return 0;
-    }
     // NO CLOCK IS NO PAGE. Every input this cannot read resolves to silence,
     // and a wait nothing can measure is one of them.
     let probes = system_probes();
@@ -44,7 +47,9 @@ pub(crate) fn stale_mode() -> i32 {
     })
     .run(now, window, &reading)
     {
-        pns_application::StaleOutcome::Off => {}
+        pns_application::StaleOutcome::Off => {
+            println!("pns stale: the stale-block escalation is off")
+        }
         pns_application::StaleOutcome::Nothing => println!("pns stale: nothing is stuck"),
         pns_application::StaleOutcome::Held { waiting, why } => {
             // ON STDERR, because a suppressed page is the one thing about this

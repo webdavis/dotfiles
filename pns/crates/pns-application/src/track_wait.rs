@@ -1,3 +1,4 @@
+use crate::escalate_stale::WINDOW_OFF;
 use crate::{JobSpool, SessionWaits};
 
 /// This session's wait, recorded and timed: the row the escalation reads, and
@@ -108,10 +109,6 @@ pub fn end_wait(waits: &impl SessionWaits, session_id: &str) -> Result<(), Strin
         None => Ok(()),
     }
 }
-
-/// The window that means the escalation is off, in this crate's own spelling
-/// of the config's default.
-const WINDOW_OFF: u64 = 0;
 
 #[cfg(test)]
 mod tests;
