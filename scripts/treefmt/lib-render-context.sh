@@ -21,8 +21,10 @@ init_render_context() {
   jq -n --arg source "$PWD" '{data: {chezmoi: {sourceDir: $source}}}' >"$render_config" || return 1
 }
 
+# Only the two flags the render needs: --source points chezmoi at the shallow
+# view, --config carries the real sourceDir back in. The destination, cache and
+# persistent state default to paths under HOME, which is the throwaway context.
 render_template() {
-  CI=1 chezmoi --config "$render_config" --source "$render_source" --working-tree "$PWD" \
-    --destination "$HOME" --cache "$HOME/cache" --persistent-state "$HOME/state.boltdb" \
+  CI=1 chezmoi --config "$render_config" --source "$render_source" \
     execute-template --no-tty <"$1"
 }
