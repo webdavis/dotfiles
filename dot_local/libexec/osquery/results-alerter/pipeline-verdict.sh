@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# pipeline-verdict.sh - a sourced helper for results-alerter.sh. Functions only,
+# pipeline-verdict.sh - a sourced helper for pipeline-audit.sh, its one
+# remaining caller now that posture alert owns the event path. Functions only,
 # no main. It answers one question for a file change under the watched pipeline
 # directories: is this a tamper to PAGE, a known-good apply to stay SILENT, or an
 # untracked neighbor to log only?
