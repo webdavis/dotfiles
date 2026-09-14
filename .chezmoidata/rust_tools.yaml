@@ -19,8 +19,8 @@ rust_tools:
   # The largest artifact each builder will publish and each consumer will trust,
   # PER TOOL, because one shared ceiling sized for the smaller binary refuses
   # every apply the moment the larger one grows into it. Each value is about
-  # twice the size measured on 2026-09-13 (pns 6,966,304 bytes; posture 670,288
-  # bytes), rounded up to a whole mebibyte, which leaves room for ordinary
+  # twice the size measured (pns 6,966,304 bytes on 2026-09-13; posture 3,692,736
+  # bytes on 2026-09-14), rounded up to a whole mebibyte, which leaves room for ordinary
   # dependency growth while still catching a runaway or substituted artifact.
   #
   # Two consumers cannot read this file and carry the same numbers by hand:
@@ -30,4 +30,4 @@ rust_tools:
   # this key where their constants sit. Move all four together.
   max_artifact_bytes:
     pns: 14680064
-    posture: 2097152
+    posture: 8388608

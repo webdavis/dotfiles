@@ -362,22 +362,22 @@ function test_an_identical_build_repairs_binary_and_record_permissions() {
   assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
 }
 
-# 2097152 is posture's own ceiling, about twice its measured size, declared in
+# 8388608 is posture's own ceiling, about twice its measured size, declared in
 # .chezmoidata/rust_tools.yaml. pns is an order of magnitude larger and carries
 # a ceiling of its own, so neither number is a shared constant.
 function test_an_artifact_at_the_audit_size_limit_can_be_published() {
   ready_to_build
-  printf 2097152 >"$sandbox_home/.stub-artifact-bytes"
+  printf 8388608 >"$sandbox_home/.stub-artifact-bytes"
   assert_builder_succeeds
-  assert_contains 'bytes 2097152' "$(cat "$build_record")"
-  assert_same 2097152 "$(wc -c <"$installed_binary" | tr -d ' ')"
+  assert_contains 'bytes 8388608' "$(cat "$build_record")"
+  assert_same 8388608 "$(wc -c <"$installed_binary" | tr -d ' ')"
 }
 
 function test_an_artifact_over_the_audit_size_limit_never_replaces_trusted_state() {
   ready_to_build
   assert_builder_succeeds
   cp "$build_record" "$sandbox/previous-record"
-  printf 2097153 >"$sandbox_home/.stub-artifact-bytes"
+  printf 8388609 >"$sandbox_home/.stub-artifact-bytes"
   assert_builder_fails
   assert_same "$(cat "$sandbox/previous-record")" "$(cat "$build_record")"
   assert_same posture-build-1 "$("$installed_binary")"
