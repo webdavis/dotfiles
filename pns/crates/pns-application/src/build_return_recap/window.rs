@@ -40,7 +40,14 @@ pub fn recap_wall_clock(
         .unwrap_or_else(|| NO_WALL_CLOCK.to_string())
 }
 /// What a recap typed wrong is told.
-pub const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>";
+///
+/// THREE FORMS, ONE USAGE. The window form is the one the event path spawns;
+/// the other two are an agent's, and every one of them exits 2 on a word this
+/// will not vouch for, because a recap that swallowed a typo is a recap the
+/// operator believes was posted.
+pub const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>\n\
+                               pns: usage: pns recap agent --stdin\n\
+                               pns: usage: pns recap git";
 
 /// What a line shows for a moment whose clock could not be read: the same width
 /// as a time, so the timeline still lines up.
