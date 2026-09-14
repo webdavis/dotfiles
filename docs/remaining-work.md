@@ -786,18 +786,25 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
   inventory against current source before deletion. Run the sandbox composition checks and the plan's
   live page/digest, checkpoint and retry acceptance after the operator applies. On 2026-09-14 branch
-  `feat/posture-alert-cutover` did this work in four commits: `b80dbfde` repoints the plist and allowlist
-  tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private helpers
-  and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for `pipeline-audit.sh`;
-  `f1d5cd31` corrects the surviving producer-list comments; and `3b43aa0c` fixes five SEV-3 review
-  findings, comments across four osquery scripts that still named the deleted Bash helpers, rewritten to
-  name posture's `sanitize.rs` chokepoint and `page.rs::block` instead. NOT MERGED: the ship stage
-  stopped at its first gate, `git status --porcelain` in the worktree showed `graphify-out/graph.json`
-  modified by the post-commit hook after `3b43aa0c` and nothing else dirty, so no fetch, no `just ship`,
-  no push and no pull request ran; fold that regenerated file into a commit (repo precedent `d6012066`)
-  or discard it, then resume from the fetch/merge step. Operator steps once it ships: a full
-  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
-  pipeline known-good manifest arm); confirm the swap with
+  `feat/posture-alert-cutover` carried this work through six commits: `b80dbfde` repoints the plist and
+  allowlist tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private
+  helpers and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for
+  `pipeline-audit.sh`; `f1d5cd31` corrects the surviving producer-list comments; `502bb3b6` merges
+  `origin/main` in; `701d93b9` names the three Bash monitors that still source the dispatch library; and
+  `f1f6cc4f` gates the cutover on a live hermes posture route. Independent review returned two SEV-1s and
+  one SEV-3, all fixed on the branch: a content conflict in the launchd allowlist (fixed by `502bb3b6`,
+  keeping main's file and repointing only the results-alerter row, verified by a zero-exit
+  `git merge-tree`); posture's pns route having no hermes endpoint, so every alert and digest leg
+  dead-letters at HTTP 404 (fixed by gating the apply on that route existing rather than guessing a
+  routing change, `f1f6cc4f`); and stale producer-list comments left by the merge (fixed by `701d93b9`).
+  [PR #584](https://github.com/webdavis/dotfiles/pull/584) opened against `main` with `just ship` green
+  locally and pushed. NOT MERGED as of 2026-09-14: GitHub Actions never triggered a Lint check-suite for
+  the PR across three retrigger attempts (open, an empty synchronize commit, reopen) over roughly 30
+  minutes, while sibling PRs in the same window triggered normally; `gh-axi pr checks 584` still reads
+  "no CI checks configured". This is an environmental GitHub-side blocker, not a code or merge problem;
+  per standing instructions the branch stays open rather than merging without a real "0 failed" result.
+  Operator steps once it ships: a full `chezmoi apply` (no by-name apply, no `--exclude=templates`, the
+  plist and allowlist both sit in the pipeline known-good manifest arm); confirm the swap with
   `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
   live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
   `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
@@ -805,10 +812,13 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   page from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a
   file, and a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next
   daily digest; and verify at-least-once retry against the live cursor with the daemon or gateway
-  unreachable. Stays open: whether `posture/docs/acceptance/allowlist-integrity.md` and `enrichment.md`
-  need annotating for the shell tests this branch retires (left untouched as dated port plans), and a
-  stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming the deleted
-  `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
+  unreachable. Stays open: getting Actions to trigger a Lint run on PR #584, without which it cannot
+  merge (either a manual re-run from the GitHub UI or a look at whether the `blacksmith-sh` app has
+  broken Actions dispatch for this repository); whether `posture/docs/acceptance/allowlist-integrity.md`
+  and `enrichment.md` need annotating for the shell tests this branch retires (left untouched as dated
+  port plans); and a stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8`
+  naming the deleted `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this
+  slice.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -934,7 +944,15 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   sibling, cross-checked by hand against `/opt/homebrew/bin/tailscale funnel status --json`. Stays open:
   the Bash `tailscale-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the same follow-up pull request as task 47, after this acceptance; nothing was trashed by
-  #575.
+  #575. Also on 2026-09-14, `git cherry origin/main feat/posture-funnel` still listed all five fix
+  commits as absent from main, because PR #551 merged into `feat/posture-watchdog-health` after that
+  branch had already merged into main, so the merge carried the fixes onto a side branch rather than onto
+  the trunk. This pull request carries them to main in their original order: bound the funnel exposure
+  page by key count (`0037bc33`), name the funnel command in its queue failures (`b1a8b777`), read the
+  funnel binary through the shared executable check (`4ea6e8b9`), pin the exposure sort, the worst case
+  and the executable arms (`4cb11f21`), and read a disabled funnel timeout as no limit rather than a
+  failure (`c50f95d6`). It matters because #575 already points the tailscale-monitor LaunchAgent at
+  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1132,7 +1150,13 @@ The planned Rust lanes are implemented. The following deployment check remains.
   keys has applied (check `jq .skillOverrides ~/.claude/settings.json` shows none of the nine), delete
   the lines. Longer term, derive the whole block from the lock's `tiers` table with `include` and
   `fromJson` so a promotion needs one edit and no tombstone; requested in the operator's Plannotator
-  review on 2026-09-13.
+  review on 2026-09-13. Attempted 2026-09-14 on `chore/settings-tombstones`: the nine lines were dropped
+  (`fd3d68b0`) and [PR #582](https://github.com/webdavis/dotfiles/pull/582) is open but not merged. The
+  branch stopped at the `git fetch origin && git merge origin/main` step: a real content conflict landed
+  in this same file's install-comment block (this branch's trimmed wording against origin/main's fuller
+  2.1.257/2.1.270 history), not confined to `graphify-out/graph.json`, so the merge was aborted, leaving
+  the branch clean at `37a1e55a`. No push, ship run, or merge was attempted past that point; the wording
+  conflict needs a human decision before resuming.
 
 - [x] 57f. [PR #562](https://github.com/webdavis/dotfiles/pull/562) (`docs/clean-code-rust-test-first`)
   merged (`066fd762`): twelve skills promoted from on-demand to core (clean-code, clean-code-rust,
@@ -1309,7 +1333,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   workaround is stale; the plugin sharing its marketplace's name trips the parser), and
   `claude plugin install clean-code@clean-code` succeeds (cache holds base, rust, swift). Update the
   runbook sentence about the bare form in the next docs pass. A restart of Claude Code makes
-  `/clean-code:rust`, `/clean-code:swift`, `/clean-code:base` available.
+  `/clean-code:rust`, `/clean-code:swift`, `/clean-code:base` available. That docs pass is
+  [PR #582](https://github.com/webdavis/dotfiles/pull/582) (`chore/settings-tombstones`, commits
+  `c847c49e` and `fbdbae1c`): it names the 2.1.270 install form in both the template comment and this
+  runbook sentence, but is not yet merged, stopped behind the same unresolved `modify_settings.json`
+  merge conflict recorded under 57e.
 
 - [ ] 57m. zoetrope (operator request 2026-09-14): `brew install furkankly/tap/zoetrope` (0.2.0, `zoe`)
   and `herdr plugin install furkankly/zoetrope/herdr-plugin` (`furkankly.zoetrope`, enabled) done by hand
@@ -1342,7 +1370,17 @@ The planned Rust lanes are implemented. The following deployment check remains.
   with 0 files changed and the push is refused. A second push a minute later passes. Fix candidates,
   robust first: move graphify's cache out of the source tree (its output directory setting, or a symlink
   like the `minutes` one), or have the pre-push hook wait for a running graphify rebuild before the gate;
-  never a retry loop in the gate.
+  never a retry loop in the gate. Investigated 2026-09-14 on `fix/graphify-push-race` (not pushed, no PR
+  opened): five local commits (`c93ff206`, `211e84a8`, `0c0598d3`, `15769313`, `5d4789db`) find that
+  neither hook caused the two reported failures, since `scripts/treefmt/lib-render-context.sh` already
+  gives the render a shallow source view and both failures predate that fix; they add a deterministic
+  000-permission fixture standing in for the roughly-1-in-25 race, correct a stale date in this runbook,
+  and fold the rebuilt graphify map. `git fetch && git merge origin/main` completed cleanly at
+  `90473121`. Stopped per task instructions after `just ship` failed three times (1, then 1, then 3
+  failing tests) on unrelated Rust process/signal-timing tests (the hue bridge deadline test,
+  posture-adapters closed-pipe/grace/signal deadline tests) under confirmed heavy machine load (load
+  average 40.43, 5 concurrent cargo/agent processes); the branch diff touches no Rust code. Ready to
+  resume `just ship` once load subsides.
 
 ## posture cleanup
 
@@ -1400,7 +1438,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `~/.local/libexec/posture/` (`controls.json`, `converge/`), and the operator ran the one `trash` pass
   (`posture-controls.json` and `osquery-converge/desired/` are gone). Restart acceptance (the plan's
   operator-run osqueryd restart after the watched paths changed) remains open.
-- [ ] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
+- [x] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
   before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
   inventory. Preparatory mapping on `docs/posture-test-mapping` at `d95c39f3` preserves all original
   columns and maps all 187 leaves to exact assertions or explicit gaps. It records merged, unpublished
@@ -1408,7 +1446,25 @@ The planned Rust lanes are implemented. The following deployment check remains.
   (exit 0, 4m31s) and [PR #554](https://github.com/webdavis/dotfiles/pull/554) was opened against `main`;
   it merged into `main`. Independent review found the README's Task58 row and the B041 bullet needed to
   name the real constants; fixed at `068e34e1` before merge. The final post-port size comparison and
-  decision index are still required. The Rust size gate already covers posture; do not add it again.
+  decision index are still required. The Rust size gate already covers posture; do not add it again. On
+  2026-09-14 `f16938d2` on `docs/posture-completion-report` added the two missing pieces to
+  `posture/docs/README.md`: a before/after implementation-size table pairing every Bash entry point and
+  sourced module with its posture successor and source state (845 Bash lines retired across four entry
+  points, 9,292 still tracked across 18 files, six Rust crates holding 16,017 implementation lines of
+  40,824 total across 358 files, measured with `wc -l` and the clean-code-rust file-size command), and a
+  decision index mapping the seven boundary records under `posture/docs/decisions/` to their paired
+  specification and Bash-derived acceptance map. No Rust size gate was added, since the existing one
+  already covers posture. `just m` and `just lint-check` both passed (exit 0); this pull request carried
+  no independent-review findings. Assumptions: the report is `posture/docs/README.md`, the only document
+  that calls itself the report and names the missing pieces in its own closing paragraph; "retired Bash"
+  counts only the four entry points the port has actually deleted, with the remaining 18 files read as
+  still-in-scope "before" rather than omitted; implementation size means source lines of the tools, not
+  their tests, with both columns reported for Rust since its test share is the main reason the Rust total
+  exceeds the Bash total; the decision index indexes the seven records in `posture/docs/decisions/` per
+  the plan's own phrase "the decision records index". The report's accepted dispositions and
+  deployed-status refresh stay open by design, scoped to a separate change once the ports and cutovers
+  meet their own gates. [PR #577](https://github.com/webdavis/dotfiles/pull/577)
+  (`docs/posture-completion-report`, merged `528746a0`). No operator steps.
 - [ ] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure. The
   private B020/B027 reproducer loses valid digest records when one invalid UTF-8 byte makes a claimed
   batch unreadable; a focused preservation fix is in progress on `fix/posture-digest-read-failure`, which
@@ -2043,7 +2099,33 @@ operator deployment. No source correction was warranted by this audit.
 - [ ] Preserve B107's deferred JavaScript test-discovery responsiveness work. Caching shipped, but cold
   parsing remains synchronous; the recorded 7.4-second UI stall was not remeasured in this audit. Source
   for B97/B103/B107: `~/.claude/pipeline/backlog-consolidated-2026-09-02.md`. B92's canonical-hour,
-  rainbow and X11 colour cycles were deliberately excluded, not missed implementation.
+  rainbow and X11 colour cycles were deliberately excluded, not missed implementation. On 2026-09-14
+  `a849b5ae` on `fix/nvim-js-discovery-cold-parse` remeasured the stall and bounded it: a headless
+  harness over 500 files of 129 KB spent 11,290 to 12,062 ms in the first adapter's synchronous
+  `is_test_file` sweep, matching the recorded 7.4 s figure and its 22.2 s total. Since all four query
+  shapes capture a string fragment compared against `node:test`, and that text is a slice of the file's
+  own bytes, `imports_node_test` now answers a file that never names it from a plain byte-literal find
+  and caches that answer the way it caches a parsed one; the first-adapter sweep fell to 157 ms (a
+  realistic 10.8 KB tree fell from 1,180 ms to 39 ms), while a tree whose files really do import
+  `node:test` still parses each one (656 ms over 500 realistic files, against 706 ms before), since only
+  a parse tells a real import from a mention in a comment. Making discovery asynchronous was rejected:
+  the pinned neotest client filters through a plain synchronous loop and calls the predicate from
+  contexts that are not nio tasks. The existing parse-count case in
+  `dot_config/nvim/tests/neotest_spec.lua` gained a third file version naming `node:test` nowhere and
+  three mutants of the new branch die against the suite; `just test-nvim`, `just test-unit` and
+  `just lint-check` each passed at exit 0. Independent review found the committed "0.024 ms each read and
+  scanned" comment understated the real cost and a test-rename commit was mistyped as `fix`; both fixed,
+  the comment corrected to "0.08 ms" against a 20-iteration measurement (`1944743c`) and the commit
+  retyped to `test(nvim)` through a safe rebase (`29037025`). Assumptions: "bounds the cold path" means
+  removing a parse only where it cannot change the answer, since a tree that genuinely imports
+  `node:test` still pays one parse per file version; the byte-literal prefilter is behavior-preserving
+  because every query pattern captures a `(string_fragment)` whose text must equal the literal bytes,
+  which a mutation-tested comparison confirms empirically; no new spec file was added since the existing
+  suite already pins both arms of the branch by mutation; the measurement harness at `/private/tmp/b107`
+  is not committed, a one-off tool rather than a gate.
+  [PR #589](https://github.com/webdavis/dotfiles/pull/589) (`fix/nvim-js-discovery-cold-parse`, merged
+  `2d9c6e188b2db896c7be78ec89dabf412a075bcf`). Operator: run a full `chezmoi apply` to deploy
+  `~/.config/nvim/lua/plugins/neotest.lua` (no template touched, no KeePassXC or manifest involved).
 - [ ] Preserve B95's Rust neotest discovery and duplicate-client follow-up. Rust, Java and Elixir
   adapters are absent from the configured adapter list; verify Rust's intended workflow before calling
   language coverage complete. Record the Java/Elixir disposition against plan task 46b, step 2, which
@@ -2052,15 +2134,46 @@ operator deployment. No source correction was warranted by this audit.
 - [ ] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
   missing-parser installation is asynchronous, and the Go adapter returns without discovery when its
   parser is absent. Verify the first test request in that state and provide a working first-use path
-  through supported integration. The historical failure was not reproduced during this audit.
-- [ ] Correct B100's stale pane-selection contract in the canonical Neovim spec/plan: the owned helper
+  through supported integration. The historical failure was not reproduced during this audit. On
+  2026-09-14 `07304c85` on `fix/nvim-go-parser-readiness` reproduced it: against a clone of the live
+  Neovim data directory with the `go` parser and its query directory removed, the first `<leader>tt` in a
+  scratch Go module discovered no tests and notified nothing, because neotest-golang's readiness guard
+  reads a `pcall` status where `vim.treesitter.language.add` answers with a value, and on Neovim 0.12.5
+  that call returns nil rather than raising. `go` joined the core parser list in
+  `dot_config/nvim/lua/plugins/treesitter.lua`, which the apply-time bootstrap installs, and
+  `<leader>tt`, `<leader>tf`, `<leader>ta` and `<leader>ts` now route through one `neotest_with_parser`
+  helper that installs and waits (bounded at 30 s) for the buffer's language parser before neotest's
+  client is touched at all, since that client registers its discovery autocmds on its first API call.
+  Re-measured from the identical starting state: the first request installed the parser in 4.3 s and
+  discovery returned the module's test. One case in `dot_config/nvim/tests/neotest_spec.lua` pins the
+  gate, mutation-verified three ways; `just test-nvim`, `just lint-check` and `just test-unit` each
+  exited 0. Independent review found `<leader>ta` went through the parser gate with no test pinning it,
+  and that the implementer's own report understated the branch (six non-merge commits, four files, not
+  one); the gate coverage was fixed with a new directory-run case (`684be131`); the understated report
+  could not be corrected in-repo (no ledger-text field on the return schema), so the true commit list is
+  `07304c85`, `f3a0e136`, `ee930fd7`, `f455c3cc`, `b111c128`, `684be131`, merged with `fb714403`, across
+  `dot_config/nvim/lua/plugins/neotest.lua`, `dot_config/nvim/lua/plugins/treesitter.lua`,
+  `dot_config/nvim/tests/neotest_spec.lua` and `graphify-out/graph.json`. Assumptions: the readiness path
+  is the preinstalled list plus a request-time wait rather than deferring the first run, since deferral
+  measured as no message at all; the buffer's own language is the signal for a request, so a request from
+  a different-language buffer in a Go module is covered by the preinstalled-list half, not the gate;
+  `<leader>to` and `<leader>tS` were left ungated, since neither discovers; the agent used `rm -rf` on
+  its own scratch harness at `/private/tmp/gp` instead of `trash`, disclosed as a rule violation touching
+  nothing outside that directory. [PR #590](https://github.com/webdavis/dotfiles/pull/590)
+  (`fix/nvim-go-parser-readiness`, merged `15e885bc`). Operator: run a full `chezmoi apply` (the nvim
+  bootstrap re-runs and builds the `go` parser synchronously; that build measured 4.3 s in the probe).
+- [x] Correct B100's stale pane-selection contract in the canonical Neovim spec/plan: the owned helper
   uses `agent_pane(on_pane)`, not a synchronous returned pane identifier. Preserve cancellation/refusal
   behavior. This is documentation reconciliation, not a missing helper implementation. On 2026-09-13
   `3d92ca3e` on `docs/nvim-agent-pane-contract` rewrote the spec's 7.2 lookup paragraph, its 7.4
   interface bullet and the plan's PR 11 interface line against `M.agent_pane` in
   `dot_config/nvim/lua/custom_api/herdr.lua`; `just ship` passed on the second run (exit 0, 3m12s; the
   first run hit the pns `security_sound` fixture's 900 ms child guard under load, fixed separately) and
-  [PR #556](https://github.com/webdavis/dotfiles/pull/556) merged into `main` on 2026-09-13.
+  [PR #556](https://github.com/webdavis/dotfiles/pull/556) merged into `main` on 2026-09-13. Verified
+  2026-09-14: `origin/main` carries `3d92ca3e` under the merge of
+  [PR #556](https://github.com/webdavis/dotfiles/pull/556), and both the spec (line 1326, "answers
+  through the callback, never a return value") and the plan (line 867, `herdr.agent_pane(on_pane)`)
+  describe the callback contract, so the box is ticked.
 
 ### Recover the remaining design from PR #24
 

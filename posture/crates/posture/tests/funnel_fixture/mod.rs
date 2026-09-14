@@ -1,3 +1,4 @@
+use posture_domain::FUNNEL_EXPOSURE_KEY_LIMIT;
 use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 use std::{
@@ -16,23 +17,20 @@ pub fn compare(name: &str) {
         .unwrap()
         .clone();
     if name == "oversized_exposure" {
-        // The full page exceeds the wire cap. Preserve the Bash capture and require a bounded notice.
-        assert!(
-            case["expected"]["alerts"][0]["body"]
-                .as_str()
-                .unwrap()
-                .chars()
-                .count()
-                > 8000
-        );
-        case["expected"]["code"] = 1.into();
-        case["expected"]["baseline"] = Value::Null;
-        case["expected"]["alerts"] = serde_json::json!([{
-            "title": "Posture security alert omitted",
-            "body": "A security finding exceeded notification limits. The full alert was not submitted and remains unacknowledged. Inspect the originating posture check.",
-            "prior": null
-        }]);
-        case["expected"]["stderr"] = "tailscale-monitor: send_alert could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n".into();
+        // Bash delivered every exposed key in one page past the wire cap. The captured
+        // key lines are replayed up to the domain key limit and the rest become one
+        // summary line; the exit code, the baseline advance and the empty stderr are
+        // the capture's own.
+        let body = case["expected"]["alerts"][0]["body"].as_str().unwrap();
+        assert!(body.chars().count() > 8000);
+        let mut lines: Vec<String> = body.lines().map(str::to_owned).collect();
+        let header = lines
+            .iter()
+            .position(|line| line.starts_with("- `"))
+            .unwrap();
+        let omitted = lines.split_off(header + FUNNEL_EXPOSURE_KEY_LIMIT).len();
+        lines.push(format!("- …and {omitted} more"));
+        case["expected"]["alerts"][0]["body"] = lines.join("\n").into();
     }
     let home = std::env::temp_dir().join(format!("posture-funnel-{}-{name}", std::process::id()));
     fs::create_dir(&home).unwrap();
@@ -154,6 +152,12 @@ exit {exit}
                 .filter(|line| !line
                     .ends_with("warning: command substitution: ignored null byte in input\n"))
                 .collect::<String>()
+                // The capture names the retired Bash script and its send_alert
+                // function. posture names the command the operator ran.
+                .replace(
+                    "tailscale-monitor: send_alert could not queue",
+                    "posture funnel: could not queue"
+                )
         );
     }
     let prior = fs::read_to_string(&state).ok();

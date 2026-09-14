@@ -54,6 +54,6 @@ cases!(
 );
 
 #[test]
-fn oversized_exposure_reports_omission_without_advancing_the_baseline() {
+fn an_exposure_past_the_key_limit_is_delivered_bounded_and_advances_the_baseline() {
     funnel_fixture::compare("oversized_exposure");
 }

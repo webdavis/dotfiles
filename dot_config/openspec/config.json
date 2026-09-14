@@ -1,0 +1,9 @@
+{
+  "featureFlags": {},
+  "profile": "core",
+  "delivery": "both",
+  "telemetry": {
+    "enabled": false
+  },
+  "completionTipSeen": true
+}

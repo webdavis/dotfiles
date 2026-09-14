@@ -28,6 +28,7 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | Runbook                                           | Covers                                                                 |
 | ------------------------------------------------- | ---------------------------------------------------------------------- |
 | `docs/runbooks/agent-skills-store.md`             | the cross-harness skills store, its lock, and the plugin update record |
+| `docs/runbooks/agent-tooling.md`                  | OpenSpec: the tracked global config and the per-project init           |
 | `docs/runbooks/claude-code-settings.md`           | the `modify_settings.json` field model and plugin-state trade          |
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
 | `docs/runbooks/local-daemons.md`                  | atuin, happy and tailscaled: config, gotchas, diagnostic ladders       |
@@ -336,7 +337,7 @@ model, the plugin-state trade and the corrupt-file recovery path are in
 `private_dot_codex/modify_private_config.toml` is the same mechanism for `~/.codex/config.toml`, which
 Codex rewrites from its own model while it runs. Stable fields are overwritten on every apply (model and
 reasoning, sandbox and approval policy, `notify`, `[features]`, `[memories]`, `tui.vim_mode_default`, the
-two git marketplaces and the four MCP servers this repo declares), everything else drifts freely, and
+git marketplaces and the MCP servers this repo declares), everything else drifts freely, and
 `[projects.*]` is the third case: the roster of trusted roots is declared and every undeclared live entry
 is preserved.
 
@@ -514,13 +515,12 @@ Four rules decide the shape below `libexec`, in this order:
    because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port retired both,
    since `tailnet-pin` carries its domain in its own name and installs beside the other Rust tools.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
-   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
-   `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
-   what shows up in `ps`, in launchd output and in every log line, so five directories of `main.sh` would
-   be five indistinguishable processes. That directory holds a tool's private DATA as well as its private
-   code (`posture/converge/desired/` is the state the converge installs; `posture/controls.json` is the
-   flat-file version of the same idea), because the alternative is data under `share/` that none of the
-   integrity coverage anchored on this tree reaches.
+   tool's name inside it (`osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never
+   `main.sh`: the basename is what shows up in `ps`, in launchd output and in every log line, so five
+   directories of `main.sh` would be five indistinguishable processes. That directory holds a tool's
+   private DATA as well as its private code (`posture/converge/desired/` is the state the converge
+   installs; `posture/controls.json` is the flat-file version of the same idea), because the alternative
+   is data under `share/` that none of the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
    subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
    keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The
