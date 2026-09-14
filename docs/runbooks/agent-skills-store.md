@@ -68,7 +68,9 @@ four are core since 2026-09-13, so `defuddle` fires on its own as the WebFetch s
 Moving a skill between tiers takes two committed edits, the `tiers` value in the lock and the matching
 `skillOverrides` line in `private_dot_claude/modify_settings.json` (a promotion to core swaps that line
 for a `deleteValueAtPath` so the next apply scrubs the stale override from the live file), so the
-declared tier and Claude behavior continue to agree.
+declared tier and Claude behavior continue to agree. That `deleteValueAtPath` line is a TOMBSTONE, and
+the promotion is only finished once it is deleted again, after every machine has applied and
+`jq .skillOverrides ~/.claude/settings.json` lists none of the promoted names.
 
 Also includes `owasp-security` (from `agamm/claude-code-owasp`): the OWASP Top 10:2025 table, a
 finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement ids, as markdown with no
