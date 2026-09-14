@@ -140,6 +140,8 @@ fn a_failed_directory_creation_is_an_operational_failure() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["ok"], false);
     assert_eq!(json(&out)["error"]["code"], "mkdir_failed");
+    let reported = json(&out)["error"]["message"].as_str().unwrap().to_owned();
+    assert!(reported.contains("os error 17"), "{reported}");
     assert_eq!(fs::read_to_string(s.path("blocked")).unwrap(), "keep");
 }
 

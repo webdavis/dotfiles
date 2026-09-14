@@ -122,10 +122,7 @@ pub fn record_phone_tap(path: &Path) -> Result<(), TapFailure> {
             .map_err(|error| {
                 TapFailure::new(
                     "mkdir_failed",
-                    format!(
-                        "cannot create the marker directory {parent:?} ({})",
-                        error.kind()
-                    ),
+                    format!("cannot create the marker directory {parent:?} ({error})"),
                 )
             })?;
     }
@@ -176,10 +173,12 @@ pub fn record_phone_tap(path: &Path) -> Result<(), TapFailure> {
 
 /// The path is NAMED, because the only reader of this line is a phone that
 /// showed an SSH failure: the marker it could not write is the whole diagnosis,
-/// and it is a path the operator configured rather than a secret.
+/// and it is a path the operator configured rather than a secret. The whole
+/// error is formatted rather than its kind, which carries the errno and keeps
+/// the errnos std has no variant for out of "uncategorized error".
 fn touch_failure(path: &Path, error: io::Error) -> TapFailure {
     TapFailure::new(
         "touch_failed",
-        format!("cannot update the tap marker {path:?} ({})", error.kind()),
+        format!("cannot update the tap marker {path:?} ({error})"),
     )
 }

@@ -69,7 +69,10 @@ fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
         reported.contains(marker.to_str().unwrap()),
         "the path is unnamed: {reported}"
     );
-    assert!(reported.contains("permission denied"), "{reported}");
+    assert!(
+        reported.contains("Permission denied (os error 13)"),
+        "the errno is unnamed: {reported}"
+    );
 }
 
 #[test]
