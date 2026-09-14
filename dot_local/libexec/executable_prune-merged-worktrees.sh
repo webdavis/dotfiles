@@ -184,8 +184,9 @@ prune_worktrees() {
         branch_reference="${line#branch }"
         ;;
       '')
-        # End of a record. A path that no longer exists is left to the final
-        # `git worktree prune`, which is what the metadata needs.
+        # End of a record, and every record has one, the last included. A path
+        # that no longer exists is left to the final `git worktree prune`, which
+        # is what the metadata needs.
         if [[ -n $worktree_path && -d $worktree_path ]]; then
           decide_worktree "$worktree_path" "$head" "$branch_reference"
         fi
@@ -193,9 +194,6 @@ prune_worktrees() {
         ;;
     esac
   done 3< <(git worktree list --porcelain)
-  if [[ -n $worktree_path && -d $worktree_path ]]; then
-    decide_worktree "$worktree_path" "$head" "$branch_reference"
-  fi
 }
 
 main() {
