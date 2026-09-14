@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, DigestSpoolFile, LastResortBanner, PnsProducer, SystemClock, SystemRunner,
+    CommandRunner, DigestSpoolFile, LastResortBanner, ProducerCommand, SystemClock, SystemRunner,
     prepare_spool_directory,
 };
 use posture_application::{BuildDigest, Clock, DigestOutcome};
@@ -47,7 +47,7 @@ fn execute(
         return 1;
     }
     let spool = DigestSpoolFile::new(config.store, now.seconds, std::process::id());
-    let mut sink = PnsProducer::new(
+    let mut sink = ProducerCommand::new(
         runner,
         config.pns,
         Some(

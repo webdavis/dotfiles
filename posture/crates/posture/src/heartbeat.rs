@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, LastResortBanner, PnsProducer, SnapshotsFile, SystemClock, SystemRunner,
+    CommandRunner, LastResortBanner, ProducerCommand, SnapshotsFile, SystemClock, SystemRunner,
 };
 use posture_application::{Clock, Heartbeat};
 use std::{io::Write, time::Duration};
@@ -33,7 +33,7 @@ fn execute(
     if config.maximum_age.invalid_literal() {
         let _ = stderr.write_all(INVALID_BOUND.as_bytes());
     }
-    let sink = PnsProducer::new(
+    let sink = ProducerCommand::new(
         runner,
         config.pns,
         Some(

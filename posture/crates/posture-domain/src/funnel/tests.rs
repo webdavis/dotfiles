@@ -150,8 +150,8 @@ fn an_exposure_past_the_key_limit_is_summarized_and_stays_under_the_wire_cap() {
     assert!(!body.contains(&format!("- `{}", &key(limit + 6)[..3])));
     assert!(!render_funnel_exposure(&keys[..limit]).contains("…and"));
     // The application submits the title, a newline and this body as one wire
-    // text field, capped at MAX_TEXT_CHARS in posture-pns-wire (see
-    // posture-adapters/src/pns_producer/request.rs). Substituting the widest
+    // text field, capped at MAX_TEXT_CHARS in posture-producer-wire (see
+    // posture-adapters/src/producer/request.rs). Substituting the widest
     // reachable summary line measures the worst case the constant claims.
     let widest = "- …and 4294967295 more".chars().count() - "- …and 7 more".chars().count();
     let worst =

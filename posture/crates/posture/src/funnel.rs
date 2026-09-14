@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    FunnelStateFile, LastResortBanner, PnsProducer, SystemClock, SystemRunner, read_funnel,
+    FunnelStateFile, LastResortBanner, ProducerCommand, SystemClock, SystemRunner, read_funnel,
 };
 use posture_application::{Clock, Funnel, FunnelFailure};
 use posture_domain::FunnelReadFailure;
@@ -30,7 +30,7 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
             "WARN: no tailscale binary ({path}) - funnel monitoring is blind"
         );
     }
-    let mut sink = PnsProducer::new(
+    let mut sink = ProducerCommand::new(
         SystemRunner::per_command(Duration::from_secs(5)),
         config.pns,
         Some(

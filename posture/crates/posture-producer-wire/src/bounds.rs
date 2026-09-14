@@ -11,9 +11,9 @@ use serde_json::Value;
 pub const MAX_BYTES: usize = 65_536;
 /// Keys in one object, counted per object at every level.
 pub const MAX_FIELDS: usize = 64;
-/// Characters in one string, keys included. It is the longest text pns keeps
-/// anywhere, the 8,000-character reply cap, so a request can carry what the
-/// hooks already carry and nothing longer.
+/// Characters in one string, keys included. It is the longest text the
+/// contract carries anywhere, the 8,000-character reply cap, so a request can
+/// carry what an agent harness hook already carries and nothing longer.
 pub const MAX_TEXT_CHARS: usize = 8_000;
 /// Elements in one array.
 pub const MAX_ITEMS: usize = 64;

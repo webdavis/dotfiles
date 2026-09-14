@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, GatewayProbe, LastResortBanner, PnsProducer, QueueDatabase, SnapshotsFile,
+    CommandRunner, GatewayProbe, LastResortBanner, ProducerCommand, QueueDatabase, SnapshotsFile,
     SystemClock, SystemRunner, SystemWatchdogProcesses, WatchdogAudit, WatchdogStateFile,
 };
 use posture_application::{Clock, GatewayHealth, Watchdog, WatchdogOutcome};
@@ -43,7 +43,7 @@ fn execute(
     gateway: &mut dyn GatewayHealth,
     stderr: &mut impl Write,
 ) -> u8 {
-    let mut sink = PnsProducer::new(
+    let mut sink = ProducerCommand::new(
         runners.producer,
         config.pns.clone(),
         Some(

@@ -237,7 +237,7 @@ dependencies = [
  "libc",
  "posture-application",
  "posture-domain",
- "posture-pns-wire",
+ "posture-producer-wire",
  "posture-protocol",
  "rusqlite",
  "serde",
@@ -258,7 +258,7 @@ name = "posture-domain"
 version = "0.1.0"
 
 [[package]]
-name = "posture-pns-wire"
+name = "posture-producer-wire"
 version = "0.1.0"
 dependencies = [
  "serde",

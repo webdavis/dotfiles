@@ -6,10 +6,11 @@
 //! the known-good manifest reader with its trust check, the deployed-state
 //! reader that refuses symlinks before hashing, the allowlist and controls
 //! codecs, the upgrade-record reader, the bounded process runners for every
-//! external tool the roster permits, the pns producer that submits through
-//! pns's protocol crate, the digest record codec in posture-protocol, the
+//! external tool the roster permits, the two delivery sinks (a signed POST to
+//! a hermes webhook route and a page handed to a configured producer command),
+//! the digest record codec in posture-protocol, the
 //! independent local alarm for engine submission and integrity/health failures,
-//! the read-only pns ledger health check with a bounded busy timeout, the
+//! the read-only engine ledger health check with a bounded busy timeout, the
 //! privileged install and osqueryctl calls the converge alone may make, the
 //! staging tree's symlink walk and private copy, the chezmoi publisher, and
 //! the clock.
@@ -17,7 +18,8 @@
 //! Every spawned child runs under an explicit deadline with process-group
 //! termination, through one command runner with a scripted double, so no
 //! adapter test runs a real `sudo`, `osqueryctl`, `osqueryi`, `codesign`,
-//! `tailscale` or `pns`. Enrichment and allowlist curation use these boundaries.
+//! `tailscale` or a producer command. Enrichment and allowlist curation use
+//! these boundaries.
 
 mod codesign;
 mod private_directory;
@@ -72,8 +74,8 @@ pub use probes::ControlProbes;
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
 
-mod pns_producer;
-pub use pns_producer::PnsProducer;
+mod producer;
+pub use producer::ProducerCommand;
 mod last_resort_banner;
 pub use last_resort_banner::LastResortBanner;
 

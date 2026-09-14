@@ -1,5 +1,5 @@
 use posture_adapters::{
-    CommandRunner, ControlProbes, LastResortBanner, PnsProducer, PollStateFiles, PostureQuery,
+    CommandRunner, ControlProbes, LastResortBanner, ProducerCommand, PollStateFiles, PostureQuery,
     PostureTrio, SystemClock, SystemRunner, is_executable, read_controls,
 };
 use posture_application::{Clock, Poll, PollFailure, PollStateFailure};
@@ -112,7 +112,7 @@ fn execute(
         })
         .unwrap_or_default();
     let prior = prior.as_ref().and_then(|state| state.baseline(&priors));
-    let mut sink = PnsProducer::new(
+    let mut sink = ProducerCommand::new(
         producer,
         config.pns,
         Some(

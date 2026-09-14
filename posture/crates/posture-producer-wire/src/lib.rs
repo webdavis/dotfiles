@@ -1,22 +1,31 @@
-//! The versioned wire contracts posture speaks to the pns engine.
+//! The versioned wire contracts of the producer API, which posture speaks as a
+//! client.
 //!
-//! POSTURE'S OWN COPY OF A CONTRACT IT DOES NOT OWN. pns defines these
-//! envelopes; posture is a producer that submits requests to `pns submit
-//! --json` and reads the result it gets back. The two ship as separate
-//! projects, so neither can compile against the other, and each carries its own
-//! reading of the same bytes. The fixtures beside this crate are what hold the
-//! two readings together: they are the same golden documents pns pins, so a
-//! change on either side that moves the bytes fails a test rather than a
-//! delivery.
+//! THE PRODUCER API IS A PUBLISHED BOUNDARY, not this tool's invention: a
+//! producer writes one JSON request on a command's standard input and reads one
+//! JSON result plus an exit code back. posture is a producer; the engine on the
+//! other side is whichever command the operator configured. The two ship as
+//! separate projects, so neither can compile against the other, and each
+//! carries its own reading of the same bytes. The fixtures beside this crate
+//! are what hold the two readings together: they are the same golden documents
+//! the engine pins, so a change on either side that moves the bytes fails a
+//! test rather than a delivery.
 //!
-//! The request and result envelopes define the `pns submit --json` boundary.
-//! Each carries a schema identifier with a major version, a request identifier
-//! and typed outcomes or signals. Requests retain producer-specific data under
+//! THE SCHEMA STRINGS ARE THE CONTRACT'S OWN NAMES and stay verbatim
+//! (`pns.request/1`, `pns.result/1`). They are the identifiers version 1 of the
+//! producer API was published under, so they are data on the wire rather than
+//! this tool's naming, and renaming them would speak a protocol no engine
+//! answers.
+//!
+//! The request and result envelopes define the whole boundary. Each carries a
+//! schema identifier with a major version, a request identifier and typed
+//! outcomes or signals. Requests retain producer-specific data under
 //! `extensions`. Both envelopes enforce the same byte, field, text, collection
 //! and nesting limits.
 //!
-//! The egress envelope pns also defines is absent here. It carries a rendered
-//! event from pns out to a delivery destination, which posture is not.
+//! The egress envelope the contract also defines is absent here. It carries a
+//! rendered event from the engine out to a delivery destination, which posture
+//! is not.
 //!
 //! It is responsible for no behavior behind those envelopes. It holds no
 //! policy, no transport, no persistence, and no view of the domain model: an
@@ -29,7 +38,7 @@
 //!   Additive change within a major does not bump it.
 //! - Unknown fields in a known major are ignored within the wire bounds.
 //!   Unknown request top-level fields are also named
-//!   ([`DecodedRequest::ignored`]), so an older pns keeps working against a
+//!   ([`DecodedRequest::ignored`]), so an older engine keeps working against a
 //!   newer producer and the producer can still learn its field went nowhere.
 //! - Producer-specific data goes under `extensions`, which is carried
 //!   verbatim, bounded, and never interpreted here.

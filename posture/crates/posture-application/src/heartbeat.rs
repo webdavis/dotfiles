@@ -44,7 +44,7 @@ pub enum Submission {
     NotAccepted(SubmissionFailure),
 }
 // Accepted promises a committed retriable obligation for this request, before dispatch.
-// PnsProducer establishes that from the engine's correlated ledger_committed diagnostic.
+// A delivery sink establishes that from the engine's correlated ledger_committed diagnostic.
 pub trait AlertSink {
     fn submit(&mut self, alert: &Alert) -> Submission;
 }

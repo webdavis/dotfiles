@@ -1,7 +1,7 @@
 use super::*;
 use crate::{CommandIo, CommandOutput};
 use posture_application::{AlarmFailed, AlertSignal, InspectionFailure};
-use posture_pns_wire::{
+use posture_producer_wire::{
     DeliveryOutcome, DestinationOutcome, Request, ResultEnvelope, Status, decode_request,
 };
 use std::{ffi::OsStr, path::Path};
@@ -39,7 +39,7 @@ impl CommandRunner for Runner {
             Ok(output) => {
                 let mut bytes = output.bytes.clone();
                 if self.matching {
-                    let mut result = posture_pns_wire::decode_result(&bytes).unwrap();
+                    let mut result = posture_producer_wire::decode_result(&bytes).unwrap();
                     result.request_id = Some(request.request_id.clone());
                     bytes = result.encode().unwrap().into_bytes();
                 }
@@ -65,7 +65,7 @@ fn alert() -> Alert {
         detail: "line one\nline two".into(),
     }
 }
-fn subject(status: Status, committed: bool) -> PnsProducer<Runner, Alarm> {
+fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
     let result = ResultEnvelope {
         request_id: None,
         status,
@@ -82,7 +82,7 @@ fn subject(status: Status, committed: bool) -> PnsProducer<Runner, Alarm> {
             vec![]
         },
     };
-    PnsProducer::new(
+    ProducerCommand::new(
         Runner {
             response: Ok(CommandOutput {
                 bytes: result.encode().unwrap().into_bytes(),
@@ -120,12 +120,12 @@ fn rejection_degradation_and_missing_commitment_do_not_trigger_an_engine_alarm()
 fn an_accepted_receipt_for_another_or_missing_identity_cannot_advance_acceptance() {
     for id in [
         None,
-        Some(posture_pns_wire::RequestId::new("different").unwrap()),
+        Some(posture_producer_wire::RequestId::new("different").unwrap()),
     ] {
         let mut sut = subject(Status::Accepted, true);
         sut.runner.matching = false;
         let output = sut.runner.response.as_mut().unwrap();
-        let mut receipt = posture_pns_wire::decode_result(&output.bytes).unwrap();
+        let mut receipt = posture_producer_wire::decode_result(&output.bytes).unwrap();
         receipt.request_id = id;
         output.bytes = receipt.encode().unwrap().into_bytes();
         assert_eq!(

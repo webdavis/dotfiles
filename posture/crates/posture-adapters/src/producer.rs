@@ -4,17 +4,17 @@ use posture_application::{
     SubmissionFailure,
 };
 use posture_domain::severity_route;
-use posture_pns_wire::{Name, RequestId, Status, decode_result};
+use posture_producer_wire::{Name, RequestId, Status, decode_result};
 use std::{ffi::OsStr, path::PathBuf};
 mod request;
 
-pub struct PnsProducer<R, A> {
+pub struct ProducerCommand<R, A> {
     runner: R,
     executable: PathBuf,
     route: Option<Name>,
     alarm: A,
 }
-impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
+impl<R: CommandRunner, A: IndependentAlarm> ProducerCommand<R, A> {
     pub fn new(runner: R, executable: PathBuf, route: Option<Name>, alarm: A) -> Self {
         Self {
             runner,
@@ -77,7 +77,7 @@ impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
                 self.failed_engine(alert, SubmissionFailure::Failed)
             };
         }
-        // pns returns exit 2 for a normal protocol refusal. Its correlated result owns that meaning.
+        // An engine returns exit 2 for a normal protocol refusal. Its correlated result owns that meaning.
         if result.status == Status::Rejected {
             if result
                 .diagnostics
@@ -104,7 +104,7 @@ impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
         }
     }
 }
-impl<R: CommandRunner, A: IndependentAlarm> AlertSink for PnsProducer<R, A> {
+impl<R: CommandRunner, A: IndependentAlarm> AlertSink for ProducerCommand<R, A> {
     fn submit(&mut self, alert: &Alert) -> Submission {
         let route = self.route_for(alert);
         match request::encode(alert, route.clone()) {

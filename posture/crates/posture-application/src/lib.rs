@@ -11,8 +11,8 @@
 //! means the engine has committed a retriable obligation for the request and
 //! not merely that a channel was tried. Notify-before-persist is therefore one
 //! line in each producer: state advances only on an accepted submission. The
-//! watchdog owns separate ledger-health and independent-alarm ports; its pns
-//! integrity/health alarm runs regardless of an engine acknowledgement.
+//! watchdog owns separate ledger-health and independent-alarm ports; its
+//! engine integrity/health alarm runs regardless of an engine acknowledgement.
 //!
 //! It is responsible for no concrete I/O and no policy: policy lives in
 //! `posture-domain`, and every trait here is implemented from the outside by

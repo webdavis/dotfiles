@@ -9,14 +9,17 @@ preserved behavior, with open gaps and retirement decisions retained explicitly.
 | `posture-domain`      | Pure policy                                                  |
 | `posture-application` | Use cases and their ports                                    |
 | `posture-protocol`    | Existing cross-process digest record codec                   |
-| `posture-pns-wire`    | This workspace's copy of the pns request and result contract |
+| `posture-producer-wire`    | This workspace's copy of the producer API request and result contract |
 | `posture-adapters`    | Files, processes, probes and protocol consumers              |
 | `posture`             | Command decoding, composition and exit codes                 |
 
 The member manifests enforce inward dependencies. Domain and application depend on neither protocol
 crate. Adapters consume both local protocol crates; the command crate composes the tool. No build-time
 dependency reaches another workspace. The six-field digest format remains unversioned. Notification
-submission uses the deployed `pns submit --json` command and this workspace's versioned wire contract.
+submission takes one of two delivery paths, chosen in `~/.config/posture/config.toml`: a signed POST
+straight to a hermes webhook route, or a page handed to a configured producer command on its standard
+input. Both carry this workspace's versioned wire contract; see
+[the producer API](producer-api.md).
 
 Rust work follows both `/Users/stephen/.agents/skills/clean-code/SKILL.md` and
 `/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`; the Rust binding wins all numbers and
@@ -183,7 +186,7 @@ wc -c < ~/.cargo/bin/posture
 | `posture-domain`      | 95    | 4420                 | 10578       |
 | `posture`             | 51    | 1888                 | 5863        |
 | `posture-application` | 49    | 2364                 | 7088        |
-| `posture-pns-wire`    | 16    | 883                  | 2051        |
+| `posture-producer-wire`    | 16    | 883                  | 2051        |
 | `posture-protocol`    | 2     | 111                  | 269         |
 | Workspace             | 358   | 16017                | 40824       |
 

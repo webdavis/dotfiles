@@ -2,7 +2,7 @@ pub(super) mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
     AllowlistText, BatchJudge, Collaborators, CursorFile, DigestAppendFile, KnownGoodManifests,
-    LastResortBanner, PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
+    LastResortBanner, ProducerCommand, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
     SystemRunner, file_integrity_triage,
 };
 use posture_adapters::{OwnedSigning, SystemInspection};
@@ -58,7 +58,7 @@ fn execute<R: posture_adapters::CommandRunner>(
     let spool = DigestAppendFile::new(config.spool);
     let allowlist = AllowlistText::read(&config.allowlist, &config.home);
 
-    let mut sink = PnsProducer::new(
+    let mut sink = ProducerCommand::new(
         SystemRunner::per_command(PRODUCER_BUDGET),
         config.pns,
         Some(
