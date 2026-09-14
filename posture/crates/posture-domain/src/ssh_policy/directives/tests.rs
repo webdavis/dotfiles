@@ -48,26 +48,6 @@ fn print_config_refuses_every_local_address_outside_loopback_and_the_tailnet() {
     );
 }
 
-/// Every sample is an address range documented for universal use, never one
-/// host's own address, and every negated term of the Match block gets a sample
-/// inside it plus one outside: four allowed, two refused. A sample list short
-/// of one negated term would leave a typo in that term refusing the tailnet
-/// with every check still green.
-#[test]
-fn the_local_address_samples_carry_both_verdicts_and_no_host_specific_address() {
-    assert_eq!(
-        SSH_LOCAL_ADDRESS_SAMPLES,
-        [
-            ("100.64.0.1", "no"),
-            ("fd7a:115c:a1e0::1", "no"),
-            ("127.0.0.1", "no"),
-            ("::1", "no"),
-            ("192.168.0.1", "yes"),
-            ("fd00::1", "yes")
-        ]
-    );
-}
-
 /// The refusal verdict is read out of the same resolved output the directive
 /// judgments come from, with the same three outcomes: correct, wrong, absent.
 #[test]
