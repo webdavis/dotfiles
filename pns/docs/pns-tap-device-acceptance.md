@@ -121,3 +121,100 @@ Record the error text verbatim and how long the phone took to show it.
 Put the full text underneath the table when it does not fit in a cell. The exact words matter: the Mac's
 own troubleshooting output claims the phone shows the SSH error, and this drill is what makes that claim
 true or a defect.
+
+## Drill 2: latency measurement
+
+The feature has no latency promise and must not get one out of a guess. This drill produces the numbers a
+deadline would be chosen from: how long a tap takes to confirm on the phone, and how long a tap that
+cannot succeed takes to say so.
+
+Two intervals, both measured on the phone because the phone is where the operator waits:
+
+- Trigger to confirmation. From the instant the trigger fires to the instant the confirmation appears.
+- Trigger to failure. From the same start to the instant the phone shows an error. A run that shows
+  nothing at all is recorded as no result, with how long it was waited on before you gave up.
+
+### Four cases
+
+1. **Mac locked.** Awake, screen locked, phone on the same network. This is the ordinary case: the tap
+   exists for a Mac the operator has walked away from.
+1. **Mac sleeping.** Power adapter connected, `womp 1`, `pmset sleepnow`, thirty seconds of settling, as
+   in state B of drill 1. Both outcomes count and both get timed.
+1. **Mac unavailable.** Shut down, or Remote Login turned off. Record which one you used, because they
+   are different failures at the network layer and may not take the same time.
+1. **Phone on a remote network.** Wi-Fi off, cellular data on. Expect a failure unless a private network
+   path is carrying the connection; record which of the two it was, since a tap that works from cellular
+   data is a fact about the network rather than about pns.
+
+Hold the rest fixed: phone unlocked, same trigger method, same Mac, five trials per case. Then repeat one
+trial of case 1 with the phone locked, which is the only cheap way to find out whether a locked phone
+changes anything.
+
+### How to time each one, with what is already on the devices
+
+- **Confirmations, which are short.** Start Screen Recording from Control Center, run the shortcut by
+  tapping its tile in the Shortcuts app so the trigger has a visible frame, stop the recording, then open
+  it in Photos and read the elapsed time between the frame where the tile is pressed and the frame where
+  the confirmation appears. At sixty frames per second that resolves to roughly two hundredths of a
+  second and needs nothing installed. The tile is not Back Tap, which is the one thing this method
+  changes; the transport is identical, so do one Back Tap run per case as a spot check and note any
+  difference.
+- **Failures, which are long.** Use the Clock app's Stopwatch, started with the same press that fires the
+  shortcut and stopped when the error appears. Reaction time costs a couple of tenths of a second at each
+  end, which is below the noise on an interval measured in seconds.
+- **Optional split, confirmations only.** On the Mac, `pns tap --info --json` reports
+  `marker.touched_at`, the tap instant in RFC 3339 (Request for Comments 3339) UTC (Coordinated Universal
+  Time), and it reads without writing. Against the phone's clock it splits the interval into phone to Mac
+  and Mac back to phone. It depends on both clocks being right, so treat it as a cross-check rather than
+  as the measurement.
+
+Also record, for every failure trial, the error text the phone showed. The words are the deliverable as
+much as the seconds are: they are what the operator will be reading at the moment the tap did not work.
+
+### The trials table
+
+| Case   | Trial  | Trigger   | Result                 | Seconds | Instrument       | Note            |
+| ------ | ------ | --------- | ---------------------- | ------- | ---------------- | --------------- |
+| 1      | 1      |           |                        |         |                  |                 |
+| 1      | 2      |           |                        |         |                  |                 |
+| 1      | 3      |           |                        |         |                  |                 |
+| 1      | 4      |           |                        |         |                  |                 |
+| 1      | 5      |           |                        |         |                  |                 |
+| 2      | 1      |           |                        |         |                  |                 |
+| 2      | 2      |           |                        |         |                  |                 |
+| 2      | 3      |           |                        |         |                  |                 |
+| 2      | 4      |           |                        |         |                  |                 |
+| 2      | 5      |           |                        |         |                  |                 |
+| 3      | 1      |           |                        |         |                  |                 |
+| 3      | 2      |           |                        |         |                  |                 |
+| 3      | 3      |           |                        |         |                  |                 |
+| 3      | 4      |           |                        |         |                  |                 |
+| 3      | 5      |           |                        |         |                  |                 |
+| 4      | 1      |           |                        |         |                  |                 |
+| 4      | 2      |           |                        |         |                  |                 |
+| 4      | 3      |           |                        |         |                  |                 |
+| 4      | 4      |           |                        |         |                  |                 |
+| 4      | 5      |           |                        |         |                  |                 |
+| 1      | locked |           |                        |         |                  |                 |
+
+### The summary
+
+| Case                   | Trials | Fastest | Median | Slowest | Outcomes seen              |
+| ---------------------- | ------ | ------- | ------ | ------- | -------------------------- |
+| 1, Mac locked          |        |         |        |         |                            |
+| 2, Mac sleeping        |        |         |        |         |                            |
+| 3, Mac unavailable     |        |         |        |         |                            |
+| 4, remote network      |        |         |        |         |                            |
+
+Five trials is enough for a fastest, a median and a slowest, and not enough for anything more; report
+those three and the spread of outcomes rather than an average, because case 2 can legitimately return two
+different outcomes and an average across them means nothing.
+
+### The deadline
+
+A latency deadline is accepted only after these measurements exist. Not proposed from the design, not
+inherited from another tool, not chosen because a number sounds reasonable: the acceptable
+trigger-to-confirmation time, the acceptable trigger-to-failure time, and whether the split case from
+drill 1 is acceptable at all are the operator's decisions, taken with the filled tables in front of them.
+Until then the feature promises nothing about timing, which is the honest position and also the current
+one.
