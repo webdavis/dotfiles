@@ -147,7 +147,32 @@
        Claude Code recognizes as file reads, and the allow list carries
        `Bash(grep *)` and `Bash(find *)`, either of which reads a key anyway.
        Moot at defaultMode bypassPermissions; it matters the moment the mode
-       tightens. */ -}}
+       tightens.
+
+       THE RENDERED SECRET-BEARING TARGETS ARE DENIED BY PATH, the twelve added
+       2026-09-14 when the hermes config became a rendered target rather than an
+       age blob. Each one is a file this repository RENDERS a KeePassXC value
+       into, so the secret sits in $HOME in plaintext even though it is nowhere
+       in git, and the SOURCE template is the copy an agent has any business
+       editing. `~/.config/chezmoi/key.txt` is the age identity itself, which
+       decrypts the four hermes profile configs, so it is the one whose loss
+       costs the most.
+
+       Two path facts, both from the Claude Code permissions reference, read
+       2026-09-14. The hermes profiles rule leans on gitignore semantics, where
+       a single star matches within ONE path segment, which is exactly the
+       profile-directory level. And the two `~/Library/Application Support`
+       rules carry literal spaces and need no quoting or escaping: only the
+       gitignore metacharacters do, and that page says parentheses need no
+       escaping either. A star followed by a slash appears nowhere in THIS
+       comment on purpose: the pair closes a Go template comment, and the apply
+       then fails on the next line with `comment ends before closing
+       delimiter`.
+
+       A Read deny rule also blocks Edit and Write on the same path, so these
+       twelve are read-only AND write-protected for every built-in file tool.
+       That is the intent: the deployed copy is chezmoi's output, and changing it
+       in place would be drift the next apply silently reverses. */ -}}
 {{- $permissions := dict
     "allow" (list
       "Read"
@@ -174,10 +199,22 @@
       "Read(~/.ssh/*_ed25519)"
       "Read(~/.claude/.credentials.json)"
       "Read(~/.codex/auth.json)"
-      "Read(~/.config/pns/config.toml)"
       "Read(~/.config/osquery/webhook-secret)"
       "Read(~/.hermes/.env)"
-      "Read(~/**/*.kdbx)")
+      "Read(~/**/*.kdbx)"
+      "Read(~/.config/chezmoi/key.txt)"
+      "Read(~/.hermes/config.yaml)"
+      "Read(~/.hermes/profiles/*/config.yaml)"
+      "Read(~/.config/pns/config.toml)"
+      "Read(~/.config/uu/config.toml)"
+      "Read(~/.config/lights/config.toml)"
+      "Read(~/.config/atuin/config.toml)"
+      "Read(~/.config/himalaya/config.toml)"
+      "Read(~/.config/openhue/config.yaml)"
+      "Read(~/.config/gogcli/credentials.json)"
+      "Read(~/.composio/user_data.json)"
+      "Read(~/Library/Application Support/Claude/claude_desktop_config.json)"
+      "Read(~/Library/Application Support/espanso/match/identity.yml)")
     "defaultMode" "bypassPermissions" -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
