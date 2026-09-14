@@ -62,16 +62,26 @@
 
 {{- /* --- stable: the local YNAB MCP server, READ-ONLY.
 
-     The whole map is written, not just the command, for the reason nvim's is:
-     write tools are gated on an environment variable (`YNAB_ALLOW_WRITES=1`),
-     which upstream's own plugin manifests set, so a per-key overlay would
-     leave a live one in place and silently arm writes against real financial
-     data. Measured on 5.2.0: 38 tools with no flag, 62 with it. Omitting the
-     variable IS the read-only setting; there is nothing to set to false. --- */ -}}
+     Read-only is DECLARED here, never inferred from an absent variable. The
+     server resolves each of its five runtime keys independently, and when
+     `YNAB_ALLOW_WRITES` is unset in the process environment it falls back to
+     `~/.claude/settings.json` `env` and to two sections of
+     `~/.codex/config.toml`. All three are free-drift locations this repo does
+     not declare, and upstream's own Claude plugin manifest sets that variable
+     to 1. Measured on 5.2.0: a planted 1 in either file turns 38 read tools
+     into 62, arming 24 write tools against real financial data.
+
+     Process environment is the highest-precedence source and the gate is an
+     exact match on "1", so the explicit "0" shadows every planted value, and
+     disabling the config fallback closes the channel outright. Writing the
+     whole map rather than a per-key overlay is what keeps both asserted on
+     every apply. --- */ -}}
 {{- $ynabMcp := dict
     "type" "stdio"
     "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" .chezmoi.homeDir)
     "env" (dict
+      "YNAB_ALLOW_WRITES" "0"
+      "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
       "YNAB_API_TOKEN" ((keepassxc "YNAB :: Personal Access Token").Password)) -}}
 {{- $merged = setValueAtPath "mcpServers.ynab" $ynabMcp $merged -}}
 
