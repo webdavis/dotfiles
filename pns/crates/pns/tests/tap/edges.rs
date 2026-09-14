@@ -132,7 +132,13 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     let answer = json(&out);
     assert_eq!(answer["error"]["code"], "marker_unreadable");
-    for field in ["exists", "mtime_epoch_secs", "age_secs", "fresh"] {
+    for field in [
+        "exists",
+        "mtime_epoch_secs",
+        "touched_at",
+        "age_secs",
+        "fresh",
+    ] {
         assert!(answer["marker"][field].is_null(), "{answer}");
     }
     assert_eq!(answer["write_status"], "not_requested");
