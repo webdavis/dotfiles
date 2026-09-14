@@ -416,7 +416,7 @@ step = 15
 # bridge exactly as typed.
 [rooms]
 studio = "3F - Studio"
-bedroom = "3F - Master Bedroom"
+bedroom = "3F - MBedroom"
 kitchen = "2F - Kitchen"
 
 # The scenes `next` and `previous` cycle through, in order. A room sitting on a

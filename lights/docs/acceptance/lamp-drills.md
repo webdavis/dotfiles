@@ -60,11 +60,10 @@ In the Master Bedroom the pair is `3F - MBedroom` and `3F - MBedroom - HCL3`.
 matches no alias falls through as the literal name. `kitchen` resolves to `2F - Kitchen`, which is what
 the bridge calls that room.
 
-The Master Bedroom must be spelled literally as `--room "3F - MBedroom"`. The shipped alias `bedroom`
-resolves to `3F - Master Bedroom`, and the bridge's own inventory has no room by that name (it lists
-`3F - MBedroom`), so `--room bedroom` exits 2 with `unknown room`. Both the configuration template and
-the compiled default carry that stale name; fixing it is separate work, filed against the lights tasks
-rather than patched inside a drill.
+The shipped alias `bedroom` resolves to `3F - MBedroom`, which is what the bridge's own inventory calls
+that room, so `--room bedroom` and `--room "3F - MBedroom"` reach the same room. Until 2026-09-14 both
+the configuration template and the compiled default carried `3F - Master Bedroom`, a name the inventory
+does not list, and `--room bedroom` exited 2 with `unknown room`.
 
 ### Exit codes
 
@@ -78,7 +77,7 @@ real room as the binding it replaces, before any key is repointed.
 
 Run these in order. `lights --room kitchen status` prints
 `2F - Kitchen: ON | brightness: 42% | scene: Read`, and that is the reading to record in every row that
-asks for one. In the Master Bedroom, spell the override `--room "3F - MBedroom"` in every row.
+asks for one. In the Master Bedroom, pass `--room bedroom` in every row.
 
 | #   | Key it stands for   | Command                                       | What to see on the lamp                           |
 | --- | ------------------- | --------------------------------------------- | ------------------------------------------------- |

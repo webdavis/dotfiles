@@ -91,7 +91,7 @@ fn shipped_defaults_resolve_studio_and_four_scene_rotation() {
         assert_eq!(settings.default_room.as_str(), "3F - Studio");
         for (alias, room) in [
             ("studio", "3F - Studio"),
-            ("bedroom", "3F - Master Bedroom"),
+            ("bedroom", "3F - MBedroom"),
             ("kitchen", "2F - Kitchen"),
         ] {
             assert_eq!(settings.aliases.resolve(alias).unwrap().as_str(), room);
@@ -116,4 +116,21 @@ fn configured_room_alias_and_rotation_are_used() {
     assert_eq!(settings.aliases.resolve("work").unwrap().as_str(), "Office");
     assert_eq!(settings.rotation.next(Some("A")), "B");
     assert_eq!(settings.rotation.previous(Some("A")), "B");
+}
+#[test]
+fn bedroom_alias_resolves_to_the_bridge_room_name() {
+    // The bridge inventory read on 2026-09-14 names this room `3F - MBedroom`.
+    // The earlier `3F - Master Bedroom` matched no room, so `--room bedroom`
+    // exited 2 for every command.
+    for text in [VALID, include_str!("../../tests/fixtures/defaults.toml")] {
+        assert_eq!(
+            parse(text)
+                .unwrap()
+                .aliases
+                .resolve("bedroom")
+                .unwrap()
+                .as_str(),
+            "3F - MBedroom"
+        );
+    }
 }

@@ -16,7 +16,7 @@ step = 15
 
 [rooms]
 studio = "3F - Studio"
-bedroom = "3F - Master Bedroom"
+bedroom = "3F - MBedroom"
 kitchen = "2F - Kitchen"
 
 [scenes]

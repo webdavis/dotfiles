@@ -19,7 +19,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
     let mut aliases = BTreeMap::new();
     for (alias, room) in [
         ("studio", "3F - Studio"),
-        ("bedroom", "3F - Master Bedroom"),
+        ("bedroom", "3F - MBedroom"),
         ("kitchen", "2F - Kitchen"),
     ] {
         aliases.insert(alias.into(), RoomName::new(room).map_err(|e| error(e.0))?);
