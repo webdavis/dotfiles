@@ -62,6 +62,32 @@ function test_render_context_is_created_under_the_callers_tmpdir_and_removed_on_
   assert_same 0 "$(count_render_tmpdir_entries)"
 }
 
+# A vault template is never rendered, so the hostile fixtures only ever MENTION
+# keepassxc, in a comment, and carry a `fail` action that reddens the assertion
+# below if the classifier stops refusing them. Nothing here can reach the vault.
+function test_shell_formatter_refuses_to_render_a_template_that_names_keepassxc() {
+  local output
+  printf '#!/bin/bash\n# the password comes from keepassxc\n%s\n' \
+    '{{ fail "rendered a template that needs the vault" }}' >"$RENDER_SOURCE/vault.tmpl"
+  output="$(run_formatter shellcheck-rendered-template.sh vault.tmpl 2>&1)"
+  assert_successful_code
+  assert_empty "$output"
+  assert_file_not_exists "$RENDER_CAPTURE"
+}
+
+function test_shell_formatter_refuses_to_render_a_template_whose_partial_names_keepassxc() {
+  local output
+  printf '# the password comes from keepassxc\n%s\n' \
+    '{{ fail "rendered a partial that needs the vault" }}' \
+    >"$RENDER_SOURCE/.chezmoitemplates/vault-partial"
+  printf '#!/bin/bash\n%s\n' '{{ includeTemplate "vault-partial" . }}' \
+    >"$RENDER_SOURCE/vault-caller.tmpl"
+  output="$(run_formatter shellcheck-rendered-template.sh vault-caller.tmpl 2>&1)"
+  assert_successful_code
+  assert_empty "$output"
+  assert_file_not_exists "$RENDER_CAPTURE"
+}
+
 function test_shell_render_ignores_unrelated_missing_build_entries_and_keeps_source_hashes() {
   mkdir -p "$RENDER_SOURCE/pns/target/debug/deps"
   ln -s "$RENDER_FIXTURE/absent-rmeta" "$RENDER_SOURCE/pns/target/debug/deps/rmeta-gone"
