@@ -101,6 +101,10 @@ Library
 # refresh at every startup, so the declaration in modify_settings.json is
 # darwin-gated and this has to agree with it.
 .claude/strategy-marketplace
+# The /clean-code: plugin is a third DIRECTORY marketplace, so it is darwin-only
+# for the same reason: an absent path fails its refresh at every startup, and the
+# declaration in modify_settings.json is darwin-gated to match.
+.claude/clean-code-marketplace
 # uu rides on the pns engine for alerts and on its hermes client for records,
 # so it is macOS-only for the same reasons and its builder is darwin-gated too.
 .config/uu
