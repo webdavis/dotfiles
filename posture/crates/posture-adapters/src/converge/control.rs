@@ -52,12 +52,21 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
     fn config_check_in(&mut self, scratch: &std::path::Path) -> Result<(), InspectionFailure> {
-        let database =
-            PrivateDirectory::create(scratch).map_err(|_| InspectionFailure::Unavailable)?;
         let io = CommandIo::Inspection {
             merge_stderr: false,
         };
-        let result = if let Some(daemon) = &self.daemon {
+        let database =
+            PrivateDirectory::create(scratch).map_err(|_| InspectionFailure::Unavailable)?;
+        // The validation runs under sudo, so osqueryi creates whatever is missing as
+        // root: this caller creates the database directory itself, at its own
+        // ownership, because the unprivileged converge can remove the flat files
+        // root writes inside a directory the caller owns but cannot even list one
+        // root created. Removal is the private directory's own drop, and is
+        // deliberately not part of the verdict: a database left behind is a
+        // temp-directory leak, never a failed configuration check.
+        let db = database.path().join("db");
+        std::fs::create_dir(&db).map_err(|_| InspectionFailure::Unavailable)?;
+        if let Some(daemon) = &self.daemon {
             self.runner
                 .run(
                     &self.sudo,
@@ -68,17 +77,14 @@ impl<R: CommandRunner> OsqueryRestart<R> {
                         self.target.join("osquery.conf").as_os_str(),
                         "--config_check".as_ref(),
                         "--database_path".as_ref(),
-                        database.path().join("db").as_os_str(),
+                        db.as_os_str(),
                     ],
                     io,
                 )
                 .map(|_| ())
         } else {
             self.command("config-check", io)
-        };
-        let cleanup =
-            std::fs::remove_dir_all(database.path()).map_err(|_| InspectionFailure::Unavailable);
-        result.and(cleanup)
+        }
     }
     fn command(&mut self, verb: &str, io: CommandIo<'_>) -> Result<(), InspectionFailure> {
         self.runner

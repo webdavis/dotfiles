@@ -12,8 +12,9 @@ struct Validation {
     args: Vec<OsString>,
     directory: Option<PathBuf>,
     mode: Option<u32>,
+    database_existed: Option<bool>,
     result: Option<InspectionFailure>,
-    refuse_cleanup: bool,
+    leave_unremovable_state: bool,
 }
 impl CommandRunner for Validation {
     fn run_completed(
@@ -29,9 +30,25 @@ impl CommandRunner for Validation {
             let parent = db.parent().unwrap();
             self.mode = Some(fs::metadata(parent).unwrap().permissions().mode() & 0o7777);
             self.directory = Some(parent.into());
-            fs::create_dir(&db).unwrap();
+            // This stands in for root. Measured against osqueryi 5.x: --config_check
+            // opens its RocksDB database, so it creates --database_path when absent,
+            // as the identity that runs it and at mode 0700, and writes only flat
+            // files into a directory that already exists. The unprivileged caller can
+            // neither list nor remove a directory root made, so the double refuses
+            // exactly that by leaving mode 0o000 behind, which is the same EACCES
+            // without needing a second identity in the test.
+            let existed = db.is_dir();
+            self.database_existed = Some(existed);
+            if !existed {
+                fs::create_dir(&db).unwrap();
+            }
             fs::write(db.join("LOCK"), b"owned fixture").unwrap();
-            if self.refuse_cleanup {
+            if self.leave_unremovable_state {
+                let nested = db.join("root state");
+                fs::create_dir(&nested).unwrap();
+                fs::set_permissions(&nested, fs::Permissions::from_mode(0o000)).unwrap();
+            }
+            if !existed {
                 fs::set_permissions(&db, fs::Permissions::from_mode(0o000)).unwrap();
             }
         }
@@ -50,7 +67,7 @@ impl CommandRunner for Validation {
 }
 
 #[test]
-fn daemon_validation_uses_a_private_database_and_cleans_it_after_every_result() {
+fn daemon_validation_owns_the_database_directory_root_writes_into() {
     for result in [
         None,
         Some(InspectionFailure::Failed),
@@ -92,6 +109,12 @@ fn daemon_validation_uses_a_private_database_and_cleans_it_after_every_result() 
         assert_eq!(Path::new(&args[6]), directory.join("db"));
         assert!(directory.starts_with(&root.0));
         assert_eq!(control.runner.mode, Some(0o700));
+        assert_eq!(
+            control.runner.database_existed,
+            Some(true),
+            "the caller must create the database directory root writes into, or it \
+             cannot remove it afterwards"
+        );
         assert!(!directory.exists(), "validation database was retained");
         assert_eq!(
             fs::read(target.join("osquery.db")).unwrap(),
@@ -118,11 +141,11 @@ fn unavailable_private_database_refuses_before_any_command() {
 }
 
 #[test]
-fn incomplete_database_cleanup_refuses_validation() {
+fn database_state_the_caller_cannot_remove_still_reports_a_passing_check() {
     let root = Scratch::new();
     let mut control = OsqueryRestart::new(
         Validation {
-            refuse_cleanup: true,
+            leave_unremovable_state: true,
             ..Validation::default()
         },
         "/fixture/sudo".into(),
@@ -133,10 +156,15 @@ fn incomplete_database_cleanup_refuses_validation() {
     let result = control.config_check_in(&root.0);
     let directory = control.runner.directory.as_ref().unwrap();
     let db = directory.join("db");
-    assert!(fs::read_dir(&db).is_err(), "fixture must deny cleanup");
+    let unremovable = db.join("root state");
     fs::set_permissions(&db, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(
+        fs::read_dir(&unremovable).is_err(),
+        "fixture must deny cleanup"
+    );
+    fs::set_permissions(&unremovable, fs::Permissions::from_mode(0o700)).unwrap();
     fs::remove_dir_all(directory).unwrap();
-    assert_eq!(result, Err(InspectionFailure::Unavailable));
+    assert_eq!(result, Ok(()));
 }
 
 #[test]
