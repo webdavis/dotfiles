@@ -122,6 +122,21 @@ Four of the five carry the same secret, `Hermes :: Webhook Secret :: #pns`, whic
 `[plugins.hermes] key` hands pns. `priority` is the exception, and it is the one that matters (see the
 third gotcha).
 
+`posture` and `pns-recap` ship with an EMPTY `chat_id`. An empty id is not inert: the gateway falls back
+to the home channel, so until they are set, every posture page, the daily digest and the return recap
+land in **#general**. `run_after_68` names both routes on every apply while that is true. Setting them
+takes one command:
+
+```bash
+chezmoi edit ~/.hermes/config.yaml   # decrypts to a private temp dir, re-encrypts on exit
+```
+
+Put the `#posture` and `#pns-recap` ids in each route's `deliver_extra.chat_id`, then a full
+`chezmoi apply` writes the file and `hermes gateway restart` loads it. Renaming the source to
+`encrypted_private_config.yaml.tmpl.age` would render the ids from KeePassXC instead, since chezmoi
+decrypts before it renders, at the cost of making every apply of this file need the vault unlocked and
+abort on a missing entry. The ids are literals today.
+
 ### Three gotchas
 
 **The gateway does not expand `${VAR}` in its platform config.** `gateway/config.py` loads `config.yaml`
