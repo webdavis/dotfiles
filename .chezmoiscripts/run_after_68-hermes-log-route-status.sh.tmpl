@@ -40,8 +40,8 @@ port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo
 # nothing in the channel to show for it. `priority` was the one exception, holding the retired Bash
 # alerter's key (the value in ~/.config/osquery/webhook-secret) and a prompt naming `{alert.title}` and
 # `{alert.detail}`; the stale-block escalation settled both in one sitting, so it is compared here like
-# the rest. The one signer left holding the old key is drain-undelivered-alerts.sh on the alert-drainer
-# LaunchAgent, draining a store that is empty: anything it somehow queues now answers 401.
+# the rest. No signer of that key is left: the alert-drainer LaunchAgent and drain-undelivered-alerts.sh
+# retired with the rest of the Bash alerter, and the route is GET-probed for gateway health only.
 pns_secret="$(yq -r '.platforms.webhook.extra.routes.pns.secret // ""' "$cfg" 2>/dev/null || echo '')"
 
 expected_routes=(pns priority posture uu pns-recap)
