@@ -154,11 +154,25 @@ in use; source wiring alone does not establish live or scheduled acceptance.
 A store entry mapped to `"none"` is one this vertical deliberately does NOT deliver to Claude Code. It
 carries no `private_dot_claude/skills` declaration and `uu run skills` skips it in the weekly Claude
 fan-out, so a `~/.claude/skills` link removed by hand stays removed instead of coming back on the next
-weekly run. An absent key is the default, a store symlink. `last30days` is the one entry today.
+weekly run. An absent key is the default, a store symlink. Four entries today: `last30days` and the three
+clean-code skills.
+
+The three clean-code skills reach Claude Code through a plugin instead. `clean-code`, `clean-code-rust`
+and `clean-code-swift` are `"none"` here because `private_dot_claude/clean-code-marketplace` ships a
+`clean-code` plugin whose three skills (`rust`, `swift` and `base`) are thin wrappers: each reads the
+store copy and follows it, and none of them restates the standard. The reason is the namespacing. A
+plugin skill is always `/<plugin>:<skill>`, so the plugin buys `/clean-code:rust`, `/clean-code:swift`
+and `/clean-code:base` in the picker, while the content stays in one canonical place that Codex scans
+natively and hermes symlinks into. Dropping the three store symlinks is what keeps the picker from
+showing each skill twice. One consequence of the version-bump rule in
+`docs/runbooks/claude-code-settings.md`: editing a WRAPPER needs `plugin.json`'s version bumped in the
+same change, because Claude Code runs the installed copy under `~/.claude/plugins/cache/`; editing the
+store CONTENT needs no bump at all, since the wrappers read the store at run time.
 
 The table states only what THIS vertical does: it names no other delivery mechanism and reads no other
 lock, per the operator's strict-decoupling ruling. `"none"` is the only legal value, and a malformed
-table refuses the run rather than failing open, before either weekly execution or bootstrap.
+table refuses the run rather than failing open, before either weekly execution or bootstrap. So a skill
+Claude reaches another way is recorded as `"none"` plus a note saying which mechanism owns it.
 
 **Retiring an EXISTING link is manual, and the run says so.** Deleting the chezmoi declaration does not
 remove a `~/.claude/skills` link already on the machine (chezmoi never deletes a target it no longer
