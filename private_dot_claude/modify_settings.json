@@ -520,7 +520,7 @@
        strategy and the clean-code marketplaces are all DIRECTORIES on disk, and
        none of those directories is deployed on Linux. Declaring a marketplace
        whose path is not there is a refresh that fails at every startup, which the
-       five github ones above cannot do. */ -}}
+       six github ones above cannot do. */ -}}
 {{- if eq .chezmoi.os "darwin" -}}
 {{-   $declaredPlugins = append $declaredPlugins "pns@pns" -}}
 {{-   $declaredPlugins = append $declaredPlugins "strategy@strategy" -}}
