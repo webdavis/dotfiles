@@ -1,19 +1,9 @@
 use super::{attributed, named, session_label};
+use crate::runtime_test_support::scratch;
 use pns_adapters::{HookPayload, SqliteStore};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-static NEXT: AtomicU64 = AtomicU64::new(0);
 fn store() -> SqliteStore {
-    SqliteStore::new(
-        std::env::temp_dir()
-            .canonicalize()
-            .expect("the canonical temp directory")
-            .join(format!(
-                "pns-sender-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            )),
-    )
+    SqliteStore::new(scratch("sender"))
 }
 
 #[test]
