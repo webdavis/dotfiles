@@ -9,6 +9,7 @@ fn info_envelope_pins_version_and_unknown_values_without_inventing_a_timestamp()
         config_file: "/config.toml".into(),
         exists: None,
         mtime_epoch_secs: None,
+        touched_at: None,
         age_secs: None,
         fresh: None,
     });
@@ -20,7 +21,8 @@ fn info_envelope_pins_version_and_unknown_values_without_inventing_a_timestamp()
             "schema": "pns.tap/1", "operation": "info", "ok": false,
             "write_status": "not_requested", "marker": {
                 "path": "/attention", "source": "config", "config_file": "/config.toml",
-                "exists": null, "mtime_epoch_secs": null, "age_secs": null, "fresh": null
+                "exists": null, "mtime_epoch_secs": null, "touched_at": null,
+                "age_secs": null, "fresh": null
             }, "surface": null, "message": "timestamp unavailable", "install": null,
             "error": {"code": "marker_unreadable", "message": "timestamp unavailable"}
         })

@@ -6,6 +6,7 @@ packages:
         - buo/cask-upgrade
         - eugene1g/safehouse
         - felixkratz/formulae
+        - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
         - openai/tools
@@ -30,6 +31,7 @@ packages:
         - buo/cask-upgrade
         - eugene1g/safehouse
         - felixkratz/formulae
+        - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
         - openai/tools
@@ -81,6 +83,7 @@ packages:
         - felixkratz/formulae/borders
         - ffmpeg
         - fnm
+        - furkankly/tap/zoetrope
         - fzf
         - gawk
         - gh
@@ -297,3 +300,5 @@ packages:
       repo: ChmaraX/herdr-nvim
     - id: annotate
       repo: plannotator/herdr-annotate
+    - id: furkankly.zoetrope
+      repo: furkankly/zoetrope/herdr-plugin

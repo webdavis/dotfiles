@@ -84,13 +84,15 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
             )));
         }
         lines.push(row(&safe(&result.message)));
+        lines.push(row("To undo a tap, delete the marker file. Nothing else on this Mac changes, and the surface reads as untapped again."));
         lines.push(String::new());
         lines.push(style::heading(
             paint,
             "Troubleshooting",
             "when a tap does not arrive",
         ));
-        lines.push(row("An asleep or unreachable Mac may never receive the tap. Check Remote Login and connectivity, then retry when the Mac is awake."));
+        lines.push(row("An asleep or unreachable Mac may never receive the tap. Check Remote Login (System Settings, General, Sharing, Remote Login) and connectivity, then retry when the Mac is awake."));
+        lines.push(row("A Mac that cannot answer fails the Shortcut's SSH action, so the phone shows that SSH error and never the success notification."));
         lines.push(row("Local commands can also update this marker; verify the phone path by making a tap from the phone."));
     }
     lines.push(String::new());

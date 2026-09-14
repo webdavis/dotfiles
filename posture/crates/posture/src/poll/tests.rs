@@ -112,11 +112,32 @@ fn unreadable_controls_preserve_the_open_error_and_still_submit_the_gap() {
     let (status, error, effects) = subject.run(HEALTHY, "must not run", true);
     assert_eq!(status, 0);
     assert!(
-        error.contains("controls.json") && error.contains("Permission denied"),
+        error.contains(".local/libexec/posture/controls.json")
+            && error.contains("Permission denied"),
         "{error}"
     );
     assert_eq!(effects.borrow().commands, ["query", "submit"]);
     assert!(effects.borrow().requests[0].contains("not a JSON array"));
+}
+
+#[test]
+fn stale_legacy_controls_cannot_hide_a_missing_relocated_file() {
+    let subject = Subject::new();
+    fs::create_dir_all(subject.legacy_controls().parent().unwrap()).unwrap();
+    fs::rename(subject.controls(), subject.legacy_controls()).unwrap();
+    let (status, error, effects) = subject.run(HEALTHY, "FileVault is On.", true);
+    assert_eq!(status, 0);
+    assert!(error.is_empty(), "{error}");
+    let effects = effects.borrow();
+    assert_eq!(effects.commands, ["query", "submit"]);
+    assert_eq!(effects.requests.len(), 1);
+    assert!(effects.requests[0].contains("posture-controls file missing at"));
+    assert!(effects.requests[0].contains(".local/libexec/posture/controls.json"));
+    assert_eq!(
+        fs::read_to_string(subject.marker(".gap")).unwrap(),
+        "controls_file\n"
+    );
+    assert!(subject.legacy_controls().is_file());
 }
 
 #[test]

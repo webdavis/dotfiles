@@ -18,6 +18,17 @@ struct Configuration {
     alarm: PathBuf,
 }
 
+impl Configuration {
+    fn from_home(home: &Path) -> Self {
+        Self {
+            state: home.join(".local/state/osquery-posture-state.json"),
+            controls: home.join(".local/libexec/posture/controls.json"),
+            pns: home.join(".cargo/bin/pns"),
+            alarm: "/usr/bin/osascript".into(),
+        }
+    }
+}
+
 pub(super) fn run(stderr: &mut impl Write) -> u8 {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
         let _ = writeln!(stderr, "posture poll: HOME is not set");
@@ -25,12 +36,7 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
     };
     let query = query_path(std::env::var_os("PATH").as_deref());
     execute(
-        Configuration {
-            state: home.join(".local/state/osquery-posture-state.json"),
-            controls: home.join(".local/libexec/osquery/posture-controls.json"),
-            pns: home.join(".cargo/bin/pns"),
-            alarm: "/usr/bin/osascript".into(),
-        },
+        Configuration::from_home(&home),
         PostureQuery::new(query),
         ControlProbes::current_user(
             "/Library/Objective-See/LuLu/rules.plist".into(),

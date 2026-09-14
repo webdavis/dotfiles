@@ -3,10 +3,11 @@
 # The declaration home for verify-tier controls that are neither a `defaults`
 # key nor a `system_setup` command ("FileVault is on", "the Guest account is
 # disabled"). Records here are rendered to
-# ~/.local/libexec/osquery/posture-controls.json (by
-# dot_local/libexec/osquery/posture-controls.json.tmpl) and consumed at RUNTIME
-# by the security-posture poller (firewall-gatekeeper-monitor.sh), which reads
-# the rendered file on every 60s tick: adding a control is a data change here
+# ~/.local/libexec/posture/controls.json (by
+# dot_local/libexec/posture/controls.json.tmpl) and consumed at RUNTIME
+# by firewall-gatekeeper-monitor.sh, whose LaunchAgent reads the rendered file
+# on every 60s tick today; `posture poll` is the port that takes over that read
+# at its cutover. Adding a control is a data change here
 # plus a `chezmoi apply`, never a poller edit. Slices 9 and 10 add records.
 #
 # Every record is tier: verify BY DEFINITION: the poller only ever READS state

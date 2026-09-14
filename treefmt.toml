@@ -84,6 +84,10 @@ excludes = [
 ]
 
 # dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
+# dot_config/herdr/config.toml carries the sidebar row the herdr-agent-quota
+# plugin's configure action rewrites on every apply, byte for byte on one line;
+# a taplo rewrap makes chezmoi's write differ from the plugin's and every apply
+# then asks "has changed since chezmoi last wrote it?".
 # modify_ templates share the .toml extension but hold Go template directives
 # taplo cannot parse; both spellings because patterns match whole paths from the
 # tree root.
@@ -91,7 +95,12 @@ excludes = [
 command = "taplo"
 options = ["format"]
 includes = ["*.toml"]
-excludes = ["dot_aerospace.toml", "modify_*", "**/modify_*"]
+excludes = [
+  "dot_aerospace.toml",
+  "dot_config/herdr/config.toml",
+  "modify_*",
+  "**/modify_*",
+]
 
 [formatter.actionlint]
 command = "actionlint"
@@ -134,10 +143,10 @@ includes = [".chezmoiscripts/*.sh.tmpl", "dot_*.tmpl"]
 [formatter.osquery-config-render]
 command = "scripts/treefmt/osquery-config-render.sh"
 includes = [
-  "dot_local/libexec/osquery/osquery-converge/desired/*.conf",
-  "dot_local/libexec/osquery/osquery-converge/desired/*.conf.tmpl",
-  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf",
-  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf.tmpl",
+  "dot_local/libexec/posture/converge/desired/*.conf",
+  "dot_local/libexec/posture/converge/desired/*.conf.tmpl",
+  "dot_local/libexec/posture/converge/desired/**/*.conf",
+  "dot_local/libexec/posture/converge/desired/**/*.conf.tmpl",
 ]
 
 # Measured on treefmt 2.5.0: the flat glob alone matches every file, direct
