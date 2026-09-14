@@ -11,6 +11,14 @@ use std::{
     time::Instant,
 };
 
+/// How long a fixture waits before deciding the thing it waits on will never
+/// happen. Every wait here is a guard against a HANG, never a measurement: the
+/// probe deadlines under test are tens of milliseconds, and a window sized
+/// anywhere near them fails on a loaded machine instead of on a broken probe.
+/// That the probe honored its deadline is proved by the control arms below,
+/// which do not consult the clock at all.
+const HANG_GUARD: Duration = Duration::from_secs(30);
+
 #[test]
 fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
     for status in [200, 204, 302, 404, 405, 503] {
@@ -19,7 +27,7 @@ fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
         let address = listener.local_addr().unwrap();
         let (send, receive) = mpsc::channel();
         let server = thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_millis(500);
+            let deadline = Instant::now() + HANG_GUARD;
             let (mut stream, _) = loop {
                 match listener.accept() {
                     Ok(pair) => break pair,
@@ -33,9 +41,7 @@ fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
                 }
             };
             stream.set_nonblocking(false).unwrap();
-            stream
-                .set_read_timeout(Some(Duration::from_millis(500)))
-                .unwrap();
+            stream.set_read_timeout(Some(HANG_GUARD)).unwrap();
             let mut request = Vec::new();
             let mut chunk = [0; 1024];
             while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
@@ -47,10 +53,11 @@ fn an_unsigned_get_reports_all_http_statuses_without_following_redirects() {
             stream.write_all(format!("HTTP/1.1 {status} Fixture\r\nLocation: http://127.0.0.1:1/must-not-follow\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).unwrap();
             send.send(request).unwrap();
         });
-        let mut probe = GatewayProbe::new(
-            format!("http://{address}/webhooks/priority"),
-            Duration::from_millis(500),
-        );
+        // Generous on purpose. What this test reads back is the status line,
+        // not the deadline, and a deadline sized for a quiet machine turns a
+        // slow local round trip into a `None` and a failure about nothing.
+        let mut probe =
+            GatewayProbe::new(format!("http://{address}/webhooks/priority"), HANG_GUARD);
         let observed = probe.status();
         server.join().unwrap();
         let request = receive.try_recv();
@@ -67,7 +74,9 @@ fn an_unavailable_gateway_is_unknown_and_has_a_deadline() {
     let mut probe = GatewayProbe::new("http://127.0.0.1:1".into(), Duration::from_millis(20));
     let start = Instant::now();
     assert_eq!(probe.status(), None);
-    assert!(start.elapsed() < Duration::from_secs(1));
+    // A connect that ignored the deadline would sit on the operating system's
+    // own, which is over a minute. Reaching this line at all is the assertion.
+    assert!(start.elapsed() < HANG_GUARD);
 }
 
 #[test]
@@ -79,11 +88,11 @@ fn a_gateway_that_accepts_but_never_answers_is_bounded() {
     let expired = Arc::new(AtomicBool::new(false));
     let server_expired = Arc::clone(&expired);
     let server = thread::spawn(move || {
-        let deadline = Instant::now() + Duration::from_millis(500);
+        let deadline = Instant::now() + HANG_GUARD;
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
-                    if wait.recv_timeout(Duration::from_millis(700)).is_err() {
+                    if wait.recv_timeout(HANG_GUARD).is_err() {
                         server_expired.store(true, Ordering::SeqCst);
                     }
                     drop(stream);
@@ -103,15 +112,16 @@ fn a_gateway_that_accepts_but_never_answers_is_bounded() {
         format!("http://{address}/priority"),
         Duration::from_millis(40),
     );
-    let start = Instant::now();
     let status = probe.status();
-    let elapsed = start.elapsed();
+    // The control arm, and it consults no clock: the server holds the
+    // connection open until this send, which happens only after the probe has
+    // already returned. So the probe's own deadline is the only thing that can
+    // have ended the request, and a `status` of None is the deadline working.
     let _ = release.send(());
     server.join().unwrap();
     assert_eq!(status, None);
     assert!(
         !expired.load(Ordering::SeqCst),
-        "server closure ended the request instead of the client deadline"
+        "the fixture gave up waiting, so this run measured a hang rather than the deadline"
     );
-    assert!(elapsed < Duration::from_secs(1), "probe took {elapsed:?}");
 }

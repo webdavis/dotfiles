@@ -81,6 +81,19 @@ them directly.
 Use the `conventional-commits` skill. A user-wide `prepare-commit-msg` hook prepopulates the message;
 `SKIP_AI_COMMIT=1` bypasses it.
 
+## Git worktrees
+
+herdr never scans for worktrees: its sidebar shows only worktrees it opened itself, so a checkout made
+with `git worktree add` or a harness helper stays invisible there.
+
+- Inside herdr (`HERDR_ENV=1`), create a worktree with
+  `herdr worktree create --cwd <repo-root> --branch <name> --no-focus`, never with `git worktree add`. It
+  lands in `~/.herdr/worktrees/<repo>/<branch>` with a sidebar entry from the start.
+- A worktree the harness already made (the Agent tool's `isolation: "worktree"`) gets registered with
+  `herdr worktree open --cwd <repo-root> --path <worktree-path> --no-focus`.
+- Without `HERDR_ENV`, plain `git worktree add` is the fallback.
+- Sub-agents inherit this rule. A brief that sends work to a worktree carries the create line verbatim.
+
 ## Pull request descriptions
 
 `~/.claude/commands/pr.md` is the single source for the body's section contract and for the

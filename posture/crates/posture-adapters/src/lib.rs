@@ -120,3 +120,6 @@ pub use watchdog_audit::WatchdogAudit;
 
 mod integrity_triage;
 pub use integrity_triage::file_integrity_triage;
+
+#[cfg(test)]
+mod test_sandbox;

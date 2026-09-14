@@ -74,6 +74,9 @@ retry_marker="$HOME/.cache/pns-build/engine.retry"
 # identical to this one, which it otherwise would skip as a no-op.
 pending_marker="$HOME/.cache/pns-build/restart-pending"
 build_record="$HOME/.local/state/pns-build-record"
+# Per-tool, from .chezmoidata/rust_tools.yaml: a ceiling sized for posture
+# would refuse this binary after one dependency bump.
+max_artifact_bytes={{ .rust_tools.max_artifact_bytes.pns }}
 
 # Deterministic path, never a PATH probe: a fresh machine provisions rustup
 # during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
@@ -119,8 +122,8 @@ report_line 'building the release binary'
 # Only this authorized build may supply the digest to the manifest publisher.
 artifact="$crate_dir/target/release/pns"
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
-if ((artifact_bytes == 0 || artifact_bytes > 8388608)); then
-  printf 'pns: refusing artifact of %s bytes (allowed 1..8388608)\n' "$artifact_bytes" >&2
+if ((artifact_bytes == 0 || artifact_bytes > max_artifact_bytes)); then
+  printf 'pns: refusing artifact of %s bytes (allowed 1..%s)\n' "$artifact_bytes" "$max_artifact_bytes" >&2
   exit 1
 fi
 artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"

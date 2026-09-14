@@ -47,7 +47,13 @@ mod fixtures {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
-        let deadline = Instant::now() + Duration::from_millis(900);
+        // A GUARD AGAINST A HUNG CHILD, not a measurement: the child's own test
+        // asserts the behavior, and a passing child ends the wait the moment it
+        // exits. Loading a test binary and running one test costs well under a
+        // second on an idle machine and several seconds on a loaded runner, so
+        // the guard is the fixture budget the integration tests share.
+        const FIXTURE_BUDGET: Duration = Duration::from_secs(30);
+        let deadline = Instant::now() + FIXTURE_BUDGET;
         while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(5));
         }

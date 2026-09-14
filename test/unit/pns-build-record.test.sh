@@ -97,15 +97,40 @@ function test_failed_first_pns_refresh_restores_absent_record() {
 function test_identical_pns_build_keeps_the_record_and_skips_refresh_and_restart() {
   seed_record new
   printf new >"$binary"
-  local inode
+  local inode status=0
   inode="$(stat -f '%i' "$record" 2>/dev/null)"
-  run_builder
+  run_builder || status=$?
+  assert_same 0 "$status"
   assert_same "$inode" "$(stat -f '%i' "$record" 2>/dev/null)"
   assert_same '' "$(cat "$sandbox/calls")"
 }
+
+# The builder runs rustc from the crate directory, because rustup resolves a
+# toolchain by walking up from the current directory: a compiler picked up at
+# $HOME instead would record a toolchain the binary was not built with. The
+# stub answers differently per directory, so the recorded line is the evidence.
+function test_the_pns_record_names_the_compiler_the_build_directory_selects() {
+  cat >"$fixture_home/.cargo/bin/rustc" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $PWD == "$HOME/crate" ]]; then
+  printf 'rustc workspace-compiler\n'
+else
+  printf 'rustc home-compiler\n'
+fi
+STUB
+  chmod +x "$fixture_home/.cargo/bin/rustc"
+  local status=0
+  (cd "$fixture_home" && run_builder) || status=$?
+  assert_same 0 "$status"
+  assert_contains 'rustc workspace-compiler' "$(cat "$record" 2>/dev/null)"
+  assert_not_contains 'rustc home-compiler' "$(cat "$record" 2>/dev/null)"
+}
 function test_invalid_pns_artifact_size_cannot_publish_trusted_state() {
   local size status
-  for size in 0 8388609; do
+  # 14680065 is one byte over pns's own ceiling, about twice its measured size,
+  # declared in .chezmoidata/rust_tools.yaml. posture's is far smaller.
+  for size in 0 14680065; do
     head -c "$size" /dev/zero >"$fixture_home/crate/target/release/pns"
     status=0
     run_builder || status=$?

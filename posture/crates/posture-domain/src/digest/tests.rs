@@ -4,6 +4,10 @@
 
 use super::*;
 
+fn render_digest(entries: &[DigestEntry<'_>]) -> String {
+    super::render_digest(entries, DigestLimits::default())
+}
+
 fn entry<'a>(detector: &'a str, identity: &'a str, summary: &'a str) -> DigestEntry<'a> {
     DigestEntry {
         detector: Some(detector),
@@ -195,7 +199,10 @@ fn a_body_exactly_at_its_cap_carries_no_truncation_marker() {
     // The boundary itself, exercised where it lives: no arrangement of entries
     // lands on 1800 exactly, because the per-field cap is 240.
     let exact = "p".repeat(BODY_LIMIT);
-    assert_eq!(capped(exact.clone()), exact);
+    assert_eq!(capped(exact.clone(), BODY_LIMIT), exact);
     let over = "p".repeat(BODY_LIMIT + 1);
-    assert_eq!(capped(over), format!("{exact}{BODY_TRUNCATION}"));
+    assert_eq!(
+        capped(over, BODY_LIMIT),
+        format!("{exact}{BODY_TRUNCATION}")
+    );
 }
