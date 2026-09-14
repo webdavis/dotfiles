@@ -102,6 +102,12 @@ symlinks, and chezmoi lstats a symlinked entry instead of descending through it.
 worktrees branched before it landed; `test/unit/formatter-render-context.test.sh` pins the property with
 an unreadable directory under `graphify-out/cache`, which a descending walk cannot open.
 
+KNOWN LIMIT: only the formatter got the shallow view. Eleven unit tests still hand chezmoi the real
+checkout as `--source`, so the same churn reddens `just test-unit` instead of the push gate. Routing them
+through `scripts/treefmt/lib-render-context.sh` is not a lift-and-drop (it hardcodes `$PWD` as the
+source, exports its own `HOME` and claims the `EXIT` trap, while several of those tests point `HOME` at a
+fixture whose absolute path the render bakes in), so they are knowingly left exposed.
+
 ## Bypassing
 
 `git commit --no-verify` skips `pre-commit` and `prepare-commit-msg` for one commit. It does **not** skip
