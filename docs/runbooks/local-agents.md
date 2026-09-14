@@ -72,12 +72,14 @@ line, the objective itself, changes night to night.
   second one on, and the rebuild left unstaged after the last one makes the NEXT run refuse to start:
   gnhf's clean-tree check runs on both the fresh-run and the resume path, and throws on any
   `git status --porcelain` output. gnhf passes its whole environment to every `git` call, so the variable
-  reaches the hook. For the same reason the tree has to be clean before the first run: a manual commit
-  in that worktree leaves the same rebuild behind, and gnhf then refuses to start.
+  reaches the hook. For the same reason the tree has to be clean before the first run: a manual commit in
+  that worktree leaves the same rebuild behind, and gnhf then refuses to start.
 - gnhf commits with `git -c commit.gpgsign=false -c tag.gpgsign=false commit -m <message>`, so hooks RUN.
   Here that means `just test-unit` plus gitleaks gate every iteration, which is what you want, and a red
-  gate is a failed iteration that gets rolled back. Three consecutive failures abort the run. The
-  user-wide `prepare-commit-msg` hook does not fire, because `-m` supplies the message.
+  gate is a failed iteration, which gnhf rolls back with `git reset --hard HEAD` followed by
+  `git clean -fd`, so never leave untracked scratch files in a gnhf worktree. Three consecutive failures
+  abort the run. The user-wide `prepare-commit-msg` hook does not fire, because `-m` supplies the
+  message.
 - `commitMessage.preset: conventional` is set for that reason: with the hook out of the path, it is the
   only thing that makes an iteration commit read as `type(scope): summary` rather than gnhf's own
   `gnhf <iteration>: <summary>`.
