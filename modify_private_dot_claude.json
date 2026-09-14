@@ -60,27 +60,41 @@
     "env" (dict) -}}
 {{- $merged = setValueAtPath "mcpServers.scalebar" $scalebarMcp $merged -}}
 
-{{- /* --- stable: the local YNAB MCP server, READ-ONLY.
+{{- /* --- stable: the local YNAB MCP server, WRITES ON.
 
-     Read-only is DECLARED here, never inferred from an absent variable. The
-     server resolves each of its five runtime keys independently, and when
-     `YNAB_ALLOW_WRITES` is unset in the process environment it falls back to
-     `~/.claude/settings.json` `env` and to two sections of
-     `~/.codex/config.toml`. All three are free-drift locations this repo does
-     not declare, and upstream's own Claude plugin manifest sets that variable
-     to 1. Measured on 5.2.0: a planted 1 in either file turns 38 read tools
-     into 62, arming 24 write tools against real financial data.
+     Full and complete access to the YNAB account is the operator's ruling of
+     2026-09-14, so `YNAB_ALLOW_WRITES` is "1" and the server registers its
+     write tools alongside the read ones (measured on 5.2.0: 62 tools rather
+     than the 38 read tools alone). The value is still DECLARED here rather
+     than left to a fallback, because the variable decides the tool surface and
+     this repository is where that decision is recorded.
 
-     Process environment is the highest-precedence source and the gate is an
-     exact match on "1", so the explicit "0" shadows every planted value, and
-     disabling the config fallback closes the channel outright. Writing the
-     whole map rather than a per-key overlay is what keeps both asserted on
-     every apply. --- */ -}}
+     Nine of those tools additionally require a `confirmed: true` field in
+     their own input: the two deletes, the two bulk-filter writes
+     (`approve_transactions`, `reassign_payee_transactions`), the three
+     category and split operations, `undo_operation`, and the generic
+     `ynab_write_tool_execute`. It is a required SCHEMA field upstream offers no
+     switch for, not a second permission gate, so an agent supplies it itself as
+     part of the call and does not stop to ask the operator per call.
+
+     The client-side rate limiter keeps its upstream defaults,
+     `YNAB_RATE_LIMIT_PER_HOUR` 190 and `YNAB_RATE_LIMIT_BURST` 10, and is
+     deliberately left unset here. It exists to protect the token from YNAB's
+     hard 200-per-hour lockout, not to ration the agents: spending the last ten
+     requests takes the whole account off the API until the rolling window
+     moves.
+
+     `YNAB_DISABLE_AGENT_CONFIG_FALLBACK` stays "1". Without it the server
+     resolves its runtime keys out of `~/.claude/settings.json` `env` and two
+     sections of `~/.codex/config.toml`, all free-drift locations this repo does
+     not declare, which would leave the token and the tool surface answerable to
+     whatever last wrote those files. Writing the whole map rather than a
+     per-key overlay is what keeps every key asserted on every apply. --- */ -}}
 {{- $ynabMcp := dict
     "type" "stdio"
     "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" .chezmoi.homeDir)
     "env" (dict
-      "YNAB_ALLOW_WRITES" "0"
+      "YNAB_ALLOW_WRITES" "1"
       "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
       "YNAB_API_TOKEN" ((keepassxc "YNAB :: Personal Access Token").Password)) -}}
 {{- $merged = setValueAtPath "mcpServers.ynab" $ynabMcp $merged -}}
