@@ -10,6 +10,14 @@ use std::{
 fn a_real_install_interrupt_stops_verification_descendants_restores_files_and_reraises() {
     const MARKER: &str = "POSTURE_PRIVATE_INSTALL_INTERRUPT";
     if let Some(root) = std::env::var_os(MARKER) {
+        // A disposition survives fork and exec, so a parent that ignores TERM (nohup, a launchd
+        // job) would leave this fixture unable to receive the interrupt it exists to measure.
+        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+            assert_ne!(
+                unsafe { libc::signal(signal, libc::SIG_DFL) },
+                libc::SIG_ERR
+            );
+        }
         let root = PathBuf::from(root);
         assert!(root.starts_with(std::env::temp_dir()));
         assert!(

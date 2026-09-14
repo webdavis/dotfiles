@@ -14,10 +14,24 @@ fn disposition(signal: i32) -> libc::sighandler_t {
     current.sa_sigaction
 }
 
+fn restore_default_dispositions() {
+    // A disposition survives fork and exec, so a parent that ignores these (nohup, a launchd job)
+    // decides what an inheriting fixture observes. Each fixture below arms real handlers and
+    // raises real signals at itself, so it states its own starting dispositions rather than
+    // taking whatever ran the suite.
+    for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+        assert_ne!(
+            unsafe { libc::signal(signal, libc::SIG_DFL) },
+            libc::SIG_ERR
+        );
+    }
+}
+
 #[test]
 fn a_hangup_already_ignored_stays_ignored_and_never_cancels_the_install() {
     const MARKER: &str = "POSTURE_PRIVATE_SSH_IGNORED_HANGUP";
     if std::env::var_os(MARKER).is_some() {
+        restore_default_dispositions();
         // This is nohup's disposition, inherited by every process it starts.
         assert_ne!(
             unsafe { libc::signal(libc::SIGHUP, libc::SIG_IGN) },
@@ -61,6 +75,7 @@ fn a_hangup_already_ignored_stays_ignored_and_never_cancels_the_install() {
 fn install_signals_are_deferred_through_rollback_then_reraised_as_real_signals() {
     const MARKER: &str = "POSTURE_PRIVATE_SSH_SIGNAL";
     if let Ok(signal) = std::env::var(MARKER) {
+        restore_default_dispositions();
         let signal: i32 = signal.parse().unwrap();
         assert!([libc::SIGINT, libc::SIGTERM, libc::SIGHUP].contains(&signal));
         let mut signals = SshSignals::arm().unwrap();
