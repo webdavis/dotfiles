@@ -61,6 +61,11 @@ export USER="${USER:-$(whoami)}"
 # set`. Scoped to openspec on purpose: the cross-tool DO_NOT_TRACK spelling
 # would silently change every other installed tool that honors it.
 export OPENSPEC_TELEMETRY=0
+
+# gnhf phones home by default and has no config-file opt-out, so this variable
+# is the only door. Also scoped per tool rather than the cross-tool
+# DO_NOT_TRACK spelling, for the reason above.
+export GNHF_TELEMETRY=0
 {{ if eq .chezmoi.os "darwin" -}}
 # Suffix custom_api/preview_host.resolve appends to the hostname for the markdown
 # preview server. Set, the preview advertises a derived hostname; unset, it advertises
