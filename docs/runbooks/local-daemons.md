@@ -99,9 +99,11 @@ posture picks its route from the finding's tier in one place (`severity_route`,
 `posture/crates/posture-domain/src/severity.rs`), and that one place holds every tier on `posture` while
 `priority` cannot deliver a pns body (third gotcha); uu's default is `DEFAULT_RECORD_URL`
 (`uu/crates/uu-adapters/src/config/records.rs`); pns's recap route is `RECAP_ROUTE`
-(`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the SHAPE of a route name
-(`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so adding a route to the
-gateway is the only registration a new route needs.
+(`pns/crates/pns-domain/src/routes.rs`). pns keeps a ROSTER of the routes it posts to,
+`pns_domain::routes::ROUTES`, because each one is signed with its own key and a route with no key is a
+post pns refuses rather than signs with somebody else's. So adding a route pns posts to is two
+registrations, the gateway and that roster, and a route only uu or posture posts to needs the gateway
+alone.
 
 ### Where they live, and what a route carries
 
@@ -118,9 +120,22 @@ posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` 
 `run_after_68-hermes-log-route-status.sh.tmpl` checks all four on every apply and says so when one is
 missing.
 
-Four of the five carry the same secret, `Hermes :: Webhook Secret :: #pns`, which is the key
-`[plugins.hermes] key` hands pns. `priority` is the exception, and it is the one that matters (see the
-third gotcha).
+**Each route carries its OWN secret**, so one leaked key reaches one Discord channel instead of all of
+them. Each is a KeePassXC entry named for its channel, and the five titles are exact:
+
+| Route       | KeePassXC entry                         | Read by                                                     |
+| ----------- | --------------------------------------- | ----------------------------------------------------------- |
+| `pns`       | `Hermes :: Webhook Secret (#pns)`       | `[plugins.hermes.keys] pns` in `dot_config/pns/`            |
+| `pns-recap` | `Hermes :: Webhook Secret (#pns-recap)` | `[plugins.hermes.keys] pns-recap`                           |
+| `posture`   | `Hermes :: Webhook Secret (#posture)`   | `[plugins.hermes.keys] posture`                             |
+| `priority`  | `Hermes :: Webhook Secret (#priority)`  | `[plugins.hermes.keys] priority`                            |
+| `uu`        | `Hermes :: Webhook Secret (#uu)`        | `[records] key` in `dot_config/uu/private_config.toml.tmpl` |
+
+**An apply aborts on an entry that does not exist**, because `keepassxc-cli` exits non-zero on a title it
+cannot find and chezmoi fails the template on that. An entry that exists with an EMPTY password is worse:
+it renders an empty string, the reader drops it as not set up, and that route is disarmed in silence. So
+create all five before the next apply and confirm each has a non-empty password. `pns doctor` names every
+route left without a key.
 
 `posture` and `pns-recap` ship with an EMPTY `chat_id`. An empty id is not inert: the gateway falls back
 to the home channel, so until they are set, every posture page, the daily digest and the return recap
