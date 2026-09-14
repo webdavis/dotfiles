@@ -76,6 +76,7 @@ packages:
         - deno
         - difftastic
         - direnv
+        - droast
         - dust
         - espeak-ng
         - eza
