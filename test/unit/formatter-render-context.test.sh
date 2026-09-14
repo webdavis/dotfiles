@@ -49,6 +49,19 @@ run_formatter() (
     "$RENDER_REPO/scripts/treefmt/$1" "$2"
 )
 
+count_render_tmpdir_entries() {
+  find "$RENDER_TMPDIR" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' '
+}
+
+function test_render_context_is_created_under_the_callers_tmpdir_and_removed_on_exit() {
+  printf '#!/bin/bash\n# {{ env "HOME" }}\n' >"$RENDER_SOURCE/home.tmpl"
+  assert_same 0 "$(count_render_tmpdir_entries)"
+  run_formatter shellcheck-rendered-template.sh home.tmpl
+  assert_successful_code
+  assert_contains "$RENDER_TMPDIR/" "$(cat "$RENDER_CAPTURE")"
+  assert_same 0 "$(count_render_tmpdir_entries)"
+}
+
 function test_shell_render_ignores_unrelated_missing_build_entries_and_keeps_source_hashes() {
   mkdir -p "$RENDER_SOURCE/pns/target/debug/deps"
   ln -s "$RENDER_FIXTURE/absent-rmeta" "$RENDER_SOURCE/pns/target/debug/deps/rmeta-gone"
