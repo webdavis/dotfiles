@@ -69,6 +69,7 @@ fn an_executable_receives_the_original_id_and_exact_legacy_body_without_acknowle
                 title: "a title".into(),
                 message: "the full message".into(),
                 preview: "a preview".into(),
+                ..Event::default()
             };
             let request = DeliveryRequest {
                 producer_request: None,

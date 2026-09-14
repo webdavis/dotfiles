@@ -82,7 +82,15 @@ pub(crate) fn rendered_event_quiet(event: &EventArgs, pane_dropped: bool) -> Eve
         project: event.project.clone(),
         branch: event.branch.clone(),
         detail: event.detail.clone(),
+        // THE CARD TITLE IS UNTOUCHED BY THE SENDER HEADER. An iOS
+        // notification title shows about forty characters, and
+        // `agent · state · project` is what the card exists to deliver, so
+        // the sender's own fields travel UNCOMPOSED beside it: the one
+        // destination that renders a header composes it there, and the
+        // branch already reaches the card through `message`.
         title: render::title(&event.agent, &event.state, &event.project),
+        session: event.session.clone(),
+        session_title: event.session_title.clone(),
         preview: render::preview(&message),
         message,
         pane: pane.to_string(),

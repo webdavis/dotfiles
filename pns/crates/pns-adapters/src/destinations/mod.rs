@@ -72,6 +72,7 @@ mod tests {
             message: "main: a detail".to_string(),
             preview: "a preview".to_string(),
             pane: "wW:p21".to_string(),
+            ..Event::default()
         };
         let parsed: serde_json::Value =
             serde_json::from_str(&super::event_json(&event, ReportMode::Silent)).unwrap();

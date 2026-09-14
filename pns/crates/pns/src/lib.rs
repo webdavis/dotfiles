@@ -81,6 +81,7 @@ mod presence_runtime;
 mod recap_delivery_runtime;
 mod return_replay;
 mod runtime_environment;
+mod sender;
 pub(crate) use pns_adapters::style;
 mod turn_lifecycle;
 mod turn_text;
@@ -117,7 +118,7 @@ pub(crate) use nag_schedule_runtime::{NAG_OFF, arm_nag, clear_nag, nag_after_sec
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
 pub(crate) use pns_adapters::marker_files::{end_blocked_wait, update_blocked_marker};
-pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, git_branch, spawn_recap};
+pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, spawn_recap};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
@@ -125,6 +126,7 @@ pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
     env_deadline, executable_in_path, now_secs, overrides_from_env, state_dir,
 };
+pub(crate) use sender::{attribution, name_session};
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
 pub(crate) use turn_text::turn_reply;
 

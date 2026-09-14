@@ -29,15 +29,13 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state,
-            project: project_of(&payload.cwd),
-            branch: git_branch(&payload.cwd),
             detail,
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
                 Some(pulse_threshold_secs()),
             ),
-            ..Default::default()
+            ..attribution(payload, agent)
         },
         &system_probes(),
         payload,
@@ -74,22 +72,25 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state: "failed".to_string(),
-            project: project_of(&payload.cwd),
-            branch: git_branch(&payload.cwd),
             detail: payload.message.clone(),
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
                 Some(pulse_threshold_secs()),
             ),
-            ..Default::default()
+            ..attribution(payload, agent)
         },
         &system_probes(),
         payload,
         Attempt::First,
     );
 }
-/// The project an event belongs to: the last segment of the working directory.
+/// The project a working directory names on its own: its last segment.
+///
+/// THE FALLBACK, NOT THE ANSWER. `sender::attribution` asks git for the
+/// repository first, because a linked worktree's directory is named for its
+/// branch; this is what answers outside a repository, where the directory is
+/// all there is.
 pub(crate) fn project_of(cwd: &str) -> String {
     cwd.rsplit('/')
         .find(|part| !part.is_empty())

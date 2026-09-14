@@ -31,7 +31,7 @@ fn the_original_request_id_is_in_the_signed_hermes_body_on_every_attempt() {
             let value: serde_json::Value = serde_json::from_str(body).unwrap();
             assert_eq!(value["request_id"], original);
             assert_eq!(value["detail"], "the full message");
-            assert_eq!(value.as_object().unwrap().len(), 5);
+            assert_eq!(value.as_object().unwrap().len(), 9);
             assert_eq!(Some(signature.as_str()), sign("key", body).as_deref());
             assert_eq!(*deadline, Some(Duration::from_secs(5)));
         }

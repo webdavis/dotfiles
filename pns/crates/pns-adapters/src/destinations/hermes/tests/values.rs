@@ -10,7 +10,45 @@ fn the_body_carries_the_full_message_because_discord_has_no_ceiling() {
     assert_eq!(parsed["state"], "done");
     assert_eq!(parsed["project"], "dotfiles");
     assert_eq!(parsed["detail"], "the full message");
-    assert_eq!(parsed.as_object().unwrap().len(), 5);
+    assert_eq!(parsed.as_object().unwrap().len(), 9);
+}
+
+#[test]
+fn every_header_key_is_present_on_an_event_that_knows_no_session() {
+    // THE GATEWAY'S RENDERER HAS NO CONDITIONALS: a `{key}` the posted body
+    // omits renders as the literal text `{key}` in the channel
+    // (`gateway/platforms/webhook.py`, read 2026-09-14), so a key pns has
+    // nothing to say for still has to be there. `thread_id` is empty on
+    // every post until hermes can hand back a thread it created.
+    let body = hermes_body(&Event::default(), "original-42");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    for key in ["header", "subheader", "body", "thread_id"] {
+        assert!(parsed.get(key).is_some(), "{key} must be present");
+    }
+    assert_eq!(parsed["thread_id"], "");
+    assert_eq!(parsed["body"], "");
+    assert_eq!(parsed["header"], "done");
+    assert_eq!(parsed["subheader"], "pns");
+}
+
+#[test]
+fn the_two_composed_lines_ride_beside_the_bare_body() {
+    let composed = Event {
+        branch: "feat/sender-header".to_string(),
+        state: "blocked".to_string(),
+        session: "a1b2c3d4-dead-beef".to_string(),
+        session_title: "arm posture alert".to_string(),
+        detail: "Bash(git push) needs approval".to_string(),
+        ..event()
+    };
+    let parsed: serde_json::Value =
+        serde_json::from_str(&hermes_body(&composed, "original-42")).unwrap();
+    assert_eq!(parsed["header"], "dotfiles · feat/sender-header · blocked");
+    assert_eq!(parsed["subheader"], "claude · a1b2 · arm posture alert");
+    assert_eq!(
+        parsed["body"], "Bash(git push) needs approval",
+        "the body is the BARE detail: the branch the message prefixes is in the header now"
+    );
 }
 
 // --- the deadline --------------------------------------------------------
