@@ -786,18 +786,25 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
   inventory against current source before deletion. Run the sandbox composition checks and the plan's
   live page/digest, checkpoint and retry acceptance after the operator applies. On 2026-09-14 branch
-  `feat/posture-alert-cutover` did this work in four commits: `b80dbfde` repoints the plist and allowlist
-  tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private helpers
-  and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for `pipeline-audit.sh`;
-  `f1d5cd31` corrects the surviving producer-list comments; and `3b43aa0c` fixes five SEV-3 review
-  findings, comments across four osquery scripts that still named the deleted Bash helpers, rewritten to
-  name posture's `sanitize.rs` chokepoint and `page.rs::block` instead. NOT MERGED: the ship stage
-  stopped at its first gate, `git status --porcelain` in the worktree showed `graphify-out/graph.json`
-  modified by the post-commit hook after `3b43aa0c` and nothing else dirty, so no fetch, no `just ship`,
-  no push and no pull request ran; fold that regenerated file into a commit (repo precedent `d6012066`)
-  or discard it, then resume from the fetch/merge step. Operator steps once it ships: a full
-  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
-  pipeline known-good manifest arm); confirm the swap with
+  `feat/posture-alert-cutover` carried this work through six commits: `b80dbfde` repoints the plist and
+  allowlist tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private
+  helpers and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for
+  `pipeline-audit.sh`; `f1d5cd31` corrects the surviving producer-list comments; `502bb3b6` merges
+  `origin/main` in; `701d93b9` names the three Bash monitors that still source the dispatch library; and
+  `f1f6cc4f` gates the cutover on a live hermes posture route. Independent review returned two SEV-1s and
+  one SEV-3, all fixed on the branch: a content conflict in the launchd allowlist (fixed by `502bb3b6`,
+  keeping main's file and repointing only the results-alerter row, verified by a zero-exit
+  `git merge-tree`); posture's pns route having no hermes endpoint, so every alert and digest leg
+  dead-letters at HTTP 404 (fixed by gating the apply on that route existing rather than guessing a
+  routing change, `f1f6cc4f`); and stale producer-list comments left by the merge (fixed by `701d93b9`).
+  [PR #584](https://github.com/webdavis/dotfiles/pull/584) opened against `main` with `just ship` green
+  locally and pushed. NOT MERGED as of 2026-09-14: GitHub Actions never triggered a Lint check-suite for
+  the PR across three retrigger attempts (open, an empty synchronize commit, reopen) over roughly 30
+  minutes, while sibling PRs in the same window triggered normally; `gh-axi pr checks 584` still reads
+  "no CI checks configured". This is an environmental GitHub-side blocker, not a code or merge problem;
+  per standing instructions the branch stays open rather than merging without a real "0 failed" result.
+  Operator steps once it ships: a full `chezmoi apply` (no by-name apply, no `--exclude=templates`, the
+  plist and allowlist both sit in the pipeline known-good manifest arm); confirm the swap with
   `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
   live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
   `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
@@ -805,10 +812,13 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   page from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a
   file, and a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next
   daily digest; and verify at-least-once retry against the live cursor with the daemon or gateway
-  unreachable. Stays open: whether `posture/docs/acceptance/allowlist-integrity.md` and `enrichment.md`
-  need annotating for the shell tests this branch retires (left untouched as dated port plans), and a
-  stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming the deleted
-  `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
+  unreachable. Stays open: getting Actions to trigger a Lint run on PR #584, without which it cannot
+  merge (either a manual re-run from the GitHub UI or a look at whether the `blacksmith-sh` app has
+  broken Actions dispatch for this repository); whether `posture/docs/acceptance/allowlist-integrity.md`
+  and `enrichment.md` need annotating for the shell tests this branch retires (left untouched as dated
+  port plans); and a stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8`
+  naming the deleted `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this
+  slice.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -847,13 +857,25 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   reads `/Users/stephen/.cargo/bin/posture watchdog`; since its interval is 900 seconds, kick it directly
   with `launchctl kickstart gui/$(id -u)/com.webdavis.osquery-uptime-watchdog`, then
   `launchctl print gui/$(id -u)/com.webdavis.osquery-uptime-watchdog | grep -E 'runs|last exit code'`
-  expecting exit code 0, and `tail -n 20 ~/.local/log/osquery/uptime-watchdog.log` expecting nothing on a
-  healthy pipeline; `jq . ~/.local/state/osquery-watchdog-state.json` should show all six agents with
-  `runs`/`streak`, a `pending` block and a `pipeline_audit` block whose `fingerprint` clears by the next
-  15-minute tick rather than reaching the streak-of-two page threshold on this first post-apply tick.
-  Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and `results-alerter/pipeline-verdict.sh` retire
-  from source together in a follow-up pull request that also retires the firewall-gatekeeper-monitor and
-  tailscale-monitor Bash producers, after all three lanes' live acceptance; nothing was trashed by #575.
+  expecting exit code 0. `tail -n 20 ~/.local/log/osquery/uptime-watchdog.log` stays EMPTY whether or not
+  the tick pages, because a page is the `Reported` outcome and that outcome prints nothing and exits 0
+  (`posture/crates/posture/src/watchdog.rs:79`), so log silence is not evidence of phone silence. EXPECT
+  EXACTLY ONE CRIT watchdog page on this first tick, plus one independent banner titled "Posture
+  notification engine unhealthy" naming 11 dead-lettered pns delivery obligations, and do NOT read it as
+  a regression or roll back on it. The Bash-written state carries no `pns_pending` key (measured
+  2026-09-13: its only keys are `agents`, `pending` and `pipeline_audit`), so the first Rust tick decodes
+  the prior dead-letter count as never observed and reports the standing count once by design: only an
+  INCREASE is news, the count is then carried forward, and the next 15-minute tick is silent. The count
+  is real: a read-only `sqlite3 "file:$HOME/.local/state/pns/pns.db?immutable=1"` over `ledger_legs`
+  reports 0 unacknowledged and 11 dead-lettered, with `delivery_health` generation 23 and acknowledged
+  23, so no delivery-health alarm rides along. Then `jq . ~/.local/state/osquery-watchdog-state.json`
+  should show all six agents with `runs`/`streak`, a `pending` block, a NEW `pns_pending` block reading
+  `{"count":0,"growth_streak":0,"deadletters":11}`, and a `pipeline_audit` block whose `fingerprint`
+  clears by the next 15-minute tick rather than reaching the streak-of-two page threshold on this first
+  post-apply tick. Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and
+  `results-alerter/pipeline-verdict.sh` retire from source together in a follow-up pull request that also
+  retires the firewall-gatekeeper-monitor and tailscale-monitor Bash producers, after all three lanes'
+  live acceptance; nothing was trashed by #575.
 - [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
@@ -922,7 +944,15 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   sibling, cross-checked by hand against `/opt/homebrew/bin/tailscale funnel status --json`. Stays open:
   the Bash `tailscale-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the same follow-up pull request as task 47, after this acceptance; nothing was trashed by
-  #575.
+  #575. Also on 2026-09-14, `git cherry origin/main feat/posture-funnel` still listed all five fix
+  commits as absent from main, because PR #551 merged into `feat/posture-watchdog-health` after that
+  branch had already merged into main, so the merge carried the fixes onto a side branch rather than onto
+  the trunk. This pull request carries them to main in their original order: bound the funnel exposure
+  page by key count (`0037bc33`), name the funnel command in its queue failures (`b1a8b777`), read the
+  funnel binary through the shared executable check (`4ea6e8b9`), pin the exposure sort, the worst case
+  and the executable arms (`4cb11f21`), and read a disabled funnel timeout as no limit rather than a
+  failure (`c50f95d6`). It matters because #575 already points the tailscale-monitor LaunchAgent at
+  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1182,7 +1212,88 @@ The planned Rust lanes are implemented. The following deployment check remains.
   (`docs/worktrees-outside-source-tree`, 2026-09-14). The last nested worktree left with #552's merge;
   `.worktrees/` is empty. Still open: the worktree registrations git holds outside the repo (187 before
   the cleanup, most under `~/.herdr/worktrees/dotfiles/` and temp paths), which need an audit of their
-  own.
+  own. Audited 2026-09-14 (snapshot `2026-09-14T04:44:39Z` against `origin/main` `7bdecf6b`), inventory
+  only, nothing deleted, pruned, moved or killed. Git held 55 registrations, the source checkout plus 54
+  external, and not one was stale: `git worktree prune --verbose --dry-run` printed nothing and exited 0,
+  no registration carried a `locked` line, and every registered path existed on disk, so the 187 above
+  was a pre-cleanup number and git itself had nothing left to prune. The 54 held 24.7 GB of checkouts
+  plus 12 MB of `.git/worktrees` metadata: 40 under `~/.herdr/worktrees/dotfiles/`, 10 under
+  `~/workspaces/dotfiles-worktrees/`, 3 under `~/.paseo/worktrees/1sk17y2x/` and one sibling of the
+  source checkout. `.worktrees/` held only a `.DS_Store`. Classified 14 live (an open herdr workspace
+  from `herdr worktree list`, a non-stale process by `lsof -d cwd`, or an open pull request), 24 whose
+  content was in main, 4 detached carrying a unique commit, and 12 on a named branch whose content was
+  not in main. Merge-base ancestry alone mislabeled 12 of the 54, so two further tests were added and
+  every row carried one verdict built from all three. Five landed by squash, each a merged pull request
+  whose `head.sha` equaled the worktree HEAD and whose merge commit was an ancestor of main:
+  [PR #525](https://github.com/webdavis/dotfiles/pull/525),
+  [PR #526](https://github.com/webdavis/dotfiles/pull/526),
+  [PR #528](https://github.com/webdavis/dotfiles/pull/528),
+  [PR #530](https://github.com/webdavis/dotfiles/pull/530) and
+  [PR #531](https://github.com/webdavis/dotfiles/pull/531). Three were already upstream by patch identity
+  per `git cherry` (`docs-sol-lane4-fixes`, `pns-daemon-fixture-children`, `pns-failure-reporting-spec`)
+  and four carried only merge commits of other branches, introducing nothing unique (`g3-throwaway`,
+  `nvim-acceptance-rehearsal`, `s61-g3`, `s61e-g3`). The reverse trap fired once:
+  [PR #551](https://github.com/webdavis/dotfiles/pull/551) was merged into
+  `feat/posture-watchdog-health`, its merge commit `559b9e61` was not an ancestor of main, and
+  `feat/posture-funnel` still carried five commits with no upstream equivalent. Four findings stopped a
+  blind sweep. `herdr-process-plan` was an ancestor of main yet held 105 untracked files implementing the
+  `herdr-process` plugin, and `git ls-tree` on that path returned zero files on main and on every ref
+  from `git for-each-ref refs/heads refs/remotes`, while the sibling `herdr-smart-nav` path returned 17
+  on the same command, so the empty result was the plugin's absence and not a bad path. Three detached
+  HEADs pinned a commit no ref contained (`osq-review-4b` `e71776b8`, `r1-review-4b` `daf7fc98`,
+  `rev4b-114` `4cb7de39`, all graphify or review scratch), while `integration` `2c6bd7f3` was covered by
+  `integration/modernization`. `posture-converge-staging` was a gutted checkout, 1571 of its 2200 tracked
+  files absent from the working tree while the index still listed them, safe because
+  [PR #470](https://github.com/webdavis/dotfiles/pull/470) merged that exact HEAD. And sixteen stale
+  `pns failures serve` debug processes held a worktree cwd, eight in `tuicr-config` and eight in
+  `pns-status-quiet` and `pns-tap-mac`, two paths that no longer exist on disk and have no
+  `.git/worktrees` entry, so their inodes stay pinned; pid 1797 still ran from the retired nested
+  `.worktrees/tuicr-config/pns/target/debug/pns`. No worktree held an interrupted operation, the
+  `MERGE_RR` files present being leftover rerere state. The four-tier prune proposal with the exact
+  per-path command, the full uncommitted-file listing and the seven-item risk register sit in
+  `~/workspaces/backups/2026-09-14T04-44-39.dotfiles-external-worktree-registrations.backup.txt`: tier 1
+  is 7 registrations and 2421 MB with nothing to decide, tier 2 is 17 and 5326 MB where the content is in
+  main but uncommitted files sit in the tree, tier 3 is the 4 detached, tier 4 the 12 unlanded, and the
+  14 live ones are marked keep. Recorded on Todoist `6hVvc56G8r6xJppM` (comments `6hW4JcwhpF4RrrpM` and
+  `6hW4JjFpQ5WJjCMM`); the daemons were split out as `6hW4JgqJJcR43QjM` and the plugin preservation
+  already had `6hW4HCJxjWQvvvQM` from the same night's task 68 recheck, which this audit confirmed
+  independently rather than duplicating. The count moved from 51 to 57 registrations between 04:34:52Z
+  and 04:48:14Z as concurrent agents created worktrees, so the liveness block must be re-run immediately
+  before any removal. Remaining: the operator approves the exact prune and removal set; nothing was
+  removed. Owed from the operator: (1) Re-run the liveness block before deciding anything. The
+  registration count moved from 51 to 57 between 04:34:52Z and 04:48:14Z as concurrent agents created
+  worktrees, and origin/main advanced from f24aba51 to 7bdecf6b mid-audit:
+  `cd /Users/stephen/workspaces/Ivy/webdavis/dotfiles && git fetch --prune origin && git worktree list --porcelain | grep -c '^worktree ' && HERDR_ENV=1 herdr worktree list && lsof -d cwd -Fpcn | grep -E 'worktrees/dotfiles|dotfiles-worktrees'`;
+  (2) Decide R1 first, because it gates a tier 2 entry: either commit the 105 untracked files in
+  ~/.herdr/worktrees/dotfiles/herdr-process-plan onto feat/herdr-process, or copy
+  dot_local/share/herdr/plugins/herdr-process/ (and the fixture tree named in Todoist 6hW4HCJxjWQvvvQM)
+  to ~/workspaces/backups/2026-09-14T<HH-MM-SS>.herdr-process-plugin-source.backup/. Nothing else about
+  that worktree may be acted on until this is done.; (3) Approve or reject tier 1 as a block, 7
+  registrations and 2421 MB, nothing at stake:
+  `git worktree remove ~/.herdr/worktrees/dotfiles/g3-throwaway`, `... nvim-acceptance-rehearsal`,
+  `... pns-daemon-fixture-children`, `... pns-failure-reporting-spec`, `... s61-g3`, `... s61e-g3`,
+  `... uu-run-logging`; (4) Read the per-path uncommitted listing in the artifact, then approve tier 2
+  path by path, 17 registrations and 5326 MB, each needing `git worktree remove --force <path>`. Three of
+  them hold work against a layout main retired (lights-implementation, pns-executable-deadline,
+  herdr-smart-nav-clean-code, see R5); tuicr-config is blocked by its 8 resident pns processes;
+  herdr-process-plan is blocked by R1.; (5) Decide tier 3, the 3 detached HEADs whose commit no ref
+  contains. To keep one before removing its worktree: `git branch archive/osq-review-4b e71776b8`,
+  `git branch archive/r1-review-4b daf7fc98`, `git branch archive/rev4b-114 4cb7de39`. All three are
+  graphify or review scratch. ~/workspaces/dotfiles-worktrees/integration needs no archive branch, its
+  HEAD is contained by integration/modernization.; (6) Decide tier 4, the 12 named branches whose content
+  is not in main, 4607 MB. Removing a checkout keeps every commit because the branch ref survives, so
+  this is only a disk decision. Look at feat/posture-funnel first: 4128 MB and 5 commits that PR #551
+  never carried to main, so it may want a fresh pull request rather than a removal.; (7) Decide the 16
+  stale pns processes (Todoist 6hW4JgqJJcR43QjM). Terminating them releases the inodes that the two
+  deleted directories still pin and unblocks tuicr-config in tier 2. Killing processes is a gated action,
+  so no command is proposed here; also decide whether pns needs a guard so a test run stops leaking a
+  `pns failures serve` daemon.; (8) After any removal run `git worktree prune` once, then
+  `du -sh /Users/stephen/workspaces/Ivy/webdavis/dotfiles/.git/worktrees` (12 MB now) and
+  `git worktree list | wc -l` to confirm. Deleting a branch is a separate decision and belongs with
+  ledger tasks 67 and 68.; (9) Reconcile with the sibling audit:
+  ~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt covers the same
+  registrations with an ancestry-only merged column that reads 12 of the 54 as unmerged when their
+  content is in main. Use the 57h verdict column for that question and the task 68 file for the rest.
 
 - [x] 57j. Espanso `,,ee` for `echo $?` (operator request 2026-09-14):
   [PR #565](https://github.com/webdavis/dotfiles/pull/565) (`feat/espanso-echo-exit-status`) adds the
@@ -1448,7 +1559,64 @@ producer.
   ancestors of `origin/main`. No `wf_*`, `worktree-agent-*` or `agent-*` branches remain. The four
   `backup/*` branches contain unmerged work and were deliberately retained by the Claude session.
   Classify the other throwaway candidates by reachability, attached worktree, dirty state and owner.
-  These counts do not authorize deletion. Obtain approval for the exact proposed groups.
+  These counts do not authorize deletion. Obtain approval for the exact proposed groups. Inventory done
+  2026-09-14; nothing was deleted and no `git branch -D` or `git worktree remove` ran. The classification
+  is pinned to `origin/main` `7bdecf6b`, the tip left by PR #575, because the repository moved twice
+  during the run: a first pass at 04:34Z read 601 branches against `f24aba51`, and by 04:46Z there were
+  607 with six more worktrees. At the pinned base: 607 local branches, 549 contained in `origin/main`, 58
+  not, 545 heads still on origin, and 57 worktree registrations, 51 on a named branch and six detached.
+  The 577 branches and 518 ancestors this line recorded on 2026-09-13 are both superseded. Seven groups,
+  summing to 607: P, nine protected, being `main`, the four `backup/*` refs, the heads of the three open
+  pull requests #546, #51 and #24, and `integration/modernization`, which is the base of #51; B, 20
+  merged but checked out, six of them live work from the same night's concurrent sessions; C1, 17 merged
+  with no worktree whose remote head is already gone; C2, 511 merged with no worktree whose remote head
+  stays on origin; D, 28 unmerged and checked out, overlapping task 68; E1, eight unmerged with no
+  worktree whose tips are reachable from another ref; and E2, 14 unmerged with no worktree that
+  `git branch --contains` and `git branch -r --contains` prove are the only copies of their commits. That
+  proposes 536 deletions and withholds 71. `git branch -d` suffices for all 528 in C: 33 of them have no
+  upstream, so the HEAD test would decide those, and although local `main` sat five commits behind
+  `origin/main`, all 528 are contained in local `main` too. The sole-copy branch worth protecting most is
+  `docs/nvim-acceptance-ledger` `5001c94f`, nine commits ahead, last committed 2026-09-13, whose
+  `.worktrees/nvim-acceptance-ledger` registration no longer exists. Two naming traps surfaced:
+  `feat/posture-converge-staging` `d6448de1` is a different ref from `feat/posture-converge-foundation`
+  `ea51fa5a`, which is what the worktree named `posture-converge-staging` actually holds; and
+  `feat/test-123`, `worktree/brave-harbor-7ea0` and `worktree/quiet-river-d205` are three names for
+  `fb483fc5`, all contained in `integration/modernization`, while `pr25-head` `fef2fcbd` is a second name
+  for the tip of `feat/osquery-alerter-three-tier`. Rendering twice against the same base, at 04:46:29Z
+  and 04:54:17Z, left C1, C2, E1 and E2 identical name for name; only `docs/posture-completion-report`
+  moved, from B to D, when a concurrent session committed to it. The churn therefore lands on the groups
+  the proposal already withholds. The classified list is at
+  `~/workspaces/backups/2026-09-14T04-34-55.local-branch-classification.backup.txt` and the read-only,
+  shellcheck-clean classifier that regenerates it is at
+  `~/workspaces/backups/2026-09-14T04-34-55.local-branch-classifier.backup.sh`. The evidence was recorded
+  on Todoist task `6hW4J6GVgVQ4w2c3` as comment `6hW4J7wmGvWcwFmV`. No GitHub write was made, since no
+  open issue tracks branch hygiene. Still open: the operator approves or amends the exact groups, and the
+  classifier is re-run first, because a merge landing later moves branches into C and grows the proposal
+  past whatever was approved. Owed from the operator: (1) Read the classified list: less
+  /Users/stephen/workspaces/backups/2026-09-14T04-34-55.local-branch-classification.backup.txt . Its
+  final section names exactly what is being asked.; (2) Re-run the classifier first, because the
+  repository moved twice during the inventory run and a later merge moves branches INTO group C, growing
+  the proposal past whatever was approved:
+  /Users/stephen/workspaces/backups/2026-09-14T04-34-55.local-branch-classifier.backup.sh . It reads
+  only, takes an optional output path, and otherwise writes a fresh timestamped file under
+  ~/workspaces/backups.; (3) Diff the fresh run against the 04-34-55 file and confirm C1, C2 and E1
+  membership still matches before approving anything.; (4) DECIDE group C1, 17 branches: merged into
+  origin/main, no worktree, remote head already gone. Approve or reject as a group. Lowest risk in the
+  inventory.; (5) DECIDE group C2, 511 branches: merged into origin/main, no worktree, remote head stays
+  on origin. Approve or reject as a group. Say separately whether the 511 matching remote heads should
+  also be pruned; that is NOT part of this proposal.; (6) DECIDE group E1, 8 branches: absent from
+  origin/main so each needs git branch -D, but every tip is reachable from another ref. Note that
+  feat/scalebar-report-format, fix/issue-18-filevault-detection and part2-daemon-core survive only
+  through their own origin branch, so weigh those three separately from the other five if that guarantee
+  is too thin.; (7) DECIDE group E2, 14 branches, one at a time: no other ref anywhere holds these
+  commits. Start with docs/nvim-acceptance-ledger (5001c94f, 9 commits ahead, last commit 2026-09-13),
+  which is the only copy of a full day's work and the highest-value ref in the inventory.; (8) Do NOT
+  decide groups B (20) or D (28) here. Both are checked out, so task 68 removes or keeps the worktrees
+  first; six of group B is live work from tonight's concurrent sessions and must not be swept.; (9) Run
+  the approved deletions yourself, or reply with the group letters and an agent can run exactly those.
+  Nothing was deleted tonight.; (10) Review Todoist task 6hW4J6GVgVQ4w2c3 in project homelab, which
+  carries the same approval gate and the evidence as comment 6hW4J7wmGvWcwFmV, and complete it once the
+  groups are settled.
 
 - [ ] 68. Finish the worktree inventory and approved cleanup. There are 238 registrations: 28 under
   `~/.herdr/worktrees`, 75 in this checkout's `.worktrees`, 108 under `~/workspaces/dotfiles-worktrees`,
@@ -1507,7 +1675,84 @@ producer.
   work continues in a fresh session from this ledger plus the memory file `resume-2026-09-13-handoff`.
   Each pull request runs as one Workflow script (review, fix, re-check, gates) reporting once. One review
   per pull request, run after the fix; none for docs-only or test-only pull requests. Agents are not put
-  on a reading diet. Fable orchestrates, Opus implements, Sonnet does mechanical work.
+  on a reading diet. Fable orchestrates, Opus implements, Sonnet does mechanical work. Recheck,
+  2026-09-14: inventory only, nothing removed. A snapshot at 2026-09-14T04:40:09Z against main `f24aba51`
+  found 55 registrations, not 238: one source checkout, 40 under `~/.herdr/worktrees/dotfiles`, 10 under
+  `~/workspaces/dotfiles-worktrees`, three under `~/.paseo/worktrees/1sk17y2x`, and the sibling
+  `dotfiles.workflow-job-search-luke-morrison-smith`. The 75 `.worktrees` and 19
+  `dotfiles-agent-worktrees` registrations are gone, both directories now hold no worktree, and the
+  missing-directory registration no longer exists: every registered path is present and
+  `git worktree list --porcelain` reports zero `prunable` lines. All four named dirty worktrees were
+  compared file by file and all four are superseded, so their uncommitted source no longer needs
+  preserving. `pns-refactor-6-5`'s untracked `run_nag.rs` and its 13 tests merged as
+  `pns/crates/pns-application/src/nag.rs`, declared at `lib.rs:72-73`. `pns-executable-deadline`'s
+  `finish_bounded` split merged as `pns/crates/pns-adapters/src/process/bounded.rs:79` with its fixture
+  and deadline tests alongside, and its tip `e97416d0` is only the merge commit of
+  [dotfiles #435](https://github.com/webdavis/dotfiles/pull/435), so that branch carries no commit of its
+  own. `herdr-smart-nav-clean-code`'s five-crate split merged as `f7d9208d`, `defedebb` and `d5e985f3`,
+  which replaced the draft's `direction_to_chord` with the `Direction` enum. And
+  `lights-implementation`'s 43 files all map onto the root `lights` workspace after the `a9b6e00d`
+  relocation, 20 byte-identical and none absent, with main eight commits further along through
+  `d224062c`. Seven of the eleven continuation branches have since merged (`9c99a880`, `73d70f7e`,
+  `45a64bc4`, `79f28454`, `8f3150b1`, `1f934c7b`, `068e34e1`) and their worktrees are already
+  unregistered. Four remain unmerged: `docs/nvim-acceptance-ledger` at `5001c94f`, whose worktree is gone
+  and whose work survives only as the branch ref plus `stash@{3}`, `fix/nvim-mcp-boundary` at `295b84e3`
+  behind [dotfiles #546](https://github.com/webdavis/dotfiles/pull/546),
+  `fix/pns-daemon-fixture-children` at `c6b99b96`, and `feat/posture-funnel` at `0efb2119`. The four
+  excluded-dirty branches merged too: `edfd18b7`, `e5b5f877`, `9432c139` and `4014ff49`. A new
+  highest-risk finding replaces the old worry: `~/.herdr/worktrees/dotfiles/herdr-process-plan` holds 105
+  untracked files and 10,243 lines implementing the whole five-crate `herdr-process` plugin, while
+  `git ls-files` returns zero for both of its paths and `git log origin/main -- '*herdr-process*'`
+  returns nothing, so `feat/herdr-process` being merged covers its commits and not this source. A
+  `git worktree remove` there would destroy all of it, and preserving it was split to its own Todoist
+  task because it must happen whether or not the cleanup is approved. The exact proposal groups all 55
+  with no remainder: 11 protected because they are live right now (a herdr `open_workspace_id` and a
+  running process cwd, one of them the head of
+  [dotfiles #575](https://github.com/webdavis/dotfiles/pull/575)), two protected for open pull requests
+  #546 and [dotfiles #51](https://github.com/webdavis/dotfiles/pull/51), one protected for unbacked
+  source, 21 unmerged where a branch holds the commits so worktree removal loses nothing, 14 merged and
+  removable of which seven need a named file copied out first, and five detached whose tips no branch or
+  tag contains, so removal would make those commits unreachable. `posture-converge-staging`'s 1571 dirty
+  files are all deletions against the merged `ea51fa5a`, an emptied working tree with nothing at risk.
+  None of the 17 stashes is stranded by a worktree removal, and task 68c's stash is intact at
+  `stash@{4}`. The registration count is moving: 51, then 55, then 57 within eleven minutes from
+  concurrent sessions, so the recheck has to run again at approval time. The full classified list,
+  per-group membership, the salvage file list and a recheck block are in
+  `~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt`. Still owed: operator
+  approval of the exact removal set, and the removal itself. Owed from the operator: (1) FIRST, before
+  approving anything: preserve the herdr-process source, which sits on no git ref. Either commit it on
+  its branch,
+  `git -C ~/.herdr/worktrees/dotfiles/herdr-process-plan add dot_local/share/herdr/plugins/herdr-process test/fixtures/herdr-process && git -C ~/.herdr/worktrees/dotfiles/herdr-process-plan commit`,
+  or copy it out:
+  `cp -a ~/.herdr/worktrees/dotfiles/herdr-process-plan/dot_local/share/herdr/plugins/herdr-process ~/workspaces/backups/2026-09-14T04-40-09.herdr-process-plugin-source.backup/`.
+  Tracked as Todoist 6hW4HCJxjWQvvvQM.; (2) Re-run the recheck block at the bottom of
+  ~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt immediately before
+  removing anything. It was 57 registrations at 04:47:02Z, up from the 55 in this inventory. Any path
+  that comes back from `herdr worktree list` with an open_workspace_id, or from the `lsof -a -d cwd`
+  line, is off limits whatever the file says.; (3) Decide group E1, the only set removable with no
+  salvage step, seven worktrees:
+  `git worktree remove ~/.herdr/worktrees/dotfiles/posture-converge-staging`, and the same for
+  `herdr-smart-nav-clean-code`, `lights-implementation`, `pns-executable-deadline`, `lights-spec`,
+  `uu-tooling-lanes-spec-amend`, and `~/workspaces/dotfiles-worktrees/render-coverage`. All seven are
+  merged into f24aba51 and all their dirt is generated, disposable or superseded. `--force` will be
+  needed on the dirty ones.; (4) Decide group E2, seven worktrees that need a file copied out first. The
+  exact files are listed per worktree in the backup file: `dot_local/share/pns/INTEGRATION-NOTES.md`, six
+  `slice-*-plan.md`/`slice-*-report.md` files across the four s9 worktrees,
+  `docs/superpowers/plans/2026-07-21-s9-reland-slice-4-alerter.md`, and the three
+  `docs/research/2026-06-2*.md` skill papers. Each was verified absent from every commit on every ref.
+  The three docs/research papers are drop-in candidates for a commit, since docs/research is tracked on
+  main.; (5) Decide group F, five detached worktrees whose tips no branch or tag contains (osq-review-4b,
+  r1-review-4b, s61-g3, s61e-g3, rev4b-114). Either tag them first, for example
+  `git tag archive/osq-review-4b e71776b8`, or say explicitly that the loss is accepted. The osquery and
+  pns mutation-testing pins in the first two are the ones worth a look before deciding, since whether
+  those asserts survived into main's suite was not established here.; (6) Decide group D, the 21 unmerged
+  worktrees where a branch holds the commits. Worktree removal there loses nothing as long as no
+  `git branch -D` follows, which is task 67's scope, not this one. The three dead-Paseo worktrees under
+  ~/.paseo/worktrees/1sk17y2x are the strongest candidates: Paseo is dead and their tips are from June.;
+  (7) Separately, decide the 24 stray agent scratch files sitting beside the worktree directories in
+  ~/.herdr/worktrees/dotfiles (chain-553.sh, ledger-pr.sh, five merge-5\*.sh, ledger-pr.log, and sixteen
+  commit-*/push-* logs). None is tracked by git and none belongs to a worktree.; (8) Leave groups A, B
+  and C alone: 11 live worktrees, two behind open pull requests #546 and #51, and herdr-process-plan.
 
 - [x] 68b. Review and remove the untracked `.merge_file_*` artifacts in this checkout. They were Graphify
   merge-driver residue, not source. The operator deleted all 126 matching artifacts and `nvim.log` on
@@ -1591,7 +1836,71 @@ is missing.
   visual comparison. Standalone lights acceptance does not close these pns checks. Include the recorded
   total-runtime performance pass and Part 2 intent review; neither has established closure in this sweep.
   Configuration generation and opt-in setup already exist; reconcile their acceptance records rather than
-  reimplementing them.
+  reimplementing them. Reconciled 2026-09-14 against the memory record and the live machine, with `main`
+  at `f24aba51`; the full classified table is
+  `~/workspaces/backups/2026-09-14T04-34-55.pns-part2-drill-reconciliation.backup.txt`, and nothing was
+  applied, deleted or reimplemented. The apply precondition is met: the operator's 2026-09-13 20:15 apply
+  rebuilt the engine, so `~/.cargo/bin/pns` (20:50) carries the literal added that evening by `57fc3dd4`.
+  Nine drills that the record left "pending after next apply" are now CLOSED on live evidence from
+  `~/.local/state/pns/pns.db` and `pns doctor`: slice 6's L2 locked screen (decisions rows 1999 and 2000,
+  `locked=yes surface=Away plan=banner:no,card:yes legs=mobile:delivered,hermes:delivered`, at 04:25:56Z
+  and 04:32:27Z), slice 10's decision log, slice 11's moshi pairing (paired as dresden,
+  `host_54f7755392cf4f3fa2f5695ccef7ca42`), slices 12 and 13's journal and catch-up replay (three
+  `pns-return` `missed` events, seq 296, 1048 and 1078, one with a phone leg), slice 14's StopFailure
+  (one hook in `~/.claude/settings.json`, six `claude/failed` events), item 21's denied (seq 161, a real
+  refusal) and item 22's asked and plan-ready (21 asked, seq 78 `ExitPlanMode`). Drill 28 is a PARTIAL
+  pass: Codex ran 1072 events through pns (758 blocked, 289 done, 25 asking, seq 448 to 1849) with all
+  1072 hermes legs acknowledged, 19 banner deliveries on blocked and 22 phone cards on done and asking,
+  and `~/.codex/config.toml` now carries a `trusted_hash` for both pns entries in `~/.codex/hooks.json`,
+  which closes the drill ledger's last open item; what remains is a blocked Codex event answered on the
+  phone, since 0 of 758 produced a `mobile` leg. Drill 29 CANNOT PASS as written: `run_after_62` still
+  repoints both `moshi-hooks.ts` extensions at `/Users/stephen/.cargo/bin/pns` (regenerated 2026-09-09
+  23:42 under moshi-hook 0.3.16), but that generation calls `helperBinary` only for debug replay, spawns
+  nothing but `tmux`, and sends events over moshi's unix socket, so pns is out of pi and omp's path and
+  no event has ever carried `agent='pi'`; filed as
+  [the pi/omp gate decision](https://app.todoist.com/app/task/6hW4H5jRxrJp8XJG). NotHome is blocked
+  upstream of itself: `pns home` reads `unknown`, the request-failed verdict (`home_report.rs:24`), while
+  the router answers 200 at `https://192.168.1.1/` and 401 at `/proxy/network/integration/v1/sites`
+  without a key, so the 2026-08-28 Home pass no longer reproduces and the credential or site id is the
+  suspect ([task](https://app.todoist.com/app/task/6hW4H6c9J64h79vp)). The blocked, loop and daylight
+  comparison has its code deployed (`pulse.rs` xy 0.3395/0.1379 and 0.1532/0.0475,
+  `breathe_then_flare_cycle` at `lights/breath.rs:86`, 13 lamps routed with 4 on blocked and 4 on loop)
+  and is owed the operator's eyes in daylight, on the Kitchen or MBedroom rather than the Studio. The
+  total-runtime performance pass stays open on
+  [its task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp), whose 2026-09-13 native-probe medians
+  measure the probe stage and not total runtime, and the Part 2 intent review stays open on
+  [its task](https://app.todoist.com/app/task/6hPxWVwHGX9qFWpG), the 2026-08-31 grill session having
+  covered the lights behaviours only. Slice 7's quiet window stays deferred: the template ships the key
+  commented, the `quiet` table is empty, and an agent cannot read the deployed config. Configuration
+  generation needs no rework, its byte-equality gate having passed inside `just test-rust` on main's Lint
+  run 34803943215. Two incidentals: `pns doctor` reports the hermes gateway missing the `pns-recap` and
+  `posture` routes, where only recap has a documented fallback
+  ([task](https://app.todoist.com/app/task/6hW4H7XQ6fXPJc3G)), and the 28 `pns` crash reports in
+  `~/Library/Logs/DiagnosticReports` are interrupted `pns setup` runs (26 SIGQUIT through `Hushed::drop`
+  in `ask_hidden`), not engine crashes. The one `pns doctor` run this sweep needed sent a real test
+  notification down every channel at about 22:35 local. Owed from the operator: (1) Drill 28's last leg:
+  leave the desk (or lock the screen), provoke a Codex permission request, and answer the card on the
+  phone. Every Codex approval so far landed on the banner (19 of 19), so the phone path for a Codex block
+  is the one thing unproven. Confirm afterwards with `pns doctor` (the decision line should read card:yes
+  with a mobile leg).; (2) Decide drill 29 (Todoist 6hW4H5jRxrJp8XJG): moshi-hook 0.3.16's generated pi
+  and omp extensions no longer spawn `helperBinary`, so the pns presence gate cannot see them. Pick one:
+  accept ungated pi and omp pushes and mark drill 29 closed as obsolete, ask moshi for a pre-send hook or
+  socket shim, or retire the repoint and `run_after_62`'s first check. An agent will not touch moshi's
+  own generated files either way.; (3) Fix the router probe before the NotHome drill (Todoist
+  6hW4H6c9J64h79vp). With KeePassXC unlocked, run: curl -sk -H "X-API-KEY: \<UniFi :: API Key
+  (dresden-udr)>" https://192.168.1.1/proxy/network/integration/v1/sites . A 200 means the site id or
+  client query is at fault; a 401 means the key was rotated and needs re-pasting into the vault entry,
+  then a full `chezmoi apply`.; (4) Once `pns home` reads Home again, run the NotHome drill: phone off
+  wifi, `pns home` expects "NOT on the home network", wifi back on, Home again within about 15 seconds.;
+  (5) Run the daylight lights comparison in daylight: blocked breathing, loop breathing, then the two
+  side by side. Use the Kitchen or MBedroom lamp, never the Studio, because [lights.lamp.\*] routes loop,
+  blocked and unread there and every reading taken on it is mid-animation.; (6) Schedule the two open
+  program items when you want them: the total-runtime performance pass (Todoist 6hPxWVHM8pG4qgwp) and the
+  /grill-me intent review over all of Part 2, not just lights (Todoist 6hPxWVwHGX9qFWpG).; (7) Optional,
+  cheap: enable `quiet_hours` on [plugins.hue] if you still want it, which is the only thing standing
+  between slice 7 and a drill.; (8) Decide on the missing hermes routes (Todoist 6hW4H7XQ6fXPJc3G):
+  posture pages currently have nowhere to land, and the fix needs the encrypted hermes config edited, an
+  apply, and `hermes gateway restart`.
 - [ ] Evaluate native macOS probes for pns, approved 2026-09-13. Benchmark the current `ioreg` idle-time
   and screen-lock probes and the `pgrep`/`ps` process queries used for phone-session activity. Compare
   probe latency and total pns runtime under representative load with small Rust adapters using maintained
@@ -1784,7 +2093,42 @@ operator deployment. No source correction was warranted by this audit.
 - [ ] Reconcile the June hardening-plan remainder and explicitly deferred FleetDM, beaconing and Wazuh
   research. Record accepted scope before implementation. Issue #18's FileVault fix and dead snapshot
   handling are already present in the current query, Bash and Rust paths; reconcile/close its stale issue
-  rather than reopen that implementation. PR #19 is closed and was not merged.
+  rather than reopen that implementation. PR #19 is closed and was not merged. On 2026-09-14 the
+  reconciliation ran with no implementation. [#18](https://github.com/webdavis/dotfiles/issues/18) was
+  closed as completed after its FileVault fix and its dead-snapshot problem were verified present on
+  `main` in all three paths: the query path in
+  `dot_local/libexec/posture/converge/desired/packs/security-policy-regression.conf` at `3cae79ce`
+  ([PR #62](https://github.com/webdavis/dotfiles/pull/62), merged 2026-07-22), where `filevault_state` is
+  informational with a log-only removed row and `filevault_off` is differential at interval 3600 with no
+  snapshot key; the Bash path in `dot_local/libexec/osquery/results-alerter/route.sh` at `f511e85a`
+  ([PR #64](https://github.com/webdavis/dotfiles/pull/64), merged 2026-07-22), whose `protection_off`
+  covers only `filevault_off` added and drops `filevault_state` to NOTICE; and the Rust path in
+  `posture/crates/posture-domain/src/severity.rs` at `2522d0b2`
+  ([PR #429](https://github.com/webdavis/dotfiles/pull/429), merged 2026-09-07), where `FilevaultOff`
+  with `Added` is Critical and `FilevaultState` is Notice for every action. `3cae79ce` is also the
+  dead-snapshot fix, because snapshot results land in `osqueryd.snapshots.log` which the alerter never
+  reads, and it removed `firewall_off`, `gatekeeper_off` and both `screenlock` queries for the same
+  reason. Coverage is pinned by `test_c2_differential_filevault_off_added_not_snapshot_fires_a_crit_page`
+  in `test/e2e/osquery-alerter-criteria.test.sh`, `other_security_policy_rows_are_notice_never_info` in
+  `posture/crates/posture-domain/src/severity/tests.rs` and `c2_added_filevault_off_pages` in
+  `posture/crates/posture-domain/src/gate/tests/page.rs`.
+  [PR #19](https://github.com/webdavis/dotfiles/pull/19) was confirmed closed unmerged on 2026-06-15
+  (`merged_at` null, head `e057aecb` not an ancestor of `main`) and was left untouched. The three
+  research items were dispositioned as still deferred against `origin/docs/osquery-design` head
+  `2202dcbf`: fleet management stays out of this repository (master spec v2 sections 2 and 13), beaconing
+  and new-listening-port detection stay deferred on noise grounds (reshape design line 114, build
+  guidance lines 160 to 165), and the Wazuh migration is revisited only after the page tier proves calm
+  and only in homelab automation (reshape design line 113, redesign decisions line 121). FleetDM is a
+  chosen product nowhere on that branch, whose only two mentions are citation URLs, so this entry should
+  read fleet management. Todoist task `6hPCHJM8PJjcx4cv` carries the same evidence in comment
+  `6hW4G7vghG9cM3gv` and stays open for the hardening-plan remainder. Operator acceptance of the recorded
+  scope is still outstanding. Owed from the operator: (1) Accept or amend the recorded scope before any
+  implementation of the June hardening-plan remainder: read Todoist comment `6hW4G7vghG9cM3gv` on task
+  `6hPCHJM8PJjcx4cv` (`td comment list 6hPCHJM8PJjcx4cv --all --lines 40`) and reply with acceptance or a
+  correction.; (2) Decide whether the ledger entry's 'FleetDM' should be reworded to 'fleet management',
+  since no document on `origin/docs/osquery-design` picks FleetDM as a product (its only two mentions are
+  citation URLs at `docs/superpowers/research/2026-06-08-macos-persistence-monitoring-design-research.md`
+  lines 144 and 145).
 - [ ] Give the June hardening requirements explicit dispositions: signature-chain verification,
   interpreter-payload assessment and per-run grouping of repeated findings about the same subject.
   Current Rust code reads signature metadata, leaves interpreter payloads unverified and retains each
@@ -1979,9 +2323,102 @@ force.
 - [ ] Reconcile the package-manager audit (#11), npm/uv cleanup drift (#20), Homebrew rollback (#12),
   remaining macOS settings (#17), and optional shell command generation (#91). Review the existing
   installers and uu producers before proposing additions. Keep package removal and rollback decisions
-  explicit; installation tracking does not authorize removal of all undeclared packages.
+  explicit; installation tracking does not authorize removal of all undeclared packages. Reconciled
+  2026-09-14 against the current installers, with nothing installed, removed or applied.
+  [#11](https://github.com/webdavis/dotfiles/issues/11) CLOSED as completed: every package manager in use
+  has a declaration and a runner, `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`
+  consuming all of `packages.macos` (17 taps, 132 formulae, 55 casks, 5 mas apps, 5 uv tools, 15 npm
+  packages on node 24), and measurement found 15 of 15 declared npm packages and 5 of 5 uv tools
+  installed. pipx is superseded by uv (`5036f485`, 2026-03-28) and the issue's `trash-cli` example is a
+  declared formula at 0.24.5.26; volta is gone (`a902c341`, 2026-08-10); cargo was excluded from that
+  issue by operator instruction, leaving only the rustup install, which
+  `run_once_before_20-install-rustup.sh.tmpl` does, plus weekly `[lanes.cargo]` and `[lanes.rustup]`
+  reporting (`f073bfce`, 2026-09-09). `~/go/bin` does not exist and `gem list --user-install` is empty,
+  so both guessed managers had nothing to declare. Todoist
+  [6gfVJCVHWvqJ8Jpv](https://app.todoist.com/app/task/6gfVJCVHWvqJ8Jpv) was completed with that evidence.
+  The other four stayed OPEN because each one's remainder is an operator decision.
+  [#20](https://github.com/webdavis/dotfiles/issues/20) keeps a real gap (no removal pass in the uv or
+  fnm stages) but loses its volta bullet and its line numbers, and the measured drift argues against the
+  cleanup pass it proposes: uv drift is zero, and all 3 undeclared npm globals would have been destroyed
+  by a diff-and-uninstall tonight, since `corepack` ships with the runtime while
+  `@oliverames/mcp-server-for-ynab` 5.2.0 and `gnhf` 0.1.49 were installed 2026-09-13 and are already
+  scheduled for declaration by lines 1919 and 2161 of this file. A report of undeclared globals on the
+  existing weekly lanes was recommended instead of a remover.
+  [#12](https://github.com/webdavis/dotfiles/issues/12) should not be built as written: on Homebrew
+  7.0.1-3-g67f689a `brew pin` accepts `--cask`, so the local-tap workaround is obsolete for pinning,
+  `brew list --pinned` is empty, `bash-completion@2` and `postgresql@17` already cover the versioned
+  formula case, keepassxc is a cask at 2.7.12 past the 2.7.11 that motivated the ask, and the version
+  history a rollback would read already exists as the brew lane's `name<TAB>state<TAB>before<TAB>after`
+  rows (`uu/crates/uu-adapters/src/lanes/changes.rs:124`), whose TSV has never been published on dresden.
+  Only a downgrade is genuinely missing. [#17](https://github.com/webdavis/dotfiles/issues/17) is
+  delivered for `defaults write` (`dd04c215` and `409dd2a6`, 2026-05-05, 15 records plus 4 killall
+  targets, with `just D` and `just defaults-capture` over helpers deployed 2026-08-10) and unstarted for
+  pmset, which appears in no data file; its three values are already live on AC (`sleep 0`,
+  `tcpkeepalive 1`, `lowpowermode 0`) but undeclared, so a fresh machine gets none of them. Three
+  `sudo: true` `enforce` records for `.chezmoidata/macos_system_setup.yaml` were drafted on the issue
+  rather than committed, because they need sudo and an apply.
+  [#91](https://github.com/webdavis/dotfiles/issues/91) stays parked with every premise intact: atuin
+  18.22.0 still ships `atuin ai inline`, `[ai] enabled = false` matches in source and deployed config,
+  and ollama plus `qwen3.5:4b` keep the self-hosting test one config file away. Its two Hub-free
+  neighbors, `atuin hook install` and `atuin mcp`, are unadopted in every managed harness config and were
+  recommended for a separate ruling ahead of the assistant question. One new finding, operator-gated:
+  `~/.cargo/bin/fd` 8.4.0 shadows the declared Homebrew `fd` 10.5.0 because `~/.cargo/bin` precedes
+  `/opt/homebrew/bin` on the managed shell's PATH, so the correct declared binary is unreachable; `nu`
+  0.44.0 and `selene` 0.26.1 sit beside it, all three already reported by the cargo lane on 2026-09-09.
+  Nothing was deleted. Full measurement:
+  `~/workspaces/backups/2026-09-14T04-34-55.sp7-package-audit.backup.txt`. Owed from the operator: (1)
+  Rule on #20: document npm and uv as install-only (the issue's third option, which is what happens
+  today) versus building a cleanup pass. Recommendation is install-only plus an undeclared-globals report
+  on the existing uu npm and uv lanes, because a diff-and-uninstall pass tonight would have removed all 3
+  undeclared npm globals wrongly (corepack is node-bundled; the YNAB server and gnhf are deliberate
+  2026-09-13 installs the ledger already routes into the fnm declaration).; (2) Approve or deny the one
+  removal candidate on #20: `cargo uninstall fd-find` to stop ~/.cargo/bin/fd 8.4.0 shadowing the
+  declared Homebrew fd 10.5.0. Same decision for the two other stale undeclared crates,
+  `cargo uninstall nu` and `cargo uninstall selene`. Nothing was removed.; (3) Decide #12 in two parts:
+  (a) approve or deny a `pinned:` key in .chezmoidata/system_packages_autoinstall.yaml that the runner
+  turns into `brew pin` calls and the uu brew lane honors, now buildable on upstream's cask-capable
+  `brew pin` rather than a local tap; (b) say whether an actual downgrade mechanism is wanted at all, or
+  whether reading ~/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv by hand is enough until
+  a second incident.; (4) Approve the three pmset records drafted in the #17 comment for
+  .chezmoidata/macos_system_setup.yaml (`/usr/bin/pmset -c sleep 0`, `-c tcpkeepalive 1`,
+  `-c lowpowermode 0`, each `sudo: true` and `tier: enforce`). They were not committed because they need
+  sudo and an apply, which the operator owns; the live machine already holds all three values, so nothing
+  is urgent.; (5) Rule separately on the two Hub-free atuin features in #91, ahead of the parked
+  assistant question: whether to adopt `atuin hook install claude-code` (records an agent's commands into
+  atuin history) and `atuin mcp` (serves history search over MCP). Keep `[ai] enabled = false` either
+  way.; (6) Run `just lint-check` before committing the ledger paragraph above, since mdformat wraps at
+  105 columns and rewrites in place.
 - [ ] Reconcile existing Nix installer maintenance (#10) only as needed to preserve optional Nix package
   and project-flake use. This is separate from the rejected nix-darwin macOS-management transition.
+  Reconciled on 2026-09-14 and [#10](https://github.com/webdavis/dotfiles/issues/10) closed as completed.
+  The migration it asked for had already shipped on 2026-05-15 in `58bbb7d2`, which replaced
+  `DeterminateSystems/nix-installer-action@main` with `NixOS/nix-installer-action@main` in
+  `.github/workflows/lint.yml` and updated the `README.md` install command and the `dot_bashrc.tmpl`
+  comment. Its message read "Solves #10", which GitHub does not accept as a closing keyword, so the issue
+  outlived the work by four months. Same-day `6a3da6fb` added the repair LaunchDaemon and `3426adcf`
+  tracked the user `nix.conf` that re-enables `nix-command` and `flakes`, which the upstream installer
+  leaves off. `2550e8be` (2026-08-05) later deleted `flake.nix`, `flake.lock` and `treefmt.nix`, removing
+  the continuous-integration Nix install step with them, and `c34fc502` (2026-08-09) restored the repair
+  hook into `libexec` as `systems.nixos.nix-installer.nix-hook`, wired through
+  `.chezmoidata/macos_system_setup.yaml` at tier `enforce`. Live verification passed: `/etc/nix/nix.conf`
+  carries the NixOS installer header, `nix-installer 2.34.6` and `nix 2.34.6` match `/nix/receipt.json`,
+  `/nix/nix-installer self-test` exited 0 across `sh`, `bash` and `zsh`, `nix eval --expr '1 + 1'`
+  returned 2, and a throwaway single-output flake evaluated to `ok`, so optional packages and per-project
+  flakes both still work. nix-darwin and sops-nix were not reopened. Todoist
+  [6gfVJ9rXQ85xr7qM](https://app.todoist.com/app/task/6gfVJ9rXQ85xr7qM) was already complete and took the
+  evidence comment. One leftover needs the operator:
+  `/Library/LaunchDaemons/systems.determinate.nix-installer.nix-hook.plist` is still on disk and still
+  registered, identical to the repo-managed plist apart from its label domain and a missing trailing
+  newline, and booting it out needs sudo. Owed from the operator: (1) Decide whether to retire the stale
+  Determinate LaunchDaemon left over from the pre-2026-05-15 installer. It is a byte-equivalent duplicate
+  of the repo-managed hook, so leaving it is harmless; retiring it is two sudo commands the repo will
+  never issue itself: `sudo launchctl bootout system/systems.determinate.nix-installer.nix-hook` then
+  `sudo trash /Library/LaunchDaemons/systems.determinate.nix-installer.nix-hook.plist` (or `sudo rm` if
+  trash cannot reach /Library). Confirm with
+  `launchctl print system/systems.determinate.nix-installer.nix-hook` returning not-found afterwards; the
+  repo-managed `systems.nixos.nix-installer.nix-hook` must stay loaded.; (2) No other action is owed.
+  Nothing here needs a chezmoi apply: `chezmoi status` reports no pending nix targets, and the deployed
+  repair hook and installed plist already match source.
 - [ ] Revisit the roadmap's bandwhich/doggo/ouch evaluation, remaining shell quick wins and optional Tart
   clean-machine environment. `MANPAGER` and Git's `autocorrect = prompt` already exist. VM creation
   remains operator-gated. Re-rule the old documentation/archive tasks S1/S2/S4 against current files.
@@ -2029,7 +2466,46 @@ force.
   `.chezmoitemplates/global-agent-rules.md`. Preserve that source ownership and the interactive review of
   proposed edits. Decide how accepted skill extractions enter the managed store and provenance lock,
   instead of leaving undeclared directories. CLI upgrades already use uu's npm lane; do not reinstall
-  merely to complete the old evaluation task.
+  merely to complete the old evaluation task. Reconciled on 2026-09-14. `dot_config/backpass/config.json`
+  is byte-identical to the deployed `~/.config/backpass/config.json` and still points `user.memoryFiles`
+  at `.chezmoitemplates/global-agent-rules.md`; `backpass status --scope user` confirms it live,
+  reporting this checkout as no write target, that partial at 14,884 tokens against the default
+  5,000-token budget across 83 instructions, and an empty cache (0 transcripts fingerprinted, 0 evidence,
+  no proposal), so backpass has never run here and no extraction existed to reconcile. backpass 0.1.22
+  and acpx 0.15.1 are installed on the fnm npm lane and declared; nothing was reinstalled.
+  Skill-extraction ownership is settled on the existing vendored lane, with no new provenance kind, no
+  `skillsDir` redirect and no automation: the write target already is the managed store
+  (`USER_CONFIG_DEFAULTS.skillsDir` is `.agents/skills` under `$HOME`), a configured `skillsDir` is
+  honored only when that directory already exists and otherwise falls back to the store silently,
+  backpass plants `~/.claude/skills` only when the path is missing and warns on a real directory (which
+  is what it is here, 77 declared symlinks), and an unpromoted extraction survives everything because
+  uu's `absorb_store_entries` walks `roster.tracked_names()` only and `live-reconcile.sh` prunes hermes
+  profile links but never a real store directory. The gap was reach and version control rather than
+  survival, and `backpass apply` is interactive and the only writer, so the promotion belongs to the same
+  sitting as the acceptance: the recipe now lives in `docs/runbooks/agent-skills-store.md` as a "Locally
+  extracted (`backpass`)" provenance section plus a pointer in its "Adding a skill" step 1, with the
+  CLAUDE.md paragraph corrected to match. Both files are source-only, so no apply is involved, and the
+  two edits wait uncommitted on `main` for review. The audit also found four live store entries in no
+  lock table (`composio-cli`, `hyperframes-media`, `website-to-hyperframes`, `website-to-video`), each
+  carrying an undeclared `~/.claude/skills` symlink and alive through every weekly publication since
+  2026-07-03; they are now tracked in
+  [6hW4MHMmqR4pgM8v](https://app.todoist.com/app/task/6hW4MHMmqR4pgM8v) and nothing was changed. Evidence
+  recorded on [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M), which stays open for
+  no-mistakes and firstmate. Owed from the operator: (1) Review and commit the two doc edits as their own
+  commit, separate from the ledger commit:
+  `git -C /Users/stephen/workspaces/Ivy/webdavis/dotfiles diff CLAUDE.md docs/runbooks/agent-skills-store.md`,
+  then commit those two paths (docs scope). No `chezmoi apply` is involved, both files are in
+  `.chezmoiignore`. mdformat was already verified idempotent on both.; (2) At the next
+  `backpass apply --scope user` that accepts a skill extraction, promote it in the same sitting per the
+  new runbook section: copy `~/.agents/skills/<name>/` into `dot_agents/skills/<name>/`, add the `tiers`,
+  `hermesProfiles` and (if withheld) `claudeDelivery` rows, declare
+  `private_dot_claude/skills/symlink_<name>`, add the `skillOverrides` entry and committed
+  `agents/openai.yaml` overlay when on-demand, run `just test`, then apply.; (3) Rule on the four
+  undeclared store entries in Todoist 6hW4MHMmqR4pgM8v: declare each (its real lane plus lock rows plus
+  the Claude declaration) or record in the lock comment which app owns it. Nothing was deleted or
+  declared overnight.; (4) Optional decision, needs a full apply if taken: whether to raise
+  `budgetTokens` in `dot_config/backpass/config.json` above the 5,000 default, since the shared partial
+  already measures 14,884 tokens and a first run will otherwise propose deletions to fit.
 - [ ] Plan installation and configuration of [no-mistakes](https://github.com/kunchenguid/no-mistakes)
   and [firstmate](https://github.com/kunchenguid/firstmate), requested 2026-09-12. Neither has a managed
   declaration in the reviewed source. The operator confirmed that Backpass, no-mistakes and firstmate all
@@ -2119,7 +2595,7 @@ force.
   PostgreSQL, but that alone does not supply the requested client configuration. bqf and dadbod are
   absent from the current source/live plugin locks. Avoid duplicating completed xcodebuild, dap and
   neotest infrastructure; the language-specific gaps above remain separate.
-- [ ] Reconcile completed or superseded Todoist review items with evidence: Neotest parser findings
+- [x] Reconcile completed or superseded Todoist review items with evidence: Neotest parser findings
   (`6hR5vFgFXgjHVGMv`, `6hRHmWWqFjr5RmVv`), Atlas (`6hR59h6FQWpv33p8`), Overseer (`6hR5Gg6XXRFVhfpg`) and
   the pns builder-input fix (`6hV7jMW3jMGWcCMv`, commit `0b55db04`). Current source contains their fixes
   or recorded replacement decisions. Preserve Atlas's deliberate omission of checkout mappings. Update
@@ -2127,17 +2603,122 @@ force.
   exclusions and fixture fix already shipped; the proposed worktree reaper was rejected. Likewise, the
   old graphify exclusion-removal proposal predates the current committed `graphify-out/graph.json` and
   post-commit rebuilding policy; do not delete that map or its exclusions as unfinished cleanup.
-- [ ] Reconcile [6ggcw4qfqfqjxP3v](https://app.todoist.com/app/task/6ggcw4qfqfqjxP3v), the old tiling
+  Reconciled 2026-09-14: all five items are closed in Todoist, each carrying a comment with the commit
+  that fixed or superseded it. The three findings on
+  [6hRHmWWqFjr5RmVv](https://app.todoist.com/app/task/6hRHmWWqFjr5RmVv) are fixed:
+  `webdavis/neotest-bashunit` `ddd53e6`, `36854cb` and `f2f085b` discover the parenthesis-free
+  `function test_name { ... }` spelling, `ddd53e6` and `82dd3de` narrowed the passing-test output claim
+  to what bashunit actually reports (no message), and `4b6e8d70` removed the obsolete local
+  `just test-unit` version-gate claim from `CLAUDE.md`. The adapter pin this repository runs,
+  `4c07ce1c94a53be4a5e8c959fd759432c81039f6` set by `ffea4072`, contains all four adapter commits. Its
+  parent [6hR5vFgFXgjHVGMv](https://app.todoist.com/app/task/6hR5vFgFXgjHVGMv) held that one subtask and
+  no others, so it closed on the same evidence.
+  [6hR59h6FQWpv33p8](https://app.todoist.com/app/task/6hR59h6FQWpv33p8) closed with the checkout-mapping
+  finding recorded as deliberately rejected: `847500ff` dropped `pulls.repo_config.paths` as a protection
+  policy and corrected the worktree rationale in both `dot_config/nvim/lua/plugins/atlas.lua` and
+  `docs/research/2026-09-atlas-nvim-evaluation.md`, while the atlas treesitter exclusion was superseded
+  by the general `is_installable` rule in `852466ed`, made per-call in `86ee65f5` and pinned by
+  `dot_config/nvim/tests/plugins_treesitter_spec.lua`.
+  [6hR5Gg6XXRFVhfpg](https://app.todoist.com/app/task/6hR5Gg6XXRFVhfpg) closed with one landed commit per
+  finding: `e036fea5`, `a495cdd1`, `4b114b13`, `66d4daf0`, `007653ae`, `e8e7a4a9`, `f709cd47` and
+  `b892a438`. [6hV7jMW3jMGWcCMv](https://app.todoist.com/app/task/6hV7jMW3jMGWcCMv) was already complete
+  (2026-09-13) and took the evidence comment for `0b55db04`, which widened all four Rust builders to
+  every extension and scoped them to `crates/` so cargo's own `target/` stays out of the hash. Nothing
+  was reinstated or deleted: `graphify-out/graph.json` remains committed behind `.gitignore` lines 30 to
+  33, `treefmt.toml` line 22 and `.chezmoiignore` line 33 with the `.githooks/post-commit` rebuild
+  intact, the temporary-repository fsmonitor exclusions shipped in `96ce432a` and `d80dcfd3`, and no
+  worktree reaper exists anywhere in source. No open GitHub issue matched any of the five items, so none
+  was touched.
+- [x] Reconcile [6ggcw4qfqfqjxP3v](https://app.todoist.com/app/task/6ggcw4qfqfqjxP3v), the old tiling
   window-manager task. Issue #14 is already closed as completed (2025-12-28); AeroSpace is declared and
   configured. This needs task-list closure with that evidence, not another installation or issue closure.
+  Reconciled on 2026-09-14. Issue #14 was verified closed as completed at 2025-12-28T22:11:00Z with
+  `state_reason` `completed`, so no issue closure was needed. AeroSpace is declared as the cask
+  `nikitabobko/tap/aerospace` at line 214 of `.chezmoidata/system_packages_autoinstall.yaml` (beside
+  `mediosz/tap/swipeaerospace` at line 209), `dot_aerospace.toml` carries 363 lines and 70 main-mode
+  keybindings plus service and resize modes, and it is deployed byte-identical to `~/.aerospace.toml`
+  (14831 bytes, `diff` clean), with `brew list --cask` showing both casks and
+  `/Applications/AeroSpace.app` present.
+  [6ggcw4qfqfqjxP3v](https://app.todoist.com/app/task/6ggcw4qfqfqjxP3v) was completed after that evidence
+  was posted as comment `6hW4J768XmMCRJvM`, and the parent audit task
+  [6hVp9mV63cg2J8PM](https://app.todoist.com/app/task/6hVp9mV63cg2J8PM) got the same evidence in comment
+  `6hW4JGmgcQJCmFGM` for its matching line item and stays open for its other gaps. Nothing remains for
+  the operator.
 - [ ] Reconcile stale GitHub issues #8 (Kulala-LS is declared), #9 (gh-notify was superseded), #13
   (Zellij predates the Herdr decision), and #18 (fixed), then align the surviving issues and Todoist
   items with this file. The earlier migration's cutover ledger has all five completion markers dated
-  2026-08-10; do not confuse those completed gates with the new posture cutovers.
-- [ ] Resolve scope for the older warden import/quarterly-cleanup tasks and obsolete agent-session
+  2026-08-10; do not confuse those completed gates with the new posture cutovers. Reconciled on
+  2026-09-14. [#8](https://github.com/webdavis/dotfiles/issues/8) closed as completed:
+  `@mistweaverco/kulala-ls` is declared at `.chezmoidata/system_packages_autoinstall.yaml` line 275 in
+  the single fnm node group, has been on `main` since `fc6d3327` and `7b32adc6` (both 2026-05-05,
+  first-parent, no PR to cite), is installed at 1.11.1, and is made idempotent by the `npm ls -g` guard
+  at line 293 of `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`. Its third checklist
+  item was unachievable rather than unmet: the package ships no help mode, and its transport error is
+  itself the proof the binary resolves. [#13](https://github.com/webdavis/dotfiles/issues/13) closed as
+  not planned: Zellij was never installed or declared, tmux and sesh are both uninstalled, `~/.tmux.conf`
+  does not exist, and herdr 0.9.0 carries the issue's one requirement through ten
+  `herdr-workspace-jump.jump_*` bindings plus `last_workspace` in `dot_config/herdr/config.toml`. The
+  five markers `gate1.done` through `gate5.done` in `~/.local/state/cutover` are all stamped 2026-08-10
+  and belong to that migration, not to the posture cutovers.
+  [#18](https://github.com/webdavis/dotfiles/issues/18) needed no write: it was already closed earlier
+  the same day with its own reconciliation comment. [#9](https://github.com/webdavis/dotfiles/issues/9)
+  STAYED OPEN because this line's premise was wrong. gh-notify was not superseded as a tool: it is
+  installed at the exact pinned commit `556df2ee`, registered with `gh`, returned five live rows when
+  tested, and has a live consumer at `dot_config/nvim/lua/plugins/snacks.lua` lines 44 to 52. What died
+  twice was its role as a notification SOURCE, first in
+  `docs/research/2026-05-18-github-workflow-notification-trigger.md` and then in pns, which absorbed both
+  halves of that redesign: `~/.local/bin/hue-pulse.sh` is gone and the colours are five operator-locked
+  constants in `pns/crates/pns-domain/src/pulse.rs`, and Discord is the compiled-in `[plugins.hermes]`
+  destination. The undelivered half is the declaration alone: `grep -rn "gh extension"` over the source
+  tree returns nothing, so gh extensions are the one install surface with no declaration and no runner,
+  and the choice between declaring the pinned install and dropping the dashboard section is the
+  operator's. [6gfVJ9P5vpX64JhM](https://app.todoist.com/app/task/6gfVJ9P5vpX64JhM) was commented and
+  narrowed to that single question, its hue-pulse-blue and Bob-Discord parts recorded as superseded, and
+  [6gj9Pwj6PR5HJQ8v](https://app.todoist.com/app/task/6gj9Pwj6PR5HJQ8v), the `~/.tmux.conf` task made
+  stale by the same herdr decision, was completed as superseded. Nine open issues survive (#9, #12, #17,
+  #20, #91, #192, #193, #194, #195) and this file already carries every one. Owed from the operator: (1)
+  Decide issue #9, one of two one-line answers. (1) DECLARE IT: add a gh-extension step to the package
+  runner, `gh extension install meiji163/gh-notify --pin 556df2ee` guarded by
+  `gh extension list | grep -q meiji163/gh-notify`. The `--pin` flag is confirmed by
+  `gh extension install --help` to take a commit for script extensions, and gh-notify is a script
+  extension (upstream cuts no releases). Cost: one new declaration surface for one extension. (2) DROP
+  THE DEPENDENCY: change `cmd = "gh notify -s -a -n5"` at dot_config/nvim/lua/plugins/snacks.lua line 46
+  to a plain `gh api notifications` call, or delete that dashboard section, then close #9 as not planned.
+  Either way gh-notify stays installed on dresden; only the fresh-machine path changes.; (2) Optional,
+  cosmetic: retitle Todoist task 6gfVJ9P5vpX64JhM. Its title still names all three parts ("Automate
+  gh-notify install + hue-pulse blue + Bob Discord notification") while two are recorded superseded in
+  comment 6hW4MwR49rgwm29v. No title or description was edited by the agent.; (3) For information, not a
+  step: Todoist 6gfVJ7VwcFQvg7xM (P10, "Notify via Bob on long-running shell command completion") is
+  still open although dot_bashrc.tmpl now delivers that through pns and [plugins.hermes]. It sits outside
+  this ledger line's four issues and was left untouched; it belongs to whichever reconcile task owns the
+  pns notification tasks.
+- [x] Resolve scope for the older warden import/quarterly-cleanup tasks and obsolete agent-session
   restoration tasks. The restic script is the operator's learning exercise; keep its later LaunchAgent
   dependent on that work and do not take over writing it without a new instruction. These older tasks
-  require disposition, not automatic inclusion in the active implementation queue.
+  require disposition, not automatic inclusion in the active implementation queue. Dispositioned
+  2026-09-14 with nothing entering the implementation queue. The orphan-doc cleanup
+  [6gVRJmHQ3rWJpCcX](https://app.todoist.com/app/task/6gVRJmHQ3rWJpCcX) was already done and is now
+  closed: commit `2ce35dd9` deleted `docs/superpowers/plans/2026-04-27-macos-disk-cleanup-plan.md` and
+  `docs/superpowers/specs/2026-04-27-macos-disk-cleanup-design.md`, the third listed file was untracked
+  and is absent from the checkout, and the canonical copies live in the warden repo at
+  `/Users/stephen/workspaces/Ivy/webdavis/warden`. The quarterly cleanup LaunchAgent
+  [6gVRJjqWc69XqV75](https://app.todoist.com/app/task/6gVRJjqWc69XqV75) stayed open and blocked rather
+  than queued: no reminder script and no `com.webdavis.disk-cleanup-reminder.plist` exist in source,
+  `warden` is neither installed nor declared, and its checkout carries 0 commits, so neither
+  `warden scan --json` nor the warden database this task relies on exists; its recorded `~/.local/bin`
+  target also conflicts with the rule putting launchd-invoked scripts under `~/.local/libexec`. Both
+  agent-session restoration tasks were completed as superseded,
+  [6ghRWpCV3j3XjxPM](https://app.todoist.com/app/task/6ghRWpCV3j3XjxPM) by the Neovim config import in
+  commit `13feac58` and [6ghRWpcXMfW87hrM](https://app.todoist.com/app/task/6ghRWpcXMfW87hrM) by the
+  relay-to-pns split in commit `6e214d36`; the 39 transcripts in
+  `~/.claude/projects/-Users-stephen--local-share-chezmoi` were left untouched, and the documented `mv`
+  would now nest that directory inside the live project directory holding 196 sessions. The restic pair
+  was left alone by instruction: [6ggcXXG83fHpM3Gv](https://app.todoist.com/app/task/6ggcXXG83fHpM3Gv)
+  remains the operator's learning exercise and
+  [6ggcXXPPxm99FRpv](https://app.todoist.com/app/task/6ggcXXPPxm99FRpv) stays dependent on it, with
+  `restic` declared and installed at `/opt/homebrew/bin/restic`. The warden-project reading-order task
+  [6gVRJg8xGvH4pmR5](https://app.todoist.com/app/task/6gVRJg8xGvH4pmR5) kept its own scope and received
+  the corrected document paths.
 
 ### Safe agent credentials and Infisical client integration
 
@@ -2187,10 +2768,53 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
 
 ### Homelab plan coordination
 
-- [ ] Keep the requested server deployments in `webdavis/homelab`: Infisical (A6), NetBird (F4), Dozzle
+- [x] Keep the requested server deployments in `webdavis/homelab`: Infisical (A6), NetBird (F4), Dozzle
   (F5) and Open Notebook (L6) are recorded in `docs/plans/PLAN-v12.md` and its service matrix. Dotfiles
   owns their needed laptop configuration and managed client updates. Record actual cross-project
-  dependencies without importing the full homelab deployment backlog into this modernization.
+  dependencies without importing the full homelab deployment backlog into this modernization. Reconciled
+  2026-09-14. Both sides now state the same split: PLAN-v12.md section 9 gives homelab Infisical's
+  deployment, identities, policies, networking and recovery while dotfiles owns laptop clients,
+  non-secret harness configuration and uu upgrades, and F4 repeats it for NetBird. The laptop half of all
+  four was measured in this checkout and none of it exists yet: grepping for infisical, netbird, dozzle
+  and Open Notebook finds only these coordination lines plus one 2026-05 research appendix quoting a
+  nix-darwin directory listing, with no package declaration, no rendered configuration and no uu lane for
+  any of them. A6 needs no new laptop machinery, because `brew info --json=v2 infisical` reports formula
+  infisical 0.43.132 in Homebrew core, so the client is one entry in
+  `.chezmoidata/system_packages_autoinstall.yaml` whose weekly upgrade rides the existing `[lanes.brew]`
+  block of `dot_config/uu/private_config.toml.tmpl`; its non-secret configuration is `INFISICAL_DOMAIN`
+  and `INFISICAL_AGENT_PROXY_ADDRESS` plus certificate trust for the private hostname, and the launch
+  path is `infisical secrets agent-proxy connect -- <agent command>`, all three confirmed against the
+  [upstream agent-proxy page](https://infisical.com/docs/cli/commands/agent-proxy). That work stays in
+  the Infisical section above and in
+  [task 6hPCF99XjRP87GmM](https://app.todoist.com/app/task/6hPCF99XjRP87GmM), not here. F4 costs more:
+  `brew search netbird` returns only `netris`, and the
+  [upstream macOS page](https://docs.netbird.io/get-started/install/macos) documents
+  `brew install netbirdio/tap/netbird` with the `netbirdio/tap/netbird-ui` cask, so adoption adds that
+  tap to both the `taps:` and `trusted_taps:` lists, and enrollment through
+  `netbird up --setup-key <key> --management-url <url>` makes the setup key a vault-backed template value
+  rather than a declaration. The Tailscale surface a cutover would keep or retire was inventoried so it
+  is not rediscovered later: the `tailscale` formula, the `tailnet-pin` workspace built by
+  `.chezmoiscripts/run_onchange_after_40-build-tailnet-pin.sh.tmpl` over the single `tailnet_pins` entry
+  in `.chezmoidata/macos_system_setup.yaml`, the three osquery monitor files
+  (`dot_local/libexec/osquery/executable_tailscale-monitor.sh`,
+  `Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl` and
+  `.chezmoiscripts/run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`),
+  `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` with
+  `test/unit/tailscaled-status.sh`, the `lulu_rule_tailscaled` verify control in
+  `.chezmoidata/macos_posture_controls.yaml`, and the `tailscaled` repair key in the brew lane. F5 and L6
+  own nothing on the laptop at all: `brew search dozzle` reports no formula or cask and
+  `brew search open-notebook` matches nothing, because both are authenticated web interfaces reached over
+  the tailnet, so their only laptop-side dependency is the private name resolution F4 may later move.
+  L6's one real cross-project dependency is the optional vpp handoff, which stays in the item below and
+  keeps canonical originals in the vault layout that already exists on disk
+  (`agent-processing-pipeline/raw/`, `transcripts/` and `analysis/`). The boundary was written back as
+  Todoist comments on the four homelab tasks and the dotfiles credential task, comment 6hW4Mc2w4Mf9PcrV
+  on [A6](https://app.todoist.com/app/task/6hVpX4M8hmV4Gmr3), 6hW4MfWF2XGjmH63 on
+  [F4](https://app.todoist.com/app/task/6hVpfWghCjQ66GG3), 6hW4MgVfXrQgpcXV on
+  [F5](https://app.todoist.com/app/task/6hVpfWmPgm7qQHMV), 6hW4MhgQ5r44GVqV on
+  [L6](https://app.todoist.com/app/task/6hVpfWrX8W4jrQcV) and 6hW4MmF39R6mpj5M on the laptop task. No
+  homelab backlog item was imported, no task was completed because all four remain planning-stage behind
+  F1 and F2, and no file in this repository was changed.
 - [ ] Coordinate vpp's optional Open Notebook handoff with L6. Preserve one capture/transcription
   pipeline and canonical originals; decide the handoff format during integration design. vpp and Bob must
   not require Open Notebook merely to read or produce ordinary notes.
