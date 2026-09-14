@@ -3,9 +3,11 @@
 # alert-dispatch.sh, sourced helper, not run directly. Provides
 # send_alert(), which always fires the local macOS notifier (alerter) and, for a
 # CRIT severity ONLY, POSTs the page to the hermes #priority Discord webhook.
-# Signing and durable handling of an undelivered page live here so the three
-# producers (results-alerter.sh, firewall-gatekeeper-monitor.sh, and
-# uptime-watchdog.sh) share one implementation.
+# Signing and durable handling of an undelivered page live here so the Bash
+# monitors that still source this library (firewall-gatekeeper-monitor.sh,
+# tailscale-monitor.sh and uptime-watchdog.sh) share one implementation. Their
+# LaunchAgents already run posture, so none of the three is scheduled any more;
+# each stays deployed until its own retirement removes it.
 #
 # The undelivered-alerts store is WRITE-AHEAD: send_alert persists the page as a
 # row in a local SQLite database BEFORE the first network attempt and deletes it
@@ -55,7 +57,7 @@ _OSQUERY_ALERT_SEQUENCE=0
 # the rest of the finding text becomes AppleScript SOURCE. osquery reports
 # attacker-influenced strings (file names, launchd labels), and this path runs
 # whenever `alerter` is absent, so that turns the alert pipeline into an
-# execution path. render-page.sh strips backticks and newlines, not these.
+# execution path. posture's sanitize strips backticks and newlines, not these.
 _osquery_applescript_literal() {
   local text="$1"
   text=${text//\\/\\\\}
@@ -126,11 +128,11 @@ _osquery_sqlite3_bin() {
 
 # Run the SQL arriving on STDIN against the undelivered-alerts DB, applying the
 # connection pragmas first: WAL for crash-atomic commits, and a busy_timeout so
-# the several producers (results-alerter, firewall-gatekeeper, watchdog, digest,
-# tailscale) serialize briefly under contention instead of failing outright. The
+# concurrent writers (the drainer, plus any Bash monitor still sourcing this
+# library) serialize briefly under contention instead of failing outright. The
 # pragmas' own chatter is routed to /dev/null so only the SQL's rows reach
-# stdout. Only non-secret alert fields ever flow through here; the webhook secret
-# is never passed to SQL. Returns sqlite3's exit status.
+# stdout. Only non-secret alert fields ever flow through here; the webhook
+# secret is never passed to SQL. Returns sqlite3's exit status.
 #
 # One lock the busy_timeout does NOT absorb: a brand-new database's first
 # conversion into WAL takes an exclusive lock, and when concurrent first-opens
