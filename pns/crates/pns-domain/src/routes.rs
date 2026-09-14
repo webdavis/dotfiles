@@ -11,10 +11,15 @@
 /// which is also the final segment of `DEFAULT_HERMES_URL`.
 pub const DEFAULT_ROUTE: &str = "pns";
 
-/// The route a threaded recap posts to.
+/// The route a threaded recap posts to, read by `post_return_recap`.
 pub const RECAP_ROUTE: &str = "pns-recap";
 
-/// The route a page submitted by the posture pipeline posts to.
+/// The route a page submitted by the posture pipeline posts to. NOTHING IN
+/// PNS SELECTS IT: posture is the producer that names it, and this is the wire
+/// name its own `severity_route` spells
+/// (`posture/crates/posture-domain/src/severity.rs`). It is here because the
+/// roster is what grants a route a key, and a route pns has no key for is a
+/// posture page pns refuses to sign.
 pub const POSTURE_ROUTE: &str = "posture";
 
 /// Every route pns posts to, each verified by its OWN signing key: one
