@@ -97,6 +97,20 @@ pub(crate) fn doctor_mode() -> i32 {
             eprintln!("{warning}");
         }
     }
+    // EVERY ROUTE WITH NO KEY, because the test send below cannot find them.
+    // It posts on the DEFAULT route alone, so it exercises one key of four,
+    // and a route whose posts are raised asynchronously (the stale-block
+    // escalation on `priority`) records its refusal where nothing prints it.
+    // An unarmed route is silence in the channel it was created for, which is
+    // the one failure a doctor exists to turn into a line.
+    for route in pns_domain::routes::ROUTES {
+        if hermes_keys.key_for(route).is_none() {
+            eprintln!(
+                "pns: no hermes signing key for the {route} route, so every post to it is refused; set {}",
+                pns_domain::failure::hermes_key_named(route)
+            );
+        }
+    }
     // THE ROOM SENSOR'S OWN SETTINGS, read here because the census below has
     // one line to print about them. A refusal is LOUD and leaves the reading
     // absent rather than half-honoured.
