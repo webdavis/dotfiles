@@ -169,10 +169,11 @@ showing each skill twice. One consequence of the version-bump rule in
 same change, because Claude Code runs the installed copy under `~/.claude/plugins/cache/`; editing the
 store CONTENT needs no bump at all, since the wrappers read the store at run time.
 
-The table states only what THIS vertical does: it names no other delivery mechanism and reads no other
-lock, per the operator's strict-decoupling ruling. `"none"` is the only legal value, and a malformed
-table refuses the run rather than failing open, before either weekly execution or bootstrap. So a skill
-Claude reaches another way is recorded as `"none"` plus a note saying which mechanism owns it.
+The table states only what THIS vertical does: its VALUES name no other delivery mechanism and read no
+other lock, per the operator's strict-decoupling ruling. `"none"` is the only legal value, and a
+malformed table refuses the run rather than failing open, before either weekly execution or bootstrap. A
+skill Claude reaches another way is recorded as `"none"` plus a note in prose naming the mechanism that
+owns it, which is where the clean-code plugin is named: the ruling binds the values, not the notes.
 
 **Retiring an EXISTING link is manual, and the run says so.** Deleting the chezmoi declaration does not
 remove a `~/.claude/skills` link already on the machine (chezmoi never deletes a target it no longer
