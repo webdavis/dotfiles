@@ -25,6 +25,31 @@ fn a_denied_marker_write_is_nonzero_and_preserves_existing_state() {
 }
 
 #[test]
+fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
+    let s = Sandbox::without_config("tap-failure-line");
+    let parent = s.path("private");
+    fs::create_dir(&parent).unwrap();
+    let marker = parent.join("marker");
+    fs::set_permissions(&parent, fs::Permissions::from_mode(0o000)).unwrap();
+    let outcome = s
+        .pns()
+        .env("PNS_PHONE_MARKER_FILE", &marker)
+        .args(["tap"])
+        .output();
+    fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
+    let out = outcome.unwrap();
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(stdout(&out).is_empty(), "{out:?}");
+    let reported = support::stderr(&out);
+    assert_eq!(reported.trim_end().lines().count(), 1, "{reported}");
+    assert!(
+        reported.contains(marker.to_str().unwrap()),
+        "the path is unnamed: {reported}"
+    );
+    assert!(reported.contains("permission denied"), "{reported}");
+}
+
+#[test]
 fn empty_environment_uses_the_tilde_config_path_with_private_creation_modes() {
     let s = Sandbox::new("tap-tilde");
     s.write_config("[phone]\nmarker_file = '~/attention/marker'");
