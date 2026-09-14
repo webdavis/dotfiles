@@ -26,6 +26,8 @@ mod command;
 mod metadata;
 pub use codesign::SystemInspection;
 pub use command::{CommandIo, CommandOutput, CommandRunner, SystemRunner, is_executable};
+mod command_duration;
+pub use command_duration::{COMMAND_DURATION_CEILING, parse_command_duration};
 
 mod locks;
 pub use locks::AllowlistWriteLock;
@@ -100,6 +102,10 @@ pub use converge::{
     resolve_osqueryctl,
 };
 
+mod funnel_status;
+pub use funnel_status::read_funnel;
+mod funnel_state;
+pub use funnel_state::FunnelStateFile;
 mod watchdog_processes;
 pub use watchdog_processes::SystemWatchdogProcesses;
 mod watchdog_state;

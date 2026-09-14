@@ -1,3 +1,8 @@
+mod gap;
+pub use gap::{
+    FUNNEL_CRITICAL_TITLE, FunnelReadFailure, funnel_corruption_gap, funnel_persistence_gap,
+    funnel_read_gap,
+};
 #[derive(Debug, Clone, Copy)]
 pub enum AllowFunnel<'a> {
     Omitted,
@@ -120,12 +125,32 @@ pub fn plan_funnel(
     }
 }
 
+/// The most exposed keys a page renders in full before it summarizes the rest.
+///
+/// The wire caps one text field at 8,000 characters (`MAX_TEXT_CHARS` in
+/// posture-pns-wire, refused by posture-adapters/src/pns_producer/request.rs).
+/// At 32 keys the worst case is 7,160 of them, 840 under the cap, and the unit
+/// test measures that figure rather than trusting the sum below:
+///
+/// - 14 for the critical title, plus the 1 newline the application joins with
+/// - 179 for the three header lines, the last of which ends in a newline
+/// - 6,912 for 32 key lines at their widest, each 216: a dash, a space, a
+///   backtick, 200 characters, `…(truncated)` and a closing backtick
+/// - 32 more newlines, joining those 32 lines to the summary line
+/// - 22 for the widest summary line, `- …and `, ten digits and ` more`
+///
+/// Thirty-six keys would exceed the cap, so this margin is deliberate rather
+/// than the largest count that happens to fit.
+pub const FUNNEL_EXPOSURE_KEY_LIMIT: usize = 32;
+
 pub fn render_funnel_exposure(keys: &[String]) -> String {
     let keys: std::collections::BTreeSet<_> = keys.iter().collect();
+    let omitted = keys.len().saturating_sub(FUNNEL_EXPOSURE_KEY_LIMIT);
     let exposed = if keys.is_empty() {
         "`(unknown)`".into()
     } else {
         keys.into_iter()
+            .take(FUNNEL_EXPOSURE_KEY_LIMIT)
             .map(|key| {
                 let clean: String = key
                     .chars()
@@ -148,12 +173,13 @@ pub fn render_funnel_exposure(keys: &[String]) -> String {
                     clean.chars().take(200).collect::<String>()
                 )
             })
+            .chain((omitted > 0).then(|| format!("- …and {omitted} more")))
             .collect::<Vec<_>>()
             .join("\n")
     };
     format!(
         "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**\n- Did you set this up? If not, close it now: **tailscale funnel reset**\n- Exposed to the public internet:\n{exposed}\n"
-    )
+    ).replace('\0', "")
 }
 
 #[cfg(test)]

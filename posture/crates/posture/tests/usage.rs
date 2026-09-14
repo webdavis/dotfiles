@@ -11,7 +11,6 @@ use std::time::{Duration, Instant};
 
 const WORDS: &[&[&str]] = &[
     &[],
-    &["funnel"],
     &["watchdog", "unexpected"],
     &["allowlist"],
     &["ssh"],

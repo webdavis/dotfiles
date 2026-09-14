@@ -132,3 +132,38 @@ fn exposed_keys_are_sorted_unique_inert_spans_with_exact_200_character_edges() {
     }
     assert!(render_funnel_exposure(&[]).ends_with("`(unknown)`\n"));
 }
+
+#[test]
+fn an_exposure_past_the_key_limit_is_summarized_and_stays_under_the_wire_cap() {
+    let key = |index: usize| format!("{index:03}{}", "x".repeat(250));
+    let limit = FUNNEL_EXPOSURE_KEY_LIMIT;
+    // Reversed, so the cut is proven to happen after the sort rather than before.
+    let keys: Vec<String> = (0..limit + 7).map(key).rev().collect();
+    let body = render_funnel_exposure(&keys);
+    assert_eq!(body.matches("- `").count(), limit);
+    assert!(body.ends_with("- …and 7 more\n"), "{body}");
+    // The lexicographic minimum leads, truncated, and the maximum is in the tail
+    // the summary stands for.
+    let first: String = key(0).chars().take(200).collect();
+    assert!(body.contains(&format!("internet:\n- `{first}…(truncated)`\n")));
+    assert!(!body.contains(&format!("- `{}", &key(limit)[..3])));
+    assert!(!body.contains(&format!("- `{}", &key(limit + 6)[..3])));
+    assert!(!render_funnel_exposure(&keys[..limit]).contains("…and"));
+    // The application submits the title, a newline and this body as one wire
+    // text field, capped at MAX_TEXT_CHARS in posture-pns-wire (see
+    // posture-adapters/src/pns_producer/request.rs). Substituting the widest
+    // reachable summary line measures the worst case the constant claims.
+    let widest = "- …and 4294967295 more".chars().count() - "- …and 7 more".chars().count();
+    let worst =
+        FUNNEL_CRITICAL_TITLE.chars().count() + 1 + body.trim_end().chars().count() + widest;
+    assert_eq!(worst, 7_160);
+    assert!(worst < 8_000);
+}
+
+#[test]
+fn rendered_null_bytes_are_removed_after_the_key_character_limit() {
+    let key = format!("{}\0suffix", "x".repeat(199));
+    let rendered = render_funnel_exposure(&[key]);
+    assert!(!rendered.contains('\0'));
+    assert!(rendered.contains(&format!("- `{}…(truncated)`", "x".repeat(199))));
+}

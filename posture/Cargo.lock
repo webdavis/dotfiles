@@ -226,6 +226,7 @@ dependencies = [
  "posture-application",
  "posture-domain",
  "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

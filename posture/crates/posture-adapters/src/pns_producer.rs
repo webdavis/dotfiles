@@ -1,8 +1,9 @@
 use crate::{CommandIo, CommandRunner};
 use posture_application::{
-    Alert, AlertSink, IndependentAlarm, InspectionFailure, Submission, SubmissionFailure,
+    Alert, AlertSignal, AlertSink, IndependentAlarm, InspectionFailure, Submission,
+    SubmissionFailure,
 };
-use posture_pns_wire::{Name, Status, decode_result};
+use posture_pns_wire::{Name, RequestId, Status, decode_result};
 use std::{ffi::OsStr, path::PathBuf};
 mod request;
 
@@ -28,13 +29,7 @@ impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
         );
         Submission::NotAccepted(failure)
     }
-}
-impl<R: CommandRunner, A: IndependentAlarm> AlertSink for PnsProducer<R, A> {
-    fn submit(&mut self, alert: &Alert) -> Submission {
-        let Ok(request) = request::encode(alert, self.route.clone()) else {
-            return Submission::NotAccepted(SubmissionFailure::Refused);
-        };
-        let (identity, input) = request;
+    fn send(&mut self, alert: &Alert, (identity, input): (RequestId, String)) -> Submission {
         let output = match self.runner.run_completed(
             &self.executable,
             &[OsStr::new("submit"), OsStr::new("--json")],
@@ -94,6 +89,24 @@ impl<R: CommandRunner, A: IndependentAlarm> AlertSink for PnsProducer<R, A> {
             }
             _ => Submission::NotAccepted(SubmissionFailure::NotCommitted),
         }
+    }
+}
+impl<R: CommandRunner, A: IndependentAlarm> AlertSink for PnsProducer<R, A> {
+    fn submit(&mut self, alert: &Alert) -> Submission {
+        match request::encode(alert, self.route.clone()) {
+            Ok(request) => return self.send(alert, request),
+            Err(request::EncodeFailure::Oversized)
+                if alert.signal == AlertSignal::NeedsAttention =>
+            {
+                let notice = request::omission(alert);
+                if let Ok(request) = request::encode(&notice, self.route.clone()) {
+                    let _ = self.send(&notice, request);
+                }
+                // Acceptance of this bounded notice never acknowledges the omitted finding.
+            }
+            Err(_) => {}
+        }
+        Submission::NotAccepted(SubmissionFailure::Refused)
     }
 }
 #[cfg(test)]

@@ -2,6 +2,7 @@ mod alert;
 mod allowlist;
 mod converge;
 mod digest;
+mod funnel;
 mod heartbeat;
 mod poll;
 mod watchdog;
@@ -17,7 +18,7 @@ const USAGE: &str = "usage: posture <subcommand> [args]
   allowlist add <label> | allowlist deny <label> | allowlist list
   enrich <path>
   ssh install|verify|reload|rollback|print-config|print-path
-only enrich, allowlist, converge, heartbeat, digest, alert, poll and watchdog are implemented; other subcommands exit 2
+only enrich, allowlist, converge, heartbeat, digest, alert, poll, funnel and watchdog are implemented; other subcommands exit 2
 ";
 
 pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> u8 {
@@ -26,6 +27,9 @@ pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) 
     }
     if args.first().is_some_and(|word| word == "converge") {
         return converge::run(&args[1..], stdout, stderr);
+    }
+    if args.first().is_some_and(|word| word == "funnel") {
+        return funnel::run(stderr);
     }
     if args.first().is_some_and(|word| word == "watchdog") {
         return watchdog::run(&args[1..], stderr);
