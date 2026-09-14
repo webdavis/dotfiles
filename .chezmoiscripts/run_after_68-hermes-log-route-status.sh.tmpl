@@ -35,11 +35,15 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-# ONE KEY SIGNS EVERY ROUTE THIS REPOSITORY POSTS TO. Every producer here submits through pns, which
-# signs with `[plugins.hermes] key`, so a route carrying any other secret answers 401 and the message is
-# lost with nothing in the channel to show for it. `priority` is the route that has actually differed:
-# it still carries the Bash alerter's own key, the one in ~/.config/osquery/webhook-secret, which is a
-# posture CRIT page refused rather than paged.
+# THE ROUTES PNS POSTS TO SHARE ONE KEY. Every producer in this repository submits through pns, which
+# signs with `[plugins.hermes] key`, so one of those routes carrying any other secret answers 401 and the
+# message is lost with nothing in the channel to show for it. `priority` is NOT one of them: its key is
+# the retired Bash alerter's, the value in ~/.config/osquery/webhook-secret, and the one live signer left
+# holding that key is drain-undelivered-alerts.sh on the alert-drainer LaunchAgent. So reconciling it is
+# not a one-line fix to nudge anyone toward: it costs the drainer its queue, and the route's prompt names
+# `{alert.title}` and `{alert.detail}`, so it has to be retemplated in the same sitting or a reconciled
+# route delivers two literal placeholders instead of a page. It is left out of the comparison below and
+# the trade is recorded in docs/runbooks/local-daemons.md, third gotcha.
 pns_secret="$(yq -r '.platforms.webhook.extra.routes.pns.secret // ""' "$cfg" 2>/dev/null || echo '')"
 
 expected_routes=(pns priority posture uu pns-recap)
@@ -61,9 +65,10 @@ for route in "${expected_routes[@]}"; do
     printf '\n  ⚠ hermes: the %s route is NOT deliver_only, so hermes feeds its messages to an AGENT\n    instead of posting them verbatim, and those messages carry third-party package and skill names.\n    Fix .platforms.webhook.extra.routes.%s.deliver_only in the encrypted hermes config, then: chezmoi apply\n\n' \
       "$route" "$route"
   fi
-  # A DIFFERENT SECRET. Compared, never printed: the values are in this file either way, and the fix is
-  # the comparison, not the value.
-  if [[ -n $pns_secret ]] &&
+  # A DIFFERENT SECRET, on a route pns posts to. Compared, never printed: the values are in this file
+  # either way, and the fix is the comparison, not the value. `priority` is skipped for the reason above,
+  # where a mismatch is the expected state rather than a fault.
+  if [[ $route != priority ]] && [[ -n $pns_secret ]] &&
     [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$cfg" 2>/dev/null || echo '')" != "$pns_secret" ]]; then
     printf '\n  ⚠ hermes: the %s route is signed with a different secret than the pns route, so every\n    message pns submits to it answers 401 and is dropped without a trace in the channel.\n    Reconcile .platforms.webhook.extra.routes.%s.secret in the encrypted hermes config, then: chezmoi apply\n\n' \
       "$route" "$route"
