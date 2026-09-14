@@ -1,22 +1,61 @@
 use super::*;
 use std::os::unix::fs::{PermissionsExt, symlink};
+use std::path::PathBuf;
+
+/// A marker inside a parent directory this process cannot enter, with the
+/// mtime it carried before the denial.
+///
+/// The mode comes back on DROP, unwind included, and that half is load
+/// bearing: the sandbox cannot be removed through a 0o000 directory, and the
+/// next run of the same test cannot create its root over the leftover.
+struct DeniedParent {
+    parent: PathBuf,
+    marker: PathBuf,
+    modified: Option<std::time::SystemTime>,
+}
+
+impl DeniedParent {
+    fn new(sandbox: &Sandbox, existing: Option<&str>) -> Self {
+        let parent = sandbox.path("private");
+        fs::create_dir(&parent).unwrap();
+        let marker = parent.join("marker");
+        let modified = existing.map(|text| {
+            fs::write(&marker, text).unwrap();
+            fs::metadata(&marker).unwrap().modified().unwrap()
+        });
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o000)).unwrap();
+        Self {
+            parent,
+            marker,
+            modified,
+        }
+    }
+
+    /// Hand the parent its mode back and name the marker, so a test can read
+    /// what the denied run did or did not do to it.
+    fn restore(self) -> PathBuf {
+        self.marker.clone()
+    }
+}
+
+impl Drop for DeniedParent {
+    fn drop(&mut self) {
+        let _ = fs::set_permissions(&self.parent, fs::Permissions::from_mode(0o700));
+    }
+}
 
 #[test]
 fn a_denied_marker_write_is_nonzero_and_preserves_existing_state() {
     let s = Sandbox::without_config("tap-permission-denied");
-    let parent = s.path("private");
-    fs::create_dir(&parent).unwrap();
-    let marker = parent.join("marker");
-    fs::write(&marker, "keep").unwrap();
-    let before = fs::metadata(&marker).unwrap().modified().unwrap();
-    fs::set_permissions(&parent, fs::Permissions::from_mode(0o000)).unwrap();
-    let outcome = s
+    let denied = DeniedParent::new(&s, Some("keep"));
+    let out = s
         .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
+        .env("PNS_PHONE_MARKER_FILE", &denied.marker)
         .args(["tap", "--json"])
-        .output();
-    fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
-    let out = outcome.unwrap();
+        .output()
+        .unwrap();
+    let before = denied.modified.expect("the mtime before the denial");
+    let marker = denied.restore();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["write_status"], "failed");
     assert_eq!(json(&out)["error"]["code"], "touch_failed");
@@ -50,17 +89,14 @@ fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
 #[test]
 fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
     let s = Sandbox::without_config("tap-failure-line");
-    let parent = s.path("private");
-    fs::create_dir(&parent).unwrap();
-    let marker = parent.join("marker");
-    fs::set_permissions(&parent, fs::Permissions::from_mode(0o000)).unwrap();
-    let outcome = s
+    let denied = DeniedParent::new(&s, None);
+    let out = s
         .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
+        .env("PNS_PHONE_MARKER_FILE", &denied.marker)
         .args(["tap"])
-        .output();
-    fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
-    let out = outcome.unwrap();
+        .output()
+        .unwrap();
+    let marker = denied.restore();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert!(stdout(&out).is_empty(), "{out:?}");
     let reported = support::stderr(&out);
