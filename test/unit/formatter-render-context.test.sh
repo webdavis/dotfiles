@@ -38,11 +38,7 @@ EOF
 }
 
 tear_down() {
-  # The build-output fixture below drops a mode to 000, and rm cannot recurse into
-  # that, so the owner's bits go back on before the fixture goes.
-  [[ -n ${RENDER_FIXTURE:-} ]] || return 0
-  chmod -R u+rwX "$RENDER_FIXTURE" 2>/dev/null
-  rm -rf "$RENDER_FIXTURE"
+  [[ -n ${RENDER_FIXTURE:-} ]] && rm -rf "$RENDER_FIXTURE"
 }
 
 # TMPDIR is inside the fixture so a formatter's own scratch is torn down with it
@@ -111,6 +107,9 @@ ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 $RENDER_SOURCE
 1" "$(cat "$RENDER_CAPTURE" 2>/dev/null)"
+  # rm cannot recurse into a 000 directory, so this one gets its owner bits back
+  # before tear_down removes the fixture.
+  chmod u+rwx "$RENDER_SOURCE/graphify-out/cache/ast"
 }
 
 function test_osquery_render_uses_own_data_despite_nested_worktree_data() {
