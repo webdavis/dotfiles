@@ -922,7 +922,15 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   sibling, cross-checked by hand against `/opt/homebrew/bin/tailscale funnel status --json`. Stays open:
   the Bash `tailscale-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the same follow-up pull request as task 47, after this acceptance; nothing was trashed by
-  #575.
+  #575. Also on 2026-09-14, `git cherry origin/main feat/posture-funnel` still listed all five fix
+  commits as absent from main, because PR #551 merged into `feat/posture-watchdog-health` after that
+  branch had already merged into main, so the merge carried the fixes onto a side branch rather than onto
+  the trunk. This pull request carries them to main in their original order: bound the funnel exposure
+  page by key count (`0037bc33`), name the funnel command in its queue failures (`b1a8b777`), read the
+  funnel binary through the shared executable check (`4ea6e8b9`), pin the exposure sort, the worst case
+  and the executable arms (`4cb11f21`), and read a disabled funnel timeout as no limit rather than a
+  failure (`c50f95d6`). It matters because #575 already points the tailscale-monitor LaunchAgent at
+  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
