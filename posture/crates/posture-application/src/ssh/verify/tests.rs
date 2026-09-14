@@ -1,6 +1,6 @@
 use super::*;
 use crate::{InspectionFailure, SshCommandResult, SshCompleted, SshScanFailure};
-use posture_domain::{SshRecord, SshTreeRefusal};
+use posture_domain::{SSH_LOCAL_ADDRESS_SAMPLES, SshRecord, SshTreeRefusal};
 use std::{cell::Cell, collections::VecDeque};
 
 const HARDENED: &str = "passwordauthentication no\nkbdinteractiveauthentication no\nusepam yes\npubkeyauthentication yes\npermitrootlogin no\ngssapiauthentication no\nhostbasedauthentication no\n";
@@ -48,11 +48,22 @@ fn healthy() -> SshCommandResult {
         output: HARDENED.as_bytes().to_vec(),
     })
 }
+fn refusal(verdict: &str) -> SshCommandResult {
+    Ok(SshCompleted {
+        status: 0,
+        output: format!("refuseconnection {verdict}\n").into_bytes(),
+    })
+}
+/// The global resolve and the two user samples answer hardened; each local
+/// address sample answers the verdict policy demands of it, read off the shared
+/// sample list so a sample added to policy is exercised here without an edit.
 fn fixture() -> (Ssh, Tree) {
+    let mut answers = VecDeque::from([healthy(), healthy(), healthy()]);
+    answers.extend(SSH_LOCAL_ADDRESS_SAMPLES.map(|(_, verdict)| refusal(verdict)));
     (
         Ssh {
             available: true,
-            answers: VecDeque::from([healthy(), healthy(), healthy()]),
+            answers,
             calls: vec![],
         },
         Tree {
@@ -60,6 +71,14 @@ fn fixture() -> (Ssh, Tree) {
             fail: false,
         },
     )
+}
+/// Index of the answer serving one local address sample, past the global
+/// resolve and the two user samples.
+fn sample(address: &str) -> usize {
+    3 + SSH_LOCAL_ADDRESS_SAMPLES
+        .iter()
+        .position(|(candidate, _)| *candidate == address)
+        .expect("the sample list names this address")
 }
 fn context() -> SshVerifyContext<'static> {
     SshVerifyContext {
@@ -82,9 +101,74 @@ fn verify_requires_global_match_scan_and_both_exact_connection_samples() {
         [
             "global",
             "user=root,host=localhost,addr=127.0.0.1",
-            "user=operator,host=localhost,addr=127.0.0.1"
+            "user=operator,host=localhost,addr=127.0.0.1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=100.64.0.1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=fd7a:115c:a1e0::1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=127.0.0.1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=::1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=192.168.0.1",
+            "user=operator,host=localhost,addr=203.0.113.1,laddr=fd00::1"
         ]
     );
+}
+
+/// Without the Match block every local address resolves the sshd default, so
+/// both refused samples report the wrong verdict and the allowed ones still
+/// pass. A verify that reported this tree hardened would be the whole failure.
+#[test]
+fn a_tree_missing_the_refusal_block_fails_on_exactly_the_addresses_it_should_refuse() {
+    let (mut ssh, tree) = fixture();
+    for (address, _) in SSH_LOCAL_ADDRESS_SAMPLES {
+        ssh.answers[sample(address)] = refusal("no");
+    }
+    let SshVerification::Failed(failures) = verify_ssh(&mut ssh, &tree, &context()) else {
+        panic!("fail closed")
+    };
+    assert_eq!(failures.len(), 2, "{failures:?}");
+    assert!(failures[0].contains("laddr=192.168.0.1"));
+    assert!(failures[1].contains("laddr=fd00::1"));
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure.contains("'refuseconnection' is 'no', want 'yes'"))
+    );
+}
+
+/// A later file or a Match block that resolves FIRST can re-admit one address
+/// while the rest of the policy still holds, which is the shape a bare
+/// `sshd -G` cannot see at all. The sample that names the re-admitted address
+/// is what catches it.
+#[test]
+fn a_re_allowed_local_address_fails_even_while_every_other_sample_still_holds() {
+    let (mut ssh, tree) = fixture();
+    ssh.answers[sample("192.168.0.1")] = refusal("no");
+    let SshVerification::Failed(failures) = verify_ssh(&mut ssh, &tree, &context()) else {
+        panic!("fail closed")
+    };
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(failures[0].contains("local address check"));
+    assert!(failures[0].contains("laddr=192.168.0.1"));
+}
+
+/// An unreadable resolve is a failed verify, never a pass by silence: the
+/// refusal verdict is absent rather than wrong, and it is still reported.
+#[test]
+fn a_local_address_resolve_that_says_nothing_about_refusal_fails_closed() {
+    for answer in [
+        Ok(SshCompleted {
+            status: 0,
+            output: b"usepam yes\n".to_vec(),
+        }),
+        Err(InspectionFailure::TimedOut),
+    ] {
+        let (mut ssh, tree) = fixture();
+        ssh.answers[sample("192.168.0.1")] = answer;
+        let SshVerification::Failed(failures) = verify_ssh(&mut ssh, &tree, &context()) else {
+            panic!("fail closed")
+        };
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].contains("local address check"));
+    }
 }
 #[test]
 fn failed_global_and_tree_reads_do_not_skip_connection_checks() {
@@ -102,7 +186,7 @@ fn failed_global_and_tree_reads_do_not_skip_connection_checks() {
     assert!(failures[0].contains("124"));
     assert!(failures[1].contains("cycle"));
     assert!(failures[2].contains("fixture error"));
-    assert_eq!(ssh.calls.len(), 3);
+    assert_eq!(ssh.calls.len(), 3 + SSH_LOCAL_ADDRESS_SAMPLES.len());
 }
 #[test]
 fn missing_binary_only_skips_when_explicitly_allowed_and_does_no_reads() {

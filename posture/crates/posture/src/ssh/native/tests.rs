@@ -1,5 +1,6 @@
 use super::*;
 mod interrupt;
+use posture_domain::SSH_LOCAL_ADDRESS_SAMPLES;
 use std::{
     fs,
     os::unix::fs::{PermissionsExt, symlink},
@@ -30,8 +31,18 @@ impl Fixture {
         let quote = |path: PathBuf| format!("'{}'", path.to_str().unwrap().replace('\'', "'\\''"));
         let target = quote(root.join("dropins/000-ssh-hardening.conf"));
         let fail = quote(root.join("refuse-verify"));
+        // The stub resolves the refusal verdict the way the real sshd does: off the
+        // laddr the spec carries, and only while the drop-in that holds the Match
+        // block is installed. An unlisted laddr answers a value no policy wants, so
+        // a sample the stub was never taught fails loudly instead of passing.
+        let verdicts: String = SSH_LOCAL_ADDRESS_SAMPLES
+            .iter()
+            .map(|(address, verdict)| {
+                format!("*laddr={address}*) printf 'refuseconnection {verdict}\\n';;\n")
+            })
+            .collect();
         let script = format!(
-            "#!/bin/sh\nset -eu\n[ ! -e {fail} ] || exit 7\n[ \"$1\" != '-t' ] || exit 0\nprintf 'port 22\\n'\nif [ -e {target} ]; then\nprintf 'passwordauthentication no\\nkbdinteractiveauthentication no\\nusepam yes\\npubkeyauthentication yes\\npermitrootlogin no\\ngssapiauthentication no\\nhostbasedauthentication no\\n'\nelse\nprintf 'passwordauthentication yes\\nkbdinteractiveauthentication no\\n'\nfi\n"
+            "#!/bin/sh\nset -eu\n[ ! -e {fail} ] || exit 7\n[ \"$1\" != '-t' ] || exit 0\nprintf 'port 22\\n'\nif [ -e {target} ]; then\nprintf 'passwordauthentication no\\nkbdinteractiveauthentication no\\nusepam yes\\npubkeyauthentication yes\\npermitrootlogin no\\ngssapiauthentication no\\nhostbasedauthentication no\\n'\ncase \"$*\" in\n{verdicts}*laddr=*) printf 'refuseconnection unlisted\\n';;\nesac\nelse\nprintf 'passwordauthentication yes\\nkbdinteractiveauthentication no\\n'\ncase \"$*\" in *laddr=*) printf 'refuseconnection no\\n';; esac\nfi\n"
         );
         executable(&root.join("sshd"), &script);
         executable(
@@ -97,6 +108,16 @@ fn native_private_verify_reload_install_and_rollback_follow_their_owned_contract
     let (status, out, err) = f.run(Verb::Verify);
     assert_eq!(status, 0, "{err}");
     assert!(out.contains("verify: PASS: all 7"));
+    // The PASS line names the arrival-address samples too, from the same list
+    // the verify resolved, so a sample added to policy cannot leave the line
+    // claiming a number nobody checked.
+    assert!(
+        out.contains(&format!(
+            "all {} sampled arrival addresses",
+            posture_domain::SSH_LOCAL_ADDRESS_SAMPLES.len()
+        )),
+        "{out}"
+    );
     assert!(!f.root.join("restarted").exists());
     let (status, out, err) = f.run(Verb::Reload);
     assert_eq!(status, 0, "{err}");

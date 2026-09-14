@@ -603,7 +603,12 @@ of them behave this way.
 verifies, reloads and rolls back a public-key-only sshd drop-in at
 `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`. It is operator-invoked: no LaunchAgent, no chezmoiscript
 and no justfile recipe runs it. Installing is inert for the running service; only `--reload` restarts
-sshd, and it refuses to claim success without a real SSH banner exchange.
+sshd, and it refuses to claim success without a real SSH banner exchange. The drop-in also carries one
+`Match LocalAddress` block with `RefuseConnection yes` that refuses every connection which did not arrive
+on loopback or in the two address ranges Tailscale documents for every tailnet, and both verifiers
+resolve one `sshd -G -T -C` sample per negated term to prove it; the listener is untouched, so this
+narrows who can log in rather than what can connect (see
+`docs/runbooks/macos-fresh-machine-quickstart.md`).
 
 Every sshd call it makes runs under a watchdog (`SSH_HARDENING_VERIFY_DEADLINE`, default 120s), which
 polls in 0.25s ticks because bash has no wait-with-timeout and stock macOS ships no `timeout(1)`, then
