@@ -7,14 +7,12 @@
 //! refuses the page and raises the local banner, exactly as a broken engine
 //! does: a security finding that went nowhere is never reported as delivered.
 //!
-//! THE BODY SERVES BOTH PROMPT SHAPES the gateway's routes are written in.
+//! THE BODY SERVES EVERY PROMPT SHAPE the gateway's routes are written in.
 //! Hermes renders `{placeholder}` out of the posted JSON and emits an unknown
 //! one as its own literal text, so a body missing a key the route names
-//! delivers that key's braces to Discord. The flat four (`agent`, `state`,
-//! `project`, `detail`) serve a route templated the way the agent channel is,
-//! and the nested `alert` object serves one templated `{alert.title}` and
-//! `{alert.detail}`. Both cost one key each and the alternative is a page
-//! nobody can read.
+//! delivers that key's braces to Discord. A route is retemplated on the
+//! gateway rather than here, so the body carries all three shapes at once and
+//! a retemplated route keeps rendering. See `body` for the list.
 
 mod body;
 
