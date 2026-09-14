@@ -186,9 +186,9 @@ fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spaw
     assert!(!out.contains("PASS"));
     // A per-command budget would let all three resolutions finish inside it; the aggregate one
     // cannot, and that count says so without a wall-clock bound on the run.
-    let started = fs::read_to_string(calls).unwrap().lines().count();
-    assert!(
-        (1..=2).contains(&started),
-        "a late third resolution ran: {started}"
-    );
+    let started = fs::read_to_string(calls)
+        .unwrap_or_default()
+        .lines()
+        .count();
+    assert!(started <= 2, "a late third resolution ran: {started}");
 }

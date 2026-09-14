@@ -23,8 +23,11 @@ fn executable(root: &Path, body: &str) -> PathBuf {
     fs::set_permissions(&file, fs::Permissions::from_mode(0o700)).unwrap();
     file
 }
+// Only the deadline test below cares what the bound is. Every other fixture here spawns a
+// real process, and a spawn on a loaded machine costs tens of milliseconds, so their runner is
+// patient enough that a slow spawn is never mistaken for a command that overran.
 fn runner() -> SystemRunner {
-    SystemRunner::per_command(Duration::from_millis(80))
+    SystemRunner::per_command(Duration::from_secs(30))
         .with_termination_grace(Duration::from_millis(20))
 }
 
@@ -32,7 +35,9 @@ fn runner() -> SystemRunner {
 fn every_sshd_reader_is_bounded_and_a_later_reader_gets_its_own_deadline() {
     let root = directory();
     let tool = executable(&root, "while :; do :; done");
-    let mut sshd = SshdCommand::new(runner(), tool, root.join("config"), None);
+    let bounded = SystemRunner::per_command(Duration::from_millis(80))
+        .with_termination_grace(Duration::from_millis(20));
+    let mut sshd = SshdCommand::new(bounded, tool, root.join("config"), None);
     let started = Instant::now();
     for result in [
         sshd.global(),
