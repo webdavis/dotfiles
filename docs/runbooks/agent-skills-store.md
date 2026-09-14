@@ -16,7 +16,7 @@ flowchart LR
     NPX["npxTracked, 29<br/>npx skills add, GitHub"]
     CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
     VEND["forks + vendored, 4<br/>dot_agents/skills, chezmoi apply"]
-    APP["app-owned, 1<br/>cua-driver skills update"]
+    APP["app-owned, 2<br/>updated by the owning app"]
   end
   NPX --> GEN
   CLAW --> GEN
@@ -52,10 +52,13 @@ whose lock-walk logs some failures at exit 0; the explicit add also reconciles l
 Codex reads the store natively, so there is no Codex-side declaration. These skills are NOT vendored in
 chezmoi.
 
-Includes the 12 curated HeyGen HyperFrames skills (router `hyperframes`; domains `hyperframes-core`,
-`-animation`, `-keyframes`, `-creative`; `media-use`, `hyperframes-cli`, `hyperframes-registry`;
-workflows `general-video`, `faceless-explainer`, `embedded-captions`, `motion-graphics`), with `figma`,
-`music-to-video` and the rest of that repo deliberately excluded.
+Includes the 13 curated HeyGen HyperFrames skills (router `hyperframes`; domains `hyperframes-core`,
+`-animation`, `-keyframes`, `-creative`, `-audio`; `media-use`, `hyperframes-cli`,
+`hyperframes-registry`; workflows `general-video`, `faceless-explainer`, `embedded-captions`,
+`motion-graphics`), with `figma`, `music-to-video` and the rest of that repo deliberately excluded. The
+curated set is upstream's whole CORE tier, which is what `npx hyperframes skills check` calls "core": the
+on-demand workflow skills it lists (`figma`, `music-to-video`, `pr-to-video`, `product-launch-video`,
+`remotion-to-hyperframes`, `slideshow`, `talking-head-recut`) stay out.
 
 Also includes `home-assistant-best-practices` (from the official `homeassistant-ai/skills` repo): Home
 Assistant config and YAML authoring guidance, not runtime control. It complements the clawhub-tracked
@@ -111,12 +114,29 @@ a chezmoi-delivered store entry. `elevenlabs` is vendored because npx cannot ins
 vendored because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster
 name (`tiktok-scraping-yt-dlp`), and the Hermes update key is that installed name.
 
-### App-owned symlink (`cua-driver`)
+### App-owned (`cua-driver`, `composio-cli`)
 
-The store entry is a symlink into `~/.cua-driver`; the app owns the content. The official mechanism
-covers all three harnesses (`cua-driver skills status` links Claude Code, Codex via the store, and hermes
-itself), and the weekly run refreshes the pack via `cua-driver skills update`, the app's own
-GitHub-Releases updater, never a write through the symlink.
+Two entries. The shapes differ, the rule does not: the app owns the content and this repo never writes
+into it.
+
+`cua-driver`'s store entry is a symlink into `~/.cua-driver`. The official mechanism covers all three
+harnesses (`cua-driver skills status` links Claude Code, Codex via the store, and hermes itself), and the
+weekly run refreshes the pack via `cua-driver skills update`, the app's own GitHub-Releases updater,
+never a write through the symlink.
+
+`composio-cli` is a REAL directory the composio CLI writes at `~/.agents/skills/composio-cli`, planting
+the `~/.claude/skills/composio-cli` link itself in the same relative form chezmoi declares. The skill
+ships inside the CLI binary and is installed by the CLI, with
+`composio --install-skill composio-cli claude|codex|openclaw` as the manual form, so no lane here
+installs it, it is not vendored, and it carries no provenance-table row, only `tiers` and
+`hermesProfiles` like `cua-driver`. On a machine where composio has not planted it yet,
+`live-reconcile.sh` reports the absent store entry and the CLI is what supplies it.
+
+Its tier is `core` for a mechanical reason, not a preference. An `on-demand` real directory is written
+through: `live-reconcile.sh` appends the Codex policy to `agents/openai.yaml`, and uu's live overlay pass
+reasserts it. composio ships its own `agents/openai.yaml` and rewrites the whole directory on every
+upgrade, so that would be this repo editing app-owned content on a loop. `core` reaches neither writer,
+which leaves composio-cli implicitly invocable in Codex, the same documented asymmetry `cua-driver` has.
 
 ### Graphify in Claude Code
 
@@ -185,7 +205,7 @@ next full weekly run.
 
 ## Tier model (the lock's `tiers` table)
 
-Every roster skill is `core` (21) or `on-demand` (55). Core skills auto-load in every harness; on-demand
+Every roster skill is `core` (22) or `on-demand` (56). Core skills auto-load in every harness; on-demand
 skills stay installed everywhere but load only when explicitly invoked:
 
 - Claude Code: `skillOverrides.<name> = "user-invocable-only"`, one `setValueAtPath` per skill in the
