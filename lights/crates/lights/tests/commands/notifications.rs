@@ -15,13 +15,14 @@ fn notify(
     replies: Vec<(u16, serde_json::Value)>,
     runner: impl Fn(&mut Command) -> io::Result<ExitStatus>,
 ) -> (lights::Response, usize) {
-    let root = home();
+    let home = home();
+    let root = home.path();
     let path = root.join("notify.toml");
     std::fs::write(&path, settings).unwrap();
     let connector = ScriptedConnector::new(replies);
     let writes = Arc::clone(&connector.requests);
     let calls = Cell::new(0);
-    let notifier = PnsNotifier::with_runner(&root, |command: &mut Command| {
+    let notifier = PnsNotifier::with_runner(root, |command: &mut Command| {
         assert_eq!(
             writes.lock().unwrap().len(),
             2,
@@ -122,10 +123,11 @@ fn notify_defaults_off() {
 }
 #[test]
 fn missing_pns_does_not_fail_action() {
-    let root = home();
+    let home = home();
+    let root = home.path();
     let path = root.join("config.toml");
     std::fs::write(&path, config()).unwrap();
-    let notifier = PnsNotifier::new(&root);
+    let notifier = PnsNotifier::new(root);
     let response = lights::run(
         &["toggle".into(), "--notify".into()],
         &path,

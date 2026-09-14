@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 const WORDS: &[&[&str]] = &[
     &[],
     &["funnel"],
-    &["watchdog"],
+    &["watchdog", "unexpected"],
     &["allowlist"],
     &["ssh"],
     &["--help"],
@@ -153,4 +153,12 @@ fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
     assert!(text.contains(", mode -rw"), "{text}");
     assert!(text.contains(", modified "), "{text}");
     assert!(text.ends_with('Z'), "no added newline: {text}");
+}
+
+#[test]
+fn watchdog_requires_home_before_acquiring_live_readers() {
+    let output = run(&["watchdog"], Instant::now() + Duration::from_millis(500));
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stderr, b"posture watchdog: HOME is not set\n");
+    assert!(output.stdout.is_empty());
 }

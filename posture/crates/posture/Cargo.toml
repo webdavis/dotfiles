@@ -22,3 +22,8 @@ path = "src/main.rs"
 posture-adapters = { path = "../posture-adapters" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
+
+[dev-dependencies]
+rusqlite = { version = "=0.39.0", default-features = false, features = [
+  "bundled",
+] }

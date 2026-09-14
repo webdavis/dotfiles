@@ -39,13 +39,14 @@ mod severity;
 pub use cursor::{
     Advance, LiveLog, StoredCursor, advance, parse as parse_cursor, render as render_cursor,
 };
-pub use digest::{BULLETS_PER_GROUP, DigestEntry, GROUP_LIMIT, render_digest};
+pub use digest::{BULLETS_PER_GROUP, DigestEntry, DigestLimits, GROUP_LIMIT, render_digest};
 pub use gate::{
     FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
     LaunchdIdentity, Signing, Triage, gate,
 };
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
 pub use records::{CompleteRecords, complete_records};
+pub use sanitize::FIELD_LIMIT;
 pub use severity::{Action, ProtectionState, Severity, severity};
 
 mod allowlist;
@@ -77,14 +78,15 @@ pub use heartbeat::{HeartbeatText, HeartbeatWindow, heartbeat_text};
 mod audit;
 pub use audit::{
     AuditBounds, AuditFile, AuditFinding, AuditKind, AuditManifest, AuditRefusal, AuditReport,
-    AuditRow, audit_scan,
+    AuditRow, audit_file, audit_scan,
 };
 
 mod watchdog;
 pub use watchdog::{
     Agent, AgentExit, AgentJudgment, AgentReading, AgentState, AuditFingerprint, AuditJudgment,
-    AuditMemory, ExitCode, WatchdogPage, audit_fingerprint_input, judge_agent, judge_audit,
-    osquery_problem, route_problem, state_problem, watchdog_page,
+    AuditMemory, ExitCode, QueueCounts, QueueKind, QueueMemory, WatchdogPage,
+    audit_fingerprint_input, judge_agent, judge_audit, judge_queue, osquery_problem, route_problem,
+    state_problem, watchdog_page,
 };
 
 mod drift;

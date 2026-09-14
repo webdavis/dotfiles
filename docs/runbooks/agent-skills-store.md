@@ -63,11 +63,12 @@ Assistant config and YAML authoring guidance, not runtime control. It complement
 hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools.
 
 Also includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
-`obsidian-cli`, `obsidian-markdown`), all on-demand, all `hermesProfiles: []`. Note what on-demand costs
-`defuddle`: it advertises itself as an automatic substitute for WebFetch whenever a user pastes a URL, so
-demoted it never fires unless the agent is told to use it. That is deliberate, and reverting it takes two
-committed edits, the `tiers` value in the lock and the matching `skillOverrides` line in
-`private_dot_claude/modify_settings.json`, so the declared tier and Claude behavior continue to agree.
+`obsidian-cli`, `obsidian-markdown`), all `hermesProfiles: []`. `json-canvas` is on-demand; the other
+four are core since 2026-09-13, so `defuddle` fires on its own as the WebFetch substitute it advertises.
+Moving a skill between tiers takes two committed edits, the `tiers` value in the lock and the matching
+`skillOverrides` line in `private_dot_claude/modify_settings.json` (a promotion to core swaps that line
+for a `deleteValueAtPath` so the next apply scrubs the stale override from the live file), so the
+declared tier and Claude behavior continue to agree.
 
 Also includes `owasp-security` (from `agamm/claude-code-owasp`): the OWASP Top 10:2025 table, a
 finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement ids, as markdown with no
@@ -102,8 +103,9 @@ update is a required failure and leaves the current generation untouched. Automa
 
 ### Vendored (committed under `dot_agents/skills/`, refreshed only by `chezmoi apply`)
 
-The `forks` table records each one's upstream for weekly drift-watch. `moshi` and `herdr` are deliberate
-content forks (`fork: true`). `elevenlabs` is vendored because npx cannot install it full-tree (its
+The `forks` table records each one's upstream for weekly drift-watch. `moshi` is a deliberate content
+fork (`fork: true`). `herdr` is upstream verbatim since 2026-09-13, kept vendored because it was already
+a chezmoi-delivered store entry. `elevenlabs` is vendored because npx cannot install it full-tree (its
 `SKILL.md` sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`).
 `tiktok-crawling` is the one plain committed dir with no `forks` entry: a ClawHub-published skill left
 vendored because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster
@@ -168,7 +170,7 @@ next full weekly run.
 
 ## Tier model (the lock's `tiers` table)
 
-Every roster skill is `core` (8) or `on-demand` (27). Core skills auto-load in every harness; on-demand
+Every roster skill is `core` (21) or `on-demand` (55). Core skills auto-load in every harness; on-demand
 skills stay installed everywhere but load only when explicitly invoked:
 
 - Claude Code: `skillOverrides.<name> = "user-invocable-only"`, one `setValueAtPath` per skill in the
@@ -278,17 +280,18 @@ anything is recorded in the lane report; a failed repair counts as a required fa
 changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plugin keeps its
 `superpowers:*` references untouched.
 
-## Local forks (`moshi`, `herdr`)
+## Local forks (`moshi`) and verbatim vendored copies (`herdr`)
 
-They deliberately diverge from upstream, so `uu run skills` never touches them. When updating them, or
-when their upstreams ship new features, first compare against upstream
-(https://herdr.dev/docs/preview/agent-skill/ and https://getmoshi.app/skill), then port wanted changes
-into the vendored copy by hand. A `note` on a `forks` entry records anything a future maintainer would
-otherwise have to re-derive (why `elevenlabs` is vendored without being a content fork; why `herdr`'s
-recorded hash deliberately lags its `skillPath`); the entries carry no line-by-line divergence log. The
-weekly run drift-checks the `forks` upstreams and reports changes as pending work in the combined uu
-record. Pending work escalates after the configured number of runs, three in the shipped skills lane.
-After the hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
+`moshi` deliberately diverges from upstream, so `uu run skills` never touches it. When updating it, or
+when its upstream ships new features, first compare against upstream (https://getmoshi.app/skill), then
+port wanted changes into the vendored copy by hand. `herdr` is upstream verbatim: a refresh is copying
+`skills/herdr/SKILL.md` from the upstream repository over the vendored file (it is byte-identical to
+`herdr --skill` on the matching release) and advancing the hash. A `note` on a `forks` entry records
+anything a future maintainer would otherwise have to re-derive (why `elevenlabs` is vendored without
+being a content fork); the entries carry no line-by-line divergence log. The weekly run drift-checks the
+`forks` upstreams and reports changes as pending work in the combined uu record. Pending work escalates
+after the configured number of runs, three in the shipped skills lane. After the hand comparison, bump
+that fork's `lastComparedTreeHash` to the new upstream hash.
 
 Each outcome keeps its own advisory state, because the remedies differ:
 

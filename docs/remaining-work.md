@@ -8,8 +8,8 @@ Updated as tasks complete. Last updated 2026-09-13.
 
 ## Where things stand
 
-Audited on 2026-09-12 against `76b37ae4`. On 2026-09-13, #530 and #531 merged and local `main`
-fast-forwarded to `origin/main` at `72f745e2`. The final #530 head passed
+Audited on 2026-09-12 against `76b37ae4`. On 2026-09-13, #530 through #545 merged and local `main`
+fast-forwarded to `origin/main` at `3d08b5a5`. The final #530 head passed
 [run 34747415685](https://github.com/webdavis/dotfiles/actions/runs/34747415685). The operator reported
 that `chezmoi apply` passed on 2026-09-13 after these merges. Live shortcut and harness acceptance checks
 remain pending. Task 68c is published; deployment and acceptance remain separate.
@@ -39,8 +39,8 @@ Resume with a fresh inventory, preserving branches and worktrees that contain re
    successful apply on 2026-09-13. Their source changes, independent reviews, required checks, merges and
    local main synchronization are complete, including matching Scalebar #4. Continue independent work
    while operator interaction checks are pending.
-1. Preserve the planning work in 68c and finish repository hygiene, tasks 67, 68 and 68b. Obtain approval
-   of exact removal candidates before cleanup; pending cleanup must not block independent fixes.
+1. Preserve the planning work in 68c and finish repository hygiene, tasks 67 and 68. Obtain approval of
+   exact removal candidates before further cleanup; pending cleanup must not block independent fixes.
 1. Complete pns tap, tasks 71, 71a, 72 and 71b. Investigate 76 before deciding whether to build 74.
    Handle SSH exposure task 75 separately and verify its listener ownership before choosing a mechanism.
 1. Finish lights acceptance and cutover, tasks 61 to 63. Task 64's conditional optimization was declined
@@ -744,17 +744,58 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
   inventory against current source before deletion. Run the sandbox composition checks and the plan's
   live page/digest, checkpoint and retry acceptance after the operator applies.
-- [ ] 46. posture 6.4: implement and cut over watchdog. The CLI still refuses the command.
-  `posture/docs/acceptance/watchdog.md` leaves state publication, delivery ordering, legacy queue and pns
-  health probes unfinished. Include an authorized pns build record, independent binary integrity, daemon
-  and ledger checks, the direct alarm path even when pns falsely acknowledges delivery, and preservation
-  of legacy growth history. Follow the port plan's acceptance before retiring `pipeline-audit.sh` and its
-  remaining `pipeline-verdict.sh` dependency.
-- [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction
-  exists; CLI dispatch does not. Preserve the existing baseline and verify exposure and recovery across
-  two ticks before removing the Bash producer.
-- [ ] 48. posture 6.6: implement funnel input projection, adapters and CLI dispatch, then cut over.
-  Policy alone shipped. Preserve the baseline and verify real-input behavior before retiring Bash.
+- [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
+  composes state publication, delivery ordering, legacy growth history, independent binary integrity,
+  daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
+  The direct alarm precedes pns submission, and failed alarms retain unresolved state even when pns
+  reports acceptance. The authorized pns build record and manifest publication passed 30 private checks
+  with 99 assertions. Poll and watchdog are integrated at `a57d9346`; the final repeated `just ship`
+  passed with four Rust workers and unchanged deadlines, and the exact release build produced 3,692,720
+  bytes. A separate fail-first installer regression verifies that posture records the compiler selected
+  by the build directory; all 15 installer tests and 70 assertions pass. On 2026-09-13 `just ship` on
+  `a57d9346` passed again (exit 0, 3m16s) and [PR #547](https://github.com/webdavis/dotfiles/pull/547)
+  was opened against `main`; it is reviewed once, unmerged, and merges on green continuous integration.
+  Independent review returned six findings, all fixed and pushed. SEV-0: pns retained dead-lettered legs
+  forever (no delete in the `retain_deadletters` migration), so a `deadletters > 0` check paged every
+  tick forever; fixed at `12373fd5` to page only on growth. SEV-1: the 8 MiB binary cap in the pns
+  builder, the manifest script and `watchdog_audit.rs` would have refused every apply after one
+  dependency bump, since pns is already 6,966,304 bytes; fixed at `a448e635` with per-tool artifact
+  ceilings in `.chezmoidata/rust_tools.yaml` (pns 14,680,064 bytes, posture 2,097,152 bytes) across the
+  four sites that needed one, the posture builder being the fourth. The remaining findings are fixed at
+  `ccb44a64`, `c2d84559`, `cf180556` and `3fdc83cd`, the last replacing clock windows with control arms;
+  the `gateway_health` `WouldBlock` flake it fixes reproduced 2/20 at load 20 and 0/50 after. Continuous
+  integration is pending on the pushed fixes. Follow `posture/docs/acceptance/watchdog.md` before
+  retiring `pipeline-audit.sh` and its remaining `pipeline-verdict.sh` dependency. Deployment and real
+  alarm acceptance remain open.
+- [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
+  command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
+  Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
+  exact alerts, baseline bytes, markers and submission order. The full repository gate and required
+  continuous integration passed, with four local Rust test workers and unchanged deadlines. Preserve the
+  existing baseline and verify exposure and recovery across two live ticks before removing the Bash
+  producer. Security-page sound parity is supplied by merged
+  [PR #540](https://github.com/webdavis/dotfiles/pull/540), with independent review, full checks and
+  required continuous integration passed. Operator deployment and audible acceptance remain separate.
+- [ ] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
+  Independent review approved the bounded security omission notice and finite timeout parser fixes. The
+  notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
+  and 144 additional private submission cases passed, along with the integrated repository gate. On
+  2026-09-13 the branch (`adb23b54`, which contains the watchdog branch and current `main`) passed
+  `just ship` (exit 0, 3m44s) and [PR #551](https://github.com/webdavis/dotfiles/pull/551) was opened
+  with base `feat/posture-watchdog-health`, so it shows only the funnel commits and retargets to `main`
+  when #547 merges; it is unreviewed and unmerged. Independent review returned five findings; the fix is
+  on the branch and its own fix review is in progress. SEV-1: exposure pages with 37 or more keys
+  exceeded the 8,000-character wire cap and were refused forever, bounded at `FUNNEL_EXPOSURE_KEY_LIMIT`
+  (32 keys plus a summary line, commit `0037bc33`). SEV-3: stderr named retired tools, fixed at
+  `b1a8b777`. SEV-3: the inline executable check was replaced by the shared `is_executable`, fixed at
+  `4ea6e8b9`. Two findings are deferred to a follow-up: SEV-3, the duration parser maps `0`, `inf` and
+  `1e100` to `Status(125)` and pages a false gap; SEV-3, the 44-line unsafe FFI hex-float parser could be
+  `trim` plus `parse::<f64>`. Two more fix commits, `4cb11f21` and `c50f95d6`, are not yet pushed: a
+  sorted-before-cut test, fixture cleanup, a root skip, and doc numbers now measured by test at 7,160;
+  the timeout parser's `0`/`inf`/oversize inputs now saturate to a 24-hour ceiling; `strtod` is kept
+  because the capture `timeout_hex` passes `0x1p-1`. `just ship` on `c50f95d6` failed only on the
+  `gateway_health` flake that #547 fixes; re-ship once #547 merges into it. Preserve the baseline and
+  verify real-input behavior before retiring Bash.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -763,10 +804,19 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   consumer needs them, retire the old `priority` route/key and propose cleanup of the queue's three
   files, `osquery-spool/`, `osquery-tailscale-funnel` and `~/.config/osquery/webhook-secret` as required
   by the port plan. Secret values stay out of logs and review artifacts.
-- [ ] 50. posture 7.1: finish converge integration. Port the Bash isolated-database validation fix into
-  Rust, which still invokes `osqueryctl config-check`. Move the apply caller to slot 59 after its build,
-  add argument-vector support to uu's brew repair command, and update all callers. Verify composition,
-  idempotence and the operator's repair/restart drill before retiring the Bash implementation.
+- [ ] 50. posture 7.1: publish converge integration from `fix/posture-converge-validation`.
+  Private-database validation now precedes daemon probing or repair; the apply caller uses slot 59 after
+  its build, and uu supplies the configuration argument. Independent review, ten executable-discovery
+  cases, focused validation regressions and the integrated repository gate passed. On 2026-09-13 the
+  funnel branch was merged in (`eef8ea6f`), `just ship` passed (exit 0, 4m27s) and
+  [PR #552](https://github.com/webdavis/dotfiles/pull/552) was opened with base `feat/posture-funnel`, so
+  it shows only the converge commits; it is unreviewed and unmerged. Independent review returned six
+  findings and the fix is pending. SEV-1: the private config check runs
+  `sudo -n osqueryi --database_path <private>/db`, osquery creates that directory root-owned 0700, the
+  unprivileged cleanup fails and turns a passing check into Unavailable, so every real repair reports
+  failure and aborts the apply at slot 59. SEV-2: the test double models the wrong privilege boundary.
+  Four further SEV-3 findings. Same-user fixtures do not prove privileged cleanup. Verify silent no-drift
+  behavior and the operator's approved permission-repair/restart drill before retiring Bash.
 - [ ] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
   44\. Installed plists invoke Rust, but that does not prove delivery. Record the silent pns-route
   message, banner and ledger evidence, and a filled-spool digest with `.last` rotation. Inventory retired
@@ -882,12 +932,14 @@ The planned Rust lanes are implemented. The following deployment check remains.
   children before lock release for SIGINT and SIGTERM, plus durable start/interruption records. Scheduled
   output also duplicates uu's own log because both job streams target that file. Give startup errors a
   separate destination while keeping one application record per run. Track these fixes in
-  [the interruption task](https://app.todoist.com/app/task/6hVrcXJrr8FWG4fM). After publication and
-  operator deployment, verify an authorized real skills run and visual output. The audit found no
-  successful scheduled-run marker; the loaded Sunday-noon job had not run, and twelve declared lanes
-  lacked state directories. Record the first scheduled lane verdicts, notification result, success marker
-  and streaks separately. A successful manual run or notification HTTP 200 does not establish scheduled
-  acceptance. Do not repeat task 11c's retired-job cleanup.
+  [the interruption task](https://app.todoist.com/app/task/6hVrcXJrr8FWG4fM).
+  [PR #542](https://github.com/webdavis/dotfiles/pull/542) passed required continuous integration and
+  merged; local main contains it. After operator deployment, verify an authorized real skills run and
+  visual output. The audit found no successful scheduled-run marker; the loaded Sunday-noon job had not
+  run, and twelve declared lanes lacked state directories. Record the first scheduled lane verdicts,
+  notification result, success marker and streaks separately. A successful manual run or notification
+  HTTP 200 does not establish scheduled acceptance. Do not repeat task 11c's retired-job cleanup.
+
 - [ ] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
   Current uu reinstalls plugin source tip and rejects a `pin` setting. Installed Herdr's
   `plugin install --help` exposes `--ref <REF>` (verified 2026-09-12). Record the desired pin/update
@@ -896,20 +948,128 @@ The planned Rust lanes are implemented. The following deployment check remains.
   across weekly updates. Source:
   `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`.
 
+- [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
+  `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
+  preservation and partial-destination guards. All 18 private installer checks with 96 assertions, 15
+  extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
+  [PR #545](https://github.com/webdavis/dotfiles/pull/545) merged and local main contains it. Preserve
+  the existing real skill directory before operator adoption; live installation, fresh Claude discovery
+  and scheduled refresh acceptance remain open. No live install or skills run was performed.
+
+- [ ] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
+  2026-07-05 (observed 2026-09-13), not the link into `~/.local/share/graphify/claude/skills/graphify`
+  that `docs/runbooks/agent-skills-store.md` describes, so graphify's weekly self-update never reaches
+  Claude Code. After the next `chezmoi apply`, confirm the path is a symlink to that target and that the
+  July copy was preserved as 57c requires; if the apply leaves the directory in place, the seed's
+  partial-destination guard needs a look.
+
+- [ ] 57e. Retire the `deleteValueAtPath "skillOverrides.<name>"` lines in
+  `private_dot_claude/modify_settings.json`. The branch `docs/clean-code-rust-test-first` added nine
+  (clean-code, clean-code-rust, clean-code-swift, defuddle, obsidian-bases, obsidian-cli,
+  obsidian-markdown, owasp-security, tuicr) so one apply scrubs the stale `user-invocable-only` key a
+  promotion to core leaves in the live file. They are tombstones: once every machine that carried those
+  keys has applied (check `jq .skillOverrides ~/.claude/settings.json` shows none of the nine), delete
+  the lines. Longer term, derive the whole block from the lock's `tiers` table with `include` and
+  `fromJson` so a promotion needs one edit and no tombstone; requested in the operator's Plannotator
+  review on 2026-09-13.
+
 ## posture cleanup
 
 - [ ] 58. posture 8.1 to 8.3: implement the SSH hardening port in its three planned stages. The command
-  is still unimplemented. Preserve process-group timeout behavior and verify live configuration/output
-  comparisons before cutover; propose removal of the deployed Bash tool after acceptance.
+  is implemented on `feat/posture-ssh` at source `539ecbb0`, with all three stages committed. Full
+  `just ship` passed, including 991 posture tests; all 86 new tests passed individually within one
+  second. Eight mutation controls and sixteen private Bash/native comparisons passed. Exit status, final
+  bytes/modes and recorded restart effects agree; error text is not universally byte-identical.
+  Independent review is checking the additional Match-scan bounds and restoration when a rename takes
+  effect but reports failure. On 2026-09-13 `main` was merged in at `150fe38c`, resolving one dispatch
+  conflict in `posture/crates/posture/src/lib.rs` against poll (#544); the posture Rust gate and
+  `just ship` (exit 0, 4m45s) passed on the merge, and
+  [PR #549](https://github.com/webdavis/dotfiles/pull/549) was opened against `main`; it is unreviewed
+  and unmerged. Its first CI run failed the 600 ms bound in
+  `every_sshd_reader_is_bounded_and_a_later_reader_gets_its_own_deadline` (three 80 ms reads, three
+  process spawns on the loaded runner); `c74ebf8a` widens the bound to 3 s with a control arm (a deadline
+  mutated to 2000 ms still fails it in 6.08 s, the real reader passes in 0.32 s) and CI was rerun on the
+  push. Independent review returned six findings and the fix is pending. SEV-1: `arm()` installs
+  INT/TERM/HUP handlers without checking the inherited disposition, so under `nohup` a dropped session
+  rolls back a valid install and re-raises to kill the process; the fix skips signals already set to
+  `SIG_IGN`. SEV-2: several sub-second timing bounds that a loaded runner can exceed. SEV-2: a naming
+  collision (`ports` shadowed). Three further SEV-3 findings. Live configuration/output acceptance
+  remains before Bash retirement. Evidence: `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`.
 - [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
   coverage for relocated data and update its consumers, then retire the old managed scripts and approved
   deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
   Coordinate that removal across watch paths, manifests and Rust manifest selection. Keep osqueryd
   installed as the query producer and perform the plan's operator-run restart after changing its watched
-  paths.
+  paths. Controls source `4b3d59f4` passed independent review, including ten integrity checks, eleven
+  poll checks and four Bash checks. Missing new controls cannot be hidden by stale legacy data.
+  Desired-state commit `916319c5` also passed separate review: six files moved with identical bytes, and
+  73 Rust plus 53 Bash consumer tests passed privately. Integration with task50 retains its validation
+  guards and the new data default. On 2026-09-13 the converge branch was merged in (`5055279e`),
+  `just ship` passed (exit 0, 4m21s) and [PR #553](https://github.com/webdavis/dotfiles/pull/553) was
+  opened with base `fix/posture-converge-validation`, so it shows only the two relocation commits.
+  Independent review returned two findings, fixed at `0edbb5ef` and pushed, with the PR body re-posted:
+  stale old paths in `CLAUDE.md`, and the controls file's consumer note claiming `posture poll` reads it
+  today. It also found no defect in the move and one operational fact the diff had not recorded: the
+  whole `~/.local/libexec/osquery/` tree is under the pipeline-integrity watch and every DELETED event on
+  a tracked path pages CRIT, so the hand cleanup after the apply pages nine times (seven stale files:
+  `posture-controls.json`, `osquery-converge/desired/osquery.conf`, `osquery.flags` and the four
+  `packs/*.conf`, plus the `desired/packs` and `desired` directories). Remove them in one `trash` pass so
+  the pages arrive together; `osquery-converge/drift-verdict.sh` stays managed. Deployed cleanup and
+  restart acceptance remain open.
 - [ ] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
   before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
-  inventory. The Rust size gate already covers posture; do not add it again.
+  inventory. Preparatory mapping on `docs/posture-test-mapping` at `d95c39f3` preserves all original
+  columns and maps all 187 leaves to exact assertions or explicit gaps. It records merged, unpublished
+  and deployed status separately. On 2026-09-13 `main` was merged in (`93f3f288`), `just ship` passed
+  (exit 0, 4m31s) and [PR #554](https://github.com/webdavis/dotfiles/pull/554) was opened against `main`;
+  it merged into `main`. Independent review found the README's Task58 row and the B041 bullet needed to
+  name the real constants; fixed at `068e34e1` before merge. The final post-port size comparison and
+  decision index are still required. The Rust size gate already covers posture; do not add it again.
+- [ ] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure. The
+  private B020/B027 reproducer loses valid digest records when one invalid UTF-8 byte makes a claimed
+  batch unreadable; a focused preservation fix is in progress on `fix/posture-digest-read-failure`, which
+  merged `main` in (tip `74166d25`); `just ship` passed (exit 0, 5m15s) and
+  [PR #558](https://github.com/webdavis/dotfiles/pull/558) was opened against `main`. Independent review
+  returned four findings; three are fixed and pushed: torn lines are now dropped and counted, fixed at
+  `d2e18d3c`; an unclaimable spool exits 1 with a stderr line, and the LaunchAgent has no `KeepAlive` so
+  the uptime watchdog pages at a streak of two, fixed at `45a64bc4`. The fourth finding belongs to #559.
+  B041/S290's four `DIGEST_MAX_*` scalar overrides are restored on `fix/posture-digest-limits`
+  (`7030da0a`, six command-level cases in `posture/crates/posture/src/digest/tests/limits.rs`; posture
+  Rust gate and `just ship` exit 0 after merging `main` at `cee02e20`);
+  [PR #550](https://github.com/webdavis/dotfiles/pull/550) was opened on 2026-09-13 and merged into
+  `main`. Independent review returned three SEV-3 findings (test string coverage, doc comments and
+  `FIELD_LIMIT` export, and `mod limits;` placement); fixed at `e5b5f877` before merge. B142/S122's
+  named-spool append-failure diagnostic is still missing from native code. The
+  `fix/posture-spool-diagnostic` branch merged `main` in; its first `just ship` failed lights'
+  `missing_config_exits_five` test with "unexpected request", unrelated to the branch: the lights test
+  fixture `home()` builds `temp_dir()/lights-<pid>-<counter>` and never removes it, so a reused process
+  id finds a stale `config.toml` (1,760 leaked directories measured, 844 holding a `config.toml`). The
+  fix merged as [PR #561](https://github.com/webdavis/dotfiles/pull/561): `Home::fresh` clears its
+  directory on create and removes it on drop, with three fixtures routed through it (commits `72434bbd`,
+  `a60cf1cf`, `d224062c`). With the flake understood, `fix/posture-spool-diagnostic`'s tip `dc77f4cf`
+  (after merging `main`) re-ran `just ship` (exit 0, 3m58s) and
+  [PR #560](https://github.com/webdavis/dotfiles/pull/560) was opened against `main`. Review returned
+  three findings, fix in progress: SEV-2, the append diagnostic writes to process stderr instead of the
+  injected sink at `digest_appender.rs:41`; SEV-3, a pid-keyed temp root in `alert/tests/spool.rs`;
+  SEV-3, a 650 ms wall-clock bound. B039 is reproduced and fixed on `fix/posture-digest-fold-append`
+  (stacked on the read-failure branch): `fold` did read-then-rewrite despite its "append rather than
+  rename" comment, and the new `digest_spool/tests/concurrent_fold.rs` loses 135 to 258 of 1000
+  concurrent appends against it and none against the `O_APPEND` fold. At tip `7db593c2`, `just ship`
+  passed (exit 0, 3m06s) and [PR #559](https://github.com/webdavis/dotfiles/pull/559) was opened stacked
+  on #558. Fable review returned one SEV-low finding, the fourth deferred from #558's review: the spool
+  is opened twice in `fold`; a fix to a single read-and-append handle is in progress. The old fold lost
+  148 of 1,000 racing lines; the new one lost none in 25 runs. The same two-thread reproducer driven
+  through `claim` and `restore` still loses 1 to 2 of 1000: an append through a handle the alerter opened
+  before the claim rename lands in the claim after the digest read it. That window predates the port (the
+  Bash `>>` had it) and is recorded here as B039b: the proposed fix is for the appender to re-check the
+  spool's inode after its write and re-append to the fresh spool when the file was renamed under it,
+  accepting a possible duplicate line in one digest. B001/B002 retain narrower detached-child lock and
+  two-process single-notification coverage gaps. Reconcile the recorded empty-bundle-path and quoted-zero
+  normalization decisions against current assertions. Five former jq/pipe fault-injection dispositions
+  remain proposals, and thirteen legacy queue leaves retain their Bash owner until task 49's acceptance.
+  Evidence: `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
+  [PR #557](https://github.com/webdavis/dotfiles/pull/557) (`fix/pns-private-process-budget`, the pns
+  fixture process budget) merged into `main`, reviewed NO_ISSUE, after continuous integration passed.
 
 ### STOP POINT G
 
@@ -918,12 +1078,12 @@ producer.
 
 ## The tail
 
-- [ ] 61. lights: finish the argument-surface differential against the independent legacy reference,
-  including the changed-reference control. Current usage assertions do not fulfill that acceptance.
-  Commit `33a6a7f1` passed independent review on `test/lights-argument-differential`: 169 cases,
-  changed-exit and changed-power-write controls, 95 Rust checks and the release build passed. Each
-  differential case completed within one second. It is test-only and not yet published; tasks 62 and 63
-  retain their hardware and manifest-policy gates.
+- [x] 61. lights argument-surface comparison is merged in
+  [PR #541](https://github.com/webdavis/dotfiles/pull/541), and local main contains it. Independent
+  review verified 169 cases against the frozen owned Bash reference and rejected changed-exit and
+  changed-power-write controls. All 95 Rust checks, the release build, full `just ship` and required
+  continuous integration passed. Each comparison completed within one second. Tasks 62 and 63 retain
+  their hardware and manifest-policy gates.
 
 - [ ] 62. lights PR 12: move all seven aerospace keys F4 to F10 to `~/.cargo/bin/lights`. Five still call
   Bash and two call OpenHue directly. Complete the three remaining command/hardware drills, then verify
@@ -945,12 +1105,21 @@ producer.
   `X = xcode` and `d = do` groups with current `x = xcode` and `d = docker` before the operator checks.
   Reconcile `dot_config/nvim/docs/todo.md`; bootstrap, neotest, annotation extraction and autosave/format
   coordination already exist in source. Keep deferred formatter/linter and agent-protocol evaluations
-  separate from this acceptance task. Write `docs/research/2026-09-nvim-overhaul-acceptance.md`. Run
-  `Lazy! load all` before health capture. Retain the plan's synthetic warm-start pass condition,
-  `after < baseline - 10`, and separately record a rendered Herdr start with every `VeryLazy` plugin
-  loaded. Keep cold and rendered-start timing as recorded measurements, as the plan specifies. The
+  separate from this acceptance task. On 2026-09-13 the documentation reconciliation commit from the
+  superseded ledger branch was cherry-picked onto `docs/nvim-acceptance` (`7e81209c`, three files: the
+  acceptance record's inventory section, the nvim todo status list, the nvim `CLAUDE.md` loading model);
+  `just ship` passed (exit 0, 3m39s) and [PR #555](https://github.com/webdavis/dotfiles/pull/555) was
+  opened against `main`; it merged into `main` on 2026-09-13. The ledger branch's
+  `docs/remaining-work.md` edits were older versions of this file's current text and were dropped. Write
+  `docs/research/2026-09-nvim-overhaul-acceptance.md`. Run `Lazy! load all` before health capture. Retain
+  the plan's synthetic warm-start pass condition, `after < baseline - 10`, and separately record a
+  rendered Herdr start with every `VeryLazy` plugin loaded. Keep cold and rendered-start timing as
+  recorded measurements, as the plan specifies. The
   [acceptance record](research/2026-09-nvim-overhaul-acceptance.md) now distinguishes completed private
-  checks from remaining rendered, device, agent-session and deployment checks.
+  checks from remaining rendered, device, agent-session and deployment checks. Source inventory accounts
+  for all 90 entries through 59 verified merged-PR receipts. Source documentation reflects existing lazy
+  loading, autosave, formatting and test integration; rendered acceptance and the listed language
+  decisions remain open.
 
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
@@ -980,13 +1149,14 @@ producer.
 
 ## Repository hygiene
 
-- [ ] 67. Reconcile local branches before further cleanup. On 2026-09-12 there are 547, of which 499 are
+- [ ] 67. Reconcile local branches before further cleanup. On 2026-09-13 there are 577, of which 518 are
   ancestors of `origin/main`. No `wf_*`, `worktree-agent-*` or `agent-*` branches remain. The four
   `backup/*` branches contain unmerged work and were deliberately retained by the Claude session.
   Classify the other throwaway candidates by reachability, attached worktree, dirty state and owner.
   These counts do not authorize deletion. Obtain approval for the exact proposed groups.
-- [ ] 68. Finish the worktree inventory and approved cleanup. There are 208 registrations: 28 under
-  `~/.herdr/worktrees`, 45 in this checkout's `.worktrees`, 108 under `~/workspaces/dotfiles-worktrees`,
+
+- [ ] 68. Finish the worktree inventory and approved cleanup. There are 238 registrations: 28 under
+  `~/.herdr/worktrees`, 75 in this checkout's `.worktrees`, 108 under `~/workspaces/dotfiles-worktrees`,
   19 under `~/workspaces/dotfiles-agent-worktrees`, and eight elsewhere. One Claude scratch worktree
   registration points at a missing directory. The old count of 195 under Herdr is obsolete. Preserve
   active pull requests, retained commits and dirty work; recheck candidates immediately before approved
@@ -994,10 +1164,61 @@ producer.
   consent. In particular, compare and preserve the uncommitted source in `pns-refactor-6-5`,
   `.worktrees/pns-executable-deadline`, `.worktrees/herdr-smart-nav-clean-code` and
   `.worktrees/lights-implementation`. They contain source edits beyond generated graph drift; their
-  presence does not by itself prove missing implementation.
-- [ ] 68b. Review the untracked `.merge_file_*` artifacts in this checkout. Determine their origin and
-  whether they contain work worth keeping, then propose the exact disposition. The artifacts were left
-  untouched; recheck the current inventory before proposing cleanup.
+  presence does not by itself prove missing implementation. Continuation handoff, 2026-09-13: these 11
+  worktrees were newer than `feat/tuicr-config` and were not tied to a merged pull request. Inspect them
+  before starting duplicate work:
+
+  - `.worktrees/nvim-acceptance-ledger` (`docs/nvim-acceptance-ledger`, `5001c94f`)
+  - `.worktrees/nvim-mcp-boundary` (`fix/nvim-mcp-boundary`, `295b84e3`, PR #546 open)
+  - `.worktrees/pns-daemon-fixture-children` (`fix/pns-daemon-fixture-children`, `c6b99b96`)
+  - `.worktrees/posture-controls` (`refactor/posture-controls`, `a4907309`)
+  - `.worktrees/posture-converge-validation` (`fix/posture-converge-validation`, `2409bca7`)
+  - `.worktrees/posture-digest-read-failure` (`fix/posture-digest-read-failure`, `50dbaea9`)
+  - `.worktrees/posture-funnel` (`feat/posture-funnel`, `adb23b54`)
+  - `.worktrees/posture-spool-diagnostic` (`fix/posture-spool-diagnostic`, `f6cf9e8d`)
+  - `.worktrees/posture-ssh` (`feat/posture-ssh`, `c92887a4`)
+  - `.worktrees/posture-watchdog-health` (`feat/posture-watchdog-health`, `a57d9346`)
+  - `.worktrees/task60-test-mapping` (`docs/posture-test-mapping`, `d95c39f3`)
+
+  This is the continuation set from the interrupted modernization run. Branches already contained in
+  `origin/main`, including completed worktrees that remain registered, are intentionally excluded.
+
+  The following additional worktrees are excluded only because their branch tips are already contained in
+  `origin/main`; their dirty files still require inspection before cleanup:
+
+  - `.worktrees/b74-render-context` (`fix/b74-render-context`, `b1adf180`): staged renderer-context
+    changes for the B74 concurrent render race, including a new formatter library and tests. Preserve the
+    source changes and compare them with `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`.
+  - `.worktrees/posture-digest-limits` (`fix/posture-digest-limits`, `b1adf180`): dirty native digest
+    limit implementation and tests for task 60a. Inspect before starting another B041/S290 fix.
+  - `.worktrees/herdr-process-plan` (`feat/herdr-process`, `4014ff49`): untracked Herdr process-plugin
+    source and fixtures for the approved configurable floating-process-window plan. Do not rebuild this
+    feature without reviewing the existing source.
+  - `.worktrees/fix-review-skill-delivery` (`fix/review-skill-delivery`, `9432c139`),
+    `.worktrees/posture-digest-read-failure` (`fix/posture-digest-read-failure`, `50dbaea9`) and
+    `.worktrees/posture-spool-diagnostic` (`fix/posture-spool-diagnostic`, `f6cf9e8d`): current dirty
+    changes are generated `graphify-out/graph.json` only. Inspect status before discarding anything.
+
+  Start from local `main` at `3d08b5a5`. Pull requests #530 through #545 are merged; #546 is open with
+  lint passed. Do not repeat those implementations. The watchdog, funnel, converge, controls, SSH and
+  task 60 branches above have passed their recorded private reviews but still need the publication or
+  acceptance steps stated in tasks 46, 48, 50, 58, 59 and 60. The operator deleted the 126 untracked
+  Graphify merge-driver artifacts and `nvim.log` after their scope was reviewed on 2026-09-13. Do not
+  restore them. The current `docs/remaining-work.md` edit is also uncommitted because this environment
+  cannot create the Git index lock. Do not restore it. Agents do not run `chezmoi apply`; the operator
+  does that after publication.
+
+  Operating rules from the operator, 2026-09-13, second round, replacing the earlier allocation note:
+  work continues in a fresh session from this ledger plus the memory file `resume-2026-09-13-handoff`.
+  Each pull request runs as one Workflow script (review, fix, re-check, gates) reporting once. One review
+  per pull request, run after the fix; none for docs-only or test-only pull requests. Agents are not put
+  on a reading diet. Fable orchestrates, Opus implements, Sonnet does mechanical work.
+
+- [x] 68b. Review and remove the untracked `.merge_file_*` artifacts in this checkout. They were Graphify
+  merge-driver residue, not source. The operator deleted all 126 matching artifacts and `nvim.log` on
+  2026-09-13 after reviewing their scope. Verify the current inventory before any further cleanup; do not
+  recreate or restore them.
+
 - [x] 68c. Published the approved planning edits on 2026-09-13:
   [homelab #38](https://github.com/webdavis/Homelab/pull/38) and
   [dotfiles #532](https://github.com/webdavis/dotfiles/pull/532) are merged. Dotfiles local main was
@@ -1006,6 +1227,7 @@ producer.
   modes were preserved. Homelab local main contains upstream while retaining its 44 previously
   unpublished commits and unrelated work. Do not push that local history or discard the retained edits.
   Publication did not deploy either plan.
+
 - [ ] 21a. Finish the deployed binary cleanup named in task 21. The old
   `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current callers,
   preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete files
@@ -1170,8 +1392,22 @@ is missing.
   it.
 - [ ] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
   `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
-  exclusion was measured ineffective and must not be proposed again without new evidence. The source
-  globs have changed, but that is not a reproduction or closure. B75's Rustdoc link fixes already shipped
+  exclusion was measured ineffective and must not be proposed again without new evidence. The 2026-09-13
+  private investigation confirmed that chezmoi scans build output while collecting template data, before
+  evaluating the selected template. Current treefmt failed three amplified rename races, and one
+  concurrent private `cargo doc` run failed on a disappearing search-index path. Idle and outside-source
+  build controls passed. The owned-renderer fix is committed as `80cfa0bf` on `fix/b74-render-context`:
+  `scripts/treefmt/lib-render-context.sh` renders every formatter through a shallow symlink view of the
+  checkout, so chezmoi's pre-template walk never enters a build directory, while real source data,
+  partials, build hashes and render-error propagation are pinned by the five cases in
+  `test/unit/formatter-render-context.test.sh` (5 passed, 20 assertions, 921 ms). After merging `main`
+  (`8f50e926`), `just ship` passed (exit 0, 2m27s) and
+  [PR #548](https://github.com/webdavis/dotfiles/pull/548) was opened on 2026-09-13; it is unreviewed and
+  unmerged. Independent review returned four findings, with the render-context mechanism verified against
+  real chezmoi 2.72.1, and the fix is pending. SEV-2: the espanso formatter test has no hostile fixture,
+  so reverting its command leaves every test green. Three SEV-3 findings: the throwaway `HOME` is never
+  removed, three redundant chezmoi flags, and a dead `home` fixture with no `tear_down`. Evidence:
+  `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`. B75's Rustdoc link fixes already shipped
   in `20a0c245`; keep them closed.
 - [x] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
   default after checking its actual requirements. Commit `e77799f` corrects the default and docs to
@@ -1197,15 +1433,20 @@ operator deployment. No source correction was warranted by this audit.
   nvim-mcp review. `pane_socket.lua` and `executable_nvim-mcp-connect.sh` validate the final runtime
   directory but leave replaceable ancestors unchecked. The resolver's `answers()` follows socket
   symlinks, and newline-containing runtime paths are accepted by the listener but split inconsistently
-  during discovery. Fix these shared boundary checks and verify representative failure cases. Registry
-  metadata findings are superseded by registry removal; absent-socket probing and runtime-path selection
-  already changed. Recheck the outstanding quiescent timing claim separately.
+  during discovery. Source `bffa979a` and `e8bd14ac` fix replaceable ancestors, shared listener/resolver
+  path validation, socket symlinks and newline pins. Independent review approved 23 listener cases, 51
+  resolver cases, eight private socket drills and eight additional native path checks. Full `just ship`
+  passed after integrating current main, and [PR #546](https://github.com/webdavis/dotfiles/pull/546) is
+  open with its lint check passed. Deploy both files together, verify a fresh harness connection, and
+  recheck the outstanding quiescent timing claim. Private checks do not establish live editor,
+  second-account or access-control-list acceptance.
 - [ ] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
   supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
-  `dfe28fd3` is ready for independent review in `fix/nvim-b103-routing`, with private reproduction,
-  passing regression checks and normal commit hooks. Publication and live pane-move acceptance remain.
+  `dfe28fd3` passed independent review with 94 private checks; full `just ship` and required continuous
+  integration passed. [PR #543](https://github.com/webdavis/dotfiles/pull/543) merged and local main
+  contains it. Operator deployment and live pane-move acceptance remain.
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
@@ -1225,7 +1466,12 @@ operator deployment. No source correction was warranted by this audit.
   through supported integration. The historical failure was not reproduced during this audit.
 - [ ] Correct B100's stale pane-selection contract in the canonical Neovim spec/plan: the owned helper
   uses `agent_pane(on_pane)`, not a synchronous returned pane identifier. Preserve cancellation/refusal
-  behavior. This is documentation reconciliation, not a missing helper implementation.
+  behavior. This is documentation reconciliation, not a missing helper implementation. On 2026-09-13
+  `3d92ca3e` on `docs/nvim-agent-pane-contract` rewrote the spec's 7.2 lookup paragraph, its 7.4
+  interface bullet and the plan's PR 11 interface line against `M.agent_pane` in
+  `dot_config/nvim/lua/custom_api/herdr.lua`; `just ship` passed on the second run (exit 0, 3m12s; the
+  first run hit the pns `security_sound` fixture's 900 ms child guard under load, fixed separately) and
+  [PR #556](https://github.com/webdavis/dotfiles/pull/556) merged into `main` on 2026-09-13.
 
 ### Recover the remaining design from PR #24
 

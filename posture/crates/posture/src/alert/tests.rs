@@ -2,6 +2,8 @@ use super::*;
 use posture_application::{ClockUnavailable, WallTime};
 use std::os::unix::fs::PermissionsExt;
 
+mod spool;
+
 struct NoInspection;
 impl posture_adapters::CommandRunner for NoInspection {
     fn run_completed(
