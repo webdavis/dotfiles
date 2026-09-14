@@ -165,7 +165,10 @@ fn rollback_removes_the_target_before_asking_for_recovery_identity() {
 fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spawn() {
     use std::time::Duration;
     let mut f = Fixture::new();
-    f.config.deadline = Duration::from_millis(75);
+    // The budget has to outlast one resolution and die inside the second, and it also has to
+    // leave a spawn on a loaded machine far more room than it needs, so both are stated in
+    // hundreds of milliseconds rather than tens.
+    f.config.deadline = Duration::from_millis(250);
     f.config.grace = Duration::from_millis(5);
     let script = fs::read_to_string(f.root.join("sshd")).unwrap();
     let calls = f.root.join("calls");
@@ -174,7 +177,7 @@ fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spaw
         &script.replacen(
             "set -eu\n",
             &format!(
-                "set -eu\nprintf 'call\\n' >> '{}'\n/bin/sleep 0.05\n",
+                "set -eu\nprintf 'call\\n' >> '{}'\n/bin/sleep 0.15\n",
                 calls.to_str().unwrap().replace('\'', "'\\''")
             ),
             1,
@@ -184,11 +187,12 @@ fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spaw
     assert_eq!(status, 1);
     assert!(err.contains("124"), "{err}");
     assert!(!out.contains("PASS"));
-    // A per-command budget would let all three resolutions finish inside it; the aggregate one
-    // cannot, and that count says so without a wall-clock bound on the run.
-    let started = fs::read_to_string(calls)
-        .unwrap_or_default()
-        .lines()
-        .count();
-    assert!(started <= 2, "a late third resolution ran: {started}");
+    // A per-command budget would let all three resolutions finish inside it and a budget that
+    // covered none of them would start no resolution at all; only the aggregate one lands between
+    // the two, so the count is what discriminates and it is bounded on both sides.
+    let started = fs::read_to_string(calls).unwrap().lines().count();
+    assert!(
+        (1..=2).contains(&started),
+        "one aggregate budget must cover the first resolution and refuse a third: {started}"
+    );
 }
