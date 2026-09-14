@@ -6,14 +6,9 @@
   <string>com.webdavis.osquery-results-alerter</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/bash</string>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/osquery/results-alerter.sh</string>
+    <string>{{ .chezmoi.homeDir }}/{{ .rust_tools.install_dir }}/posture</string>
+    <string>alert</string>
   </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-  </dict>
   <key>WatchPaths</key>
   <array>
     <string>{{ .chezmoi.homeDir }}/.local/log/osquery/osqueryd.results.log</string>
