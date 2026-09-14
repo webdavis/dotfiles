@@ -78,6 +78,10 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnos
     assert_eq!(execute(config, Time, || NoInspection, &mut stderr), 0);
     let request = std::fs::read_to_string(request).unwrap();
     for expected in [
+        // THE TIER NAMES THE ROUTE, end to end, whatever route this command
+        // built its sink with. It names `posture` while `priority` cannot
+        // deliver a pns body (posture_domain::severity_route).
+        "\"route\":\"posture\"",
         "aaaaaaaaaaaa",
         "ba7816bf8f01",
         "recorded upgrade: tool 1 -> 2 at 1970-01-01T02:30:00Z",

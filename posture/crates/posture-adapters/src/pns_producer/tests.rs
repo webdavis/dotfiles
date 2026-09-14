@@ -59,6 +59,7 @@ fn alert() -> Alert {
         occurrence_id: Some("occurrence-7".into()),
         event: "page",
         signal: AlertSignal::NeedsAttention,
+        severity: None,
         occurred_at: Some(1730000000),
         title: "Security finding".into(),
         detail: "line one\nline two".into(),

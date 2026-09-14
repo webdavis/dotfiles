@@ -11,15 +11,23 @@
 # written ~/.hermes/config.yaml and run_after_59-hermes-config-migrate has migrated it forward to the
 # installed hermes version's schema, so the file this reads is the one the next gateway start will load.
 #
-# TWO routes are checked, because they fail differently and only one of them is noticeable:
-#   pns                   alerts. An alert that never arrives is usually noticed anyway, because whatever
-#                         it was about is still broken.
+# FIVE routes are checked, because they fail differently and most of them fail quietly:
+#   pns                   agent events. One that never arrives is usually noticed anyway, because
+#                         whatever it was about is still open.
+#   priority              machine health and security. Only the alert drainer posts here today: posture
+#                         holds its own pages on `posture` while this route cannot deliver a pns body
+#                         (docs/runbooks/local-daemons.md, third gotcha).
+#   posture               every page the osquery pipeline raises, plus its daily digest and heartbeat.
 #   uu                    the weekly RECORD from the unattended jobs. A record that never arrives looks
 #                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
-#                         to look. This check is the only thing standing between a mistyped or unapplied
-#                         route and a channel that stays empty forever.
-# Keep this list in step with DEFAULT_RECORD_URL in
-# uu/crates/uu-adapters/src/config/records.rs.
+#                         to look.
+#   pns-recap             the return recap.
+# For the four quiet ones this check is the only thing standing between a mistyped or unapplied route
+# and a channel that stays empty forever.
+# Keep this list in step with the route names the producers spell: DEFAULT_RECORD_URL in
+# uu/crates/uu-adapters/src/config/records.rs, severity_route in
+# posture/crates/posture-domain/src/severity.rs, and RECAP_ROUTE in
+# pns/crates/pns-application/src/post_return_recap.rs.
 set -euo pipefail
 cfg="$HOME/.hermes/config.yaml"
 command -v yq >/dev/null 2>&1 || exit 0
@@ -27,7 +35,18 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-expected_routes=(pns uu)
+# THE ROUTES PNS POSTS TO SHARE ONE KEY. Every producer in this repository submits through pns, which
+# signs with `[plugins.hermes] key`, so one of those routes carrying any other secret answers 401 and the
+# message is lost with nothing in the channel to show for it. `priority` is NOT one of them: its key is
+# the retired Bash alerter's, the value in ~/.config/osquery/webhook-secret, and the one live signer left
+# holding that key is drain-undelivered-alerts.sh on the alert-drainer LaunchAgent. So reconciling it is
+# not a one-line fix to nudge anyone toward: it costs the drainer its queue, and the route's prompt names
+# `{alert.title}` and `{alert.detail}`, so it has to be retemplated in the same sitting or a reconciled
+# route delivers two literal placeholders instead of a page. It is left out of the comparison below and
+# the trade is recorded in docs/runbooks/local-daemons.md, third gotcha.
+pns_secret="$(yq -r '.platforms.webhook.extra.routes.pns.secret // ""' "$cfg" 2>/dev/null || echo '')"
+
+expected_routes=(pns priority posture uu pns-recap)
 for route in "${expected_routes[@]}"; do
   # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
   # so a config that had lost a route was indistinguishable from a machine with no hermes at all.
@@ -44,6 +63,22 @@ for route in "${expected_routes[@]}"; do
   # written, so the check and the risk arrive together.
   if [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$cfg" 2>/dev/null || echo false)" != "true" ]]; then
     printf '\n  ⚠ hermes: the %s route is NOT deliver_only, so hermes feeds its messages to an AGENT\n    instead of posting them verbatim, and those messages carry third-party package and skill names.\n    Fix .platforms.webhook.extra.routes.%s.deliver_only in the encrypted hermes config, then: chezmoi apply\n\n' \
+      "$route" "$route"
+  fi
+  # A DIFFERENT SECRET, on a route pns posts to. Compared, never printed: the values are in this file
+  # either way, and the fix is the comparison, not the value. `pns` is where the reference above is read
+  # from, so comparing it would compare a value to itself; `priority` is skipped for the reason above,
+  # where a mismatch is the expected state rather than a fault.
+  if [[ $route != pns && $route != priority ]] && [[ -n $pns_secret ]] &&
+    [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$cfg" 2>/dev/null || echo '')" != "$pns_secret" ]]; then
+    printf '\n  ⚠ hermes: the %s route is signed with a different secret than the pns route, so every\n    message pns submits to it answers 401 and is dropped without a trace in the channel.\n    Reconcile .platforms.webhook.extra.routes.%s.secret in the encrypted hermes config, then: chezmoi apply\n\n' \
+      "$route" "$route"
+  fi
+  # NO CHANNEL NAMED. A deliver_only route whose deliver_extra.chat_id is empty or absent falls back
+  # to the gateway's HOME channel, so every message lands in #general instead of the channel the route
+  # was created for, and nothing about that looks broken from either end.
+  if [[ -z "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_extra.chat_id // \"\"" "$cfg" 2>/dev/null || echo '')" ]]; then
+    printf '\n  ⚠ hermes: the %s route names no channel, so its messages go to the HOME channel instead.\n    Set .platforms.webhook.extra.routes.%s.deliver_extra.chat_id in the encrypted hermes config, then: chezmoi apply\n\n' \
       "$route" "$route"
   fi
   code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/${route}" \

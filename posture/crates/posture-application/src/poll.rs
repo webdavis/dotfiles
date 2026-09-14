@@ -96,6 +96,7 @@ impl<M: PollMarkers, S: AlertSink, P: FnMut(&BaselineUpdate) -> Result<(), PollS
             occurrence_id: None,
             event,
             signal: AlertSignal::NeedsAttention,
+            severity: None,
             occurred_at,
             title: page.title.clone(),
             detail: page.body.clone(),

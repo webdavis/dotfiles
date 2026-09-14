@@ -167,6 +167,7 @@ impl<S: DigestSpool, K: AlertSink> BuildDigest<'_, S, K> {
             // everything that did not earn a page; delivering it as one would
             // undo the tiering that put it here.
             signal: AlertSignal::Observation,
+            severity: None,
             occurred_at: self.occurred_at,
             title: format!(
                 "🗒️ osquery daily digest · {} · {} item(s)",

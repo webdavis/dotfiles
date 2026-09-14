@@ -3,6 +3,7 @@ use posture_application::{
     Alert, AlertSignal, AlertSink, IndependentAlarm, InspectionFailure, Submission,
     SubmissionFailure,
 };
+use posture_domain::severity_route;
 use posture_pns_wire::{Name, RequestId, Status, decode_result};
 use std::{ffi::OsStr, path::PathBuf};
 mod request;
@@ -20,6 +21,18 @@ impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
             executable,
             route,
             alarm,
+        }
+    }
+    /// The route this alert belongs on: its tier's, when it has one, and
+    /// otherwise the one this producer was built with.
+    ///
+    /// A compiled-in route name cannot fail the identifier rules, so the
+    /// fallback on the right is unreachable; it is there because a page that
+    /// went out on the configured route beats a page lost to a panic.
+    fn route_for(&self, alert: &Alert) -> Option<Name> {
+        match severity_route(alert.severity) {
+            Some(route) => Name::new(route).ok().or_else(|| self.route.clone()),
+            None => self.route.clone(),
         }
     }
     fn failed_engine(&mut self, alert: &Alert, failure: SubmissionFailure) -> Submission {
@@ -93,13 +106,14 @@ impl<R: CommandRunner, A: IndependentAlarm> PnsProducer<R, A> {
 }
 impl<R: CommandRunner, A: IndependentAlarm> AlertSink for PnsProducer<R, A> {
     fn submit(&mut self, alert: &Alert) -> Submission {
-        match request::encode(alert, self.route.clone()) {
+        let route = self.route_for(alert);
+        match request::encode(alert, route.clone()) {
             Ok(request) => return self.send(alert, request),
             Err(request::EncodeFailure::Oversized)
                 if alert.signal == AlertSignal::NeedsAttention =>
             {
                 let notice = request::omission(alert);
-                if let Ok(request) = request::encode(&notice, self.route.clone()) {
+                if let Ok(request) = request::encode(&notice, route) {
                     let _ = self.send(&notice, request);
                 }
                 // Acceptance of this bounded notice never acknowledges the omitted finding.

@@ -1,5 +1,5 @@
 use crate::SnapshotsLog;
-use posture_domain::{HeartbeatWindow, canary_freshness, heartbeat_text};
+use posture_domain::{HeartbeatWindow, Severity, canary_freshness, heartbeat_text};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WallTime {
     pub seconds: u64,
@@ -20,6 +20,11 @@ pub struct Alert {
     pub occurrence_id: Option<String>,
     pub event: &'static str,
     pub signal: AlertSignal,
+    /// The tier this submission was judged at, which decides its route.
+    ///
+    /// `None` for everything that is not a judged finding, and the sink then
+    /// keeps the route it was configured with. See `severity_route`.
+    pub severity: Option<Severity>,
     pub occurred_at: Option<u64>,
     pub title: String,
     pub detail: String,
@@ -70,6 +75,7 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
             occurrence_id: None,
             event: "heartbeat",
             signal: AlertSignal::Observation,
+            severity: None,
             occurred_at: time.map(|time| time.seconds),
             title: text.title,
             detail: text.detail,

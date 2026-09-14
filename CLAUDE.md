@@ -33,7 +33,7 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
 | `docs/runbooks/gitbutler.md`                      | the `but` CLI, the vendored skill, and the workspace-mode decision     |
 | `docs/runbooks/local-agents.md`                   | gnhf: its config, its Claude wiring, and its worktree rule             |
-| `docs/runbooks/local-daemons.md`                  | atuin, happy and tailscaled: config, gotchas, diagnostic ladders       |
+| `docs/runbooks/local-daemons.md`                  | atuin, happy, tailscaled and the hermes gateway's webhook routes       |
 | `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |
 | `docs/runbooks/macos-fresh-machine-quickstart.md` | first-apply setup, TCC grants, LuLu, and SSH hardening                 |
 | `docs/runbooks/age-key.md`                        | the age identity behind encrypted source files                         |

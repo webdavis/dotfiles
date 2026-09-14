@@ -14,6 +14,8 @@ pub(super) fn omission(alert: &Alert) -> Alert {
         occurrence_id: alert.occurrence_id.as_ref().map(|id| format!("notification-omitted:{id}")),
         event: "notification-omitted",
         signal: AlertSignal::NeedsAttention,
+        // The notice stands in for the finding, so it goes where the finding would have.
+        severity: alert.severity,
         occurred_at: alert.occurred_at,
         title: "Posture security alert omitted".into(),
         detail: "A security finding exceeded notification limits. The full alert was not submitted and remains unacknowledged. Inspect the originating posture check.".into(),

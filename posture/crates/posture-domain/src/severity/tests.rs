@@ -90,3 +90,22 @@ fn software_listeners_logins_and_agent_queries_are_info() {
         );
     }
 }
+
+#[test]
+fn a_critical_finding_is_held_on_the_posture_route_until_priority_can_deliver() {
+    // `priority` is where a page belongs and answers 401 to the key pns signs
+    // with, so this pins the hold: flipping the arm has to come with the route.
+    assert_eq!(severity_route(Some(Severity::Critical)), Some("posture"));
+}
+
+#[test]
+fn every_tier_below_critical_belongs_on_the_posture_route() {
+    for tier in [Severity::Notice, Severity::Info] {
+        assert_eq!(severity_route(Some(tier)), Some("posture"), "{tier:?}");
+    }
+}
+
+#[test]
+fn a_submission_carrying_no_tier_names_no_route_of_its_own() {
+    assert_eq!(severity_route(None), None);
+}

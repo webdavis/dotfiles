@@ -25,6 +25,16 @@ files and sudoers digest. The five integrity categories use the supplied page/lo
 triage facts attach only after an integrity page decision, and cannot silence it. Other categories stay
 log-only (S056 to S063). The category decision uses whole values, including empty and hostile strings.
 
+Given an optional tier, `severity_route` names the hermes route a submission belongs on. Critical belongs
+on `priority`, which the operator reserved for machine health and security on 2026-09-14, and is held on
+`posture` until that route carries the key `pns submit` signs with and a prompt naming a pns body's
+fields. A page posted to `priority` today answers 401, and pns reports a submission accepted off its own
+ledger rather than the destination's answer, so posture would advance its cursor with nothing in either
+channel. Notice and Info are `posture`, the pipeline's own channel. No tier at all names no route, and
+the sink then keeps the route it was configured with, which is how the heartbeat, the daily digest, the
+poll and funnel pages and the cursor-reset warning all keep the route their command built. The watchdog
+is unchanged: it still probes `priority`, because that is the route whose health it reports on.
+
 No domain operation reads state, starts a process, emits bytes, advances a cursor or contacts a
 destination. A repeated call with the same arguments has the same outcome. Timeout, cancellation, writer
 failures, batch diagnostics and notify-before-state ordering remain with their adapters and application
@@ -82,3 +92,18 @@ rather than being simulated inside the domain.
 | HOSTILE-newline: a newline in a column does not split the record; the finding pages                     | gate::tests::fields::hostile_newline_in_label_stays_one_field                                |
 | HOSTILE-control: the genuine allowlisted own-agent is suppressed, so the injection pins are not vacuous | gate::tests::fields::hostile_control_genuine_tuple_is_suppressed                             |
 | HOSTILE-tab: a tab in a column stays opaque; the finding pages                                          | gate::tests::fields::hostile_tab_in_program_stays_one_field                                  |
+
+### Route selection
+
+These leaf names have no Bash predecessor: nothing in the shell pipeline chose a route by tier.
+
+| Behavior                                                             | Leaf name                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a critical finding is held on `posture` until `priority` can deliver | `severity::tests::a_critical_finding_is_held_on_the_posture_route_until_priority_can_deliver`                                                                                                                                     |
+| every lesser tier goes to `posture`                                  | `severity::tests::every_tier_below_critical_belongs_on_the_posture_route`                                                                                                                                                         |
+| no tier names no route                                               | `severity::tests::a_submission_carrying_no_tier_names_no_route_of_its_own`                                                                                                                                                        |
+| the producer spends the tier's route, not its configured one         | `pns_producer::tests::request::a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configured`; `pns_producer::tests::request::a_finding_below_critical_takes_the_posture_route_whatever_the_caller_configured` |
+| a submission with no tier keeps the configured route                 | `pns_producer::tests::request::attention_retains_occurrence_body_route_time_and_security_class`                                                                                                                                   |
+| the batch page is critical and the reset warning has no tier         | `judge_results::tests::the_batch_page_is_tiered_critical_while_the_reset_warning_carries_no_tier`                                                                                                                                 |
+| a real page leaves `posture alert` on the route its tier names       | `alert::tests::an_integrity_page_carries_the_actual_hashes_and_upgrade_record`                                                                                                                                                    |
+| the daily digest still leaves on `posture`                           | `digest::tests::a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy`                                                                                                                                     |
