@@ -27,14 +27,19 @@ vim.opt.runtimepath:append(vim.fn.stdpath("data") .. "/site")
 local _, javascript_grammar = pcall(vim.treesitter.language.add, "javascript")
 javascript_grammar = javascript_grammar == true
 
--- A name no parser file can be called, rather than a real language: the line above puts this
+-- Names no parser file can be called, rather than real languages: the line above puts this
 -- machine's whole grammar directory back on the runtimepath, so every genuinely installed
 -- language would take the gate's "already there" path and the waiting case would never run.
+-- The build that never finishes gets its own name because the gate REMEMBERS a language whose
+-- wait ran out, so measuring that on the shared name would leave the result to case order.
 local PARSERLESS_LANGUAGE = "language_with_no_parser_on_disk"
-assert(
-  #vim.api.nvim_get_runtime_file("parser/" .. PARSERLESS_LANGUAGE .. ".*", true) == 0,
-  "a parser for " .. PARSERLESS_LANGUAGE .. " exists, so the gate's waiting path is no longer measured"
-)
+local STALLED_LANGUAGE = "language_whose_build_never_finishes"
+for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE }) do
+  assert(
+    #vim.api.nvim_get_runtime_file("parser/" .. language .. ".*", true) == 0,
+    "a parser for " .. language .. " exists, so the gate's waiting path is no longer measured"
+  )
+end
 
 -- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
 -- one, so a working directory read back after `:cd` would not string-compare against the path
@@ -266,21 +271,27 @@ local function route()
   -- What the parser gate asked nvim-treesitter for, and what it answers can be built. The plugin
   -- is absent under the runner's `--clean` start, so both of its modules are faked: every case
   -- reaches the gate, and one measures it.
-  local parser = { installs = {}, available = { PARSERLESS_LANGUAGE } }
+  local parser = { installs = {}, available = { PARSERLESS_LANGUAGE, STALLED_LANGUAGE } }
 
   local captured, ran, requests = nil, nil, 0
   local stubs = {
     ["pns.integrations.neotest"] = { consumer = function() end },
     ["nvim-treesitter"] = {
       install = function(languages, options)
+        local stalled = false
         for _, language in ipairs(languages) do
           parser.installs[#parser.installs + 1] = language
           assert(options and options.force, "an install of a missing parser must force: " .. language)
+          stalled = stalled or language == STALLED_LANGUAGE
         end
         -- The task `install` hands back. `pwait` reports rather than raises, which is why the gate
-        -- takes that one rather than `wait`.
+        -- takes that one rather than `wait`, and what a build that never finishes answers here:
+        -- `false, "timeout"`, the shape nvim-treesitter's own `Task:pwait` returns on a timeout.
         return {
           pwait = function()
+            if stalled then
+              return false, "timeout"
+            end
             return true, true
           end,
         }
@@ -849,6 +860,18 @@ cases["a test request waits for the parser its discovery needs"] = function()
     "a filetype no grammar exists for was installed: " .. vim.inspect(unbuildable.installs)
   )
   assert(unbuildable.requests == 1, "the request never reached neotest")
+
+  -- A build that ran out of time is waited for once. `pwait` reports its timeout rather than
+  -- raising, and a gate that discards that answer pays the whole 30 s ceiling again on the next
+  -- press, and on every press after it, for a build that is never coming.
+  local stalled = routed.press_nearest(STALLED_LANGUAGE)
+  assert(vim.deep_equal(stalled.installs, { STALLED_LANGUAGE }), "the first press did not wait for its parser")
+  local retried = routed.press_nearest(STALLED_LANGUAGE)
+  assert(
+    #retried.installs == 0,
+    "a build that already ran out of time was waited for again: " .. vim.inspect(retried.installs)
+  )
+  assert(retried.requests == 1, "the request never reached neotest")
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()

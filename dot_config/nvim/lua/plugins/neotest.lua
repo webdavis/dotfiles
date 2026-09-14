@@ -345,6 +345,15 @@ local javascript_adapters = {
   ["neotest-nodejs"] = "node",
 }
 
+--- Languages whose parser build did not finish inside the wait below, for this session only.
+---
+--- A build that is not coming answers the same way every time, so without this the second press
+--- pays the whole ceiling again, and so does the tenth: a state that cost nothing before the gate
+--- existed would cost 30 s of blocked editor per press, indefinitely. Remembered per language and
+--- never cleared, because the retry that matters is a restart or a `:TSInstall`, both of which
+--- start a new session or put the parser on disk for `language.add` to find on the next press.
+local parser_wait_failed = {}
+
 --- The neotest module, with the tree-sitter parser it will discover this buffer's tests with
 --- installed.
 ---
@@ -375,8 +384,12 @@ local function neotest_with_parser()
     return require("neotest")
   end
   -- Nothing to wait for when nvim-treesitter cannot build the language at all, which is every
-  -- scratch buffer whose filetype is no grammar's name.
-  if vim.list_contains(require("nvim-treesitter.config").get_available(), language) then
+  -- scratch buffer whose filetype is no grammar's name, or when a build here already ran out of
+  -- time once.
+  if
+    not parser_wait_failed[language]
+    and vim.list_contains(require("nvim-treesitter.config").get_available(), language)
+  then
     vim.notify("neotest: installing the " .. language .. " parser", vim.log.levels.INFO)
     -- `force`, because the parser is already known to be missing and an ordinary install accepts
     -- either artifact: a leftover queries directory alone reads as installed and returns without
@@ -385,7 +398,10 @@ local function neotest_with_parser()
     -- Thirty seconds, the ceiling the FileType installer polls to: a build that is not coming must
     -- not hold the editor. `pwait` reports that timeout instead of raising, and the request goes
     -- ahead regardless, because a discovery that finds nothing is what it would have been anyway.
-    require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
+    local installed = require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
+    if not installed then
+      parser_wait_failed[language] = true
+    end
   end
   return require("neotest")
 end
