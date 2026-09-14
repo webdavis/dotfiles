@@ -232,3 +232,25 @@ fn a_file_list_past_the_collapse_line_says_its_counts_instead_of_its_rows() {
     ));
     assert!(block.contains("M  src/file19.rs"), "{block}");
 }
+
+#[test]
+fn somewhere_git_answered_nothing_says_that_once_instead_of_contradicting_itself() {
+    // NOT REACHABLE FROM THE DOCUMENTED USE (the verb is run inside the
+    // worktree), but it is output an agent would paste verbatim, and the four
+    // ordinary lines used to disagree with each other: no branch on two of
+    // them and `main` named as the stack and marked current on the rest.
+    let block = git_block(&GitFacts {
+        worktree: String::new(),
+        trunk: "main".to_string(),
+        stack: Vec::new(),
+        changes: None,
+    });
+    assert_eq!(
+        block,
+        "**Git**\n\
+         - Branch: (not a git repository)\n\
+         - Worktree: (not a git repository)\n\
+         - PR: (not a git repository)\n\
+         - Stack: (not a git repository)\n"
+    );
+}

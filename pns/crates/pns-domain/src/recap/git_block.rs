@@ -21,6 +21,17 @@ use std::fmt::Write as _;
 /// indentation and the file list's status column only line up under a
 /// monospace run, in a terminal and in Discord alike.
 pub fn git_block(facts: &GitFacts) -> String {
+    // NO BRANCH AND NO WORKTREE IS NOT A DETACHED HEAD, it is somewhere git
+    // answered nothing at all, and the ordinary lines then contradict each
+    // other: no branch on two of them and the trunk named as both the stack and
+    // the current row on the rest. Said once, with no graph and no file list to
+    // disagree with it.
+    if facts.stack.is_empty() && facts.worktree.is_empty() {
+        return format!(
+            "**Git**\n- Branch: {NO_REPOSITORY}\n- Worktree: {NO_REPOSITORY}\n\
+             - PR: {NO_REPOSITORY}\n- Stack: {NO_REPOSITORY}\n"
+        );
+    }
     let mut block = String::from("**Git**\n");
     let current = facts.stack.last();
     let _ = writeln!(block, "- Branch: {}", branch_line(facts));
@@ -218,5 +229,7 @@ const STATUS_ORDER: [char; 4] = ['A', 'M', 'R', 'D'];
 const CURRENT: &str = "  ← *current*";
 /// What the Branch and PR lines say when there is no branch to name.
 const DETACHED: &str = "(detached HEAD)";
+/// What every line says when git answered nothing at all.
+const NO_REPOSITORY: &str = "(not a git repository)";
 /// The one fence the graph and the file list share.
 const FENCE: &str = "```";
