@@ -55,7 +55,7 @@ _OSQUERY_ALERT_SEQUENCE=0
 # the rest of the finding text becomes AppleScript SOURCE. osquery reports
 # attacker-influenced strings (file names, launchd labels), and this path runs
 # whenever `alerter` is absent, so that turns the alert pipeline into an
-# execution path. render-page.sh strips backticks and newlines, not these.
+# execution path. posture's sanitize strips backticks and newlines, not these.
 _osquery_applescript_literal() {
   local text="$1"
   text=${text//\\/\\\\}
