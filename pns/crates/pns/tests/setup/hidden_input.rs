@@ -36,7 +36,7 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
         .expect("the hermes question");
     pty.write_all(b"y\n");
     pty.read_until(
-        "the signing key the default `pns` route verifies: ",
+        "the signing key the default pns route verifies: ",
         PTY_DEADLINE,
     )
     .expect("the hermes key prompt");

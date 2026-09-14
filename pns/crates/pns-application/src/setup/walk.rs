@@ -51,7 +51,7 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
         answers.hermes_key = armed_secret(
             terminal,
             "hermes",
-            "the signing key the default `pns` route verifies",
+            "the signing key the default pns route verifies",
         )?;
     }
     terminal.section("Lights", "a lamp that says how the work ended");
