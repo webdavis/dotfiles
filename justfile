@@ -179,6 +179,10 @@ defaults-show domain:
 defaults-dump:
   defaults read | less
 
+# Remove this repository's merged, clean worktrees. --dry-run only reports.
+worktrees-prune *arguments:
+  ~/.local/libexec/prune-merged-worktrees.sh {{arguments}}
+
 # Refresh skills through the weekly uu lane.
 update-skills:
   ~/.cargo/bin/uu run skills
