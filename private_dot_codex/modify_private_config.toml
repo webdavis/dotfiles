@@ -20,7 +20,7 @@
                  says: the model and reasoning settings, the sandbox and
                  approval policy, notify, tui.vim_mode_default, [features],
                  [memories], the three git [marketplaces.*] identities, and the
-                 five MCP servers this repo declares.
+                 MCP servers this repo declares.
     FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
                  own [desktop] block and the MCP servers it injects, the
                  [plugins.*] roster, tui.model_availability_nux, the
@@ -147,7 +147,7 @@
        drifting freely. --- */ -}}
 {{- $merged = setValueAtPath (list "plugins" "babysitter@babysitter" "enabled") false $merged -}}
 
-{{- /* --- stable: the five MCP servers this repo declares, whole entry each,
+{{- /* --- stable: the MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three
        of them carry the secrets, which come from KeePassXC at apply time and
        are the reason this target needs the vault unlocked.
@@ -193,6 +193,30 @@
     (dict
       "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)
       "env_vars" (list "HERDR_ENV" "HERDR_PANE_ID" "HERDR_SESSION" "HERDR_SOCKET_PATH" "HERDR_TAB_ID" "HERDR_WORKSPACE_ID" "NVIM_MCP_SOCKET" "XDG_RUNTIME_DIR")) $merged -}}
+
+{{- /* ynab is the local YNAB stdio server and it is READ-ONLY, declared so
+       rather than inferred from an absent variable. The server resolves each
+       of its five runtime keys independently, and when `YNAB_ALLOW_WRITES` is
+       unset in the process environment it falls back to
+       `[shell_environment_policy.set]` and `mcp_servers.ynab.env` in this very
+       file, and to `~/.claude/settings.json` `env`. All three are free-drift,
+       this file's own header names the first as NOT declared, and upstream's
+       Claude plugin manifest sets that variable to 1. Measured on 5.2.0: a
+       planted 1 in either file turns 38 read tools into 62, arming 24 write
+       tools against real financial data.
+
+       Process environment is the highest-precedence source and the gate is an
+       exact match on "1", so the explicit "0" shadows every planted value, and
+       disabling the config fallback closes the channel outright. Writing the
+       whole map rather than a per-key overlay is what keeps both asserted on
+       every apply. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "ynab")
+    (dict
+      "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" $home)
+      "env" (dict
+        "YNAB_ALLOW_WRITES" "0"
+        "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
+        "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
 
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.
