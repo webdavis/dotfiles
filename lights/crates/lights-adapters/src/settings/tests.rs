@@ -1,4 +1,5 @@
 use super::*;
+use lights_domain::{PresetStep, PresetTarget};
 
 const VALID: &str = "[controller]\ntype = 'hue'\naddress = '192.0.2.1'\nkey = 'synthetic-secret'\n";
 
@@ -91,7 +92,7 @@ fn shipped_defaults_resolve_studio_and_four_scene_rotation() {
         assert_eq!(settings.default_room.as_str(), "3F - Studio");
         for (alias, room) in [
             ("studio", "3F - Studio"),
-            ("bedroom", "3F - Master Bedroom"),
+            ("bedroom", "3F - MBedroom"),
             ("kitchen", "2F - Kitchen"),
         ] {
             assert_eq!(settings.aliases.resolve(alias).unwrap().as_str(), room);
@@ -116,4 +117,99 @@ fn configured_room_alias_and_rotation_are_used() {
     assert_eq!(settings.aliases.resolve("work").unwrap().as_str(), "Office");
     assert_eq!(settings.rotation.next(Some("A")), "B");
     assert_eq!(settings.rotation.previous(Some("A")), "B");
+}
+#[test]
+fn bedroom_alias_resolves_to_the_bridge_room_name() {
+    // The bridge inventory read on 2026-09-14 names this room `3F - MBedroom`.
+    // The earlier `3F - Master Bedroom` matched no room, so `--room bedroom`
+    // exited 2 for every command.
+    for text in [VALID, include_str!("../../tests/fixtures/defaults.toml")] {
+        assert_eq!(
+            parse(text)
+                .unwrap()
+                .aliases
+                .resolve("bedroom")
+                .unwrap()
+                .as_str(),
+            "3F - MBedroom"
+        );
+    }
+}
+#[test]
+fn preset_table_parses_ordered_scene_and_off_steps_through_aliases() {
+    let settings = parse(&format!(
+        "{VALID}[rooms]\nwork = 'Office'\n\
+         [presets]\n\
+         evening = [{{ room = 'work', scene = 'Read' }}, {{ room = 'Hallway', off = true }}]\n"
+    ))
+    .unwrap();
+    assert_eq!(settings.presets.names().collect::<Vec<_>>(), ["evening"]);
+    assert_eq!(
+        settings.presets.plan("evening"),
+        Some(
+            &[
+                PresetStep {
+                    room: RoomName::new("Office").unwrap(),
+                    target: PresetTarget::Scene("Read".into())
+                },
+                PresetStep {
+                    room: RoomName::new("Hallway").unwrap(),
+                    target: PresetTarget::Off
+                },
+            ][..]
+        )
+    );
+}
+#[test]
+fn no_preset_table_configures_no_presets() {
+    assert_eq!(parse(VALID).unwrap().presets.names().count(), 0);
+}
+#[test]
+fn a_preset_step_naming_neither_or_both_targets_is_rejected() {
+    for step in [
+        "{ room = 'Office' }",
+        "{ room = 'Office', scene = 'Read', off = true }",
+        "{ room = 'Office', off = false }",
+        "{ room = 'Office', scene = '' }",
+        "{ scene = 'Read' }",
+        "{ room = 'Office', scene = 'Read', typo = 1 }",
+    ] {
+        assert!(
+            parse(&format!("{VALID}[presets]\nevening = [{step}]\n")).is_err(),
+            "accepted {step}"
+        );
+    }
+    for preset in [
+        "evening = []",
+        "evening = 'Read'",
+        "'' = [{ room = 'A', off = true }]",
+    ] {
+        assert!(
+            parse(&format!("{VALID}[presets]\n{preset}\n")).is_err(),
+            "accepted {preset}"
+        );
+    }
+}
+#[test]
+fn shipped_presets_name_three_times_of_day_over_the_three_aliased_rooms() {
+    let settings = parse(include_str!("../../tests/fixtures/defaults.toml")).unwrap();
+    assert_eq!(
+        settings.presets.names().collect::<Vec<_>>(),
+        ["afternoon", "evening", "morning"]
+    );
+    for (preset, scene) in [
+        ("morning", "Energize"),
+        ("afternoon", "Concentrate"),
+        ("evening", "Read"),
+    ] {
+        assert_eq!(
+            settings.presets.plan(preset),
+            Some(
+                &["3F - Studio", "3F - MBedroom", "2F - Kitchen"].map(|room| PresetStep {
+                    room: RoomName::new(room).unwrap(),
+                    target: PresetTarget::Scene(scene.into()),
+                })[..]
+            )
+        );
+    }
 }

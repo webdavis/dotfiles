@@ -7,6 +7,6 @@ pub use controller::{
 };
 pub use notification::Notifier;
 pub use use_cases::{
-    AdjustBrightness, ReportStatus, SceneSelection, SetPower, SetScene, TogglePower,
+    AdjustBrightness, ApplyPreset, ReportStatus, SceneSelection, SetPower, SetScene, TogglePower,
 };
 pub type LightsError = LightControlError;
