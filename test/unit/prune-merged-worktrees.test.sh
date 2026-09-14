@@ -136,11 +136,14 @@ prune_publish_herdr_list() {
      is_linked_worktree: true}]}}' "$@" >"$PRUNE_HERDR_LIST"
 }
 
+# HERDR_ENV is removed rather than set: the sweep has to reach herdr from any
+# shell, ssh and launchd included, and an inherited value would hide a gate that
+# sent every removal down the plain git path.
 prune_run() { # <case directory> [argument ...]
   local case_directory="$1"
   shift
-  (cd "$case_directory/repo" && PATH="$PRUNE_ROOT/bin:$PATH" HERDR_ENV=1 \
-    "$PRUNE_SUBJECT" "$@" 2>&1)
+  (cd "$case_directory/repo" &&
+    PATH="$PRUNE_ROOT/bin:$PATH" env -u HERDR_ENV "$PRUNE_SUBJECT" "$@" 2>&1)
 }
 
 function test_a_merged_clean_worktree_is_removed_through_herdr() {

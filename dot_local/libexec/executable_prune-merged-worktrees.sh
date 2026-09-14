@@ -37,8 +37,9 @@ removal_failed=0
 # the shell running the removal.
 current_worktree_path=''
 
-# Populated from `herdr worktree list` when this shell is inside herdr. A path
-# that is absent from it has no sidebar row, so git can remove it directly.
+# Populated from `herdr worktree list` wherever herdr is installed, which
+# answers from the running daemon and needs no herdr-launched shell. A path that
+# is absent from it has no sidebar row, so git can remove it directly.
 declare -A workspace_id_by_path=()
 
 usage() {
@@ -84,7 +85,6 @@ parse_arguments() {
 # path. herdr lists the worktrees of every repository it knows, not just this
 # one, which is why git owns the candidate set and this is only a lookup.
 load_herdr_workspace_ids() {
-  [[ -n ${HERDR_ENV:-} ]] || return 0
   command -v herdr >/dev/null 2>&1 || return 0
   command -v jq >/dev/null 2>&1 || fail 'jq is required to read the herdr worktree list'
   local worktree_path workspace_id
