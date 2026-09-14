@@ -1,6 +1,6 @@
 # Agent skills: the cross-harness store
 
-`~/.agents/skills` is the single canonical skills store (37 roster skills). It serves Claude Code for the
+`~/.agents/skills` is the single canonical skills store (78 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
 hermes for exactly the store-symlink subset of the delivery model below
@@ -13,9 +13,9 @@ the store.
 ```mermaid
 flowchart LR
   subgraph provenance["Provenance lanes (dot_agents/custom-skill-lock.json)"]
-    NPX["npxTracked, 29<br/>npx skills add, GitHub"]
+    NPX["npxTracked, 65<br/>npx skills add, GitHub"]
     CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
-    VEND["forks + vendored, 4<br/>dot_agents/skills, chezmoi apply"]
+    VEND["forks + vendored, 8<br/>dot_agents/skills, chezmoi apply"]
     APP["app-owned, 2<br/>updated by the owning app"]
   end
   NPX --> GEN
@@ -41,7 +41,7 @@ live in `dot_agents/custom-skill-lock.json`, which is the thing to read for any 
 
 The lock at `dot_agents/custom-skill-lock.json` records it.
 
-### npx-tracked (the `npxTracked` table, 29 skills)
+### npx-tracked (the `npxTracked` table, 65 skills)
 
 The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
 upstream, latest from `main` (no pin). `~/.cargo/bin/uu run skills` installs and refreshes them via an
