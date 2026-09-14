@@ -41,9 +41,17 @@
      operations, `undo_operation` and the generic `ynab_write_tool_execute`. It
      is a required SCHEMA field upstream offers no switch for, not a second
      permission gate, so an agent supplies it itself rather than stopping to
-     ask per call. The client-side rate limiter keeps its upstream defaults,
-     190 requests per hour with a burst of 10, because it protects the token
-     from YNAB's hard 200-per-hour lockout rather than rationing the agents.
+     ask per call.
+
+     The client-side rate limiter keeps its upstream defaults, 190 requests per
+     hour with a burst of 10, and protects nothing across clients: the token
+     bucket and its trailing-hour counter both live inside one server PROCESS,
+     while YNAB's hard 200-per-hour lockout is per TOKEN, and one token now
+     serves three declared clients that each start a process per session. The
+     lockout stays reachable whenever two of them run at once, which is
+     accepted rather than mitigated: no per-process share fixes the
+     arithmetic, and a counter shared across processes would mean changing a
+     third-party server.
 
      The command is the fnm-lane binary rather than `npx -y`, matching what the
      other two declare: `.chezmoidata/system_packages_autoinstall.yaml` installs

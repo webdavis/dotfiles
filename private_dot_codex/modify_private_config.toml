@@ -213,10 +213,16 @@
 
        The client-side rate limiter keeps its upstream defaults,
        `YNAB_RATE_LIMIT_PER_HOUR` 190 and `YNAB_RATE_LIMIT_BURST` 10, and is
-       deliberately left unset here. It exists to protect the token from YNAB's
-       hard 200-per-hour lockout, not to ration the agents: spending the last
-       ten requests takes the whole account off the API until the rolling
-       window moves.
+       deliberately left unset here. It protects nothing across clients: the
+       token bucket and its trailing-hour counter both live inside one server
+       PROCESS, while YNAB's hard 200-per-hour lockout is per TOKEN, and one
+       token now serves three declared clients that each start a process per
+       session. The reachable budget is therefore 190 times the number of live
+       processes, so the lockout stays reachable whenever two of them run at
+       once, and it takes the whole account off the API until the rolling
+       window moves. That exposure is accepted rather than mitigated: no
+       per-process share fixes the arithmetic, and a counter shared across
+       processes would mean changing a third-party server.
 
        `YNAB_DISABLE_AGENT_CONFIG_FALLBACK` stays "1". Without it the server
        resolves its runtime keys out of `[shell_environment_policy.set]` and
