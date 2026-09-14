@@ -795,20 +795,41 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   stopped at its first gate, `git status --porcelain` in the worktree showed `graphify-out/graph.json`
   modified by the post-commit hook after `3b43aa0c` and nothing else dirty, so no fetch, no `just ship`,
   no push and no pull request ran; fold that regenerated file into a commit (repo precedent `d6012066`)
-  or discard it, then resume from the fetch/merge step. Operator steps once it ships: a full
-  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
-  pipeline known-good manifest arm); confirm the swap with
+  or discard it, then resume from the fetch/merge step. Operator steps once it ships, and the FIRST of
+  them is a prerequisite rather than a confirmation: make hermes serve the `posture` route before the
+  apply. `posture alert` and `posture digest` both fix their pns route to `posture`
+  (`posture/crates/posture/src/alert.rs:57`, `digest.rs:56`), and pns derives the gateway URL by swapping
+  the last path segment of the default endpoint for the route name
+  (`channel_dispatch.rs::hermes_url_for`), so every posture page and digest posts to `/webhooks/posture`.
+  That route does not exist on dresden. Measured 2026-09-13 with the unsigned-POST semantics task 34
+  established (401 means the route exists, 404 means it does not): `/webhooks/pns` 401,
+  `/webhooks/priority` 401, `/webhooks/posture` 404; and in `~/.local/state/pns/pns.db` all 8 posture
+  hermes legs carry `deadletter_reason = permanent` with `http_status = 404` while their macos-banner
+  legs delivered. The retired Bash alerter posted CRIT to `/webhooks/priority`, which exists, so arming
+  `posture alert` moves a CRIT page's Discord leg onto a dead endpoint, and posture reads the submission
+  as accepted because the pns ledger commits: the page reaches the banner, checkpoints the cursor, prints
+  nothing alarming and never reaches Discord, which the steps below would read as healthy silence. So:
+  add the route with the pns signing secret to `private_dot_hermes/encrypted_private_config.yaml.age` (an
+  operator edit), then gate the apply on
+  `curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' http://127.0.0.1:8644/webhooks/posture`
+  printing 401. Then a full `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and
+  allowlist both sit in the pipeline known-good manifest arm); confirm the swap with
   `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
   live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
-  `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
-  under `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh`, expecting one integrity
-  page from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a
-  file, and a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next
-  daily digest; and verify at-least-once retry against the live cursor with the daemon or gateway
-  unreachable. Stays open: whether `posture/docs/acceptance/allowlist-integrity.md` and `enrichment.md`
-  need annotating for the shell tests this branch retires (left untouched as dated port plans), and a
-  stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming the deleted
-  `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
+  `posture allowlist list`; after the first live posture page, confirm its Discord leg with
+  `sqlite3 ~/.local/state/pns/pns.db "select l.deadlettered_at is not null, l.http_status from ledger_legs l join ledger_events e on e.seq=l.event where e.producer='posture' and l.destination='hermes' order by l.id desc limit 1"`,
+  which must print `0|`, and do NOT record this task's live acceptance as passed while that leg is dead;
+  THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files under
+  `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh`, expecting one integrity page
+  from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a file, and
+  a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next daily
+  digest; and verify at-least-once retry against the live cursor with the daemon or gateway unreachable.
+  Stays open: whether posture keeps its own `posture` route once hermes serves it or falls back to pns's
+  default `/webhooks/pns` until then (a one-line change at `alert.rs:57` and `digest.rs:56`, a routing
+  decision rather than a slice fix), whether `posture/docs/acceptance/allowlist-integrity.md` and
+  `enrichment.md` need annotating for the shell tests this branch retires (left untouched as dated port
+  plans), and a stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming
+  the deleted `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
