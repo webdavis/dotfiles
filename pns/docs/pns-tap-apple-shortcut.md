@@ -27,6 +27,11 @@ The `Run script over SSH` fields, as configured:
 | SSH Key        | ed25519 Key                       |
 | Input          | Choose Variable (Shortcuts' own default) |
 
+Four of those six rows are what an installer fills: Host, Port and User from the three global
+variables, and SSH Key, reached by setting Authentication to SSH Key. Script stays a single colon and
+Input stays at its default. That is the split the Comment below gets wrong, and the correction is
+drafted further down.
+
 ## The Comment, verbatim
 
 Reproduced exactly as it ships, including its typography. Do not reflow, restyle or correct it here:
@@ -56,10 +61,12 @@ That command will print the line you need to paste into the following SSH author
 Then PNS will walk you through the rest of the setup.
 ```
 
-**One known discrepancy, left in place deliberately.** The line says "the three global variables" and
-four bullets follow, and the fourth (`SSH Key and type ed25519`) is a field on the SSH action rather
-than a global variable. Recorded rather than corrected, because this file's job is to say what ships.
-Fix it in the Shortcut first, then update this file to match.
+**One defect still shipping, and one that fixed itself.** The line says "the three global variables"
+and four bullets follow, and the fourth (`SSH Key and type ed25519`) is a field on the SSH action
+rather than a global variable. That one is live. The text also points at `pns tap --install`, which
+did not exist when the text was written and does now, so that half needs no correction. The live one is
+recorded rather than corrected in place, because this file's job is to say what ships. The replacement
+is drafted below and becomes the record once the operator has edited the Shortcut.
 
 ## The notification, verbatim
 
@@ -72,6 +79,76 @@ Received! Notifications will come to this phone.
 Title is left empty. **Play Sound is on**, which is the point of the action: the tap's whole purpose
 is to move notifications to the phone, and a silent confirmation would be indistinguishable from a
 Shortcut that never ran. Attachment is left at `Choose Variable`.
+
+## The corrected instructions, awaiting the operator's phone-side edit
+
+**NOT YET SHIPPED, and therefore not yet a record of anything.** Everything above says what the
+Shortcut currently contains. This section says what it should contain, in the order the edits are made
+on the phone. When the operator has made them and a tap has been verified, these blocks replace the
+verbatim blocks above and this section goes away.
+
+### Edit one, the Comment
+
+Three global variables, then four fields on the SSH action. Same typography as the shipped text, so
+the only difference is the correction:
+
+```text
+PNS Tap tells your Mac that your phone has your attention, so pns sends notifications here instead of to the Mac's desktop. It opens an SSH connection to your Mac and touches one file. Nothing is uploaded anywhere.
+
+Set these three global variables to your Mac’s:
+
+  ⋅ Hostname
+  ⋅ SSH Port
+  ⋅ Account Username
+
+Then open the Run Script Over SSH action and fill four fields:
+
+  ⋅ Host: the Hostname variable
+  ⋅ Port: the SSH Port variable
+  ⋅ User: the Account Username variable
+  ⋅ SSH Key: set Authentication to SSH Key, then choose your ed25519 key
+
+Leave the script as a single colon; your Mac replaces it.
+
+Then run this command in a terminal on your Mac:
+
+  ⋅ pns tap --install
+
+It prints the line to paste into your Mac’s SSH authorization file:
+
+  ⋅ ~/.ssh/authorized_keys
+
+and it walks you through the rest of the setup, including how to test it.
+```
+
+### Edit two, the notification
+
+The body stops being fixed text and becomes the SSH action's own result. In the `Show notification`
+action, clear the body and insert the `Run script over SSH` action's output, which Shortcuts offers as
+the most recent result when the body field is selected. Set the title to `PNS Tap`, because a bare
+surface line needs to say who is talking. Play Sound stays on, for the reason already recorded above.
+
+That one field is the whole success wiring. `pns tap` prints exactly one line on stdout when it
+records a tap, so the notification then reads `Tap recorded. Current surface: Mobile.` when the tap
+won, `... Away.` when it won and the operator is out, and `... Desk.` when desk input is newer and
+notifications are staying on the Mac. Mobile and Away both mean the phone gets the cards; Desk means
+it does not. The fixed text could not tell those apart, which is the defect being fixed.
+
+**There is no failure branch, deliberately.** A failing `pns tap` prints its one line on stderr and
+exits non-zero, so no failure text arrives in the action's result: the failure signal is the SSH action
+itself failing, which stops the Shortcut at that action and leaves the phone showing the SSH error and
+no confirmation. The Mac's own troubleshooting output already says exactly this.
+
+Two consequences worth writing down rather than discovering later:
+
+- Whether the Shortcuts SSH action fails on a non-zero exit status alone, or only when the connection
+  fails, is NOT ESTABLISHED: Apple documents neither. If the drill in `pns-tap-device-acceptance.md`
+  shows a write failure arriving as a successful action with empty output, then one `If` action is the
+  fix, showing the result when it contains `Tap recorded` and a failure line when it does not. That is
+  a measurement away, so it is not built now.
+- Branching on the text to produce friendlier wording was rejected. It would copy pns's own phrasing
+  into the phone, where nothing keeps the two in step, and a silently stale copy of a confirmation is
+  worse than a plain one. A pass-through cannot drift.
 
 ## The `--json` result, and the undo
 
@@ -115,16 +192,23 @@ Only the marker carries state, so deleting it is the whole undo and nothing else
 the empty directories stay behind and mean nothing. The surface then reads as untapped again, which
 can move notifications back to the desk or away.
 
-## What `pns tap` must print, for this to stay true
+## What `pns tap` prints, and what the phone can show
 
-The notification above is fixed text on the phone, so it says the same thing whatever happened on the
-Mac. That is a deliberate simplification with one real cost: a tap fired seconds after typing on the
-Mac loses to the desk under newest-signal-wins, and the phone still says notifications will come here.
+Read off the command on 2026-09-14, so the wiring above is pinned to the binary rather than to an
+intention:
 
-`pns tap`'s own stdout travels back over SSH, so a later revision can feed the notification from it
-and tell the two cases apart. If that is done, the two strings are:
+- **A tap that records.** Exit 0, and one line on stdout: `Tap recorded. Current surface: Desk.`,
+  `... Mobile.` or `... Away.`
+- **A tap that cannot write.** Exit 1, and one line on stderr: `pns tap: ` followed by the marker path
+  and the operating system error, errno included.
+- **An argument it does not know.** Exit 2, and one line on stderr:
+  `pns tap: usage: pns tap [--info | --install] [--json]`.
 
-- the tap wins: `Notifications will come to this phone.`
-- the desk is still newer: `Still going to <hostname>. You typed there more recently.`
+`--json` changes only the shape: one object on stdout either way, exit code following `ok`, failures
+inside the object rather than on stderr. The phone's forced command on this Mac decides which form it
+gets, and the plain form is the one the notification above is wired for.
 
-Until then, `pns tap --info` on the Mac is the place that reports the real answer.
+The cost the fixed notification used to hide is now visible instead: a tap fired seconds after typing
+on the Mac loses to the desk under newest-signal-wins, and the phone says `Current surface: Desk.`
+rather than claiming success. `pns tap --info` on the Mac remains the fuller answer, with the marker
+path, its age and where the path came from.
