@@ -6,13 +6,13 @@
   <string>com.webdavis.osquery-tailscale-monitor</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/bash</string>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/osquery/tailscale-monitor.sh</string>
+    <string>{{ .chezmoi.homeDir }}/{{ .rust_tools.install_dir }}/posture</string>
+    <string>funnel</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>OSQUERY_TAILSCALE_BIN</key>
+    <string>/opt/homebrew/bin/tailscale</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
