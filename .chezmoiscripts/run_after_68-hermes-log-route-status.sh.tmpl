@@ -66,9 +66,10 @@ for route in "${expected_routes[@]}"; do
       "$route" "$route"
   fi
   # A DIFFERENT SECRET, on a route pns posts to. Compared, never printed: the values are in this file
-  # either way, and the fix is the comparison, not the value. `priority` is skipped for the reason above,
+  # either way, and the fix is the comparison, not the value. `pns` is where the reference above is read
+  # from, so comparing it would compare a value to itself; `priority` is skipped for the reason above,
   # where a mismatch is the expected state rather than a fault.
-  if [[ $route != priority ]] && [[ -n $pns_secret ]] &&
+  if [[ $route != pns && $route != priority ]] && [[ -n $pns_secret ]] &&
     [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$cfg" 2>/dev/null || echo '')" != "$pns_secret" ]]; then
     printf '\n  ⚠ hermes: the %s route is signed with a different secret than the pns route, so every\n    message pns submits to it answers 401 and is dropped without a trace in the channel.\n    Reconcile .platforms.webhook.extra.routes.%s.secret in the encrypted hermes config, then: chezmoi apply\n\n' \
       "$route" "$route"
