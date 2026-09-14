@@ -52,10 +52,10 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
     let message = match result {
         Ok(()) => return 0,
         Err(FunnelFailure::ReadGap(_)) => {
-            "tailscale-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n"
+            "posture funnel: could not queue the monitoring-gap page; no marker written, retrying next tick\n"
         }
         Err(FunnelFailure::Exposure(_)) => {
-            "tailscale-monitor: send_alert could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n"
+            "posture funnel: could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n"
         }
         Err(FunnelFailure::Persistence) => "posture funnel: could not persist the baseline\n",
     };
