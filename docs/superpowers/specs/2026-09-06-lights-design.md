@@ -374,6 +374,8 @@ lights scene <name>                   activate a scene by name
 lights scene next                     rotate forward
 lights scene previous                 rotate back
 lights status                         print power, brightness and scene
+lights preset <name>                  apply a configured whole-house preset
+lights preset                         list the configured presets
 lights --help                         print this
 
   --room <alias|name>   target a room (default: the configured default room)
@@ -425,6 +427,34 @@ kitchen = "2F - Kitchen"
 [scenes]
 rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
 fallback = "Read"
+
+# Whole-house presets, applied by `lights preset <name>`; `lights preset` lists
+# them. Each step names one room (an alias above, or a full bridge room name)
+# and either a scene in that room or `off = true`. Steps run in the order
+# written, a room that fails does not stop the rest, and the command exits
+# non-zero when any room failed. Add a preset by adding a key here.
+#
+# These three mirror the 07:00, 10:00 and 17:00 slots of the time-based dimmer
+# automations already on the bridge for the Studio and the bedroom. The kitchen
+# follows the same scene names: its own automation drives the `Kitchen` zone,
+# which `--room` cannot address, and none of that automation's scene names
+# exists in the `2F - Kitchen` room.
+[presets]
+morning = [
+  { room = "studio", scene = "Energize" },
+  { room = "bedroom", scene = "Energize" },
+  { room = "kitchen", scene = "Energize" },
+]
+afternoon = [
+  { room = "studio", scene = "Concentrate" },
+  { room = "bedroom", scene = "Concentrate" },
+  { room = "kitchen", scene = "Concentrate" },
+]
+evening = [
+  { room = "studio", scene = "Read" },
+  { room = "bedroom", scene = "Read" },
+  { room = "kitchen", scene = "Read" },
+]
 ```
 
 The bare keys precede every table, because a bare key written after a table header belongs to that table
