@@ -450,7 +450,7 @@ cases["JSX written before an import does not swallow it"] = function()
   )
 end
 
-cases["one parse serves all three adapters, a rewrite is parsed again, and a file that never names node:test is not parsed at all"] = function()
+cases["a parse happens once per file version, and never without the literal"] = function()
   -- Each of the three asks the same question about the same file, and neotest's filtering pass
   -- runs without yielding, so parsing once per adapter is three times the stall for one answer.
   -- The file's own bytes are what the answer depends on, so its size and modification time are
