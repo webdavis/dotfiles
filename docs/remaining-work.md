@@ -785,7 +785,30 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   sources it and would otherwise refuse BOTH manifest scans as unavailable (it retires in task 46), and
   retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
   inventory against current source before deletion. Run the sandbox composition checks and the plan's
-  live page/digest, checkpoint and retry acceptance after the operator applies.
+  live page/digest, checkpoint and retry acceptance after the operator applies. On 2026-09-14 branch
+  `feat/posture-alert-cutover` did this work in four commits: `b80dbfde` repoints the plist and allowlist
+  tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private helpers
+  and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for `pipeline-audit.sh`;
+  `f1d5cd31` corrects the surviving producer-list comments; and `3b43aa0c` fixes five SEV-3 review
+  findings, comments across four osquery scripts that still named the deleted Bash helpers, rewritten to
+  name posture's `sanitize.rs` chokepoint and `page.rs::block` instead. NOT MERGED: the ship stage
+  stopped at its first gate, `git status --porcelain` in the worktree showed `graphify-out/graph.json`
+  modified by the post-commit hook after `3b43aa0c` and nothing else dirty, so no fetch, no `just ship`,
+  no push and no pull request ran; fold that regenerated file into a commit (repo precedent `d6012066`)
+  or discard it, then resume from the fetch/merge step. Operator steps once it ships: a full
+  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
+  pipeline known-good manifest arm); confirm the swap with
+  `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
+  live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
+  `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
+  under `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh`, expecting one integrity
+  page from that trash (`~/.local/libexec/osquery/%%` is tracked whether or not the manifest lists a
+  file, and a DELETED verb pages before any manifest lookup); verify the digest spool handoff on the next
+  daily digest; and verify at-least-once retry against the live cursor with the daemon or gateway
+  unreachable. Stays open: whether `posture/docs/acceptance/allowlist-integrity.md` and `enrichment.md`
+  need annotating for the shell tests this branch retires (left untouched as dated port plans), and a
+  stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8` naming the deleted
+  `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this slice.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -809,7 +832,28 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   integration is pending on the pushed fixes. Follow `posture/docs/acceptance/watchdog.md` before
   retiring `pipeline-audit.sh` and its remaining `pipeline-verdict.sh` dependency. Deployment and real
   alarm acceptance remain open. On 2026-09-14 `main` was merged into the branch with no conflicts and
-  [PR #547](https://github.com/webdavis/dotfiles/pull/547) merged at `1f934c7b`.
+  [PR #547](https://github.com/webdavis/dotfiles/pull/547) merged at `1f934c7b`. Also on 2026-09-14 the
+  plist cutover itself landed in [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged
+  `7bdecf6b`, branch `feat/posture-plist-cutovers`), commit `3dd4b56e`: the uptime-watchdog LaunchAgent
+  now runs `posture watchdog` with its whole `EnvironmentVariables` dict deleted, because state,
+  snapshots, the legacy queue, both known-good manifest paths, the gateway route and timeout, the canary
+  window and `AuditBounds` all already equal the Bash defaults, so the streak memory, pending-growth
+  baseline and audit page-once fingerprint carry over untouched; the six watched agent labels were
+  checked byte-identical to the Bash `AGENTS` array. Review's only finding for this commit was an
+  80-character subject line, fixed by an amend-and-cherry-pick rewrite to 72 characters with the tree
+  unchanged (verified by matching tree hashes). Operator steps: the full `chezmoi apply` this shares with
+  tasks 47 and 48; confirm the swap with
+  `osqueryi --json "SELECT label, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label='com.webdavis.osquery-uptime-watchdog'"`
+  reads `/Users/stephen/.cargo/bin/posture watchdog`; since its interval is 900 seconds, kick it directly
+  with `launchctl kickstart gui/$(id -u)/com.webdavis.osquery-uptime-watchdog`, then
+  `launchctl print gui/$(id -u)/com.webdavis.osquery-uptime-watchdog | grep -E 'runs|last exit code'`
+  expecting exit code 0, and `tail -n 20 ~/.local/log/osquery/uptime-watchdog.log` expecting nothing on a
+  healthy pipeline; `jq . ~/.local/state/osquery-watchdog-state.json` should show all six agents with
+  `runs`/`streak`, a `pending` block and a `pipeline_audit` block whose `fingerprint` clears by the next
+  15-minute tick rather than reaching the streak-of-two page threshold on this first post-apply tick.
+  Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and `results-alerter/pipeline-verdict.sh` retire
+  from source together in a follow-up pull request that also retires the firewall-gatekeeper-monitor and
+  tailscale-monitor Bash producers, after all three lanes' live acceptance; nothing was trashed by #575.
 - [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
@@ -818,7 +862,27 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   existing baseline and verify exposure and recovery across two live ticks before removing the Bash
   producer. Security-page sound parity is supplied by merged
   [PR #540](https://github.com/webdavis/dotfiles/pull/540), with independent review, full checks and
-  required continuous integration passed. Operator deployment and audible acceptance remain separate.
+  required continuous integration passed. Operator deployment and audible acceptance remain separate. On
+  2026-09-14 the plist cutover itself landed in [PR #575](https://github.com/webdavis/dotfiles/pull/575)
+  (merged `7bdecf6b`, branch `feat/posture-plist-cutovers`), commit `31888162`: the
+  firewall-gatekeeper-monitor LaunchAgent now runs `posture poll`, keeping its `PATH` dict, the one
+  cutover among the three whose program set is not fully absolute, because `query_path` still walks
+  `PATH` for `osqueryi` before falling back to the absolute `/usr/local/bin/osqueryi`; every other Rust
+  default already equals the Bash default, so no `EnvironmentVariables` override was needed. Review's
+  only finding was an 80-character subject line, fixed by an amend-and-cherry-pick rewrite to 72
+  characters with the tree unchanged (verified by matching tree hashes). Operator steps: a full
+  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
+  pipeline known-good manifest arm), shared with tasks 46 and 48; confirm the swap with
+  `osqueryi --json "SELECT label, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label='com.webdavis.osquery-firewall-gatekeeper-monitor'"`
+  reads `/Users/stephen/.cargo/bin/posture poll`; two poll ticks 60 seconds apart via
+  `launchctl print gui/$(id -u)/com.webdavis.osquery-firewall-gatekeeper-monitor | grep -E 'runs|last exit code'`
+  before and after `sleep 130`, expecting `runs` to advance by two or more and exit code 0; then the
+  exposure/recovery drill: `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off`,
+  wait 70 seconds, expect exactly one CRIT page and `firewall` to read 0 in
+  `~/.local/state/osquery-posture-state.json`; re-enable, wait 70 seconds, expect silence on recovery and
+  `firewall` back to 1; a second off/on cycle must page again, proving the marker rearms. Stays open: the
+  Bash `firewall-gatekeeper-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
+  source in the follow-up pull request under task 46, after this acceptance; nothing was trashed by #575.
 - [ ] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -841,7 +905,24 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   verify real-input behavior before retiring Bash. On 2026-09-14, after merging main in, fix commits
   `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and `c50f95d6` were pushed, the PR body was re-posted,
   continuous integration passed and [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at
-  `0efb2119`.
+  `0efb2119`. Also on 2026-09-14 the plist cutover itself landed in
+  [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged `7bdecf6b`, branch
+  `feat/posture-plist-cutovers`), commit `8754b3df`: the tailscale-monitor LaunchAgent now runs
+  `posture funnel`, pinning `EnvironmentVariables` to `OSQUERY_TAILSCALE_BIN=/opt/homebrew/bin/tailscale`
+  and dropping the `PATH` dict, because that dict is what made the shell resolve the headless brew
+  formula and pinning takes PATH ordering out of a detector whose own blind window already pages CRIT; a
+  missing or wedged binary still pages a gap naming the path. Review's only finding was the same
+  80-character subject line fixed under task 47, carried forward unchanged as `8754b3df` (tree hash
+  verified). Operator steps: the same full `chezmoi apply` shared with tasks 46 and 47; confirm the swap
+  with
+  `osqueryi --json "SELECT label, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label='com.webdavis.osquery-tailscale-monitor'"`
+  reads `/Users/stephen/.cargo/bin/posture funnel`; one tick after `sleep 70`, confirm exit 0 via
+  `launchctl print gui/$(id -u)/com.webdavis.osquery-tailscale-monitor | grep -E 'runs|last exit code'`;
+  `cat ~/.local/state/osquery-tailscale-funnel.json` reads `{"funnel":"inactive"}` with no `.gap`
+  sibling, cross-checked by hand against `/opt/homebrew/bin/tailscale funnel status --json`. Stays open:
+  the Bash `tailscale-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
+  source in the same follow-up pull request as task 47, after this acceptance; nothing was trashed by
+  #575.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1130,9 +1211,12 @@ The planned Rust lanes are implemented. The following deployment check remains.
   fixed); the wrappers name no companion files, only the general "every relative link resolves in the
   store" assurance; marketplace counts in the settings template and runbook corrected to nine (babysitter
   had been omitted). Claude's three old store links were trashed by hand on 2026-09-14 (chezmoi never
-  deletes an undeclared target). Operator steps after the next apply: `claude plugin install clean-code`
-  (bare form on 2.1.257), restart Claude Code, then `/clean-code:rust`, `/clean-code:swift`,
-  `/clean-code:base` exist.
+  deletes an undeclared target). Installed 2026-09-13 after the 20:50 apply: on Claude Code 2.1.270 the
+  bare `claude plugin install clean-code` fails with "Invalid channel: clean-code" (the runbook's 2.1.257
+  workaround is stale; the plugin sharing its marketplace's name trips the parser), and
+  `claude plugin install clean-code@clean-code` succeeds (cache holds base, rust, swift). Update the
+  runbook sentence about the bare form in the next docs pass. A restart of Claude Code makes
+  `/clean-code:rust`, `/clean-code:swift`, `/clean-code:base` available.
 
 - [ ] 57m. zoetrope (operator request 2026-09-14): `brew install furkankly/tap/zoetrope` (0.2.0, `zoe`)
   and `herdr plugin install furkankly/zoetrope/herdr-plugin` (`furkankly.zoetrope`, enabled) done by hand
