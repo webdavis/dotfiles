@@ -106,3 +106,23 @@ fn a_malformed_file_names_its_own_refusal_and_never_reads_as_an_absent_one() {
     assert!(delivery.refusal.is_some());
     assert_eq!(delivery.path, Delivery::default().path);
 }
+
+#[test]
+fn formatting_a_delivery_names_the_routes_and_never_prints_a_signing_key() {
+    let delivery = Delivery {
+        path: parsed(
+            r#"
+            [delivery]
+            mode = "hermes"
+            [delivery.hermes.keys]
+            posture = "s3cret-posture"
+            priority = "s3cret-priority"
+            "#,
+        ),
+        refusal: None,
+    };
+    let formatted = format!("{delivery:?}");
+    assert!(!formatted.contains("s3cret"), "{formatted}");
+    assert!(formatted.contains("posture"), "{formatted}");
+    assert!(formatted.contains("priority"), "{formatted}");
+}

@@ -40,7 +40,7 @@ pub fn config_path(home: &Path) -> PathBuf {
 }
 
 /// The two ways one page can leave.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum DeliveryPath {
     /// The page is written as JSON to the standard input of `command`, run with
     /// `arguments` verbatim, and the result envelope read back off its output.
@@ -54,6 +54,29 @@ pub enum DeliveryPath {
         base_url: String,
         keys: BTreeMap<String, String>,
     },
+}
+
+/// WRITTEN BY HAND SO NO SIGNING KEY IS EVER FORMATTED. `keys` holds one
+/// webhook signing key per route and this type is public, so a derived `Debug`
+/// would put every secret into whatever line formats a delivery: a diagnostic
+/// in a launchd-run security tool, or the message a failed `assert_eq!` prints
+/// in CI. The route NAMES are the part a reader needs, and they are what this
+/// prints.
+impl std::fmt::Debug for DeliveryPath {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeliveryPath::Producer { command, arguments } => formatter
+                .debug_struct("Producer")
+                .field("command", command)
+                .field("arguments", arguments)
+                .finish(),
+            DeliveryPath::Hermes { base_url, keys } => formatter
+                .debug_struct("Hermes")
+                .field("base_url", base_url)
+                .field("keys", &keys.keys().collect::<Vec<_>>())
+                .finish(),
+        }
+    }
 }
 
 /// The delivery choice, and whatever went wrong reading it.
