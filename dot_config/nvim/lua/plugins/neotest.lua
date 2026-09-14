@@ -117,7 +117,7 @@ local function imports_node_test(file_path)
   -- Every one of the four query shapes captures a `string_fragment` and the answer below compares
   -- its text, which is a slice of these bytes, against `node:test`. So the literal has to be in
   -- the file for any of them to match, and a file without it is answered here. Measured over 500
-  -- test files of 129 KB: 26.4 ms each parsed, 0.024 ms each read and scanned.
+  -- test files of 129 KB: 26.4 ms each parsed, 0.08 ms each read and scanned.
   --
   -- A plain find, not a pattern: the answer is about these exact bytes. Remembered like a parsed
   -- one, because all three adapters ask.
