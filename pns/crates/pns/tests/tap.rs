@@ -37,7 +37,7 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
 }
 
 #[test]
-fn the_json_marker_dates_the_recorded_tap_and_info_states_the_undo() {
+fn the_json_marker_dates_the_recorded_tap() {
     let s = Sandbox::without_config("tap-touched-at");
     let answer = json(&tap(&s, &["tap", "--json"]));
     let recorded = &answer["marker"];
@@ -53,11 +53,6 @@ fn the_json_marker_dates_the_recorded_tap_and_info_states_the_undo() {
     let absent = json(&tap(&never, &["tap", "--info", "--json"]));
     assert_eq!(absent["marker"]["exists"], false);
     assert!(absent["marker"]["touched_at"].is_null(), "{absent}");
-    let text = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
-    assert!(
-        text.contains("delet") && text.contains("marker file"),
-        "{text}"
-    );
 }
 
 #[test]

@@ -87,6 +87,16 @@ fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
 }
 
 #[test]
+fn info_states_the_one_file_undo() {
+    let s = Sandbox::without_config("tap-info-undo");
+    let text = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
+    assert!(
+        text.contains("delet") && text.contains("marker file"),
+        "{text}"
+    );
+}
+
+#[test]
 fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
     let s = Sandbox::without_config("tap-failure-line");
     let denied = DeniedParent::new(&s, None);
