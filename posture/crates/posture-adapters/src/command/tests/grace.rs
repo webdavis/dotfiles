@@ -1,18 +1,11 @@
 use super::*;
-use std::{
-    fs,
-    sync::atomic::{AtomicUsize, Ordering},
-};
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
+use crate::test_sandbox::Sandbox;
+use std::fs;
 
 #[test]
 fn the_deadline_sends_term_before_kill_and_retains_timeout_outcome() {
-    let path = std::env::temp_dir().join(format!(
-        "posture-term-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    let sandbox = Sandbox::new("term-marker");
+    let path = sandbox.path().join("signalled");
     let mut runner = SystemRunner::per_command(Duration::from_millis(60))
         .with_termination_grace(Duration::from_millis(30));
     let result = runner.run_completed(
@@ -31,11 +24,8 @@ fn the_deadline_sends_term_before_kill_and_retains_timeout_outcome() {
 
 #[test]
 fn term_ignoring_child_and_grandchild_are_killed_and_reaped_after_the_grace() {
-    let path = std::env::temp_dir().join(format!(
-        "posture-group-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    let sandbox = Sandbox::new("owned-group");
+    let path = sandbox.path().join("pids");
     let mut runner = SystemRunner::per_command(Duration::from_millis(70))
         .with_termination_grace(Duration::from_millis(25));
     let start = Instant::now();
