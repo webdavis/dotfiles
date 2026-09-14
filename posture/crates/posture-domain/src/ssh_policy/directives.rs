@@ -44,12 +44,19 @@ const REFUSE_CONNECTION: &str = "refuseconnection";
 /// The arrival addresses the verification resolves, each paired with the
 /// `refuseconnection` value the drop-in's Match block must produce for it.
 ///
-/// One allowed sample per negated term of that block, so a typo in any single
-/// term turns a sample red instead of silently refusing a path the operator
-/// depends on: the two ranges Tailscale documents for every tailnet, over both
-/// address families, and loopback over both. Then one refused sample per
-/// family. Every address is documented for universal use and none is one
-/// host's own.
+/// One allowed sample per negated term of that block: the two ranges
+/// Tailscale documents for every tailnet, over both address families, and
+/// loopback over both. Then one refused sample per family. Every address is
+/// documented for universal use and none is one host's own.
+///
+/// What that set catches, measured on OpenSSH 10.0p2 rather than assumed: a
+/// negated term DROPPED or MISTYPED past its sample turns that sample red,
+/// one BROADENED into a mask sshd rejects fails the resolve outright, and a
+/// dropped trailing `*` reddens both refused samples. What it does NOT catch
+/// is a term NARROWED to a range that still holds its sample (`!127.0.0.0/8`
+/// to `!127.0.0.0/24`, or `/10` to `/12` on `100.64.0.0`, both leave every
+/// check green). Boundary samples would close that and are deliberately
+/// absent: each one costs a real sshd resolve on every verify.
 ///
 /// `fd00::1` is the refused IPv6 sample because it is a unique-local address
 /// OUTSIDE the tailnet's own unique-local prefix, which is what proves the
