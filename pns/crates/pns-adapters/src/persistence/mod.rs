@@ -33,4 +33,4 @@ mod lamp_tick;
 pub use lamp_tick::FileLampTick;
 
 mod sqlite;
-pub use sqlite::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
+pub use sqlite::{DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError};
