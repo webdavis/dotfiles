@@ -21,7 +21,7 @@ impl SshOutput<'_> {
     }
     pub fn verification(&mut self, result: &SshVerification) -> bool {
         match result {
-            SshVerification::Verified => self.info(&format!("verify: PASS: all {} protected directives hold globally, no Match block in the include graph re-enables any of them, and both sampled connections resolve hardened.", posture_domain::ssh_directive_count())),
+            SshVerification::Verified => self.info(&format!("verify: PASS: all {} protected directives hold globally, no Match block in the include graph re-enables any of them, both sampled connections resolve hardened, and all {} sampled arrival addresses resolve the refusal verdict policy demands.", posture_domain::ssh_directive_count(), posture_domain::SSH_LOCAL_ADDRESS_SAMPLES.len())),
             SshVerification::Skipped => self.info("verify SKIPPED: sshd is not executable and the SSH_HARDENING_ALLOW_MISSING_SSHD test seam is set. The configuration was NOT checked."),
             SshVerification::Failed(failures) => {
                 let _ = writeln!(self.stderr, "[ssh-hardening] verify FAILED, {} problem(s):", failures.len());

@@ -1,6 +1,6 @@
 use super::{SshCommandResult, SshTree, Sshd};
 use crate::InspectionFailure;
-use posture_domain::{SshJudgment, judge_ssh_output};
+use posture_domain::{SSH_LOCAL_ADDRESS_SAMPLES, SshJudgment, judge_ssh_output, judge_ssh_refusal};
 use std::path::Path;
 mod scan_failure;
 
@@ -37,14 +37,34 @@ pub fn verify_ssh(
         };
     }
     let mut failures = Vec::new();
-    check_output("global check", sshd.global(), &mut failures);
+    check_output(
+        "global check",
+        sshd.global(),
+        judge_ssh_output,
+        &mut failures,
+    );
     failures.extend(tree.scan().into_iter().map(scan_failure::describe));
     if let Some(user) = (context.user)().filter(|name| !name.is_empty()) {
+        // No laddr: these resolve in the drop-in's permissive branch, which is
+        // where the seven protected directives are judged.
         for name in ["root", user.as_str()] {
             let spec = format!("user={name},host=localhost,addr=127.0.0.1");
             check_output(
                 &format!("connection check ({spec})"),
                 sshd.connection(&spec),
+                judge_ssh_output,
+                &mut failures,
+            );
+        }
+        // With laddr: the arrival address decides the refusal verdict, and the
+        // client address is a documentation address precisely because it is not
+        // the criterion.
+        for (address, verdict) in SSH_LOCAL_ADDRESS_SAMPLES {
+            let spec = format!("user={user},host=localhost,addr=203.0.113.1,laddr={address}");
+            check_output(
+                &format!("local address check ({spec})"),
+                sshd.connection(&spec),
+                |output| judge_ssh_refusal(output, verdict),
                 &mut failures,
             );
         }
@@ -64,10 +84,15 @@ pub fn verify_ssh(
     }
 }
 
-fn check_output(label: &str, result: SshCommandResult, failures: &mut Vec<String>) {
+fn check_output(
+    label: &str,
+    result: SshCommandResult,
+    judge: impl FnOnce(&[u8]) -> Vec<SshJudgment>,
+    failures: &mut Vec<String>,
+) {
     match result {
         Ok(completed) if completed.status == 0 => failures.extend(
-            judge_ssh_output(&completed.output)
+            judge(&completed.output)
                 .iter()
                 .map(|judgment| describe_judgment(label, judgment)),
         ),

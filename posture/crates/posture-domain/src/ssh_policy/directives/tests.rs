@@ -2,14 +2,21 @@ use super::*;
 
 const HARDENED: &[u8] = b"passwordauthentication no\nkbdinteractiveauthentication no\nusepam yes\npubkeyauthentication yes\npermitrootlogin no\ngssapiauthentication no\nhostbasedauthentication no\n";
 
-#[test]
-fn print_config_emits_every_accepted_directive_exactly_once_and_is_pure() {
-    let lines: Vec<_> = ssh_config()
+fn directive_lines() -> Vec<&'static str> {
+    ssh_config()
         .lines()
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect()
+}
+
+#[test]
+fn print_config_emits_every_accepted_directive_exactly_once_and_is_pure() {
+    let global: Vec<_> = directive_lines()
+        .into_iter()
+        .take_while(|line| !line.starts_with("Match "))
         .collect();
     assert_eq!(
-        lines,
+        global,
         [
             "PasswordAuthentication no",
             "KbdInteractiveAuthentication no",
@@ -20,6 +27,50 @@ fn print_config_emits_every_accepted_directive_exactly_once_and_is_pure() {
             "HostbasedAuthentication no"
         ]
     );
+}
+
+/// The block keys on the address the connection ARRIVED on, so a client cannot
+/// claim its way into the allowed branch, and its pattern list ends in a
+/// positive `*`, which is what makes a typo in a negated term refuse rather
+/// than admit. Both are byte properties of the one emitted line.
+#[test]
+fn print_config_refuses_every_local_address_outside_loopback_and_the_tailnet() {
+    let block: Vec<_> = directive_lines()
+        .into_iter()
+        .skip_while(|line| !line.starts_with("Match "))
+        .collect();
+    assert_eq!(
+        block,
+        [
+            r#"Match LocalAddress "!127.0.0.0/8,!::1,!100.64.0.0/10,!fd7a:115c:a1e0::/48,*""#,
+            "  RefuseConnection yes"
+        ]
+    );
+}
+
+/// The refusal verdict is read out of the same resolved output the directive
+/// judgments come from, with the same three outcomes: correct, wrong, absent.
+#[test]
+fn refusal_judgment_distinguishes_the_wanted_verdict_the_wrong_one_and_silence() {
+    assert!(judge_ssh_refusal(b"refuseconnection yes\n", "yes").is_empty());
+    assert_eq!(
+        judge_ssh_refusal(b"refuseconnection no\n", "yes"),
+        [SshJudgment {
+            keyword: "refuseconnection",
+            required: "yes",
+            actual: Some(b"no".to_vec())
+        }]
+    );
+    for output in [b"usepam yes\n".as_slice(), b"refuseconnection\n"] {
+        assert_eq!(
+            judge_ssh_refusal(output, "yes"),
+            [SshJudgment {
+                keyword: "refuseconnection",
+                required: "yes",
+                actual: None
+            }]
+        );
+    }
 }
 
 #[test]

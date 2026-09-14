@@ -243,6 +243,36 @@ DIRECTIVE_ALIASES=(challengeresponseauthentication skeyauthentication
 DIRECTIVE_ALIAS_TARGETS=(kbdinteractiveauthentication
   kbdinteractiveauthentication pubkeyauthentication)
 
+# The arrival addresses check_local_address_specs resolves, and the
+# `refuseconnection` value the drop-in's Match block must produce for each.
+# Parallel arrays for the same bash 3.2 reason as PROTECTED_KEYS.
+#
+# ONE ALLOWED SAMPLE PER NEGATED TERM of that block: the two ranges Tailscale
+# documents for every tailnet, over both address families, and loopback over
+# both. Then one refused sample per family. Every address is documented for
+# universal use and none is this machine's own.
+#
+# What that set catches, measured on OpenSSH 10.0p2 rather than assumed: a
+# negated term DROPPED or MISTYPED past its sample turns that sample red, one
+# BROADENED into a mask sshd rejects fails the resolve outright, and a dropped
+# trailing '*' reddens both refused samples. What it does NOT catch is a term
+# NARROWED to a range that still holds its sample (!127.0.0.0/8 to
+# !127.0.0.0/24, or /10 to /12 on 100.64.0.0, both leave every check green).
+# Boundary samples would close that and are deliberately absent: each one
+# costs a real sshd resolve on every verify.
+#
+# fd00::1 is the refused IPv6 sample because it is a unique-local address
+# OUTSIDE the tailnet's own unique-local prefix, which is what proves the IPv6
+# negation is prefix precise rather than admitting fc00::/7 wholesale.
+#
+# `refuseconnection` is deliberately NOT in PROTECTED_KEYS: it resolves `no`
+# everywhere the Match block does not reach, which is correct, so the global
+# check and the two unconditioned connection samples must not judge it.
+LOCAL_ADDRESS_SAMPLES=(100.64.0.1 fd7a:115c:a1e0::1 127.0.0.1 ::1
+  192.168.0.1 fd00::1)
+LOCAL_ADDRESS_REFUSALS=(no no no no yes yes)
+REFUSAL_KEY='refuseconnection'
+
 die() {
   printf '[ssh-hardening] ERROR: %s\n' "$*" >&2
   exit 1
@@ -295,11 +325,48 @@ PubkeyAuthentication yes
 PermitRootLogin no
 GSSAPIAuthentication no
 HostbasedAuthentication no
+#
+# The Match block below is the network restriction: a connection that did not
+# arrive on loopback or on a tailnet address is refused. RefuseConnection
+# terminates a connection unconditionally, and sshd_config(5) calls it useful
+# only inside a Match block, so this one block is the whole policy.
+#
+# LocalAddress, not Address. LocalAddress is the address the connection ARRIVED
+# ON, a property of this host's own interfaces, so a client cannot claim it.
+# Keyed on Address instead, a local-network client claiming a 100.64.0.0/10
+# source address lands in the allowed branch (measured with sshd -G -T -C).
+# sshd_config(5) documents classless inter-domain routing (CIDR) patterns only
+# under Address; LocalAddress accepts them too, measured on OpenSSH 10.0p2
+# against this whole include tree.
+#
+# 100.64.0.0/10 and fd7a:115c:a1e0::/48 are the ranges Tailscale documents for
+# every node of every tailnet, so the block names the tailnet by its address
+# space rather than by one machine's current addresses, and keeps holding if
+# either is reissued. Loopback stays allowed because it is what the reload
+# path's readiness probe (ssh-keyscan against 127.0.0.1) connects to.
+#
+# ONE negated list, and not an allow block followed by `Match all` with
+# RefuseConnection yes. The two resolve identically for every real connection,
+# but the allow-plus-Match-all spelling makes a bare `sshd -G`, which resolves
+# no Match block at all, report refuseconnection yes, so anything reading the
+# unconditioned resolve sees a machine that refuses everything. The trailing
+# '*' is the term that makes this list fail CLOSED and the one that must never
+# be dropped: a typo in a negated pattern leaves that address unmatched by the
+# negation, so it falls through to '*' and is refused, while a list carrying no
+# positive term matches nothing and refuses nobody.
+#
+# The ceiling, stated so nobody reads more into this than it does: launchd owns
+# the listening socket, so port 22 still answers on every interface, a refused
+# connection is still accepted at the transport layer and still gets a banner
+# and a host key, and ssh-keyscan against a refused address still succeeds.
+# This narrows who can log in, not what can connect.
+Match LocalAddress "!127.0.0.0/8,!::1,!100.64.0.0/10,!fd7a:115c:a1e0::/48,*"
+  RefuseConnection yes
 EOF
 }
 
 # --- verify ------------------------------------------------------------------
-# Three independent, read-only, host-key-free checks. All of them run and
+# Four independent, read-only, host-key-free checks. All of them run and
 # EVERY failure is reported, so one broken layer cannot mask another:
 #
 #   1. check_global: the pre-Match effective configuration via `sshd -G`.
@@ -310,15 +377,24 @@ EOF
 #      protected directive, walking the SAME include graph sshd walks.
 #   3. check_connection_specs: per-connection resolution via
 #      `sshd -G -T -C`. Proves Match blocks RESOLVE hardened for concrete
-#      connections (root and the invoking user).
+#      connections (root and the invoking user). These carry no laddr, so they
+#      resolve in the drop-in's permissive branch.
+#   4. check_local_address_specs: the same resolution WITH an laddr, one per
+#      sampled arrival address, requiring the refusal verdict policy demands of
+#      each. This is the only check that can see the tailnet restriction at all:
+#      a bare `sshd -G` resolves no Match block, and a spec without an laddr
+#      cannot match a LocalAddress criterion.
 #
-# What these three do and do NOT cover, stated plainly because the comment
+# What these four do and do NOT cover, stated plainly because the comment
 # that used to sit here claimed a completeness the code did not have. It
 # called the scan "the completeness net", and readers stopped checking:
 #
-#   - The connection specs are SAMPLES. Two loopback connections. A Match
-#     block scoped to any other address or user is not resolved by them at
-#     all, by construction, and no number of samples changes that.
+#   - The connection specs are SAMPLES. Two loopback connections plus one per
+#     sampled arrival address. A Match block scoped to any other address or
+#     user is not resolved by them at all, by construction, and no number of
+#     samples changes that. The arrival-address samples do cover every negated
+#     term of the drop-in's own Match block, one address inside each plus one
+#     refused address per family, which is the most a sample set can do.
 #   - The scan is not a completeness proof either. It is a text scan whose
 #     fidelity is bounded by how exactly the tokenizer matches sshd's own
 #     parser and how exactly the Include walk matches sshd's. Both were
@@ -614,25 +690,32 @@ required_value() {
   return 1
 }
 
+# assert_directive_value <check-label> <sshd output> <key> <wanted value>: one
+# directive of the resolved configuration must carry exactly the value policy
+# demands. Three outcomes, each named: correct, wrong value, absent. Every
+# judgment in this script goes through here, so the seven protected directives
+# and the refusal verdict are read and reported the same way.
+assert_directive_value() {
+  local label="$1" output="$2" key="$3" want="$4" got status=0
+  got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
+    status=$?
+  if [[ $status -ne 0 ]]; then
+    add_failure "$label: could not read '$key' out of the sshd output (exit $status); failing closed rather than reading an unset value as absent"
+  elif [[ -z $got ]]; then
+    add_failure "$label: '$key' is absent from the effective configuration"
+  elif [[ $got != "$want" ]]; then
+    add_failure "$label: '$key' is '$got', want '$want'"
+  fi
+}
+
 # assert_output_hardened <check-label> <sshd -G output>: every protected
-# directive must be present with its required value. Three outcomes per key,
-# each named: correct, wrong value, absent. Every one is asserted
-# individually; completeness beats counting.
+# directive must be present with its required value, asserted one by one;
+# completeness beats counting.
 assert_output_hardened() {
-  local label="$1" output="$2" i key want got status
+  local label="$1" output="$2" i
   for i in "${!PROTECTED_KEYS[@]}"; do
-    key="${PROTECTED_KEYS[$i]}"
-    want="${PROTECTED_VALUES[$i]}"
-    status=0
-    got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
-      status=$?
-    if [[ $status -ne 0 ]]; then
-      add_failure "$label: could not read '$key' out of the sshd output (exit $status); failing closed rather than reading an unset value as absent"
-    elif [[ -z $got ]]; then
-      add_failure "$label: '$key' is absent from the effective configuration"
-    elif [[ $got != "$want" ]]; then
-      add_failure "$label: '$key' is '$got', want '$want'"
-    fi
+    assert_directive_value "$label" "$output" \
+      "${PROTECTED_KEYS[$i]}" "${PROTECTED_VALUES[$i]}"
   done
 }
 
@@ -1439,6 +1522,40 @@ check_connection_specs() {
   done
 }
 
+# check_local_address_specs: resolve one connection per arrival address and
+# require the refusal verdict policy demands of it.
+#
+# LocalAddress is the criterion, so the SAMPLE is the arrival address and the
+# client address is deliberately a documentation address: a rule keyed on the
+# client's own address instead would let a local-network client claiming a
+# tailnet source address through, and the two allowed samples here would go red
+# the moment the drop-in was rewritten that way.
+#
+# These specs carry an laddr and the two in check_connection_specs do not, which
+# is what keeps the two checks apart: without an laddr sshd resolves no Match
+# block at all, so those two stay in the permissive branch and judge the seven
+# protected directives, while these judge the verdict alone.
+check_local_address_specs() {
+  local invoking_user spec output status=0 i address want
+  invoking_user="$(id -un)" || status=$?
+  if [[ $status -ne 0 || -z $invoking_user ]]; then
+    add_failure "local address check: could not determine the invoking user ('id -un' exited $status); failing closed rather than probing a spec built from an empty name"
+    return 0
+  fi
+  for i in "${!LOCAL_ADDRESS_SAMPLES[@]}"; do
+    address="${LOCAL_ADDRESS_SAMPLES[$i]}"
+    want="${LOCAL_ADDRESS_REFUSALS[$i]}"
+    spec="user=$invoking_user,host=localhost,addr=203.0.113.1,laddr=$address"
+    status=0
+    output="$("$SSHD_BIN" -G -T -C "$spec" -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+    if [[ $status -ne 0 ]]; then
+      add_failure "local address check ($spec): '$SSHD_BIN -G -T -C' exited $status; failing closed (output: $output)"
+      continue
+    fi
+    assert_directive_value "local address check ($spec)" "$output" "$REFUSAL_KEY" "$want"
+  done
+}
+
 verify() {
   VERIFY_FAILURES=()
   if [[ ! -x $SSHD_BIN ]]; then
@@ -1452,14 +1569,16 @@ verify() {
   check_global
   check_match_scan
   check_connection_specs
+  check_local_address_specs
   if [[ ${#VERIFY_FAILURES[@]} -gt 0 ]]; then
     printf '[ssh-hardening] verify FAILED, %d problem(s):\n' "${#VERIFY_FAILURES[@]}" >&2
     printf '  - %s\n' "${VERIFY_FAILURES[@]}" >&2
     return 1
   fi
-  # The count comes from the array, so a directive added to policy cannot
-  # leave the success line claiming a number nobody checked.
-  printf '[ssh-hardening] verify: PASS: all %d protected directives hold globally, no Match block in the include graph re-enables any of them, and both sampled connections resolve hardened.\n' "${#PROTECTED_KEYS[@]}"
+  # Both counts come from the arrays, so a directive or an arrival address added
+  # to policy cannot leave the success line claiming a number nobody checked.
+  printf '[ssh-hardening] verify: PASS: all %d protected directives hold globally, no Match block in the include graph re-enables any of them, both sampled connections resolve hardened, and all %d sampled arrival addresses resolve the refusal verdict policy demands.\n' \
+    "${#PROTECTED_KEYS[@]}" "${#LOCAL_ADDRESS_SAMPLES[@]}"
 }
 
 # --- install -----------------------------------------------------------------
