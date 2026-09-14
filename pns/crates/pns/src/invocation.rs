@@ -197,6 +197,13 @@ pub(crate) fn run() {
     if first == "nag" {
         std::process::exit(nag_mode());
     }
+    // The page about a session nobody came back to. A MODE beside the nag's
+    // for the same reasons: it reads no stdin, takes no decision from an
+    // event, and takes NO SESSION ARGUMENT, because one fire covers every
+    // session stuck past the window rather than the one whose timer woke it.
+    if first == pns_domain::stale::FIRE_WORD {
+        std::process::exit(stale_mode());
+    }
     // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
     // ALL, which is the state it exists to end, and that is why it sits above
     // everything that loads one. Nothing on the event path reaches it and it

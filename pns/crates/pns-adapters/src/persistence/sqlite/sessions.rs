@@ -81,3 +81,98 @@ impl SqliteStore {
         })
     }
 }
+
+// --- the wait, and the escalation about one ----------------------------------
+
+impl SqliteStore {
+    /// Start this session's wait on the operator.
+    ///
+    /// IT UPSERTS rather than updating, so a wait is recorded even for a
+    /// session whose row nothing wrote first. Every hook path names the
+    /// session before it raises an event, so the row is normally already
+    /// there; an UPDATE that matched nothing would leave the escalation
+    /// silently dead for that session instead.
+    ///
+    /// AND IT CLEARS THE PREVIOUS ESCALATION, which is what makes the rule one
+    /// page per BLOCK rather than one per session: a new wait is a new thing
+    /// nobody has answered, whether or not the last one was ever paged about.
+    pub fn begin_wait(&self, session_id: &str, now: u64) -> Result<(), StoreError> {
+        self.transaction(|transaction| {
+            transaction.execute(
+                "INSERT INTO sessions(id,harness,project,branch,title,first_seen,last_seen,blocked_since)
+                 VALUES (?1,'','','','',?2,?2,?2)
+                 ON CONFLICT(id) DO UPDATE SET
+                   blocked_since = ?2,
+                   escalated_at = NULL,
+                   last_seen = ?2",
+                rusqlite::params![session_id, now],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// End it. NOTHING IS INSERTED: a session with no row has no wait to end,
+    /// and the escalation reads the row rather than this call's success.
+    pub fn end_wait(&self, session_id: &str) -> Result<(), StoreError> {
+        self.transaction(|transaction| {
+            transaction.execute(
+                "UPDATE sessions SET blocked_since = NULL, escalated_at = NULL WHERE id = ?1",
+                rusqlite::params![session_id],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Every session still waiting since `threshold` or earlier that has not
+    /// been escalated about, oldest first.
+    ///
+    /// THE THRESHOLD IS THE CALLER'S SUM (`now - window`), so the subtraction
+    /// that could underflow is done once, in the fire, rather than inside SQL
+    /// where a negative would quietly select everything.
+    pub fn stale_blocks(
+        &self,
+        threshold: u64,
+    ) -> Result<Vec<pns_domain::stale::Blocked>, StoreError> {
+        let connection = self.connect()?;
+        let mut statement = connection.prepare(
+            "SELECT id, harness, project, branch, title, blocked_since
+               FROM sessions
+              WHERE blocked_since IS NOT NULL
+                AND blocked_since <= ?1
+                AND escalated_at IS NULL
+              ORDER BY blocked_since",
+        )?;
+        let rows = statement.query_map(rusqlite::params![threshold], |row| {
+            Ok(pns_domain::stale::Blocked {
+                session: row.get(0)?,
+                harness: row.get(1)?,
+                project: row.get(2)?,
+                branch: row.get(3)?,
+                title: row.get(4)?,
+                since: row.get(5)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Stamp this session's escalation, answering whether THIS caller stamped
+    /// it.
+    ///
+    /// THE STAMP IS THE CLAIM. `escalated_at IS NULL` inside the write makes
+    /// it a compare-and-swap that SQLite arbitrates, so two fires woken in one
+    /// tick produce one page between them without a lock file of their own.
+    ///
+    /// STAMPED ON ATTEMPT, NEVER ON SUCCESS, which matches the nag's own
+    /// honesty: a mute, a Focus or an empty plan can suppress the delivery,
+    /// and a page that retried every hour because the first one was muted is
+    /// the failure mode worth avoiding.
+    pub fn claim_escalation(&self, session_id: &str, now: u64) -> Result<bool, StoreError> {
+        self.transaction(|transaction| {
+            Ok(transaction.execute(
+                "UPDATE sessions SET escalated_at = ?2
+                  WHERE id = ?1 AND escalated_at IS NULL AND blocked_since IS NOT NULL",
+                rusqlite::params![session_id, now],
+            )? == 1)
+        })
+    }
+}

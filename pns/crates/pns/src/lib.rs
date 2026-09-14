@@ -59,6 +59,7 @@ mod command_pulse;
 mod command_quiet;
 mod command_recap;
 mod command_setup;
+mod command_stale;
 mod command_tap;
 mod daemon_runtime;
 mod delivery_runtime;
@@ -84,6 +85,8 @@ mod runtime_environment;
 mod sender;
 pub(crate) use pns_adapters::style;
 mod turn_lifecycle;
+mod wait_runtime;
+pub(crate) use wait_runtime::{WINDOW_OFF, end_blocked_wait, stale_after_secs, track_wait};
 mod turn_text;
 
 pub(crate) use channel_settings::{
@@ -102,6 +105,7 @@ pub(crate) use command_pulse::pulse_mode;
 pub(crate) use command_quiet::{muted_now, quiet_mode};
 pub(crate) use command_recap::recap_mode;
 pub(crate) use command_setup::setup_mode;
+pub(crate) use command_stale::stale_mode;
 pub(crate) use daemon_runtime::daemon_run;
 pub(crate) use event_flow::{Attempt, run_event};
 pub(crate) use hook_dispatch::hook_mode;
@@ -117,7 +121,7 @@ pub(crate) use moshi_submission::{blocking_event, gate_mode};
 pub(crate) use nag_schedule_runtime::{NAG_OFF, arm_nag, clear_nag, nag_after_secs};
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
-pub(crate) use pns_adapters::marker_files::{end_blocked_wait, update_blocked_marker};
+pub(crate) use pns_adapters::marker_files::update_blocked_marker;
 pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, spawn_recap};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,

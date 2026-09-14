@@ -103,3 +103,43 @@ impl PresenceDecisions for SqliteStore {
         }
     }
 }
+impl pns_application::SessionWaits for SqliteStore {
+    fn begin(&self, session_id: &str, now: u64) -> Result<(), String> {
+        self.begin_wait(session_id, now)
+            .map_err(|error| error.to_string())
+    }
+    fn end(&self, session_id: &str) -> Result<(), String> {
+        self.end_wait(session_id).map_err(|error| error.to_string())
+    }
+}
+impl pns_application::StaleWaits for SqliteStore {
+    /// A READ NOBODY CAN TAKE IS NO STALE BLOCK, said out loud and never
+    /// silently: the fire is unattended, so the one reader it has is the
+    /// daemon's log.
+    fn waiting_since(&self, threshold: u64) -> Vec<pns_domain::stale::Blocked> {
+        match self.stale_blocks(threshold) {
+            Ok(rows) => rows,
+            Err(error) => {
+                eprintln!(
+                    "pns: state error (the waiting sessions could not be read: {error}); \
+                     nothing is escalated"
+                );
+                Vec::new()
+            }
+        }
+    }
+    /// AN UNWRITABLE CLAIM IS NOT A CLAIM, so the page is not sent: a page
+    /// nothing stamped would be sent again by every later fire.
+    fn claim(&self, session_id: &str, now: u64) -> bool {
+        match self.claim_escalation(session_id, now) {
+            Ok(claimed) => claimed,
+            Err(error) => {
+                eprintln!(
+                    "pns: state error (this escalation could not be stamped: {error}); \
+                     it is not paged"
+                );
+                false
+            }
+        }
+    }
+}

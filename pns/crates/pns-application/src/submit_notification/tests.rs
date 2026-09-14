@@ -3,7 +3,7 @@ use crate::SubmissionIdentity;
 use crate::ports::delivery::{LampSignal, MissedReplay};
 use crate::ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, Journal, LampRecords, LightsTick, LoopLease,
-    ReturnMoment,
+    ReturnMoment, SessionWait,
 };
 use pns_domain::EventArgs;
 use pns_domain::Record;
@@ -72,6 +72,11 @@ impl ActivityRing for Recorder {
 impl BlockedMarker for Recorder {
     fn update(&self, _session: &str, _state: &str, lamps_live: bool, _now: Option<u64>) {
         self.note(if lamps_live { "marker(live)" } else { "marker" });
+    }
+}
+impl SessionWait for Recorder {
+    fn track(&self, _session: &str, _state: &str, _now: Option<u64>) {
+        self.note("wait");
     }
 }
 impl LoopLease for Recorder {

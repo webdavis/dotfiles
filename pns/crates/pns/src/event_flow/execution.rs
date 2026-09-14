@@ -32,51 +32,57 @@ pub(super) fn execute(
     // that one: its token, its toggle and its refusal are three answers to ONE
     // question, and reading them separately is what let the refusal be dropped
     // on the way to a leg that then delivered anyway.
-    let (hue_table, lights, mobile, hermes_key, recap, focus_silence, presence) = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => (
-            enabled_hue_table(config),
-            config.lights.clone(),
-            read_mobile(config),
-            plugin_settings(config, "hermes").and_then(hermes_secret),
-            config.recap.clone(),
-            config.focus_silence.clone(),
-            // A TABLE NOBODY COULD PARSE IS NO READING, never a room: the
-            // refusal was already printed, and inventing a room out of
-            // settings nobody could read is the fail-open the whole reading is
-            // shaped to avoid.
-            pns_adapters::parse_presence(config).ok().flatten(),
-        ),
-        // A config that is absent or could not be read falls back to the
-        // DEFAULTS of all five, and deliberately disagrees with the plugin
-        // selection below, which falls back to the CORE. Selection keeps
-        // notifications working through a broken config; these say what an
-        // operator asked for, and a file nobody could read asked for nothing:
-        // with no secrets, the network channels are simply not set up.
-        //
-        // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
-        // own rule (absent is every switch on) reaching the case where the
-        // file is unreadable rather than absent. A config nobody can parse
-        // must not silently stop delivering misses the doctor is already
-        // telling the operator are waiting.
-        //
-        // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
-        // the same reading as the secrets rather than the recap's: an
-        // unreadable file asked for nothing, and a Focus policy nobody could
-        // read must not silence a notification.
-        // THE LAMPS FALL BACK TO ABSENT, which is the same reading as hue's own
-        // table beside it: a file nobody could parse named no family, and a map
-        // this could not read must not be replaced with a guess about which
-        // lamps are whose.
-        _ => (
-            None,
-            None,
-            Mobile::default(),
-            None,
-            pns_adapters::Recap::default(),
-            Vec::new(),
-            None,
-        ),
-    };
+    let (hue_table, lights, mobile, hermes_key, recap, focus_silence, presence, stale_after_secs) =
+        match &loaded {
+            Ok(LoadOutcome::Loaded(config)) => (
+                enabled_hue_table(config),
+                config.lights.clone(),
+                read_mobile(config),
+                plugin_settings(config, "hermes").and_then(hermes_secret),
+                config.recap.clone(),
+                config.focus_silence.clone(),
+                // A TABLE NOBODY COULD PARSE IS NO READING, never a room: the
+                // refusal was already printed, and inventing a room out of
+                // settings nobody could read is the fail-open the whole reading is
+                // shaped to avoid.
+                pns_adapters::parse_presence(config).ok().flatten(),
+                config.stale_after_secs,
+            ),
+            // A config that is absent or could not be read falls back to the
+            // DEFAULTS of all five, and deliberately disagrees with the plugin
+            // selection below, which falls back to the CORE. Selection keeps
+            // notifications working through a broken config; these say what an
+            // operator asked for, and a file nobody could read asked for nothing:
+            // with no secrets, the network channels are simply not set up.
+            //
+            // THE CATCH-UP IS THE ONE THAT FALLS BACK ON, which is `[recap]`'s
+            // own rule (absent is every switch on) reaching the case where the
+            // file is unreadable rather than absent. A config nobody can parse
+            // must not silently stop delivering misses the doctor is already
+            // telling the operator are waiting.
+            //
+            // THE FOCUS LIST FALLS BACK TO EMPTY, which is the feature off. It is
+            // the same reading as the secrets rather than the recap's: an
+            // unreadable file asked for nothing, and a Focus policy nobody could
+            // read must not silence a notification.
+            // THE LAMPS FALL BACK TO ABSENT, which is the same reading as hue's own
+            // table beside it: a file nobody could parse named no family, and a map
+            // this could not read must not be replaced with a guess about which
+            // lamps are whose.
+            // THE ESCALATION FALLS BACK TO OFF, the same reading as the secrets
+            // beside it: a file nobody could parse asked for nothing, and a
+            // feature that PAGES must not be switched on by a parse failure.
+            _ => (
+                None,
+                None,
+                Mobile::default(),
+                None,
+                pns_adapters::Recap::default(),
+                Vec::new(),
+                None,
+                wait_runtime::WINDOW_OFF,
+            ),
+        };
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
@@ -226,6 +232,7 @@ pub(super) fn execute(
         recap,
         durable_route,
         json,
+        stale_after_secs,
         pulse,
     };
     let lamps_live = lights.is_some() && hue_table.is_some();
