@@ -49,9 +49,10 @@ Resume with a fresh inventory, preserving branches and worktrees that contain re
 1. Finish posture implementation and cutovers, tasks 39 to 50, then cleanup and closure, 58 to 60.
 1. Recover the remaining design from #24 and reconcile its security integrations. Hermes owns the
    sandboxed investigation workflow that consumes alerts from posture and other security producers.
-1. Follow the deferred-project start gates below, including SP5 research before SP4. SP8 is the final
-   modernization subproject. Begin Forzare (#51) only after all other modernization work is complete, per
-   the operator's 2026-09-12 clarification.
+1. Follow the deferred-project start gates below, including SP5 research before SP4. SP8 is ON HOLD
+   (operator 2026-09-14): the current goal is complete when everything else in this ledger is complete,
+   SP8 excluded. Forzare (#51) is PART of the current goal (same ruling) and starts after all other
+   non-SP8 modernization work is complete, which supersedes the 2026-09-12 "after SP8" ordering.
 
 Record implementation, merge, deployment and operator acceptance separately. A merged change can still
 owe live acceptance or deployed-file cleanup. Continue independent work while an operator check is
@@ -61,15 +62,15 @@ completion claims. A research no-go or an explicitly accepted deferral needs a r
 
 ### Remaining subprojects at a glance
 
-| Subproject               | Remaining work                                                                       | Start or decision gate                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| SP3, pns                 | Tap, configuration/device acceptance, historical validation and future platform work | Follow the active queue; future platforms retain their own approval gates      |
-| SP4, shell improvements  | Bash aliases, bindings and fzf improvements                                          | After Neovim acceptance and the SP5 verdict                                    |
-| SP5, xonsh evaluation    | Research compatibility, startup and existing shell integrations                      | Evaluate before SP4; adopting xonsh requires a separate decision               |
-| SP6, Neovim              | Socket-validation corrections and overhaul acceptance                                | Implementation fixes can proceed; rendered/device checks need the operator     |
-| SP7, sweep and backlog   | Remaining tools, installer coverage, research and task/issue reconciliation          | After earlier approved work; scope is listed below                             |
-| SP8, macOS agent manager | pstack skills and the GUI for harness tooling and configuration                      | Final modernization subproject, including after the Herdr process/review tools |
-| Forzare, #51             | Bob's executive-assistant implementation                                             | After the rest of modernization, including SP8                                 |
+| Subproject               | Remaining work                                                                       | Start or decision gate                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| SP3, pns                 | Tap, configuration/device acceptance, historical validation and future platform work | Follow the active queue; future platforms retain their own approval gates  |
+| SP4, shell improvements  | Bash aliases, bindings and fzf improvements                                          | After Neovim acceptance and the SP5 verdict                                |
+| SP5, xonsh evaluation    | Research compatibility, startup and existing shell integrations                      | Evaluate before SP4; adopting xonsh requires a separate decision           |
+| SP6, Neovim              | Socket-validation corrections and overhaul acceptance                                | Implementation fixes can proceed; rendered/device checks need the operator |
+| SP7, sweep and backlog   | Remaining tools, installer coverage, research and task/issue reconciliation          | After earlier approved work; scope is listed below                         |
+| SP8, macOS agent manager | pstack skills and the GUI for harness tooling and configuration                      | ON HOLD (operator 2026-09-14); outside the current goal                    |
+| Forzare, #51             | Bob's executive-assistant implementation                                             | In the current goal; after everything else except SP8                      |
 
 Nix packages and per-project Nix flakes remain available by choice. Managing macOS through nix-darwin and
 migrating this repository's secrets to sops-nix are out of scope, reaffirmed by the operator on
@@ -377,6 +378,34 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   on) and 126 tests pin that contract: every harness hook, the shell notifier and the daemon call the
   event path while real work is in flight. A caller that asked for the answer is one that can take it.
 - [x] 36. The local page for moshi's browser preview
+- [ ] 36a. Structured progress recaps, in chat and on `#pns`. Operator request 2026-09-14: every
+  end-of-work summary uses the fixed Recap layout (Git block, stack graph, file list, Summary,
+  In-Progress with a Blocked-on line, Upcoming Agent Tasks, User Tasks; the layout and the approved
+  readability tweaks are in the agent memory `end-of-turn-recap-format`), and the same recap is posted to
+  the `#pns` Discord channel through hermes. Triggers are agent-initiated, never a hook: a PR opened and
+  waiting on a human review or auto-merged, each milestone while a `/goal` runs, after overnight work, an
+  end-of-day summary, and on demand through `/pns:work-recap`. The command is a feature of pns, so it
+  lives in the pns Claude Code plugin as
+  `private_dot_claude/pns-marketplace/plugins/pns/skills/work-recap/SKILL.md`, beside `loop`, and is
+  never a bare `/work-recap` (operator 2026-09-14; a bare `/recap` also collides with Claude Code's
+  built-in). Three PRs, in order: (1) docs only, the layout in `.chezmoitemplates/global-agent-rules.md`
+  plus the plugin skill, no agent review; (2) `pns recap agent --stdin`, which reads the markdown the
+  agent wrote, fits it to Discord's 2000-character cap through the existing recap budget, sanitizes it
+  and delivers it on the Discord route the overnight recap already uses
+  (`pns/crates/pns/src/recap_delivery_runtime.rs`), Rust test-first, Opus, one review after the fix; (3)
+  `pns recap git`, which generates the Git block, stack graph and file list from git, worktrunk and
+  gh-axi. Brainstorm (2) before building. PR (1) DONE:
+  [PR #566](https://github.com/webdavis/dotfiles/pull/566) (`docs/work-recap-command`) merged 2026-09-14
+  (`2f3e6294`): the "Work recaps" section in `.chezmoitemplates/global-agent-rules.md` and the
+  `work-recap` skill in the pns plugin. The 2026-09-13 20:15 apply converged the marketplace directory,
+  but Claude Code runs the INSTALLED copy and `claude plugin update pns@pns` re-copies it only on a
+  version change ("already at the latest version (0.1.0)", cache still `loop` only), so a follow-up,
+  [PR #568](https://github.com/webdavis/dotfiles/pull/568) (`chore/pns-plugin-version-bump`, merged
+  2026-09-14, `3edf50dc`), bumps `plugin.json` to 0.2.0 and records the rule in
+  `docs/runbooks/claude-code-settings.md`. Operator steps left: `chezmoi apply`,
+  `claude plugin update pns@pns`, restart Claude Code; then `/pns:work-recap` exists. (2) and (3) remain.
+  Schedule (1) with the next Workflow round and (2) and (3) after the posture queue (#552, #549, #548,
+  #553) clears, and before gnhf's first unattended night.
 
 ### STOP POINT C
 
@@ -611,7 +640,19 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   reports when the Mac cannot answer. `--info` should identify this troubleshooting path. NO CONFIG
   REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the default
   marker path, because requiring one would fail on exactly the fresh machine `--install` is walking
-  somebody through. Define the `--json` schema and manual undo instructions before building.
+  somebody through. Define the `--json` schema and manual undo instructions before building. DONE
+  2026-09-14 in [PR #569](https://github.com/webdavis/dotfiles/pull/569) (`feat/pns-tap-fresh-machine`,
+  merged `f85a6cfd`), each claim verified against the code first: the non-zero exit, the single stderr
+  line and the OS error were already true, the line now names the marker path and prints the whole error
+  (errno included); the 0700 state directory was already created recursively (pinned by existing tests);
+  Remote Login already led the Mac steps but named no settings path, now it does, and `--info` says what
+  the phone shows when the Mac cannot answer (the SSH action fails, so the phone shows the SSH error,
+  never the success notification); a missing config already fell back to the default marker path (a parse
+  error still fails); the shipped `pns.tap/1` JSON object was kept as is (its `marker` is a table, not a
+  bare path) and gained `touched_at` in RFC 3339 UTC, with the whole field table, the null cases under
+  `--install` and on early failures, and the undo (delete the marker; the 0700 state directories stay)
+  written into `pns/docs/pns-tap-apple-shortcut.md`. Left open, operator-device work: verify sleep and
+  wake behavior of the Mac against the Shortcut.
 
 - [x] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
@@ -662,11 +703,12 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   full local checks and required checks passed. Deployment and task 45b's arming/acceptance remain
   separate.
 
-- [ ] 41. Complete posture 3.2 health-adapter review and publication with task 46. Local commit
-  `03b66c0b` supplies the `launchctl print` and gateway health readers, plus independent pns integrity,
-  daemon and ledger checks. Its fixture suite passed; independent review and publication remain. Gateway
-  health stays separate from notification delivery. Retain the existing process and Tailscale policy work
-  and complete the operator's health/recovery acceptance after deployment.
+- [x] 41. Complete posture 3.2 health-adapter review and publication with task 46. Commit `03b66c0b`
+  supplies the `launchctl print` and gateway health readers, plus independent pns integrity, daemon and
+  ledger checks. Published and reviewed with task 46: it is on `main` through
+  [PR #547](https://github.com/webdavis/dotfiles/pull/547) (verified 2026-09-14 with
+  `git merge-base --is-ancestor`). Gateway health stays separate from notification delivery. The
+  operator's health/recovery acceptance after deployment is tracked under 46.
 
 - [x] 42. posture 3.3: the converge read half, staging, privileged. Already done, and verified the same
   way: `ConvergeStaging` in `staging.rs`, `DesiredTree` in `staging/owned.rs`, `LiveTree` in
@@ -766,7 +808,8 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   the `gateway_health` `WouldBlock` flake it fixes reproduced 2/20 at load 20 and 0/50 after. Continuous
   integration is pending on the pushed fixes. Follow `posture/docs/acceptance/watchdog.md` before
   retiring `pipeline-audit.sh` and its remaining `pipeline-verdict.sh` dependency. Deployment and real
-  alarm acceptance remain open.
+  alarm acceptance remain open. On 2026-09-14 `main` was merged into the branch with no conflicts and
+  [PR #547](https://github.com/webdavis/dotfiles/pull/547) merged at `1f934c7b`.
 - [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
@@ -795,7 +838,10 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   the timeout parser's `0`/`inf`/oversize inputs now saturate to a 24-hour ceiling; `strtod` is kept
   because the capture `timeout_hex` passes `0x1p-1`. `just ship` on `c50f95d6` failed only on the
   `gateway_health` flake that #547 fixes; re-ship once #547 merges into it. Preserve the baseline and
-  verify real-input behavior before retiring Bash.
+  verify real-input behavior before retiring Bash. On 2026-09-14, after merging main in, fix commits
+  `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and `c50f95d6` were pushed, the PR body was re-posted,
+  continuous integration passed and [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at
+  `0efb2119`.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -804,7 +850,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   consumer needs them, retire the old `priority` route/key and propose cleanup of the queue's three
   files, `osquery-spool/`, `osquery-tailscale-funnel` and `~/.config/osquery/webhook-secret` as required
   by the port plan. Secret values stay out of logs and review artifacts.
-- [ ] 50. posture 7.1: publish converge integration from `fix/posture-converge-validation`.
+- [x] 50. posture 7.1: publish converge integration from `fix/posture-converge-validation`.
   Private-database validation now precedes daemon probing or repair; the apply caller uses slot 59 after
   its build, and uu supplies the configuration argument. Independent review, ten executable-discovery
   cases, focused validation regressions and the integrated repository gate passed. On 2026-09-13 the
@@ -815,8 +861,24 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `sudo -n osqueryi --database_path <private>/db`, osquery creates that directory root-owned 0700, the
   unprivileged cleanup fails and turns a passing check into Unavailable, so every real repair reports
   failure and aborts the apply at slot 59. SEV-2: the test double models the wrong privilege boundary.
-  Four further SEV-3 findings. Same-user fixtures do not prove privileged cleanup. Verify silent no-drift
-  behavior and the operator's approved permission-repair/restart drill before retiring Bash.
+  Four further SEV-3 findings. Fixed 2026-09-14, root cause reproduced against the real `osqueryi` (it
+  creates the `db` directory as the invoking identity, root under `sudo -n`, mode 0700): the caller now
+  creates `<private>/db` itself before the privileged call, so root only writes flat files into a
+  directory the caller owns, and removal is the private directory's Drop alone, never part of the verdict
+  (`672d83f9`, two tests, both red before the fix); the test double now stands in for root (mode 0o000
+  directory, the same EACCES) rather than for a same-user cleanup; `resolve_osqueryd` renamed to
+  `resolve_osqueryi` (`5346d815`); the osqueryctl fallback no longer creates the private directory first
+  (`be4ea091`); the double cleanup and the placeholder test names are gone (`8f10d720`). The Fable-tier
+  review after the fix returned three more findings, fixed at `2dc16ce`, `1614dd39` and `785ebdba`;
+  `just ship` passed (exit 0) and the PR body was re-posted. GitHub started no CI run for the pushed head
+  `a726101e`; main (with #548, #549, #566, #567) was merged in by hand (`73d70f7e`, three additive
+  conflicts in the export blocks and `Cargo.toml`, resolved as unions, 1,056 posture tests green) and
+  pushed; CI still did not start because the PR's base was the merged `feat/posture-funnel` branch and
+  the lint workflow runs only against main, so the base was retargeted and the PR closed and reopened, CI
+  passed, and the PR merged 2026-09-14 (`6fa992b0`); the worktree is removed. Left for the live drill,
+  tracked as acceptance rather than code: same-user fixtures do not prove privileged cleanup, so verify
+  silent no-drift behavior and the operator's approved permission-repair/restart drill before retiring
+  Bash.
 - [ ] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
   44\. Installed plists invoke Rust, but that does not prove delivery. Record the silent pns-route
   message, banner and ledger evidence, and a filled-spool digest with `.last` rotation. Inventory retired
@@ -956,12 +1018,18 @@ The planned Rust lanes are implemented. The following deployment check remains.
   the existing real skill directory before operator adoption; live installation, fresh Claude discovery
   and scheduled refresh acceptance remain open. No live install or skills run was performed.
 
-- [ ] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
+- [x] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
   2026-07-05 (observed 2026-09-13), not the link into `~/.local/share/graphify/claude/skills/graphify`
   that `docs/runbooks/agent-skills-store.md` describes, so graphify's weekly self-update never reaches
   Claude Code. After the next `chezmoi apply`, confirm the path is a symlink to that target and that the
   July copy was preserved as 57c requires; if the apply leaves the directory in place, the seed's
-  partial-destination guard needs a look.
+  partial-destination guard needs a look. Checked after the 2026-09-13 20:15 apply: the path is the link
+  and the target holds the 0.9.53 bundle (`SKILL.md`, `.graphify_version`, `references/`). The July copy
+  was NOT preserved: the seed only guards its own `~/.local/share/graphify` destination ("the old Claude
+  directory is preserved" in its comment means it never touches `~/.claude/skills/graphify`), and the
+  `symlink_graphify` declaration replaced the real directory when chezmoi applied it. No copy exists
+  under `~/.claude/skills`, `~/.local/share/graphify` or `~/workspaces/backups`. Loss judged nil: the
+  July directory was an older upstream graphify skill, superseded by the bundle now linked.
 
 - [ ] 57e. Retire the `deleteValueAtPath "skillOverrides.<name>"` lines in
   `private_dot_claude/modify_settings.json`. The branch `docs/clean-code-rust-test-first` added nine
@@ -972,6 +1040,132 @@ The planned Rust lanes are implemented. The following deployment check remains.
   the lines. Longer term, derive the whole block from the lock's `tiers` table with `include` and
   `fromJson` so a promotion needs one edit and no tombstone; requested in the operator's Plannotator
   review on 2026-09-13.
+
+- [x] 57f. [PR #562](https://github.com/webdavis/dotfiles/pull/562) (`docs/clean-code-rust-test-first`)
+  merged (`066fd762`): twelve skills promoted from on-demand to core (clean-code, clean-code-rust,
+  clean-code-swift, git-guardrails-claude-code, defuddle, handoff, obsidian-bases, obsidian-cli,
+  obsidian-markdown, owasp-security, tuicr, resolving-merge-conflicts), the herdr skill replaced with
+  upstream verbatim, a Git worktrees rule (`herdr worktree create`) added to the shared agent rules, and
+  this ledger's earlier uncommitted edits committed on that branch. Nothing is applied yet. After the
+  operator's next `chezmoi apply`, confirm `jq .skillOverrides ~/.claude/settings.json` no longer lists
+  the nine promoted skills that had keys, and that `~/.claude/skills/plannotator-review` and its siblings
+  are links. The operator's apply on 2026-09-14 stopped at `58-build-posture`: the posture binary is
+  3,692,736 bytes since the watchdog, funnel and digest ports merged, over the 2 MiB ceiling set on
+  2026-09-13, so every script after slot 58 was skipped (uu build, LaunchAgent loaders, skills
+  first-install, Neovim bootstrap). [PR #563](https://github.com/webdavis/dotfiles/pull/563)
+  (`fix/posture-artifact-ceiling`) raised the ceiling to 8 MiB in the data file, the manifests script and
+  the two unit fixtures, and merged on 2026-09-14. Proof run the same day from the main checkout after
+  57h cleared the nested worktrees: the rendered `58-build-posture` (with `CHEZMOI_SOURCE_DIR` set, as an
+  apply does) built and installed posture (3,692,736 bytes) and refreshed the manifests, exit 0; the
+  rendered `59-build-uu` installed uu, exit 0. The operator applied at 20:15 local on 2026-09-13 and it
+  passed. Acceptance: none of the nine promoted skills has a `skillOverrides` key any more, the four
+  plannotator entries under `~/.claude/skills` are links into the store, the rendered
+  `~/.claude/CLAUDE.md` carries the worktrees and work-recaps sections, posture and uu are the new
+  builds. (An acceptance check that ran while the apply was still writing files read stale copies of two
+  targets; re-run after the state file was written, both were current.)
+
+- [ ] 57g. Allowlist the scalebar LaunchAgent. `com.webdavis.scalebar` is loaded by
+  `run_onchange_after_*` on every apply but had no tuple in
+  `dot_config/osquery/private_page-launchd-allowlist.txt`, so its persistence row pages as an unknown
+  agent. [PR #564](https://github.com/webdavis/dotfiles/pull/564) (`fix/scalebar-launchd-allowlist`) adds
+  the tuple (plist path, program `~/.local/libexec/scalebar/Scalebar`, no sha256 pin, like the other
+  host-owned agents); merged 2026-09-14 (`0a52800a`) and deployed by the 2026-09-13 20:15 apply
+  (`~/.config/osquery/page-launchd-allowlist.txt` carries the line). Remaining acceptance: the next
+  persistence_launchd finding for that label digests instead of paging.
+
+- [ ] 57h. Nested worktrees leak their `.chezmoidata` into every apply. Measured 2026-09-14 on dresden:
+  with the source data file at 8 MiB, chezmoi still rendered `max_artifact_bytes=2097152`, because
+  chezmoi reads `.chezmoidata` directories RECURSIVELY and the 78 worktrees under `.worktrees/` (66
+  merged, 12 unmerged, 115 GB) each carry their own copy; a nested value wins over the root.
+  `.chezmoiignore` does not help (proven in an isolated source: a nested `.worktrees/x/.chezmoidata`
+  overrides the root value with or without `.worktrees` in the ignore file), so the CLAUDE.md sentence
+  "`.worktrees/` is deliberately NOT in `.chezmoiignore`" is not the protection it reads as, and this is
+  also why every `chezmoi execute-template` in the main checkout takes ~40 s (the walk includes every
+  worktree's Rust `target/`). Fix: no worktree may live inside the source tree. Move the live ones to
+  `~/.herdr/worktrees/dotfiles/<branch>` with `git worktree move` (the herdr rule already puts new ones
+  there), remove the merged ones, amend the CLAUDE.md paragraph, and re-verify the render reads 8388608
+  before the apply that 57f waits on. Progress 2026-09-14 (operator approved the move-then-delete): 69
+  worktrees left `.worktrees/`, the merged clean ones removed and the unmerged or dirty ones kept under
+  `~/.herdr/worktrees/dotfiles/`; every one of the 12 unmerged branches still has a worktree. Nine remain
+  in place: three under live Workflows (`posture-converge-validation`, `posture-ssh`,
+  `b74-render-context`) and six that a process still sits in. Only `posture-converge-validation` and
+  `posture-ssh` still carry 2097152, so the render flips to 8388608 once #552 and #549 ship and those two
+  move out. Later on 2026-09-14: #548 and #549 merged and their worktrees were removed,
+  `posture-converge-validation` merged main in, and the render from the main checkout now reads 8388608.
+  The six worktrees held only by stale test processes (leftover `pns` debug daemons, a `trash-cli`
+  python, `prettierd`) were moved out as well once their data was diffed (each carried an older
+  `rust_tools.yaml`, three an older `system_packages_autoinstall.yaml`, so they would have fed the apply
+  stale package lists too), and `chezmoi data` now matches the root files (ceiling 8388608, 131 formulae,
+  55 casks). Only `posture-converge-validation` remains nested, with zero data drift, until #552 ships.
+  The CLAUDE.md paragraph merged in [PR #567](https://github.com/webdavis/dotfiles/pull/567)
+  (`docs/worktrees-outside-source-tree`, 2026-09-14). The last nested worktree left with #552's merge;
+  `.worktrees/` is empty. Still open: the worktree registrations git holds outside the repo (187 before
+  the cleanup, most under `~/.herdr/worktrees/dotfiles/` and temp paths), which need an audit of their
+  own.
+
+- [x] 57j. Espanso `,,ee` for `echo $?` (operator request 2026-09-14):
+  [PR #565](https://github.com/webdavis/dotfiles/pull/565) (`feat/espanso-echo-exit-status`) adds the
+  match to the Commands section of `snippets.yml`; merged 2026-09-14 (`1fdfb288`) and deployed by the
+  2026-09-13 20:15 apply (the deployed file carries the trigger).
+
+- [ ] 57l. clean-code as a Claude Code plugin (operator 2026-09-14: a plugin for Claude specifically,
+  skills for the other harnesses, no duplication). Facts that shape it: plugin skills are always
+  namespaced (docs: "`/my-first-plugin:hello` … to prevent conflicts"), so the bare `/clean-code` cannot
+  come from a plugin; Claude Code runs an installed copy refreshed only on a version bump (57j's lesson);
+  Codex scans the store natively and hermes symlinks into it. Design: a directory marketplace
+  `private_dot_claude/clean-code-marketplace` beside `strategy-marketplace`, plugin `clean-code`, skills
+  `rust`, `swift` and `base`, each a THIN SKILL.md that loads the store copy
+  (`~/.agents/skills/clean-code-rust` and siblings stay canonical, so the wrappers never change when the
+  content does and no version bump follows a content edit). `base` reads `$ARGUMENTS` as the target
+  language, asks (rust, swift, other) when none is given, and for other languages applies the base method
+  with model knowledge and whatever LSP is attached. Claude drops its three store symlinks so the picker
+  shows only `/clean-code:rust`, `/clean-code:swift`, `/clean-code:base`; the lock's Claude delivery
+  rows, `modify_settings.json` (marketplace declaration and `clean-code@clean-code` roster entry,
+  darwin-only like pns and strategy), `.chezmoiignore` (darwin-only directory) and the skills runbook
+  follow. Built and merged 2026-09-14 in [PR #573](https://github.com/webdavis/dotfiles/pull/573)
+  (`feat/clean-code-plugin`, `d09ab399`). Decisions made on the way: the lock's Claude delivery value
+  stays `"none"` (uu's roster reader rejects any other value; the plugin is named in the lock comment and
+  the runbook instead); the wrapper descriptions keep the store skills' semantic triggers so the
+  core-tier auto-load still fires on Rust or Swift work nobody named the command for (review finding,
+  fixed); the wrappers name no companion files, only the general "every relative link resolves in the
+  store" assurance; marketplace counts in the settings template and runbook corrected to nine (babysitter
+  had been omitted). Claude's three old store links were trashed by hand on 2026-09-14 (chezmoi never
+  deletes an undeclared target). Operator steps after the next apply: `claude plugin install clean-code`
+  (bare form on 2.1.257), restart Claude Code, then `/clean-code:rust`, `/clean-code:swift`,
+  `/clean-code:base` exist.
+
+- [ ] 57m. zoetrope (operator request 2026-09-14): `brew install furkankly/tap/zoetrope` (0.2.0, `zoe`)
+  and `herdr plugin install furkankly/zoetrope/herdr-plugin` (`furkankly.zoetrope`, enabled) done by hand
+  on dresden; the tap, trusted tap, formula and herdr plugin roster entry merged in
+  [PR #571](https://github.com/webdavis/dotfiles/pull/571) (`feat/zoetrope`, 2026-09-14, `6da70bfb`). The
+  operator ran `herdr plugin action invoke setup-keys --plugin furkankly.zoetrope` (succeeded): it
+  appended a 25-line managed block to `~/.config/herdr/config.toml` (`[[keys.command]]` binding
+  `prefix+shift+z` to `furkankly.zoetrope.open`, plus two commented placements), the same
+  plugin-writes-into-config drift class as 57k, so the block was copied byte for byte into
+  `dot_config/herdr/config.toml` in [PR #572](https://github.com/webdavis/dotfiles/pull/572)
+  (`fix/herdr-zoetrope-keys`, merged 2026-09-14, `6c571969`). Acceptance: the next apply neither asks
+  about the file nor drops the `prefix+shift+z` binding.
+
+- [x] 57k. Every apply asked `.config/herdr/config.toml has changed since chezmoi last wrote it?` (seen
+  on the operator's 2026-09-13 20:31 apply). Cause: the source carried the herdr-agent-quota sidebar row
+  pretty-printed by taplo while the plugin's `configure` action, which `run_after_53` invokes on every
+  apply, rewrites the same row on one line, so chezmoi's write and the plugin's never matched (TOML
+  content equal, bytes not). Fixed in [PR #570](https://github.com/webdavis/dotfiles/pull/570)
+  (`fix/herdr-config-quota-row-bytes`, merged 2026-09-14, `2ca552b7`): the source carries the plugin's
+  own line, verified byte-identical to the live file, and `dot_config/herdr/config.toml` joins
+  `dot_aerospace.toml` in taplo's exclude list. Accepted: the operator's 2026-09-13 20:50 apply ran
+  without the prompt and the live file has zero drift from the source afterwards. A plugin update that
+  changes the row brings the prompt back once; copy the new line into the source then.
+
+- [ ] 57i. The post-commit graphify hook races the pre-push lint gate. Seen twice on 2026-09-14 (scalebar
+  and espanso pushes made right after their commit): `chezmoi execute-template` in
+  `shellcheck-rendered-template` aborts with
+  `lstat .../graphify-out/cache/ast/<hash>.tmp: no such file or directory` because the hook is still
+  rewriting its cache inside the source tree while chezmoi walks it, so the gate reports "lint drift"
+  with 0 files changed and the push is refused. A second push a minute later passes. Fix candidates,
+  robust first: move graphify's cache out of the source tree (its output directory setting, or a symlink
+  like the `minutes` one), or have the pre-push hook wait for a running graphify rebuild before the gate;
+  never a retry loop in the gate.
 
 ## posture cleanup
 
@@ -993,8 +1187,16 @@ The planned Rust lanes are implemented. The following deployment check remains.
   INT/TERM/HUP handlers without checking the inherited disposition, so under `nohup` a dropped session
   rolls back a valid install and re-raises to kill the process; the fix skips signals already set to
   `SIG_IGN`. SEV-2: several sub-second timing bounds that a loaded runner can exceed. SEV-2: a naming
-  collision (`ports` shadowed). Three further SEV-3 findings. Live configuration/output acceptance
-  remains before Bash retirement. Evidence: `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`.
+  collision (`ports` shadowed). Three further SEV-3 findings. Fixed 2026-09-14: `arm()` now skips any
+  signal already at `SIG_IGN` (`ddc0226b`, pinned by a test that sets `SIG_IGN` first); the wall-clock
+  upper bounds became behavioral evidence (`fdf15bf6`, `e836fc63`), keeping one lower bound and a 10 s
+  watchdog; the `ports` shadow was judged not a bug (the later use is the only read and is the intended
+  binding). Main was merged in (`4ab0feb1`, three additive conflicts in the crate `lib.rs` export blocks,
+  resolved as unions), the second review passed, and
+  [PR #549](https://github.com/webdavis/dotfiles/pull/549) merged 2026-09-14 (`235891e4`); the worktree
+  is removed. A pre-existing grace-test flake (30 ms grace under load) was fixed in the same round. Live
+  configuration/output acceptance remains before Bash retirement. Evidence:
+  `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`.
 - [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
   coverage for relocated data and update its consumers, then retire the old managed scripts and approved
   deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
@@ -1014,8 +1216,13 @@ The planned Rust lanes are implemented. The following deployment check remains.
   a tracked path pages CRIT, so the hand cleanup after the apply pages nine times (seven stale files:
   `posture-controls.json`, `osquery-converge/desired/osquery.conf`, `osquery.flags` and the four
   `packs/*.conf`, plus the `desired/packs` and `desired` directories). Remove them in one `trash` pass so
-  the pages arrive together; `osquery-converge/drift-verdict.sh` stays managed. Deployed cleanup and
-  restart acceptance remain open.
+  the pages arrive together; `osquery-converge/drift-verdict.sh` stays managed. On 2026-09-14 the PR was
+  retargeted onto main after #552 merged, main merged in cleanly (`9c99a880`), CI passed after one rerun
+  (the first run died on the runner's DNS, not the branch), and it merged (`6478254c`); the worktree is
+  removed. Deployed 2026-09-13 20:50: the apply rebuilt pns, posture and uu, the relocated data is at
+  `~/.local/libexec/posture/` (`controls.json`, `converge/`), and the operator ran the one `trash` pass
+  (`posture-controls.json` and `osquery-converge/desired/` are gone). Restart acceptance (the plan's
+  operator-run osqueryd restart after the watched paths changed) remains open.
 - [ ] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
   before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
   inventory. Preparatory mapping on `docs/posture-test-mapping` at `d95c39f3` preserves all original
@@ -1067,7 +1274,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   two-process single-notification coverage gaps. Reconcile the recorded empty-bundle-path and quoted-zero
   normalization decisions against current assertions. Five former jq/pipe fault-injection dispositions
   remain proposals, and thirteen legacy queue leaves retain their Bash owner until task 49's acceptance.
-  Evidence: `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
+  On 2026-09-14 [PR #558](https://github.com/webdavis/dotfiles/pull/558) merged (`d2e18d3c`..`45a64bc4`),
+  [PR #560](https://github.com/webdavis/dotfiles/pull/560) merged (`79f28454`), and
+  [PR #559](https://github.com/webdavis/dotfiles/pull/559), retargeted from #558's branch onto `main`
+  before merging, merged (`45277874`). Evidence:
+  `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
   [PR #557](https://github.com/webdavis/dotfiles/pull/557) (`fix/pns-private-process-budget`, the pns
   fixture process budget) merged into `main`, reviewed NO_ISSUE, after continuous integration passed.
 
@@ -1390,7 +1601,7 @@ is missing.
   both disabling variables inherited. Seven private terminal comparisons against the previous binary
   produced identical output and exit status. Merged in #533; full checks passed and local main contains
   it.
-- [ ] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
+- [x] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
   `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
   exclusion was measured ineffective and must not be proposed again without new evidence. The 2026-09-13
   private investigation confirmed that chezmoi scans build output while collecting template data, before
@@ -1402,13 +1613,16 @@ is missing.
   partials, build hashes and render-error propagation are pinned by the five cases in
   `test/unit/formatter-render-context.test.sh` (5 passed, 20 assertions, 921 ms). After merging `main`
   (`8f50e926`), `just ship` passed (exit 0, 2m27s) and
-  [PR #548](https://github.com/webdavis/dotfiles/pull/548) was opened on 2026-09-13; it is unreviewed and
-  unmerged. Independent review returned four findings, with the render-context mechanism verified against
-  real chezmoi 2.72.1, and the fix is pending. SEV-2: the espanso formatter test has no hostile fixture,
-  so reverting its command leaves every test green. Three SEV-3 findings: the throwaway `HOME` is never
-  removed, three redundant chezmoi flags, and a dead `home` fixture with no `tear_down`. Evidence:
-  `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`. B75's Rustdoc link fixes already shipped
-  in `20a0c245`; keep them closed.
+  [PR #548](https://github.com/webdavis/dotfiles/pull/548) was opened on 2026-09-13. Independent review
+  returned four findings, with the render-context mechanism verified against real chezmoi 2.72.1. SEV-2:
+  the espanso formatter test has no hostile fixture, so reverting its command leaves every test green.
+  Three SEV-3 findings: the throwaway `HOME` is never removed, three redundant chezmoi flags, and a dead
+  `home` fixture with no `tear_down`. All four fixed test-first with mutation checks (`f8811c3b`,
+  `8a243f4d`, `25c719a3`, and the tear_down commit; the refusal classifier lives in
+  `shellcheck-rendered-template.sh`, not the espanso formatter, and `--config` had to stay because it
+  injects the real `sourceDir`), and the PR merged 2026-09-14 (`152dfdf7`); its worktree is removed.
+  Evidence: `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`. B75's Rustdoc link fixes
+  already shipped in `20a0c245`; keep them closed.
 - [x] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
   default after checking its actual requirements. Commit `e77799f` corrects the default and docs to
   `0.1.0`; its new default-health check failed before the correction, then all 38 checks passed.
@@ -1617,7 +1831,12 @@ force.
   encodings. Keep the process in an owned pseudoterminal and replace its views. Hide by ending the owned
   attachment, never by blindly closing whichever popup is active. Prove view identity, redraw, transition
   rollback and process cleanup with fixtures before runtime acceptance. These are implementation
-  requirements; no mandatory upstream change was found.
+  requirements; no mandatory upstream change was found. Operator note 2026-09-14: herdr's documented
+  `[[keys.command]]` popups are NOT this (a popup lives only until its command exits; no toggle, hide or
+  float exists in the docs, the keybinding actions or the CLI, which offers zoom, split, move, swap and
+  close). When this is built, dig into herdr's source for a true hide before settling for parking the
+  pane in another tab, and check herdr's preview channel (its nightly, more or less) for a hide or float
+  primitive that the stable release lacks.
 - [ ] Add a deterministic worktree picker and reviewr launcher. Consult
   `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
   authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
@@ -1905,10 +2124,11 @@ transcription was started during this audit.
 
 ## SP8, macOS agent workflow manager
 
-Planned 2026-09-12. This is the final modernization subproject, after SP4, SP5 and the other
-modernization tasks, including the process-toggle plugin and worktree review launcher. Forzare follows
-modernization under the operator's latest ordering. The 2026-09-13 goal authorizes skill installation,
-application design and implementation after these prerequisites pass.
+Planned 2026-09-12. ON HOLD since 2026-09-14: the operator ruled that SP8 is not part of the current
+goal, which completes when everything else in this ledger is done, and that Forzare no longer waits on
+it. Nothing below starts until the operator lifts the hold. Original ordering, kept for when it does: the
+final modernization subproject, after SP4, SP5 and the other modernization tasks, including the
+process-toggle plugin and worktree review launcher.
 
 - [ ] Install the upstream skills from [pstack](https://github.com/cursor/plugins/tree/main/pstack)
   through the managed skills store, recording provenance, harness delivery, and updates through uu. Check
@@ -1935,12 +2155,39 @@ application design and implementation after these prerequisites pass.
   store and lock, and uu for installation/update workflows. Edits to managed configuration must reach its
   source rather than a deployed copy that the next apply would overwrite. Preview changes and affected
   scopes, provide backups and rollback, and preserve the operator-run chezmoi apply flow.
+- [ ] Install and configure [gnhf](https://github.com/kunchenguid/gnhf), the overnight agent orchestrator
+  ("each iteration makes one small, committed, documented change towards an objective"), requested by the
+  operator on 2026-09-14. It is an npm CLI, so it goes on the fnm lane in
+  `.chezmoidata/system_packages_autoinstall.yaml` (pinned, like the other npm tools there), with its
+  `~/.gnhf/config.yml` deployed from source through chezmoi (secrets by keepassxc reference only) and
+  `GNHF_TELEMETRY=0` set in the managed shell. Point it at the Claude CLI in non-interactive mode, decide
+  which repository and objective it runs against first, and wire its run into the same worktree rule as
+  every other agent (`herdr worktree create`). Its overnight runs are one of the four triggers for the
+  Discord progress recap (see the pns recap task), so land that recap producer before the first
+  unattended night.
+
+## Late in the goal: slim the global instruction files
+
+Operator request 2026-09-14. Ordered late on purpose, after the code lanes above and before Forzare: it
+is manual, tedious, and needs the operator's judgment on every cut, so it runs as an operator-overseen
+session rather than a Workflow.
+
+- [ ] Refactor `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` (both rendered from
+  `.chezmoitemplates/global-agent-rules.md`; 251 lines rendered on 2026-09-14) by pulling knowledge out
+  into dedicated skills and leaving only the rules that must load on every turn. Candidates the file
+  already carries as blocks: the Work recaps layout (into the pns `work-recap` skill, leaving a
+  three-line rule), the Git worktrees mechanics (a `herdr` note or the herdr skill), the pull request
+  body contract (already in `~/.claude/commands/pr.md`; keep only the pointer), the shell-script and
+  naming rules (a `bash-style` skill), and the backup naming scheme. Method: one section per pass, the
+  operator decides keep, move or delete, every move lands in the store with its lock rows and per-harness
+  delivery, and the rendered line count is recorded before and after each pass. Target: a file a new
+  session reads in one screen; measure, do not guess.
 
 ## After modernization: Forzare and PR #51
 
-The operator reaffirmed on 2026-09-12 that this executive assistant is still wanted, but its
-implementation follows all other modernization work, including SP8. Preserve the proposal while that work
-finishes; reviewing its status does not start its build.
+The operator reaffirmed on 2026-09-12 that this executive assistant is still wanted, and on 2026-09-14
+made completing it PART of the current goal: it follows all other modernization work except SP8, which is
+on hold. Preserve the proposal while that work finishes; reviewing its status does not start its build.
 
 - [ ] Reconcile and finish #51 after the rest of modernization. Its Bob executive-assistant spec and plan
   are still unmerged. Reverify July's CLI contracts, paths and harness assumptions against current tools,
