@@ -640,17 +640,10 @@
        one whole-dict overwrite) so overrides the user sets for other skills
        via /config pass through untouched. A per-key write never removes a
        key, so a skill promoted to core keeps its stale override in the live
-       file until an explicit delete below scrubs it (a no-op when the key or
-       skillOverrides itself is absent, measured on chezmoi 2.72.1). --- */ -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code-rust" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.clean-code-swift" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.defuddle" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-bases" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-cli" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.obsidian-markdown" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.owasp-security" $merged -}}
-{{- $merged = deleteValueAtPath "skillOverrides.tuicr" $merged -}}
+       file until a deleteValueAtPath "skillOverrides.<name>" line scrubs it (a
+       no-op when the key or skillOverrides itself is absent, measured on
+       chezmoi 2.72.1). Such a line is a TOMBSTONE: add it with the promotion
+       and delete it again once every machine has applied. --- */ -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
