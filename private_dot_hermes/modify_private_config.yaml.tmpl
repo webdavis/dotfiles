@@ -36,9 +36,12 @@
   non-zero on a title it cannot find, chezmoi fails the template on that, and a
   failed modify-template takes every later target and every run_after_ script
   with it. That is the safe direction to fail: the alternative is a rendered
-  route with an empty secret, which the gateway answers 403 to while looking
-  perfectly healthy in the file. Create both entries for a route before naming
-  it here.
+  route with an empty secret, which makes the gateway refuse to start the WHOLE
+  webhook platform at its next restart while the file looks healthy. An entry
+  that EXISTS with an empty Password is the case that gets there: keepassxc-cli
+  exits 0 and chezmoi renders an empty string (measured 2026-09-14), which is
+  why run_after_68 checks every route for a secret it never prints. Create both
+  entries, populated, before naming a route here.
 
   A NO-OP APPLY IS QUIET, and that branch at the foot of this file is a
   correctness property rather than a nicety. toYaml SORTS every key
