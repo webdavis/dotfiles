@@ -323,7 +323,7 @@ fi
 # with that file and with PNS_MAX_BYTES in posture's watchdog audit.
 declare -A max_artifact_bytes=(
   [pns]=14680064
-  [posture]=2097152
+  [posture]=8388608
 )
 
 # The builder publishes this record before its scoped refresh and installation.

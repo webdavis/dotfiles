@@ -177,7 +177,7 @@ function test_a_malformed_record_digest_preserves_both_manifests() {
 
 function test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publication() {
   local bytes status
-  for bytes in 0 2097153 invalid; do
+  for bytes in 0 8388609 invalid; do
     write_record aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$bytes"
     status=0
     run_refresh --pipeline-only || status=$?
@@ -208,17 +208,17 @@ write_pns_record() {
 }
 
 # pns is an order of magnitude larger than posture, so one shared ceiling has to
-# be wrong for one of them: 2097153 bytes is a runaway posture artifact and an
+# be wrong for one of them: 8388609 bytes is a runaway posture artifact and an
 # ordinary pns one. Both ceilings come from rust_tools.max_artifact_bytes in
 # .chezmoidata/rust_tools.yaml.
 function test_one_artifact_size_is_refused_for_posture_and_allowed_for_pns() {
   local status=0
-  write_record aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2097153
+  write_record aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 8388609
   run_refresh --pipeline-only || status=$?
   assert_not_same 0 "$status"
   assert_same old-pipeline "$(cat "$pipeline_manifest")"
   write_record
-  write_pns_record 2097153
+  write_pns_record 8388609
   run_refresh --pipeline-only
   assert_successful_code
   assert_contains \
