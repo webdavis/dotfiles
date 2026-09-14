@@ -227,6 +227,12 @@
        per-process share fixes the arithmetic, and a counter shared across
        processes would mean changing a third-party server.
 
+       `YNAB_BUDGET_ID` is unset too, so every tool falls back to YNAB's most
+       recently accessed budget. Under reads that only misroutes an answer;
+       with writes on, a create, update or delete lands there. Run
+       `list_budgets` in the first session after the apply and pin the id in
+       all three declarations if the account holds more than one budget.
+
        `YNAB_DISABLE_AGENT_CONFIG_FALLBACK` stays "1". Without it the server
        resolves its runtime keys out of `[shell_environment_policy.set]` and
        `mcp_servers.ynab.env` in this very file, and out of

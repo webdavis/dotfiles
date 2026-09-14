@@ -61,6 +61,11 @@
      whatever npm resolves at launch, and the app starts the server with no
      network round trip.
 
+     `YNAB_BUDGET_ID` is unset here as in the other two, so every tool falls
+     back to YNAB's most recently accessed budget and a write lands there. Run
+     `list_budgets` in the first session after the apply and pin the id in all
+     three declarations if the account holds more than one budget.
+
      `YNAB_DISABLE_AGENT_CONFIG_FALLBACK` is "1" so the keys come from this
      declaration alone. Without it the server also reads `~/.codex/config.toml`
      and `~/.claude/settings.json`, which are another harness's files and say
