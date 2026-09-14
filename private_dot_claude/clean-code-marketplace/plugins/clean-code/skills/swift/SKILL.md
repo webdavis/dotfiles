@@ -1,6 +1,6 @@
 ---
 name: swift
-description: Load the Swift bindings of this repository's clean-code standard from ~/.agents/skills/clean-code-swift and follow them. Use when the user says /clean-code:swift or asks for clean-code Swift.
+description: Load the Swift bindings of this repository's clean-code standard from ~/.agents/skills/clean-code-swift and follow them. Use when the user says /clean-code:swift or asks for clean-code Swift, or when building or restructuring a Swift package, framework or Xcode project: module and target boundaries, a protocol versus an enum, access levels, contract test suites and test doubles, or the Swift quality gates.
 ---
 
 # Clean code: Swift

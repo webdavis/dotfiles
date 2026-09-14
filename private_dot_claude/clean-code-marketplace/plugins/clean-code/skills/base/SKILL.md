@@ -1,6 +1,6 @@
 ---
 name: base
-description: Load the language-neutral clean-code method from ~/.agents/skills/clean-code and follow it, routing to the Rust or Swift bindings when the argument names one. Use when the user says /clean-code:base or asks for the clean-code method.
+description: Load the language-neutral clean-code method from ~/.agents/skills/clean-code and follow it, routing to the Rust or Swift bindings when the argument names one. Use when the user says /clean-code:base or asks for the clean-code method, or when restructuring a tool this repository owns into layered modules, deciding a boundary or where a seam goes, designing a versioned protocol between a tool and its callers, choosing between a database and the filesystem for durable state, planning the pull-request ladder for a large refactor, or reviewing work against SOLID, file-size and test-quality standards.
 ---
 
 # Clean code: base

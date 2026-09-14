@@ -1,6 +1,6 @@
 ---
 name: rust
-description: Load the Rust bindings of this repository's clean-code standard from ~/.agents/skills/clean-code-rust and follow them. Use when the user says /clean-code:rust or asks for clean-code Rust.
+description: Load the Rust bindings of this repository's clean-code standard from ~/.agents/skills/clean-code-rust and follow them. Use when the user says /clean-code:rust or asks for clean-code Rust, or when building or restructuring a Rust tool this repository owns (pns, uu, the herdr plugins): a Cargo workspace split, crate boundaries, a trait versus an enum, a persistence crate, or the Rust quality gates.
 ---
 
 # Clean code: Rust
