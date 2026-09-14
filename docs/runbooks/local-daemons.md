@@ -146,11 +146,14 @@ The parentheses in the secret titles are load-bearing: the retired single shared
 `Hermes :: Webhook Secret :: #pns`, which is a different entry. The ElevenLabs voice is one more lookup,
 `ElevenLabs :: Voice ID`, whose Password field holds the voice id.
 
-**A missing or empty KeePassXC entry aborts the whole apply.** keepassxc-cli exits non-zero on a title it
-cannot find, chezmoi fails the template on that, and a failed modify-template takes every later target
-and every `run_after_` script with it. That is the safe direction to fail: a route rendered with an empty
-secret takes the entire webhook platform down at the next gateway start, while looking healthy in the
-file. Create both entries for a route before naming it in the template.
+**A missing KeePassXC entry aborts the whole apply. An empty one does not.** keepassxc-cli exits non-zero
+on a title it cannot find, chezmoi fails the template on that, and a failed modify-template takes every
+later target and every `run_after_` script with it, which is the safe direction to fail. An entry that
+EXISTS with an empty Password field is the case that gets through: keepassxc-cli prints the empty field
+and exits 0, and chezmoi renders an empty string (measured 2026-09-14 against a throwaway database). A
+route rendered with an empty secret takes the entire webhook platform down at the next gateway start,
+while looking healthy in the file, and `run_after_68` is what reports it, on the same apply, by presence
+and never by value. Create both entries, populated, before naming a route in the template.
 
 **Agents edit route NAMES and prompts, never values.** Nothing in this repo holds a secret or a channel
 id, and the deployed copy is denied to Claude Code's file tools by a `Read(~/.hermes/config.yaml)` rule
