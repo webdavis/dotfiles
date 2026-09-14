@@ -155,6 +155,7 @@ impl Watchdog<'_> {
             occurrence_id: None,
             event: "watchdog",
             signal: AlertSignal::NeedsAttention,
+            severity: None,
             occurred_at: now,
             title: page.title,
             detail: page.body,

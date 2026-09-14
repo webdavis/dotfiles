@@ -91,6 +91,7 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
             occurrence_id: None,
             event,
             signal: AlertSignal::NeedsAttention,
+            severity: None,
             occurred_at,
             title: FUNNEL_CRITICAL_TITLE.into(),
             detail,

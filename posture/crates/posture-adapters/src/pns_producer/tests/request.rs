@@ -80,3 +80,31 @@ fn oversized_observations_remain_refused_without_a_security_notification() {
     assert!(sut.runner.requests.is_empty());
     assert!(sut.alarm.calls.is_empty());
 }
+#[test]
+fn a_critical_finding_takes_the_priority_route_whatever_the_caller_configured() {
+    let mut sut = subject(Status::Accepted, true);
+    let mut input = alert();
+    input.severity = Some(posture_domain::Severity::Critical);
+    assert_eq!(sut.submit(&input), Submission::Accepted);
+    assert_eq!(
+        sut.runner.requests[0].route.as_ref().unwrap().as_str(),
+        "priority"
+    );
+}
+#[test]
+fn a_finding_below_critical_takes_the_posture_route_whatever_the_caller_configured() {
+    for tier in [
+        posture_domain::Severity::Notice,
+        posture_domain::Severity::Info,
+    ] {
+        let mut sut = subject(Status::Accepted, true);
+        let mut input = alert();
+        input.severity = Some(tier);
+        assert_eq!(sut.submit(&input), Submission::Accepted);
+        assert_eq!(
+            sut.runner.requests[0].route.as_ref().unwrap().as_str(),
+            "posture",
+            "{tier:?}"
+        );
+    }
+}
