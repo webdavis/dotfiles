@@ -496,19 +496,11 @@
        OWN, out of marketplaces deployed under ~/.claude/pns-marketplace,
        ~/.claude/strategy-marketplace and ~/.claude/clean-code-marketplace rather
        than fetched from anywhere. Installing one is still one deliberate
-       command, in the `plugin@marketplace` spelling `--help` documents:
-       `claude plugin install clean-code@clean-code` succeeded on 2.1.270 on
-       2026-09-13 against the registered directory marketplace. Once that
-       marketplace is registered the bare `claude plugin install clean-code`
-       resolves to the same `clean-code@clean-code` and also succeeds, and a
-       plugin sharing its marketplace's name is NOT read as a release channel
-       (measured with a synthetic marketplace and plugin both named `ccprobe`,
-       exit 0). The namespaced spelling is preferred only because it names the
-       marketplace rather than leaving resolution to whatever happens to be
-       registered. "Invalid channel: <name>. Use 'latest' or 'stable'" comes
-       from `claude install <name>`, the NATIVE-BUILD installer, so that
-       sighting means the word `plugin` was omitted from the command, not that
-       the plugin parser mis-read a marketplace name. --- */ -}}
+       command: `claude plugin install clean-code@clean-code` (exit 0 on
+       2.1.270, 2026-09-13). The bare name resolves to the same plugin once
+       that marketplace is registered; the namespaced spelling is preferred
+       because it names the marketplace rather than whatever happens to be
+       registered. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
