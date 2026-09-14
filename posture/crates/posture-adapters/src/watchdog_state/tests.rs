@@ -18,7 +18,7 @@ fn legacy_state_migrates_without_losing_growth_or_confirmed_audit() {
     let hash = "a".repeat(64);
     fs::write(&path, format!(r#"{{"agents":{{"{}":{{"runs":8,"streak":1}}}},"pending":{{"count":7,"growth_streak":1}},"pipeline_audit":{{"fingerprint":"{hash}","streak":999,"paged_fingerprint":"{hash}"}}}}"#,Agent::Digest.label())).unwrap();
     let state = WatchdogStateFile::new(path).load();
-    assert_eq!(state.agents[3].unwrap().runs, Some(8));
+    assert_eq!(state.agents[2].unwrap().runs, Some(8));
     assert_eq!(
         state.legacy_pending,
         QueueMemory {
