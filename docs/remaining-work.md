@@ -2017,7 +2017,12 @@ force.
   configuration in dotfiles and project specifications in their owning repositories. The weekly uu npm
   lane upgrades the CLI; define when `openspec update` refreshes generated project instructions
   separately. Continue [6hPCF8hrCrjjWv2M](https://app.todoist.com/app/task/6hPCF8hrCrjjWv2M), promoting
-  its old evaluation-only scope to the requested setup work.
+  its old evaluation-only scope to the requested setup work. Tooling wave 1 attempt (2026-09-14) did not
+  ship: the `feat/openspec-config` worktree already carries three commits (`95841b11`, `6378209d`,
+  `2811528e`) tracking the global config and two runbook fixes, but `graphify-out/graph.json` was left
+  modified by the post-commit hook, so ship stopped at the clean-tree check before fetch, build, push, or
+  a pull request. Gated on an operator decision to commit or discard that file in the worktree, then
+  re-running ship from that first step.
 - [ ] Configure [YNAB (You Need a Budget)](https://github.com/oliverames/ynab-mcp-server) through its MCP
   (Model Context Protocol) server, added by the operator on 2026-09-12. Track the upstream npm package
   `@oliverames/mcp-server-for-ynab` in the existing fnm package declaration and use its local stdio
@@ -2028,7 +2033,17 @@ force.
   upstream plugin manifests enable writes, so do not copy those defaults blindly. Verify tool discovery
   and an authenticated read after setup. Track it in
   [6hVpJxQgR7f73xmM](https://app.todoist.com/app/task/6hVpJxQgR7f73xmM). This entry schedules
-  configuration; nothing was installed in the audit.
+  configuration; nothing was installed in the audit. Tooling wave 1 attempt (2026-09-14) did not ship:
+  the `feat/ynab-mcp` worktree already carries four commits (`896b9098`, `7f412742`, `b52279ef`,
+  `4a07b72c`) declaring the read-only stdio server for Claude Code and Codex, pinning the read-only
+  default with `YNAB_ALLOW_WRITES`/`YNAB_DISABLE_AGENT_CONFIG_FALLBACK` after review found it unpinned,
+  and fixing two stale marketplace-count comments; `main` merged in cleanly at `4df81abf`, but
+  `just ship` failed at the `test-rust` gate on a pns hook test unrelated to this branch's diff
+  (`delivery_class::json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_hermes`,
+  `TimedOut: pipe stayed open`), so nothing was pushed and no pull request was opened. Gated on
+  re-running `just ship` (or, narrower,
+  `cargo test --locked --workspace --features dev-tools --manifest-path pns/Cargo.toml -p pns --test hooks`)
+  to confirm flake versus regression, then continuing from the push step.
 - [ ] Reconcile [Backpass](https://github.com/kunchenguid/backpass) configuration and finish any missing
   integration, requested 2026-09-12. It is installed, declared in npm, and
   `dot_config/backpass/config.json` matches the deployed copy, directing user instruction edits to
@@ -2094,7 +2109,22 @@ force.
   review overlap with the existing none-ls hadolint diagnostics before changing either linter. Verify
   lint-on-save and command-driven diagnostics using a representative Dockerfile. Track CLI and plugin
   upgrades through the existing uu Homebrew and Neovim lanes. Track it in
-  [6hVpPJWQq79vMM3v](https://app.todoist.com/app/task/6hVpPJWQq79vMM3v).
+  [6hVpPJWQq79vMM3v](https://app.todoist.com/app/task/6hVpPJWQq79vMM3v). Shipped 2026-09-14 in
+  [PR #578](https://github.com/webdavis/dotfiles/pull/578) (`feat/dockerfile-roast`, merged
+  `bd88f70d5e3bc4396f947e412d2c8b75fe375e23`). Assumptions made in the operator's place: droast is a
+  homebrew-core formula rather than a third-party tap, so it is declared as a bare `- droast` in
+  `formulae:` instead of the briefed tap/trusted_taps entries; hadolint stays beside droast.nvim because
+  droast does not lint `RUN` bodies as shell; the lazy.nvim spec carries no `opts` (upstream self-calls
+  `setup()` with sane defaults) and no commit pin (the pin lives in `lazy-lock.json` only); and
+  `graphify-out/graph.json` was restored after committing to keep the diff to the three intended files.
+  Review found one SEV-2 finding, that the plugin comment's stated reason for keeping hadolint was false
+  since droast can lint `RUN` bodies as shell through its own `--shellcheck` flag; fixed by rewriting the
+  comment with measured droast/hadolint overlap facts in commit `17c9ce7a`. Gated on more than the
+  routine apply: after `chezmoi apply`, open Neovim and run `:Lazy restore` (or `:Lazy sync`) to actually
+  install `droast.nvim` at its locked commit, since editing `lazy-lock.json` alone installs nothing.
+  Optional follow-ups the implementer left open: a smoke check (open a Dockerfile, `:w`, expect droast
+  and hadolint diagnostics together, `:DroastQuickfix` fills the quickfix list) and removing the
+  verification harness at `/private/tmp/dr` when no longer wanted.
 - [x] Review native Neovim language-server configuration, requested 2026-09-12. Installed Neovim is
   `0.12.5`; `dot_config/nvim/lua/plugins/lsp.lua` already uses `vim.lsp.config()` and `vim.lsp.enable()`,
   with no legacy `require("lspconfig").SERVER.setup()` calls. Keep nvim-lspconfig for maintained server
@@ -2269,7 +2299,12 @@ process-toggle plugin and worktree review launcher.
   which repository and objective it runs against first, and wire its run into the same worktree rule as
   every other agent (`herdr worktree create`). Its overnight runs are one of the four triggers for the
   Discord progress recap (see the pns recap task), so land that recap producer before the first
-  unattended night.
+  unattended night. Tooling wave 1 attempt (2026-09-14) did not ship: the `feat/gnhf-install` worktree
+  already carries five commits (`31a2c10a`, `beda508f`, `dc23e83e`, `153703e1`, `cedbabca`) implementing
+  the install, the config deploy, the first objective file and its runbook, but `graphify-out/graph.json`
+  was left modified by the post-commit hook, so ship stopped at the clean-tree check before fetch, build,
+  push, or a pull request. Gated on an operator decision to commit or discard that file in the worktree,
+  then re-running ship from that first step.
 
 ## Late in the goal: slim the global instruction files
 
