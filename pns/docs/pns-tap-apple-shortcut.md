@@ -73,6 +73,42 @@ Title is left empty. **Play Sound is on**, which is the point of the action: the
 is to move notifications to the phone, and a silent confirmation would be indistinguishable from a
 Shortcut that never ran. Attachment is left at `Choose Variable`.
 
+## The `--json` result, and the undo
+
+`pns tap --json` prints ONE JSON object on stdout and nothing else. The exit code follows `ok`: zero
+when it is true, non-zero when it is false, so a caller can branch on either. A failure is reported
+in the same object rather than on stderr, which is what makes the JSON form safe to parse
+unconditionally.
+
+The fields, pinned by the `pns.tap/1` schema identifier the object carries:
+
+| Field                     | Value                                                         |
+| ------------------------- | ------------------------------------------------------------- |
+| `schema`                  | `pns.tap/1`                                                   |
+| `operation`               | `tap`, `info` or `install`                                    |
+| `ok`                      | whether the operation succeeded                               |
+| `write_status`            | `recorded`, `failed` or `not_requested`                       |
+| `marker.path`             | the absolute marker path                                      |
+| `marker.source`           | `environment`, `config` or `default`                          |
+| `marker.config_file`      | where the config would be read from, whether or not it exists |
+| `marker.exists`           | whether the marker is there, or null when it cannot be read   |
+| `marker.mtime_epoch_secs` | the tap instant in epoch seconds, or null                     |
+| `marker.touched_at`       | the same instant, RFC 3339 in UTC, or null                    |
+| `marker.age_secs`         | seconds since the tap, or null                                |
+| `marker.fresh`            | whether the tap is inside the desk window, or null            |
+| `surface`                 | `desk`, `mobile` or `away`                                    |
+| `message`                 | one line for a person                                         |
+| `install`                 | the `--install` guide, otherwise null                         |
+| `error`                   | null, or `{"code", "message"}` naming what failed             |
+
+`write_status` is `not_requested` under `--info` and `--install`, which read the marker and never
+write it. `install` is populated only by `--install`. Adding a field keeps this schema identifier;
+removing or renaming one does not.
+
+**The undo is one file.** Delete the marker file and nothing else on the Mac changes: `pns tap`
+writes that file and no other state. The surface then reads as untapped again, which can move
+notifications back to the desk or away.
+
 ## What `pns tap` must print, for this to stay true
 
 The notification above is fixed text on the phone, so it says the same thing whatever happened on the

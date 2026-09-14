@@ -84,6 +84,7 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
             )));
         }
         lines.push(row(&safe(&result.message)));
+        lines.push(row("To undo a tap, delete the marker file. Nothing else on this Mac changes, and the surface reads as untapped again."));
         lines.push(String::new());
         lines.push(style::heading(
             paint,

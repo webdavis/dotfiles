@@ -32,6 +32,30 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
 }
 
 #[test]
+fn the_json_marker_dates_the_recorded_tap_and_info_states_the_undo() {
+    let s = Sandbox::without_config("tap-touched-at");
+    let answer = json(&tap(&s, &["tap", "--json"]));
+    let recorded = &answer["marker"];
+    let mtime = recorded["mtime_epoch_secs"]
+        .as_u64()
+        .expect("a recorded mtime");
+    assert_eq!(
+        recorded["touched_at"].as_str(),
+        pns_adapters::utc_timestamp(mtime).as_deref(),
+        "{recorded}"
+    );
+    let never = Sandbox::without_config("tap-never-touched");
+    let absent = json(&tap(&never, &["tap", "--info", "--json"]));
+    assert_eq!(absent["marker"]["exists"], false);
+    assert!(absent["marker"]["touched_at"].is_null(), "{absent}");
+    let text = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
+    assert!(
+        text.contains("delet") && text.contains("marker file"),
+        "{text}"
+    );
+}
+
+#[test]
 fn tap_and_the_event_reader_share_the_configured_marker() {
     let s = Sandbox::new("tap-shared-config");
     let path = s.path("custom/attention");

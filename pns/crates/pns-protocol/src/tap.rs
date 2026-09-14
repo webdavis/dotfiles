@@ -28,6 +28,9 @@ pub struct TapMarker {
     pub config_file: String,
     pub exists: Option<bool>,
     pub mtime_epoch_secs: Option<u64>,
+    /// The same instant as `mtime_epoch_secs`, RFC 3339 in UTC, for a reader
+    /// that shows the tap to a person rather than computing an age from it.
+    pub touched_at: Option<String>,
     pub age_secs: Option<u64>,
     pub fresh: Option<bool>,
 }
