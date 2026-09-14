@@ -27,6 +27,15 @@ vim.opt.runtimepath:append(vim.fn.stdpath("data") .. "/site")
 local _, javascript_grammar = pcall(vim.treesitter.language.add, "javascript")
 javascript_grammar = javascript_grammar == true
 
+-- A name no parser file can be called, rather than a real language: the line above puts this
+-- machine's whole grammar directory back on the runtimepath, so every genuinely installed
+-- language would take the gate's "already there" path and the waiting case would never run.
+local PARSERLESS_LANGUAGE = "language_with_no_parser_on_disk"
+assert(
+  #vim.api.nvim_get_runtime_file("parser/" .. PARSERLESS_LANGUAGE .. ".*", true) == 0,
+  "a parser for " .. PARSERLESS_LANGUAGE .. " exists, so the gate's waiting path is no longer measured"
+)
+
 -- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
 -- one, so a working directory read back after `:cd` would not string-compare against the path
 -- the fixture was written to.
@@ -230,8 +239,8 @@ local function no_root()
 end
 
 --- Run the plugin spec's `config` against stubbed adapters and return each JavaScript adapter's
---- configured `is_test_file`, the adapter list neotest was handed, and a way to press
---- `<leader>ta`.
+--- configured `is_test_file`, the adapter list neotest was handed, and a way to press `<leader>ta`
+--- or `<leader>tt`.
 local function route()
   local vitest = { name = "neotest-vitest", root = package_root }
 
@@ -254,15 +263,41 @@ local function route()
     end,
   })
 
-  local captured, ran
+  -- What the parser gate asked nvim-treesitter for, and what it answers can be built. The plugin
+  -- is absent under the runner's `--clean` start, so both of its modules are faked: every case
+  -- reaches the gate, and one measures it.
+  local parser = { installs = {}, available = { PARSERLESS_LANGUAGE } }
+
+  local captured, ran, requests = nil, nil, 0
   local stubs = {
     ["pns.integrations.neotest"] = { consumer = function() end },
+    ["nvim-treesitter"] = {
+      install = function(languages, options)
+        for _, language in ipairs(languages) do
+          parser.installs[#parser.installs + 1] = language
+          assert(options and options.force, "an install of a missing parser must force: " .. language)
+        end
+        -- The task `install` hands back. `pwait` reports rather than raises, which is why the gate
+        -- takes that one rather than `wait`.
+        return {
+          pwait = function()
+            return true, true
+          end,
+        }
+      end,
+    },
+    ["nvim-treesitter.config"] = {
+      get_available = function()
+        return vim.deepcopy(parser.available)
+      end,
+    },
     ["neotest"] = {
       setup = function(options)
         captured = options
       end,
       run = {
         run = function(args)
+          requests = requests + 1
           ran = args
         end,
       },
@@ -301,13 +336,16 @@ local function route()
   -- `<leader>ta` reads the live adapter list to work out which adapters attach where.
   package.loaded["neotest.config"] = { adapters = captured.adapters }
 
-  local run_all
+  local run_all, run_nearest
   for _, key in ipairs(plugin_spec.keys) do
     if key[1] == "<leader>ta" then
       run_all = key[2]
+    elseif key[1] == "<leader>tt" then
+      run_nearest = key[2]
     end
   end
   assert(run_all, "<leader>ta is not in the plugin spec's keys")
+  assert(run_nearest, "<leader>tt is not in the plugin spec's keys")
 
   --- Press `<leader>ta` in `directory`. `choose` is the item the operator picks when asked.
   ---@return { ran: table|string|nil, prompted: string[]|nil, notified: string[] }
@@ -333,12 +371,37 @@ local function route()
     return { ran = ran, prompted = prompted, notified = notified }
   end
 
+  --- Press `<leader>tt` from a scratch buffer of `filetype`, and report what the request waited
+  --- for on its way to neotest. A pure notify recorder, never a pass-through: headless noice
+  --- drops the continuation.
+  ---@param filetype string
+  ---@return { installs: string[], requests: integer, notified: string[] }
+  local function press_nearest(filetype)
+    parser.installs = {}
+    local installs, notified, before = parser.installs, {}, requests
+    local previous_notify = vim.notify
+    vim.notify = function(message)
+      notified[#notified + 1] = tostring(message)
+    end
+    local buffer = vim.api.nvim_create_buf(false, true)
+    local previous_buffer = vim.api.nvim_get_current_buf()
+    vim.api.nvim_set_option_value("filetype", filetype, { buf = buffer })
+    vim.api.nvim_set_current_buf(buffer)
+    local pressed, pressed_error = pcall(run_nearest)
+    vim.api.nvim_set_current_buf(previous_buffer)
+    vim.api.nvim_buf_delete(buffer, { force = true })
+    vim.notify = previous_notify
+    assert(pressed, "<leader>tt failed: " .. tostring(pressed_error))
+    return { installs = installs, requests = requests - before, notified = notified }
+  end
+
   return {
     vitest = by_name["neotest-vitest"].is_test_file,
     jest = by_name["neotest-jest"].is_test_file,
     node = by_name["neotest-nodejs"].is_test_file,
     by_name = by_name,
     press_run_all = press_run_all,
+    press_nearest = press_nearest,
   }
 end
 
@@ -753,6 +816,39 @@ cases["a directory run reaches bash only where a bash test actually lives"] = fu
     with.ran and with.ran.adapter == "neotest-bashunit:" .. directory_of(jsbash),
     "the bash test's own repository did not run bash: " .. vim.inspect(with.ran)
   )
+end
+
+cases["a test request waits for the parser its discovery needs"] = function()
+  -- B96. Every adapter discovers positions with tree-sitter, and neotest raises "No parser for
+  -- language" from inside its own discovery when the grammar is missing: measured against a data
+  -- directory with no `go` parser, the first `<leader>tt` in a Go module discovered nothing and
+  -- notified NOTHING, while a retry seconds later worked. Parsers install asynchronously, so the
+  -- request is what has to wait for the one it needs.
+  local routed = route()
+
+  local waited = routed.press_nearest(PARSERLESS_LANGUAGE)
+  assert(
+    vim.deep_equal(waited.installs, { PARSERLESS_LANGUAGE }),
+    "the request did not wait for its parser: " .. vim.inspect(waited.installs)
+  )
+  assert(waited.requests == 1, "the request never reached neotest")
+  assert(#waited.notified == 1, "the editor blocked on a build without saying why")
+
+  -- `lua` is bundled with Neovim, so its parser is on every machine this config runs on. A
+  -- request that reinstalls what is already loaded would stall every press, not just the first.
+  local loaded = routed.press_nearest("lua")
+  assert(#loaded.installs == 0, "a parser already loaded was installed again: " .. vim.inspect(loaded.installs))
+  assert(loaded.requests == 1, "the request never reached neotest")
+  assert(#loaded.notified == 0, "an installed parser still announced an install")
+
+  -- snacks.nvim names its notification buffers, and no grammar is called that. Waiting there
+  -- would be waiting for a build that is never coming, which is the FileType installer's own rule.
+  local unbuildable = routed.press_nearest("snacks_notif")
+  assert(
+    #unbuildable.installs == 0,
+    "a filetype no grammar exists for was installed: " .. vim.inspect(unbuildable.installs)
+  )
+  assert(unbuildable.requests == 1, "the request never reached neotest")
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
