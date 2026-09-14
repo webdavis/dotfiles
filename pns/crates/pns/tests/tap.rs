@@ -4,6 +4,7 @@ mod support;
 
 use serde_json::Value;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, SystemTime};
 use support::{Sandbox, run, stdout};
 
@@ -26,6 +27,10 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
     assert_eq!(answer["surface"], "mobile");
     assert_eq!(answer["marker"]["source"], "default");
     assert!(s.path(".local/state/pns/phone-attention.marker").is_file());
+    for created in [".local", ".local/state", ".local/state/pns"] {
+        let mode = fs::metadata(s.path(created)).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "{created} is not private: {mode:o}");
+    }
     for channel in ["mobile", "hermes", "macos-banner"] {
         assert!(!s.fired(channel));
     }

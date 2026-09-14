@@ -109,9 +109,11 @@ are null there. They are also null whenever the run fails before reaching them: 
 reads either must handle null. `install` is populated only by `--install`. Adding a field keeps this
 schema identifier; removing or renaming one does not.
 
-**The undo is one file.** Delete the marker file and nothing else on the Mac changes: `pns tap`
-writes that file and no other state. The surface then reads as untapped again, which can move
-notifications back to the desk or away.
+**The undo is one file.** A tap creates two things on a fresh machine: the marker file, and any
+missing directories on its path (mode 0700, so `~/.local/state/pns` and its parents may be new).
+Only the marker carries state, so deleting it is the whole undo and nothing else on the Mac changes;
+the empty directories stay behind and mean nothing. The surface then reads as untapped again, which
+can move notifications back to the desk or away.
 
 ## What `pns tap` must print, for this to stay true
 
