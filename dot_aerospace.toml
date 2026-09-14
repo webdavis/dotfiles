@@ -193,6 +193,11 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
     alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Discord'
 
+    # Whole-house light presets (the [presets] table in ~/.config/lights/config.toml)
+    f1  = 'exec-and-forget ~/.cargo/bin/lights preset morning'
+    f2  = 'exec-and-forget ~/.cargo/bin/lights preset afternoon'
+    f3  = 'exec-and-forget ~/.cargo/bin/lights preset evening'
+
     # Smart lights, Studio (3F - Studio)
     f8  = 'exec-and-forget ~/.cargo/bin/lights brightness down'
     f9  = 'exec-and-forget ~/.cargo/bin/lights toggle'

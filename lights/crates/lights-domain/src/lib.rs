@@ -1,8 +1,10 @@
 mod brightness;
+mod presets;
 mod rooms;
 mod rotation;
 
 pub use brightness::{Brightness, Direction, ReportedBrightness};
+pub use presets::{PresetStep, PresetTarget, Presets};
 pub use rooms::{Aliases, RoomName};
 pub use rotation::Rotation;
 

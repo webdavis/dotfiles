@@ -1,4 +1,5 @@
 mod support;
+use lights::Response;
 use serde_json::json;
 use support::*;
 
@@ -119,6 +120,79 @@ fn named_and_rotated_scenes_use_real_adapter() {
 #[test]
 fn transport_timeout_exits_four_without_success() {
     failure(&timeout_command(), 4, "timed out");
+}
+
+const PRESETS: &str = "[presets]\n\
+     evening = [\n\
+       { room = 'studio', scene = 'Energize' },\n\
+       { room = 'bedroom', scene = 'Read' },\n\
+       { room = 'kitchen', off = true },\n\
+     ]\n\
+     partial = [\n\
+       { room = 'studio', scene = 'Energize' },\n\
+       { room = 'kitchen', scene = 'Missing' },\n\
+       { room = 'bedroom', scene = 'Read' },\n\
+     ]\n";
+
+fn preset(args: &[&str], writes: usize) -> (Response, Vec<Vec<u8>>) {
+    let mut responses = vec![(200, fixture())];
+    responses.extend((0..writes).map(|_| (200, json!({"errors":[],"data":[]}))));
+    command(args, Some(&format!("{}{PRESETS}", config())), responses)
+}
+
+#[test]
+fn preset_applies_every_room_in_order_and_reports_each() {
+    let (r, w) = preset(&["preset", "evening"], 3);
+    assert_eq!(r.exit, 0);
+    assert_eq!(r.stderr, "");
+    assert_eq!(
+        r.stdout,
+        "Room: 3F - Studio | Scene: Energize\n\
+         Room: 3F - MBedroom | Scene: Read\n\
+         2F - Kitchen: off\n"
+    );
+    assert_eq!(w.len(), 4);
+    for (request, expected) in w[1..].iter().zip([
+        "PUT /clip/v2/resource/scene/00000000-0000-0000-0000-000000000008 ",
+        "PUT /clip/v2/resource/scene/00000000-0000-0000-0000-000000000005 ",
+        "PUT /clip/v2/resource/grouped_light/00000000-0000-0000-0000-000000000021 ",
+    ]) {
+        assert!(
+            String::from_utf8_lossy(request).starts_with(expected),
+            "{expected}"
+        );
+    }
+}
+
+#[test]
+fn a_failed_room_leaves_the_rest_applied_and_sets_the_exit_code() {
+    let (r, w) = preset(&["preset", "partial"], 2);
+    assert_eq!(r.exit, 3);
+    assert_eq!(
+        r.stdout,
+        "Room: 3F - Studio | Scene: Energize\nRoom: 3F - MBedroom | Scene: Read\n"
+    );
+    assert_eq!(r.stderr.lines().count(), 1);
+    assert!(r.stderr.contains("Missing") && r.stderr.contains("2F - Kitchen"));
+    assert_eq!(w.len(), 3);
+}
+
+#[test]
+fn unknown_preset_name_is_a_usage_error_without_a_read() {
+    let (r, w) = preset(&["preset", "midnight"], 0);
+    failure(&r, 1, "midnight");
+    assert!(w.is_empty());
+}
+
+#[test]
+fn bare_preset_lists_the_configured_presets_without_a_read() {
+    let (r, w) = preset(&["preset"], 0);
+    assert_eq!(r.exit, 0);
+    assert_eq!(r.stdout, "evening\npartial\n");
+    assert!(w.is_empty());
+    let (r, w) = command(&["preset"], Some(config()), vec![]);
+    assert_eq!((r.exit, r.stdout.as_str()), (0, ""));
+    assert!(w.is_empty());
 }
 
 #[path = "commands/notifications.rs"]

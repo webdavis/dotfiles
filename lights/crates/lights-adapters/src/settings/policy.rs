@@ -1,4 +1,4 @@
-use super::{ConfigError, HueSettings, Settings, error, integer, keys, required_string};
+use super::{ConfigError, HueSettings, Settings, error, integer, keys, presets, required_string};
 use lights_domain::{Aliases, RoomName, Rotation};
 use std::collections::BTreeMap;
 
@@ -53,12 +53,17 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
     };
     let rotation =
         Rotation::new(names, string_or(&scenes, "fallback", "Read")?).map_err(|e| error(e.0))?;
+    // Preset steps name rooms the same way `--room` does, so the alias table
+    // has to be complete before the plans that read it are resolved.
+    let aliases = Aliases::new(aliases);
+    let presets = presets::parse(root, &aliases)?;
     Ok(Settings {
         controller,
         notify,
         default_room,
-        aliases: Aliases::new(aliases),
+        aliases,
         rotation,
+        presets,
         step: step as u8,
     })
 }

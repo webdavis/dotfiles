@@ -81,3 +81,22 @@ fn malformed_arguments_never_become_help() {
     }
     assert_eq!(decode(&["--help"]).unwrap().command, Command::Help);
 }
+#[test]
+fn preset_decodes_with_and_without_a_name() {
+    assert_eq!(decode(&["preset"]).unwrap().command, Command::Preset(None));
+    assert_eq!(
+        decode(&["preset", "morning"]).unwrap().command,
+        Command::Preset(Some("morning".into()))
+    );
+}
+#[test]
+fn preset_refuses_a_room_override_rather_than_ignoring_it() {
+    // A preset names its own rooms, so `--room` could only be silently
+    // discarded.
+    for args in [
+        vec!["--room", "studio", "preset", "morning"],
+        vec!["preset", "--room", "studio"],
+    ] {
+        assert!(decode(&args).is_err());
+    }
+}

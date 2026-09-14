@@ -1,5 +1,5 @@
 use crate::{BrightnessChange, LightController, LightsError};
-use lights_domain::{Action, RoomName, Rotation};
+use lights_domain::{Action, PresetStep, PresetTarget, RoomName, Rotation};
 
 pub struct TogglePower;
 impl TogglePower {
@@ -82,6 +82,24 @@ impl SetScene {
             room: room.clone(),
             scene: scene.name.clone(),
         })
+    }
+}
+/// Walks a preset's plan in order. A failed room is reported and the walk
+/// continues: the point of one key is that the other rooms still change.
+pub struct ApplyPreset;
+impl ApplyPreset {
+    pub fn run<C: LightController>(
+        controller: &C,
+        plan: &[PresetStep],
+    ) -> Vec<Result<Action, LightsError>> {
+        plan.iter()
+            .map(|step| match &step.target {
+                PresetTarget::Scene(name) => {
+                    SetScene::run(controller, &step.room, SceneSelection::Named(name))
+                }
+                PresetTarget::Off => SetPower::run(controller, &step.room, false),
+            })
+            .collect()
     }
 }
 pub struct ReportStatus;

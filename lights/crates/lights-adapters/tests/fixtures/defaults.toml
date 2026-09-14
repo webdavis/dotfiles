@@ -22,3 +22,21 @@ kitchen = "2F - Kitchen"
 [scenes]
 rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
 fallback = "Read"
+
+# Whole-house presets. Steps run in the order written.
+[presets]
+morning = [
+  { room = "studio", scene = "Energize" },
+  { room = "bedroom", scene = "Energize" },
+  { room = "kitchen", scene = "Energize" },
+]
+afternoon = [
+  { room = "studio", scene = "Concentrate" },
+  { room = "bedroom", scene = "Concentrate" },
+  { room = "kitchen", scene = "Concentrate" },
+]
+evening = [
+  { room = "studio", scene = "Read" },
+  { room = "bedroom", scene = "Read" },
+  { room = "kitchen", scene = "Read" },
+]

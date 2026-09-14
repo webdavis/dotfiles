@@ -2,8 +2,8 @@ mod render;
 
 use lights_adapters::settings::{self, HueSettings, Settings};
 use lights_application::{
-    AdjustBrightness, BrightnessChange, LightController, LightsError, Notifier, ReportStatus,
-    SceneSelection, SetPower, SetScene, TogglePower,
+    AdjustBrightness, ApplyPreset, BrightnessChange, LightController, LightsError, Notifier,
+    ReportStatus, SceneSelection, SetPower, SetScene, TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
 use lights_protocol::{BrightnessRequest, Command, Request};
@@ -33,6 +33,22 @@ pub fn run<C: LightController>(
         Ok(settings) => settings,
         Err(error) => return failure(5, &error.0),
     };
+    let notify = request.notify || settings.notify;
+    if let Command::Preset(name) = &request.command {
+        let Some(name) = name else {
+            return success(render::preset_names(&settings.presets));
+        };
+        let Some(plan) = settings.presets.plan(name) else {
+            return failure(1, &format!("unknown preset {name:?}"));
+        };
+        let results = ApplyPreset::run(&controller(&settings.controller), plan);
+        if notify {
+            for action in results.iter().flatten() {
+                notifier.announce(action);
+            }
+        }
+        return render::preset(&results);
+    }
     let room = match request.room.as_deref() {
         Some(name) => match settings.aliases.resolve(name) {
             Ok(room) => room,
@@ -40,7 +56,6 @@ pub fn run<C: LightController>(
         },
         None => settings.default_room.clone(),
     };
-    let notify = request.notify || settings.notify;
     match execute(&controller(&settings.controller), &settings, &room, request) {
         Ok(action) => {
             if notify && !matches!(action, Action::Reported { .. }) {
@@ -89,7 +104,9 @@ fn execute<C: LightController>(
             },
         ),
         Command::Status => ReportStatus::run(controller, room),
-        Command::Help => unreachable!("help returns before composition"),
+        Command::Help | Command::Preset(_) => {
+            unreachable!("help and presets return before single-room composition")
+        }
     }
 }
 
