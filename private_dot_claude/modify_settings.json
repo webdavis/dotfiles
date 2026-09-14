@@ -654,6 +654,7 @@
 {{- $merged = setValueAtPath "skillOverrides.embedded-captions" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.faceless-explainer" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.general-video" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.gitbutler" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.home-assistant" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.home-assistant-best-practices" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes" "user-invocable-only" $merged -}}
