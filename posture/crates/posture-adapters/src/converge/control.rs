@@ -6,7 +6,7 @@ pub struct OsqueryRestart<R> {
     pub(super) runner: R,
     sudo: PathBuf,
     command: PathBuf,
-    daemon: Option<PathBuf>,
+    osqueryi: Option<PathBuf>,
     target: PathBuf,
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
@@ -14,14 +14,14 @@ impl<R: CommandRunner> OsqueryRestart<R> {
         runner: R,
         sudo: PathBuf,
         command: PathBuf,
-        daemon: Option<PathBuf>,
+        osqueryi: Option<PathBuf>,
         target: PathBuf,
     ) -> Self {
         Self {
             runner,
             sudo,
             command,
-            daemon,
+            osqueryi,
             target,
         }
     }
@@ -43,7 +43,7 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
         // on the live one nor creates a database of its own for the unprivileged
         // converge to clean up after root. osqueryctl runs its own check, and picks
         // its own database path, so the fallback needs nothing from this caller.
-        let Some(daemon) = &self.daemon else {
+        let Some(osqueryi) = &self.osqueryi else {
             return self.command("config-check", io);
         };
         self.runner
@@ -51,7 +51,7 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
                 &self.sudo,
                 &[
                     "-n".as_ref(),
-                    daemon.as_os_str(),
+                    osqueryi.as_os_str(),
                     "--config_path".as_ref(),
                     self.target.join("osquery.conf").as_os_str(),
                     "--config_check".as_ref(),

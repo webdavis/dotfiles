@@ -10,7 +10,7 @@ const COMMAND_BUDGET: Duration = Duration::from_secs(10);
 pub(super) fn run(config: &Configuration, stdout: &mut impl Write) -> Result<(), Failure> {
     let command = resolve_osqueryctl(config.osqueryctl.as_deref(), &config.search_path)
         .map_err(Failure::Command)?;
-    let daemon = resolve_osqueryi(config.osqueryd.as_deref(), &config.search_path)
+    let osqueryi = resolve_osqueryi(config.osqueryd.as_deref(), &config.search_path)
         .map_err(Failure::Command)?;
     let Some(command) = command else {
         return Ok(());
@@ -27,7 +27,7 @@ pub(super) fn run(config: &Configuration, stdout: &mut impl Write) -> Result<(),
         SystemRunner::per_command(COMMAND_BUDGET),
         config.sudo.clone(),
         command,
-        daemon,
+        osqueryi,
         config.target.clone(),
     );
     let mut processes = OsqueryParents::new(SystemRunner::per_command(COMMAND_BUDGET));
