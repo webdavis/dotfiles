@@ -628,22 +628,30 @@
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
-       dot_agents/custom-skill-lock.json, every on-demand skill gets exactly
-       one entry here, core skills get none, and test/unit/skills-roster-fanout.sh
-       fails the build when the two sets diverge. Per-key setValueAtPath (not
+       dot_agents/custom-skill-lock.json: an on-demand skill gets one entry
+       here, a core skill gets none. Nothing checks that the two agree since
+       the 2026-08-05 scope ruling, so move them together by hand (26
+       on-demand rows had no entry on 2026-09-13). Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
-       via /config pass through untouched. --- */ -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
+       via /config pass through untouched. A per-key write never removes a
+       key, so a skill promoted to core keeps its stale override in the live
+       file until an explicit delete below scrubs it (a no-op when the key or
+       skillOverrides itself is absent, measured on chezmoi 2.72.1). --- */ -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code-rust" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.clean-code-swift" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.defuddle" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.obsidian-bases" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.obsidian-cli" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.obsidian-markdown" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.owasp-security" $merged -}}
+{{- $merged = deleteValueAtPath "skillOverrides.tuicr" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-review" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-tui" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.embedded-captions" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.faceless-explainer" "user-invocable-only" $merged -}}
@@ -664,10 +672,6 @@
 {{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-bases" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-cli" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-markdown" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.owasp-security" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
