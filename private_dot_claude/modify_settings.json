@@ -495,12 +495,16 @@
        `pns@pns`, `strategy@strategy` and `clean-code@clean-code` ARE THIS REPO'S
        OWN, out of marketplaces deployed under ~/.claude/pns-marketplace,
        ~/.claude/strategy-marketplace and ~/.claude/clean-code-marketplace rather
-       than fetched from anywhere. Installing one is still one deliberate command:
-       `claude plugin install pns@pns` fails on 2.1.257 with "Invalid channel"
-       (the release-channel parser takes the `@marketplace` suffix as a channel
-       name), even though `--help` still documents that `plugin@marketplace`
-       spelling. The WORKAROUND on 2.1.257 is the bare `claude plugin install
-       pns`, which is what worked on this machine on 2026-09-01. --- */ -}}
+       than fetched from anywhere. Installing one is still one deliberate
+       command, and the install spelling that works has flipped across
+       versions. `claude plugin install pns@pns` failed on 2.1.257 with
+       "Invalid channel" (the release-channel parser took the `@marketplace`
+       suffix as a channel name), so the WORKAROUND on 2.1.257 was the bare
+       `claude plugin install pns`. On 2.1.270 that reversed: the bare form
+       fails instead, `claude plugin install clean-code` errors "Invalid
+       channel: clean-code" (a plugin sharing its marketplace's name trips
+       the parser), and `claude plugin install clean-code@clean-code` is the
+       install command that succeeds. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
