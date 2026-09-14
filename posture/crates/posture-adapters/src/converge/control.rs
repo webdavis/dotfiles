@@ -57,7 +57,7 @@ impl<R: CommandRunner> OsqueryRestart<R> {
         };
         // osqueryctl picks its own database path, so the fallback needs no private
         // directory and must not inherit a refusal to create one.
-        let Some(daemon) = self.daemon.clone() else {
+        let Some(daemon) = &self.daemon else {
             return self.command("config-check", io);
         };
         let database =
