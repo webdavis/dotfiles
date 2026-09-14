@@ -337,7 +337,7 @@ model, the plugin-state trade and the corrupt-file recovery path are in
 `private_dot_codex/modify_private_config.toml` is the same mechanism for `~/.codex/config.toml`, which
 Codex rewrites from its own model while it runs. Stable fields are overwritten on every apply (model and
 reasoning, sandbox and approval policy, `notify`, `[features]`, `[memories]`, `tui.vim_mode_default`, the
-two git marketplaces and the four MCP servers this repo declares), everything else drifts freely, and
+git marketplaces and the MCP servers this repo declares), everything else drifts freely, and
 `[projects.*]` is the third case: the roster of trusted roots is declared and every undeclared live entry
 is preserved.
 
