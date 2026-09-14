@@ -398,8 +398,18 @@ local function neotest_with_parser()
     -- Thirty seconds, the ceiling the FileType installer polls to: a build that is not coming must
     -- not hold the editor. `pwait` reports that timeout instead of raising, and the request goes
     -- ahead regardless, because a discovery that finds nothing is what it would have been anyway.
-    local installed = require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
-    if not installed then
+    --
+    -- Both of `pwait`'s answers, for the same reason `language.add` needs both of its own: the
+    -- status says only that the task RAN, and `install` reports a build that produced no parser by
+    -- returning false through a task that finished, so a status-only read calls that a success.
+    --
+    -- One press still pays twice where the FileType hook's own install is already running for this
+    -- buffer: nvim-treesitter JOINS an install in flight and reports whether that wait ended, not
+    -- whether a parser arrived, so the joining press is told it succeeded. Measured at two paid
+    -- presses and then nothing, against unbounded before this memo, and the race can only happen
+    -- once per language per session.
+    local finished, installed = require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
+    if not (finished and installed) then
       parser_wait_failed[language] = true
     end
   end

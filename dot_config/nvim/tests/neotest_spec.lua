@@ -30,11 +30,13 @@ javascript_grammar = javascript_grammar == true
 -- Names no parser file can be called, rather than real languages: the line above puts this
 -- machine's whole grammar directory back on the runtimepath, so every genuinely installed
 -- language would take the gate's "already there" path and the waiting case would never run.
--- The build that never finishes gets its own name because the gate REMEMBERS a language whose
--- wait ran out, so measuring that on the shared name would leave the result to case order.
+-- The two builds that deliver nothing get their own names because the gate REMEMBERS a language
+-- whose wait came back empty, so measuring that on the shared name would leave the result to
+-- case order.
 local PARSERLESS_LANGUAGE = "language_with_no_parser_on_disk"
 local STALLED_LANGUAGE = "language_whose_build_never_finishes"
-for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE }) do
+local FAILING_LANGUAGE = "language_whose_build_fails"
+for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE, FAILING_LANGUAGE }) do
   assert(
     #vim.api.nvim_get_runtime_file("parser/" .. language .. ".*", true) == 0,
     "a parser for " .. language .. " exists, so the gate's waiting path is no longer measured"
@@ -276,28 +278,33 @@ local function route()
   -- What the parser gate asked nvim-treesitter for, and what it answers can be built. The plugin
   -- is absent under the runner's `--clean` start, so both of its modules are faked: every case
   -- reaches the gate, and one measures it.
-  local parser = { installs = {}, available = { PARSERLESS_LANGUAGE, STALLED_LANGUAGE } }
+  -- Keyed by language, because `pwait` answers in TWO parts and the three endings differ in which
+  -- part carries the bad news: a wait that ran out is `false, "timeout"`, a build that RAN and
+  -- delivered nothing is `true, false`, and only both together mean a parser arrived.
+  local pwait_answers = {
+    [PARSERLESS_LANGUAGE] = { true, true },
+    [STALLED_LANGUAGE] = { false, "timeout" },
+    [FAILING_LANGUAGE] = { true, false },
+  }
+  local parser = { installs = {}, available = vim.tbl_keys(pwait_answers) }
 
   local captured, ran, requests = nil, nil, 0
   local stubs = {
     ["pns.integrations.neotest"] = { consumer = function() end },
     ["nvim-treesitter"] = {
       install = function(languages, options)
-        local stalled = false
+        local answer
         for _, language in ipairs(languages) do
           parser.installs[#parser.installs + 1] = language
           assert(options and options.force, "an install of a missing parser must force: " .. language)
-          stalled = stalled or language == STALLED_LANGUAGE
+          answer = pwait_answers[language]
+          assert(answer, "no pwait answer is declared for " .. language)
         end
         -- The task `install` hands back. `pwait` reports rather than raises, which is why the gate
-        -- takes that one rather than `wait`, and what a build that never finishes answers here:
-        -- `false, "timeout"`, the shape nvim-treesitter's own `Task:pwait` returns on a timeout.
+        -- takes that one rather than `wait`, and it reports in the two parts above.
         return {
           pwait = function()
-            if stalled then
-              return false, "timeout"
-            end
-            return true, true
+            return answer[1], answer[2]
           end,
         }
       end,
@@ -880,17 +887,21 @@ cases["a test request waits for the parser its discovery needs"] = function()
   )
   assert(unbuildable.requests == 1, "the request never reached neotest")
 
-  -- A build that ran out of time is waited for once. `pwait` reports its timeout rather than
-  -- raising, and a gate that discards that answer pays the whole 30 s ceiling again on the next
-  -- press, and on every press after it, for a build that is never coming.
-  local stalled = routed.press_gated("<leader>tt", STALLED_LANGUAGE)
-  assert(vim.deep_equal(stalled.installs, { STALLED_LANGUAGE }), "the first press did not wait for its parser")
-  local retried = routed.press_gated("<leader>tt", STALLED_LANGUAGE)
-  assert(
-    #retried.installs == 0,
-    "a build that already ran out of time was waited for again: " .. vim.inspect(retried.installs)
-  )
-  assert(retried.requests == 1, "the request never reached neotest")
+  -- A build that delivers no parser is waited for once, whichever way it ends. Both endings are
+  -- measured because they hide in different halves of `pwait`'s answer, and the one a status-only
+  -- read calls a success is the one this machine actually produces: with the build tool off PATH,
+  -- three presses cost 768/606/610 ms before the memo, and a download that stalls instead of
+  -- failing costs the full 30 s ceiling every press, indefinitely.
+  for _, language in ipairs({ STALLED_LANGUAGE, FAILING_LANGUAGE }) do
+    local first = routed.press_gated("<leader>tt", language)
+    assert(vim.deep_equal(first.installs, { language }), "the first press did not wait for " .. language)
+    local retried = routed.press_gated("<leader>tt", language)
+    assert(
+      #retried.installs == 0,
+      "a build that already delivered nothing was waited for again: " .. vim.inspect(retried.installs)
+    )
+    assert(retried.requests == 1, "the request never reached neotest")
+  end
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
