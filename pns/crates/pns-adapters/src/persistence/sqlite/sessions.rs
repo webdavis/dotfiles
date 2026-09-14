@@ -4,6 +4,14 @@
 //! ONE ROW PER SESSION, REPLACED IN PLACE, which is why this is a table and
 //! not a file per session under the state directory: every marker family
 //! there carries a sweeper, and a row that is overwritten needs none.
+//!
+//! ONE ROW PER SESSION FOREVER IS THE ACCEPTED COST, unlike `ledger_events`,
+//! which carries three retention settings. A row is a few hundred bytes, so
+//! a machine running dozens of sessions a day adds single-digit megabytes a
+//! year, and a sweep would be worse than the bytes it saves: an operator
+//! resuming a session past the window would lose the title that names it,
+//! because only the FIRST prompt of a session carries one and no later event
+//! can write it back.
 
 use super::{SqliteStore, StoreError};
 use rusqlite::Transaction;
