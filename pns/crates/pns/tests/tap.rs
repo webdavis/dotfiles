@@ -189,6 +189,7 @@ fn invalid_config_refuses_a_tap_without_falling_back_or_exposing_values() {
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["error"]["code"], "config_error");
+    assert!(json(&out)["marker"].is_null(), "{out:?}");
     assert!(!stdout(&out).contains("42"));
     assert!(!s.path(".local/state/pns").exists());
 }

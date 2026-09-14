@@ -73,6 +73,16 @@ fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
 }
 
 #[test]
+fn install_reports_neither_a_marker_nor_a_surface() {
+    let s = Sandbox::without_config("tap-install-nulls");
+    let out = tap(&s, &["tap", "--install", "--json"]);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    let answer = json(&out);
+    assert!(answer["marker"].is_null(), "{answer}");
+    assert!(answer["surface"].is_null(), "{answer}");
+}
+
+#[test]
 fn empty_environment_uses_the_tilde_config_path_with_private_creation_modes() {
     let s = Sandbox::new("tap-tilde");
     s.write_config("[phone]\nmarker_file = '~/attention/marker'");

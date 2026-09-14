@@ -88,6 +88,7 @@ The fields, pinned by the `pns.tap/1` schema identifier the object carries:
 | `operation`               | `tap`, `info` or `install`                                    |
 | `ok`                      | whether the operation succeeded                               |
 | `write_status`            | `recorded`, `failed` or `not_requested`                       |
+| `marker`                  | the object below, or null when no marker was resolved         |
 | `marker.path`             | the absolute marker path                                      |
 | `marker.source`           | `environment`, `config` or `default`                          |
 | `marker.config_file`      | where the config would be read from, whether or not it exists |
@@ -96,14 +97,17 @@ The fields, pinned by the `pns.tap/1` schema identifier the object carries:
 | `marker.touched_at`       | the same instant, RFC 3339 in UTC, or null                    |
 | `marker.age_secs`         | seconds since the tap, or null                                |
 | `marker.fresh`            | whether the tap is inside the desk window, or null            |
-| `surface`                 | `desk`, `mobile` or `away`                                    |
+| `surface`                 | `desk`, `mobile` or `away`, or null when none was read         |
 | `message`                 | one line for a person                                         |
 | `install`                 | the `--install` guide, otherwise null                         |
 | `error`                   | null, or `{"code", "message"}` naming what failed             |
 
-`write_status` is `not_requested` under `--info` and `--install`, which read the marker and never
-write it. `install` is populated only by `--install`. Adding a field keeps this schema identifier;
-removing or renaming one does not.
+`write_status` is `not_requested` under `--info` and `--install`. Only `--info` reads the marker;
+`--install` reports its guide and nothing about this machine's state, so both `marker` and `surface`
+are null there. They are also null whenever the run fails before reaching them: `marker` on a
+`path_error` or `config_error`, `surface` on any failure before the surface is read. A caller that
+reads either must handle null. `install` is populated only by `--install`. Adding a field keeps this
+schema identifier; removing or renaming one does not.
 
 **The undo is one file.** Delete the marker file and nothing else on the Mac changes: `pns tap`
 writes that file and no other state. The surface then reads as untapped again, which can move
