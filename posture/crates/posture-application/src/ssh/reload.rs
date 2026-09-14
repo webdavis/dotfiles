@@ -16,7 +16,7 @@ pub struct SshReload<'a> {
     pub pause: &'a mut dyn FnMut(Duration),
 }
 pub fn reload_ssh(
-    ports: &mut SshReload<'_>,
+    reload: &mut SshReload<'_>,
     readiness: Result<SshReadiness, ReadinessRefusal>,
     output: &mut SshOutput<'_>,
 ) -> u8 {
@@ -28,18 +28,18 @@ pub fn reload_ssh(
             ));
         }
     };
-    let (before, probe_ports) = match preflight::run(ports, output) {
+    let (before, probe_ports) = match preflight::run(reload, output) {
         Ok(ready) => ready,
         Err(message) => return output.fail(&format!("{message} sshd was not touched.")),
     };
-    let loaded = ports.launchctl.probe();
+    let loaded = reload.launchctl.probe();
     if matches!(&loaded, Ok(completed) if completed.status == 113) {
-        return absent(ports.tree, &before, output);
+        return absent(reload.tree, &before, output);
     }
     if !succeeded(&loaded) {
         return output.fail(&format!("could not determine the state of the sshd launchd service: {}; neither loaded nor confirmed absent. sshd was not touched.", command_failure(loaded)));
     }
-    let before_restart = match ports.tree.observe() {
+    let before_restart = match reload.tree.observe() {
         Ok(tree) => tree,
         Err(error) => return output.fail(&format!("the configuration tree could not be re-read before restart ({}); sshd was not touched.", super::verify::tree_failure(error))),
     };
@@ -47,20 +47,20 @@ pub fn reload_ssh(
     if !changes.is_empty() {
         return output.fail(&format!("the configuration tree CHANGED while validation was running; sshd was not touched. What moved: {}. Re-run 'posture ssh reload' once the tree has settled.", preflight::changes(&changes)));
     }
-    let recovery = recovery(ports.files);
+    let recovery = recovery(reload.files);
     if !output.info(&format!("reload: about to restart sshd; on a remote machine this can drop the SSH session carrying this output. {recovery}")) { return 1; }
-    let restarted = ports.launchctl.restart();
+    let restarted = reload.launchctl.restart();
     if !succeeded(&restarted) {
         return output.fail(&format!("launchctl kickstart failed: {}; sshd may be in any state between untouched and stopped. {recovery}", command_failure(restarted)));
     }
-    let loaded = ports.launchctl.probe();
+    let loaded = reload.launchctl.probe();
     if !succeeded(&loaded) {
         return output.fail(&format!(
             "the sshd service did not reload: {} after kickstart. {recovery}",
             command_failure(loaded)
         ));
     }
-    let Some(port) = banner(ports, &readiness, &probe_ports) else {
+    let Some(port) = banner(reload, &readiness, &probe_ports) else {
         let ports = probe_ports
             .iter()
             .map(u16::to_string)
@@ -68,7 +68,7 @@ pub fn reload_ssh(
             .join(" ");
         return output.fail(&format!("POSSIBLE LOCKOUT: the launchd job reports loaded, but no SSH banner arrived on port(s) {ports} after {} attempt(s). On macOS, launchd owns Remote Login's listening socket, and sshd's Port directive does not move it; the daemon may be healthy on that socket (normally 22). Check 'ssh-keyscan -p 22 127.0.0.1' before treating this as a lockout. {recovery}", readiness.attempts));
     };
-    let after = match ports.tree.observe() {
+    let after = match reload.tree.observe() {
         Ok(tree) => tree,
         Err(error) => return output.fail(&format!("sshd RESTARTED and answered on port {port}, but the tree could not be re-read ({}). What the daemon read is unknown and no success is claimed. Nothing was rolled back. Check 'posture ssh verify'. {recovery}", super::verify::tree_failure(error))),
     };
@@ -104,10 +104,14 @@ fn recovery(files: &dyn SshInstallFiles) -> String {
     )
 }
 
-fn banner(ports: &mut SshReload<'_>, readiness: &SshReadiness, probe_ports: &[u16]) -> Option<u16> {
+fn banner(
+    reload: &mut SshReload<'_>,
+    readiness: &SshReadiness,
+    probe_ports: &[u16],
+) -> Option<u16> {
     for attempt in 0..readiness.attempts {
         for &port in probe_ports {
-            if let Ok(completed) = ports.banners.probe(port, readiness.probe_timeout)
+            if let Ok(completed) = reload.banners.probe(port, readiness.probe_timeout)
                 && completed.status == 0
                 && has_host_key(&completed.output)
             {
@@ -115,7 +119,7 @@ fn banner(ports: &mut SshReload<'_>, readiness: &SshReadiness, probe_ports: &[u1
             }
         }
         if attempt + 1 < readiness.attempts && !readiness.interval.is_zero() {
-            (ports.pause)(readiness.interval);
+            (reload.pause)(readiness.interval);
         }
     }
     None

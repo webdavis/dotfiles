@@ -2,26 +2,26 @@ use super::*;
 use posture_domain::{SshTreeChange, ssh_ports};
 
 pub(super) fn run(
-    ports: &mut SshReload<'_>,
+    reload: &mut SshReload<'_>,
     output: &mut SshOutput<'_>,
 ) -> Result<(Vec<SshRecord>, Vec<u16>), String> {
-    let prime = ports.files.prime();
+    let prime = reload.files.prime();
     if !succeeded(&prime) {
         return Err(format!(
             "privilege escalation is unavailable: {}. This is not a statement about the sshd service.",
             command_failure(prime)
         ));
     }
-    if !ports.banners.available() {
+    if !reload.banners.available() {
         return Err("the readiness prover is not runnable; refusing to kickstart blind.".into());
     }
-    let before = ports.tree.observe().map_err(|error| {
+    let before = reload.tree.observe().map_err(|error| {
         format!(
             "could not read the configuration tree before validation: {}.",
             super::super::verify::tree_failure(error)
         )
     })?;
-    let syntax = ports.sshd.syntax();
+    let syntax = reload.sshd.syntax();
     if !succeeded(&syntax) {
         return Err(format!(
             "the configuration's syntax check did not pass: {}; refusing to restart onto it.",
@@ -34,11 +34,11 @@ pub(super) fn run(
     {
         let _ = output.stderr.write_all(&completed.output);
     }
-    let verification = (ports.verify)();
+    let verification = (reload.verify)();
     if !output.verification(&verification) {
         return Err("the effective configuration is not fully hardened (the verify failures are above); refusing to restart onto it.".into());
     }
-    let completed = ports.sshd.global();
+    let completed = reload.sshd.global();
     if !succeeded(&completed) {
         return Err(format!(
             "could not resolve the effective sshd port: {}; refusing to restart blind.",
