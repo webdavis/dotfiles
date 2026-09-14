@@ -136,7 +136,8 @@ Its tier is `core` for a mechanical reason, not a preference. An `on-demand` rea
 through: `live-reconcile.sh` appends the Codex policy to `agents/openai.yaml`, and uu's live overlay pass
 reasserts it. composio ships its own `agents/openai.yaml` and rewrites the whole directory on every
 upgrade, so that would be this repo editing app-owned content on a loop. `core` reaches neither writer,
-which leaves composio-cli implicitly invocable in Codex, the same documented asymmetry `cua-driver` has.
+which leaves composio-cli implicitly invocable in Codex and model-invocable in Claude Code, one harness
+wider than `cua-driver`'s Codex-only asymmetry.
 
 ### Graphify in Claude Code
 
