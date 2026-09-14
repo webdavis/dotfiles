@@ -2721,8 +2721,10 @@ S286. `[nag] stale_after_secs` is the switch and the window: 60 to 86400 arms it
            at crates/pns-adapters/src/config/tests/nag.rs
       also `an_escalation_window_that_is_not_a_count_of_seconds_is_refused_by_name`
            at crates/pns-adapters/src/config/tests/nag.rs
-      also `core_and_armed_lights_defaults_are_written_live_never_commented`
-           at crates/pns-adapters/src/config/render/tests/defaults.rs
+      also `test_the_binary_over_the_committed_values_file_writes_the_committed_template_exactly`
+           at test/unit/pns-config-template.test.sh (the shipped template carries the live line, so a
+           `Default` flipped to an `Example` fails the byte comparison; the render tests beside it read
+           the PARSED config, which cannot tell a live default from a commented one that matches)
 
 S287. Every state in `pulse::LAMP_BLOCKED` records `blocked_since` on the session's row and registers
       one leased job `stale:<session>` with `due = now + window`, `until = due + window`, no
