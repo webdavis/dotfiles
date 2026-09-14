@@ -1,6 +1,7 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- /*
-  Selective field control for ~/.claude.json (composio + workspace-mcp).
+  Selective field control for ~/.claude.json (the MCP servers this repo
+  declares; every other field passes through).
 
   Why: `claude mcp add` writes secrets in plaintext to ~/.claude.json.
   Vaulting via KeePassXC keeps secrets out of git and lets them rotate

@@ -20,7 +20,7 @@
                  says: the model and reasoning settings, the sandbox and
                  approval policy, notify, tui.vim_mode_default, [features],
                  [memories], the three git [marketplaces.*] identities, and the
-                 five MCP servers this repo declares.
+                 MCP servers this repo declares.
     FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
                  own [desktop] block and the MCP servers it injects, the
                  [plugins.*] roster, tui.model_availability_nux, the
@@ -147,7 +147,7 @@
        drifting freely. --- */ -}}
 {{- $merged = setValueAtPath (list "plugins" "babysitter@babysitter" "enabled") false $merged -}}
 
-{{- /* --- stable: the five MCP servers this repo declares, whole entry each,
+{{- /* --- stable: the MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three
        of them carry the secrets, which come from KeePassXC at apply time and
        are the reason this target needs the vault unlocked.
