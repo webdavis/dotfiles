@@ -159,7 +159,7 @@ Then the hermes key is `None`, `digest_as_thread` is forced `false`, and every o
 - Idempotency and duplicates: the config is read once per recap process.
 - Privacy: the `[plugins.hermes.keys] <route>` is read here and used only to sign the POST
   (`src/channels/hermes.rs:sign`). It is never placed in a prompt, never passed to `gh`, and never
-  printed: `hermes_secret` returns it and `deliver_recap` hands it to `dispatch_legs` alone
+  printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
 - Process ownership and cleanup: none.
 - Compatibility contract: `repos` unset and `review_notes` unset are the WORKING settings, not degraded
