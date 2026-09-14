@@ -76,7 +76,7 @@ sanitize() {
 }
 
 # sanitize_span <text> -- sanitize, then wrap in a Discord inline-code span:
-# the same chokepoint treatment render-page.sh gives attacker-influenceable
+# the same chokepoint treatment the posture page gives attacker-influenceable
 # fields (backticks stripped so the span cannot be broken out of, newlines and
 # tabs squashed, length-capped, wrapped in backticks). Character-stripping
 # alone leaves markdown STRUCTURE intact -- emphasis, [links](...), @mentions
@@ -949,7 +949,7 @@ sl_to_text() {
 # A trusted baseline exists: page CRIT only on a protection turning OFF or a
 # declared control leaving its declared value. A re-enable (a return to the
 # declared/on state) is good news, not actionable, and there is no notice
-# channel, so it is silent. Each block mirrors the results-alerter
+# channel, so it is silent. Each block mirrors the posture page's
 # protection-off shape: bold header, Was/Now state, then a decision-first next
 # step.
 crit_blocks=()
