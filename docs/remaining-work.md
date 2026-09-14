@@ -5323,6 +5323,21 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   (`76b37ae4`). The local integration branch also has nine additional commits. Preserve that history and
   carry the two reviewed Forzare documents onto current main in an isolated branch, then review the final
   diff and explicitly supersede or update #51. Do not merge the old integration branch as a shortcut.
+  Done on 2026-09-14 as PR #615 (branch docs/forzare-canon-on-main, open, waiting for the operator): the
+  two documents at PR #51's head 67ff1c0b,
+  docs/superpowers/specs/2026-07-11-bob-executive-assistant-design.md and
+  docs/superpowers/plans/2026-07-11-bob-executive-assistant.md, copied byte for byte onto a branch off
+  main (blob ids identical, 2 files, 7189 insertions, matching #51's own count); PR #51 and the forzare
+  worktree were left untouched. Operator step: review #615, then close #51 in its favor or say what to
+  change; no apply. For the reverify step (task 51 proper), 55 stale lines in 7 classes were listed and
+  NOT edited: Bats and \*.bats (spec 3107, 3155; plan 121, 649, 655, 670, 672, 673, 682, 840, 841, 865,
+  3859, 3913), `nix develop ... bats` (plan 840), scripts/lint.sh and its helpers (plan 29, 668, 669,
+  839, 3030, 3159, 3160), dot_hermes/ instead of private_dot_hermes/ (spec 2724, 3164; plan 29, 38, 40,
+  361, 440, 452, 538, 539, 542, 555, 886, 907, 1119, 2022, 2033, 2070, 3025, 3038, 3927), dot_local/bin/
+  for launchd-run scripts instead of dot_local/libexec/ (spec 3155; plan 29, 38, 243, 251, 347, 350, 663,
+  839, 864, 3028, 3114, 3175, 3229, 3912), the old uptime-watchdog path (plan 3034, 3060), and the
+  pre-commit gate named as lint-check plus test where main runs test-unit plus gitleaks (plan 114, 3218).
+  No paseo or tmux reference remains; the `relay` mentions read as a rename to pns.
 - [ ] Let Bob consume vpp's transcripts, metadata and briefs for meeting preparation. Keep provenance and
   unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
   Decide whether Bob supplies optional calendar/Todoist context or vpp reads it directly during design.
