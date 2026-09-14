@@ -15,6 +15,8 @@ mod records;
 mod returns;
 mod rows;
 mod scalar;
+mod sessions;
+pub use sessions::SessionNote;
 mod settings;
 mod store;
 pub use store::SqliteStore;

@@ -630,7 +630,8 @@ Given an enabled `[plugins.hermes]` table with a non-empty `key`
 
 When `HermesChannel::deliver` runs
 
-Then it builds `{"agent", "state", "project", "detail": <full message>}`, signs the exact body bytes with
+Then it builds `{"agent", "state", "project", "detail": <full message>, "header", "subheader",
+"body": <the bare detail>, "thread_id": ""}`, signs the exact body bytes with
 a hash-based message authentication code (HMAC) over SHA-256 under the key, sends it as lowercase hex in
 the `X-Webhook-Signature` header, and converts the outcome into a `Delivery` whose sentence names what
 happened.

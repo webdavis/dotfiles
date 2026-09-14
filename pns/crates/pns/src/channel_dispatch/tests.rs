@@ -216,6 +216,29 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
     }
 }
 
+/// THE PHONE CARD IS UNCHANGED BY THE SENDER HEADER. An iOS notification
+/// title shows roughly forty characters, and
+/// `dotfiles · feat/pns-sender-header · blocked` is already past that, so a
+/// header in the card title would cut off the one word the card exists to
+/// deliver.
+#[test]
+fn the_card_title_stays_agent_state_project_while_the_sender_parts_ride_along() {
+    let event = EventArgs {
+        agent: "claude".into(),
+        state: "blocked".into(),
+        project: "dotfiles".into(),
+        branch: "feat/pns-sender-header".into(),
+        detail: "Bash(git push) needs approval".into(),
+        session: "a1b2c3d4-dead-beef".into(),
+        session_title: "arm posture alert".into(),
+        ..EventArgs::default()
+    };
+    let rendered = rendered_event(&event, false);
+    assert_eq!(rendered.title, "claude · blocked · dotfiles");
+    assert_eq!(rendered.session, "a1b2c3d4-dead-beef");
+    assert_eq!(rendered.session_title, "arm posture alert");
+}
+
 #[test]
 fn rendering_drops_only_the_refused_pane_and_preserves_the_event_text() {
     let event = EventArgs {

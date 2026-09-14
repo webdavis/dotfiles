@@ -457,7 +457,9 @@ S048. A payload that is not UTF-8 fails the string read, and the hook returns 0 
            at tests/hooks.rs:966
 
 S049. Every payload field is optional and a document that will not parse is `HookPayload::default()`;
-      `in_subagent` records whether the `agent_id` KEY was present, whatever its value.
+      `in_subagent` records whether the `agent_id` KEY was present, whatever its value. `prompt` and
+      `session_title` ride on `UserPromptSubmit` and are read flattened, because both compose the
+      header's second line; Codex sends neither.
       Source: `src/hooks.rs:14-77 HookPayload`, `src/hooks.rs:80-129 parse_payload`.
       Pin: `a_payload_yields_every_field_the_hooks_read`
            at src/hooks.rs:390
@@ -465,6 +467,8 @@ S049. Every payload field is optional and a document that will not parse is `Hoo
            at src/hooks.rs:453
       also `a_present_agent_id_of_any_shape_marks_a_subagent_and_absence_does_not`
            at src/hooks.rs:411
+      also `a_user_prompt_yields_the_prompt_and_the_harnesss_own_session_title`
+           at crates/pns-adapters/src/harness/tests/payload.rs
 
 S050. The card's message is the first non-empty of `elicitation_request`, flattened `message`,
       flattened `detail`, `reported_error`, with `tool_request` as the fallback; three of those are cut
@@ -590,12 +594,22 @@ S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-g
       also `the_condensers_last_usable_line_wins`
            at src/hooks.rs:841
 
-S059. `stop`: `branch` comes from `git rev-parse --abbrev-ref HEAD` in the payload's `cwd` under a 5 s
-      bound, `project` is the last segment of `cwd`, `pane` is `HERDR_PANE_ID` verbatim, and the event
-      never reaches moshi.
-      Source: `src/main.rs:2299-2324 git_branch`, `src/main.rs:2092-2140 end_of_turn`.
+S059. `stop`: `project` and `branch` come from ONE bounded `git rev-parse --path-format=absolute
+      --git-common-dir --show-toplevel --abbrev-ref HEAD` in the payload's `cwd`, so a linked
+      worktree reports the REPOSITORY rather than its branch slug; `project` falls back to the last
+      segment of `cwd` outside a repository, the branch slot falls back to the worktree's own
+      directory name on a detached head, `pane` is `HERDR_PANE_ID` verbatim, and the event never
+      reaches moshi.
+      Source: `crates/pns-adapters/src/git.rs git_checkout`, `crates/pns/src/sender.rs attribution`,
+      `crates/pns/src/turn_lifecycle.rs end_of_turn`.
       Pin: `the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downstream`
            at tests/hooks.rs:235
+      also `the_repository_comes_off_the_common_directory_so_a_worktree_is_not_the_project`
+           at crates/pns-adapters/src/git/tests.rs
+      also `a_detached_head_takes_the_worktree_directory_name_for_its_branch_slot`
+           at crates/pns-adapters/src/git/tests.rs
+      also `a_real_repository_answers_its_own_name_and_branch`
+           at crates/pns-adapters/src/git/tests.rs
       also `an_ordinary_stop_never_reaches_moshi`
            at tests/hooks.rs:1606
 
@@ -858,7 +872,8 @@ S082. A forwarded gate preserves existing marker bytes and creates no state-dire
       Pin: `a_forwarded_gate_leaves_the_state_markers_untouched` in `tests/hooks/gate.rs`.
       UNPINNED: Codex's interpretation of the exit code, recorded in `docs/specs/blocking-approval.md`.
 
-S083. The blocked hook's card is state `blocked`, project from the payload's `cwd`, detail from the
+S083. The blocked hook's card is state `blocked`, project from the repository the payload's `cwd`
+      belongs to (S059), detail from the
       message chain (`Bash: command=rm -rf /tmp/x` for Claude Code, `shell: command=bash -lc rm -rf
       build` for Codex), pane from `HERDR_PANE_ID`.
       Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:2745 project_of`.
@@ -1386,10 +1401,11 @@ S125. The exact core-fallback sentence is not asserted on the event path.
       Source: `src/registry.rs:396-407 core_warning`.
       Pin: UNPINNED. Only the pulse-mode test covers an unreadable config end to end.
 
-S126. Every leg is handed one rendered `Event { agent, state, project, branch, detail, title, message,
-      preview, pane }`, serialized with `mode` as the tenth, per-leg field; the title is `agent ·
-      state · project`, the message falls back detail, state, `done`, and the branch prefix is
-      `branch: body`.
+S126. Every leg is handed one rendered `Event { agent, state, project, branch, detail, title,
+      session, session_title, message, preview, pane }`, serialized with `mode` as the tenth,
+      per-leg field (the two session fields are the sender header's, carried for the channels that
+      render one and left out of that serialization); the title is `agent · state · project`, the
+      message falls back detail, state, `done`, and the branch prefix is `branch: body`.
       Source: `src/main.rs:3532 rendered_event`, `src/channels/mod.rs:21-52 Event`,
       `crates/pns-domain/src/render.rs:15 title`, `crates/pns-domain/src/render.rs:42 message`.
       Pin: `a_channel_is_handed_the_rendered_event_not_the_raw_arguments`
@@ -1410,6 +1426,8 @@ S126. Every leg is handed one rendered `Event { agent, state, project, branch, d
            at crates/pns-domain/src/render/tests.rs:55
       also `message_falls_back_to_the_state_when_there_is_no_detail`
            at crates/pns-domain/src/render/tests.rs:60
+      also `the_card_title_stays_agent_state_project_while_the_sender_parts_ride_along`
+           at crates/pns/src/channel_dispatch/tests.rs
 
 S127. The preview is the message up to 260 characters, cut at the last sentence end that fits, else
       clipped to 259 plus an ellipsis; the reply cap is 8,000 characters keeping the tail; exactly
@@ -1576,14 +1594,26 @@ S140. A missing or empty token posts nothing and is `Failed("push SKIPPED -- no 
 
 ### 6.3 `hermes`
 
-S141. The hermes record is one POST of `{"agent", "state", "project", "detail": <full message>}` signed
-      HMAC-SHA256 over the exact body bytes under `[plugins.hermes] key`, sent as lowercase hex in
+S141. The hermes record is one POST of `{"agent", "state", "project", "detail": <full message>,
+      "header", "subheader", "body": <the bare detail>, "thread_id": ""}` signed HMAC-SHA256 over the
+      exact body bytes under `[plugins.hermes] key`, sent as lowercase hex in
       `X-Webhook-Signature`, following no redirect; the key never rides in the body, the URL or any
-      printed line.
+      printed line. `header` is `project · branch · state` and `subheader` is `agent · <four
+      characters of the session> · title`, each dropping an empty part with its separator, and every
+      key is present on every post because the gateway's renderer has no conditionals: `thread_id`
+      is posted empty until hermes can hand back a thread it created.
       Source: `src/channels/hermes.rs:48 hermes_body`, `src/channels/hermes.rs:60 sign`,
       `src/channels/hermes.rs:212-252 HermesChannel`, `src/channels/hermes.rs:253-286 UreqSignedPost`.
       Pin: `the_body_carries_the_full_message_because_discord_has_no_ceiling`
            at src/channels/hermes.rs:352
+      also `every_header_key_is_present_on_an_event_that_knows_no_session`
+           at crates/pns-adapters/src/destinations/hermes/tests/values.rs
+      also `the_two_composed_lines_ride_beside_the_bare_body`
+           at crates/pns-adapters/src/destinations/hermes/tests/values.rs
+      also `the_header_names_the_project_the_branch_and_the_state`
+           at crates/pns-domain/src/render/tests.rs
+      also `the_subheader_drops_an_empty_title_with_its_separator`
+           at crates/pns-domain/src/render/tests.rs
       also `the_signature_matches_the_published_hmac_sha256_vector`
            at src/channels/hermes.rs:365
       also `the_empty_and_unicode_bodies_match_openssls_own_hmac`

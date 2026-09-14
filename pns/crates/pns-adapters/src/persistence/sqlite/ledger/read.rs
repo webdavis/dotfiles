@@ -23,8 +23,12 @@ pub(super) fn record(
         "SELECT producer, request_id, agent, state, project, branch, detail, title, message, preview, pane, producer_request
          FROM ledger_events WHERE seq = ?1", [sequence], |row| Ok((
             SubmissionIdentity { producer: row.get(0)?, request_id: row.get(1)? },
+            // NO SESSION IN THE LEDGER, and the retry path is the only reader
+            // here: a retried post's header line is composed from the project,
+            // branch and state above, and its dim line names the agent alone.
             Event { agent: row.get(2)?, state: row.get(3)?, project: row.get(4)?, branch: row.get(5)?,
-                detail: row.get(6)?, title: row.get(7)?, message: row.get(8)?, preview: row.get(9)?, pane: row.get(10)? },
+                detail: row.get(6)?, title: row.get(7)?, message: row.get(8)?, preview: row.get(9)?, pane: row.get(10)?,
+                session: String::new(), session_title: String::new() },
             row.get(11)?
         )),
     )?;

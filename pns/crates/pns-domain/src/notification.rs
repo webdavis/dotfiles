@@ -15,6 +15,11 @@ pub struct Event {
     pub branch: String,
     pub detail: String,
     pub title: String,
+    /// The harness session this event belongs to, for a channel that says
+    /// WHICH session sent it. Empty on every path with no session.
+    pub session: String,
+    /// What that session was asked to do, read back from the sessions store.
+    pub session_title: String,
     pub message: String,
     pub preview: String,
     pub pane: String,
@@ -43,6 +48,12 @@ pub struct EventArgs {
     /// (alert) route. Names, not URLs: the caller says WHERE, the config
     /// says HOW to get there.
     pub channel: String,
+    /// The harness session this event belongs to, as the payload named it.
+    /// Empty on every path with no session: argv, a producer submission, a
+    /// job the daemon woke.
+    pub session: String,
+    /// What that session was asked to do, already stored and read back.
+    pub session_title: String,
     pub scope: crate::DeliveryScope,
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.

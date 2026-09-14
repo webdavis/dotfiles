@@ -171,3 +171,5 @@ mod consumer_start;
 mod decision_outcomes;
 
 mod write_reports;
+
+mod sessions;

@@ -21,7 +21,26 @@ use std::time::Duration;
 pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns";
 
 /// The gateway body carries the original request id, agent, state, project
-/// and the FULL message as detail, because Discord has no preview ceiling.
+/// and the FULL message as detail, because Discord has no preview ceiling,
+/// plus the two composed header lines and the bare body they head.
+///
+/// EVERY KEY IS ALWAYS PRESENT. The gateway renders `{key}` from the posted
+/// body with no conditionals, so a key a body omits reaches the channel as
+/// the literal text `{key}`; `thread_id` is therefore posted empty until
+/// hermes can hand back a thread it created. The original five keys stay, so
+/// a route nobody has retemplated keeps rendering.
+///
+/// THE TWO LINES ARE COMPOSED HERE, off the event's own parts, because this
+/// is the one destination that renders them. A RETRY IS WHY THAT MATTERS:
+/// the retry loop rebuilds its event out of the ledger row alone, which
+/// carries the project, branch, state and agent, so a retried post's first
+/// line is byte for byte the one the first attempt sent. The ledger keeps no
+/// session, so a retried dim line names the agent alone rather than the
+/// session and its title; adding a session column to the delivery ledger is
+/// deliberately out of scope (design, 2026-09-14). The nag's coalesced
+/// nudge names the agent alone for a different reason, and deliberately: it
+/// stands for every outstanding approval at once, so naming one of their
+/// sessions would say something false.
 pub fn hermes_body(event: &Event, request_id: &str) -> String {
     body_with_id(event, Some(request_id))
 }
@@ -32,6 +51,16 @@ fn body_with_id(event: &Event, request_id: Option<&str>) -> String {
         "state": event.state,
         "project": event.project,
         "detail": event.message,
+        "header": pns_domain::render::header(&event.project, &event.branch, &event.state),
+        "subheader": pns_domain::render::subheader(
+            &event.agent,
+            &pns_domain::render::short_session(&event.session),
+            &event.session_title,
+        ),
+        // The BARE detail, because `detail` above keeps the branch prefix the
+        // banner needs and the header already names the branch.
+        "body": event.detail,
+        "thread_id": "",
     });
     if let Some(id) = request_id {
         body["request_id"] = serde_json::json!(id);

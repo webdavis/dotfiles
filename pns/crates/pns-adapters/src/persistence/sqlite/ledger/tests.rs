@@ -29,6 +29,7 @@ fn submission() -> LedgerSubmission {
             message: "message".into(),
             preview: "preview".into(),
             pane: "pane".into(),
+            ..Event::default()
         },
         legs: vec![
             LedgerLeg {

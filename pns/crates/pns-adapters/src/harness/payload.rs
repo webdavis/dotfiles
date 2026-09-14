@@ -63,6 +63,16 @@ pub struct HookPayload {
     /// matcher vocabulary; only the three `quota_auto_resume_*` values are
     /// routed anywhere today, and every other value is silence.
     pub notification_type: String,
+    /// What the operator asked for, on a `UserPromptSubmit` event. FLATTENED
+    /// like every other string a rendered line is built from: this one names
+    /// the session in the header's second line, and a pasted multi-line
+    /// prompt must not become two Discord lines.
+    pub prompt: String,
+    /// The harness's own name for this session. Claude Code 2.1.270 sends it
+    /// on `UserPromptSubmit` and on `SessionStart`, and its own schema
+    /// comment says a payload may omit it while the field rolls out, so
+    /// empty is an ordinary state; Codex sends neither this nor `prompt`.
+    pub session_title: String,
     /// A `ConfigChange` event's own file, when the harness names one. RAW and
     /// UNFLATTENED, unlike `message`: it identifies a path rather than
     /// composing a rendered line, so the config-change arm sanitises it
@@ -118,6 +128,8 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         to_model: text("to_model"),
         source: text("source"),
         notification_type: text("notification_type"),
+        prompt: flattened(&text("prompt")),
+        session_title: flattened(&text("session_title")),
         file_path: text("file_path"),
     }
 }
