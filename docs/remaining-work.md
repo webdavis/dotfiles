@@ -405,7 +405,24 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   `docs/runbooks/claude-code-settings.md`. Operator steps left: `chezmoi apply`,
   `claude plugin update pns@pns`, restart Claude Code; then `/pns:work-recap` exists. (2) and (3) remain.
   Schedule (1) with the next Workflow round and (2) and (3) after the posture queue (#552, #549, #548,
-  #553) clears, and before gnhf's first unattended night.
+  #553) clears, and before gnhf's first unattended night. (2) and (3) shipped together 2026-09-14 on
+  `feat/pns-recap-agent` in [PR #604](https://github.com/webdavis/dotfiles/pull/604)
+  (`feat(pns): add recap agent --stdin and recap git`, merged): `pns recap agent --stdin` reads the
+  markdown recap an agent composed, sanitizes it through the shared `sanitize::printable_line` filter,
+  fits it under the same 1,800-character ceiling the night recap posts under (shedding whole sections in
+  a fixed order, `User Tasks` never shed), and delivers it through the unchanged `post_return_recap`
+  (posts to `pns-recap`, falls back once to the default route with an explaining line). `pns recap git`
+  prints the Git block and, in one fenced block, the stack graph and file list, resolving the pull
+  request through `gh-axi pr list --head` (gh-axi's `pr view` has no `--json` and no branch form) and the
+  stack from git ancestry, since neither worktrunk nor `gh-axi stack` can answer it here. Both behaviors
+  are written into `pns/docs/specs/return-recap.md`, and the work-recap skill and the shared agent rules
+  now call these commands instead of saying they are not built; the pns plugin moved to 0.3.0.
+  Twenty-five new tests, `just lint-check`, `just test-unit`, both template renders and a live
+  `pns recap git` run all passed. Operator steps left: `chezmoi apply`, `claude plugin update pns@pns`,
+  restart Claude Code, confirm the `pns-recap` hermes route is configured, then run `/pns:work-recap`
+  once and confirm the recap lands in `#pns-recap`. Open question left for the operator: `pns-adapters`
+  now shells `npx -y gh-axi` while the sibling `recap/merges.rs` shells `gh` directly, so the two
+  adapters disagree about which GitHub CLI they depend on; needs a ruling on which one moves.
 
 ### STOP POINT C
 
@@ -669,7 +686,14 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   authorize task 74. With task 71b, measure trigger-to-confirmation and trigger-to-failure on the actual
   phone and Mac, including locked, sleeping, unavailable and remote-network cases. Network wake is
   conditional; do not promise that a request wakes the Mac. The acceptable latency and failure-feedback
-  deadline still require operator acceptance. No device state was changed in this investigation.
+  deadline still require operator acceptance. No device state was changed in this investigation. The
+  latency measurement protocol was written 2026-09-14 in
+  [PR #598](https://github.com/webdavis/dotfiles/pull/598) into the same
+  `pns/docs/pns-tap-device-acceptance.md`: trigger-to-confirmation and trigger-to-failure across four
+  cases (Mac locked, Mac sleeping, Mac unavailable, phone on a remote network), five trials each, timed
+  by phone screen recording and the Clock stopwatch, with `pns tap --info --json` offered as an optional
+  read-only split. The file states no latency deadline is accepted until the tables are filled. Operator
+  steps left: run the trials and accept or reject a deadline from the numbers.
 
 ## Tool-wide output flags
 
@@ -709,7 +733,13 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   bare path) and gained `touched_at` in RFC 3339 UTC, with the whole field table, the null cases under
   `--install` and on early failures, and the undo (delete the marker; the 0700 state directories stay)
   written into `pns/docs/pns-tap-apple-shortcut.md`. Left open, operator-device work: verify sleep and
-  wake behavior of the Mac against the Shortcut.
+  wake behavior of the Mac against the Shortcut. That drill was written 2026-09-14 in
+  [PR #598](https://github.com/webdavis/dotfiles/pull/598)
+  (`docs(pns): tap device acceptance drills and corrected shortcut instructions`, merged) into
+  `pns/docs/pns-tap-device-acceptance.md`: the three Mac readings, the four states (awake, asleep with
+  network wake possible, asleep without it, off) with their exact Mac and phone steps and expected
+  Shortcut result, a recording table, and the four reasons network wake is conditional. Operator steps
+  left: run the four states on the devices and fill the table.
 
 - [x] 72. `[phone] marker_file` makes the path configurable, defaulting to today's
   `$HOME/.local/state/pns/phone-attention.marker`, with `PNS_PHONE_MARKER_FILE` still winning over it so
@@ -723,7 +753,15 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   and feed success or failure from the command into an accurate confirmation of the resulting surface.
   Update the actual Shortcut first, then its verbatim record in `pns/docs/pns-tap-apple-shortcut.md`.
   Verify setup and a real tap on the operator's devices, including an unavailable Mac and a write
-  failure.
+  failure. The corrected instructions were drafted 2026-09-14 in
+  [PR #598](https://github.com/webdavis/dotfiles/pull/598) into `pns/docs/pns-tap-apple-shortcut.md` as a
+  section marked NOT YET SHIPPED, leaving the verbatim records of what currently ships untouched: it
+  corrects the three global variables and four fields on the Run Script Over SSH action, and wires the
+  confirmation to the command's own result (`pns tap` prints one line on stdout and exits zero when it
+  records; a failure prints on stderr and exits non-zero) instead of to fixed text. Operator steps left:
+  make the two edits on the phone (the Comment text and the notification body), verify a real tap
+  including an unavailable Mac and a write failure, then promote the drafted blocks into the verbatim
+  records and delete the pending section.
 
 ## SSH exposure (not a pns task)
 
@@ -733,7 +771,42 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   installed `/System/Library/LaunchDaemons/ssh.plist`. Investigate that ownership and available controls
   before choosing the change. Preserve recovery access, review the exact activation and rollback with the
   operator, then verify allowed and disallowed reachability over IPv4 and IPv6, the listener state, a
-  real SSH login and a real phone tap. Do not infer network isolation from `sshd -T` alone.
+  real SSH login and a real phone tap. Do not infer network isolation from `sshd -T` alone. The measured
+  proposal behind this task landed 2026-09-14 in [PR #600](https://github.com/webdavis/dotfiles/pull/600)
+  (`docs(specs): ssh tailnet-only exposure proposal`, merged) at
+  `docs/superpowers/specs/2026-09-14-ssh-tailnet-only-proposal.md`. Task 75 shipped 2026-09-14 on
+  `feat/ssh-refuse-outside-tailnet`, option A of that proposal, in
+  [PR #609](https://github.com/webdavis/dotfiles/pull/609) (merged `68dcc1e2`): the managed sshd drop-in
+  gained one `Match LocalAddress "!127.0.0.0/8,!::1,!100.64.0.0/10,!fd7a:115c:a1e0::/48,*"` block with
+  `RefuseConnection yes` in both generators (the posture template and `ssh-hardening.sh`'s `print_config`
+  heredoc), byte-identical by a new test. Both verifiers gained a fourth check that resolves one
+  `sshd -G -T -C` sample per arrival address, six of them, confirmed against the real OpenSSH 10.0p2
+  binary, including proving the loop by dropping the tailnet IPv6 negation and watching the sample fail.
+  The quickstart runbook records the rule, its ceiling (launchd owns the listening socket, so the port
+  stays open and only a real ssh attempt tests the refusal), the console recovery path, and four
+  acceptance checks runnable from the Mac itself.
+
+  Deployed 2026-09-14 ~12:00 UTC with the operator's prior approval: `posture ssh install`, `verify` and
+  `reload` (built from main at `68dcc1e2`) all exit 0; verify reports all 7 protected directives holding
+  and all 6 sampled arrival addresses resolving the demanded verdict; the previous drop-in is backed up
+  at `~/workspaces/backups/2026-09-14T11-52-54.000-ssh-hardening-conf.backup.conf`. Checks from the Mac:
+  `ssh stephen@192.168.1.26 true` ends with "Connection closed by 192.168.1.26 port 22" (refused, as
+  intended); the link-local IPv6 attempt likewise ends with "Connection closed by fe80::...%en0 port 22";
+  `ssh stephen@100.77.192.92 true` reaches key authentication ("Permission denied (publickey)", so the
+  tailnet arrival is admitted; the agent's own key is not in authorized_keys, which is unrelated to the
+  rule); the tailnet IPv6 self-address times out at TCP connect from this Mac itself, before any sshd
+  exchange, so that half is proven only by the sshd -G -T -C resolve table in the PR. Remaining for the
+  operator: one real phone tap after confirming the Shortcut's Hostname global variable is 100.77.192.92
+  or the MagicDNS name, not 192.168.1.26; expect one file-integrity alert naming the drop-in.
+
+  Open questions left: (1) LOUD, unconfirmed: the pns tap Shortcut's `Hostname` global variable was not
+  read from the repository (it lives only on the phone), so if it still holds the LAN address or a
+  `.local` name, the phone tap stops working the instant the drop-in deploys; read and move it to
+  `100.77.192.92` or the MagicDNS name before relying on the tap. (2) Whether `RefuseConnection` should
+  join the tree Match scan's keyword set, since a later or earlier `Match LocalAddress` block setting
+  `RefuseConnection no` for an address none of the six samples names would pass every check today; left
+  out of scope, worth a follow-up task. (3) The refused IPv6 check uses en0's link-local address because
+  en0 carries no routable IPv6 on this network; move it to a routable address if that ever changes.
 
 ## posture foundation
 
@@ -1009,7 +1082,10 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   funnel binary through the shared executable check (`4ea6e8b9`), pin the exposure sort, the worst case
   and the executable arms (`4cb11f21`), and read a disabled funnel timeout as no limit rather than a
   failure (`c50f95d6`). It matters because #575 already points the tailscale-monitor LaunchAgent at
-  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes.
+  `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes. That pull
+  request merged 2026-09-14 as [PR #587](https://github.com/webdavis/dotfiles/pull/587)
+  (`fix(posture): carry the reviewed funnel fixes to main`), carrying all five fix commits to main in
+  their original order.
 - [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1358,6 +1434,24 @@ The planned Rust lanes are implemented. The following deployment check remains.
   registrations with an ancestry-only merged column that reads 12 of the 54 as unmerged when their
   content is in main. Use the 57h verdict column for that question and the task 68 file for the rest.
 
+- [ ] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
+  [PR #605](https://github.com/webdavis/dotfiles/pull/605)
+  (`feat(worktrees): sweep merged, clean worktrees through herdr`, merged), not a numbered task.
+  `dot_local/libexec/executable_prune-merged-worktrees.sh`, deployed to
+  `~/.local/libexec/prune-merged-worktrees.sh`, walks `git worktree list --porcelain`, joins it against
+  `herdr worktree list` for a workspace id when `HERDR_ENV` is set, and after a `git fetch --prune`
+  removes every linked worktree whose HEAD is an ancestor of `origin/main` and whose tree is clean apart
+  from `graphify-out/graph.json`. A registered checkout goes through `herdr worktree remove --force` so
+  the sidebar row leaves with the directory; an unregistered one through `git worktree remove --force`.
+  Detached HEADs, unmerged branches, dirty trees and the worktree the run is standing in are kept and
+  print the reason; `--dry-run` reports the same decisions and removes nothing; no branch is ever
+  deleted. `just worktrees-prune` runs it. Eight bashunit behaviors pin the decisions, and the shared
+  agent ruleset now tells agents a lane's worktree is removed through herdr once its pull request has
+  merged, with this recipe as the sweep. A live dry run reported six merged, clean worktrees. Operator
+  steps left: run a full `chezmoi apply` (KeePassXC unlocked), then `just worktrees-prune --dry-run`
+  followed by `just worktrees-prune` for real, confirming no session is still using a listed worktree
+  first since the sweep cannot detect that itself.
+
 - [x] 57j. Espanso `,,ee` for `echo $?` (operator request 2026-09-14):
   [PR #565](https://github.com/webdavis/dotfiles/pull/565) (`feat/espanso-echo-exit-status`) adds the
   match to the Commands section of `snippets.yml`; merged 2026-09-14 (`1fdfb288`) and deployed by the
@@ -1419,7 +1513,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   without the prompt and the live file has zero drift from the source afterwards. A plugin update that
   changes the row brings the prompt back once; copy the new line into the source then.
 
-- [ ] 57i. The post-commit graphify hook races the pre-push lint gate. Seen twice on 2026-09-14 (scalebar
+- [x] 57i. The post-commit graphify hook races the pre-push lint gate. Seen twice on 2026-09-14 (scalebar
   and espanso pushes made right after their commit): `chezmoi execute-template` in
   `shellcheck-rendered-template` aborts with
   `lstat .../graphify-out/cache/ast/<hash>.tmp: no such file or directory` because the hook is still
@@ -1437,7 +1531,21 @@ The planned Rust lanes are implemented. The following deployment check remains.
   failing tests) on unrelated Rust process/signal-timing tests (the hue bridge deadline test,
   posture-adapters closed-pipe/grace/signal deadline tests) under confirmed heavy machine load (load
   average 40.43, 5 concurrent cargo/agent processes); the branch diff touches no Rust code. Ready to
-  resume `just ship` once load subsides.
+  resume `just ship` once load subsides. The `fix/graphify-push-race` branch above was abandoned in favor
+  of a cleaner root-cause finding, shipped 2026-09-14 in
+  [PR #597](https://github.com/webdavis/dotfiles/pull/597)
+  (`docs(git-hooks): document the graphify rebuild vs push-gate race`, merged): neither hook caused the
+  failure. `treefmt` already excludes `graphify-out/**`; the real walker was `chezmoi execute-template`
+  inside `shellcheck-rendered-template`, which reads the whole chezmoi source state before rendering, and
+  `.chezmoiignore` filters deploy targets, not that walk. Main already carried the fix, a shallow source
+  view in `scripts/treefmt/lib-render-context.sh` that lstats top-level symlinks instead of descending
+  into them; both failed pushes came from worktrees branched before that landed. This pull request
+  documents the finding in `docs/runbooks/git-hooks.md` and extends
+  `test/unit/formatter-render-context.test.sh` with a mode-000 `graphify-out/cache/ast` fixture standing
+  in for the race, since a walk that descends cannot open it on any run. `just ship` passed clean. Known
+  limit recorded rather than fixed: eleven unit tests still hand chezmoi the real checkout as `--source`,
+  so the same churn can still redden `just test-unit`; routing them through the shared render-context
+  helper is not a drop-in since several set their own `HOME` and `EXIT` trap.
 
 ## posture cleanup
 
@@ -1589,7 +1697,11 @@ producer.
 - [ ] 62. lights PR 12: move all seven aerospace keys F4 to F10 to `~/.cargo/bin/lights`. Five still call
   Bash and two call OpenHue directly. Complete the three remaining command/hardware drills, then verify
   actual key presses and held-key behavior after apply. Retire the script and propose manual cleanup of
-  its deployed copy and obsolete logs after acceptance.
+  its deployed copy and obsolete logs after acceptance. DONE 2026-09-14 in
+  [PR #608](https://github.com/webdavis/dotfiles/pull/608)
+  (`feat(aerospace): point the seven light keys at the lights binary`, merged): F4 to F10 in
+  `dot_aerospace.toml` now call the `lights` binary for the Studio. Operator steps left: run
+  `aerospace reload-config` after the apply, then press the keys in the Studio to verify.
 
 - [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
   existing generated-binary exception covers posture only. Update the stale target in the lights plan and
@@ -1951,7 +2063,11 @@ Each of these gates work that cannot start without it.
   `brightness_floor_and_power`, `held_steps_match_isolated_steps`) still need the operator's eyes, and
   must run against the Kitchen or MBedroom rather than the Studio: `[lights.lamp.*]` routes loop, blocked
   and unread to four lamps including `3F - Studio - HCL3`, so pns animates the Studio while an agent is
-  working and every brightness reading taken there is mid-animation.
+  working and every brightness reading taken there is mid-animation. The runbook for the remaining three
+  drills, plus a Studio key check, was written 2026-09-14 in
+  [PR #599](https://github.com/webdavis/dotfiles/pull/599) (`docs(lights): lamp drill runbook`, merged)
+  at `lights/docs/acceptance/lamp-drills.md`. The Kitchen and bedroom lamp drills and the Studio key
+  check remain operator-run, so no tick.
 - [x] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`. Both verified complete on
   2026-09-12.
 - [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
@@ -3035,6 +3151,33 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `✓ nothing to act on` over two route warnings is a one-line severity change (`RouteVerdict::Missing`
   from `Mark::Warn` to `Mark::Bad`). Fold it into this work, or file it separately?
 
+- [ ] 2026-09-14: the hermes gateway gained the `posture` and `pns-recap` webhook routes, and posture
+  learned to pick its route from a finding's tier, in
+  [PR #607](https://github.com/webdavis/dotfiles/pull/607)
+  (`feat(hermes): add the posture and pns-recap gateway routes`, merged), a piece of the missing-route
+  finding above but not a numbered task. Each new route copies the `pns` route (same signing secret,
+  `deliver_only`, same prompt template); their `deliver_extra.chat_id` ships empty because the gateway
+  does no environment expansion, so two new `DISCORD_*_CHANNEL` lines render into `~/.hermes/.env` for
+  the operator to paste, and the apply-time route check reports the gap until they do. `severity_route`
+  in posture-domain makes the route decision: Critical names `priority`, Notice and Info name `posture`,
+  and a submission with no tier names no route at all. The route check now compares every route's secret
+  against `pns`'s, which surfaced a real finding: `priority` still carries the retired Bash alerter's key
+  rather than pns's, so a CRIT page routed there answers 401 and is silently lost, since posture advances
+  its cursor once pns reports the submission accepted regardless of what the destination did with it. The
+  four route behaviors are pinned by tests verified against two hand mutants; the change is inert until
+  applied. Operator steps left: run a full `chezmoi apply` (KeePassXC unlocked); fill the two channel ids
+  from `~/.hermes/.env` into `~/.hermes/config.yaml`'s route `deliver_extra.chat_id` fields via
+  `chezmoi edit`, then apply again; decide the `priority` secret question (open question below); restart
+  the gateway with `hermes gateway restart` so the new routes load (they answer 404 until then); confirm
+  the routes are loaded with a signed-route 401 check documented in the PR. Open questions: (1) which
+  side gives way on the `priority` route's secret, held over from the retired Bash alerter, since giving
+  it the pns secret costs the alert drainer its ability to deliver what that alerter left queued, while
+  leaving it means posture's CRIT pages stay refused; a third option is retiring the drainer outright,
+  since posture's own agents already cover its job; (2) the `priority` route's prompt template is still
+  the Bash alerter's `{alert.title}`/`{alert.detail}` shape, so even with the secret reconciled a
+  pns-shaped CRIT body delivers literal placeholders until the stale-escalation PR's prompt-template
+  change lands too.
+
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
   untrusted evidence handling. The old plan includes unverified flags and prompt-based output checks;
@@ -3571,7 +3714,22 @@ force.
   `private_dot_codex/modify_private_config.toml`) never touches. This is not the pre-authorized
   `Could not resolve host` retry case, so the branch was left open rather than rerun or merged. Gated on
   confirming whether the failure is CI-runner load or a real `pns-adapters` regression, then rerunning
-  the failed workflow once confirmed as flake and resuming from the poll step.
+  the failed workflow once confirmed as flake and resuming from the poll step. On the operator's ruling
+  of 2026-09-14, the YNAB MCP server was opened to full write access across all three clients in
+  [PR #606](https://github.com/webdavis/dotfiles/pull/606)
+  (`feat(mcp): turn YNAB writes on for Claude Code, Codex and Claude Desktop`, merged):
+  `YNAB_ALLOW_WRITES` moved from `"0"` to `"1"` in the Claude Code and Codex declarations, and the same
+  server was added to the Claude Desktop config template, which had carried no YNAB entry at all; all
+  three name the fnm-lane binary and read the token from the KeePassXC entry "YNAB :: Personal Access
+  Token". A stdio tool listing confirmed 38 tools with writes off and 62 with them on, and exactly nine
+  tool schemas require `confirmed: true`, which an agent fills in itself rather than stopping to ask per
+  call. The client-side rate limiter stays at its upstream defaults (190 requests/hour, burst 10).
+  `YNAB_BUDGET_ID` was deliberately left unset. All three templates rendered headless and validated, and
+  `just lint-check` and `just test-unit` were green. Operator steps left: unlock KeePassXC and run a full
+  `chezmoi apply`; quit and reopen Claude Desktop; in Claude Code, list the YNAB tools and confirm 62.
+  Open question: whether the YNAB account holds more than one budget, since `YNAB_BUDGET_ID` unset
+  resolves each call against the most recently accessed budget, which is a footgun with more than one
+  budget; `list_budgets` answers this in the first session after the apply.
 - [ ] Reconcile [Backpass](https://github.com/kunchenguid/backpass) configuration and finish any missing
   integration, requested 2026-09-12. It is installed, declared in npm, and
   `dot_config/backpass/config.json` matches the deployed copy, directing user instruction edits to
@@ -3601,10 +3759,16 @@ force.
   lock table (`composio-cli`, `hyperframes-media`, `website-to-hyperframes`, `website-to-video`), each
   carrying an undeclared `~/.claude/skills` symlink and alive through every weekly publication since
   2026-07-03; they are now tracked in
-  [6hW4MHMmqR4pgM8v](https://app.todoist.com/app/task/6hW4MHMmqR4pgM8v) and nothing was changed. Evidence
-  recorded on [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M), which stays open for
-  no-mistakes and firstmate. Owed from the operator: (1) Review and commit the two doc edits as their own
-  commit, separate from the ledger commit:
+  [6hW4MHMmqR4pgM8v](https://app.todoist.com/app/task/6hW4MHMmqR4pgM8v) and nothing was changed. All four
+  are now resolved: [PR #595](https://github.com/webdavis/dotfiles/pull/595)
+  (`feat(skills): declare composio-cli and hyperframes-audio`, merged 2026-09-14) declares `composio-cli`
+  (tier `core`) and adds `hyperframes-audio` (tier `on-demand`, the thirteenth upstream HyperFrames core
+  skill the roster lacked) with their lock rows and chezmoi symlinks, and trashes the other three
+  undeclared directories (`hyperframes-media`, `website-to-hyperframes`, `website-to-video`), each
+  confirmed retired or renamed upstream rather than left undeclared. Evidence recorded on
+  [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M), which stays open for no-mistakes
+  and firstmate. Owed from the operator: (1) Review and commit the two doc edits as their own commit,
+  separate from the ledger commit:
   `git -C /Users/stephen/workspaces/Ivy/webdavis/dotfiles diff CLAUDE.md docs/runbooks/agent-skills-store.md`,
   then commit those two paths (docs scope). No `chezmoi apply` is involved, both files are in
   `.chezmoiignore`. mdformat was already verified idempotent on both.; (2) At the next
@@ -4933,27 +5097,33 @@ process-toggle plugin and worktree review launcher.
   through the managed skills store, recording provenance, harness delivery, and updates through uu. Check
   its Cursor-specific dependencies and compatibility with the harnesses that will build the app. Use
   pstack's setup, engineering, design, review, and verification skills throughout development.
+
 - [ ] Design and build a macOS graphical frontend for managing agent tooling. Use
   [MoltenBase](https://www.moltenbase.com/) as the product and visual reference, matching its look and
   feel in the layout, typography, colors, spacing, and management views. Choose the application
   architecture during this subproject rather than committing to a framework now.
+
 - [ ] Cover all installed harnesses and their profiles, including Claude Code, Codex, and Hermes profiles
   such as nicodemus. Support both user-wide configuration and project-specific configuration, with a
   clear scope selector and a view of the effective settings and their source. Discover and verify each
   harness's supported operations before implementing its management controls.
+
 - [ ] Manage skills, Model Context Protocol (MCP) servers, harness instructions such as `CLAUDE.md` and
   `AGENTS.md`, agent memory, and plugins. Provide discovery, inspection, editing, installation, removal,
   and enable/disable controls where the owning harness supports them. Show inheritance and project
   overrides so a user can tell which settings and instructions an agent actually receives.
+
 - [ ] Also track hooks, reusable commands, subagents, model/provider settings, permissions and trust, and
   environment/credential references. Keep credential values in the existing secret manager. Include
   search, filtering by harness and scope, provenance, installed versions, update status, connection
   health, duplicate/stale entries, and configuration drift. Show usage and last-used data where reliable
   harness records exist; distinguish unavailable data from zero usage.
+
 - [ ] Keep local files and their existing owners authoritative. Integrate with chezmoi, the shared skills
   store and lock, and uu for installation/update workflows. Edits to managed configuration must reach its
   source rather than a deployed copy that the next apply would overwrite. Preview changes and affected
   scopes, provide backups and rollback, and preserve the operator-run chezmoi apply flow.
+
 - [ ] Install and configure [gnhf](https://github.com/kunchenguid/gnhf), the overnight agent orchestrator
   ("each iteration makes one small, committed, documented change towards an objective"), requested by the
   operator on 2026-09-14. It is an npm CLI, so it goes on the fnm lane in
@@ -4974,7 +5144,36 @@ process-toggle plugin and worktree review launcher.
   with interleaved stdout consistent with concurrent machine load from other active sessions. No pull
   request was opened; the worktree is clean at merge commit `89ff0f58` on `feat/gnhf-install`, not
   pushed. Gated on rerunning `just ship` (or at minimum `just test-rust -p pns --test daemon`) once
-  machine load has settled, then continuing from the push step.
+  machine load has settled, then continuing from the push step. A later attempt on 2026-09-14 shipped:
+  [PR #596](https://github.com/webdavis/dotfiles/pull/596)
+  (`feat(gnhf): install the overnight agent orchestrator`, merged) pins `gnhf@0.1.49` on the fnm lane,
+  deploys `~/.gnhf/config.yml` (agent `claude`, `conventional` commit preset, three consecutive failures
+  before stopping, `preventSleep` on) as a plain file since gnhf reads no secrets, exports
+  `GNHF_TELEMETRY=0`, and adds `docs/gnhf-objective.md` as the first objective file and
+  `docs/runbooks/local-agents.md` documenting the invocation, the worktree procedure and the graphify
+  hook interaction. `just ship` passed twice locally and the pre-push gate passed. Nothing runs gnhf
+  automatically and `--push` stays off, so a run never reaches GitHub without the operator pushing by
+  hand. Operator step left: run `chezmoi apply` to install the binary and deploy the config.
+
+- [ ] 2026-09-14: [GitButler](https://gitbutler.com/) was installed for AI agents in
+  [PR #603](https://github.com/webdavis/dotfiles/pull/603)
+  (`feat(gitbutler): install GitButler and wire its agent skill through the managed store`, merged),
+  requested by the operator, not a numbered task. The `gitbutler` Homebrew cask (`auto_updates true`)
+  delivers both the desktop app and the `but` CLI; `but --version` reports 0.22.3 from the cask alone.
+  The GitButler CLI skill was vendored into the cross-harness store (`dot_agents/skills/gitbutler/`,
+  `on-demand` tier, no `forks` drift-watch row since `but skill check --global` is the staleness signal
+  instead), with the Claude Code symlink declaration and the matching Codex overlay. The wizard's global
+  workflow instructions went into `.chezmoitemplates/global-agent-rules.md` as a `## GitButler` section,
+  gated on `but status` succeeding. Workspace mode (`but setup`) was deliberately NOT run on this
+  repository; it was only measured inside a throwaway clone, where it switches HEAD to a
+  `gitbutler/workspace` branch, writes five local config keys, and installs two `.git/hooks` scripts that
+  are inert here because `core.hooksPath` is set user-wide. A new runbook, `docs/runbooks/gitbutler.md`,
+  records the install, the skill lane and the workspace-mode measurements. Operator steps left: run a
+  full `chezmoi apply` (KeePassXC unlocked) and confirm with `but skill check --global`; decide whether
+  to run `but setup` on this repository, given the branch switch would move the main checkout off `main`
+  while other worktrees run from it; optionally launch `/Applications/GitButler.app` to log in, only
+  needed for the GUI, cloud review or `but pr`; optionally remove the one stray
+  `gitbutler.project.portedMeta` local config key that merely running `but` wrote during verification.
 
 ## Late in the goal: slim the global instruction files
 
