@@ -352,7 +352,7 @@ file into `~/workspaces/backups` first, at the cost of every hook approval on th
 
 ### Agent skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (37 roster skills), serving Claude Code (chezmoi
+`~/.agents/skills` is the single canonical skills store (78 roster skills), serving Claude Code (chezmoi
 symlink declarations under `private_dot_claude/skills/`), Codex (native store scan, no declarations) and
 hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
 fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces that those three agree
