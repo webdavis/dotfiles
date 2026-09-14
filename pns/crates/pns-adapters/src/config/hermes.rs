@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 /// another route's: the signature is what authorizes a delivery, so signing a
 /// route with a key nobody granted it is the hole per-route keys exist to
 /// close. The post is refused instead, out loud, naming the route.
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Clone)]
 pub struct HermesKeys(BTreeMap<String, String>);
 
 impl HermesKeys {
