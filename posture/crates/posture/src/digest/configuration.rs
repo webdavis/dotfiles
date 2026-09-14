@@ -1,3 +1,4 @@
+use posture_adapters::Delivery;
 use posture_domain::DigestLimits;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -12,7 +13,7 @@ const DEFAULT_STORE: &str = "/.local/state/osquery-digest-spool/digest.ndjson";
 
 pub(super) struct Configuration {
     pub store: PathBuf,
-    pub pns: PathBuf,
+    pub delivery: Delivery,
     pub alarm: PathBuf,
     pub limits: DigestLimits,
 }
@@ -20,8 +21,7 @@ pub(super) struct Configuration {
 impl Configuration {
     pub(super) fn read(mut variable: impl FnMut(&str) -> Option<OsString>) -> Option<Self> {
         let home = variable("HOME")?;
-        let mut pns = home.clone();
-        pns.push("/.cargo/bin/pns");
+        let delivery = Delivery::read(std::path::Path::new(&home));
         let store = match variable("OSQUERY_DIGEST_STORE") {
             // AN EMPTY OVERRIDE IS NOT AN OVERRIDE. It would name the process's
             // working directory, and the run would claim and rotate files there.
@@ -35,7 +35,7 @@ impl Configuration {
         let defaults = DigestLimits::default();
         Some(Self {
             store,
-            pns: pns.into(),
+            delivery,
             alarm: "/usr/bin/osascript".into(),
             limits: DigestLimits {
                 groups: numeric_or(variable("DIGEST_MAX_GROUPS"), defaults.groups),

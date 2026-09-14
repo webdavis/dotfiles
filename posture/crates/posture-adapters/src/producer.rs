@@ -1,51 +1,63 @@
+//! The producer path: posture hands one page to the command the operator
+//! configured and reads that command's answer back.
+//!
+//! THE PRODUCER API IS THE WHOLE COUPLING. A JSON request goes in on standard
+//! input, a JSON result plus an exit code comes back, and the command and its
+//! arguments are both config. posture therefore names no engine: any program
+//! that serves the contract serves posture, and which one does is a
+//! per-machine choice.
+
+use crate::sink::{delivery_failed, tier_route};
 use crate::{CommandIo, CommandRunner};
 use posture_application::{
     Alert, AlertSignal, AlertSink, IndependentAlarm, InspectionFailure, Submission,
     SubmissionFailure,
 };
-use posture_domain::severity_route;
 use posture_producer_wire::{Name, RequestId, Status, decode_result};
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, ffi::OsString, path::PathBuf};
 mod request;
+
+/// The title the local banner carries when the producer command itself broke.
+const ALARM_TITLE: &str = "Posture notification engine failed";
 
 pub struct ProducerCommand<R, A> {
     runner: R,
     executable: PathBuf,
+    /// The command's arguments, passed verbatim. The contract says nothing
+    /// about them: an engine may spell its own submit path any way it likes.
+    arguments: Vec<OsString>,
     route: Option<Name>,
     alarm: A,
 }
 impl<R: CommandRunner, A: IndependentAlarm> ProducerCommand<R, A> {
-    pub fn new(runner: R, executable: PathBuf, route: Option<Name>, alarm: A) -> Self {
+    pub fn new(
+        runner: R,
+        executable: PathBuf,
+        arguments: Vec<String>,
+        route: Option<Name>,
+        alarm: A,
+    ) -> Self {
         Self {
             runner,
             executable,
+            arguments: arguments.into_iter().map(OsString::from).collect(),
             route,
             alarm,
         }
     }
     /// The route this alert belongs on: its tier's, when it has one, and
     /// otherwise the one this producer was built with.
-    ///
-    /// A compiled-in route name cannot fail the identifier rules, so the
-    /// fallback on the right is unreachable; it is there because a page that
-    /// went out on the configured route beats a page lost to a panic.
     fn route_for(&self, alert: &Alert) -> Option<Name> {
-        match severity_route(alert.severity) {
-            Some(route) => Name::new(route).ok().or_else(|| self.route.clone()),
-            None => self.route.clone(),
-        }
+        tier_route(alert).or_else(|| self.route.clone())
     }
     fn failed_engine(&mut self, alert: &Alert, failure: SubmissionFailure) -> Submission {
-        let _ = self.alarm.alarm(
-            "Posture notification engine failed",
-            &format!("{}\n{}", alert.title, alert.detail),
-        );
-        Submission::NotAccepted(failure)
+        delivery_failed(&mut self.alarm, ALARM_TITLE, alert, failure)
     }
     fn send(&mut self, alert: &Alert, (identity, input): (RequestId, String)) -> Submission {
+        let arguments: Vec<&OsStr> = self.arguments.iter().map(OsString::as_os_str).collect();
         let output = match self.runner.run_completed(
             &self.executable,
-            &[OsStr::new("submit"), OsStr::new("--json")],
+            &arguments,
             CommandIo::Input(input.as_bytes()),
         ) {
             Ok(output) => output,

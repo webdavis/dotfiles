@@ -48,6 +48,14 @@ pub enum Submission {
 pub trait AlertSink {
     fn submit(&mut self, alert: &Alert) -> Submission;
 }
+/// A boxed sink IS a sink, so a composition root that picks between delivery
+/// paths at run time hands every use case one word for "wherever a page goes"
+/// rather than making each of them generic over the choice.
+impl<S: AlertSink + ?Sized> AlertSink for Box<S> {
+    fn submit(&mut self, alert: &Alert) -> Submission {
+        (**self).submit(alert)
+    }
+}
 pub struct Heartbeat<C, L, S> {
     pub clock: C,
     pub snapshots: L,

@@ -28,6 +28,7 @@ impl Engine {
         ProducerCommand::new(
             SystemRunner::new(Duration::from_millis(150)),
             self.executable.clone(),
+            vec!["submit".to_string(), "--json".to_string()],
             None,
             Alarm::default(),
         )

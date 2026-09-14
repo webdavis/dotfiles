@@ -3,7 +3,7 @@ use std::os::unix::ffi::OsStringExt;
 
 fn request(spool: &str, overrides: &[(&str, OsString)]) -> String {
     let fixture = Fixture::new(spool);
-    let config = Configuration::read(|key| match key {
+    let mut config = Configuration::read(|key| match key {
         "HOME" => Some(fixture.home.clone().into()),
         "OSQUERY_DIGEST_STORE" => Some(fixture.store.clone().into()),
         _ => overrides
@@ -12,8 +12,9 @@ fn request(spool: &str, overrides: &[(&str, OsString)]) -> String {
             .map(|(_, value)| value.clone()),
     })
     .unwrap();
+    config.delivery = crate::producer_delivery(&fixture.engine());
     let runner = Runner {
-        expected: config.pns.clone(),
+        expected: fixture.engine(),
         reply: Some(Reply::Committed),
         effects: fixture.effects.clone(),
     };

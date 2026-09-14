@@ -76,5 +76,18 @@ fn execute(
     outcome.exit_code()
 }
 
+/// A delivery choice that hands every page to one owned fixture command, which
+/// is how a command test drives the whole composition without a real engine.
+#[cfg(test)]
+pub(crate) fn producer_delivery(command: &Path) -> posture_adapters::Delivery {
+    posture_adapters::Delivery {
+        path: posture_adapters::DeliveryPath::Producer {
+            command: command.to_path_buf(),
+            arguments: vec!["submit".to_string(), "--json".to_string()],
+        },
+        refusal: None,
+    }
+}
+
 #[cfg(test)]
 mod tests;

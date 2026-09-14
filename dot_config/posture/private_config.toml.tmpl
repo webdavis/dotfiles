@@ -1,0 +1,48 @@
+# posture's delivery choice: how one security page leaves this machine.
+#
+# posture knows nothing about any particular notification engine. It either
+# signs the page itself and posts it to a hermes webhook route, or it hands the
+# page to a command on that command's standard input and reads the answer back.
+# The second path is the producer API: one JSON request in, one JSON result plus
+# an exit code out. Any program may serve it.
+#
+# Every key is written out below at its default, so nothing has to be looked up
+# to change it, and switching paths is a one-word edit to `mode`.
+#
+# An unknown key, an unknown table or an unknown mode is refused BY NAME at
+# load. A typo therefore blocks the whole file rather than quietly switching
+# delivery off, which is the trade: the loud half is a named refusal plus a
+# local banner per page, and the quiet half it replaces is a security pipeline
+# that silently stops paging.
+
+[delivery]
+# THIS MACHINE'S OWN CHOICE, not a requirement of the tool: pns is installed
+# here, so pages go through it and reach the phone, the banner and the lights
+# alongside every other event this machine raises. A machine without pns sets
+# `mode = "hermes"` below and posture delivers the page itself.
+mode = "producer"
+
+# The command a page is handed to, and its arguments, passed verbatim. The
+# contract says nothing about the arguments: an engine spells its own submit
+# path however it likes.
+[delivery.producer]
+command = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
+arguments = ["submit", "--json"]
+
+# The direct path, used when `mode = "hermes"`. `url` is the gateway's webhook
+# base, one path segment above the route: a page for the `posture` route is
+# posted to `<url>/posture`.
+[delivery.hermes]
+url = "http://127.0.0.1:8644/webhooks"
+
+# ONE KEY PER ROUTE. The gateway reads each route's secret as a literal, so a
+# page signed with another route's key answers 401 and vanishes. A route this
+# file holds no key for refuses the page and raises the local banner rather
+# than reporting a delivery that never happened.
+#
+# `posture` carries every page below critical; `priority` carries a critical
+# security finding, which is what the operator reserved that channel for
+# (machine health and security only, 2026-09-14).
+[delivery.hermes.keys]
+posture = {{ (keepassxc "Hermes :: Webhook Secret (#posture)").Password | toToml }}
+priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}

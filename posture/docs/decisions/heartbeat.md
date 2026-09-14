@@ -23,12 +23,12 @@ belong to the next run. The native clock supplies seconds and date from one read
 transition cannot put two dates into the same observation. Tests inject clock values and use only owned
 files, including the named-pipe refusal fixture.
 
-`ProducerCommand` hands one request to the configured producer command on its standard input. The
-request carries the source event,
-occurrence time, and title followed by detail on a new line. A caller-supplied occurrence seed gives the
-same `posture-<32 hex>` identity on repeat submission. Without a seed, each call gets a fresh identity.
-Only `NeedsAttention` gets the `security` class; heartbeat and digest observations retain their silent
-policy input. The constructor accepts the route selected by deployment and supplies no route of its own.
+`ProducerCommand` hands one request to the configured producer command on its standard input. The request
+carries the source event, occurrence time, and title followed by detail on a new line. A caller-supplied
+occurrence seed gives the same `posture-<32 hex>` identity on repeat submission. Without a seed, each
+call gets a fresh identity. Only `NeedsAttention` gets the `security` class; heartbeat and digest
+observations retain their silent policy input. The constructor accepts the route selected by deployment
+and supplies no route of its own.
 
 Acceptance requires the original request identity, accepted status and `ledger_committed`. Destination
 outcomes cannot substitute for that receipt. An engine returns exit 2 for a normal protocol refusal, so a
@@ -37,10 +37,10 @@ correlated rejected result remains a refusal rather than an opaque command failu
 result or a missing commitment leaves the caller's state unchanged without raising an engine alarm.
 
 An unavailable, failed, timed-out or unparseable engine triggers one independent banner attempt. The same
-`IndependentAlarm` port lets the watchdog report directly without submitting a page at all. The banner uses
-backslash-first AppleScript escaping and the approved fixed Sosumi sound. It reports command success, not
-proof the operator saw the notification. Neither adapter stores or retries a request, and a forged
-correlated committed receipt remains undetectable at this boundary.
+`IndependentAlarm` port lets the watchdog report directly without submitting a page at all. The banner
+uses backslash-first AppleScript escaping and the approved fixed Sosumi sound. It reports command
+success, not proof the operator saw the notification. Neither adapter stores or retries a request, and a
+forged correlated committed receipt remains undetectable at this boundary.
 
 The command runner writes stdin incrementally while draining stdout under its existing deadline. It
 closes stdin after the request, retains total and per-command budget modes, and reaps its owned child
@@ -51,10 +51,10 @@ adapter work does not install a route or retire the Bash queue.
 
 The heartbeat command supplies the proposed fixed route name `posture` through the producer's existing
 validated route argument. It does not add a protocol dependency to the command crate. This name requires
-an operator-created, keyed Hermes binding under specification section 5.5(5); no encrypted
-configuration or live route was inspected or changed. The prepared plist changes only its two program
-arguments, to `~/.cargo/bin/posture heartbeat`, and remains held for that prerequisite. The existing Bash
-script and tests are retained, and `canary-freshness.sh` still serves the watchdog.
+an operator-created, keyed Hermes binding under specification section 5.5(5); no encrypted configuration
+or live route was inspected or changed. The prepared plist changes only its two program arguments, to
+`~/.cargo/bin/posture heartbeat`, and remains held for that prerequisite. The existing Bash script and
+tests are retained, and `canary-freshness.sh` still serves the watchdog.
 
 The five-second submission limit comes from the Bash remote delivery bound. The independent banner uses
 the existing ten-second posture command bound, through a separate runner. This preserves its opportunity

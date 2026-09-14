@@ -7,8 +7,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once() {
     let home = std::env::temp_dir().join(format!("posture-heartbeat-edge-{}", std::process::id()));
     std::fs::create_dir(&home).unwrap();
-    let engine = home.join(".cargo/bin/pns");
+    let engine = home.join(".local/libexec/engine");
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
+    deliver_through(&home, &engine);
     std::fs::write(&engine,br##"#!/bin/sh
 set -eu
 [ "$#" = 2 ] && [ "$1" = submit ] && [ "$2" = --json ] || exit 42
@@ -95,4 +96,19 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
         ignored_before
     );
     assert!(!home.join(".local/state").exists());
+}
+
+/// Point posture's delivery at one owned fixture command, the way the config
+/// deployed on a real machine points it at whichever engine that machine runs.
+fn deliver_through(home: &std::path::Path, engine: &std::path::Path) {
+    let config = home.join(".config/posture/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        format!(
+            "[delivery]\nmode = \"producer\"\n[delivery.producer]\ncommand = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
+            engine.display()
+        ),
+    )
+    .unwrap();
 }

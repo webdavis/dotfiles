@@ -105,7 +105,7 @@ fn subject(bound: &str) -> (Configuration, Rc<RefCell<Effects>>) {
     (
         Configuration {
             snapshots,
-            pns: home.join("pns"),
+            delivery: crate::producer_delivery(&home.join("engine")),
             alarm: home.join("osascript"),
             maximum_age: HeartbeatWindow::from_override(Some(bound)),
         },
@@ -118,8 +118,11 @@ fn run_case(
     reply: Reply,
     stderr: &mut Vec<u8>,
 ) -> u8 {
+    let posture_adapters::DeliveryPath::Producer { command, .. } = &config.delivery.path else {
+        panic!("the fixture delivers through one owned producer command")
+    };
     let runner = Runner {
-        expected: config.pns.clone(),
+        expected: command.clone(),
         reply: Some(reply),
         effects: effects.clone(),
     };

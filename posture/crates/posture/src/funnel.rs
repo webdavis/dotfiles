@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    FunnelStateFile, LastResortBanner, ProducerCommand, SystemClock, SystemRunner, read_funnel,
+    FunnelStateFile, LastResortBanner, SystemClock, SystemRunner, alert_sink, read_funnel,
 };
 use posture_application::{Clock, Funnel, FunnelFailure};
 use posture_domain::FunnelReadFailure;
@@ -30,18 +30,14 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
             "WARN: no tailscale binary ({path}) - funnel monitoring is blind"
         );
     }
-    let mut sink = ProducerCommand::new(
+    let mut sink = alert_sink(
+        config.delivery,
         SystemRunner::per_command(Duration::from_secs(5)),
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(
             SystemRunner::per_command(Duration::from_secs(10)),
             "/usr/bin/osascript".into(),
         ),
+        &mut *stderr,
     );
     let now = SystemClock.now().ok().map(|time| time.seconds);
     let result = Funnel {

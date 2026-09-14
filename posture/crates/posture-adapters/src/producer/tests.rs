@@ -4,7 +4,10 @@ use posture_application::{AlarmFailed, AlertSignal, InspectionFailure};
 use posture_producer_wire::{
     DeliveryOutcome, DestinationOutcome, Request, ResultEnvelope, Status, decode_request,
 };
-use std::{ffi::OsStr, path::Path};
+use std::{
+    ffi::{OsStr, OsString},
+    path::Path,
+};
 
 #[derive(Default)]
 struct Alarm {
@@ -20,6 +23,8 @@ impl IndependentAlarm for Alarm {
 struct Runner {
     response: Result<CommandOutput, InspectionFailure>,
     requests: Vec<Request>,
+    /// Every argument list the command was actually run with.
+    arguments: Vec<Vec<OsString>>,
     matching: bool,
 }
 impl CommandRunner for Runner {
@@ -29,8 +34,9 @@ impl CommandRunner for Runner {
         args: &[&OsStr],
         io: CommandIo<'_>,
     ) -> Result<CommandOutput, InspectionFailure> {
-        assert_eq!(program, Path::new("/private/fixture/pns"));
-        assert_eq!(args, [OsStr::new("submit"), OsStr::new("--json")]);
+        assert_eq!(program, Path::new("/private/fixture/engine"));
+        self.arguments
+            .push(args.iter().map(|arg| arg.to_os_string()).collect());
         let CommandIo::Input(input) = io else {
             panic!("request must be stdin only")
         };
@@ -89,12 +95,30 @@ fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
                 exit: 0,
             }),
             requests: vec![],
+            arguments: vec![],
             matching: true,
         },
-        "/private/fixture/pns".into(),
+        "/private/fixture/engine".into(),
+        vec!["submit".to_string(), "--json".to_string()],
         Some(Name::new("assigned-route").unwrap()),
         Alarm::default(),
     )
+}
+#[test]
+fn the_configured_arguments_reach_the_command_verbatim_and_nothing_is_added() {
+    for arguments in [
+        vec![],
+        vec!["submit".to_string(), "--json".to_string()],
+        vec!["page".to_string(), "--in=json".to_string(), "-".to_string()],
+    ] {
+        let mut sut = subject(Status::Accepted, true);
+        sut.arguments = arguments.iter().cloned().map(OsString::from).collect();
+        assert_eq!(sut.submit(&alert()), Submission::Accepted);
+        assert_eq!(
+            sut.runner.arguments,
+            vec![arguments.iter().map(OsString::from).collect::<Vec<_>>()]
+        );
+    }
 }
 #[test]
 fn only_a_matching_accepted_committed_receipt_advances_acceptance() {

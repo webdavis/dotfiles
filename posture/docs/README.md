@@ -4,22 +4,21 @@
 cutover and operator acceptance are tracked separately below. The original test inventory is an audit of
 preserved behavior, with open gaps and retirement decisions retained explicitly.
 
-| Crate                 | Responsibility                                               |
-| --------------------- | ------------------------------------------------------------ |
-| `posture-domain`      | Pure policy                                                  |
-| `posture-application` | Use cases and their ports                                    |
-| `posture-protocol`    | Existing cross-process digest record codec                   |
-| `posture-producer-wire`    | This workspace's copy of the producer API request and result contract |
-| `posture-adapters`    | Files, processes, probes and protocol consumers              |
-| `posture`             | Command decoding, composition and exit codes                 |
+| Crate                   | Responsibility                                                        |
+| ----------------------- | --------------------------------------------------------------------- |
+| `posture-domain`        | Pure policy                                                           |
+| `posture-application`   | Use cases and their ports                                             |
+| `posture-protocol`      | Existing cross-process digest record codec                            |
+| `posture-producer-wire` | This workspace's copy of the producer API request and result contract |
+| `posture-adapters`      | Files, processes, probes and protocol consumers                       |
+| `posture`               | Command decoding, composition and exit codes                          |
 
 The member manifests enforce inward dependencies. Domain and application depend on neither protocol
 crate. Adapters consume both local protocol crates; the command crate composes the tool. No build-time
 dependency reaches another workspace. The six-field digest format remains unversioned. Notification
 submission takes one of two delivery paths, chosen in `~/.config/posture/config.toml`: a signed POST
 straight to a hermes webhook route, or a page handed to a configured producer command on its standard
-input. Both carry this workspace's versioned wire contract; see
-[the producer API](producer-api.md).
+input. Both carry this workspace's versioned wire contract; see [the producer API](producer-api.md).
 
 Rust work follows both `/Users/stephen/.agents/skills/clean-code/SKILL.md` and
 `/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`; the Rust binding wins all numbers and
@@ -180,15 +179,15 @@ wc -c < ~/.cargo/bin/posture
 | `executable_canary-freshness.sh`                                    | 47    | inside `posture heartbeat` and `watchdog`    | tracked, Bash caller         |
 | Bash in the port's scope                                            | 10137 |                                              | 845 retired, 9292 tracked    |
 
-| Crate                 | Files | Implementation lines | Total lines |
-| --------------------- | ----- | -------------------- | ----------- |
-| `posture-adapters`    | 145   | 6351                 | 14975       |
-| `posture-domain`      | 95    | 4420                 | 10578       |
-| `posture`             | 51    | 1888                 | 5863        |
-| `posture-application` | 49    | 2364                 | 7088        |
-| `posture-producer-wire`    | 16    | 883                  | 2051        |
-| `posture-protocol`    | 2     | 111                  | 269         |
-| Workspace             | 358   | 16017                | 40824       |
+| Crate                   | Files | Implementation lines | Total lines |
+| ----------------------- | ----- | -------------------- | ----------- |
+| `posture-adapters`      | 145   | 6351                 | 14975       |
+| `posture-domain`        | 95    | 4420                 | 10578       |
+| `posture`               | 51    | 1888                 | 5863        |
+| `posture-application`   | 49    | 2364                 | 7088        |
+| `posture-producer-wire` | 16    | 883                  | 2051        |
+| `posture-protocol`      | 2     | 111                  | 269         |
+| Workspace               | 358   | 16017                | 40824       |
 
 The installed binary is 3,792,416 bytes (3.6 MiB) at `~/.cargo/bin/posture`, written by the apply of
 2026-09-13 20:50 and well under the builder's 8 MiB refusal bound. Its usage text matches main's `USAGE`
@@ -198,6 +197,12 @@ Read the two tables as a size comparison, not a deletion record. 16,017 Rust imp
 against 10,137 Bash lines, and 24,807 of the 40,824 total Rust lines are tests the Bash pipeline never
 had, where five tools carried no coverage at all (spec section 9). Only 845 Bash lines have actually left
 the tracked set; the other 9,292 remain until their own cutover and retirement pull requests land.
+
+## Delivery
+
+[The producer API](producer-api.md) is the contract behind posture's two delivery paths: the envelopes,
+what posture puts in a request, what it requires of a result, the severity-to-route table and the config
+that chooses between them.
 
 ## Decision index
 

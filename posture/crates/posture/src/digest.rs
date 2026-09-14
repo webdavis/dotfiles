@@ -1,7 +1,7 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, DigestSpoolFile, LastResortBanner, ProducerCommand, SystemClock, SystemRunner,
+    CommandRunner, DigestSpoolFile, LastResortBanner, SystemClock, SystemRunner, alert_sink,
     prepare_spool_directory,
 };
 use posture_application::{BuildDigest, Clock, DigestOutcome};
@@ -47,15 +47,11 @@ fn execute(
         return 1;
     }
     let spool = DigestSpoolFile::new(config.store, now.seconds, std::process::id());
-    let mut sink = ProducerCommand::new(
+    let mut sink = alert_sink(
+        config.delivery,
         runner,
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(alarm, config.alarm),
+        &mut *stderr,
     );
     let report = BuildDigest {
         spool: &spool,

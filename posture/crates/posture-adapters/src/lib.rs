@@ -76,6 +76,13 @@ pub use osqueryi::{PostureQuery, PostureTrio};
 
 mod producer;
 pub use producer::ProducerCommand;
+mod hermes;
+mod sink;
+pub use hermes::HermesWebhook;
+mod signed_post;
+pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
+mod delivery;
+pub use delivery::{DEFAULT_WEBHOOK_BASE, Delivery, DeliveryPath, alert_sink, config_path};
 mod last_resort_banner;
 pub use last_resort_banner::LastResortBanner;
 
