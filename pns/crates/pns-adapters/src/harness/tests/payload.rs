@@ -134,3 +134,21 @@ fn a_payload_naming_no_tool_and_no_message_still_says_nothing_rather_than_guessi
     assert_eq!(parse_payload(r#"{"error":""}"#).message, "");
     assert_eq!(parse_payload(r#"{"error":null}"#).message, "");
 }
+
+#[test]
+fn a_user_prompt_yields_the_prompt_and_the_harnesss_own_session_title() {
+    // The real `UserPromptSubmit` shape, read out of the installed Claude
+    // Code 2.1.270 binary on 2026-09-14: `session_title` rides beside the
+    // prompt text and is documented there as a field a payload may omit
+    // while it rolls out, so both are optional and neither is an error.
+    let payload = parse_payload(
+        r#"{"hook_event_name":"UserPromptSubmit","session_id":"s1","cwd":"/a/b",
+            "prompt":"arm posture alert\nand retire the Bash alerter",
+            "session_title":"posture alert cutover"}"#,
+    );
+    assert_eq!(
+        payload.prompt, "arm posture alert and retire the Bash alerter",
+        "the prompt is flattened like every other string a card is built from"
+    );
+    assert_eq!(payload.session_title, "posture alert cutover");
+}
