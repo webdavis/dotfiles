@@ -668,12 +668,15 @@ aborting and warning rather than leaving a worktree half-rebased.
 herdr hardcodes `<directory>/<repo>/<branch-slug>` and worktrunk's path is templatable, so worktrunk
 bends to match and both tools create worktrees in one place rather than two.
 
-`just worktrees-prune` sweeps the other way (`--dry-run` to see the decisions first):
-`~/.local/libexec/prune-merged-worktrees.sh` (source
+`just worktrees-prune` sweeps the other way, and it is the OPERATOR'S bulk sweep, read first with
+`--dry-run`: `~/.local/libexec/prune-merged-worktrees.sh` (source
 `dot_local/libexec/executable_prune-merged-worktrees.sh`) removes every linked worktree of this
 repository whose HEAD is an ancestor of `origin/main` and whose tree is clean apart from
 `graphify-out/graph.json`, through `herdr worktree remove` when the checkout still has a workspace row
-and `git worktree remove` when it does not, and it never deletes a branch.
+and `git worktree remove` when it does not, and it never deletes a branch. Merged and clean is all it
+tests and a running process is invisible to it, so a lane a sibling agent is still working in looks
+finished the moment its branch lands. An agent therefore removes its OWN lane through
+`herdr worktree remove` and leaves the sweep alone.
 
 ### Bashrc init ordering
 
