@@ -8,6 +8,7 @@
 #![allow(dead_code)] // each test binary uses its own subset of this harness.
 
 mod budget;
+mod capture;
 mod daemon_guard;
 mod process;
 mod router;
@@ -16,6 +17,7 @@ mod sandbox;
 // Each integration binary compiles this module and uses its own subset.
 #[allow(unused_imports)]
 pub use {
+    capture::{Capture, plugin_command},
     daemon_guard::DaemonGuard,
     process::{poll_until, run, stderr, stdout},
     router::{KEYS_DISAGREE, RouterStub, router_table},
