@@ -117,3 +117,6 @@ pub use poll::{
 
 mod triage;
 pub use triage::{UpgradeRecordRefusal, recorded_hash, upgrade_correlation};
+
+mod ssh_policy;
+pub use ssh_policy::*;

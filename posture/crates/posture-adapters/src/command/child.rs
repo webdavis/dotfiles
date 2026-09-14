@@ -1,9 +1,24 @@
 use posture_application::InspectionFailure;
 use std::io;
 use std::process::{Child, ExitStatus};
+use std::time::{Duration, Instant};
+mod grace;
 
 pub(super) struct OwnedChild(pub(super) Option<Child>);
 impl OwnedChild {
+    pub(super) fn stop(&mut self, duration: Duration) {
+        if !duration.is_zero()
+            && let Some(child) = self.0.as_ref()
+        {
+            // The unreaped group leader pins this process-group identifier until finish.
+            unsafe {
+                libc::kill(-(child.id() as i32), libc::SIGTERM);
+            }
+            let start = Instant::now();
+            grace::wait_grace(duration, || start.elapsed(), std::thread::sleep);
+        }
+        let _ = self.finish();
+    }
     pub(super) fn exited(&self) -> Result<bool, InspectionFailure> {
         let Some(child) = self.0.as_ref() else {
             return Err(InspectionFailure::Failed);
