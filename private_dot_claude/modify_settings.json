@@ -658,6 +658,7 @@
 {{- $merged = setValueAtPath "skillOverrides.home-assistant-best-practices" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-animation" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-audio" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-cli" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-core" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-creative" "user-invocable-only" $merged -}}
