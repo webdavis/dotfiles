@@ -11,8 +11,10 @@
 //! is below HEAD in the stack when its tip is an ancestor of HEAD and is not
 //! already in the trunk.
 
+mod listing;
+
 use crate::run_bounded;
-use pns_domain::recap::git_block::{Branch, Change, GitFacts, PullRequest, PullRequestLookup};
+use pns_domain::recap::git_block::{Branch, Change, GitFacts, PullRequestLookup};
 use std::process::Command;
 use std::time::Duration;
 
@@ -164,56 +166,7 @@ fn pull_request(cwd: &str, branch: &str) -> PullRequestLookup {
     let Some(listing) = run_bounded(command, None, AXI_DEADLINE, AXI_READ_MAX) else {
         return PullRequestLookup::Unavailable;
     };
-    listed(&listing)
-}
-
-/// One pull request off a gh-axi listing, or which of the two absences it was.
-///
-/// THE FIELD NAMES ARE IN THE LISTING and the state is counted from the RIGHT
-/// of the row, because the title is the one field that may hold a comma and it
-/// sits to the left of everything else. gh-axi has no JSON mode (MEASURED
-/// 2026-09-14: `--format` is not a flag it knows), so this reads the format it
-/// prints.
-fn listed(listing: &str) -> PullRequestLookup {
-    let Some(header) = listing.lines().find(|line| line.starts_with(PULL_REQUESTS)) else {
-        return PullRequestLookup::Unavailable;
-    };
-    // `pull_requests: []` is gh-axi saying this branch has none, which is the
-    // one absence the layout has a word for.
-    let Some(fields) = header
-        .split_once('{')
-        .and_then(|(_, rest)| rest.split_once('}'))
-        .map(|(names, _)| names.split(',').collect::<Vec<_>>())
-    else {
-        return PullRequestLookup::Absent;
-    };
-    let Some(row) = listing
-        .lines()
-        .skip_while(|line| !line.starts_with(PULL_REQUESTS))
-        .nth(1)
-    else {
-        return PullRequestLookup::Unavailable;
-    };
-    // THE NUMBER MUST BE THE FIRST COLUMN. It is the receipt, and a listing
-    // shaped some other way is not the one this was written against.
-    let (Some(&"number"), Some(state)) = (fields.first(), column(row, &fields, "state")) else {
-        return PullRequestLookup::Unavailable;
-    };
-    let Some(number) = row
-        .trim_start()
-        .split(',')
-        .next()
-        .and_then(|number| number.parse().ok())
-    else {
-        return PullRequestLookup::Unavailable;
-    };
-    PullRequestLookup::Found(PullRequest { number, state })
-}
-
-/// One named column of a listing row, counted from the right. See `listed`.
-fn column(row: &str, fields: &[&str], name: &str) -> Option<String> {
-    let from_end = fields.len() - 1 - fields.iter().position(|field| *field == name)?;
-    Some(row.rsplit(',').nth(from_end)?.trim().to_string())
+    listing::listed(&listing)
 }
 
 /// One git read, trimmed, or None when git refused or could not be run.
@@ -233,8 +186,6 @@ const ORIGIN: &str = "origin";
 const DEFAULT_TRUNK: &str = "main";
 /// The listing tool, resolved through PATH. See `pull_request`.
 const NPX: &str = "npx";
-/// The line gh-axi's pull-request listing opens with.
-const PULL_REQUESTS: &str = "pull_requests";
 /// How long a git read may take. Every one of them is local, so anything
 /// slower than this is a wedged repository rather than an answer.
 const GIT_DEADLINE: Duration = Duration::from_secs(10);
@@ -247,7 +198,3 @@ const GIT_READ_MAX: u64 = 512 * 1024;
 const AXI_DEADLINE: Duration = Duration::from_secs(60);
 /// How much of the listing is kept. One row plus its help lines.
 const AXI_READ_MAX: u64 = 64 * 1024;
-
-#[cfg(test)]
-#[path = "worktree/tests.rs"]
-mod tests;

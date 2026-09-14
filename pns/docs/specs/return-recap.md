@@ -1037,11 +1037,11 @@ file list, and exits 0 without delivering anything
 - Fail direction: EACH READ DEGRADES ON ITS OWN and the PR line fails CLOSED into "unknown". "`none` is
   gh-axi saying there is no pull request; a gh-axi that never ran said nothing at all, and printing
   `none` for it is the guess the rule forbids"
-  (`crates/pns-domain/src/recap/git_block.rs:PullRequestLookup`). The three answers are pinned by
+  (`crates/pns-domain/src/recap/git_block/facts.rs:PullRequestLookup`). The three answers are pinned by
   `recap/tests/git_block.rs:a_branch_with_a_pull_request_names_its_number_and_its_state`,
   `recap/tests/git_block.rs:a_branch_with_no_pull_request_says_none_and_never_a_number` and
   `recap/tests/git_block.rs:a_listing_nobody_could_run_is_unknown_rather_than_none`, and the listing
-  parse by `recap/worktree/tests.rs:output_that_is_not_a_listing_at_all_is_unavailable`.
+  parse by `recap/worktree/listing/tests.rs:output_that_is_not_a_listing_at_all_is_unavailable`.
 - Thresholds: `COLLAPSE_ABOVE` = 20 rows, past which the file list prints its counts per status instead,
   in the layout's own `A 3  M 4  D 1` shape. One step either side is pinned by
   `recap/tests/git_block.rs:a_file_list_past_the_collapse_line_says_its_counts_instead_of_its_rows`. The
@@ -1068,10 +1068,10 @@ file list, and exits 0 without delivering anything
   grandchild; that is the same accepted limit the `gh` spawn already carries in this document's Gaps.
 - Compatibility contract: `pr view` takes a NUMBER and has no `--json` and no branch form (MEASURED
   2026-09-14 against `gh-axi pr view --help`), so the branch is resolved with `pr list --head`. gh-axi has
-  no JSON output mode either, so `crates/pns-adapters/src/recap/worktree.rs:listed` reads the format it
+  no JSON output mode either, so `crates/pns-adapters/src/recap/worktree/listing.rs:listed` reads the format it
   prints: the field names come out of the listing's own header and the state is counted from the RIGHT of
   the row, because the title is the one field that may hold a comma
-  (`recap/worktree/tests.rs:a_title_holding_commas_does_not_move_the_state_column`).
+  (`recap/worktree/listing/tests.rs:a_title_holding_commas_does_not_move_the_state_column`).
 
 ## Gaps
 
