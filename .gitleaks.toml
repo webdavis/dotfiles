@@ -5,7 +5,8 @@ title = "dotfiles"
 useDefault = true
 
 [allowlist]
-description = "Vendored third-party skill documentation with placeholder example credentials (sk-1234..., myuser:mypassword, truncated PEM blocks). The content must stay byte-identical to upstream/live, so inline gitleaks:allow comments are not an option."
+description = "Vendored third-party skill documentation and research notes quoting third-party API docs, both carrying placeholder example credentials (sk-1234..., myuser:mypassword, truncated PEM blocks, YOUR_API_TOKEN). The quoted content must stay verbatim, so inline gitleaks:allow comments are not an option."
 paths = [
   '''dot_agents/skills/kubernetes-specialist/references/configuration\.md''',
+  '''docs/research/2026-09-moshi-image-cards\.md''',
 ]
