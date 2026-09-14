@@ -92,6 +92,9 @@ with `git worktree add` or a harness helper stays invisible there.
 - A worktree the harness already made (the Agent tool's `isolation: "worktree"`) gets registered with
   `herdr worktree open --cwd <repo-root> --path <worktree-path> --no-focus`.
 - Without `HERDR_ENV`, plain `git worktree add` is the fallback.
+- A lane's worktree is removed through herdr as soon as its pull request has merged and nothing is using
+  it, so the sidebar row goes with the checkout, and `just worktrees-prune` in the repository is the
+  sweep that does it.
 - Sub-agents inherit this rule. A brief that sends work to a worktree carries the create line verbatim.
 
 ## Work recaps

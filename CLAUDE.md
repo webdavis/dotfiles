@@ -667,6 +667,13 @@ aborting and warning rather than leaving a worktree half-rebased.
 herdr hardcodes `<directory>/<repo>/<branch-slug>` and worktrunk's path is templatable, so worktrunk
 bends to match and both tools create worktrees in one place rather than two.
 
+`just worktrees-prune` sweeps the other way (`--dry-run` to see the decisions first):
+`~/.local/libexec/prune-merged-worktrees.sh` (source
+`dot_local/libexec/executable_prune-merged-worktrees.sh`) removes every linked worktree of this
+repository whose HEAD is an ancestor of `origin/main` and whose tree is clean apart from
+`graphify-out/graph.json`, through `herdr worktree remove` when the checkout still has a workspace row
+and `git worktree remove` when it does not, and it never deletes a branch.
+
 ### Bashrc init ordering
 
 The canonical order inside the interactive block is direnv, starship, zoxide, atuin. Direnv's hook runs
