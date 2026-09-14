@@ -68,25 +68,22 @@ impl QueueHealth for Fixture {
 }
 impl WatchdogIntegrity for Fixture {
     fn pipeline(&mut self) -> AuditObservation {
-        if self.0.borrow().audit_bad {
-            AuditObservation {
-                completed: true,
-                report: "content /private/hostile-path\n".into(),
-                fingerprint: AuditFingerprint::parse(&"a".repeat(64)),
-            }
-        } else {
-            AuditObservation {
-                completed: true,
-                report: String::new(),
-                fingerprint: None,
-            }
+        let world = self.0.borrow();
+        AuditObservation {
+            completed: true,
+            report: if world.audit_bad {
+                "content /private/hostile-path\n".into()
+            } else {
+                String::new()
+            },
+            fingerprint: world
+                .audit_bad
+                .then(|| AuditFingerprint::parse(&"a".repeat(64)))
+                .flatten(),
+            pns_problem: world
+                .pns_bad
+                .then(|| "pns binary differs from its authorized build".into()),
         }
-    }
-    fn pns_problem(&mut self) -> Option<String> {
-        self.0
-            .borrow()
-            .pns_bad
-            .then(|| "pns binary differs from its authorized build".into())
     }
 }
 impl WatchdogStateStore for Fixture {

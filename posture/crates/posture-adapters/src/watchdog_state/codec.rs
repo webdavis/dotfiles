@@ -39,6 +39,10 @@ fn queue(value: &Value) -> QueueMemory {
     QueueMemory {
         count: number(&value["count"]),
         growth_streak: number(&value["growth_streak"]).unwrap_or(0),
+        // A state file written before dead letters were remembered carries no
+        // key here, which reads as "never observed" and pages the standing
+        // count once on the first tick after the upgrade.
+        deadletters: number(&value["deadletters"]),
     }
 }
 pub(super) fn encode(state: &WatchdogState) -> Vec<u8> {
@@ -48,7 +52,7 @@ pub(super) fn encode(state: &WatchdogState) -> Vec<u8> {
             agents.insert(agent.label().into(), json!({"runs": memory.runs.map_or(json!(-1), |n| json!(n)), "streak": memory.streak}));
         }
     }
-    let queue = |memory: QueueMemory| json!({"count": memory.count.map_or(json!(-1), |n| json!(n)), "growth_streak": memory.growth_streak});
+    let queue = |memory: QueueMemory| json!({"count": memory.count.map_or(json!(-1), |n| json!(n)), "growth_streak": memory.growth_streak, "deadletters": memory.deadletters.map_or(json!(-1), |n| json!(n))});
     let audit = &state.pipeline_audit;
     let mut bytes = json!({
         "agents": agents,

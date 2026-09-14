@@ -15,3 +15,19 @@
 # declaration and keybinding needs the absolute form.
 rust_tools:
   install_dir: ".cargo/bin"
+
+  # The largest artifact each builder will publish and each consumer will trust,
+  # PER TOOL, because one shared ceiling sized for the smaller binary refuses
+  # every apply the moment the larger one grows into it. Each value is about
+  # twice the size measured on 2026-09-13 (pns 6,966,304 bytes; posture 670,288
+  # bytes), rounded up to a whole mebibyte, which leaves room for ordinary
+  # dependency growth while still catching a runaway or substituted artifact.
+  #
+  # Two consumers cannot read this file and carry the same numbers by hand:
+  # `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` is a plain
+  # script rather than a template, and posture's watchdog audit is a Rust tool
+  # other people install, which never reads this repository's data. Both name
+  # this key where their constants sit. Move all four together.
+  max_artifact_bytes:
+    pns: 14680064
+    posture: 2097152
