@@ -6,8 +6,8 @@
   <string>com.webdavis.osquery-firewall-gatekeeper-monitor</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/bash</string>
-    <string>{{ .chezmoi.homeDir }}/.local/libexec/osquery/firewall-gatekeeper-monitor.sh</string>
+    <string>{{ .chezmoi.homeDir }}/{{ .rust_tools.install_dir }}/posture</string>
+    <string>poll</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
