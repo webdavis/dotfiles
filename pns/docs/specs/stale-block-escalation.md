@@ -172,7 +172,8 @@ Then it is one ordinary event on the `priority` route, state `blocked`, detail
 
 - No test drives a real daemon tick through to a page an hour later: this binary has no clock override,
   so the job's registration and the fire are pinned separately instead.
-- Nothing pins the `priority` route's own gateway configuration. As of 2026-09-14 that route still
-  carries the retired Bash alerter's secret, so a pns post to it answers 401 until the operator settles
-  which key it should hold.
+- No test pins the `priority` route's own gateway configuration, and none can: the committed hermes
+  config is age-encrypted, so a test would need an identity CI never supplies. The route now carries the
+  key pns signs with and a prompt in the pns body's shape, and `run_after_68` compares every route's
+  secret against pns's on each apply, which is the only gate that can see the value.
 - The recap section that would carry a suppressed escalation is designed and not built.

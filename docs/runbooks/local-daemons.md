@@ -148,25 +148,29 @@ the encrypted file and cannot be reached from the `.env`, so a new route gets no
 **A prompt template renders an unknown placeholder as itself.** `_render_prompt` substitutes a missing
 key with `{the.key}` rather than failing, so a route whose template does not match its producers' body
 shape delivers literal placeholders and no content. pns-shaped bodies carry `agent`, `state`, `project`
-and `detail`; the bash osquery alerter's carry `alert.title` and `alert.detail`. `priority` is templated
-for the latter today, which is why a route serving both shapes needs its template settled first.
+and `detail`, plus the composed `header`, `subheader` and `body`; the bash osquery alerter's carried
+`alert.title` and `alert.detail`. Every route is templated for the pns shape now, `priority` included, so
+its old producer is the one that would deliver placeholders.
 
-**`priority` is signed with a different key, so pns cannot reach it.** Its `secret` is the Bash alerter's
-own key, the value in `~/.config/osquery/webhook-secret`, while every other route carries the pns one.
-posture submits through `pns submit --json`, which signs with `[plugins.hermes] key`, so a CRIT page
-routed to `priority` answers 401. Worse, pns commits the request to its ledger and reports the submission
-accepted whatever a destination did with it, so posture advances its cursor and the page is gone with
-nothing in either channel to show for it. `run_after_68` compares the two secrets on every apply and says
-so. The one live signer still using the old key is `drain-undelivered-alerts.sh` on the alert-drainer
-LaunchAgent, draining what the retired Bash alerter left behind; every other osquery agent now runs a
-`posture` subcommand. Reconciling the two is an operator decision, not an apply: the drainer is the one
-thing that still needs the old key, and the prompt above has to be retemplated in the same sitting, or a
-reconciled route delivers two literal placeholders instead of a page.
+**`priority` used to be signed with a different key, and the stale-block escalation settled it.** Its
+`secret` was the Bash alerter's own key, the value in `~/.config/osquery/webhook-secret`, while every
+other route carried the pns one. Everything in this repository submits through pns, which signs with
+`[plugins.hermes] key`, so a page routed to `priority` answered 401. Worse, pns commits the request to
+its ledger and reports the submission accepted whatever a destination did with it, so a producer advances
+its cursor and the page is gone with nothing in either channel to show for it. The key and the prompt had
+to move in one sitting (a reconciled route on the old template delivers two literal placeholders), which
+is what the escalation did: the encrypted config now carries the pns key on all five routes, and
+`run_after_68` compares every one of them against it on every apply.
 
-Because of those two, `severity_route` holds EVERY posture tier on `posture`, critical included, so a
-page is read in the pipeline's own channel rather than refused at the door. Flipping its critical arm
-back to `priority` is the last line of the change that settles the key and the prompt, and the test named
-for the hold is what makes that flip deliberate.
+What that leaves. `drain-undelivered-alerts.sh` on the alert-drainer LaunchAgent is the one signer still
+holding the old key, draining a store that is empty (`select count(*) from pending_alerts` is 0), and
+every other osquery agent now runs a `posture` subcommand, so nothing writes to that store any more;
+anything it somehow queues answers 401 rather than arriving. `~/.config/osquery/webhook-secret` is dead
+weight once that drainer retires, and it is watched by the agent-attack-surface pack, so trash it in the
+same change that removes the LaunchAgent rather than on its own. `severity_route` still holds EVERY
+posture tier on `posture`, critical included; flipping its critical arm back to `priority` is now a
+one-line change in posture's own workspace, and the test named for the hold is what makes that flip
+deliberate.
 
 ### When a route changes
 
