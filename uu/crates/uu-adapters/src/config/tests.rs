@@ -30,7 +30,7 @@ fn a_malformed_file_is_a_loud_error_and_never_an_empty_config() {
 }
 
 #[test]
-fn a_records_block_posts_to_the_unattended_upgrades_route_when_it_names_no_url() {
+fn a_records_block_posts_to_the_uu_route_when_it_names_no_url() {
     let config = parsed("[records]\nkey = \"secret\"\n");
     assert_eq!(
         config.records,
