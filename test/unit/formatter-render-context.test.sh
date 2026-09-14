@@ -6,8 +6,9 @@ set_up() {
   RENDER_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   RENDER_FIXTURE="$(mktemp -d)"
   RENDER_SOURCE="$RENDER_FIXTURE/source with 'quote'"
+  RENDER_TMPDIR="$RENDER_FIXTURE/tmp"
   mkdir -p "$RENDER_SOURCE/.chezmoidata/nested" "$RENDER_SOURCE/.chezmoitemplates" \
-    "$RENDER_SOURCE/inputs" "$RENDER_FIXTURE/bin" "$RENDER_FIXTURE/home"
+    "$RENDER_SOURCE/inputs" "$RENDER_FIXTURE/bin" "$RENDER_TMPDIR"
   printf 'value: retained\n' >"$RENDER_SOURCE/.chezmoidata/nested/value.yaml"
   printf '{"extra": "root data"}\n' >"$RENDER_SOURCE/.chezmoidata.json"
   printf '{{ .value }}' >"$RENDER_SOURCE/.chezmoitemplates/partial"
@@ -36,9 +37,15 @@ EOF
   export RENDER_CAPTURE
 }
 
+tear_down() {
+  [[ -n ${RENDER_FIXTURE:-} ]] && rm -rf "$RENDER_FIXTURE"
+}
+
+# TMPDIR is inside the fixture so a formatter's own scratch is torn down with it
+# and the leak assertion below has a directory it owns to count.
 run_formatter() (
   cd "$RENDER_SOURCE" || exit 1
-  HOME="$RENDER_FIXTURE/home" PATH="$RENDER_FIXTURE/bin:$PATH" \
+  HOME="$RENDER_FIXTURE" TMPDIR="$RENDER_TMPDIR" PATH="$RENDER_FIXTURE/bin:$PATH" \
     "$RENDER_REPO/scripts/treefmt/$1" "$2"
 )
 
@@ -89,7 +96,7 @@ function test_all_formatters_propagate_invalid_rendered_bodies() {
   local formatter output
   printf '#!/bin/bash\n"unterminated\n' >"$RENDER_SOURCE/invalid.tmpl"
   for formatter in shellcheck-rendered-template osquery-config-render espanso-match-render; do
-    output="$(cd "$RENDER_SOURCE" && HOME="$RENDER_FIXTURE/home" \
+    output="$(cd "$RENDER_SOURCE" && HOME="$RENDER_FIXTURE" TMPDIR="$RENDER_TMPDIR" \
       "$RENDER_REPO/scripts/treefmt/$formatter.sh" invalid.tmpl 2>&1)"
     assert_general_error
     assert_not_empty "$output"
