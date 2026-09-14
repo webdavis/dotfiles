@@ -73,7 +73,7 @@ local function is_type_only(declaration)
   return false
 end
 
---- Answers already parsed, keyed by path, size and modification time.
+--- Answers already settled, keyed by path, size and modification time.
 ---
 --- All three adapters ask the same question about the same file, and neotest's filtering pass runs
 --- without yielding, so parsing once per adapter is three times the stall for one answer. The
@@ -112,6 +112,19 @@ local function imports_node_test(file_path)
   end
   local source = handle:read("*a") or ""
   handle:close()
+
+  -- The parse is the whole cost of discovery, and this decides whether it has to happen at all.
+  -- Every one of the four query shapes captures a `string_fragment` and the answer below compares
+  -- its text, which is a slice of these bytes, against `node:test`. So the literal has to be in
+  -- the file for any of them to match, and a file without it is answered here. Measured over 500
+  -- test files of 129 KB: 26.4 ms each parsed, 0.08 ms each read and scanned.
+  --
+  -- A plain find, not a pattern: the answer is about these exact bytes. Remembered like a parsed
+  -- one, because all three adapters ask.
+  if not source:find("node:test", 1, true) then
+    parsed_imports[key] = false
+    return false
+  end
 
   local parsed, parser = pcall(vim.treesitter.get_string_parser, source, language)
   if not parsed then
@@ -345,6 +358,77 @@ local javascript_adapters = {
   ["neotest-nodejs"] = "node",
 }
 
+--- Languages whose parser build did not finish inside the wait below, for this session only.
+---
+--- A build that is not coming answers the same way every time, so without this the second press
+--- pays the whole ceiling again, and so does the tenth: a state that cost nothing before the gate
+--- existed would cost 30 s of blocked editor per press, indefinitely. Remembered per language and
+--- never cleared, because the retry that matters is a restart or a `:TSInstall`, both of which
+--- start a new session or put the parser on disk for `language.add` to find on the next press.
+local parser_wait_failed = {}
+
+--- The neotest module, with the tree-sitter parser it will discover this buffer's tests with
+--- installed.
+---
+--- Every adapter here discovers positions with tree-sitter, and one whose grammar is missing finds
+--- nothing: `parse_positions` raises "No parser for language" from inside neotest's own discovery,
+--- so the request ends with no tests and, measured on this machine, NO message either. Parsers
+--- arrive asynchronously, from the core list at `User LazyDone` and from the FileType hook for
+--- anything outside it, so the first request in a language this machine had never opened lost that
+--- race and came back empty while a retry seconds later worked.
+---
+--- Waited for BEFORE the neotest module is asked for, because neotest's client starts on its first
+--- API call and only then registers the autocmds that discover a buffer. Waiting afterwards would
+--- pump the event loop with the parser still absent, which is how an empty tree would be cached
+--- for the very file the request is about.
+---
+--- The buffer's own language rather than each adapter's, because a request reads the buffer it was
+--- made from and only the adapter knows what it parses. `<leader>ta` from a buffer of another
+--- language is what the core parser list covers: every adapter language sits in it, `go` included,
+--- so the parser is already built there.
+---@return table
+local function neotest_with_parser()
+  local language = vim.treesitter.language.get_lang(vim.bo.filetype) or vim.bo.filetype
+  -- `language.add` ANSWERS for a parser that is not installed rather than raising, so the returned
+  -- value is the test: a bare `pcall` status reads every miss as a hit, which is the bug in the Go
+  -- adapter's own guard and why nothing was reported.
+  local loaded, added = pcall(vim.treesitter.language.add, language)
+  if loaded and added then
+    return require("neotest")
+  end
+  -- Nothing to wait for when nvim-treesitter cannot build the language at all, which is every
+  -- scratch buffer whose filetype is no grammar's name, or when a build here already ran out of
+  -- time once.
+  if
+    not parser_wait_failed[language]
+    and vim.list_contains(require("nvim-treesitter.config").get_available(), language)
+  then
+    vim.notify("neotest: installing the " .. language .. " parser", vim.log.levels.INFO)
+    -- `force`, because the parser is already known to be missing and an ordinary install accepts
+    -- either artifact: a leftover queries directory alone reads as installed and returns without
+    -- building anything. An install already in flight is joined rather than repeated either way.
+    --
+    -- Thirty seconds, the ceiling the FileType installer polls to: a build that is not coming must
+    -- not hold the editor. `pwait` reports that timeout instead of raising, and the request goes
+    -- ahead regardless, because a discovery that finds nothing is what it would have been anyway.
+    --
+    -- Both of `pwait`'s answers, for the same reason `language.add` needs both of its own: the
+    -- status says only that the task RAN, and `install` reports a build that produced no parser by
+    -- returning false through a task that finished, so a status-only read calls that a success.
+    --
+    -- One press still pays twice where the FileType hook's own install is already running for this
+    -- buffer: nvim-treesitter JOINS an install in flight and reports whether that wait ended, not
+    -- whether a parser arrived, so the joining press is told it succeeded. Measured at two paid
+    -- presses and then nothing, against unbounded before this memo, and the race can only happen
+    -- once per language per session.
+    local finished, installed = require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
+    if not (finished and installed) then
+      parser_wait_failed[language] = true
+    end
+  end
+  return require("neotest")
+end
+
 --- Run everything under the working directory through ONE named adapter.
 ---
 --- neotest takes a directory without asking any adapter's `is_test_file`, then walks its adapter
@@ -354,7 +438,7 @@ local javascript_adapters = {
 --- with nothing declared and more than one adapter attached the choice is the operator's, because
 --- a wrong silent pick reads as a runner that lost its tests.
 local function run_all_tests()
-  local neotest = require("neotest")
+  local neotest = neotest_with_parser()
   local directory = vim.fn.getcwd()
 
   -- A manifest nobody can parse is not the same answer as a manifest naming no runner. Saying so
@@ -475,10 +559,10 @@ return {
     },
     -- stylua: ignore start
     keys = {
-      { "<leader>tt", function() require("neotest").run.run() end, desc = "Neotest: run nearest test" },
-      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end, desc = "Neotest: run file" },
+      { "<leader>tt", function() neotest_with_parser().run.run() end, desc = "Neotest: run nearest test" },
+      { "<leader>tf", function() neotest_with_parser().run.run(vim.fn.expand("%")) end, desc = "Neotest: run file" },
       { "<leader>ta", run_all_tests, desc = "Neotest: run all tests" },
-      { "<leader>ts", function() require("neotest").summary.toggle() end, desc = "Neotest: toggle summary" },
+      { "<leader>ts", function() neotest_with_parser().summary.toggle() end, desc = "Neotest: toggle summary" },
       { "<leader>to", function() require("neotest").output.open({ enter = true }) end, desc = "Neotest: open output" },
       { "<leader>tS", function() require("neotest").run.stop() end, desc = "Neotest: stop run" },
     },
