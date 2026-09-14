@@ -88,6 +88,26 @@ union-merge via the `graphify-union` driver (`.gitattributes` plus `[merge "grap
 `dot_gitconfig.tmpl`); without the driver git falls back to a normal conflict, resolvable by regenerating
 with `graphify update .`.
 
+**The detached rebuild versus the pre-push gate.** Two pushes made straight after their commit failed
+`just lint-check` on 2026-09-13 with
+`chezmoi: lstat .../graphify-out/cache/ast/<name>.tmp: no such file or directory`, reported as lint drift
+with no file changed; a push a minute later passed. Neither hook was at fault and no wait was needed.
+treefmt walks the git index and excludes `graphify-out/**`, so it never reads the cache; the walker was
+`chezmoi execute-template` inside the `shellcheck-rendered-template` formatter, which reads the whole
+source state before evaluating its input. `.chezmoiignore` filters TARGETS rather than that walk, so the
+`graphify-out/` entry there does not prune it, and chezmoi listed `graphify-out/cache/ast` and then
+stat'd entries the rebuild had already replaced. The shallow source view in
+`scripts/treefmt/lib-render-context.sh` is the fix: the render's source directory is a set of top-level
+symlinks, and chezmoi lstats a symlinked entry instead of descending through it. Both failures came from
+worktrees branched before it landed; `test/unit/formatter-render-context.test.sh` pins the property with
+an unreadable directory under `graphify-out/cache`, which a descending walk cannot open.
+
+KNOWN LIMIT: only the formatter got the shallow view. Eleven unit tests still hand chezmoi the real
+checkout as `--source`, so the same churn reddens `just test-unit` instead of the push gate. Routing them
+through `scripts/treefmt/lib-render-context.sh` is not a lift-and-drop (it hardcodes `$PWD` as the
+source, exports its own `HOME` and claims the `EXIT` trap, while several of those tests point `HOME` at a
+fixture whose absolute path the render bakes in), so they are knowingly left exposed.
+
 ## Bypassing
 
 `git commit --no-verify` skips `pre-commit` and `prepare-commit-msg` for one commit. It does **not** skip
