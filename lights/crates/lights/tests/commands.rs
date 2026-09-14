@@ -207,6 +207,7 @@ fn bare_preset_lists_the_configured_presets_without_a_read() {
     assert!(w.is_empty());
     let (r, w) = command(&["preset"], Some(config()), vec![]);
     assert_eq!((r.exit, r.stdout.as_str()), (0, ""));
+    assert_eq!(r.stderr, "lights: no presets configured\n");
     assert!(w.is_empty());
 }
 

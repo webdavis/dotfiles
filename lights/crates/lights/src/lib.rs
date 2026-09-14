@@ -36,7 +36,14 @@ pub fn run<C: LightController>(
     let notify = request.notify || settings.notify;
     if let Command::Preset(name) = &request.command {
         let Some(name) = name else {
-            return success(render::preset_names(&settings.presets));
+            let names = render::preset_names(&settings.presets);
+            // Listing nothing is not an error, but silence on a fresh config is
+            // indistinguishable from a broken binary, so say which it is.
+            return if names.is_empty() {
+                failure(0, "no presets configured")
+            } else {
+                success(names)
+            };
         };
         let Some(plan) = settings.presets.plan(name) else {
             return failure(1, &format!("unknown preset {name:?}"));
