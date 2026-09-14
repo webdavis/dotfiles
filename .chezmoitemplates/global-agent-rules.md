@@ -153,13 +153,16 @@ Readability rules:
 - Collapse a long file list to counts per status (`A 3  M 4  D 1`) rather than truncating mid-list.
 - Short replies still hold for everything that is not the recap.
 
-Where the data comes from: the Git block and the file list come from `git` in the worktree
-(`git diff --name-status origin/main...HEAD` for the file list, `git log` for stack position), and the PR
-line comes from `npx -y gh-axi pr view`. Never guess a PR number.
+Where the data comes from: `pns recap git`, run in the worktree the work happened in, prints the Git
+block, the stack graph and the file list already in this layout. It reads git for the branch, the
+worktree, the trunk, the stack and the diff, and `gh-axi` for the PR number and state. Paste its output
+rather than composing those parts by hand, and never guess a PR number: `none` is gh-axi saying there is
+none, `unknown` is gh-axi not answering.
 
-Delivery: today the recap goes in the chat reply and nowhere else. Forwarding it to the `#pns` Discord
-channel through pns is planned as `pns recap agent --stdin` and is not built, so never claim the recap
-was posted anywhere.
+Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the `#pns-recap`
+Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the file list and
+then shedding whole sections, never by cutting a line in half, and it never sheds User Tasks. It prints
+one line saying where the post landed; claim the recap was posted only when that line says it was.
 
 ## Pull request descriptions
 
