@@ -511,13 +511,12 @@ Four rules decide the shape below `libexec`, in this order:
    because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port retired both,
    since `tailnet-pin` carries its domain in its own name and installs beside the other Rust tools.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
-   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
-   `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
-   what shows up in `ps`, in launchd output and in every log line, so five directories of `main.sh` would
-   be five indistinguishable processes. That directory holds a tool's private DATA as well as its private
-   code (`posture/converge/desired/` is the state the converge installs; `posture/controls.json` is the
-   flat-file version of the same idea), because the alternative is data under `share/` that none of the
-   integrity coverage anchored on this tree reaches.
+   tool's name inside it (`osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never
+   `main.sh`: the basename is what shows up in `ps`, in launchd output and in every log line, so five
+   directories of `main.sh` would be five indistinguishable processes. That directory holds a tool's
+   private DATA as well as its private code (`posture/converge/desired/` is the state the converge
+   installs; `posture/controls.json` is the flat-file version of the same idea), because the alternative
+   is data under `share/` that none of the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
    subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
    keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The

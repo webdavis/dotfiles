@@ -4,7 +4,7 @@
 # send_alert(), which always fires the local macOS notifier (alerter) and, for a
 # CRIT severity ONLY, POSTs the page to the hermes #priority Discord webhook.
 # Signing and durable handling of an undelivered page live here so the three
-# producers (results-alerter.sh, firewall-gatekeeper-monitor.sh, and
+# producers (firewall-gatekeeper-monitor.sh, tailscale-monitor.sh, and
 # uptime-watchdog.sh) share one implementation.
 #
 # The undelivered-alerts store is WRITE-AHEAD: send_alert persists the page as a
@@ -126,11 +126,11 @@ _osquery_sqlite3_bin() {
 
 # Run the SQL arriving on STDIN against the undelivered-alerts DB, applying the
 # connection pragmas first: WAL for crash-atomic commits, and a busy_timeout so
-# the several producers (results-alerter, firewall-gatekeeper, watchdog, digest,
-# tailscale) serialize briefly under contention instead of failing outright. The
-# pragmas' own chatter is routed to /dev/null so only the SQL's rows reach
-# stdout. Only non-secret alert fields ever flow through here; the webhook secret
-# is never passed to SQL. Returns sqlite3's exit status.
+# the several producers (firewall-gatekeeper, watchdog, tailscale) serialize
+# briefly under contention instead of failing outright. The pragmas' own chatter
+# is routed to /dev/null so only the SQL's rows reach stdout. Only non-secret
+# alert fields ever flow through here; the webhook secret is never passed to
+# SQL. Returns sqlite3's exit status.
 #
 # One lock the busy_timeout does NOT absorb: a brand-new database's first
 # conversion into WAL takes an exclusive lock, and when concurrent first-opens

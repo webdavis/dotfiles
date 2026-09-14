@@ -24,7 +24,7 @@ set -euo pipefail
 
 # The shared dispatch library provides retry_undelivered_alerts and the SQLite
 # store helpers. Source it from the same deployed path the three producers
-# (results-alerter, firewall-gatekeeper-monitor, uptime-watchdog) use, so all
+# (firewall-gatekeeper-monitor, tailscale-monitor, uptime-watchdog) use, so all
 # four agree on one implementation of the store and its drain.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
