@@ -32,8 +32,6 @@ fn home_names_the_spool_the_alerter_writes_and_the_engine_that_delivers() {
     let mut store = home.clone();
     store.push(DEFAULT_STORE);
     assert_eq!(config.store, PathBuf::from(store));
-    let mut engine = home;
-    engine.push("/.cargo/bin/pns");
     // No config file under that home, so delivery stands at its fail-closed
     // default rather than at some engine this tool would have to name.
     assert_eq!(config.delivery, posture_adapters::Delivery::default());

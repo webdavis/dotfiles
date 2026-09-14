@@ -17,8 +17,6 @@ fn home_constructs_paths_without_reading_legacy_path_overrides() {
     let mut snapshots = home.clone();
     snapshots.push("/.local/log/osquery/osqueryd.snapshots.log");
     assert_eq!(config.snapshots, PathBuf::from(snapshots));
-    let mut engine = home;
-    engine.push("/.cargo/bin/pns");
     // No config file under that home, so delivery stands at its fail-closed
     // default rather than at some engine this tool would have to name.
     assert_eq!(config.delivery, posture_adapters::Delivery::default());
