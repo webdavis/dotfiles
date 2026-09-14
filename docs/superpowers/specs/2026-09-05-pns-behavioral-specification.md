@@ -2705,6 +2705,103 @@ S241. The per-record claim has one owner independently of the fire lock; a prior
       also `a_record_claim_never_overwrites_a_batch_that_owner_already_holds`.
       The independent read-in-place fault is caught by the first test.
 
+### 11.1 The stale-block escalation
+
+The nag's sibling, added 2026-09-14: the nag says "this approval is still waiting" minutes later on
+the ordinary route, and this says "nobody is coming" an hour later on the route reserved for things
+that need a human, once per block.
+
+S286. `[nag] stale_after_secs` is the switch and the window: 60 to 86400 arms it, 0 is off, anything
+      else is refused by name; the DEFAULT IS 3600 rather than off, which is where it differs from
+      `after_secs` beside it, and a config nobody can parse reads as off.
+      Source: `crates/pns-adapters/src/config/nag.rs stale_window`,
+      `crates/pns-adapters/src/config/nag.rs DEFAULT_STALE_AFTER_SECS`,
+      `crates/pns/src/wait_runtime.rs stale_after_secs`.
+      Pin: `the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error`
+           at crates/pns-adapters/src/config/tests/nag.rs
+      also `an_escalation_window_that_is_not_a_count_of_seconds_is_refused_by_name`
+           at crates/pns-adapters/src/config/tests/nag.rs
+      also `core_and_armed_lights_defaults_are_written_live_never_commented`
+           at crates/pns-adapters/src/config/render/tests/defaults.rs
+
+S287. Every state in `pulse::LAMP_BLOCKED` records `blocked_since` on the session's row and registers
+      one leased job `stale:<session>` with `due = now + window`, `until = due + window`, no
+      `unless_marker`, args `["stale"]`; it arms for EVERY harness, where the nag arms for claude
+      alone; any other state, and the `prompt` and `resolved` arms that end a wait directly, clear
+      `blocked_since` and `escalated_at`; a window of zero arms nothing and an unsafe session id
+      records nothing at all.
+      Source: `crates/pns-application/src/track_wait.rs track_wait`,
+      `crates/pns/src/wait_runtime.rs track_wait`,
+      `crates/pns/src/wait_runtime.rs end_blocked_wait`,
+      `crates/pns-application/src/submit_notification.rs record`.
+      Pin: `a_wait_starting_event_records_the_row_and_schedules_one_leased_job`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `every_waiting_state_arms_it_and_a_later_event_clears_the_row`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `a_blocked_approval_arms_one_leased_escalation_job_for_every_harness`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `an_escalation_window_of_zero_arms_nothing`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `a_session_id_that_cannot_be_a_filename_records_nothing_at_all`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `the_records_are_written_in_the_order_the_event_path_states`
+           at crates/pns-application/src/submit_notification/tests/order.rs
+
+S288. The fire selects `blocked_since IS NOT NULL AND blocked_since <= now - window AND escalated_at
+      IS NULL`, oldest first: a block as old as the window is selected and one second short of it is
+      not. The claim is the stamp, taken under `escalated_at IS NULL` inside the write, so a second
+      claimant is refused and a later tick selects nothing; a new block clears the stamp, whether or
+      not any event ended the last one.
+      Source: `crates/pns-adapters/src/persistence/sqlite/sessions.rs stale_blocks`,
+      `crates/pns-adapters/src/persistence/sqlite/sessions.rs claim_escalation`,
+      `crates/pns-adapters/src/persistence/sqlite/sessions.rs begin_wait`.
+      Pin: `a_block_as_old_as_the_window_is_selected_and_one_second_short_of_it_is_not`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `the_escalation_is_claimed_once_so_a_later_tick_finds_nothing`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_wait_that_ended_is_selected_again_once_a_new_block_starts`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_new_block_is_selected_again_even_where_no_event_ended_the_last_one`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_row_another_fire_already_claimed_is_never_paged_about`
+           at crates/pns-application/src/escalate_stale/tests.rs
+
+S289. The gate is read once, off one surface reading, BEFORE any claim: `Surface::Away` is silent,
+      `screen_locked == Some(true)` with a desk idle age at or past the window is silent, and
+      anything else pages, so a screen locked for PART of the window still pages. A suppressed fire
+      stamps nothing, leaves every row as it found it, and says how many it held back and why on
+      stderr.
+      Source: `crates/pns-domain/src/stale.rs gate`,
+      `crates/pns-application/src/escalate_stale.rs run`,
+      `crates/pns/src/command_stale.rs stale_mode`.
+      Pin: `an_away_operator_is_never_paged` at crates/pns-domain/src/stale/tests.rs
+      also `a_screen_locked_through_the_whole_window_is_not_paged`
+           at crates/pns-domain/src/stale/tests.rs
+      also `a_screen_locked_inside_the_window_is_still_paged`
+           at crates/pns-domain/src/stale/tests.rs
+      also `an_away_operator_is_not_paged_and_no_row_is_stamped`
+           at crates/pns-application/src/escalate_stale/tests.rs
+
+S290. The page is one ordinary event on the `priority` route (fixed, not configurable), state
+      `blocked`, detail `blocked <n> minutes, no answer`, carrying the row's project, branch, session
+      and title so the header and subheader compose exactly as every other event's do, and no pane.
+      It is an `Attempt::Nudge`, so it journals no miss, counts as no activity and pulses no lamp; a
+      page the gateway refuses is recorded in the delivery ledger and said on stderr. `pns stale`
+      takes no argument, and one is a refusal with exit 2.
+      Source: `crates/pns-domain/src/stale.rs page`, `crates/pns-domain/src/stale.rs waited`,
+      `crates/pns/src/command_stale.rs StaleNotification`.
+      Pin: `the_page_goes_to_the_priority_route` at crates/pns-domain/src/stale/tests.rs
+      also `the_page_says_how_long_the_block_has_stood` at crates/pns-domain/src/stale/tests.rs
+      also `a_stale_block_is_claimed_before_it_is_paged_about`
+           at crates/pns-application/src/escalate_stale/tests.rs
+      also `the_fire_refuses_a_session_argument_and_says_nothing_when_the_window_is_off`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `a_fire_with_nothing_stuck_says_so_and_delivers_nothing`
+           at crates/pns/tests/hooks/stale_arming.rs
+      UNPINNED: that a real daemon tick spawns `pns stale` an hour after a block, which needs a clock
+      this binary has no override for; the job's own registration and the fire are pinned separately
+      above.
+
 ## 12. Missed notifications and the replay
 
 S242. A returning event (surface not `Away`, plan raising a banner or a card, at least one decorative
@@ -3317,6 +3414,9 @@ clause counts as UNPINNED, so the review of the same day moved eight statements 
 | UNPINNED, whole (43) or by one clause (7)      | 50    |
 | Test references (a test may pin many statements) | 776   |
 | Distinct Rust tests referenced                 | 708   |
+
+Five statements (S286 to S290) were added on 2026-09-14 for the stale-block escalation and are not
+in the counts above, which stand as computed on 2026-09-05.
 
 The crate's own register, `pns/docs/specs/unpinned-behaviors.md`, lists 79 test-gap
 rows and 26 open-question rows harvested from the seventeen area specifications; the UNPINNED
