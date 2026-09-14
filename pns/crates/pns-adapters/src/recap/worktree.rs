@@ -1,27 +1,25 @@
-//! What git, worktrunk and gh-axi say about the worktree the work happened in.
+//! What git, worktrunk and `gh` say about the worktree the work happened in.
 //!
 //! ONE READ, NO WRITE. Every spawn below is a query: a branch listing, a diff,
 //! a pull-request listing. Nothing here checks out, fetches, rebases or posts,
 //! which is what bounds a command an agent runs at the end of a turn.
 //!
 //! WORKTRUNK HAS NO STACK TO ASK FOR. `wt list` reports worktrees and their
-//! status, and `gh-axi stack` needs `github/gh-stack`, which is not installed
+//! status, and a stack listing needs `github/gh-stack`, which is not installed
 //! on this machine (both MEASURED 2026-09-14). So the stack is derived from git
 //! ancestry, which is the same fact either tool would have reported: a branch
 //! is below HEAD in the stack when its tip is an ancestor of HEAD and is not
 //! already in the trunk.
 
-mod listing;
-
 use crate::run_bounded;
-use pns_domain::recap::git_block::{Branch, Change, GitFacts, PullRequestLookup};
+use pns_domain::recap::git_block::{Branch, Change, GitFacts, PullRequest, PullRequestLookup};
 use std::process::Command;
 use std::time::Duration;
 
 /// Everything the Git block is rendered from, read out of `cwd`.
 ///
 /// EVERY READ DEGRADES ON ITS OWN. A repository with no `origin` still names
-/// its branch and its worktree; a gh-axi that is not installed costs the PR
+/// its branch and its worktree; a `gh` that is not installed costs the PR
 /// line and nothing else. The one thing that is never guessed is a pull
 /// request number.
 pub fn git_facts(cwd: &str) -> GitFacts {
@@ -144,29 +142,70 @@ fn change(row: &str) -> Option<Change> {
     })
 }
 
-/// What gh-axi says about one branch's pull request.
+/// What `gh` says about one branch's pull request.
 ///
-/// `pr view` TAKES A NUMBER, so the branch is resolved through `pr list --head`
-/// (MEASURED 2026-09-14: `gh-axi pr view --help` names no `--json` flag and no
-/// branch form). That is still gh-axi answering rather than pns guessing,
-/// which is the rule the layout states.
+/// `pr view` TAKES A NUMBER, so the branch is resolved through `pr list --head`,
+/// which answers with the listing this reads.
 ///
-/// THROUGH `npx`, LIKE EVERY OTHER CALLER OF IT ON THIS MACHINE. gh-axi is not
-/// installed as a binary, and `npx -y` resolves it from the cache in around two
-/// seconds (MEASURED). A context whose PATH carries no `npx` reads as
+/// ONE GITHUB CLI FOR THE WHOLE PRODUCT, the same `gh --json` that
+/// `recap::merges` one directory over already reads. pns is installed by people
+/// who do not have this machine's npm cache, so fetching a package from a
+/// registry at recap time to read two integers is not something it may do, and
+/// a text listing with no stability contract is not something it may parse.
+///
+/// `gh` CARRIES ITS OWN AUTH AND THIS NEVER TOUCHES IT: no token is read and
+/// the one spawn is a LIST. A context whose PATH carries no `gh` reads as
 /// unavailable, which costs this one line.
 fn pull_request(cwd: &str, branch: &str) -> PullRequestLookup {
-    let mut command = Command::new(NPX);
+    let mut command = Command::new(GH);
     command.args([
-        "-y", "gh-axi", "pr", "list", "--head", branch, "--state", "all", "--limit", "1",
+        "pr",
+        "list",
+        "--head",
+        branch,
+        "--state",
+        "all",
+        "--json",
+        "number,state",
+        "--limit",
+        "1",
     ]);
     if !cwd.is_empty() {
         command.current_dir(cwd);
     }
-    let Some(listing) = run_bounded(command, None, AXI_DEADLINE, AXI_READ_MAX) else {
+    let Some(listing) = run_bounded(command, None, GH_DEADLINE, GH_READ_MAX) else {
         return PullRequestLookup::Unavailable;
     };
-    listing::listed(&listing)
+    listed(&listing)
+}
+
+/// One pull request off `gh`'s listing, or which of the two absences it was.
+///
+/// FAIL CLOSED INTO "NOTHING ANSWERED", never into "there is no pull request".
+/// An empty array is `gh` saying this branch has none, which is the one absence
+/// the layout has a word for; anything that did not parse, or parsed without
+/// the two fields that were asked for, said nothing at all, and calling that
+/// `none` is exactly the guess the rule forbids.
+fn listed(listing: &str) -> PullRequestLookup {
+    let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(listing) else {
+        return PullRequestLookup::Unavailable;
+    };
+    let Some(entry) = entries.first() else {
+        return PullRequestLookup::Absent;
+    };
+    match (
+        entry.get("number").and_then(serde_json::Value::as_u64),
+        entry.get("state").and_then(serde_json::Value::as_str),
+    ) {
+        // THE LAYOUT WRITES THE STATE IN LOWER CASE (`*merged*`, `*open*`) and
+        // `gh` answers in upper, so the one word is folded here rather than in
+        // the block that only says what it was handed.
+        (Some(number), Some(state)) => PullRequestLookup::Found(PullRequest {
+            number,
+            state: state.to_lowercase(),
+        }),
+        _ => PullRequestLookup::Unavailable,
+    }
 }
 
 /// One git read, trimmed, or None when git refused or could not be run.
@@ -185,16 +224,23 @@ const ORIGIN: &str = "origin";
 /// What the trunk is when `origin/HEAD` says nothing.
 const DEFAULT_TRUNK: &str = "main";
 /// The listing tool, resolved through PATH. See `pull_request`.
-const NPX: &str = "npx";
+const GH: &str = "gh";
 /// How long a git read may take. Every one of them is local, so anything
 /// slower than this is a wedged repository rather than an answer.
 const GIT_DEADLINE: Duration = Duration::from_secs(10);
 /// How much of a git read is kept. A branch's whole diff against the trunk is
 /// one path per line; this is thousands of them.
 const GIT_READ_MAX: u64 = 512 * 1024;
-/// How long the pull-request listing may take. SIXTY SECONDS, because `npx`
-/// may have to fetch gh-axi before it can run it; the warm call MEASURED 2.2
-/// seconds.
-const AXI_DEADLINE: Duration = Duration::from_secs(60);
-/// How much of the listing is kept. One row plus its help lines.
-const AXI_READ_MAX: u64 = 64 * 1024;
+/// How long the pull-request listing may take. THIRTY SECONDS, `recap::merges`'
+/// own bound on the same tool: the call MEASURED under a second, so this exists
+/// to stop a wedged network call holding the whole recap rather than to hurry a
+/// slow one.
+const GH_DEADLINE: Duration = Duration::from_secs(30);
+/// How much of the listing is kept. One entry of two fields, so this is orders
+/// of magnitude past it; a truncated read is not JSON, which fails closed into
+/// "nothing answered".
+const GH_READ_MAX: u64 = 64 * 1024;
+
+#[cfg(test)]
+#[path = "worktree/tests.rs"]
+mod tests;

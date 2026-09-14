@@ -9,9 +9,9 @@ three questions, how it composes a body under two budgets at once, how it render
 how it posts to one durable route with one fallback. It also covers the other caller: the event path
 starts this same mode in a detached process at the return moment. Behaviors 17 and 18 cover the
 subcommand's two other verbs, which serve an AGENT rather than the event path: `pns recap agent --stdin`
-posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and gh-axi
-can answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does not settle a question, the line
-begins `NOT ESTABLISHED:` and names what was looked for and where.
+posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and `gh`
+can answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does
+not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 ## Vocabulary, in the code's own words
 
@@ -1017,7 +1017,7 @@ same `post_return_recap` the night recap uses
   which proxies the gateway, answers 404, and asserts
   `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]`.
 
-### 18. The Git block is read from git and gh-axi, and a PR number is never guessed
+### 18. The Git block is read from git and `gh`, and a PR number is never guessed
 
 Given a worktree
 
@@ -1031,25 +1031,26 @@ file list, and exits 0 without delivering anything
   are `git rev-parse --show-toplevel`, `git symbolic-ref --short refs/remotes/origin/HEAD`,
   `git branch --merged HEAD`, `git branch --merged origin/<trunk>`, `git rev-list --count`,
   `git diff --name-status origin/<trunk>...HEAD`, and one
-  `npx -y gh-axi pr list --head <branch> --state all --limit 1` per stack branch.
-- Failure sources: no repository; no `origin/HEAD`; no `origin/<trunk>` ref; a gh-axi that is not
+  `gh pr list --head <branch> --state all --json number,state --limit 1` per stack branch.
+- Failure sources: no repository; no `origin/HEAD`; no `origin/<trunk>` ref; a `gh` that is not
   installed, refuses, or times out; a listing in a shape this was not written against.
 - Fail direction: EACH READ DEGRADES ON ITS OWN and the PR line fails CLOSED into "unknown". "`none` is
-  gh-axi saying there is no pull request; a gh-axi that never ran said nothing at all, and printing
+  `gh` saying there is no pull request; a `gh` that never ran said nothing at all, and printing
   `none` for it is the guess the rule forbids"
   (`crates/pns-domain/src/recap/git_block/facts.rs:PullRequestLookup`). The three answers are pinned by
   `recap/tests/git_block.rs:a_branch_with_a_pull_request_names_its_number_and_its_state`,
   `recap/tests/git_block.rs:a_branch_with_no_pull_request_says_none_and_never_a_number` and
   `recap/tests/git_block.rs:a_listing_nobody_could_run_is_unknown_rather_than_none`, and the listing
-  parse by `recap/worktree/listing/tests.rs:output_that_is_not_a_listing_at_all_is_unavailable`.
+  parse by
+  `recap/worktree/tests.rs:anything_that_is_not_the_listing_that_was_asked_for_is_unavailable`.
 - Thresholds: `COLLAPSE_ABOVE` = 20 rows, past which the file list prints its counts per status instead,
   in the layout's own `A 3  M 4  D 1` shape. One step either side is pinned by
   `recap/tests/git_block.rs:a_file_list_past_the_collapse_line_says_its_counts_instead_of_its_rows`. The
-  git reads are bounded at 10 seconds and 524,288 bytes each; the gh-axi listing at 60 seconds and 65,536
-  bytes, "because `npx` may have to fetch gh-axi before it can run it; the warm call MEASURED 2.2
-  seconds".
+  git reads are bounded at 10 seconds and 524,288 bytes each; the `gh` listing at 30 seconds and 65,536
+  bytes, which is `recap::merges`' own bound on the same tool, "to stop a wedged network call holding
+  the whole recap rather than to hurry a slow one".
 - Required side effects: THE STACK IS DERIVED FROM GIT ANCESTRY. Worktrunk has no stack to ask for
-  (`wt list` reports worktrees and their status), and `gh-axi stack view` needs the `github/gh-stack`
+  (`wt list` reports worktrees and their status), and a stack listing needs the `github/gh-stack`
   extension, which is not installed on this machine (both MEASURED 2026-09-14). A branch is below HEAD in
   the stack when its tip is an ancestor of HEAD and is not already in the trunk, ordered by
   `rev-list --count` from the trunk, with the current branch last. The trunk listing FAILS CLOSED: without
@@ -1061,17 +1062,17 @@ file list, and exits 0 without delivering anything
 - Timeout and cancellation: per-spawn deadlines only, through the same `run_bounded` seam behavior 6
   uses. No group watchdog, for behavior 17's reason.
 - Idempotency and duplicates: pure reads; running it twice prints the same thing twice.
-- Privacy: the branch name is sent to GitHub through gh-axi, which carries its own auth and is never
+- Privacy: the branch name is sent to GitHub through `gh`, which carries its own auth and is never
   handed a token by pns. Nothing else leaves the machine, and the block is printed rather than posted.
 - Process ownership and cleanup: `run_bounded` owns every child, and its kill reaches the child PID
-  rather than a process group. `npx` forks its own child, so a blown gh-axi deadline can leave a
-  grandchild; that is the same accepted limit the `gh` spawn already carries in this document's Gaps.
-- Compatibility contract: `pr view` takes a NUMBER and has no `--json` and no branch form (MEASURED
-  2026-09-14 against `gh-axi pr view --help`), so the branch is resolved with `pr list --head`. gh-axi has
-  no JSON output mode either, so `crates/pns-adapters/src/recap/worktree/listing.rs:listed` reads the format it
-  prints: the field names come out of the listing's own header and the state is counted from the RIGHT of
-  the row, because the title is the one field that may hold a comma
-  (`recap/worktree/listing/tests.rs:a_title_holding_commas_does_not_move_the_state_column`).
+  rather than a process group, which is the same accepted limit the `gh` spawn in behavior 8 already
+  carries in this document's Gaps.
+- Compatibility contract: `pr view` takes a NUMBER and has no branch form, so the branch is resolved
+  with `pr list --head`, read as JSON through the same `--json` flag `recap::merges` already uses. ONE
+  GITHUB CLI FOR THE WHOLE PRODUCT: pns is installed by people who do not have this machine's npm
+  cache, so it may not fetch a package from a registry at recap time, nor parse a text listing with no
+  stability contract. `gh` answers the state in UPPER case and the layout writes it in lower, folded in
+  `crates/pns-adapters/src/recap/worktree.rs:listed`.
 
 ## Gaps
 

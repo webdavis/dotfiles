@@ -17,13 +17,13 @@ use pns_application::{RECAP_USAGE, recap_bounds};
 /// never reads the code.
 /// THREE VERBS, ONE ROUTE. The window form is the night's, spawned detached;
 /// `agent` posts a recap an agent wrote to the same destination; `git` prints
-/// the part of that recap only git, worktrunk and gh-axi can answer, so the
+/// the part of that recap only git, worktrunk and `gh` can answer, so the
 /// skill pastes it instead of composing it by hand.
 ///
 /// ONLY THE WINDOW FORM RUNS UNDER THE GROUP WATCHDOG. That deadline exists
 /// for a child NOBODY IS WATCHING, and it is 30 seconds; the two agent verbs
 /// have a caller waiting on them and every spawn each makes is bounded on its
-/// own, so borrowing the watchdog would only cap a cold `npx` at less than the
+/// own, so borrowing the watchdog would only cap a remote listing at less than the
 /// listing is given.
 pub(crate) fn recap_mode() -> i32 {
     match crate::arguments_after_subcommand()
@@ -150,7 +150,7 @@ fn post(body: &str, recap: &pns_adapters::Recap, home: &str, hermes_key: Option<
 
 /// The verb that posts a recap somebody else composed.
 const AGENT: &str = "agent";
-/// The verb that prints what only git and gh-axi can answer.
+/// The verb that prints what only git and `gh` can answer.
 const GIT: &str = "git";
 /// Where `agent` reads the recap from, named rather than assumed.
 const STDIN: &str = "--stdin";

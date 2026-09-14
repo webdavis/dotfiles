@@ -126,8 +126,8 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     command
         .current_dir(&repository)
         .env("PNS_STATE_DIR", sandbox.path("state"))
-        // NO NETWORK AND NO npx: an empty PATH addition is not how this is
-        // done, so gh-axi simply is not reachable and the PR line says so,
+        // NO NETWORK: an empty PATH addition is not how this is
+        // done, so `gh` simply is not reachable and the PR line says so,
         // which is the branch this asserts.
         .env("PATH", no_listing_path());
     let output = run(command.args(["recap", "git"]));
@@ -138,7 +138,7 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
         "{printed}"
     );
     assert!(
-        printed.contains("- PR: unknown (gh-axi did not answer)"),
+        printed.contains("- PR: unknown (gh did not answer)"),
         "{printed}"
     );
     assert!(
@@ -154,7 +154,7 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     assert!(!printed.contains("kept.txt"), "{printed}");
 }
 
-/// A PATH with git on it and no `npx`, so the pull-request listing is the one
+/// A PATH with git on it and no `gh`, so the pull-request listing is the one
 /// thing that cannot run.
 fn no_listing_path() -> String {
     let git = Command::new("/usr/bin/env")

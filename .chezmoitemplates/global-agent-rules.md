@@ -155,9 +155,9 @@ Readability rules:
 
 Where the data comes from: `pns recap git`, run in the worktree the work happened in, prints the Git
 block, the stack graph and the file list already in this layout. It reads git for the branch, the
-worktree, the trunk, the stack and the diff, and `gh-axi` for the PR number and state. Paste its output
-rather than composing those parts by hand, and never guess a PR number: `none` is gh-axi saying there is
-none, `unknown` is gh-axi not answering.
+worktree, the trunk, the stack and the diff, and `gh` for the PR number and state. Paste its output
+rather than composing those parts by hand, and never guess a PR number: `none` is `gh` saying there is
+none, `unknown` is `gh` not answering.
 
 Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the `#pns-recap`
 Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the file list and

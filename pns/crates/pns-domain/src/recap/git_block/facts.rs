@@ -1,19 +1,19 @@
 //! What the Git block is rendered FROM: the vocabulary git, worktrunk and
-//! gh-axi are read into, with no opinion about how any of it is said.
+//! `gh` are read into, with no opinion about how any of it is said.
 
-/// What gh-axi had to say about one branch's pull request.
+/// What `gh` had to say about one branch's pull request.
 ///
 /// THREE ANSWERS RATHER THAN AN OPTION, because "there is no pull request" and
 /// "nothing could ask" are different facts and the layout has a word for only
-/// one of them. Printing `none` for a gh-axi that never ran is exactly the
+/// one of them. Printing `none` for a `gh` that never ran is exactly the
 /// guess the rule "never guess a PR number" forbids.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PullRequestLookup {
-    /// gh-axi answered with a pull request.
+    /// `gh` answered with a pull request.
     Found(PullRequest),
-    /// gh-axi answered, and the answer was that this branch has none.
+    /// `gh` answered, and the answer was that this branch has none.
     Absent,
-    /// Nothing could ask: gh-axi is not installed, or it refused, or it timed
+    /// Nothing could ask: `gh` is not installed, or it refused, or it timed
     /// out.
     Unavailable,
 }

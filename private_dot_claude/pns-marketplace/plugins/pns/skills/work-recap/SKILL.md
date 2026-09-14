@@ -21,8 +21,8 @@ pns recap git
 It prints the **Git** block and the fenced block holding the stack graph and
 the file list, already in the layout. Paste it; do not retype it. It reads the
 branch, the worktree, the trunk, the stack and the diff from git, and the PR
-number and state from `gh-axi`, so `none` means gh-axi answered that there is
-no pull request and `unknown` means gh-axi could not be reached. Never guess a
+number and state from `gh`, so `none` means `gh` answered that there is
+no pull request and `unknown` means `gh` could not be reached. Never guess a
 number in either case.
 
 Two fields it cannot know: the worktree line always says `kept`, so correct it

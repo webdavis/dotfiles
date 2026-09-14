@@ -2,7 +2,7 @@
 //! facts somebody else read.
 //!
 //! POLICY ONLY, like every other module here: no spawn, no repository, no
-//! network. `pns_adapters::recap::git_facts` runs git, worktrunk and gh-axi;
+//! network. `pns_adapters::recap::git_facts` runs git, worktrunk and `gh`;
 //! this decides what the three of them are SAID as.
 //!
 //! THE LAYOUT IS NOT THIS MODULE'S TO CHOOSE. It is the operator's, stated in
@@ -101,7 +101,7 @@ fn pull_request_line(branch: &Branch) -> String {
     match &branch.pull_request {
         PullRequestLookup::Found(request) => format!("#{} ({})", request.number, request.state),
         PullRequestLookup::Absent => "none".to_string(),
-        PullRequestLookup::Unavailable => "unknown (gh-axi did not answer)".to_string(),
+        PullRequestLookup::Unavailable => "unknown (gh did not answer)".to_string(),
     }
 }
 

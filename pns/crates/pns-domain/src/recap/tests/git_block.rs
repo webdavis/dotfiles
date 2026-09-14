@@ -1,4 +1,4 @@
-//! The recap's Git block, pinned: what git, worktrunk and gh-axi are rendered
+//! The recap's Git block, pinned: what git, worktrunk and `gh` are rendered
 //! into so a skill can paste it instead of composing it by hand.
 
 use crate::recap::git_block::{
@@ -60,7 +60,7 @@ fn a_branch_with_a_pull_request_names_its_number_and_its_state() {
 #[test]
 fn a_branch_with_no_pull_request_says_none_and_never_a_number() {
     // NEVER GUESS A PR NUMBER is the layout's own rule, and this is the case
-    // it was written for: gh-axi answered, and its answer was that there is no
+    // it was written for: `gh` answered, and its answer was that there is no
     // pull request yet.
     let block = git_block(&facts(
         vec![branch("feat/pns-recap-agent", PullRequestLookup::Absent)],
@@ -81,7 +81,7 @@ fn a_branch_with_no_pull_request_says_none_and_never_a_number() {
 #[test]
 fn a_listing_nobody_could_run_is_unknown_rather_than_none() {
     // TWO DIFFERENT FACTS, AND THE LAYOUT HAS ONE WORD FOR ONLY ONE OF THEM.
-    // "none" is gh-axi saying there is no pull request; a gh-axi that never
+    // "none" is `gh` saying there is no pull request; a `gh` that never
     // ran said nothing at all, and printing "none" for it is the guess the
     // rule forbids.
     let block = git_block(&facts(
@@ -92,7 +92,7 @@ fn a_listing_nobody_could_run_is_unknown_rather_than_none() {
         Some(Vec::new()),
     ));
     assert!(
-        block.contains("- PR: unknown (gh-axi did not answer)"),
+        block.contains("- PR: unknown (gh did not answer)"),
         "{block}"
     );
 }
