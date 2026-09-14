@@ -378,8 +378,11 @@ and proposes evidence-backed edits to that ruleset. Its own user-scope default w
 apply. `dot_config/backpass/config.json` (target `~/.config/backpass/config.json`) therefore overrides
 `user.memoryFiles` to the SOURCE partial in this checkout: one file, both harnesses, and the edit
 survives. Analysis never writes; `backpass apply --scope user` is the only writer and gates every edit
-interactively. Its skill extractions still default to `~/.agents/skills`, which is the managed store, so
-an accepted extraction lands an undeclared real directory there that only Codex's native scan picks up.
+interactively. Its skill extractions default to `~/.agents/skills`, the managed store, where an accepted
+one lands as an undeclared real directory that only Codex's native scan reaches. Promote it through the
+vendored lane in the same sitting: the copy into `dot_agents/skills/<name>/`, the lock rows and the
+Claude symlink. `docs/runbooks/agent-skills-store.md` carries that recipe and why nothing prunes an
+unpromoted one.
 
 ### Git hooks
 
