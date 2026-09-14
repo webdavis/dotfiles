@@ -1,29 +1,28 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_domain::SshTreeRefusal;
 use std::{
     fs,
     os::unix::fs::{PermissionsExt, symlink},
-    sync::atomic::{AtomicUsize, Ordering},
 };
 
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 struct Fixture {
+    // Held only for its Drop: the sandbox owns the tree these tests build, and keeping it here
+    // is what removes that tree again when the fixture goes out of scope.
+    _sandbox: Sandbox,
     root: PathBuf,
     tree: SshConfigTree,
 }
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "posture-ssh-tree-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let sandbox = Sandbox::new("ssh-tree");
+        let root = sandbox.path().to_path_buf();
         let dropins = root.join("sshd_config.d");
         fs::create_dir(&dropins).unwrap();
         let main = root.join("sshd_config");
         fs::write(&main, "").unwrap();
         Self {
+            _sandbox: sandbox,
             root,
             tree: SshConfigTree::new(main, dropins),
         }

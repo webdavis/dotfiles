@@ -77,6 +77,14 @@ impl Fixture {
         )
     }
 }
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        // These tests install real files, so without an owner each run leaves another tree in the
+        // system temporary directory forever. Best effort on purpose: a panicking drop during a
+        // failing test would abort the run and hide the assertion that actually failed.
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
 fn executable(path: &std::path::Path, text: &str) {
     fs::write(path, text).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();

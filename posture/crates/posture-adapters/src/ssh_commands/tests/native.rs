@@ -1,22 +1,10 @@
 use super::*;
-use crate::SystemRunner;
+use crate::{SystemRunner, test_sandbox::Sandbox};
 use std::{
     fs,
     os::unix::fs::{PermissionsExt, symlink},
-    sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
-static NEXT: AtomicUsize = AtomicUsize::new(0);
-
-fn directory() -> PathBuf {
-    let root = std::env::temp_dir().join(format!(
-        "posture-ssh-command-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&root).unwrap();
-    root
-}
 fn executable(root: &Path, body: &str) -> PathBuf {
     let file = root.join("fixture-tool");
     fs::write(&file, format!("#!/bin/sh\n{body}\n")).unwrap();
@@ -33,7 +21,8 @@ fn runner() -> SystemRunner {
 
 #[test]
 fn every_sshd_reader_is_bounded_and_a_later_reader_gets_its_own_deadline() {
-    let root = directory();
+    let sandbox = Sandbox::new("ssh-command");
+    let root = sandbox.path().to_path_buf();
     let tool = executable(&root, "while :; do :; done");
     let bounded = SystemRunner::per_command(Duration::from_millis(80))
         .with_termination_grace(Duration::from_millis(20));
@@ -55,7 +44,8 @@ fn every_sshd_reader_is_bounded_and_a_later_reader_gets_its_own_deadline() {
 
 #[test]
 fn a_key_record_on_stderr_cannot_prove_readiness() {
-    let root = directory();
+    let sandbox = Sandbox::new("ssh-command");
+    let root = sandbox.path().to_path_buf();
     let tool = executable(&root, "printf 'host key material\\n' >&2");
     let mut probe = SshKeyscan::new(runner(), tool);
     assert!(probe.available());
@@ -70,7 +60,8 @@ fn a_key_record_on_stderr_cannot_prove_readiness() {
 
 #[test]
 fn availability_matches_the_legacy_execute_predicate_including_directories() {
-    let root = directory();
+    let sandbox = Sandbox::new("ssh-command");
+    let root = sandbox.path().to_path_buf();
     assert!(runnable(&root));
     assert!(!runnable(&root.join("absent")));
     let file = root.join("not-executable");
@@ -115,7 +106,8 @@ impl CommandRunner for PrivateFiles {
 
 #[test]
 fn owned_file_operations_save_symlinks_publish_exact_bytes_and_restore_the_saved_type() {
-    let root = directory();
+    let sandbox = Sandbox::new("ssh-command");
+    let root = sandbox.path().to_path_buf();
     let mut files = SshFileInstaller::new(
         PrivateFiles {
             root: root.clone(),
