@@ -18,7 +18,7 @@ pub fn resolve_osqueryctl(
     resolve_command("osqueryctl", requested, path)
 }
 
-pub fn resolve_osqueryd(
+pub fn resolve_osqueryi(
     requested: Option<&Path>,
     path: &OsStr,
 ) -> Result<Option<PathBuf>, CommandRefusal> {

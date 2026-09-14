@@ -100,7 +100,7 @@ pub use results_cursor::{CursorFile, SingleRunLock};
 mod converge;
 pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
-    resolve_osqueryctl, resolve_osqueryd,
+    resolve_osqueryctl, resolve_osqueryi,
 };
 
 mod funnel_status;
