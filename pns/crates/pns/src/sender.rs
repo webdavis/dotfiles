@@ -42,9 +42,20 @@ fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_do
         false => checkout.repository,
     };
     let session = tracked(&payload.session_id).unwrap_or_default();
+    let title = noted(
+        store,
+        &SessionNote {
+            id: session,
+            harness: agent,
+            project: &project,
+            branch: &checkout.branch,
+            title: "",
+            now: stamp(),
+        },
+    );
     pns_domain::EventArgs {
-        session_title: noted(store, session, agent, &project, &checkout.branch, ""),
         session: session.to_string(),
+        session_title: title,
         project,
         branch: checkout.branch,
         ..Default::default()
@@ -52,41 +63,39 @@ fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_do
 }
 
 fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) -> String {
-    let session = tracked(&payload.session_id).unwrap_or_default();
-    noted(store, session, agent, "", "", &session_label(payload))
+    noted(
+        store,
+        &SessionNote {
+            id: tracked(&payload.session_id).unwrap_or_default(),
+            harness: agent,
+            project: "",
+            branch: "",
+            title: &session_label(payload),
+            now: stamp(),
+        },
+    )
 }
 
 /// Record the session and answer the title it is known by. An id pns cannot
 /// track names no row at all.
-fn noted(
-    store: &SqliteStore,
-    session: &str,
-    harness: &str,
-    project: &str,
-    branch: &str,
-    title: &str,
-) -> String {
-    if session.is_empty() {
+fn noted(store: &SqliteStore, note: &SessionNote<'_>) -> String {
+    if note.id.is_empty() {
         return String::new();
     }
-    let note = SessionNote {
-        id: session,
-        harness,
-        project,
-        branch,
-        title,
-        // A clock that answers nothing still records the session, because the
-        // name is what the header needs; the stale-block escalation reads its
-        // own column rather than these stamps.
-        now: now_secs().unwrap_or_default(),
-    };
-    match store.note_session(&note) {
+    match store.note_session(note) {
         Ok(title) => title,
         Err(error) => {
             eprintln!("pns: state error (the session could not be recorded: {error}); no title");
             String::new()
         }
     }
+}
+
+/// A clock that answers nothing still records the session, because the name
+/// is what the header needs; the stale-block escalation reads its own column
+/// rather than these stamps.
+fn stamp() -> u64 {
+    now_secs().unwrap_or_default()
 }
 
 /// The session id, when it is one pns tracks at all.
