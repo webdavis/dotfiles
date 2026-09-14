@@ -94,6 +94,30 @@ with `git worktree add` or a harness helper stays invisible there.
 - Without `HERDR_ENV`, plain `git worktree add` is the fallback.
 - Sub-agents inherit this rule. A brief that sends work to a worktree carries the create line verbatim.
 
+## GitButler
+
+The `gitbutler` cask ships the desktop app and the `but` CLI, and the on-demand `gitbutler` skill carries
+the command recipes. No repository on this machine is a GitButler project yet, so these rules are
+conditional.
+
+- In a repository where `but status` succeeds, `but` is the version-control interface: status, diffs,
+  branches, commits, pushes and history edits. Invoke the `gitbutler` skill for syntax rather than
+  guessing flags or translating git habits.
+- Everywhere else keep using `git`. Never run `but setup` to make `but` work in a repository: it switches
+  the checkout onto a `gitbutler/workspace` branch and installs hooks, which is the operator's call, not
+  an agent's.
+- Assume other agents are working in the same repository. Do not move, amend, squash, discard, commit,
+  push or otherwise modify another agent's work unless asked.
+- Use one GitButler branch per agent session and commit only what belongs to that session. Do not push or
+  open a pull request unless asked.
+- Amend an unpublished local commit when a follow-up fix clearly belongs with it instead of adding a
+  fixup commit, and split unrelated changes within one file by hunk. Ask before rewriting pushed,
+  reviewed or shared history.
+
+`but agent setup` writes this text into `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, which chezmoi
+renders from this partial, so a write there is erased by the next apply. Edit this section instead, and
+leave out the `gitbutler-agent-setup` marker comments so the wizard never claims the rendered block.
+
 ## Work recaps
 
 A work recap is always agent-initiated, never fired by a hook. Produce one when:

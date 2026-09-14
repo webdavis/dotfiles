@@ -600,7 +600,64 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   REAL COST, which is why it is opt-in rather than the default: the SSH tap works with pns's daemon dead,
   because sshd and the command it forces carry it end to end, and an HTTP tap does not. An operator whose
   daemon is wedged still wants their phone to say so. Also a listening port where there was none, and a
-  secret that needs a rotation story.
+  secret that needs a rotation story. DESIGN WRITTEN 2026-09-14 in
+  `docs/superpowers/specs/2026-09-14-pns-http-tap-design.md`, and its recommendation is to DECLINE the
+  build for now rather than ship it. Task 71 already spent most of this task's motivation: the forced
+  command is `command="<binary> tap",restrict` and names no marker path, so the path is written down
+  once, in pns, and the silent mismatch this section's intro describes is gone. What is left to buy is
+  one `authorized_keys` paste per machine, the Remote Login prerequisite task 71a added, a phone-readable
+  result with no Mac-side respelling of the forced command, and one less hand-managed file outside
+  chezmoi. What it costs is pns's first listener reachable from a network, its first endpoint that
+  authenticates a caller, its first place hostile input arrives from something other than a hook or a
+  config file, and the property the task itself names: sshd execs `pns tap` as a one-shot process and
+  taps correctly with `[daemon] enabled = false`, while an HTTP listener is a daemon child. That cost is
+  worse than it looks, because the harness hooks and the shell notifier deliver synchronously in process
+  and each reads the marker to pick a surface, so a machine with a dead daemon still notifies and still
+  needs to know where the operator is, which is exactly when this transport is down. Verified against
+  Apple's Shortcuts guide (`Request your first API`, apd58d46713f): `Get Contents of URL` has a method
+  selector, a headers list and a JSON request body, so the request is buildable with no third-party app,
+  but Shortcuts' Generate Hash action takes no key, so there is no native HMAC on the phone and the
+  hermes signing shape cannot be reused. Authentication is therefore a config secret in a header, and pns
+  cannot make the transport confidential because it knows nothing about the operator's network. The
+  design specifies it anyway, in enough detail to implement test-first: `[tap.http]` with `bind` and
+  `key`, both rendered commented with no default through `Sample::Example`; a refusal to bind when `bind`
+  is written and `key` is missing or under a 32-character floor; a socket address rather than a hostname,
+  and the `[failures]` port floor of 1024; `POST /tap` only, with a GET that never taps because
+  `moshi-hook` probes local ports and would tap from a scan; the `pns.tap/1` object as the 200 body and
+  the same schema with null `marker` and null `surface` as the 401, so no schema change is needed;
+  bounded reads with read and write timeouts, which the loopback failures page does not have; the key
+  re-read per request so a rotation needs no restart while a `bind` change needs one; one Pairing row in
+  `pns doctor`; and seventeen fail-first behaviors. Fourteen choices made in the operator's place are
+  listed with their alternatives, and six open questions wait on the operator, the first being whether to
+  build it at all. Full document: `docs/superpowers/specs/2026-09-14-pns-http-tap-design.md`. Operator
+  steps: (1) Read docs/superpowers/specs/2026-09-14-pns-http-tap-design.md; the recommendation is in the
+  Approaches section under D. (2) Decide: build the HTTP tap, or record task 74 as declined. Declining
+  leaves the SSH tap as the only transport and leaves task 71b's device verification as the remaining
+  work on this feature. (3) If declined, tick 74 with the reason and nothing else changes; both
+  transports already write the same marker through the same code, so no cleanup is owed. (4) If built,
+  answer the six open questions before the first behavior test, starting with the bind address and what
+  makes that address confidential (pns must not detect it). (5) If built, create a KeePassXC entry for
+  the tap key with at least 32 characters and add it to dot_config/pns/config-values.toml as { keepassxc
+  = "...", field = "Password" }, then regenerate the template with `just pns-config-render`. (6) If
+  built, decide whether dotfiles supervises `pns tap serve` under its own LaunchAgent with KeepAlive,
+  which is the only way the HTTP tap survives a dead pns daemon. Open questions: (1) Build the HTTP tap
+  at all, or record task 74 as declined? Task 76's research explicitly does not authorize it, and this
+  design recommends declining for now. (2) If it is built, what bind address, and what makes that address
+  confidential? The secret travels in a header and pns terminates no TLS, so the operator states the
+  transport's confidentiality and accepts it; pns must not detect it. (3) Is losing daemon-independence
+  acceptable, or should dotfiles supervise `pns tap serve` under its own LaunchAgent from the start so a
+  wedged daemon does not take the tap with it? (4) Does `pns tap --install` become config-aware (printing
+  whichever route is configured), or does a fourth `operation` value `install_http` join the `pns.tap/1`
+  vocabulary the phone's parser reads? (5) Where does the key live on the phone, given that the shipped
+  Shortcut sets Hostname, SSH Port and Username through a mechanism recorded as "Get all global
+  variables"? And does a Shortcut exported after setup carry the key with it? The SSH variant is safely
+  shareable because its private key lives in the phone's own key store rather than in the Shortcut; this
+  is unverified for a text field. (6) Does the HTTP tap change the answer to task 75? Narrowing SSH
+  exposure to the tailnet narrows the SSH tap to the tailnet, and an HTTP listener bound to a tailnet
+  address is reachable from exactly the same places, so neither looks like a reason for the other until
+  that is confirmed. (7) Table name `[tap.http]` as designed, or `[tap]` with `bind` and `key`, or
+  `[tap] type = "http"` to match the 2026-08-31 "type everywhere" ruling at the cost of a key with one
+  possible value?
 
 - [ ] 76. Apple Shortcuts research completed on 2026-09-13; device acceptance remains open. The proposed
   iCloud route is a no-go: Apple's
@@ -1536,7 +1593,57 @@ producer.
 
 - [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
   existing generated-binary exception covers posture only. Update the stale target in the lights plan and
-  spec when recording the decision.
+  spec when recording the decision. On 2026-09-14 a design for this decision was written and lives at
+  `docs/superpowers/specs/2026-09-14-lights-manifest-coverage-design.md`. It recommends NO:
+  `~/.cargo/bin/lights` carries no build record and joins neither known-good manifest. The pipeline
+  manifest's stated responsibility is the osquery pipeline's own integrity (the slice-15 ruling in the
+  generator's docblock) and the managed-bin manifest's criterion is unattended execution; lights meets
+  neither, since its only callers are the seven aerospace keys, in the foreground, at the operator's own
+  privilege. Measured on dresden: `~/.cargo/bin` is watched by no `file_paths` group and by none of the
+  four packs, so a row there buys a fifteen-minute periodic hash from the two audits and no event-driven
+  coverage at all; `~/.local/state` holds build records for pns and posture only; pns owns its own Hue
+  client in `pns/crates/pns-adapters/src/hue.rs` and never spawns the lights binary; and hashing the
+  3,096,064-byte binary costs 0.05s against a 900s tick, so cost is not the argument. The document
+  records that the port is a coverage regression, because `~/.local/libexec/control-hue-lights.sh` is
+  manifested and watched today, and that the same regression already happened unremarked for uu, which
+  runs weekly under `com.webdavis.uu` from `~/.cargo/bin/uu` with no record and no row. Under the
+  recommendation the implementation is documentation only: the stale `~/.local/libexec/lights` target and
+  its retired libexec justification in `docs/superpowers/specs/2026-09-06-lights-design.md` and in
+  `docs/superpowers/plans/2026-09-06-lights-plan.md`, plus one sentence in the generator's comment naming
+  why its loop holds pns and posture alone. `docs/remaining-work.md:287` keeps its
+  `~/.local/libexec/lights` reference: that leftover is real on disk (3,091,456 bytes, dated Sep 9) and
+  the line is a trash-this note. No test is added, because a guard on the loop's membership is
+  declaration-consistency checking under the 2026-08-05 ruling. Two alternatives are priced in full:
+  posture-parity (build record, row, ceiling, `pipeline_path` arm, a new bashunit suite, and roughly a
+  hundred lines of security-critical Bash in the lights builder), and widening the watch set to
+  `~/.cargo/bin` with a manifest-driven tracked set, which is recommended as its own task rather than
+  folded in here. Five open questions wait on the operator, including whether uu gets a record and
+  whether pns's absence from the exact-match list in `posture/crates/posture-domain/src/known_good.rs` is
+  intentional. Full document: `docs/superpowers/specs/2026-09-14-lights-manifest-coverage-design.md`.
+  Operator steps: (1) Read docs/superpowers/specs/2026-09-14-lights-manifest-coverage-design.md and
+  accept or reject the NO recommendation for `~/.cargo/bin/lights`. (2) Answer the five open questions at
+  the end of the document, above all whether `~/.cargo/bin/uu` gets a build record and a row; it runs
+  weekly under launchd with none today and is a stronger case than lights. (3) If the recommendation is
+  accepted, the follow-up is a documentation-only pull request (two docs plus one comment). No apply, no
+  rebuild, no manifest change, no new test. (4) If approach B is chosen instead, confirm the lights
+  artifact ceiling before builder work starts (6 MiB / 6,291,456 bytes proposed, about twice the
+  3,096,064 bytes measured), and confirm that a lights row must never reach a machine before the first
+  successful lights build, because an `unbuilt` row over a present binary pages every audit tick. (5)
+  Trash the pre-move leftovers, already on the deployed-leftovers list: `~/.local/libexec/lights`
+  (3,091,456 bytes, dated Sep 9) and `~/Library/Logs/smart-lights.log`. Both are operator-run and need
+  per-invocation confirmation. Open questions: (1) Does `~/.cargo/bin/lights` carry a build record and a
+  known-good manifest row? The document recommends no; accepting or rejecting that is the decision this
+  task asks for. (2) Does `~/.cargo/bin/uu` carry one? It runs weekly under `com.webdavis.uu` from that
+  path with nobody watching, which satisfies the managed-bin manifest's own stated criterion, and it has
+  no record and no row today. (3) Is pns's absence from the exact-match list in `pipeline_path`
+  (posture/crates/posture-domain/src/known_good.rs) intentional? The generator writes a pns row while
+  that function names only posture; the disagreement is inert today because nothing watches
+  `~/.cargo/bin`. (4) Should `~/.cargo/bin` join the osquery watch set with a manifest-driven tracked
+  set, so the manifested binaries get event-driven coverage instead of a fifteen-minute periodic hash?
+  That needs an operator-run osqueryd restart and the churn question answered against uu's own weekly
+  cargo upgrades. (5) Is the manifest generator's comment the right home for the tier rule, or should it
+  live only in the lights specification? Two homes means two places to keep true; one means a reader at
+  the loop does not find it.
 
 - [x] 64. lights PR 11a is unnecessary under the recorded bulk-read decision. Bulk measured 210 ms,
   versus 267 ms and 455 ms for the targeted alternatives. Keep bulk and record the accepted deviation
@@ -1989,7 +2096,50 @@ is missing.
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
   300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
   Reproduce under representative load and record closure or fix the remaining cause. The audit found no
-  demonstrated current failure and did not rerun the load drill.
+  demonstrated current failure and did not rerun the load drill. On 2026-09-14 the load drill ran and is
+  recorded in `docs/research/2026-09-condenser-deadline-load-drill.md`. The two condenser deadline tests
+  executed 390 times across four arms, including sixteen added busy loops on eight cores and a twenty-way
+  concurrency arm at load average 55, with zero failures; the worst sandbox lifetime was 1885 ms against
+  the suite's 5000 ms hard ceiling, and no orphaned stub process survived any run. The named test has no
+  timing assumption to correct: both no-answer arms of `run_bounded` fall back to the reply, so an early
+  expiry under load produces exactly the `detail` the test asserts. The historical mechanism, a forked
+  grandchild surviving a single-process kill, was measured at the shell and is now reaped by the
+  process-group guardian added in `60ea30cb` on 2026-09-08; the sandbox speed guard added in `bc361d86`
+  on 2026-09-01 would fail any recurrence by name at five seconds instead of costing thirty in silence.
+  Note that the polled post-stdout wait (`01434fa6`, 2026-08-12) predates the 2026-08-28 report and is
+  therefore not the fix. Recommendation: close Todoist 6hPCHVmfhXPM9FPM on this evidence and keep both
+  tests. The drill separately reddened
+  `approval_payload::a_payload_at_the_cap_is_whole_and_is_still_submitted` in seven of ten full-binary
+  runs under added load and
+  `delivery_class::json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_hermes` in
+  one; both are fixture ceilings running out rather than production deadlines, and the record recommends
+  folding them into the sibling 6hPJVf2FJc3RHxqM item rather than opening new work here. Nothing was
+  written to Todoist, so the closure itself is still owed. Full document:
+  `docs/research/2026-09-condenser-deadline-load-drill.md`. Operator steps: (1) Read
+  docs/research/2026-09-condenser-deadline-load-drill.md; its Verdict section is the whole decision and
+  runs about a screen. (2) Close the Todoist task with `td complete 6hPCHVmfhXPM9FPM`, or say what
+  further evidence you want first. Nothing was written to Todoist overnight on purpose: closing a task
+  you filed, on a verdict you had not read, citing a scratchpad path, would have been deciding for you.
+  (3) Decide where the two load-sensitive tests the drill found get filed. Recommendation: fold them into
+  the existing ledger item 'Split and reconcile 6hPJVf2FJc3RHxqM', which already names ordinary hook
+  fixtures inheriting the five-second payload deadline and already carries B105's approval-submission
+  exit-code failure under load. (4) Answer the fixture-ceiling question: the hooks suite's HANG_LIMIT is
+  5 s and the production default payload deadline in pns/crates/pns/src/hook_payload.rs:40 is also 5 s,
+  so the fixture gives up at the same instant the production read it observes would. Your answer decides
+  whether the approval-payload fix is a longer fixture ceiling, a shorter injected production deadline in
+  that one test, or a smaller payload. (5) Tick the ledger item once the Todoist task is closed. It is
+  left unticked only because its own done_means names that closure. Open questions: (1) Close
+  6hPCHVmfhXPM9FPM on this local evidence, or hold it until the drill has also run on a GitHub runner?
+  Recommended: close it. Every reading in the record is local, and the runner question has never been
+  raised by an observed failure. (2) Where do the two other flakes get filed: folded into the sibling
+  6hPJVf2FJc3RHxqM ledger item (recommended, same class), or a new Todoist task and ledger bullet? (3) Is
+  a fixture ceiling equal to the production deadline it observes acceptable? HANG_LIMIT is 5 s and the
+  default payload deadline is 5 s, and that equality is what loses the approval-payload test under
+  contention. (4) Is the suite's 1000 ms advisory review line worth what it now costs? The two condenser
+  sandboxes cross it under load while behaving correctly, and `allow_slow` cannot quiet them: reading
+  `Drop for Sandbox`, the excuse lifts only the 5000 ms hard ceiling while the warning fires off
+  `over_budget` unconditionally. Recommended: accept the noise; across ten runs those two sandboxes
+  produced five lines while the rest of the suite produced between 8 and 38 per run.
 - [ ] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
   hook fixtures still inherit the five-second payload deadline and need bounded fixture inputs. The
   Hermes redirect fixture already consumes the complete request and keeps its socket until disconnect;
@@ -2002,16 +2152,167 @@ is missing.
   conditions are a homelab HTTPS image host, an upstream upload interface, or a documented data-URL path.
   An operator-approved single-card probe must establish actual image display before treating data URLs as
   supported. Revisit usefulness before adding a renderer; the proposed recap duplicates Discord. Source:
-  `~/.claude/pipeline/slices/design-moshi-image-cards.md`.
+  `~/.claude/pipeline/slices/design-moshi-image-cards.md`. Re-checked on 2026-09-14 and one reopening
+  condition now holds, so this entry's premise is wrong. Moshi's notification documentation carries a
+  live upload interface, `POST https://api.getmoshi.app/api/v1/images/upload`, authenticated with the
+  same push token pns already reads from `[plugins.mobile] token`; the route answered `401 Invalid token`
+  to a bogus bearer against a `404` on a control path, and no real credential was used. The homelab-host
+  condition still fails and is now moot, because the documentation says Moshi "passes it to Expo as a
+  rich-content attachment", a server-side fetch that a tailnet-only address cannot serve and that a data
+  URL cannot satisfy either, and the node still advertises no Tailscale Funnel capability. moshi-hook
+  itself still exposes no `upload` subcommand, and none of releases 0.3.17 through 0.3.22 mentions images
+  or uploads; the interface is on the web API that pns already posts to. The remaining blockers are
+  therefore value, unchanged (the recap card duplicates the Discord recap, and `data` carries one `type`,
+  so an image card trades away the herdr pane deep link), and the card-ownership refactor, confirmed
+  still required because `replay_missed` spawns the detached recap child and then posts the card in the
+  calling process a few instructions later. The recorded data-URL probe is superseded: the app's own
+  notification-settings image test action settles display with no code and no token handling. The
+  verdict, the evidence with file and line references, seven explicitly recorded assumptions and an
+  operator-run upload probe live in `docs/research/2026-09-moshi-image-cards.md`. Recommendation: do not
+  build, rewrite this entry as transport-available and unbuilt on value, and answer the value question.
+  Also noticed while checking: moshi-hook is six releases behind (0.3.16 installed, 0.3.22 in the tap).
+  Full document: `docs/research/2026-09-moshi-image-cards.md`. Operator steps: (1) Read
+  docs/research/2026-09-moshi-image-cards.md, specifically the Verdict and the seven assumptions in
+  "Assumptions made in the operator's place"; assumption 1 (whether a documented web endpoint counts as
+  "an upstream upload interface", when moshi-hook still has no upload subcommand) is the one that decides
+  whether this entry reopens at all. (2) Tap the image test action in the Moshi app's notification
+  settings on `mister`. Zero code, no token, one tap. It answers whether a rich image notification
+  displays on that device at all, and everything else is moot if it fails. (3) Decide the value question:
+  is one saved tap into Discord worth two pull requests plus moving recap card ownership from the hook
+  process into the detached `pns recap` child? The technical answer is now yes-it-can-be-built; the
+  2026-09-01 value answer was no and this pass did not overturn it. (4) Rule on the token's path: may the
+  Moshi token ride an `Authorization: Bearer` header on the upload leg?
+  `pns/crates/pns-adapters/src/destinations/moshi.rs` currently states the rule as the request body "and
+  nowhere else". A no here leaves the task blocked and needs nothing further. (5) If you want the real
+  round trip proved, run the two-command probe at the end of the research document while awake. It spends
+  one of ten hourly uploads and sends one real card to your phone. (6) Rewrite the ledger entry either
+  way. "Blocked on transport" is now false and the two honest replacements are "transport available,
+  unbuilt because it duplicates the Discord recap" and "closed, will not build". (7) Separately from this
+  task, consider `brew upgrade moshi-hook`: 0.3.16 is installed and 0.3.22 is in the tap, and 0.3.20
+  through 0.3.22 carry Pi agent detection, Codex named-session reset fixes and Herdr sidebar controls
+  that touch this machine's daily path. Open questions: (1) Does the Moshi app's own image test action
+  actually display a rich image notification on `mister`? Everything below is moot if it does not. (2) Is
+  one saved tap into Discord worth two pull requests and moving recap card ownership into the detached
+  recap child? This is the whole remaining decision, and it is a value call rather than a technical one.
+  (3) May the Moshi token ride an `Authorization: Bearer` header on the upload leg, amending moshi.rs's
+  "request body and nowhere else" rule to "body or Authorization header"? A no keeps the task blocked.
+  (4) Do you want the real upload-then-webhook round trip proved with your token, and if so may it happen
+  while you are awake rather than overnight? (5) Does this ledger entry get rewritten as
+  transport-available-and-unbuilt-on-value, or closed outright as will-not-build? (6) Does a documented
+  web API endpoint satisfy the recorded condition "an upstream upload interface", given that moshi-hook
+  itself still has no `upload` subcommand? Read narrowly, condition 2 fails and the entry stands exactly
+  as written. (7) Should the multipart body be hand-built through the existing `send()` (about twenty
+  lines, no feature change), or should ureq's `multipart` feature be enabled despite living in its
+  `unversioned` module, whose stated policy is that breaking changes there will not produce a major
+  version bump? (8) Unrelated to the verdict: upgrade moshi-hook from 0.3.16 to the tap's 0.3.22 now, or
+  leave it pinned?
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
-  before changing that behavior.
+  before changing that behavior. Designed on 2026-09-14 in
+  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`, unapproved and unbuilt;
+  verification behavior is unchanged. The live bridge was measured: its certificate is
+  `CN=<bridge id>, O=Philips Hue, OU=BSB003`, issued by `CN=root-bridge`, valid to 2038, with NO
+  subjectAltName, and the unauthenticated `/api/config` reports the same bridge id, so chain verification
+  against the published Hue root succeeds (verified locally with `openssl verify`) while name
+  verification is impossible on any modern stack. ureq 3.4.x exposes no custom-verifier hook and couples
+  native-tls's two danger flags to one, so verification requires a custom rustls verifier behind a
+  connector supplied through `Agent::with_parts`; a scratch prototype built only from ureq's public
+  `unversioned::transport` items accepted the matching pin (HTTP 200) and refused a one-bit-flipped pin
+  with our own message intact, over a loopback fixture (the agent sandbox blocked the live LAN handshake,
+  and the stock-ureq control failed the same way, so a live handshake remains an acceptance gate). The
+  recommendation is to pin the bridge's own certificate fingerprint rather than the Hue root plus
+  identity: one `[plugins.hue] certificate = "sha256:..."` key that is a config refusal when hue is
+  enabled without it, one `UreqBridge::new` constructor replacing seven struct literals, a print-only
+  `pns lights enroll` that refuses when the certificate common name and the reported bridge id disagree,
+  and a single permanent mismatch report through the 2026-09-08 delivery-failure path with `pns doctor`
+  showing the pin state. lights (`lights/crates/lights-adapters/src/hue.rs`) and the UniFi client
+  (`pns/crates/pns-adapters/src/unifi/client.rs`) also disable verification and are out of this design's
+  scope, filed as follow-ups. Ten assumptions and seven open questions are listed for the operator; the
+  design waits on their read. Full document:
+  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`. Operator steps: (1) Read
+  docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md and answer the seven open
+  questions, starting with approach A versus B versus C. (2) Decide whether a missing pin refuses at
+  config parse (recommended) or warns for one release, since that choice is what the first pull request
+  encodes. (3) Decide whether the pin is committed in dot_config/pns/config-values.toml (recommended) or
+  stored as a KeePassXC attribute on the "OpenHue :: API Key (hue-bridge-pro)" entry. (4) Decide whether
+  lights gets the same change in this wave and whether the UniFi router client's unverified TLS becomes
+  its own design task; its credential is a router API key. (5) After approval and after pull requests one
+  and two land, run `pns lights enroll` on dresden with the bridge reachable, check that the printed
+  certificate common name equals the bridge id, and paste the `certificate = "sha256:..."` line into
+  dot_config/pns/config-values.toml before pull request three turns pinning on. (6) Run the full
+  `chezmoi apply` yourself once the config carries the pin; agents do not apply, and the shipped template
+  is regenerated with `just pns-config-render`. Open questions: (1) Approve approach A (pin the bridge's
+  own certificate fingerprint) over B (Hue root CA plus bridge identity) and C (keep the current behavior
+  and record the risk)? (2) Fail closed on a missing pin at config parse, or one release of
+  warn-then-refuse? (3) Does the pin live in the committed dot_config/pns/config-values.toml, or as a
+  KeePassXC attribute beside the bridge address and key? (4) Should `pns lights enroll` accept the bridge
+  id out of band, read off the device's own label, so an impostor present at enrollment time is refused
+  rather than merely made harder? (5) Does lights get the same pinning change in this wave, and is the
+  UniFi router client's unverified TLS worth its own design task now? (6) Is `pns lights enroll` the
+  right command name, or should the bridge's identity live under `pns doctor` and a flag? (7) If approach
+  B is chosen after all: is a Philips Hue root certificate copied from a third-party mirror acceptable as
+  a trust anchor, given that this bridge's real certificate verifies against it?
 - [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
   permission waits remain explicitly uncovered. Inspect current harness events and agree behavior before
-  changing hooks; a prompt-only guess does not establish an actual permission wait.
+  changing hooks; a prompt-only guess does not establish an actual permission wait. A design is written
+  at `docs/superpowers/specs/2026-09-14-hook-wait-events-design.md` (2026-09-14), naming per harness
+  event whether a real wait is observable, against the Claude Code 2.1.270 event vocabulary and input
+  schemas read out of the installed bundle. It reverses two of the three premises. `PermissionRequest`
+  already fires for `AskUserQuestion` and `ExitPlanMode`, because both declare `requiresUserInteraction`,
+  so the wait is already armed before the dialog is drawn; 26 of the 35 live `claude` `blocked` events in
+  `~/.local/state/pns/pns.db` are a question or a plan, and the nag already nudges them. What is broken
+  is the opposite of B20's filing: the `asked` and `plan-ready` arms on `PostToolUse` fire after the
+  answer and, being in `LAMP_BLOCKED`, re-arm the wait, racing the asynchronous `resolved` that should
+  end it, and the `asked` card recites the operator's own choice back to them. B6 needs no sidecar:
+  2.1.270 added `ElicitationResult`, which is the elicitation's answer signal and carries
+  `elicitation_id`, and `PostToolUse` is the answer for a dialog-shaped tool. The recommendation is three
+  declaration edits routing both `PostToolUse` matchers and a new asynchronous `ElicitationResult` entry
+  to the existing `pns hook resolved`, deleting the `plan-ready` arm and state word, plus an End that
+  refuses to remove a marker armed after its own moment, claimed by rename per
+  `pns/docs/decisions/0001-ownership-by-rename-not-by-unlink.md`. No new state file, no new arm. Ten
+  behaviors are listed to pin test-first. B39 is designed and deliberately not built: sandbox network
+  dialogs reach the dialog host directly with no `PermissionRequest`, their only hook-visible trace is a
+  `Notification` whose type defaults to `permission_prompt` so no matcher can separate it from a tool
+  approval, its payload cannot name the host, and no `sandbox` block exists in the managed template or
+  the live settings, so exposure on dresden is currently zero (though flag and policy settings can open
+  it without a local change). The interim wiring is written out in full. The design waits on the
+  operator's read: five open questions, including whether `denied` should keep arming a wait, whether
+  `SubagentStop` should end a subagent's, whether to build B39 now, and whether to ask upstream for a
+  distinct notification type. Full document:
+  `docs/superpowers/specs/2026-09-14-hook-wait-events-design.md`. Operator steps: (1) Read
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/docs-wave/hook-wait-design.md
+  and confirm it lands at docs/superpowers/specs/2026-09-14-hook-wait-events-design.md. (2) Confirm or
+  reject the six assumptions in 'Assumptions made in the operator's place', especially assumption 1 (a
+  post-answer event clears a wait instead of carding you) and assumption 5 (B39 designed, not built). (3)
+  Answer open question 1: should `denied` stay in LAMP_BLOCKED, or be routed as an observation so a
+  classifier refusal stops colouring a lamp that claims someone is waiting? (4) Answer open question 2:
+  add a fifth declaration routing `SubagentStop` to `pns hook resolved`, so a subagent's approval stops
+  holding the parent session's lamp until the parent's Stop? (5) Answer open question 3: build the B39
+  interim wiring now (about an hour, text-allowlisted), or wait for the sandbox to be switched on or for
+  a distinct notification type upstream? (6) Decide whether to file one upstream request asking that the
+  sandbox_network_access dialog get its own notification_type, which is what would make the B39 alert
+  robust rather than text-matched. (7) If the design is approved, schedule it as one small PR: three
+  declaration edits in private_dot_claude/modify_settings.json, the plan-ready deletion, the marker End
+  change, and the ten pinned behaviors. Note that the declaration change only takes effect after a full
+  `chezmoi apply`. Open questions: (1) Does `denied` belong in LAMP_BLOCKED? PermissionDenied fires after
+  the auto-mode classifier refused a call on its own, so nobody is waiting on an answer, yet the word
+  arms a wait only the session's next event ends. Recommendation: route it as an observation, keeping the
+  card and dropping the lamp. One live `denied` event exists, so this is nearly theoretical, and it was
+  not in the three filed rows. (2) Should `SubagentStop` end a subagent's wait? Today a subagent's
+  approval arms the parent session's marker and `resolved` deliberately skips subagent batches, so it
+  holds until the parent's own Stop. Recommendation: yes, as a fifth declaration routed to `resolved`,
+  which shortens the wait without making a subagent approval invisible. (3) B39: build the
+  text-allowlisted Notification arm now, or wait? Recommendation is to wait, with the trigger being
+  either switching the sandbox on locally or Claude Code giving the dialog its own notification type. The
+  full interim wiring is written out if you would rather have the alert standing. (4) Should the
+  sandbox-network gap be reported upstream? A distinct `notification_type` for `sandbox_network_access`
+  would make every option robust instead of text-matched. Worth one issue, and it is your call whether to
+  file it. (5) Is the `[lights]` gate on arming a wait marker still right? It is the only reason the
+  state-based discriminator for B39 cannot be the recommendation, because on a machine with no lamps
+  configured the dedup read always finds nothing. Nothing needs changing today.
 - [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
@@ -2130,7 +2431,77 @@ operator deployment. No source correction was warranted by this audit.
   adapters are absent from the configured adapter list; verify Rust's intended workflow before calling
   language coverage complete. Record the Java/Elixir disposition against plan task 46b, step 2, which
   permits withholding adapters that fail their verification. Their absence alone is not an instruction to
-  add them. Existing neotest infrastructure and other language adapters remain implemented.
+  add them. Existing neotest infrastructure and other language adapters remain implemented. Researched
+  2026-09-14 and written up as `docs/research/2026-09-rust-neotest-disposition.md`. Rust's intended
+  workflow is spec 5.3's rustaceanvim adapter, which is absent from the configuration: none of the eight
+  configured adapters accepts a `.rs` path, so `<leader>tt` in a Rust buffer reaches no runner and the
+  language row is not complete. The adapter itself is now proven to work here: against rustaceanvim
+  `a8c4f9af` on a scratch two-test crate it discovered
+  `lib.rs[file] tests[namespace] adds_two[test] adds_three[test]` and held that tree from 3.1 s through
+  36 s. B95's blocker (b) is root-caused as a readiness race, not a broken adapter.
+  `experimental/runnables` passes through three phases after `client.initialized` goes true: one
+  `cargo check --workspace` runnable for the first 0.8 s, which the adapter turns into a file-only tree
+  whose `build_spec` returns nil so `<leader>tt` silently does nothing; zero runnables from 1.2 s to 2.4
+  s, which makes the adapter call `neotest.lib.positions.parse_tree` with an empty list and RAISE at
+  `positions/init.lua:337`; and the correct five runnables from 2.8 s onward. Nothing retries: the pinned
+  neotest re-discovers a file only on `BufAdd` and `BufWritePost` (`client/init.lua:400,463`) while its
+  `BufEnter` handler only sets the focused file, so a tree captured before rust-analyzer is ready
+  survives any amount of polling, which is exactly what B95 measured as zero over 240 s. Blocker (a) is
+  still live (`lsp.lua:209` carries `automatic_enable = true` with `rust_analyzer` in `ensure_installed`)
+  and the collision is structural: nvim-lspconfig's client is named `rust_analyzer` and rustaceanvim's is
+  `rust-analyzer`, so neither stands down for the other; rustaceanvim's README warns against exactly this
+  pairing, and B95's proposed `automatic_enable = { exclude = { "rust_analyzer" } }` is the form
+  mason-lspconfig documents at `doc/mason-lspconfig.txt:124-129`, with this same server as its own
+  example. Java is WITHHELD under plan 46b step 2: its JUnit 5 verification cannot be attempted, because
+  `/usr/bin/java` is the macOS stub with no runtime, `mvn` and `gradle` are absent, no JDTLS-based server
+  is configured, the `java` parser is not in `treesitter.lua`, and no Java source or Maven/Gradle project
+  exists anywhere; spec 5.3's Java row also understates the cost, since `rcasia/neotest-java` (`71354dd`,
+  2026-09-05) requires a Java Development Kit, a build tool, `nvim-jdtls` or `nvim-java`, and the parser
+  rather than one filetype-lazy pin. Elixir is WITHHELD on the same rule: `elixir`, `mix` and `erl` are
+  absent and undeclared, and `jfpedroza/neotest-elixir` has had no commit since `a242aeb` on 2025-01-19.
+  A separate live defect surfaced and needs its own task: Mason's rust-analyzer is the 2025-12-21 build
+  while its registry offers 2026-09-07, `ensure_installed` never upgrades an installed package, and that
+  build calls `cargo metadata --lockfile-path`, which cargo 1.98.1 rejects, so every Rust buffer loads
+  through a `--no-deps` fallback today. Rust is not untested from Neovim meanwhile: overseer's `cargo`
+  template ships `cargo test` and its `just` provider reaches `just test-rust`. The document closes with
+  three readiness options (a local `discover_positions` wrapper in `plugins/neotest.lua`, accept the raw
+  adapter and save-to-retry, or withhold the row like Java and Elixir), recommends the wrapper, and
+  leaves seven questions for the operator. Nothing was installed and no code was changed. Full document:
+  `docs/research/2026-09-rust-neotest-disposition.md`. Operator steps: (1) Read
+  `docs/research/2026-09-rust-neotest-disposition.md` and pick one of its three readiness options for the
+  Rust neotest row. The document recommends option 1, a roughly fifteen-line copy-and-override of
+  rustaceanvim's `discover_positions` in `dot_config/nvim/lua/plugins/neotest.lua`, using the same
+  pattern the file already applies to vitest. (2) Accept or reject the
+  `automatic_enable = { exclude = { "rust_analyzer" } }` trade in `dot_config/nvim/lua/plugins/lsp.lua`.
+  It makes Rust the one server not covered by the uniform `automatic_enable = true`; rejecting it forces
+  option 3 (withhold the Rust row). (3) Refresh the deployed rust-analyzer, either
+  `:MasonInstall rust-analyzer` for the 2026-09-07 build the registry already offers, or
+  `rustup component add rust-analyzer` for a toolchain-matched server, then ask for the finding-3 timing
+  probe to be re-run. This is a package install, so an agent must not do it. (4) Confirm the Java and
+  Elixir withholding, so spec 5.3's two adapter rows and plan task 46b step 1 can be amended in a later
+  documentation slice (struck, or marked withheld with this document as the reason). (5) Decide whether
+  the stale Mason rust-analyzer becomes its own ledger task, and whether Mason packages get a deliberate
+  pin-and-refresh policy rather than the current install-once posture. (6) Decide whether rustaceanvim's
+  raised assertion (its two early returns call `lib.positions.parse_tree` with an empty list) gets
+  reported upstream as an issue. Open questions: (1) Which readiness option for the Rust neotest row: 1
+  (a local `discover_positions` wrapper), 2 (accept the raw adapter and live with save-to-retry), or 3
+  (withhold the row like Java and Elixir)? The recommendation is option 1. Nothing else in this task can
+  proceed until this is answered. (2) Is the mason-lspconfig `exclude` trade acceptable? It makes Rust
+  the one server outside `automatic_enable = true`. If not, rustaceanvim cannot be used for the Rust row
+  at all and option 3 is forced. (3) Does "language coverage complete" mean neotest specifically, or is
+  overseer's `cargo test` plus `just test-rust` enough? Taking the second reading closes the whole Rust
+  row today with no plugin, no pin and no decision. (4) Should the stale Mason rust-analyzer become its
+  own task? It is a live defect on every Rust buffer, independent of neotest, and nothing in the
+  configuration will ever upgrade it. Related: does this repository want Mason packages pinned and
+  refreshed deliberately, or is install-once-never-update the accepted posture? (5) Do spec 5.3's Java
+  and Elixir rows get struck, or marked withheld with this document as the reason? And should the Java
+  row be corrected regardless, since it describes one filetype-lazy pin where the adapter needs a Java
+  Development Kit, a build tool, a language server plugin and a tree-sitter parser? (6) Should the raised
+  assertion be reported upstream to rustaceanvim? Its two early returns call
+  `neotest.lib.positions.parse_tree` with an empty list, which raises in the pinned neotest, and the
+  reproduction is one line. (7) Is a Java or Elixir project anywhere on the horizon? If yes, both
+  dispositions should be filed as deferred with a named trigger rather than withheld, and each needs the
+  toolchain declaration decisions that go with it.
 - [ ] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
   missing-parser installation is asynchronous, and the Go adapter returns without discovery when its
   parser is absent. Verify the first test request in that state and provide a working first-use path
@@ -2184,7 +2555,69 @@ operator deployment. No source correction was warranted by this audit.
   settled. #24 remains open; do not merge its old instructions unchanged.
 - [ ] Reconcile the approval interface separately: Butters tap-to-approve scoped to pending findings and
   the `/osquery allow|deny|list` Hermes skill. Verify the current posture command and trust contracts;
-  investigation must not grant the analyst approval authority.
+  investigation must not grant the analyst approval authority. On 2026-09-14 the reconciled scope was
+  written to `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`. Verified on the
+  host: `posture allowlist add|deny|list` is the writer, it refuses a label with no installed launchd
+  agent, pins the plist hash with SHA-256, writes the chezmoi source and then refreshes the root-owned
+  manifest; the allowlist is manifested (`0600 501`) and `allowlist_verdict` spends a vouch before it
+  ever suppresses, so the 2026-07-26 option B plus D-prime both shipped, while option E did not. Nothing
+  in posture, pns or the state tree has a pending-findings concept. Butters is now a Hermes profile (a
+  computer-use LLM agent), not a bespoke bot; all three live Hermes webhook routes are `deliver_only`, so
+  the Discord surface a page lands on cannot carry buttons without modifying third-party code; Hermes's
+  own `ExecApprovalView` is session-scoped at 300 s and fires only for `DANGEROUS_PATTERNS`, which
+  `posture allowlist add` does not match; the `terminal` toolset is enabled with `backend: local` and
+  `sudo -n true` succeeds, so every Hermes agent already holds unprompted approval authority and the
+  trust boundary is open rather than merely undesigned. Recommendation: authority stays in
+  `posture allowlist`, narrowed to a derived pending set (results log plus the deployed allowlist plus a
+  live launchd capture plus a decline marker) and announcing every grant and denial through pns, with one
+  deterministic chezmoi-managed Hermes plugin command as the only new surface, a `pre_tool_call` shell
+  hook as a labelled speed bump, `Interaction::AwaitDecision` left unimplemented as the stated direction,
+  and PR #24's agent-mediated skill and bespoke discord.py bot rejected. Two prerequisites surfaced:
+  `DISCORD_ALLOWED_CHANNELS` is unset so the slash surface is user-scoped only, and an unsigned probe of
+  the live gateway answers 404 for `posture` against 401 for `pns` and `priority`, so posture's Discord
+  leg is not being delivered at all. The design recommends gating the recovered investigator on this
+  change. Awaiting the operator's trust-boundary decision and the eight open questions; nothing was built
+  or changed. Full document: `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`.
+  Operator steps: (1) Read docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md and
+  decide open question 1: does approval authority stay in `posture allowlist` (recommended), move into
+  pns behind `Interaction::AwaitDecision`, or sit in Hermes (rejected in the document)? (2) Decide open
+  question 2: is detection (a pending scope plus a pns announcement on every grant) enough, or is
+  prevention required, meaning a one-time code from KeePassXC that an agent cannot read? (3) Rule on
+  whether the recovered Hermes security investigator stays blocked until the pending scope lands. The
+  document's position is yes, because `terminal` is enabled with `backend: local` and
+  `posture allowlist add` matches no Hermes dangerous pattern, so an investigator reading
+  attacker-controlled evidence could write the suppression file in the same session. (4) Decide whether
+  `DISCORD_ALLOWED_CHANNELS` is set. The `#osquery` channel id is already rendered into ~/.hermes/.env as
+  `DISCORD_OSQUERY_CHANNEL` from the vault entry `Discord (Uriel) :: Channel ID (#osquery)` and is read
+  by nothing; setting the allowlist variable also changes the scope of every other Hermes slash command.
+  (5) Decide the disposition of the `posture` gateway route: add it to the Hermes webhook route table, or
+  have posture stop naming a route so its pages post to the default `pns` route. Verified 2026-09-14 by
+  unsigned POST probe: `posture` answers 404, `pns` and `priority` answer 401. Decide the orphaned
+  `priority` route and its `{alert.title}` prompt in the same breath. (6) Pick where the Hermes plugin
+  lives: chezmoi-managed under `private_dot_hermes/plugins/` (the document's assumption) or its own
+  public repository installed with `hermes plugins install`, matching how `ponytail` and the custom
+  Neovim plugins are handled. (7) Confirm or reject the four smaller assumptions: a derived rather than
+  stored pending set, a new `decline` verb beside the existing `deny` (which today means undo an allow),
+  a decline marker that suppresses only the re-page, and a bounded results-log window defaulting to the
+  digest's own day. Open questions: (1) Does approval authority stay with `posture allowlist`, bounded by
+  a pending scope and an announcement, rather than moving into pns behind `Interaction::AwaitDecision`?
+  Everything else depends on this answer. (2) Is detection enough, or is prevention required? A grant
+  still succeeds if an agent runs the writer against a genuinely pending finding; the only real
+  prevention available on this host is a one-time code from KeePassXC, and it should be decided now
+  rather than retrofitted. (3) How far back does the pending window reach? The digest's own day is the
+  obvious default, and under it a finding reported Friday and approved Monday is refused, which is either
+  a safety property or an annoyance. (4) Should `decline` be a verb at all, or should a declined finding
+  keep paging? The decline marker is the only new state this design stores, and dropping it is the
+  smaller design. (5) Chezmoi-managed plugin directory under `private_dot_hermes/plugins/`, or its own
+  repository installed with `hermes plugins install`? The repo's precedent for custom plugins points to a
+  separate repository, and this plugin is smaller than any of them. (6) Is `DISCORD_ALLOWED_CHANNELS`
+  wanted? Setting it scopes the slash surface to one channel and changes the behavior of every other
+  Hermes slash command at the same time. (7) Does the `posture` gateway route get added, or does posture
+  stop naming a route and post to the default `pns` route? Verified 404 today, and a prerequisite for any
+  Discord approval surface; the orphaned `priority` route needs a disposition too. (8) Is the recovered
+  Hermes investigator gated on this change landing? The document's position is yes: an agent that reads
+  attacker-controlled evidence and can write the suppression file in the same session is the
+  configuration that exists today.
 - [ ] Reconcile the June hardening-plan remainder and explicitly deferred FleetDM, beaconing and Wazuh
   research. Record accepted scope before implementation. Issue #18's FileVault fix and dead snapshot
   handling are already present in the current query, Bash and Rust paths; reconcile/close its stale issue
@@ -2227,12 +2660,131 @@ operator deployment. No source correction was warranted by this audit.
 - [ ] Give the June hardening requirements explicit dispositions: signature-chain verification,
   interpreter-payload assessment and per-run grouping of repeated findings about the same subject.
   Current Rust code reads signature metadata, leaves interpreter payloads unverified and retains each
-  finding in a batch. Porting the existing behavior did not implement these proposed changes.
+  finding in a batch. Porting the existing behavior did not implement these proposed changes. A design
+  recording all three dispositions was written on 2026-09-14 and lives at
+  `docs/superpowers/specs/2026-09-14-june-hardening-dispositions-design.md`. Each disposition names
+  current behavior, measured against the installed `posture` binary and the live results log rather than
+  read from the plan. Signature chain: change, but not as proposed. `spctl --assess -t exec` rejects
+  every non-bundle executable on macOS 26.2, `/bin/echo` and `/usr/bin/codesign` included, so June's task
+  4 gate would mark nearly every launch job untrusted; the working test is one
+  `codesign --verify --strict -R="anchor apple generic"` call, whose exit codes separate an absent or
+  invalid signature (1) from an unsatisfied requirement (3). Its measured marginal detection on this
+  machine is one case (BlueBubbles, an invalid seal that plain `--verify` also catches), because 19 of 45
+  live launch plists already enrich untrusted, every one a legitimate job, and four of the nine
+  allowlisted labels page anyway since the untrusted verdict promotes Notice to Critical ahead of the
+  allowlist. Interpreter payload: change. Twelve of 45 plists front an interpreter and all twelve read
+  trusted today, with seven carrying a payload the resolver cannot reach (`sh -c` command strings,
+  `python -m` module names, one relative path); the recommendation is to stop vouching for an unverified
+  payload, ask the known-good manifest where a payload resolves, and add an explicit unresolved state,
+  while refusing June's modification-time and writable-but-not-owned conditions with the reasons
+  measured. Per-run grouping: change, and it is now the only lever, because the ingestion model's D2 is
+  closed: the `launch_agents` and `launch_daemons` watched trees now feed the file-integrity arm, so
+  removing them would delete the integrity watch on the seven manifested osquery launch agents. Measured
+  duplication on this machine is 11 rows for one path inside one 300-second window against a page that
+  renders 8 blocks, plus 26 paths that emit two rows per write because `managed_bin` contains
+  `pipeline_integrity`. Recommended as one design and three pull requests, grouping first so the
+  inspection load falls before it rises. Three findings are recorded as observations rather than proposed
+  work: the one shared 10-second inspection deadline covers the whole batch while its comment claims one
+  finding, a failed or timed-out inspection is reported to the operator as the word UNSIGNED, and the two
+  watched trees overlap. Eight open questions await the operator, led by what the signing verdict is for
+  now that it answers untrusted for two fifths of the machine's own launch jobs. No code was written or
+  changed. Full document: `docs/superpowers/specs/2026-09-14-june-hardening-dispositions-design.md`.
+  Operator steps: (1) Read docs/superpowers/specs/2026-09-14-june-hardening-dispositions-design.md and
+  answer the eight open questions, starting with question 1 (what the signing verdict is for), because
+  the other seven sit downstream of it. (2) Accept or reject each of the three dispositions separately.
+  Nothing is implemented until you do; the ledger task stays unticked. (3) Rule on the eleven assumptions
+  listed under "Assumptions made in the operator's place". The two most consequential are whether an
+  uninspectable finding promotes a Notice to a Critical page, and whether an unmanifested ordinary user
+  script counts as an untrusted interpreter payload. (4) Decide whether the overlapping watched trees are
+  narrowed as their own change. `managed_bin` watches ~/.local/libexec/%% and fully contains
+  pipeline_integrity's ~/.local/libexec/osquery/%% and ~/.local/libexec/posture/%%, so 26 measured paths
+  emit two rows per write. osquery file path patterns have no exclusion form, so narrowing means
+  enumerating ~/.local/libexec's other children by name. (5) Decide whether the live codesign spoof drill
+  is worth your time. Signing with a self-signed certificate whose common name imitates Apple needs
+  `security add-trusted-cert`, which needs an administrator; without it the claim that today's parser
+  trusts a spoofed name rests on reading a pure function rather than on a demonstration. (6) Discard the
+  scratch key material at
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/spoof/,
+  which holds the self-signed certificate and two PKCS#12 files from the abandoned drill. The temporary
+  keychain it used was never added to the keychain search list and was deleted in-session;
+  `security list-keychains` confirms only login.keychain-db and System.keychain remain. (7) No apply is
+  needed. Nothing in this task touched the source tree, and every measurement in the document is
+  reproducible read-only from the commands in its final section. Open questions: (1) What is the signing
+  verdict for? It answers untrusted for 19 of 45 legitimate launch jobs on this machine and is the only
+  input that can promote a Notice to a Critical page, and four of the nine allowlisted labels page
+  because of it. Is it a page trigger, or a display fact with the allowlist and the manifest deciding?
+  Every other question sits downstream of this one. (2) Does an uninspectable finding promote a Notice to
+  Critical? Fail-closed adds noise from unreadable root-owned plists such as com.tailscale.tailscaled
+  (mode 0700) and com.docker.socket. Fail-open leaves an inline `sh -c` payload quieter than an ad-hoc
+  signed binary. (3) Is an unmanifested ordinary user script an untrusted interpreter payload? On this
+  machine all five resolvable payloads are manifested pipeline scripts, so the rule is free here; on a
+  machine with user scripts in launch agents it is not. (4) Should the allowlist suppress a promotion?
+  Today it cannot: the promotion runs before the allowlist is consulted and outranks it. Letting the
+  allowlist win closes the four measured false pages and also lets an entry quiet a genuinely unsigned
+  program. (5) Is `anchor apple generic` the right bar, or should Developer ID be a separate lesser tier
+  than Apple platform code rather than equal to it? Measured: `anchor apple` alone flips Ghostty and
+  every other Developer ID application to untrusted. (6) Should the overlapping watched trees be narrowed
+  as a separate, smaller change? It removes a measured doubling for 26 paths but means enumerating
+  ~/.local/libexec's other children by name, since osquery file path patterns have no exclusion form. (7)
+  Is the live spoof drill worth an administrator's time? Without `security add-trusted-cert` the
+  spoofed-name claim rests on reading `classify_signing` as a pure function rather than on a
+  demonstration. (8) One change set or three pull requests? The recommendation is one design and a ladder
+  of three, grouping first, because disposition 1 adds a process per code finding against a deadline that
+  disposition 3 relieves.
 - [ ] Preserve deferred install-state kernel-extension monitoring and off-host machine-death detection.
   The former needs reconciliation with July's decision to alert on untrusted loaded extensions; do not
   restore June's obsolete delivery block. The latter needs an external host and remains homelab scope: a
   watchdog on the monitored Mac cannot detect that Mac disappearing from outside it. Keep intentional
   log-only `es_launchd_writes` handling and accepted residual risks out of the implementation queue.
+  Design written 2026-09-14 and pending the operator's read:
+  `docs/superpowers/specs/2026-09-14-extension-install-state-and-machine-death-design.md`. Install-state
+  monitoring is reconciled as ADDITIVE to July's 2026-07-22 ruling rather than a re-tiering of it: the
+  loaded-extension arms keep their current behavior (S049 log-only unless promoted, S050 digest unless
+  promoted) and a new `extension_install` file-integrity watch category over `/Library/Extensions/%%` and
+  `/Library/StagedExtensions/%%` pages unconditionally, because the install set changed once in six
+  months while the loaded table churned 657 times. Measured on this machine to justify the split: four
+  third-party kernel extensions are installed or staged (HighPointIOP, HighPointRR, SoftRAID, and
+  macfuse.fs under `Library/Filesystems`, which a narrower staged glob would miss) and ZERO are loaded,
+  so the only table the July ruling reads says nothing about any of them. The recommended change is one
+  config declaration, one `FileCategory::ExtensionInstall` variant, one gate arm with no direction gate,
+  and one shared subject-collapse in `render_page`, which is needed because five files per bundle would
+  otherwise consume five of the eight `BLOCK_LIMIT` page blocks and evict a concurrent critical finding;
+  that same collapse answers the sibling per-run grouping bullet. June's Task 6 delivery block stays
+  retired on three grounds: its Apple-filtered premise was measured false four days later, July already
+  supplied a better load-state answer, and its dispatch path no longer exists now that posture is a
+  producer piping into `pns submit --json`. Off-host machine-death detection is confirmed homelab scope
+  and out of the implementation queue: every pns destination originates on dresden (hermes posts to
+  127.0.0.1:8644, moshi spawns a local binary), `tailscale status` shows one live Mac, one stale node and
+  an iPhone, and dresden is a MacBook Pro that sleeps on battery, so per
+  `/usr/share/man/man5/launchd.plist.5` a `StartInterval` beacon is missed across sleep while a
+  `StartCalendarInterval` one coalesces on wake, which makes the daily heartbeat the only correct carrier
+  and a roughly 48-hour two-missed-beacon threshold the only honest granularity. No beacon is built ahead
+  of a chosen consumer because its interface is decided by that choice. Intentional log-only
+  `es_launchd_writes` handling and the five June accepted residuals are recorded as explicitly out of
+  scope. Nine open questions await the operator; questions 1, 2 and 6 are the gating ones. Full document:
+  `docs/superpowers/specs/2026-09-14-extension-install-state-and-machine-death-design.md`. Operator
+  steps: (1) Read docs/superpowers/specs/2026-09-14-extension-install-state-and-machine-death-design.md
+  and answer the nine open questions; questions 1 (build install-state monitoring at all), 2
+  (unconditional page versus signing-gated) and 6 (is there or will there be a second always-on host)
+  gate everything else. (2) Nothing to deploy or apply: no code changed and no configuration was edited
+  by this task. (3) If install-state monitoring is approved, note before scheduling it that the change
+  edits a templated desired-state file under dot_local/libexec/posture/converge/desired/, so it needs a
+  FULL chezmoi apply and the pipeline audit will page a CRIT on every tick until that apply lands. (4)
+  Decide whether the subject-collapse behavior may close the sibling ledger bullet about per-run grouping
+  of repeated findings, since the design proposes one shared mechanism in posture-domain rather than two.
+  Open questions: (1) Build install-state extension monitoring, or close the deferral and keep extensions
+  exactly as they are? (2) Should the new category page unconditionally, or be signing-gated like the
+  loaded-extension arm (which would leave a legitimately signed but vulnerable driver at digest)? (3)
+  Does the subject collapse land as the shared per-run grouping mechanism in posture-domain, closing the
+  sibling ledger bullet, or scoped to this detector only? (4) Does Page.count keep counting critical
+  findings, or count subjects so a five-file install reads '1 CRITICAL'? (5) Is a macFUSE or SoftRAID
+  upgrade paging acceptable, or is a path-keyed extension allowlist wanted, accepting a new trust surface
+  for a roughly annual event? (6) Is there, or will there be, a second always-on host, and on what
+  horizon? This decides whether any interim machine-death coverage is built at all. (7) If interim
+  coverage is wanted: a scheduled GitHub Actions workflow with a private gist beacon, or a hosted
+  dead-man's-switch service (a new vendor holding a home-occupancy signal)? (8) What is the longest
+  period the machine is legitimately dark (travel, a weekend away)? That sets the overdue threshold and
+  the false-page rate. (9) Where does planned-downtime suppression live, given it cannot live on dresden?
 
 ### Hermes security investigation, recovered from #24
 
@@ -2279,7 +2831,68 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
 
 - [ ] Reconcile the original documents with the Critical-alert-only decision before implementation.
   Supersede their daily-digest investigation scope. Keep this as a Hermes-owned workflow, with
-  source-specific facts supplied by security producers and immediate original alert delivery.
+  source-specific facts supplied by security producers and immediate original alert delivery. Reconciled
+  on 2026-09-14 in `docs/superpowers/specs/2026-09-14-hermes-critical-alert-investigation-design.md`,
+  which supersedes the daily-digest investigation scope in all four #24 documents and keeps the workflow
+  Hermes-owned. Superseded: the original design's section 11 orchestration, section 4 sandbox claims and
+  section 8 threaded-reply contract; the plan's whole task ladder, its `mouse` profile name, `--attach`
+  and egress allow-list task; D-V2-12's "Mouse's real role" digest advisory; and master spec v2 section
+  13's digest scope and PR-#3 sequencing. Kept: the immediate-alert and separate-advisory invariant, the
+  monotonic advisory contract, the fixed remediation vocabulary and the failure-notification requirement.
+  Recommendation: one kanban card per Critical alert on the installed pin `a4091e49`, assigned to a
+  Docker-backed profile, evidence handed over as `--workspace dir:<path>`, and the advisory published by
+  a deterministic validator off a schema-constrained `result.json` rather than as model prose. Measured
+  against the installed source and live config, not upstream docs: `kanban attach` and `--attach` do not
+  exist here and `--workspace dir:` replaces them; `--board` is a global flag before the subcommand; the
+  container holds tool execution while the worker's model call stays on the host, so `--network=none`
+  through `terminal.docker_extra_args` buys networkless evidence execution without breaking the model;
+  nothing in hermes ever passes the `DockerEnvironment(network=...)` parameter, so that flag is the only
+  lever; skill-registered credential files and the skills directory are bind-mounted automatically;
+  `container_persistent` and `docker_persist_across_processes` must both be off for an ephemeral box; the
+  worker inherits the gateway's whole environment via `env = dict(os.environ)`; the webhook delivery path
+  never passes `reply_to`, so a Discord threaded reply is not buildable; hermes ignores pns's
+  `Idempotency-Key` on the webhook path and keys dedup off a millisecond timestamp; auto-decompose
+  touches triage cards only, so an investigation card is never decomposed; and posture's `class` is
+  `security`, never a severity, so the Critical tier does not cross the wire. Prerequisite confirmed as a
+  live mismatch: there is still no `posture` route in `~/.hermes/config.yaml`, so posture alerts 404 and
+  dead-letter. The design is NOT approved and NOT built; it records nine assumptions made in the
+  operator's place with their alternatives and eight open questions, of which the model-provider
+  disclosure decision and the trigger's placement are blocking. Full document:
+  `docs/superpowers/specs/2026-09-14-hermes-critical-alert-investigation-design.md`. Operator steps: (1)
+  Read the design at docs/superpowers/specs/2026-09-14-hermes-critical-alert-investigation-design.md; it
+  is not applied by this task and needs a commit. (2) Answer open question 1, the blocking one: does the
+  investigator's model see the artifact bytes, or only the host-produced fact sheet? Evidence reaches
+  https://chatgpt.com/backend-api/codex either way, which is what makes this a disclosure decision rather
+  than an architecture one. (3) Answer open question 2: where the deterministic trigger lives, among a
+  hermes no_agent cron job, a hermes plugin this repository owns, or a host watcher on posture's results
+  log. (4) Review the nine assumptions in the operator's place and overrule any that are wrong;
+  assumption 8, the investigator profile's name, is flagged as the weakest because this machine's four
+  existing hermes profiles all use character names. (5) Decide whether the gateway's own environment is
+  acceptable as the credential surface a kanban worker inherits wholesale, or whether it must be narrowed
+  before any investigator exists. (6) Resolve the prerequisite separately: posture names the route
+  `posture` at every call site and no such route exists in ~/.hermes/config.yaml, so its alerts 404 and
+  dead-letter today. An investigation hanging off a dead-lettering alert path is never seen. (7) Nothing
+  here was applied. No code was written or changed, no config was touched, and no apply is needed or safe
+  to run off this task. Open questions: (1) Does the investigator's model see the artifact bytes, or only
+  the host-produced fact sheet? This is the model-provider disclosure decision the ledger records as
+  blocking; the design builds either and the answer is one configuration line. (2) Where does the
+  deterministic trigger live: a hermes `no_agent` cron job (needs a wrapper script physically under
+  ~/.hermes/scripts/ and depends on the gateway daemon), a hermes plugin this repository owns, or a host
+  watcher of posture's results log under a LaunchAgent? (3) What does the gateway's own environment
+  contain? The kanban worker inherits it wholesale through `env = dict(os.environ)`, and that is the
+  credential surface the container boundary cannot close. (4) How is "the gateway is down, so nothing was
+  investigated" surfaced? It is the one failure with no notice of its own; a card sits ready forever and
+  publishes neither an advisory nor a failure. posture's watchdog already probes the gateway route, so
+  letting it own this is cheap but needs saying. (5) Is the investigator profile a character name
+  (matching butters, concerned, elaine and nicodemus on this machine) or a function name (matching the
+  self-documenting and user-agnostic naming rulings)? (6) Does the alert wire gain a severity field, a
+  structured evidence reference, or neither? Today Critical can only be inferred from producer plus event
+  name, because posture's `class` is the literal `security`. Adding both is the honest fix but touches
+  two independent workspaces and their golden fixtures. (7) Should run_after_59-hermes-config-migrate
+  cover profile configs? It migrates only the root config.yaml forward to the installed schema, so a new
+  profile's config.yaml carrying a Docker block can fall behind a pin bump with nothing to catch it. (8)
+  Is the advisory's Discord destination the same channel as the page, or a separate one? The ledger notes
+  a named route selects one destination rather than broadcasting to two, so this is a route decision.
 
 - [ ] Preserve immediate deterministic alert delivery. Hermes then starts a dedicated, ephemeral
   investigator over a bounded copy of the supplied evidence and publishes a separate advisory associated
@@ -2288,6 +2901,71 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   current correlation and evidence-transfer contract before wiring it. The recorded advisory contract
   permits adding concern or explanation but forbids clearing the original finding, and limits suggested
   responses to a fixed vocabulary. Verify those limits outside the prompt before promising enforcement.
+  On 2026-09-14 a design was written for this bullet and lives at
+  `docs/superpowers/specs/2026-09-14-bounded-security-advisory-design.md`. It names an enforcement point
+  for each of sixteen advisory limits and proves the four untouchability properties (cannot delay,
+  suppress, rewrite, clear) from measured code, and it corrects four claims in the preceding
+  reconciliation document: `kanban_task_blocked` never fires on a timeout, crash or circuit-breaker trip
+  (only `block_task()` fires it; `enforce_max_runtime` and `_record_task_failure` write `blocked` by
+  direct SQL and emit `timed_out`/`gave_up` events instead), `kanban_task_completed` fires in the worker
+  process, `kanban notify-subscribe` does cover all five terminal kinds from the gateway but publishes
+  the worker's summary verbatim and then uploads any host file whose absolute path appears in it
+  (`validate_media_delivery_path` accepts any regular file outside a credential denylist that misses
+  `~/Documents`, `~/workspaces`, `~/.local/state` and `~/.claude.json`), and the alert's correlation
+  identity is not stable across a retry that reads more results rows. Recommendation: one host-side
+  reconciler on a LaunchAgent timer as the sole trigger and publisher, reading pns's `ledger_events`
+  (which exists only after the page committed) as its trigger input, a new `posture evidence` subcommand
+  for the bounded no-follow copy so the file handling reuses posture's existing refusal posture and
+  signing inspection, a Docker-backed profile with `--network=none` through `docker_extra_args` and no
+  skills directory (the credential, skills and cache mounts are ungated but resolve under the profile's
+  own `HERMES_HOME`, so an empty profile root closes them), and a six-field schema-constrained
+  `result.json` validated against a `record/facts.json` kept outside the container's only writable mount.
+  The 2026-06-03 sandboxed-agent research report was read as an input and its recommendation 3 settles
+  the fact-sheet-versus-artifact-bytes question in favour of the host-produced fact sheet. Still blocked
+  on the operator: the execution and network boundary, the gateway environment's contents, and ten open
+  questions recorded in the document. Full document:
+  `docs/superpowers/specs/2026-09-14-bounded-security-advisory-design.md`. Operator steps: (1) Read
+  `docs/superpowers/specs/2026-09-14-bounded-security-advisory-design.md` and settle the execution and
+  network security boundary the ledger records as the blocker; nothing is built until then. (2) Answer
+  open question 1: is the reconciler bash under `~/.local/libexec` or a fifth cargo workspace installed
+  to `~/.cargo/bin`. (3) Answer open question 2: does the bounded evidence collector go into posture as a
+  `posture evidence` subcommand, or does producing evidence count as the agent orchestration posture may
+  not carry. (4) Answer open question 3: is a `kanban notify-subscribe` belt wanted for the failure half,
+  given it requires `gateway.strict: true` machine-wide to be safe and changes media delivery for every
+  other profile. (5) Inspect what `~/.hermes/.env` gives the gateway, since the worker inherits that
+  environment wholesale via `env = dict(os.environ)` and the container boundary does not close it (open
+  question 4). (6) Decide who watches the reconciler itself, the one remaining silent failure; extending
+  posture's existing `GatewayProbe` watchdog is the cheap answer (open question 5). (7) Decide
+  `kanban.max_in_progress_per_profile` for the investigator profile; it is `null` today so a burst of
+  Critical alerts starts one Docker container per card (open question 6). (8) Decide whether posture's
+  request gains `severity` and an evidence reference in its existing `extensions` map now or later (open
+  question 7). (9) Decide the advisory's Discord destination: the page's `priority` channel or a separate
+  route (open question 8). (10) Decide whether `run_after_59-hermes-config-migrate` should cover profile
+  `config.yaml` files, which now carry the whole execution boundary and nothing migrates across a pin
+  bump (open question 9). (11) Decide the investigator profile's name: a function name or the machine's
+  character-name convention (open question 10). (12) Resolve the missing `posture` webhook route first;
+  it is a prerequisite, since an investigation hanging off a route that dead-letters is an investigation
+  nobody sees. Open questions: (1) Is the reconciler bash under `~/.local/libexec` or a fifth cargo
+  workspace? The design's remaining work after `posture evidence` is a SQLite read, two command
+  invocations and a six-field validation, which argues bash, but the validator is the security-critical
+  component. (2) Does `posture evidence` belong in posture? The document reads producing evidence as a
+  producer feature rather than agent orchestration; if that reading is wrong the collector moves into the
+  reconciler and the bash-versus-Rust question stops being optional. (3) Is a gateway notify subscription
+  wanted as a belt for the failure half? It would survive a dead reconciler but needs
+  `gateway.strict: true` machine-wide, which changes media delivery for every other profile, and it still
+  publishes the worker's completion text. (4) What does the gateway's own environment contain? The worker
+  inherits it wholesale and the container cannot close that surface. (5) Who watches the reconciler? It
+  is the one remaining silent failure in the table; posture's watchdog already probes gateway health, so
+  extending it is the cheap answer but needs saying. (6) Should `kanban.max_in_progress_per_profile` be
+  set for the investigator profile? It is `null` today, so concurrency is unbounded and a burst of
+  Critical alerts starts one container per card. (7) Does the alert wire gain `severity` and an evidence
+  reference in its existing `extensions` map now or later? It is additive to one workspace plus golden
+  fixtures and is not required for the design to work. (8) Is the advisory's Discord destination the same
+  channel as the page? A named route selects one destination rather than broadcasting, so this is a route
+  decision. (9) Should `run_after_59-hermes-config-migrate` cover profile configs? The investigator
+  profile's `config.yaml` carries the whole execution boundary and nothing migrates it across a pin bump.
+  (10) Is the investigator profile named for its function or given a character name, matching `butters`,
+  `concerned`, `elaine` and `nicodemus`?
 
 - [ ] Define the required alert/evidence metadata through the existing delivery path. The current pns
   webhook forwards `agent`, `state`, `project`, `detail` and `request_id`; it does not forward the
@@ -2295,7 +2973,67 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   references before attaching an investigator, rather than inferring them from rendered prose. Also
   reconcile route names: native posture names `posture`, while the tracked route checker covers `pns` and
   `unattended-upgrades` as delivery-only. The encrypted route configuration was not inspected in this
-  review. Any producer/transport changes should carry data; Hermes owns the investigation.
+  review. Any producer/transport changes should carry data; Hermes owns the investigation. On 2026-09-14
+  a design was written to `docs/superpowers/specs/2026-09-14-security-alert-metadata-contract-design.md`
+  covering both halves of this task, and the operator half was answered by inspection rather than
+  deferred: the age identity was already on disk at `~/.config/chezmoi/key.txt`, so the encrypted route
+  configuration was decrypted and read without a vault unlock. It declares exactly `priority`, `pns` and
+  `unattended-upgrades`, in both the source and the deployed `~/.hermes/config.yaml`, all three
+  `deliver_only`. The mismatch is already losing pages: native posture hard-codes the route `posture` at
+  six call sites, the live gateway answers 404 for it, and `ledger_legs` holds eight dead-lettered hermes
+  legs on that route (`deadletter_reason = permanent`, `http_status = 404`) whose banner legs all
+  delivered, so eight daily digests reached the operator locally and were never written to Discord.
+  `pns doctor` and `pns failures` already name both that route and `pns-recap` as missing, but
+  `RouteVerdict::Missing` maps to `Mark::Warn`, so the run closes with `✓ nothing to act on` over two
+  routes that drop every page. The recommendation: carry one additive optional `security` object on
+  `pns.request/1` (`severity`, `finding_count`, and an `evidence` array of `{kind, locator, detector}`),
+  added to both wire copies with `skip_serializing_if` so the golden fixtures stay byte-identical,
+  mirrored into the hermes body off the `producer_request` string every destination and every retry
+  already receives, with delivery failing open and the investigator trigger failing closed on malformed
+  metadata; declare a `posture` route and extend
+  `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl` to all five names (`priority` carries
+  today's only CRITICAL page and is checked by nothing); collapse posture's six hard-coded route sites to
+  one overridable default; and fall back to the default route once, with a line, on a permanent refusal,
+  the way `post_return_recap` already does. Repointing posture at `priority` was rejected for now: no
+  single route prompt can serve both the pns body shape and the Bash alerter's `{alert.title}` shape, so
+  that move belongs after the alert cutover, not before it. This is a blocker on
+  `feat/posture-alert-cutover`: the moment it merges and is applied, the CRITICAL security page moves to
+  the 404 route and the eight lost digests become lost security pages. Seven open questions wait on the
+  operator, chiefly which Discord channel security pages land in, whether a security page in the general
+  channel beats no security page, and per-leg versus per-retry delivery-attempt identifiers. Full
+  document: `docs/superpowers/specs/2026-09-14-security-alert-metadata-contract-design.md`. Operator
+  steps: (1) Read the design at
+  docs/superpowers/specs/2026-09-14-security-alert-metadata-contract-design.md and answer the seven open
+  questions, in particular: which Discord channel security pages land in, whether a page in the general
+  `pns` channel beats no page at all, and per-leg versus per-retry delivery-attempt identifiers. (2)
+  Decide the merge order: this design treats declaring the `posture` route as a blocker on
+  `feat/posture-alert-cutover`, because that cutover moves the CRITICAL security page onto the 404 route.
+  (3) Edit the age-encrypted hermes config to add a `posture` route: `deliver_only: true`, its own 64-hex
+  secret matching the pns signing key, `deliver: discord`, a `deliver_extra.chat_id` for the chosen
+  channel, and a prompt that names only body keys the pns body actually carries (a key the body lacks
+  renders as the literal `{key}` in Discord). (4) Run a full `chezmoi apply` (no by-name apply, no
+  `--exclude=templates`) so the decrypted config reaches `~/.hermes/config.yaml`, then
+  `hermes gateway restart` so the gateway loads the new route, since a route in the file that the gateway
+  has not loaded still answers 404. (5) Confirm with
+  `curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8644/webhooks/posture -H 'Content-Type: application/json' -d '{}'`
+  that the answer is 401 (route exists, unsigned body refused) rather than 404. (6) Confirm with
+  `pns doctor` that the Delivery section no longer reports
+  `route posture: THE GATEWAY HAS NO SUCH ROUTE`, and decide whether `pns-recap` should be declared too
+  or left degrading to the default route. (7) Once a real posture digest or page lands in the chosen
+  channel, confirm `pns failures` stops growing on route `posture`. Open questions: (1) Which Discord
+  channel do security pages land in: a new one for the `posture` route, or `#priority` reused with its
+  own secret and a prompt that serves the pns body shape? (2) Is a security page in the general `pns`
+  channel better than no security page (the recommended loud-ward fallback), or must a security page
+  appear only in its own channel? (3) Per-leg or per-retry delivery-attempt identifier, that is,
+  lost-page risk or duplicate-page risk? Hermes at the installed revision ignores `Idempotency-Key` and
+  reads `X-Request-ID`, so this is a live choice. (4) Should the `posture` route be declared and the
+  checker extended before `feat/posture-alert-cutover` merges? The design says yes and treats it as a
+  blocker; the operator owns the merge order. (5) Is `security` the right field name next to an existing
+  `class` whose value is already the literal string `security`, or is `finding` clearer? (6) Does the
+  evidence vocabulary need a fourth kind now for the file-integrity path (a manifest entry), or does
+  `file` plus `detector` cover it until that reader exists? (7) `pns doctor` closing with
+  `✓ nothing to act on` over two route warnings is a one-line severity change (`RouteVerdict::Missing`
+  from `Mark::Warn` to `Mark::Bad`). Fold it into this work, or file it separately?
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
@@ -2304,7 +3042,104 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   controls and their acceptance checks before building. If supported integration cannot provide them,
   report that gap instead of patching Hermes. Use the existing research at
   `~/Documents/Sandboxed_Agent_Prompt_Injection_Research_20260603/report.md` as a review input; it is not
-  a missing research assignment.
+  a missing research assignment. Revalidation written 2026-09-14 against installed Hermes v0.17.0
+  (upstream a4091e49, committed 2026-06-25) and Docker 29.7.2; it lives at
+  `docs/research/2026-09-hermes-sandbox-revalidation.md`. Verdict: reject the old plan's containment
+  story as written. Hermes's own `SECURITY.md` calls terminal-backend isolation the posture for an
+  otherwise-trusted operator and whole-process wrapping (its own container image and Compose setup, or
+  NVIDIA OpenShell for layer-7 outbound policy) the supported posture for content the operator does not
+  control, which an osquery artifact is by definition; it also states that no approval gate, output
+  redaction, pattern scanner or tool allowlist is containment. Seventeen controls each carry a
+  supported-or-gap verdict and an acceptance check, and no Hermes file was modified. Supported:
+  capability reduction (`--cap-drop ALL` then `DAC_OVERRIDE`, `CHOWN`, `FOWNER`, plus `SETUID`/`SETGID`
+  unless `docker_run_as_host_user`), `no-new-privileges`, `--pids-limit 256`, no implicit host
+  environment in the container, per-profile `HERMES_HOME` with backend pinning through kanban
+  `--assignee`, a dispatch-time `--toolsets` pin taken from the assignee profile's
+  `platform_toolsets.cli`, and five distinct kanban terminal events that already make timeout and failure
+  distinguishable from an all-clear. Gaps: three automatic read-only mounts (the profile's skills
+  directory, five cache directories, and skill-declared credential files); `container_persistent` and
+  `docker_persist_across_processes` both default true, and `cleanup` in persist mode is a no-op, so the
+  container is left running and reused per `(task-id, profile)` with the task id collapsed to `default`,
+  making the box neither ephemeral nor session-isolated; measured full outbound egress plus reachability
+  of the home gateway and `host.docker.internal` from Hermes's own flag set, with `tools/url_safety.py`
+  proven to be a pre-flight check on Hermes-owned URL tools rather than any container control; tirith
+  enabled in the live config with `fail_open: true` while the binary is not installed; and dangerous
+  commands auto-approved in the unattended worker context, the opposite of the old plan's assumption. Two
+  corrections to the recorded review: the old "two routes fire on one incoming webhook" recipe is false,
+  because `_handle_webhook` resolves one route from the path and runs one handler; and upstream's attach
+  capability is the agent-callable `kanban_attach` and `kanban_attach_url` tools, not a `kanban attach`
+  subcommand, and neither exists at the installed revision, where uploading is a dashboard action. Two
+  useful discoveries: the container needs no outbound access at all, because the model call is made by
+  the host controller process, so `terminal.docker_extra_args: ["--network=none"]` is free and was
+  measured to leave `docker exec` and a writable `/workspace` intact; and the kanban notifier never
+  publishes raw completion text, only a one-line summary truncated to 200 characters, while
+  `kanban complete --metadata` plus `kanban show --json` / `kanban runs --json` hand a trusted publisher
+  owned by this repository a structured contract it can validate outside the prompt. One live unguarded
+  path was found independent of this workflow: `_deliver_kanban_artifacts` uploads any host file a
+  completion summary names, filtered only by a credential and system-path denylist that leaves
+  `~/workspaces`, `~/Documents` and `~/.claude.json` deliverable, and `gateway.strict: true` closes it.
+  Also found: pns sends `Idempotency-Key`, which the Hermes webhook adapter ignores, so its deduplication
+  falls through to a millisecond timestamp, and reusing the alert correlation key as `X-Request-ID` would
+  silently drop the second post for an hour on any route; and posture pins the route name `posture`,
+  which the live config does not define and the tracked route checker does not cover. Recommended trigger
+  shape: the existing `deliver_only` alert post plus a local
+  `hermes kanban create --assignee --workspace dir: --max-runtime --max-retries --idempotency-key --json`,
+  not a second webhook route, whose default tool surface is four read-only tools and cannot inspect an
+  artifact. Nine open questions are listed for the operator; the task is not closed. Full document:
+  `docs/research/2026-09-hermes-sandbox-revalidation.md`. Operator steps: (1) Decide the isolation tier
+  (open question 1): terminal-backend isolation with `terminal.docker_extra_args: ["--network=none"]` (a
+  handful of config keys on this host) or whole-process wrapping under Hermes's own container image or
+  NVIDIA OpenShell (the posture upstream names for untrusted input, and the only reviewed option that
+  constrains the host-side leg). (2) Decide the permitted-evidence scope (open question 2): whether the
+  referenced binary or script and narrowly scoped logs join the plist named by the finding's structured
+  `path` field, and the per-investigation byte ceiling. (3) Decide model-provider disclosure (open
+  question 3). The live config routes to `provider: openai-codex` at
+  `https://chatgpt.com/backend-api/codex`, so an investigator would send attacker-controlled artifact
+  text to that endpoint under your account. (4) Decide the credential policy for a dedicated investigator
+  profile (open question 4): its own `auth.json` credential through KeePassXC, or a shared one. (5)
+  Consider setting `gateway.strict: true` now, independent of this workflow. `_deliver_kanban_artifacts`
+  currently uploads any host file a completion summary names, and the denylist leaves `~/workspaces`,
+  `~/Documents` and `~/.claude.json` deliverable. Setting it also needs an allowlist root
+  (`HERMES_MEDIA_ALLOW_DIRS`) decided for anything you do want delivered. (6) Resolve the tirith
+  contradiction: either install it (`brew install sheeki03/tap/tirith`, then declare it in
+  `.chezmoidata/system_packages_autoinstall.yaml`) or set `security.tirith_fail_open: false`, because the
+  config currently claims a scanner that is not installed and fails open. (7) Approve the route
+  reconciliation: add a `posture` route to the encrypted hermes config and extend `expected_routes` in
+  `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl`, and decide whether any future agent
+  route gets a documented carve-out from that checker's `deliver_only` invariant. (8) Confirm or revise
+  the fixed remediation vocabulary from the old design's section 6 (quarantine the file, disable the
+  launch item by label, revert the setting in System Settings), since the publisher can only enforce a
+  vocabulary that has been written down. (9) Approve the pns transport change: a per-delivery-attempt
+  value in `X-Request-ID` and the alert correlation key in the body. This also fixes the fact that pns's
+  current `Idempotency-Key` header is ignored by Hermes entirely. (10) Decide whether to upgrade Hermes
+  past the reviewed upstream revision b6b53c69 to get the `kanban_attach` and `kanban_attach_url` tools,
+  which would change the evidence-copy-in mechanism, and note that
+  `.chezmoiscripts/run_after_59-hermes-config-migrate.sh.tmpl` would carry the config migration. Open
+  questions: (1) Execution and network boundary: terminal-backend isolation with `--network=none`, or
+  whole-process wrapping? Upstream's own policy names the second for content the operator does not
+  control. The first is a handful of config keys on this host; the second is a project. Which tier is
+  this workflow held to? (2) Permitted evidence: what may be copied into the box, and who resolves it?
+  The old design says only the artifact at the finding's structured `path` field, resolved
+  deterministically and never chosen by the agent. Is the referenced binary or script in scope, are
+  narrowly scoped logs in scope, and what is the byte ceiling per investigation? (3) Model-provider
+  disclosure: the live config routes to `provider: openai-codex` at
+  `https://chatgpt.com/backend-api/codex`, so an investigator sends attacker-controlled artifact text to
+  that endpoint under your account. Acceptable, a different provider for the investigator profile, or
+  wait for a local model? (4) Credential policy for the investigator profile: a profile carries its own
+  `auth.json`. Does the investigator get its own credential (blast radius bounded, one more secret in
+  KeePassXC) or share an existing one? (5) Evidence-upload posture: turn on `gateway.strict` now? The
+  unguarded artifact-upload path is live today for every agent route on this gateway, independent of this
+  workflow. It is one key plus an allowlist root decided for anything you do want delivered. (6) Tirith:
+  install it or stop claiming it? The config enables a scanner that is not installed, with
+  `fail_open: true`, so every command passes unscanned and silently. (7) Route reconciliation: add a
+  `posture` route, and extend the tracked checker? Posture pins the name `posture`, the config has no
+  such route, and the checker covers only `pns` and `unattended-upgrades`. Separately, if an agent route
+  is ever added, the checker's `deliver_only` invariant needs a documented carve-out for it. (8) Advisory
+  scope: does the fixed response vocabulary from the old design's section 6 stand (quarantine the file,
+  disable the launch item by label, revert the setting in System Settings)? The publisher can only
+  enforce a vocabulary that has been written down. (9) Producer transport identifiers: confirm the
+  intended split of a per-delivery-attempt value in `X-Request-ID` and the alert correlation key in the
+  body. Small pns change, and it also fixes pns's currently-ignored `Idempotency-Key` header.
 
 The posture port plan's section 8 summary still says its fourth decision is waiting on the operator, but
 decision 4 itself records the security mute bypass as settled on 2026-09-06. Correct that stale summary
@@ -2384,7 +3219,53 @@ force.
   the start authorization. The 2026-08-28 Todoist decision supersedes the old roadmap's SP5 Thaw label.
   Research cold/warm startup against Bash, atuin, the shell hooks, starship, direnv, zoxide, carapace,
   Herdr attachment and the existing key chords. Produce a go/no-go and reviewed spec. A migration has not
-  been approved, and scripts remain Bash.
+  been approved, and scripts remain Bash. Evaluated 2026-09-14, verdict NO-GO, written up for
+  `docs/research/2026-09-xonsh-evaluation.md`. Measured on dresden against xonsh 0.24.2 with
+  prompt_toolkit 3.0.53 from a throwaway virtual environment (nothing installed through chezmoi, no
+  manifest edited). Fully configured xonsh reaches its first prompt at 1.89x and 1.95x the deployed
+  `~/.bashrc` across two interleaved passes, an empty xonsh already costs what all of Bash's
+  configuration costs, the first start after any rc edit pays a 2.5 to 3.6 s parse of a 1,064-line
+  binding file, and atuin's xonsh hook blocks the prompt on `atuin history end` for 19 to 57 ms after
+  every command because xonsh issue 5224 was closed as not planned. Upstream's own install guidance
+  advises against xonsh as a login shell and wants a Python isolated from system changes, which the
+  Homebrew formula on `python@3.14` plus uu's unattended weekly brew lane is not. The chord surface does
+  port (a `Ctrl-g d r` chord that types and runs a command was verified in a live session; 353 bindings
+  register in 3 ms), except the 25 escape-prefixed bindings, which prompt_toolkit's vi mode claims.
+  atuin, starship, zoxide and carapace are first-class for xonsh; direnv and fnm are not and need a
+  hand-rolled hook or an unmaintained 2024 xontrib. Two spillover findings for SP4: bash-completion@2 is
+  about 220 ms of Bash's roughly 400 ms startup (the 353 bindings are about 18 ms), and building SP4's
+  binding table as shell-agnostic data with a renderer is the one change that would make any future shell
+  evaluation cheap. Awaiting the operator's ratification and the pipeline review step; no migration
+  specification was written because the verdict makes it moot. Full document:
+  `docs/research/2026-09-xonsh-evaluation.md`. Operator steps: (1) Read
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/docs-wave/sp5-xonsh.md
+  and ratify or reject the NO-GO. The file is already mdformat-clean under .mdformat.toml and idempotent,
+  so it can be copied straight to docs/research/2026-09-xonsh-evaluation.md. (2) Append the ledger
+  sentences under the SP5 bullet in docs/remaining-work.md and leave the box unticked; the bullet's
+  operator_part (decide on a migration) is still open. (3) Send the document through the pipeline review
+  step if the 'reviewed spec' half of done_means is to be satisfied by this task rather than a follow-up.
+  (4) Decide whether a migration specification is still owed despite the no-go, or whether the evaluation
+  discharges it. (5) Optional cleanup of measurement traces, gated on you: trash ~/.local/share/xonsh
+  ~/.cache/xonsh (created by xonsh's own first runs: one history JSON file per measured session plus 13
+  compiled-code cache entries; inert with xonsh not installed). Nothing was added to Homebrew,
+  ~/.local/bin, any chezmoi source file or any managed manifest, and the repository working tree is
+  unchanged. (6) Optional: re-run the three-minute reproduction recipe in the document on an idle machine
+  if you want absolute numbers rather than ratios; the machine carried a load average of 18 to 102
+  throughout this session. Open questions: (1) Ratify the no-go, filing this document beside
+  docs/research/2026-07-09-sp4-nushell-evaluation.md so neither shell question is re-litigated? (2) Is
+  the migration specification still owed? done_means asks for 'a reviewed spec and a go/no-go verdict';
+  this document is the evaluation, not a migration plan. (3) Does SP4 build its binding table as
+  shell-agnostic data with a renderer? That is the single change that would make any future shell
+  evaluation cheap, and it stands on its own merits. (4) Should SP4 take the bash-completion@2 startup
+  win (about 220 ms of roughly 400 ms, measured)? It needs an inventory of completions carapace does not
+  cover first; lazy-loading is the conservative middle path. (5) Do you want the comparison re-measured
+  on an idle machine before ratifying? The ratios held across two passes at different loads, so the
+  verdict does not hang on it, but every absolute millisecond figure is inflated. (6) Is there a workload
+  reason to want Python in the shell that this evaluation missed? The value side was judged from the
+  repository's contents (Rust tooling, Bash scripts, Python only as formatters), which is the weakest
+  evidence in the document. (7) If a migration ever proceeds, is keeping SHELL pointed at Bash agreed?
+  Upstream advises it, fzf runs its preview and execute commands with $SHELL -c so the 64 fzf bindings
+  require it, and it keeps every non-interactive door untouched.
 - [ ] SP4, improve the interactive shell after the SP5 verdict. Start from the existing Bash plan: alias
   consolidation and one binding table that drives both key bindings and an fzf menu to view, select and
   run them. Revisit the existing candidates for directory, stash, process, worktree and Herdr workspace
@@ -2412,6 +3293,56 @@ force.
   SDK (software development kit) to `6.0.3` because the npm `latest` tag is behind it. Preserve the
   separate execute-bit hold too: the current Claude and Codex templates require both defects resolved
   before normal enablement. Reconcile that condition with the operator before changing either template.
+  2026-09-14: checked, recorded in `docs/research/2026-09-babysitter-defect-release-check.md`. Fix #1777
+  merged `2026-08-23T19:13:06Z` and is current on `main` (its post-merge blobs for
+  `adapter-claude/src/renderer.ts` and `core/src/merge-engine/merge.ts` are the objects `main` holds),
+  but no artifact carries it: the newest publish of `@a5c-ai/babysitter-sdk`,
+  `@a5c-ai/hooks-adapter-claude` and `@a5c-ai/hooks-adapter-core` is `2026-08-10`, across the `latest`
+  tag (still `6.0.0`), the released `6.0.3` the source pins, and the newest `staging` prerelease; the
+  newest GitHub release is `v0.0.188` from `2026-06-26` and the `babysitter-claude` plugin release source
+  has not moved since `2026-08-10`. The recorded A/B reproducer was rerun against installed `6.0.3` and
+  still disagrees (A returns `continue: true` with an empty reason, B returns `decision: "block"` with
+  the continuation reason), and the installed `renderStopOutput` and merge engine are pre-fix by direct
+  inspection. The execute-bit reproducer was rerun too and also still reproduces (a mode-644
+  `.a5c/hooks/on-run-start/` script ran); that defect has no upstream report, so no release can fix it.
+  The pin is durable: the apply path reinstalls the exact spec and the weekly uu npm lane has run since
+  `f89a9dae` without moving it. Verdict: defer, both holds stay, no duplicate of #1761 filed, no merged
+  source fix treated as a release, and neither template changed. Operator half outstanding: both
+  templates require both defects resolved, only the Stop defect is reported upstream, and a released
+  #1777 would not lift the Codex hold (that adapter drops `decision` on Stop by a deliberate field
+  allowlist, not by the omission #1777 fixes). Six open questions are in the document, the first being
+  whether the two holds are decoupled. Full document:
+  `docs/research/2026-09-babysitter-defect-release-check.md`. Operator steps: (1) Read
+  `docs/research/2026-09-babysitter-defect-release-check.md` and rule on its first open question: does
+  the enablement condition stay "both defects resolved", or does it decouple so each hold names the one
+  defect it waits on? As written it cannot be satisfied, because the execute-bit defect has no upstream
+  report. (2) Decide whether to release the 2026-09-06 deferral on
+  `~/.claude/pipeline/babysitter-issues/babysitter-issue-execute-bit-v2.md` so that defect can be filed
+  upstream. Without a report there is no path to "both resolved" at any date. (3) Decide whether the
+  Codex Stop allowlist omission gets its own upstream report, and whether the Codex hold's comment names
+  it explicitly instead of citing the same reason as the Claude comment. (4) Agree any edit to the two
+  hold comments before it is made. `private_dot_claude/modify_settings.json` still keeps
+  `babysitter@a5c.ai` in `$defaultDisabledPlugins` and `private_dot_codex/modify_private_config.toml`
+  still sets `plugins."babysitter@babysitter".enabled = false`; nothing was changed. (5) Decide the
+  recheck mechanism and cadence: the manual three-command `npm view` recheck in the document, or a uu
+  probe comparing published versions against the pin, and whether it is tracked in the ledger entry or in
+  a Todoist task. (6) Decide whether a `staging` dist-tag is ever acceptable as the pin. It changes
+  nothing today (the newest staging predates the merge) but it sets what a future check may accept. Open
+  questions: (1) Does the enablement condition stay "both defects resolved"? As written it cannot be
+  satisfied: the execute-bit defect has no upstream report, so no release can fix it. Recommendation:
+  decouple, so each hold names the defect it waits on. (2) Is the execute-bit issue draft filed now,
+  releasing its 2026-09-06 deferral? Without that, "both resolved" has no path forward at any date. (3)
+  Is the Codex Stop allowlist omission reported upstream, and does it join the Codex hold's condition
+  explicitly? Today the Codex comment cites the same "adapters both drop Stop's decision" reason as the
+  Claude comment, but a released #1777 fixes only the Claude side. (4) When a release lands that fixes
+  only the Stop defect, does babysitter get enabled in Claude Code while the execute-bit behavior stands?
+  The two defects differ in kind: one is a broken feature, the other runs repository-supplied scripts
+  under an unrelated approval. (5) Does the repository get a release watcher, or does this stay a manual
+  recheck? If manual, on what cadence, and does it live in the ledger entry or in a Todoist task? (6) Is
+  a `staging` dist-tag ever acceptable as the pin? The answer decides what a future check may accept,
+  even though it changes nothing today. (7) Once the fix is installable, does the Codex Stop path get
+  retested? #1777's core half will start sending `continueSession: false` to Codex on a block, and
+  whether Codex reads that as holding the turn or ending the session is untested.
 
 ### SP7 scope recovered from the roadmap and Todoist
 
@@ -2517,6 +3448,77 @@ force.
 - [ ] Revisit the roadmap's bandwhich/doggo/ouch evaluation, remaining shell quick wins and optional Tart
   clean-machine environment. `MANPAGER` and Git's `autocorrect = prompt` already exist. VM creation
   remains operator-gated. Re-rule the old documentation/archive tasks S1/S2/S4 against current files.
+  Researched 2026-09-14, written to `docs/research/2026-09-sp7-tool-and-quickwin-verdicts.md`. **doggo:
+  adopt**, but on a reason the filed task did not have. From 1.4.0 (`MatchDomainNameservers`, commit
+  `3111835`, in the Homebrew version) it parses `scutil --dns` instead of `/etc/resolv.conf`, so
+  `doggo dresden.tail2f2430.ts.net` routes to Tailscale's `100.100.100.100` and names the resolver that
+  answered, where `dig +short` on the same name returns empty with exit 0. That is the
+  MagicDNS-versus-hosts-pin question this repo owns. `dscacheutil -q host` stays the tool for the
+  hosts-pin half. **bandwhich: decline.** Upstream requires elevated privileges and its `setcap` escape
+  is Linux-only, while `/usr/bin/nettop` already reports per-process and per-connection bytes with remote
+  addresses, unprivileged, with a machine-readable mode. It would also need a pns change:
+  `shell_is_interactive` is a hardcoded prefix list that `sudo bandwhich` defeats. **ouch: decline on
+  taste**, since bsdtar/libarchive 3.7.4, `7zz` (Rar and Rar5), zstd, lz4, brotli, xz, zip and bzip2
+  already open all 14 of its formats. **Quick wins: two left.** `dot_fzf_bindings:53` sets
+  `FZF_DEFAULT_COMMAND` with `--no-ignore` but no `--hidden`, so Ctrl-T reaches none of the 53 files
+  under `.chezmoiscripts/` (8,712 of 116,165 files missing). The fix is `--hidden` on the existing
+  ripgrep line, not the filed fd swap: fd measured 1.17 ± 0.32 times faster (inside the noise), and PATH
+  resolves an undeclared `~/.cargo/bin/fd` 8.4.0 over the declared Homebrew 10.5.0. Deleting the override
+  for fzf's built-in walker is semantically correct but measured at 0.9 to 5.2 s against ripgrep's 0.65
+  to 0.83. `batman` as `MANPAGER` is declined: `nvim +Man!` costs 209.8 ms ± 123.5 ms and keeps the
+  editor's keymaps and `:Man` navigation. Every other item on the 2026-04-14 list is shipped, dead with
+  tmux and the flake, or taste; `git maintenance start` gets an explicit decline for scheduling a job
+  chezmoi does not declare. **Tart: retire P13 as written, defer the rehearsal.** The `sequoia-runner`
+  image name and macOS version are both stale (`macos-tahoe-*` is current), and the act-runner rationale
+  closed when actionlint was adopted, which that research doc itself recommended. Licensing permits it
+  (personal workstations royalty-free; macOS agreement section 2.B(iii) allows two instances). A
+  rehearsal cannot cover the privacy grants, LuLu system-extension approval, OverSight consent or Touch
+  ID that dominate the fresh-machine runbook, while `chezmoi apply --dry-run --destination <scratch>`
+  ("In dry-run mode, scripts are not executed") plus the 2026-09-08 render-and-run ruling already answer
+  the will-the-apply-fail question. Noted: `tart` and `act` are both declared, installed and unused.
+  **S1: decline as written** (no `docs/archive` or `.gitkeep` was ever created, and the move would break
+  `docs/research/` paths in eleven files under `docs/`). **S2: moot** without S1; no `docs/archive` rule
+  exists in `CLAUDE.md`. **S4: superseded** (`409dd2a` is on `origin/main`, nothing unpushed on `main`,
+  no `Closes #17` trailer anywhere), and its `gh issue close 17` fallback must not be taken, because #17
+  is live work in this section's first bullet. Operator decisions remain open on the doggo install, the
+  picker fix's timing against SP4, Tart's disposition, and whether `tart` and `act` leave the package
+  declaration. Full document: `docs/research/2026-09-sp7-tool-and-quickwin-verdicts.md`. Operator steps:
+  (1) Read docs/research/2026-09-sp7-tool-and-quickwin-verdicts.md and rule on the four adopt/decline
+  calls. (2) If doggo is approved: run `brew install doggo`, then add `doggo` to
+  .chezmoidata/system_packages_autoinstall.yaml under packages.macos.homebrew.formulae between `direnv`
+  and `dust`, then a full `chezmoi apply` (no by-name apply, the known-good manifests need the full run).
+  Confirm with `doggo dresden.tail2f2430.ts.net`, which must return 100.77.192.92 and name
+  100.100.100.100 as the resolver. (3) Decide the fzf picker fix: add `--hidden` to the ripgrep branch of
+  dot_fzf_bindings line 53 now, or hold it for SP4, which is chartered to rewrite that file. (4) Decide
+  Tart: retire P13 as written (recommended), or charter the clean-machine rehearsal as its own project
+  with the stated interactive ceiling. VM creation stays operator-gated and nothing was pulled. (5) If
+  P13 is retired, decide whether `tart` (line 157) and `act` (line 48) come out of the formulae
+  declaration; both are installed and unused, and act's own research doc recommended against it. (6)
+  Confirm issue #17 stays open. Do not run the S4 fallback `gh issue close 17`; the SP7 section's first
+  bullet lists remaining macOS settings (#17) as live work. (7) Decide the four taste items if wanted:
+  Catppuccin for bat, Ghostty `quick-terminal-size`, Ghostty background blur, AeroSpace
+  workspace-to-monitor assignment. (8) File the two incidental findings as their own items rather than
+  folding them into a quick-wins bullet: Server Message Block file sharing is listening on port 445
+  (`com.apple.smbd` enabled, untracked in the ledger and in macos_posture_controls.yaml), and
+  `~/.cargo/bin` holds an undeclared fd 8.4.0 shadowing the declared Homebrew 10.5.0 plus `nu` and
+  `nu_plugin_core_match` despite the ratified nushell no-go. Open questions: (1) doggo: adopt? It is the
+  one recommended addition, one line between `direnv` and `dust`, install first then declare per the
+  Homebrew agent workflow. (2) bandwhich and ouch: accept the declines, or overrule either on taste? If
+  bandwhich is wanted, the pns skip-list question needs answering first: extend `shell_is_interactive`
+  and teach it about `sudo`, or accept a notification after every session? (3) The picker fix: apply
+  `--hidden` now, or hold it for SP4, which will rewrite dot_fzf_bindings anyway? (4) Should `dot_fzf*`
+  be added to treefmt's shellcheck and shfmt includes? The file is currently linted by neither, despite
+  carrying its own `# shellcheck shell=bash` directive. (5) Tart: retire P13, or charter the
+  clean-machine rehearsal as its own project? If retired, should `tart` and `act` come out of the
+  formulae declaration? (6) Issue #17: confirm it stays open. This record recommends against the S4
+  fallback that would close it, contrary to the 2026-05-15 spec's own instruction. (7) The four taste
+  items: Catppuccin for bat, Ghostty `quick-terminal-size`, Ghostty background blur, AeroSpace
+  workspace-to-monitor assignment. Each is a small diff with no correctness argument. (8) Out of scope
+  but untracked anywhere: Server Message Block file sharing is listening on port 445 (`nettop` shows
+  `tcp4 *:445 Listen`, `launchctl print-disabled system` shows `com.apple.smbd => enabled`). Should it be
+  off, or should a posture control assert its state? The ledger's existing exposure section covers SSH
+  only. (9) Out of scope: `~/.cargo/bin/fd` 8.4.0 shadows the declared Homebrew fd 10.5.0, and `nu` plus
+  `nu_plugin_core_match` are installed there despite the ratified nushell no-go. Clean up, or leave?
 - [ ] Finish the recorded pi harness setup/evaluation and its configuration, skills and hook integration.
   Reconcile babysitter's evaluation with its existing declaration and holds, and Understand-Anything with
   its current adoption decision. OpenSpec and credential-access work have explicit entries below.
@@ -2625,7 +3627,77 @@ force.
   validation commands and review/merge authority explicitly. Preserve existing hooks and per-invocation
   destructive-action approvals when configuring no-mistakes' Git proxy and repair behavior. Track tools,
   upstream skills and their update paths through existing uu lanes or a producer where needed. Reuse
-  [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M) for these and Backpass.
+  [6hPV483GJgGHX95M](https://app.todoist.com/app/task/6hPV483GJgGHX95M) for these and Backpass. Planned
+  2026-09-14 in `docs/superpowers/specs/2026-09-14-no-mistakes-firstmate-installation-design.md`.
+  Verified first that nothing is installed: no binary, no checkout, no declaration. Recommendation is a
+  three-phase adoption, dotfiles only, with firstmate held behind its own gate because it requires
+  no-mistakes 1.46.0 or newer and four npm packages that are missing here. treehouse is a bottled
+  homebrew-core formula, so it needs only a `formulae` line and the existing uu brew lane; no-mistakes
+  installs from its own installer and gets one uu `command` lane running `update -y`; firstmate is a
+  clone at `~/workspaces/firstmate` updated by `/updatefirstmate`, with no uu lane because that skill
+  restarts live mates. The plan records seven measured intersections with systems this repository already
+  owns, four of which need action: the no-mistakes daemon writes an unmanaged LaunchAgent that the
+  launchd persistence detector default-denies until `posture allowlist add` pins it (and re-pins after
+  every update that rewrites the plist); `no-mistakes init` drops undeclared real directories into both
+  skill stores, which uu's fanout leaves untouched, so they should be recorded as a third app-owned case
+  beside `cua-driver` and `graphify`; the gate's bare repository inherits the user-wide `core.hooksPath`
+  and its receive hooks never fire unless upstream's `config --worktree` isolation runs, which was proven
+  to work on git 2.55.0 here and is the first acceptance check; and every crewmate commit would fire the
+  `prepare-commit-msg` hook's nested `claude -p`, so `SKIP_AI_COMMIT=1` belongs in firstmate's
+  `config/launch-env-allowlist`. Automatic pull requests conflict with the `~/.claude/commands/pr.md`
+  body contract, since `pr.template` appends a protected evidence appendix by design, so the plan pushes
+  with `-o no-mistakes.skip=pr,ci` and keeps `/pr`. Two measured side-findings: `treehouse --root .`
+  would put worktrees inside the chezmoi source tree and poison every render through nested
+  `.chezmoidata`, and the `herdr` call at the bottom of `dot_bashrc.tmpl` runs during no-mistakes'
+  `$SHELL -l -i -c 'env -0'` daemon probe, prefixing 28 bytes of terminal escapes onto the first
+  environment record (PATH survives intact, so this is benign today; a `[[ -t 1 ]] || return` guard is
+  proposed as a separate one-line change). Eleven assumptions and seven open questions are listed; Open
+  Question 5 still gates adoption and nothing is installed. Full document:
+  `docs/superpowers/specs/2026-09-14-no-mistakes-firstmate-installation-design.md`. Operator steps: (1)
+  Read the design at docs/superpowers/specs/2026-09-14-no-mistakes-firstmate-installation-design.md and
+  answer Open Question 5: whether firstmate is adopted at all, and which harness runs its primary
+  session. Phases 1 and 2 stand alone if it is declined. (2) Decide the four operator-only items in the
+  Open questions section: bypass or auto for config/claude-permission-mode, whether the recurring posture
+  allowlist page after each no-mistakes update is acceptable, whether the reviewed pull-request body
+  contract stays with /pr, and whether the no-mistakes skill is recorded in
+  docs/runbooks/agent-skills-store.md as a third app-owned case alongside the Backpass extraction
+  question. (3) Approve or reject the eleven assumptions, in particular the curl installer over
+  `go install`, leaving ~/.no-mistakes/config.yaml untracked and hand-maintained, ci.revalidate_repairs
+  true, and commands.test being `just test-unit` with the heavy suites declared as gates. (4) If phase 1
+  and 2 are approved, authorize the agent-side work: `brew install treehouse` plus its alphabetical line
+  in .chezmoidata/system_packages_autoinstall.yaml, the `[lanes.no-mistakes]` command lane in
+  dot_config/uu/private_config.toml.tmpl, the two NO_MISTAKES\_\* exports in dot_bashrc.tmpl, and a
+  committed .no-mistakes.yaml on main. Each is a separate commit; nothing is applied by an agent. (5)
+  Decide the separate one-line `[[ -t 1 ]] || return` guard before the herdr auto-attach in
+  dot_bashrc.tmpl. It is its own change, not part of the tool install. (6) Run the no-mistakes installer
+  yourself and then, in order: `no-mistakes doctor`, `no-mistakes daemon status`,
+  `git -C ~/.no-mistakes/repos/<id>.git config --get core.hooksPath` (must not answer
+  ~/.config/git/hooks), and `posture allowlist add com.kunchenguid.no-mistakes.daemon.<suffix>`. The
+  hooksPath check is the one most likely to fail. (7) Reuse Todoist task 6hPV483GJgGHX95M for these and
+  Backpass, per the ledger entry, and record the phase split on it. Open questions: (1) Which harnesses
+  and Hermes profiles are the audience for no-mistakes and firstmate? The /no-mistakes skill reaches
+  Claude Code and every harness reading ~/.agents/skills automatically with no per-harness choice, so the
+  live part of the question is whether firstmate is adopted and which harness runs its primary session
+  (Claude Code and Codex are the only installed candidates; upstream's co-primaries are Claude Code, Grok
+  and Pi). (2) Is firstmate adopted, or is phase 3 declined? Adopting it costs four new global npm
+  packages (chrome-devtools-axi, gh-axi, quota-axi, tasks-axi), a fleet of unattended agents under
+  --dangerously-skip-permissions, a reserved herdr workspace label `firstmate`, and a second Stop hook on
+  the primary session. (3) bypass or auto for firstmate's config/claude-permission-mode? bypass matches
+  this machine's existing global bypassPermissions mode; auto is the stricter posture upstream added for
+  a captain who refuses unattended bypass. (4) Is the recurring launchd allowlist page acceptable? Every
+  no-mistakes update that rewrites its daemon plist invalidates the pinned SHA-256 and pages once until
+  `posture allowlist add` re-pins it, because the writer refuses to store an unpinned tuple. (5) Which
+  repositories beyond webdavis/dotfiles should the gate eventually cover? Each needs its own
+  .no-mistakes.yaml on its own default branch, its own worktree_roots placement, and its own validation
+  commands. The Obsidian vault is excluded on evidence because Obsidian Git auto-commits it on a timer.
+  (6) Does the reviewed pull-request body contract stay with /pr? pr.template cannot satisfy it: upstream
+  states the protected evidence appendix is appended in addition to the template and that this does not
+  satisfy a policy requiring only the template's headings. Keeping /pr means pushing with -o
+  no-mistakes.skip=pr,ci; changing the answer means amending ~/.claude/commands/pr.md. (7) Should the
+  undeclared no-mistakes skill directories in ~/.claude/skills and ~/.agents/skills be recorded in
+  docs/runbooks/agent-skills-store.md as a third app-owned case? They work with no lock table row, but
+  leaving them unrecorded means the lock stops describing the store. This is the same decision the
+  Backpass entry already carries and the two should be answered together.
 - [x] Recheck [claude-code-owasp](https://github.com/agamm/claude-code-owasp), requested 2026-09-12.
   `owasp-security` already has the correct upstream in `npxTracked`, an on-demand tier, the Claude
   symlink and invocation override, and a deployed shared-store skill with its reference files. Codex
@@ -2699,12 +3771,149 @@ force.
   external linting/formatting; their separately deferred replacement is not a prerequisite for droast.
 - [ ] Reconcile the remaining tool evaluations for strix, apple/container, minutes and gnhf. Check prior
   removals and rejections before proposing adoption. Herdr remains the selected multiplexer. The rejected
-  git-absorb and deferred gh-dash/companion tools are not additions to #530.
+  git-absorb and deferred gh-dash/companion tools are not additions to #530. Verdicts recorded 2026-09-14
+  in `docs/research/2026-09-sp7-tool-evaluations.md`, one per tool, each citing the decision it respects.
+  `minutes`: ADOPT, already adopted, so the evaluation item is superseded. It was declared 2026-07-27 in
+  `ad7124f3` with `silverstein/tap` in both `taps` and `trusted_taps`, the cask is installed at 0.26.1
+  (0.26.2 available, uu's brew lane owns it), and its vault link is made by its own
+  `minutes vault setup --subdir`. The one gap: `~/.local/bin/minutes` is an unmanaged symlink into
+  `/Applications/Minutes.app`, created before the cask, so a fresh machine gets the app and no command on
+  PATH; the cask's own caveat names the fix (`brew install silverstein/tap/minutes`), and because
+  `dot_bashrc.tmpl` prepends `~/.local/bin` the stray symlink must go with it. There is nothing to manage
+  in configuration: `~/.config/minutes/config.toml` does not exist. `gnhf`: ADOPT, already decided; the
+  install work stays in its own entry above. It is installed at 0.1.49 and absent from the `fnm` packages
+  list, and the two lanes are asymmetric: uu's npm lane runs `npm update -g` with no roster so it is
+  upgraded weekly, while the apply-time lane installs only declared packages into a new node prefix, so a
+  node bump would drop it. Three corrections to that entry: "(pinned, like the other npm tools there)"
+  does not describe the list (one of fifteen entries is pinned, with a comment explaining why it is the
+  exception), upstream rolls a failed iteration back with `git reset --hard`, which makes `--worktree`
+  and the `gnhf/` branch prefix constraints rather than options, and the license is MIT on GitHub with no
+  license field in the npm registry record. `apple/container`: DECLINE as an addition. Homebrew core
+  carries it at 1.4.1 (the old note's 1.3.0 is stale) and macOS 26.2 clears its minimum, but it has no
+  declared consumer here, Docker Desktop 29.7.2 is installed, running and declared, and `act` is the only
+  declared Docker consumer. The recorded coupling "strix via uv+container as one decision" is void:
+  `strix-agent` 1.6.2 depends on the Docker software development kit for Python and its installer checks
+  a live daemon, while the `container` README documents Open Container Initiative images and no Docker
+  application programming interface; `socktainer` 1.2.1 is the bridge if Docker Desktop is ever retired,
+  which is a separate decision this record does not open. `strix`: DEFER, with the adoption path
+  pre-cleared. Apache-2.0, release 1.6.2 of 2026-09-05, and nothing technical blocks it:
+  `uv tool install strix-agent` joins the existing `uv` list (same package-name-versus-command split as
+  `graphifyy`/`graphify`) and uu's `[lanes.uv]` upgrades it weekly, the sandbox runs on the Docker
+  Desktop already here, and the `OPENROUTER_API_KEY` already in KeePassXC matches upstream's own example
+  provider. The `strix.ai/install` script is ruled out by the same reasoning as plannotator's installer:
+  read without running, it appends `export PATH` to the chezmoi-managed `~/.bashrc`. What is missing is
+  operator input: a target, a decision about unattended credit spend, and where `LLM_API_KEY` is exposed
+  (a per-repository `.envrc` through direnv or a vault-reading wrapper, not the managed shell). Also
+  recorded: `gh-dash`'s deferral has a tracked source
+  (`docs/superpowers/plans/2026-04-19-dotfiles-improvements-v2.md:3963`, "cut from v2 scope"), while
+  `git-absorb`'s rejection has no record in this repository beyond this ledger line. Full document:
+  `docs/research/2026-09-sp7-tool-evaluations.md`. Operator steps: (1) Read
+  `docs/research/2026-09-sp7-tool-evaluations.md` and confirm or override the four assumptions it states
+  in your place: the minutes formula over a declared symlink, apple/container declined as an addition
+  rather than evaluated as a Docker Desktop replacement, strix deferred rather than declined, and the
+  gnhf npm entry left unpinned. (2) Answer the strix question first, since it is the only one that gates
+  work: is there an asset to point it at, and is unattended OpenRouter spend on it acceptable? A no
+  closes the item permanently for one line of edit. (3) If the minutes formula path is taken, a follow-up
+  task adds `silverstein/tap/minutes` to the formulae list in
+  `.chezmoidata/system_packages_autoinstall.yaml`; you then run the full `chezmoi apply` (agents do not
+  apply) and remove the stray `~/.local/bin/minutes` symlink by hand with `trash`, since this repository
+  builds no removal mechanisms. (4) Decide whether `gnhf` gets declared in the `fnm` list now, ahead of
+  the rest of its install task: it is installed today and a node bump would silently drop it. Open
+  questions: (1) minutes command-line interface: declare the `silverstein/tap/minutes` formula and remove
+  the `~/.local/bin/minutes` symlink by hand, or declare that symlink in chezmoi instead? (Assumption
+  taken: the formula, because `~/.local/bin` is prepended in `dot_bashrc.tmpl` and would otherwise shadow
+  the formula's copy forever.) (2) apple/container: is declining the addition the whole answer, or was
+  the original intent to retire Docker Desktop? The second reading is a separate design task costing
+  `container` plus its kernel install plus `socktainer`, proven against `act` first. (3) strix target: is
+  there an asset to point it at (a repository of yours, a homelab service, a deployed application), and
+  is unattended OpenRouter credit spend acceptable on it? (4) strix key exposure: per-repository `.envrc`
+  through direnv, a wrapper that reads KeePassXC at call time, or an export in the managed shell? The
+  third widens a vault secret to every interactive shell, where hermes keeps the same key scoped to one
+  `.env` file. (5) gnhf pin: pin the npm entry (safer for a 0.x tool that runs unattended and calls
+  `git reset --hard`) or leave it unpinned (matches fourteen of the fifteen entries in that list)? (6)
+  git-absorb: its rejection has no record in this repository beyond the ledger sentence. Should that
+  sentence stand as the record, or is a one-line reason worth adding beside it so the question stops
+  recurring?
 - [ ] Review the still-open bqf, dadbod/dadbod-ui and dblab/database-workflow tasks, including the older
   PostgreSQL shell/client configuration task and SSH `Host *` client-hardening task. Source declares
   PostgreSQL, but that alone does not supply the requested client configuration. bqf and dadbod are
   absent from the current source/live plugin locks. Avoid duplicating completed xcodebuild, dap and
-  neotest infrastructure; the language-specific gaps above remain separate.
+  neotest infrastructure; the language-specific gaps above remain separate. Adjudicated 2026-09-14 in
+  `docs/research/2026-09-quickfix-database-ssh-backlog.md`. The five tracker items are `6ggcw5hwM9Gp7XQv`
+  (bqf), `6ggcw5v939gHcFvv` plus `6ggcw63vFWchgRjv` (dadbod and its UI), `6ggf2WjFmgQqRqRM` (dblab),
+  `6gfVJFgXvG9mJ96M` (PostgreSQL workstation setup) and `6ggcXcJ6jMcm25HM` (SSH `Host *`); no separate
+  database-workflow task exists, so that phrase names the dblab item. bqf, dadbod, dadbod-ui and
+  dadbod-completion are absent from both the source and the deployed `lazy-lock.json`, which are
+  byte-identical at 93 plugins. Verdicts: **adopt bqf**, because `:ReviewLedger` in
+  `dot_config/nvim/lua/config/keymaps.lua` ends in a native `:copen` and every prerequisite is already
+  installed (Neovim 0.12.5, fzf 0.74.4, nvim-treesitter, nvim-hlslens by the same author); **defer
+  dadbod**, a four-plugin cluster plus a missing `sql` treesitter parser serving a two-row database, and
+  blocked on choosing a credential form (the function-valued `vim.g.dbs` is the only one compatible with
+  the KeePassXC model, and `:DBUIAddConnection` writes a plaintext URL to `~/.local/share/db_ui` outside
+  any gitleaks gate); **defer the dblab declaration**, though it is in homebrew-core at 0.50.0 needing no
+  tap, and its `--save-as` Keychain profiles, `--readonly` mode and native SSH-tunnel flags fit this
+  repository better than dadbod's inline URLs. PostgreSQL: **adopt** the `path_prepend` line
+  (postgresql@17 is keg-only and `/opt/homebrew/bin/psql` does not exist, so `psql` is not invocable
+  today, four months past the stated daily-use date) and the `dot_psqlrc`; **close** `PSQL_EDITOR` as a
+  second copy of the existing `EDITOR` export, and **close** the `~/.pgpass` item, because every line of
+  `pg_hba.conf` is `trust` and a password file has nothing to authenticate with. **Close the SSH task as
+  written**: both examples it names, modern ciphers/key exchange and no agent forwarding, are already
+  OpenSSH 10.0p2 defaults measured with `ssh -G`, and of the four settings that would be real changes
+  only `HashKnownHosts yes` is safe, since `RequiredRSASize 3072` would ignore a 2048-bit key in the
+  running agent, `IdentitiesOnly yes` would stop the agent offering the non-default GitHub and homelab
+  key names no block declares, and `PasswordAuthentication no` would remove the factory-fresh Pi
+  fallback; a `Host *` block is safe only at the end of the file, verified by experiment with `ssh -F`.
+  Recorded separately, outside every task: an undeclared `postgresql@17` server starts at every login
+  from an untracked `brew services` LaunchAgent with `RunAtLoad` and `KeepAlive`, listening on loopback
+  with `trust` for every role including superuser, holding `open_brain` (one `thoughts` table, 2 rows,
+  pgvector 0.8.2) whose owning project was not found in this repository or the memory index;
+  `homebrew.mxcl.ollama.plist` is in the same position. Five operator questions remain open, so this
+  entry stays unticked. Full document: `docs/research/2026-09-quickfix-database-ssh-backlog.md`. Operator
+  steps: (1) Read
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/docs-wave/sp7-db-workflow.md
+  and answer the five open questions; four of the five verdicts are recommendations that name their
+  alternative rather than closed decisions. (2) Answer open question 5 first, because it is the only one
+  with a security dimension: an undeclared postgresql@17 server runs at every login on loopback with
+  `trust` authentication for every role including superuser, so any agent session on this machine can
+  read and write `open_brain` without passing a permission gate. Three dispositions are laid out in the
+  document. If the choice is to pause it, `brew services stop postgresql@17` is the whole step, and the
+  same question applies to `homebrew.mxcl.ollama.plist`. (3) Identify what created `open_brain` (one
+  `thoughts` table, 2 rows, `vector(384)` embeddings, pgvector 0.8.2, 7990 kB). It appears nowhere in
+  this repository or in the agent memory index, and a grep across ~/workspaces did not finish inside a
+  60-second budget, so this needs your knowledge rather than another search. (4) Answer open question 1,
+  which decides whether nvim-bqf lands at all: should `:ReviewLedger` keep opening the native quickfix
+  window, or be rerouted to Trouble with a one-word change to dot_config/nvim/lua/config/keymaps.lua? (5)
+  If you want the free dblab trial that closes both the dblab and dadbod items: `brew install dblab`,
+  point it at `open_brain`, look at it once. Nothing is declared and nothing is committed by the trial.
+  (6) Before typing any `dblab --pass ... --save-as ...` command, check that the HISTIGNORE regex in the
+  KeePassXC entry `Dotfiles (bashrc) :: HISTIGNORE Regex` covers a `--pass` argument. That pattern feeds
+  atuin's `history_filter` and is not readable from the repository, so only you can check it. (7) Nothing
+  here needs a chezmoi apply. No code was written, nothing was installed, and every probe in the document
+  is read-only. Open questions: (1) Should `:ReviewLedger` keep opening the native quickfix window? If
+  yes, nvim-bqf is the adopt recommended here. If you would rather it opened Trouble, nvim-bqf closes
+  instead and the change is one word in dot_config/nvim/lua/config/keymaps.lua. This is the assumption
+  the bqf verdict rests on. (2) Did the 2026-05-16 PostgreSQL daily-use date in task 6gfVJFgXvG9mJ96M
+  actually arrive? There is no ~/.psql_history on this machine and `psql` is not on PATH, which reads as
+  no. If the work happened somewhere else, the dadbod and dblab verdicts flip from defer to a real
+  evaluation. (3) Trial dblab before declaring it, or declare it now? The trial is one `brew install` and
+  commits nothing. Declaring now is one alphabetical line in
+  .chezmoidata/system_packages_autoinstall.yaml and keeps the weekly bundle current, at the cost of
+  maintaining a formula that may go unused. (4) Is a two-setting `Host *` block worth adding to
+  private_dot_ssh/config, or should task 6ggcXcJ6jMcm25HM just close? The honest content is
+  `HashKnownHosts yes`, optionally a `MACs` list without the SHA-1 entries, and a comment recording why
+  `RequiredRSASize`, `IdentitiesOnly` and `PasswordAuthentication` are deliberately absent. Separately:
+  do you want the 168 plaintext entries already in ~/.ssh/known_hosts retro-hashed with `ssh-keygen -H`,
+  which makes that file permanently unreadable to you? (5) What is `open_brain`, and should its server
+  keep running? Two rows behind `trust` authentication on loopback, restarted at every login by an
+  untracked `brew services` LaunchAgent, reachable by any agent session on this machine without a
+  permission gate. Keep it and record the agent plus the `trust` decision in the repository; keep the
+  formula but stop the service until there is a workload; or retire it, which means stopping the service,
+  then removing the declaration and the data directory in that order, because removing the declaration
+  first puts the formula in scope for `brew bundle cleanup --force` while /opt/homebrew/var/postgresql@17
+  stays on disk. The same question applies to homebrew.mxcl.ollama.plist. (6) Should the psqlrc be a
+  plain `dot_psqlrc` or a chezmoi template? Plain is recommended because it carries no secret, but a
+  template would let it branch on host or pull a value from the vault later. Stated here because the
+  document chose plain in your place.
 - [x] Reconcile completed or superseded Todoist review items with evidence: Neotest parser findings
   (`6hR5vFgFXgjHVGMv`, `6hRHmWWqFjr5RmVv`), Atlas (`6hR59h6FQWpv33p8`), Overseer (`6hR5Gg6XXRFVhfpg`) and
   the pns builder-input fix (`6hV7jMW3jMGWcCMv`, commit `0b55db04`). Current source contains their fixes
@@ -2855,22 +4064,263 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   file-rendering needs. An outbound credential proxy does not solve that boundary by itself. Distinguish
   handing an agent a password from allowing a tool to use it for an approved operation. Prefer supported
   integrations over a custom broker; Passage remains background research, not a selected migration.
+  Researched 2026-09-14; the verdict lands as `docs/research/2026-09-keepassxc-local-boundary.md`.
+  Rejected: no supported KeePassXC integration moves this boundary, because every one of them ends in a
+  process running as the operator, and the unit of authorization in all three `keepassxc.mode` values is
+  the whole database. Measured on dresden: a key-file-only database with `prompt = false` renders
+  unattended and silently, which is handing over the vault rather than an approved operation; `builtin`
+  returned an empty map for every entry; `open` and `cache-password` both serve the title and attribute
+  lookups here; whole-tree `chezmoi status` fails without the vault while `chezmoi managed` and
+  path-scoped `status`/`diff` on non-vault targets succeed; and `chezmoi cat` decrypts the five
+  age-encrypted targets with no vault at all. The Agent Proxy brokers outbound web requests only and
+  writes no files, so it cannot reach file rendering, which matches homelab A6's own note. Two findings
+  reframe the boundary: all fifteen rendered targets sit at 0600 under the operator's user id after any
+  apply, so the unlock gate buys render freshness and not secrecy; and the source tree, including the
+  `hooks.read-source-state.pre` script, is agent-writable, so the instruction stream reaching the
+  unlocked vault is not itself gated. Deferred candidate: `keepassxc.mode = "open"` with a YubiKey
+  challenge-response factor, the only supported configuration whose unlock software cannot supply,
+  pending hardware and a recovery design. `kpxc-cli` is recommended for closure as rejected on the same
+  evidence. Seven open questions for the operator, four of them decisions, are listed in the document.
+  Full document: `docs/research/2026-09-keepassxc-local-boundary.md`. Operator steps: (1) Read the
+  document, then answer the seven open questions at its end. Four are decisions (the reading of
+  "supported" that governs the kpxc-cli task, whether to price the YubiKey path, whether the
+  deployed-secret exposure is the primary defect and reorders the Infisical work, and whether the source
+  tree is a trust boundary); three are cheap checks. (2) Run one command with the vault unlocked to
+  settle the cheapest blocker:
+  `chezmoi execute-template '{{ keepassxcAttribute "GitHub (Webdavis) :: GPG :: Signing key" "Public Signing Subkey ID" }}'`
+  with `keepassxc.mode = "open"` set temporarily. A real custom attribute under `open` mode was not
+  verified (keepassxc-cli 2.7.12 cannot create one from the command line), and if it fails the deferred
+  YubiKey candidate dies with it, because `dot_gitconfig.tmpl` and
+  `dot_composio/private_user_data.json.tmpl` both read custom attributes and `open` is the mode YubiKey
+  requires. (3) Delete the dummy probe directory when you no longer want the evidence:
+  `trash /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/kpxc-probe`.
+  It holds a throwaway KDBX 3.1 database, a key file and three throwaway chezmoi configs, containing only
+  the strings `dummy-master-pw`, `dummy-entry-secret` and `simple-secret`. Nothing in the repository
+  references it. (4) Approve or reject the one adopt-now item, which is a documentation fix and grants
+  nothing: `private_dot_claude/agents/chezmoi-apply.md` tells that agent to run whole-tree
+  `chezmoi status` and `chezmoi diff`, and both fail without the vault (measured, exit 1 at the first
+  vault read). Path-scoped `status <path>` and `diff <path>` on non-vault targets do work, as does
+  `chezmoi managed`. The agent's process should say so. (5) Decide whether to file the two side tasks the
+  document surfaced but does not propose: the Moshi pairing token's render-time exposure (half fixable;
+  `moshi-hook pair` takes `--token` only, verified, so argv cannot be cleaned), and a test for
+  `renders_unsafe` in `scripts/treefmt/shellcheck-rendered-template.sh`, whose
+  `test/fixtures/render-coverage/` fixtures are referenced by nothing. Open questions: (1) Which reading
+  of "supported" governs the kpxc-cli task at ledger line 2056? If a shim behind `keepassxc.command`
+  counts as supported, that task's scope changes and this document's rejection of the browser protocol
+  weakens from "not possible" to "possible at the cost of a title-to-URL migration across the vault, for
+  no security gain". Recommendation: it does not count, and kpxc-cli should be closed as rejected on this
+  evidence. (2) Is the YubiKey path worth pricing? `keepassxc.mode = "open"` with a challenge-response
+  factor is the only supported configuration whose unlock cannot be produced by software running as the
+  operator, and it works with this repository's existing template calls unchanged. Costs: hardware, an
+  experimental chezmoi mode, a recovery design, and the touch authorizes a whole run rather than one
+  secret. Recommendation: yes, as its own task, after the exposure question below. (3) Should the
+  deployed-secret exposure be fixed before any broker work? Fourteen rendered targets sit at 0600 owned
+  by `stephen` and the five age-encrypted targets need no vault at all, so an agent on this machine can
+  already read nearly every credential. Recommendation: yes, and it reorders the Infisical tasks behind
+  it, because brokering one credential off the laptop while fourteen others sit readable in $HOME buys
+  little. (4) Should the source tree be treated as a trust boundary? An agent that adds a `keepassxc`
+  call to any template, or edits `.install-password-manager.sh` (wired as `hooks.read-source-state.pre`),
+  reaches the operator's unlocked apply, and neither gitleaks nor any test catches it. Recommendation:
+  yes, and it belongs in the boundary-definition task, because it needs a mechanism decision rather than
+  more research. (5) Is the half fix to the Moshi pairing token worth making? `moshi-hook pair` takes the
+  token only as `--token` (verified), so the argument-list exposure cannot be removed without patching a
+  third-party tool. The render-time exposure can be removed by fetching at execution time the way
+  `run_before_05` does. Recommendation: yes, as a small standalone change, because the token currently
+  sits in the source state rather than only in a momentary argument list. (6) Should `keepassxcAttribute`
+  be verified against a real custom attribute under `mode = "open"`? The probe used the built-in `Title`
+  field because keepassxc-cli 2.7.12 cannot create a custom attribute from the command line. One unlocked
+  command settles whether the deferred YubiKey candidate is viable at all. (7) Should the orphaned
+  `test/fixtures/render-coverage/` fixtures get a test, or be deleted? The vault-exclusion logic
+  (`renders_unsafe`, a transitive includeTemplate walk with a cycle guard) decides which shell templates
+  get linted at all, and nothing exercises it. Recommendation: one small test, because a silent
+  regression there is a lint gap nobody would notice.
 - [ ] Evaluate [kpxc-cli](https://github.com/mietzen/keepassxc-cli) as an unadopted third-party
   candidate: it uses KeePassXC's browser protocol and macOS biometric unlock. Verify entry approval,
   association key protection, revocation and locked-database behavior. It is not a drop-in replacement
   for the current title/attribute-based chezmoi integration: its documented lookups use URLs, and custom
   fields have additional requirements. Do not treat Touch ID support or masked output as proof of
-  isolation.
+  isolation. Evaluated 2026-09-14 and written up in `docs/research/2026-09-kpxc-cli-evaluation.md`. All
+  four behaviors verified from upstream sources (kpxc-cli and `keepassxc-browser-api` at `main`,
+  KeePassXC at tag `2.7.12`, chezmoi at tag `v2.72.1`), not from a live install: entry approval is a
+  one-time remembered grant per entry and site host, silent on every later read, with a global "Never ask
+  before accessing credentials" escape hatch that is not scoped to one client; the association key is two
+  secret keys in plaintext in a 0600 `~/.keepassxc/browser-api.json`, shared with keepassxc-ssh-agent,
+  authorizing writes as well as reads; revocation exists at Database Settings, Browser Integration
+  ("Remove selected key", "Disconnect all browsers", "Forget all site-specific settings on entries") but
+  is GUI-only, is a database edit that syncs with the `.kdbx`, and leaves the client's keys on disk; a
+  locked database raises the unlock dialog and times out after 30 seconds with stable exit codes 2, 3 and
+  4\. Verdict: it cannot replace the current integration. chezmoi's argument vector for
+  `keepassxc.command` is fixed and passes a database path and a title, kpxc-cli takes neither; lookup is
+  by URL host only, and zero of the 23 entry titles across 16 files and 43 template actions is a
+  hostname; re-keying to one shared host would collapse approval to all-or-nothing; and the 3
+  `keepassxcAttribute` calls would need `KPH: ` renames plus a global KeePassXC setting. Touch ID gates
+  the unlock, not the read, and masked output is a print-time choice over an already-fetched secret, so
+  neither is isolation. The age-key script's direct `keepassxc-cli` call and the moshi token in an
+  argument vector are untouched by any template-function swap. Not ticked: closure waits on two operator
+  decisions recorded in the document. Full document: `docs/research/2026-09-kpxc-cli-evaluation.md`.
+  Operator steps: (1) Read
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/docs-wave/kpxc-cli-eval.md
+  and confirm it lands at
+  /Users/stephen/workspaces/Ivy/webdavis/dotfiles/docs/research/2026-09-kpxc-cli-evaluation.md (it is
+  already mdformat-clean and idempotent under .mdformat.toml, so it will pass `just lint-check` as
+  written). (2) Answer open question 1: state whether kpxc-cli was under consideration for Touch ID
+  convenience during applies or for agent credential isolation. The verdict is reject either way, but the
+  follow-up differs completely. (3) Answer open question 2: decide whether you want a supplementary
+  kpxc-cli path through chezmoi's `secret.command` for new agent-scoped secrets only. My recommendation
+  is no, on blast radius (a durable on-disk read-write vault credential plus a second unlock path per
+  apply). (4) Optional, only if you want findings 1 through 4 measured rather than source-read: create a
+  throwaway .kdbx (never keepass.kdbx), `uv tool install keepassxc-cli`, then run the seven-line sequence
+  in the document's "What would change the verdict" section. Do not run `kpxc-cli setup` against the live
+  vault; it writes a permanent association key into the database your iPhone syncs. (5) Decide whether
+  this ledger item is ticked closed on the reject verdict or kept open as a watch on the unreleased
+  `get-database-entries` protocol action (absent from KeePassXC 2.7.12, present only on `develop`). Open
+  questions: (1) What problem was kpxc-cli under consideration for: Touch ID convenience during applies,
+  or agent credential isolation? The verdict is reject either way, but the first leads to the
+  `secret.command` bridge question and the second leads nowhere, with the item closing against the A6
+  Infisical direction instead. (2) Do you want a supplementary kpxc-cli path at all, through chezmoi's
+  `secret.command`, for new agent-scoped secrets only? This is the one decision deliberately left for
+  you. It leaves the existing 43 call sites untouched and costs a durable on-disk read-write vault
+  credential plus a second unlock path per apply. Recommendation: no. (3) Should this item be ticked
+  closed, or kept open as a watch on `get-database-entries` (the unreleased protocol action that would
+  make title filtering possible client side)? (4) Do the two non-template exposure paths get their own
+  ledger items now? `run_before_05-restore-age-key.sh.tmpl` calls `keepassxc-cli` directly at execution
+  time, and `run_once_after_60-moshi-hook-setup.sh.tmpl` renders the moshi device token into
+  `moshi-hook pair --token <token>`, visible in `ps` and in the rendered script body. Neither is affected
+  by any decision about kpxc-cli, and both are real exposure today. (5) Is "no audit record of a
+  remembered credential read" a finding you want pursued? The setting "Show a notification when
+  credentials are requested" exists and is stored, but no browser-path source read consumes it and its
+  declaration carries a `// TODO!!` comment. That is four files read, not an exhaustive proof, and it
+  applies to the browser extension you already use, not only to a hypothetical kpxc-cli. It bears
+  directly on the section's "audit records without secret values" requirement.
 - [ ] Define and verify the actual access boundary: permitted secrets and operations, approval duration,
   revocation, audit records without secret values, and denial outside the permitted set. Account for
   arbitrary shell access, readable rendered configuration and agent-editable templates/scripts. Hiding a
   value from chat or putting it in a child environment does not keep it inaccessible to an unrestricted
-  process running as the same user. Establish the isolation needed for the claimed protection.
+  process running as the same user. Establish the isolation needed for the claimed protection. Designed
+  2026-09-14 in `docs/superpowers/specs/2026-09-14-credential-access-boundary-design.md`. Measured on
+  dresden (macOS 25.2, chezmoi 2.72.1, keepassxc-cli 2.7.12): `ps eww -p` and `ps -E -p` print another
+  same-user process's full environment and `ps -o args=` its command line, so a child environment is not
+  protection; all fifteen rendered targets exist and are same-user readable, and the mode audit is clean
+  but irrelevant because the agent runs as the owner; `hooks.read-source-state.pre` points at an
+  agent-editable file inside the source tree and fires on `chezmoi diff`, `status`, `managed`,
+  `execute-template` and `apply --dry-run`; `keepassxc.command` is unqualified with `$HOME/.local/bin` at
+  PATH position 2 ahead of `/opt/homebrew/bin` at 9, and `/opt/homebrew/bin` is mode 0775 owned by the
+  operator, so the vault client is replaceable both on PATH and at its absolute path; and chezmoi's
+  `cache-password` mode, the effective mode here, writes the master password to that client's standard
+  input. Those chain into a pre-review path from an agent-written file to the whole KeePass database,
+  opened by the operator running `just d`. Verdict: no claimed protection survives while the agent shares
+  the operator's user id, so the design records two tiers. Tier 1 is brokered through the homelab Agent
+  Proxy, and its isolation mechanism is a different machine across a network boundary plus Infisical's
+  server-side refusal to start when the agent identity can read a brokered secret. Tier 2 is rendered
+  locally with no isolation at all, governed instead by the master password never existing in a file,
+  operator review of source changes, and rotation. It recommends `keepassxc.mode = "builtin"` and
+  removing the source-tree hook as the immediate hygiene floor, `connect` over `run` so the proxy's
+  certificate authority private key stays on the home server, and `--unmatched-host block`. It records
+  nine denial probes, D1 to D9, of which D7 and D8 can be built now and the rest are gated on homelab A6.
+  It also records that Infisical gates audit logs and role-based access control above the Free tier,
+  which turns the audit-record and use-without-read requirements into a licensing decision. Eleven
+  assumptions and nine open questions are listed; the design is not approved, nothing was built, and it
+  waits on the operator's read. Full document:
+  `docs/superpowers/specs/2026-09-14-credential-access-boundary-design.md`. Operator steps: (1) Read the
+  design at docs/superpowers/specs/2026-09-14-credential-access-boundary-design.md, sections 1 to 6 and
+  "The chain these five facts form" first; they are the reason the rest of the document is shaped the way
+  it is. (2) Decide the one urgent item ahead of everything else: whether to set
+  `keepassxc.mode = "builtin"` in `.chezmoi.toml.tmpl` and remove or repoint
+  `hooks.read-source-state.pre`. Together they break the measured chain from an agent-written file to the
+  master password, and both are one-line changes. (3) Answer the nine open questions in the design, one
+  at a time, and record each answer beside the affected ledger bullet. (4) Confirm the KeePass database
+  format and key derivation parameters with
+  `keepassxc-cli db-info '/Users/stephen/Library/Mobile Documents/iCloud~com~strongbox/Documents/keepass.kdbx'`.
+  This needs the master password, so this could not be measured directly; the design's claim that the
+  vault's resistance to an agent reduces to offline passphrase strength depends on it. (5) Decide the
+  Infisical licensing question before any homelab A6 work starts: audit logs and role-based access
+  control both appear to sit above the Free tier, and the boundary's audit and use-without-read
+  requirements both need them. (6) When A6 is deployed, run denial probes D1 through D6 and D9 from the
+  design's probe table with dummy credentials, and record the evidence column. D7 and D8 can be run on
+  the laptop before A6 exists. (7) Decide whether the twenty-three secret-bearing entries listed in the
+  appendix are rotated now on the standing assumption that they are already agent-exposed, or only on
+  evidence of a specific compromise. Open questions: (1) Do you approve the isolation claim as stated:
+  Tier 1 isolated by a different machine across a network boundary, Tier 2 not isolated at all and
+  governed by review and rotation? The ledger asks you to approve the boundary and the isolation claim it
+  rests on, and this is that claim. (2) Paid Infisical edition, or accept no audit trail and no granular
+  role-based access control? Both appear to sit above the Free tier and both are load-bearing for this
+  boundary. (3) Approach C, a separate user id or container for agents: pursue, defer, or reject? It is
+  the only route to a true Tier 2 isolation claim, at the cost of the whole single-home-directory
+  toolchain. Recommendation is defer and shrink Tier 2 instead, recorded as your choice. (4) Which of the
+  twenty-four registered entries move to Tier 1? Reading offered in the design: the Anthropic,
+  OpenRouter, Tavily, ElevenLabs, Composio, Discord bot token and Google OAuth entries are brokerable and
+  the rest are not. (5) Root-own the Homebrew binary directory to close the last substituted-client path,
+  at the cost of breaking the unattended weekly brew lane uu runs? Recommendation is to leave it
+  writable, because `builtin` mode removes what the shim was for. (6) Remove the `read-source-state` pre
+  hook, or repoint it outside the source tree? Removing loses a best-effort fresh-machine KeePassXC
+  install. (7) Any appetite for per-request approval on specific high-value operations? The proxy model
+  brokers by destination rather than by request, so naming them may require a different mechanism
+  entirely. (8) Rotate all twenty-three secret-bearing entries now on the assumption they are already
+  exposed, or only on evidence? Rotation cost is real and spread across many providers. (9) Build the
+  boundary checker, or keep the credential register as documentation reviewed by eye? The checker is a
+  tool this repository owns, so its behavior is testable and inside the 2026-08-05 test scope ruling, but
+  it is still a new mechanism to maintain.
 - [ ] Include fresh-machine recovery and current secret exposure paths in that design. The age-key
   restoration script calls `keepassxc-cli` directly, outside template lookup. Moshi's pairing script
   currently places its token in command arguments. Review supported alternatives without printing the
   values or modifying upstream tools; replacing the template function alone would leave both paths
-  unaddressed.
+  unaddressed. Design written 2026-09-14 to
+  `docs/superpowers/specs/2026-09-14-fresh-machine-secret-paths-design.md`, continuing the credential
+  access boundary design. It recommends three changes that need no vault reorganization and no homelab
+  dependency: the age identity becomes `dot_config/chezmoi/create_private_key.txt.tmpl` and
+  `.chezmoiscripts/run_before_05-restore-age-key.sh.tmpl` is deleted, moshi pairing leaves the apply for
+  a fresh-machine runbook step passing the token through `MOSHI_PAIRING_TOKEN` after a silent `read -rs`,
+  and the `read-source-state` pre hook with `.install-password-manager.sh` and its unit test are removed
+  because the KeePassXC cask already installs before the first vault read. Fresh-machine recovery is
+  covered step by step for the local tier, including the iCloud-synced vault database as its own
+  prerequisite, and for the brokered tier as re-issue rather than restore. It corrects the earlier
+  document's `keepassxc.mode = "builtin"` one-liner: builtin mode keys entries by `<group>/<title>` and
+  never visits the root group, so the switch is a 43-call-site rewrite across 16 files, three of them
+  `modify_` templates, plus a vault reorganization; verified against chezmoi v2.72.1 source. Two exposure
+  findings were added: a year-old 1.8 MB `keepass.yKLDVO` artifact sits beside the live database, and
+  both `moshi-hook pair` and pns read the one entry `moshi-hook :: Device Token` whose two comments
+  contradict each other, which makes rotation a coupled two-step. No code was written, no value was
+  printed and no upstream tool was patched. Awaiting operator approval of the replacement paths. Full
+  document: `docs/superpowers/specs/2026-09-14-fresh-machine-secret-paths-design.md`. Operator steps: (1)
+  Read the design and approve or reject the three floor changes as written: the age identity as a
+  `create_` target with `run_before_05-restore-age-key.sh.tmpl` deleted, moshi pairing moved out of the
+  apply into the fresh-machine runbook, and removal of the `read-source-state` pre hook with
+  `.install-password-manager.sh` and `test/unit/install-password-manager-hook.sh`. (2) Settle whether
+  `moshi-hook :: Device Token` is one value with two roles: re-pair one host, then fire one test push and
+  see whether it lands. The design assumes one value and writes rotation as a coupled two-step on that
+  basis; the answer decides which of the two contradictory comments is a documentation fix and which is a
+  correctness fix. (3) Decide whether to rotate the moshi device token now. It is measured as already
+  present in roughly a dozen local atuin history rows. Rotate at the app first, re-pair, let the next
+  apply carry the new value into `~/.config/pns/config.toml`, then delete the rows with
+  `atuin search --delete "moshi-hook pair --token"`. (4) Identify `keepass.yKLDVO` in
+  `~/Library/Mobile Documents/iCloud~com~strongbox/Documents/` (1834507 bytes, mode 0600, 2025-06-26) and
+  either keep it deliberately or move it to `~/workspaces/backups/` under the dated naming convention. It
+  was not opened by this work, and deleting a possible vault copy is an operator action. (5) Before any
+  builtin-mode work, list the real entry paths with `keepassxc-cli ls -R -f <database>` (prints paths, no
+  values) so the 43 call sites can be rewritten to `<group>/<title>`, and move any root-level entries
+  into a group, since builtin mode never visits the root group. (6) Decide where the builtin switch sits
+  in the queue relative to the three floor changes; the design recommends it be its own sequenced change
+  and not combined with any of them. (7) Choose the pairing placement if you disagree with the
+  recommendation: option P1 keeps pairing automatic with one line in the script and leaves the value in
+  the rendered body, option P2 moves it to the runbook, option P3 keeps it automatic by reading the
+  already-rendered pns configuration. Open questions: (1) Do you approve the three floor changes (age
+  identity as a `create_` target with the script deleted, pairing out of the apply, `read-source-state`
+  hook removed)? Each is independent of the homelab and of the builtin switch and small enough to be its
+  own pull request. (2) Pairing in the runbook, or one line in the script? P2 is the recommendation; P1
+  keeps a fresh machine at one command. (3) Rotate the moshi device token now? The history rows are
+  measured, not hypothetical, and rotation touches the vault entry, the pns configuration on the next
+  apply, and the pairing itself. (4) Is `moshi-hook :: Device Token` one credential or two? Both
+  consumers read that one entry and both paths work today, so the likely answer is one value with two
+  roles and the setup script's "separate entry" comment is stale. Confirm before rotating. (5) Where does
+  the builtin switch sit in the queue? It closes the substituted-client path and needs a vault
+  reorganization done by hand. (6) Which process is wrapped by Infisical's `connect`: the harness itself,
+  so everything inherits proxy routing and certificate trust, or individual tools at their call sites?
+  (7) Do you want the encrypted-target ordering invariant enforced by a check, or documented? Documented
+  is the recommendation while all encrypted targets live under `private_dot_hermes/`. (8) What is
+  `keepass.yKLDVO`, and does it stay? Keeping it deliberately is a fine answer; not knowing what a
+  year-old 1.8 MB file beside the live vault is, is not. (9) Should the fresh-machine quickstart carry a
+  copy-the-database-by-hand fallback? It removes an iCloud sync wait from the critical path at the cost
+  of one more way to end up running on a stale vault copy.
 - [ ] Demonstrate any proposed chezmoi flow with dummy credentials first, including locked/denied access,
   secret-free output and a complete render/deployment/manifest cycle. The current operator-only apply
   rule remains in force until a reviewed replacement is approved. `--exclude=templates` is a retired
@@ -2927,7 +4377,86 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   F1 and F2, and no file in this repository was changed.
 - [ ] Coordinate vpp's optional Open Notebook handoff with L6. Preserve one capture/transcription
   pipeline and canonical originals; decide the handoff format during integration design. vpp and Bob must
-  not require Open Notebook merely to read or produce ordinary notes.
+  not require Open Notebook merely to read or produce ordinary notes. Designed 2026-09-14 as
+  `docs/superpowers/specs/2026-09-14-vpp-open-notebook-handoff-design.md`, the seventh document in the
+  vpp chain, built on the boundaries design's four-homes table. The finding that decides it is in Open
+  Notebook's own user guide, read today rather than remembered: "Audio/video is transcribed to text
+  automatically", over MP3, WAV, M4A, OGG and FLAC, where M4A is what Apple Voice Memos writes. So
+  handing it a recording starts a second transcription on a second engine with no flags, no alternatives
+  and no `known-terms.txt`, which is exactly what L6's own bullet forbids and is one drag onto a web
+  page. The recommendation makes the refusal structural instead of advisory: one pure command,
+  `vpp handoff <id> [--stage transcript|analysis|brief|draft]`, prints one `vpp.handoff/1` document on
+  standard output and does nothing else, and that document has no field that can hold audio or a path to
+  it, so the supported path cannot produce the forbidden outcome. vpp performs no request, holds no
+  credential and knows no address, which preserves the redacted-draft design's rule that vpp never
+  transmits; the Open Notebook vocabulary lives in a mapping table in the document (`content`, `title`
+  from vpp, `type: "text"`, `notebook_id` and `embed` from the pusher, everything else carried inside
+  `content` because the source model has no metadata field) and in a four-line `jq` plus `curl` recipe
+  owned by whoever runs it. That recipe was verified end to end against a throwaway local listener with
+  an invented password: `curl -H @file` on the installed 8.22.0 delivered `Authorization: Bearer` with
+  the password in no process argument list, the body arrived with `type: "text"`, and `shellcheck` passes
+  clean; nothing left the machine, and no instance exists to send to since L6 is queued behind F1 and F2.
+  Canonical originals hold because the emitted document is a pure function of the record and the note, so
+  a lost notebook is regenerated by re-running one command, and because vpp has no importer and never
+  reads anything back. The done-means is written as four absence checks (service absent, configuration
+  absent, a grep over vpp's tree for `open.notebook`, `notebook_id`, `5055`, `8502` and `surreal` finding
+  nothing, and `vpp.brief/1` unchanged for Bob), the third of which is the cheapest guard against a
+  convenience push creeping in later. The header inside `content` carries the identity, the
+  unresolved-flag count and a derived-copy sentence, keeps `[unverified]` markers in place because a
+  model summarizing a source drops a footer and keeps the sentence, drops the note's frontmatter
+  (`vppRecording` is a to-the-second capture timestamp wearing an identifier's clothes), and is
+  deliberately declarative, since a source that instructs a model is indistinguishable from an injected
+  one in a notebook that also holds web pages. Two upstream configuration findings are handed to L6
+  rather than solved here, both in upstream's own words: one shared password sent in plain text with no
+  rate limiting or audit log, so encrypted transport is mandatory, and an unrestricted `CORS_ORIGINS`
+  means "any website the user visits can issue authenticated cross-origin requests to your API". Named
+  ceiling: vpp never learns the remote source identifier, so a corrected note handed off twice makes two
+  sources rather than replacing one; the upgrade path is written in the source instead of built. Waiting
+  on the operator: whether a private note may cross or only a released redacted draft, whether the
+  no-push rule survives costing three lines at every handoff, which artifacts may be handed off at all
+  (the brief names the people who will be in a room), who holds the shared password when L6 exists and
+  whether an agent gets write access through the `uvx open-notebook-mcp` server, who owns the return path
+  for a note authored in Open Notebook, and where the transport recipe eventually lives. No code written.
+  Full document: `docs/superpowers/specs/2026-09-14-vpp-open-notebook-handoff-design.md`. Operator steps:
+  (1) Answer the private-versus-redacted question, because it decides what the feature is for: the
+  proposal lets a private note cross with the document recording that it did, and the alternative is that
+  only a released redacted draft may cross, which makes the notebook safe and much less useful. (2)
+  Confirm the no-push rule: three lines of jq and curl at every handoff, forever, versus one
+  `vpp handoff --push`. If three lines are too heavy for how this will actually be used, say so before
+  the rule is written into tests rather than after a convenience flag is added around it. (3) Decide who
+  holds Open Notebook's shared password when L6 exists: the laptop through KeePassXC, an agent through
+  `uvx open-notebook-mcp` (uvx is already installed), or nobody, with the handoff done by hand in the web
+  interface. This is the smallest concrete instance of the A6 credential question already in the ledger.
+  (4) Hand L6 the two upstream configuration findings, which are not vpp's to fix: encrypted transport is
+  mandatory because the shared password is sent in plain text with no rate limiting or audit log, and
+  `CORS_ORIGINS` must be restricted or any site the operator's browser visits can reach the interface
+  with the operator's session. (5) Decide who owns the return path for a note authored in Open Notebook
+  that should become durable. L6's bullet says canonical locations including Obsidian; this design says
+  vpp has no importer, which leaves the act unassigned until it is assigned deliberately. (6) This ledger
+  bullet's own line number is stale in the earlier triage: the bullet is at docs/remaining-work.md under
+  "### Homelab plan coordination". Nothing needs an apply, a package, a grant or a deployment for this
+  item. Open questions: (1) May a private note cross into Open Notebook, or only a released redacted
+  draft? The design supports both and defaults to allowing private notes, on the reasoning that a
+  redacted research workspace answers redacted questions; the counter-argument is that once a hosted
+  model provider is configured, a private transcript in a notebook has left the machine as surely as an
+  email would. (2) Is the no-push rule right? It is the load-bearing assumption, it costs three lines at
+  every handoff, and it is the reason the share gate in the previous document still means something. (3)
+  Which artifacts may be handed off at all: transcripts, analysis notes, briefs, released drafts, or a
+  subset? The brief is the same caution the share design raised, since it names the people who will be in
+  a room. (4) Should an unreviewed artifact be refusable rather than labelled? Today it is emitted with
+  the flag count and the in-line markers; a refusal would be stricter and would probably be routed around
+  by hand. (5) Who holds the shared password, and does an agent get write access to the notebook? The
+  `uvx open-notebook-mcp` server makes agent-driven filing available today with nothing new to install.
+  (6) Does the handoff need to say it came from vpp? The proposed header names vpp and the record
+  identity, which is good provenance and also tells anyone with notebook access that a recording exists.
+  (7) What happens to a copy in the notebook when the note it came from is corrected? Today nothing: a
+  second handoff makes a second source, because vpp never learns the remote identifier. The upgrade path
+  is named; whether it is needed depends on how often a transcript is corrected after filing. (8) Where
+  does the transport recipe eventually live? Nowhere today. A dotfiles `libexec` script, a `just` recipe,
+  a homelab-side ingester and "the operator types it" are four answers with four different maintenance
+  costs, and a scheduled one would need a separate argument against "no second automatic workflow". (9)
+  Where does vpp's code live, and what is it called? Carried forward unresolved from the boundaries
+  design, because the chain should not stay in disagreement with itself.
 
 ### vpp (Voice Processing Pipeline)
 
@@ -2944,31 +4473,453 @@ transcription was started during this audit.
   [6gjGcHp69phXmXj3](https://app.todoist.com/app/task/6gjGcHp69phXmXj3) describe the broader ElevenLabs
   Scribe/whisply pipeline, Markdown transcripts, subtitle and word-timing exports, and local processing
   for sensitive audio or service outages. These are related plans; none explicitly specifies a watcher
-  for Apple Voice Memos synced to macOS.
+  for Apple Voice Memos synced to macOS. Reconciled 2026-09-14 in
+  `docs/research/2026-09-vpp-source-reconciliation.md`. The three named sources reconcile and the claim
+  holds: L-R5 is the vpp specification itself (its `pns submit --json` contract reverified against
+  `pns-protocol` source, `producer` and `signal.kind: needs_attention` both correct, though `submit` is
+  missing from `pns --help`); the vault's `agent-processing-pipeline/` tree is a filing convention that
+  has never run (all three directories empty since 2026-07-22); and `PLAN-v11` Phase 6 is a homelab
+  hermes skill that transcribes URLs on `lash` through n8n, never a local-recording watcher, contributing
+  only its engine decision (ElevenLabs Scribe v2 with whisply fallback) and its three output formats.
+  None specifies a Voice Memos watcher. The reconciliation also found a FOURTH source the task does not
+  name: the `minutes` 0.26.1 cask, declared and installed 2026-09-08, whose 60 subcommands already cover
+  six of the seven vpp feature bullets (folder watcher plus launchd service, first-class `memo` type,
+  `transcribe --json --diarize`, vault sync by symlink, voiceprints, retention policy, templates,
+  insights, commitments, draft-only delivery). Only three vpp items are absent from all four sources:
+  Voice Memos discovery, redundant transcription with disagreement comparison, and the pns
+  needs-attention notification. **Verdict: defer the vpp ingestion design.** vpp's scope is blocked on
+  the still-open `minutes` disposition (task `6hPV483GJgGHX95M`), which decides between an adapter around
+  `minutes` and a full replacement; `PLAN-v12` L6 already forbids a second automatic Voice Memos workflow
+  for Open Notebook and nobody has applied that rule here. Measured inputs for the next task, not
+  decisions: recordings are ALAC 48 kHz stereo in `.m4a` (not AAC), about 1 GB for 28 files with single
+  files at 188 MB; titles, durations and stable identifiers live only in `CloudRecordings.db`, a Core
+  Data store whose write-ahead log must be copied with it or a reader sees a nine-day-stale snapshot;
+  `ZEVICTIONDATE` does not mean the audio is gone (both evicted rows still have local files); and
+  `minutes storage` already classes 30-day-old originals as delete-candidates, which collides with vpp's
+  preserve-originals rule. Separate live drift: the vault `CLAUDE.md` claims the
+  `agent-processing-pipeline/minutes` symlink is managed by `minutes vault setup --subdir`, but no
+  `minutes` config file exists and `minutes vault status` reports `Vault: not configured`, so the
+  committed link is an orphan. Full document: `docs/research/2026-09-vpp-source-reconciliation.md`.
+  Operator steps: (1) Read docs/research/2026-09-vpp-source-reconciliation.md. It is already
+  mdformat-clean against the repo .mdformat.toml, so no reformat is needed. (2) Rule on the `minutes`
+  disposition: keep it, or replace it. This is the blocking decision. Everything about vpp's scope
+  follows from it, and it is still open in Todoist task 6hPV483GJgGHX95M. Do not let the next vpp ledger
+  task (the ingestion design) start before this ruling lands. (3) Rule on whether PLAN-v12 L6's existing
+  constraint ("must not create a second automatic Voice Memos capture/transcription workflow", written
+  for Open Notebook) binds `minutes` against vpp. If it is a general rule rather than a per-service one,
+  it settles the adapter-versus-replacement question on its own. (4) Decide the redundant engine pair and
+  whether Voice Memos audio may leave the machine. All the candidates are already installed here:
+  ElevenLabs CLI 1.2.0 (fnm node 24), whisply 0.14.2 (uv), openai-whisper (Homebrew), plus the `minutes`
+  on-device pipeline. PLAN-v11 Phase 6's cloud-first Scribe v2 choice carries a metered cost line; a
+  local-only rule for personal voice memos would retire both that line and one candidate engine. (5)
+  Repair or explicitly defer the vault `minutes` link. The repair is one operator command,
+  `minutes vault setup --strategy symlink --subdir agent-processing-pipeline/minutes`, which also
+  recreates the missing ~/.config/minutes/config.toml. Note the default `--subdir` is `areas/meetings`,
+  so omitting the flag would create a second meetings location in the vault. Either way the vault
+  CLAUDE.md sentence claiming the link is managed needs correcting, because it is false as written today.
+  (6) Decide whether to upgrade `minutes` 0.26.1 to 0.26.2 before ruling on its disposition, since its
+  feature set is the input to that ruling. It is a declared cask, so the weekly uu Homebrew lane would
+  take it; an unattended upgrade before the decision is fine, but the decision should be made against
+  whatever version is then installed. (7) Optional pns follow-up, independent of vpp: `pns submit` works
+  (pns/crates/pns/src/invocation.rs:119) but is absent from `pns --help`. Whoever implements a producer
+  against it will not find it from the CLI. Open questions: (1) Is `minutes` kept or replaced? This is
+  the blocking question; vpp's whole scope follows from it, and the ledger has carried it as an open
+  evaluation since before vpp existed. (2) If `minutes` is kept, does vpp call it or run beside it?
+  Calling `minutes transcribe --json` makes it one of vpp's two engines and reuses its summarization,
+  vault sync and speaker work. Running beside it means two tools writing notes about recordings, which is
+  what PLAN-v12 L6 forbids for Open Notebook. (3) Does the PLAN-v12 L6 rule ("must not create a second
+  automatic Voice Memos capture/transcription workflow") bind `minutes` against vpp, or was it only ever
+  about Open Notebook? (4) Which two engines are the redundant pair? Phase 6 already chose ElevenLabs
+  Scribe v2 with whisply on faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the
+  minutes on-device pipeline are all present here. Cloud-plus-local and two-local differ in cost, in what
+  audio leaves the machine, and in whether a disagreement means anything. (5) Do Voice Memos originals
+  leave the machine at all? L-R5 inherits Phase 6's "local processing for sensitive audio", but everyday
+  personal voice memos may all qualify, which would remove the metered cost line and one candidate engine
+  together. (6) Repair the vault `minutes` symlink now or fold it into the vpp work? Folding it in leaves
+  the vault CLAUDE.md claim false until vpp ships. (7) Should the four unwired transcription installs
+  stay declared? whisply, openai-whisper, @elevenlabs/cli and the minutes cask are all in
+  .chezmoidata/system_packages_autoinstall.yaml and no script, recipe or LaunchAgent reaches any of them.
+  They are either vpp's future inputs or removable weight, and which depends on the engine decision. (8)
+  Does `minutes` get upgraded to 0.26.2 before the disposition decision, given that its feature set is
+  the input to that decision? (9) Deferred to the next ledger task, not answered here: whether a
+  launchd-run service can read ~/Library/Group Containers/group.com.apple.VoiceMemos.shared at all under
+  its own macOS privacy-permission identity (every read in this record ran from a terminal that already
+  holds broad disk access), and whether reading Apple's private CloudRecordings.db Core Data schema is
+  acceptable at all. A no to either changes what vpp is, from a watcher to an export-path integration.
 - [ ] Design automatic discovery of fully synced recordings, preserving original audio and capture
   metadata without modifying Apple's source recordings. Verify the supported macOS access/export path and
   actual audio format before choosing an ingestion mechanism. Handle interrupted sync, retries and
   repeated discovery without duplicate notes or lost audio. Keep original recordings, transcripts and
-  agent analysis separately linked using the existing vault layout.
+  agent analysis separately linked using the existing vault layout. Designed 2026-09-14 in
+  `docs/superpowers/specs/2026-09-14-vpp-recording-discovery-design.md`, written against the second
+  bullet only and scoped so the still-open `minutes` disposition changes the consumer rather than this
+  producer. The access-path verification is the finding: Voice Memos ships no scripting dictionary, its
+  App Intents expose only title, creation date and duration with no action that outputs a file, and
+  Spotlight holds no content metadata, so no supported programmatic path yields the audio and the real
+  choice is a read-only read of the undocumented group container or a human export through the share
+  sheet. The format is Apple Lossless Audio Codec at 48000 Hz in an `.m4a` container, 988 MB across 28
+  recordings. The capture timestamp was measured inside the audio file, matching the database to the
+  second, so the private schema is needed only for the human title and its loss degrades to untitled
+  rather than broken. Recommended: an idempotent `vpp ingest` sweep on a `StartCalendarInterval` rather
+  than a watcher or a daemon; a wholeness gate of MPEG-4 top-level box lengths summing to file size with
+  `moov` present, plus an mtime quiet period; content-derived identity; and `clonefile(2)` into
+  `agent-processing-pipeline/raw/audio/`, whose `EEXIST` is the duplicate guard and whose copy-on-write
+  clone preserved a 187.9 MB recording in 0.00 s for 16 KB. Not approved and not built: it carries twelve
+  assumptions and eight open questions, and one measurement is unresolved, whether a LaunchAgent that
+  launchd starts at login can read the group container, since every read in the session inherited
+  Ghostty's Full Disk Access grant. Full document:
+  `docs/superpowers/specs/2026-09-14-vpp-recording-discovery-design.md`. Operator steps: (1) Read the
+  design and answer open question 1 first: is reading Apple's undocumented Voice Memos group container
+  acceptable at all? The measurements closed every supported programmatic path, so a "no" turns vpp from
+  a watcher into a manual filing tool and the design needs replacing rather than editing. (2) Settle the
+  LaunchAgent permission question: install a plist whose program reads one byte of ~/Library/Application
+  Support/com.apple.TCC/TCC.db and one byte of a recording, load it, LOG OUT AND BACK IN so launchd
+  starts it with no submitting session, then read the result file. The logout is load-bearing: a job
+  submitted from a terminal may inherit that terminal's responsible-process attribution, which is what
+  the test exists to rule out. (3) Confirm or reject the clone decision (assumption 5): it puts a
+  copy-on-write clone of every personal recording inside
+  ~/workspaces/Ivy/agent-processing-pipeline/raw/audio/, gitignored and invisible to Obsidian mobile
+  sync, at measured zero storage cost. (4) Remove the scratch copy of the personal Voice Memos database
+  this session made, which is a destructive action needing your confirmation: trash
+  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/vm-probe
+  (5) Carried forward from the reconciliation, unrelated to this design: repair or retire the orphaned
+  vault minutes link with
+  `minutes vault setup --strategy symlink --subdir agent-processing-pipeline/minutes` (the default
+  --subdir lands in areas/meetings and creates a second meetings location), and correct the vault
+  CLAUDE.md claim that the link is already managed. Open questions: (1) Is reading Apple's undocumented
+  Voice Memos store acceptable at all? This is the gating question: no supported programmatic path yields
+  the audio, so a "no" makes vpp a manual filing tool driven by the share sheet. (2) Can a LaunchAgent
+  that launchd starts at login read the group container? Unresolved. Every read in this session inherited
+  Ghostty's Full Disk Access grant, a launchctl-submitted job may inherit the same attribution, and
+  launchctl procinfo needs root. (3) Does the minutes ruling change this boundary? The design assumes
+  discovery is a producer and transcription a consumer. If vpp is meant to be a thin front end on
+  `minutes watch`, the clone destination changes and most of the design is replaced by configuring a
+  third-party tool. (4) Clones, or references in place? The design chose clonefile(2) on measured cost,
+  which puts a second copy of every personal recording inside the vault directory, gitignored but
+  present. (5) Fifteen minutes as the sweep interval, or something else? And is near-immediate discovery
+  worth taking WatchPaths despite launchd.plist(5) discouraging it in its own words? (6) What happens to
+  a recording deleted in Voice Memos after vpp has cloned it? The clone survives, which is the point of
+  cloning. Should vpp notice the disappearance and mark the sidecar, or keep the clone silently? (7) Do
+  the eight .waveform sidecars matter? They belong to 2022-era recordings only and are Apple's rendering
+  cache; the design ignores them. (8) Should `vpp ingest` emit its per-recording record on stdout as JSON
+  for a caller to pipe, or only write sidecars? The design does both on the assumption the next stage
+  wants a stream; if nothing will consume it, that is unneeded surface.
 - [ ] Use redundant transcription and compare disagreements; flag uncertain text and unsupported notes
   for review, notifying through pns's producer application programming interface (API). Preserve the
   alternatives and source references. Multiple engines agreeing does not prove correctness. The proposed
   feature for playing audio from a summary sentence was rejected; original audio preservation remains.
+  Designed 2026-09-14 as `docs/superpowers/specs/2026-09-14-vpp-redundant-transcription-design.md`. Three
+  engine runs against a synthesized clip with known ground truth settled the shape. whisply on Apple's
+  MLX framework and `openai-whisper` with `turbo` produced normalized transcripts that were identical,
+  because they are the same `large-v3-turbo` weights on two runtimes, so that pairing is not redundancy
+  at all; the design makes a same-model-family pair a startup refusal. Word confidence proved a weak
+  signal even on the strong model, ranking correct common words below actual errors, and the one error
+  every engine shared ("Muthakrishnan" for Muthukrishnan) was invisible to both disagreement and
+  confidence. So the recommendation is three signals rather than two: disagreement between different
+  model families, low confidence where an engine reports any, and a risk-class flag on agreed names,
+  numbers and dates, aggregated by surface form and suppressed by a `known-terms.txt` the operator grows.
+  Note checking is a separate `vpp verify-note` over a timecode source-reference convention, with four
+  flag classes, the strongest being a claim built on already-flagged text; it annotates and never gates.
+  Notification is one `pns submit --json` per recording carrying identity, counts and paths and never any
+  flagged text, on a route the hermes gateway actually declares, with an aggregate form so a 28-recording
+  backlog does not fire 28 pages. Open Question 8 is now priced rather than open-ended: the whole
+  existing back catalogue is 4.607 hours, $1.01 once through ElevenLabs Scribe v2 at $0.22 per hour, and
+  about $0.50 a month at the hypothesized rate, against roughly 5 minutes of laptop compute per 10-minute
+  recording for one local engine and 15 for the tempting but non-redundant local pair. Apple's
+  SpeechAnalyzer is confirmed available on this Mac and is the free different-family option, at the cost
+  of a Swift helper in a Rust project. `minutes transcribe` cannot run here at all today: its model file
+  is absent. `audit_engine` ships empty so nothing costs money or leaves the machine until the operator
+  names a second engine. Waiting on the operator: the engine pairing, whether transcripts may be
+  committed to the vault and synced to a phone, and whether a confirmed correction may rewrite later
+  transcripts. No code written. Full document:
+  `docs/superpowers/specs/2026-09-14-vpp-redundant-transcription-design.md`. Operator steps: (1) Answer
+  Open Question 8 now that it is priced. The four pairings and their measured costs per 10-minute
+  recording: whisply on MLX with large-v3-turbo alone, about 5 minutes of laptop compute, no auditor, no
+  confidence; whisply MLX plus openai-whisper base on the central processing unit, about 15 minutes of
+  compute and NOT a different model family, which is the trap; whisply MLX plus ElevenLabs Scribe v2,
+  about 5 minutes plus $0.037, different families, confidence on both sides; whisply MLX plus Apple
+  SpeechAnalyzer, about 5 minutes plus on-device time, different families, confidence unknown. The whole
+  existing 28-recording back catalogue through Scribe v2 is $1.01 once, and the hypothesized three
+  recordings a week is about $0.50 a month. (2) Decide whether `minutes transcribe` is a candidate
+  adapter, and if so run its setup. It fails today in 0.04 s with "Transcription model not found.
+  Expected model file "ggml-small.bin" in /Users/stephen/.minutes/models". The fix is
+  `minutes setup --model small`, which is a download and therefore an operator step. Note it is a local
+  Whisper, so it is the same model family as whisply and cannot be that engine's auditor. (3) Add a `vpp`
+  route to the hermes gateway, or accept that vpp posts on the existing `pns` route. The gateway declares
+  exactly `priority`, `pns` and `unattended-upgrades`; posture names a `posture` route that does not
+  exist and eight of its Discord legs are dead-lettered with HTTP 404 right now. Settle this before vpp
+  sends its first notification rather than after. Open questions: (1) Which engine pairing, from the
+  priced table? This is Open Question 8 and everything else in the design is a configuration value once
+  it is answered. (2) Is the Apple SpeechAnalyzer route worth a Swift helper inside a Rust project? It is
+  the only free different-family option on this Mac and it is confirmed available here (macOS 26.2,
+  SpeechTranscriber asset supported, en_US installed), but its confidence reporting is unknown and it
+  would put a second language in the build. (3) May a transcript be committed to the vault, and therefore
+  synced to a phone? The audio is gitignored and the transcript would not be. The design assumes yes
+  because that is what the vault's `transcripts/` directory is for, but it is the decision that puts
+  searchable text of every voice memo into a git history. (4) Should a confirmed correction rewrite
+  future transcripts? Recording that "Muthakrishnan" should be "Muthukrishnan" is cheap; applying it
+  automatically changes the transcript of record with no human reading the result. The design records and
+  does not apply. (5) How loud should the `agreed-unverified` class be? It is the class that catches the
+  error every engine shared and also the largest class. The design ranks it last and aggregates it by
+  surface form. Should it appear in the pns notification at all, or only in the file? (6) One
+  notification per recording with aggregation past three, or one summary per run always? A weekly
+  reviewer might prefer the latter. (7) Does `verify-note` belong in vpp or in whatever writes the note?
+  It is a separate command precisely because the writer is undecided. If the writer turns out to be
+  `minutes`, the check still works but would be checking a third-party tool's output against a timecode
+  convention that tool does not follow, which needs the convention enforced somewhere else. (8) Where
+  does vpp's code live? The sibling boundaries design recommends its own repository; the sibling
+  discovery design assumed a fifth cargo workspace in dotfiles. Nothing in this document depends on the
+  answer, but the two designs should not stay in disagreement.
 - [ ] Support agent-suggested tags and relationships between recordings, with a defined metadata schema
   and configurable output paths. Use explicit links and deterministic filing rules for automatic routing.
   Markdown output can live in an Obsidian vault and use its existing mobile sync, but Obsidian is
-  optional.
+  optional. Designed 2026-09-14 as
+  `docs/superpowers/specs/2026-09-14-vpp-metadata-schema-and-filing-design.md`. Three schema homes were
+  compared (adopt the vault's own eight-key note schema, adopt `minutes`' published frontmatter JSON
+  Schema, or keep a versioned record in vpp's state and render the note from it) and the third is
+  recommended, with `minutes`' vocabulary borrowed where it already named a concept. Measured in the
+  vault while writing: 753 Markdown files, 738 with frontmatter, 722 note names and 246 aliases,
+  scannable in 0.245 s, so the link and vocabulary index is rebuilt every run rather than cached; 122
+  distinct tags over 1,109 uses, serialized three different ways and named three different ways (23
+  camelCase, 10 kebab, the rest single words), which is why a new tag has no derivable shape and is held
+  rather than written; `status`, `hub` and `description` appear in none of the 87 entries of
+  `.obsidian/types.json`, so vpp's own keys need no registry edit. Obsidian's documentation settles the
+  tag character set, the two link formats and the URL encoding rule, and says a nested property is
+  source-mode only, which is why every vpp key is flat and prefixed and why `minutes`' nested `entities`
+  was not copied. `yq` confirms an unquoted `[[Note Name]]` in YAML parses as a nested sequence, so wiki
+  links in frontmatter are always quoted. Filing is defined as five testable properties (total, pure,
+  stable, explainable, collision-free), keyed only on confirmed metadata, pinned at first write, and
+  exposed as `vpp path <id> --stage <stage>` so the later note generator files correctly without
+  embedding the rules; names are `{date}-{slug}-{hash8}` with the slug sanitized as a trust boundary.
+  Links live in a marked managed block that vpp rewrites and never touches prose outside, and a note the
+  operator renames in Obsidian is found again by its `vppRecording` key. Retention is a report and not a
+  reaper: the whole back catalogue's transcripts are about 187 KB and both engines' raw outputs about 13
+  MB, while the audio is nearly free until Apple deletes the original, so the real question is whether
+  vpp's copy is the backup. Also corrected while measuring: `relationship_map` is a `minutes` capability
+  flag for feature detection, not a subcommand, and the command-line surface is `minutes people`. Waiting
+  on the operator: the output layout, the retention answer, whether new tags are held or accepted, and
+  the shape of a new tag. No code written. Full document:
+  `docs/superpowers/specs/2026-09-14-vpp-metadata-schema-and-filing-design.md`. Operator steps: (1)
+  Answer the output-layout half of Open Question 8: audio cloned into the vault's raw/audio/ (the
+  discovery design), an archive directory outside the vault with an optional symlink (the boundaries
+  design, matching what minutes already does with ~/meetings), or a folder per recording (not
+  recommended, it costs a folder note per recording under the vault's folder-note rule). (2) Answer the
+  retention half, which is smaller than it looks: transcripts are about 187 KB for the whole back
+  catalogue and about 1.5 MB a year, both engines' raw outputs together about 13 MB, and the audio is
+  983.6 MiB logically but nearly free physically until Apple's original is deleted. The real decision is
+  whether vpp's copy is the backup, and no machine backup exists yet. (3) If the vault layout is adopted,
+  write the three missing folder notes for agent-processing-pipeline/, transcripts/ and analysis/
+  carrying the reference DataviewJS query from the vault's CLAUDE.md. None exists today, so nothing vpp
+  writes would appear in any listing. (4) Decide the shape of a tag that does not exist yet: kebab-case
+  (the document's default) or camelCase. The vault corpus splits 10 to 23 the other way, so there is no
+  majority to derive it from. One configuration value either way. Open questions: (1) Which output
+  layout, and is vpp's audio copy the backup? Everything else in the design is a configuration value once
+  that is answered. (2) New tags: held as suggestions (the design's default, because the vault's 122-tag
+  vocabulary is small and deliberate and git makes a mistake permanent) or accepted automatically (which
+  removes a confirmation step per recording and grows the vocabulary faster than any human would)? (3)
+  kebab-case or camelCase for a newly invented tag? The corpus has 10 kebab and 23 camelCase tags, so no
+  majority exists. (4) May vpp write into notes it did not create? The mentions relation links out to
+  existing contact and project notes; the design writes that link only on the transcript's side and adds
+  nothing to the target, and the alternative is vpp editing the operator's own writing. (5) Which mobile
+  sync actually carries the vault? Obsidian's core Sync plugin is enabled and obsidian-git is configured
+  to push every 15 minutes; they send the same transcripts to different third parties, which the
+  transcription design's open question about committing transcripts cannot really be answered without.
+  (6) Should `vpp path` stay the contract for the later note generator, or should vpp write the analysis
+  note itself? (7) Does minutes stay? If it does, its notes are input that vpp files, and the two schemas
+  sit side by side in one vault with no key in common; adopting its schema was rejected for reasons that
+  would need revisiting if minutes becomes the note generator rather than a candidate. (8) Where does
+  vpp's code live, and what is it called? Carried forward unresolved from the boundaries design so the
+  chain does not stay in disagreement with itself.
 - [ ] Plan meeting briefs using relevant notes, with optional read-only calendar and Todoist inputs.
   Record Bob, the future Hermes executive assistant, as a consumer of vpp's notes and briefs. The exact
   trigger, scheduling owner, access scopes and provider choices remain under discussion. Keep source
-  references and unresolved transcription issues visible to Bob and in the brief.
+  references and unresolved transcription issues visible to Bob and in the brief. Designed 2026-09-14 as
+  `docs/superpowers/specs/2026-09-14-vpp-meeting-briefs-design.md`, the fifth document in the vpp chain,
+  built on the metadata and filing design. The permission verification this bullet asks for is the
+  finding, and the three providers disagree: the Google Calendar interface defines eight read-only scopes
+  and Todoist defines `data:read`, but neither offers a per-calendar or per-project scope, and Apple's
+  EventKit has had no read-only level for events since macOS 14, only full access or write-only. So
+  "read-only calendar" is achievable through exactly one provider, the already-installed `gog` v0.40.0,
+  whose `--readonly`, `--enable-commands-exact` and `--wrap-untrusted` flags assert it at the grant, at
+  the call and on fetched text; the Mac's own aggregated calendar cannot be read read-only at all, and a
+  local-file read would also have to reimplement the recurrence expansion the interface already performs.
+  Because no provider can scope a read to named calendars or projects, the configured list is the only
+  scope that exists, so an empty list is a startup refusal rather than "everything" and the selection
+  goes in the request rather than a filter afterwards. Measured on this machine: 16 calendars, 4,247
+  items, 8 items in the last 90 days carrying any participant, and not one non-recurring forward item
+  timed, so a scheduled brief would wake and find nothing; the recommendation is requested briefs only,
+  with the launchd seam named and left unbuilt (the pns daemon schedules pns events, not commands, so it
+  can remind but cannot produce one). vpp assembles and cites rather than writing prose, and prose
+  arrives as a proposal checked by the existing `vpp verify-note`. Calendar and Todoist context arrives
+  through one `vpp.context/1` document that either vpp's own disabled-by-default collectors or Bob can
+  produce, so the question of whether vpp reads the two services or takes them from Bob sets a
+  configuration value instead of gating implementation. Bob is recorded as a consumer through
+  `vpp.brief/1`: every item carries `certainty` (two values, never a score) and `sources` (recording
+  identity, offset, note) with no default, and uncertainty is marked in place inside the line as well as
+  counted in a section, because a consumer that quotes one bullet drops a footer and keeps the sentence.
+  Selection is four exact selectors over confirmed terms and confirmed tags, capped at 12 and
+  explainable; the obvious participant join is nearly empty here, 78 of the 103 notes carrying an
+  `email:` key hold `email: []`, so an unmatched participant is a visible line with its confirm command
+  rather than a silent omission. A brief is a fourth stage in the existing filing rule table, routed by
+  `vpp path`, so there is no second copy of the rules. Waiting on the operator: who holds the two
+  credentials, requested against scheduled, which calendars and projects, the Todoist single-slot problem
+  (`td` stores one credential per account and it is read-write today, so a read-only login would probably
+  replace it), whether a brief may be auto-committed into the vault when it names the people who will be
+  in the room, and whether "brief" collides with Forzare's own morning brief. No code written. Full
+  document: `docs/superpowers/specs/2026-09-14-vpp-meeting-briefs-design.md`. Operator steps: (1) Decide
+  who holds the calendar and Todoist credentials: vpp, or Bob. Either answer works without changing vpp,
+  and the shipped default (brief.context.source = "none") is the answer to "neither, yet". If it is Bob,
+  this bullet's context half waits for Forzare and vpp still ships useful, which is what L-R5 requires.
+  (2) Decide requested against scheduled briefs, and say whether meetings are going to start appearing on
+  a calendar. The measurement (not one non-recurring forward item on this machine is timed; 8
+  participant-bearing items in the last 90 days) says a scheduler would find nothing today, but that is a
+  measurement of the past, not of the intent. (3) Name the calendars and the Todoist projects a brief may
+  read. No provider can enforce this, so the configured list is the only scope that exists; an empty list
+  refuses by design, so this answer is required before either collector can be turned on at all. (4) If
+  vpp is to read the calendar, authorize a read-only Google credential with a command of the form
+  `gog auth add <email> --services=calendar --readonly`, and confirm it does not disturb the existing
+  one. `gog auth services` shows the calendar service's default scope is the full
+  `https://www.googleapis.com/auth/calendar`, so this is a distinct authorization; whether `--client`
+  lets a second read-only token bucket sit beside the existing credential was NOT verified, because
+  `gog auth list` did not return inside a 20 second timeout. (5) If vpp is to read Todoist, settle the
+  single-slot problem. `td accounts list` shows one stored account keyed by numeric id and
+  `td auth status` reports it read-write, so `td auth login --read-only` would re-authorize that same
+  account and most likely replace the operator's daily credential. Three ways out, in increasing cost: a
+  second Todoist account sharing the relevant projects; a dedicated read-only token in KeePassXC used
+  directly, making a sixteenth secret-bearing target; or Bob supplying the task context. (6) When the
+  vault layout is adopted, write a folder note for `briefs/` carrying the reference DataviewJS query,
+  making four in total alongside the three the metadata design already named. vpp writes no folder notes.
+  Open questions: (1) Does vpp read the calendar and Todoist, or does Bob supply them? The design makes
+  both work through one input document, so this sets a configuration value, but it decides who holds two
+  credentials and therefore what an agent with shell access can reach. (2) Requested or scheduled, and at
+  what lead time? The recommendation is requested only, on the measurement that this machine's forward
+  calendar holds no timed non-recurring events at all. The question behind it is whether that is the
+  intended future or the current gap. (3) Which calendars and which Todoist projects? Required before any
+  collector can run. And the sharper version: given that a read-only token reads every calendar and every
+  project regardless, is a client-enforced selection an acceptable boundary, or does that make the
+  context feature not worth its access? (4) Can a read-only Todoist credential coexist with the
+  operator's read-write one? If not, which of the three ways out is acceptable. This is the one place
+  where the design might have to add a sixteenth KeePassXC-backed target. (5) May a brief be written into
+  the vault, given that Obsidian Git auto-commits and pushes within minutes? A brief names the people who
+  will be in a room, which is a different exposure from a transcript naming whoever was mentioned, and it
+  may mean briefs live outside the vault even when transcripts live inside. (6) Is "brief" the right
+  word, given that Forzare already has a morning brief? Bob's is a day plan delivered on a schedule; this
+  is a per-occasion evidence pack produced on request. Two things called a brief, one composed by Bob and
+  one consumed by Bob, is a name collision waiting to confuse a future session. (7) If `minutes` stays,
+  should its `research` and `person` output be a context source for a brief? It is the one installed tool
+  that already ranks material about a person or topic, over its own corpus. This is downstream of the
+  keep-or-replace ruling and does not need answering before it. (8) Is the local Apple Calendar store
+  representative of the operator's calendars? The measurement came from that store (16 calendars), and
+  recommending the Google interface assumes the meetings that matter are in Google. A calendar existing
+  only in Calendar.app would be invisible to this design. (9) Where does vpp's code live, and what is it
+  called? Carried forward unresolved from the boundaries design, because the chain should not stay in
+  disagreement with itself.
 - [ ] Support a separate redacted draft for sharing, reviewed before release, preserving private
   originals. Choose the summary format, retention, transcription engines and local/cloud processing
-  before implementation. Speaker labels and dated digests remain unapproved candidates.
+  before implementation. Speaker labels and dated digests remain unapproved candidates. 2026-09-14:
+  design written at `docs/superpowers/specs/2026-09-14-vpp-redacted-sharing-design.md` (sixth in the vpp
+  chain, building on the meeting-briefs design). Recommendation: four verbs
+  (`vpp share draft|review|approve|release`), with the draft assembled by allowlist into
+  `~/.local/state/vpp/share/<draft-id>/` at mode 0700, outside the vault and outside any git working
+  tree, because the vault's Obsidian Git settings were measured at a 10-minute commit and a 15-minute
+  push, so a draft built in the vault is published before anyone reviews it. Release refuses without an
+  approval record whose SHA-256 digest matches the current draft bytes and policy, re-runs the residue
+  scan rather than trusting the draft-time pass, and refuses a destination inside a git working tree, a
+  cloud-sync root, the output root, the audio destination or vpp's state tree; approval refuses when
+  standard input is not an interactive terminal and requires the operator to type the draft's short
+  digest, measured against an agent shell on this machine that has no terminal and sets `CLAUDECODE=1`.
+  Redaction is deterministic over confirmed `known-terms.txt` entries plus six closed pattern classes,
+  with flagged spans omitted by default and a capitalized-token candidate report for what no pattern can
+  find: measured on one real 639-word vault note, 33 unique capitalized tokens of which 13 were personal
+  names, which is why the heuristic is a review prompt and never an automatic mask. vpp transmits
+  nothing; release writes a file. Speaker labels, dated digests, sending, watermarking, model-based
+  detection and audio redaction are out of scope. Not approved and not built; 14 assumptions and 9 open
+  questions are recorded, and the ledger's own four choices (summary format, retention, engines, local or
+  cloud processing) gate implementation. Full document:
+  `docs/superpowers/specs/2026-09-14-vpp-redacted-sharing-design.md`. Operator steps: (1) Answer the four
+  choices this ledger bullet names, as four separate decisions rather than one: summary format (extract
+  or generated prose, noting that for prose the human read is the only real protection), retention of
+  drafts and released copies (a draft directory holds the placeholder-to-real-value map, so it is more
+  sensitive than the transcript), transcription engines, and local or cloud processing. The last one
+  matters here for a reason the transcription design did not raise: a recording transcribed by a cloud
+  engine already left the machine once, before any redaction existed, and this gate only protects the
+  second egress. (2) Choose the release directory and confirm it is not synced anywhere. The proposed
+  default is ~/Documents/vpp-shared; measured, ~/Documents on this machine is local and not redirected
+  into iCloud, but an iCloud Drive container is active (brctl reports 98 containers, CloudDocs last
+  synced 2026-09-08). (3) Say which source kinds may be drafted from: transcript, analysis note, brief,
+  or all three. The brief is the one worth a moment's thought, because it names the people who will be in
+  a room. (4) Confirm the approval ritual: an interactive terminal plus typing eight digest characters,
+  with no bypass flag. If that is too heavy for how you actually share things, change the ritual now
+  rather than adding a bypass later. (5) Nothing to install or seed beyond the existing review flow:
+  every `vpp confirm --term` during transcript review improves every future draft, so expect the first
+  few candidate reports to be long. Open questions: (1) What is a shared draft made of: an extract, or
+  written prose? For an extract the residue scan is a real mechanical check; for prose a paraphrase can
+  reintroduce a redacted fact in words the pass never saw, and the human read is the only protection. (2)
+  What is the retention of drafts and of released copies? A draft directory holds the map from each
+  placeholder to the real value it replaced, which makes the draft tree the most sensitive directory in
+  the chain, and vpp deletes nothing. (3) Should pseudonyms be stable across drafts? Stable numbering is
+  friendlier for a recipient reading several and lets two drafts be correlated by anyone holding both;
+  per-draft numbering is the proposed default. (4) May a brief be drafted from at all? It concentrates
+  participants and context, which is what makes it useful and what makes it the most exposing source in
+  the chain. (5) Should an approval expire? An approval taken today and released in three weeks reviewed
+  the same bytes but not the same situation. (6) Does the released file say it came from vpp? The
+  proposed source line says only that the file is a redacted extract and not a verbatim record; naming
+  the tool is more honest about provenance and tells a recipient a recording exists. (7) Is the PDF path
+  in scope later? The vault already has a PDF export recipe, and a PDF carries producer, timestamp and
+  sometimes path metadata that a Markdown file does not. (8) If `minutes` stays, should its `vocabulary`
+  feed terms alongside known-terms.txt? Two lists that disagree would mask a name in one pipeline and not
+  the other. Downstream of the minutes keep-or-replace ruling. (9) Where does vpp's code live, and what
+  is it called? Carried forward unresolved from the boundaries design.
 - [ ] Keep vpp application code in its own project, Mac installation and service configuration in
   dotfiles, output content in the configured directory (Ivy for this operator), and homelab deployments
   in homelab. Reuse existing transcription tasks. vpp must work without Bob, Forzare or the full homelab;
-  Forzare integration follows the existing post-modernization ordering.
+  Forzare integration follows the existing post-modernization ordering. Designed 2026-09-14 as
+  `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`. It compares three code homes (a
+  fifth cargo workspace in dotfiles, its own repository built from a local clone, its own repository
+  installed by `cargo install --git`) and recommends the second: `webdavis/vpp` from day one, built in
+  the scalebar shape, which is already the proven precedent on this machine (`.chezmoidata/scalebar.yaml`
+  plus a deferral-guarded builder plus one LaunchAgent). dotfiles' share is named file by file and stops
+  at installation and service configuration; the configured output directory holds notes and links under
+  the existing `agent-processing-pipeline/` layout; homelab keeps Open Notebook (L6) and any remote
+  engine, all optional. Apple's container stays the canonical original and is read-only to vpp, including
+  a `mode=ro&immutable=1` SQLite open, with one archive copy outside git because the vault ignores audio
+  and no machine backup exists yet. Measured while writing: a `com.webdavis.vpp.plist` and a
+  `~/.cargo/bin/vpp` fall outside the osquery known-good manifests, so vpp adds no CRIT coupling; pns
+  needs no producer registration and `needs_attention` is real
+  (`pns/crates/pns-protocol/src/request.rs:56`); `minutes` is already installed, already documents voice
+  memos, and already owns the vault's `agent-processing-pipeline/minutes` symlink. The independence
+  done-means is written as four absence checks (dotfiles absent, pns absent, network absent, vault and
+  Obsidian absent) rather than mocks of Bob and Forzare, which do not exist yet. Waiting on the operator:
+  own repository versus fifth workspace, and the shipping name, since `VPP` is FD.io's Vector Packet
+  Processing and the repository's rules discourage new acronyms. No code written. Full document:
+  `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`. Operator steps: (1) Read
+  docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md and answer the seven open questions
+  at its end. (2) Decide the code home first: own repository (recommended) or a fifth cargo workspace in
+  dotfiles. Everything else in the document hangs off that answer. (3) Decide the shipping name before
+  any repository is created; `VPP` is taken by FD.io's Vector Packet Processing (verified on fd.io) and
+  renaming after install instructions circulate is a breaking change. (4) If the own-repository answer
+  holds, create `webdavis/vpp` and clone it to ~/workspaces/Ivy/webdavis/vpp; the dotfiles builder is
+  written to defer cleanly until that clone exists, so no apply is blocked in the meantime. (5) Rule on
+  `minutes`: it is already installed, declared as a cask, documents "meetings and voice memos", and owns
+  the vault's agent-processing-pipeline/minutes symlink. Answer before vpp's ingestion design is
+  approved, since adopting it removes a layer. (6) Decide whether the audio archive copy may live
+  unbacked on one machine until the restic work exists, or whether a backup is a prerequisite. (7) No
+  apply, no build and no code are needed for this item; it is a document waiting on decisions. Open
+  questions: (1) Own repository (`webdavis/vpp`) or a fifth cargo workspace inside dotfiles?
+  Recommendation: own repository, matching the 2026-09-05 plugin ruling and the 2026-09-08
+  shippable-product ruling. (2) Does the tool keep the name `vpp`? The acronym belongs to FD.io's Vector
+  Packet Processing and the repository's own rules discourage introducing uncommon acronyms; the naming
+  memories ask for self-documenting, user-agnostic names. (3) Which copy of the audio is canonical, and
+  is one unbacked copy acceptable until a real backup exists? Recommendation: Apple's container stays
+  canonical, the archive copy lives outside git, and backups stay a separate ledger item. (4) Do vpp's
+  notes share the vault's existing `transcripts/` and `analysis/` directories, or get their own
+  `agent-processing-pipeline/vpp/` subtree beside the `minutes` symlink? (5) Is `minutes` in or out? It
+  already lists and searches voice memos and already owns a directory inside the vault; if it is in,
+  vpp's scope shrinks, and if it is out, its open tool evaluation should record that vpp supersedes it.
+  (6) Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
+  maintains the folder note for a directory a tool writes into? (7) Should vpp's binary, configuration
+  and LaunchAgent join posture's user-configured watch list? They sit outside the osquery known-good
+  manifests by default (verified), so this is an opt-in rather than a consequence.
 
 ## SP8, macOS agent workflow manager
 
