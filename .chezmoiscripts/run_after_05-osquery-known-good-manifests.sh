@@ -18,10 +18,11 @@
 # TWO manifests, deliberately separate, because they cover two different trust
 # domains with two different default-deny rules:
 #
-#   pipeline-known-good.sha256    the osquery alerting pipeline's OWN scripts and
-#                                 plists (~/.local/libexec/osquery and our own
-#                                 LaunchAgents). This is the monitor's body. The
-#                                 whole directory is tracked, so a file PLANTED
+#   pipeline-known-good.sha256    the osquery alerting pipeline's OWN scripts,
+#                                 data and plists (~/.local/libexec/osquery,
+#                                 ~/.local/libexec/posture and our own
+#                                 LaunchAgents). This is the monitor's body. Both
+#                                 directories are tracked whole, so a file PLANTED
 #                                 there is unmanaged, unmanifested, and pages
 #                                 forever, which is what we want of the monitor.
 #

@@ -142,10 +142,10 @@ includes = [".chezmoiscripts/*.sh.tmpl", "dot_*.tmpl"]
 [formatter.osquery-config-render]
 command = "scripts/treefmt/osquery-config-render.sh"
 includes = [
-  "dot_local/libexec/osquery/osquery-converge/desired/*.conf",
-  "dot_local/libexec/osquery/osquery-converge/desired/*.conf.tmpl",
-  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf",
-  "dot_local/libexec/osquery/osquery-converge/desired/**/*.conf.tmpl",
+  "dot_local/libexec/posture/converge/desired/*.conf",
+  "dot_local/libexec/posture/converge/desired/*.conf.tmpl",
+  "dot_local/libexec/posture/converge/desired/**/*.conf",
+  "dot_local/libexec/posture/converge/desired/**/*.conf.tmpl",
 ]
 
 # Measured on treefmt 2.5.0: the flat glob alone matches every file, direct

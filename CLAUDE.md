@@ -163,7 +163,7 @@ possible way to find them; every such failure is reproducible without an apply.
 deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
 hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
 CRIT page on every tick until a full apply catches up, across ten manifested templated targets (seven
-osquery LaunchAgent plists, `posture-controls.json`, and the two osquery staging files). It also never
+osquery LaunchAgent plists, `posture/controls.json`, and the two osquery staging files). It also never
 delivered what it was for: it does NOT skip a `modify_` template (measured 2026-08-02), and two of those
 call `keepassxc`, so the excluded apply reached the vault anyway.
 
@@ -171,10 +171,11 @@ call `keepassxc`, so the excluded apply reached the vault anyway.
 the `run_` scripts, so `run_after_05-osquery-known-good-manifests.sh` never refreshes the known-good
 manifests. Deploy a MANIFESTED file that way and its hash no longer matches the manifest, which the
 pipeline audit reads as tampering and pages CRIT on every tick until a full apply. The manifested set is
-the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts under `~/.local/bin` and
-`~/.local/libexec`, and the osquery LaunchAgents. Use a full `chezmoi apply`; it is what keeps the
-deployed state and the manifests derived from the same source state. The by-name form existed to dodge
-the vault, which is no longer a goal now that the operator applies with it unlocked.
+the osquery pipeline under `~/.local/libexec/osquery/` and `~/.local/libexec/posture/`, the managed
+scripts under `~/.local/bin` and `~/.local/libexec`, and the osquery LaunchAgents. Use a full
+`chezmoi apply`; it is what keeps the deployed state and the manifests derived from the same source
+state. The by-name form existed to dodge the vault, which is no longer a goal now that the operator
+applies with it unlocked.
 
 Fifteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
@@ -424,7 +425,7 @@ but it is load-bearing for the sibling `espanso-match-render` formatter, whose v
 `{{ if (env "CI") }}`.
 
 Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
-`.conf` files under `dot_local/libexec/osquery/osquery-converge/desired/` (two of the six are templates;
+`.conf` files under `dot_local/libexec/posture/converge/desired/` (two of the six are templates;
 `execute-template` on a file holding no template action renders it to itself, so one code path covers
 both kinds) and checks them with jq, and `espanso-match-render` renders the espanso `*.yml.tmpl` match
 files and checks them with yq.
@@ -514,9 +515,9 @@ Four rules decide the shape below `libexec`, in this order:
    `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
    what shows up in `ps`, in launchd output and in every log line, so five directories of `main.sh` would
    be five indistinguishable processes. That directory holds a tool's private DATA as well as its private
-   code (`osquery-converge/desired/` is the state the tool installs; `osquery/posture-controls.json` is
-   the flat-file version of the same idea), because the alternative is data under `share/` that none of
-   the integrity coverage anchored on this tree reaches.
+   code (`posture/converge/desired/` is the state the converge installs; `posture/controls.json` is the
+   flat-file version of the same idea), because the alternative is data under `share/` that none of the
+   integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
    subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
    keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The
@@ -574,7 +575,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 
 The root daemon's own side is CONVERGED, not written once. `~/.local/libexec/osquery/osquery-converge.sh`
 compares each of the six files we own in `/var/osquery` (plus the two directory modes) against the
-desired state deployed beside it under `osquery-converge/desired/`, installs whatever drifted with
+desired state deployed under `~/.local/libexec/posture/converge/desired/`, installs whatever drifted with
 `sudo /usr/bin/install -o root -g wheel -m 0644` out of a private 0700 copy of that staging tree, and
 restarts osqueryd only when something did, requiring the ppid-1 parent to be a DIFFERENT process from the
 one running before the stop and still up after a settle window. No drift means no privileged call, no

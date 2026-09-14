@@ -1,5 +1,6 @@
 use super::*;
 use std::{collections::BTreeMap, time::Duration};
+mod desired;
 fn read(values: &[(&str, &str)]) -> Result<Configuration, Vec<ConfigurationRefusal>> {
     let mut environment: BTreeMap<_, _> = [
         ("HOME", OsString::from("/fixture/home")),
@@ -122,7 +123,7 @@ fn ordinary_configuration_uses_the_existing_deployed_paths_and_command_search() 
     let config = read(&[]).unwrap();
     assert_eq!(
         config.desired,
-        PathBuf::from("/fixture/home/.local/libexec/osquery/osquery-converge/desired")
+        PathBuf::from("/fixture/home/.local/libexec/posture/converge/desired")
     );
     assert_eq!(config.target, PathBuf::from("/var/osquery"));
     assert_eq!(config.sudo, PathBuf::from("/usr/bin/sudo"));
