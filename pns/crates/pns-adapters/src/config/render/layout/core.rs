@@ -5,6 +5,7 @@ pub(super) const PHONE: Table = Table {
     prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
             # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap --install.\n",
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "marker_file",
         prose: "# An absolute path or ~/ path. Missing config uses this default too.\n",
@@ -15,6 +16,7 @@ pub(super) const DAEMON: Table = Table {
     name: "daemon",
     prose: DAEMON_PROSE,
     opt_in: false,
+    children: &[],
     keys: &[Key {
         name: "enabled",
         prose: "",
@@ -25,6 +27,7 @@ pub(super) const RECAP: Table = Table {
     name: "recap",
     prose: RECAP_PROSE,
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "replay_card",
@@ -125,6 +128,7 @@ pub(super) const FOCUS: Table = Table {
                  # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
                  # table at all.\n",
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "silence",
         prose: "",
@@ -149,6 +153,7 @@ pub(super) const NAG: Table = Table {
                  # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
                  # name; no table at all, and after_secs of zero, are the same statement.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "after_secs",
@@ -187,6 +192,7 @@ pub(super) const FAILURES: Table = Table {
                  # else: the notification stands alone, Discord still carries the full\n\
                  # form whenever the hermes leg worked, and `pns failures` is unchanged.\n",
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "serve",
@@ -204,6 +210,7 @@ pub(super) const LIGHTS: Table = Table {
     name: "lights",
     prose: LIGHTS_PROSE,
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "refresh_secs",
         prose: "# How often the daemon re-arms the lamps, in seconds. It is also the breath\n\

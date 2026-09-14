@@ -89,7 +89,7 @@ fn the_alert_carries_no_secret_and_no_raw_router_text() {
     count_alerts(&sandbox);
     let router = RouterStub::start(KEYS_DISAGREE_HOSTILE_LABEL);
     sandbox.write_config(&format!(
-        "[plugins.hermes]\nenabled = true\nkey = \"hermes-signing-secret\"\n{}",
+        "[plugins.hermes]\nenabled = true\nkeys = {{ pns = \"hermes-signing-secret\" }}\n{}",
         router_table(&router.url())
     ));
     let mut probe = home_probe(&sandbox);

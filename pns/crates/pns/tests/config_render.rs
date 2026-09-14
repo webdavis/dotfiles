@@ -90,20 +90,23 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 }
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
-/// narrowed by dropping any one of the five paths out of
-/// `SECRET_BEARING_KEYS`. A single case covering only `plugins.hue.bridge`
-/// stays green if the other four are removed from that list; table-driving
-/// across all five is what catches a narrowed roster.
+/// narrowed by dropping any one path out of `secret_bearing_keys`. A single
+/// case covering only `plugins.hue.bridge` stays green if the others are
+/// removed from that list; table-driving across all of them is what catches a
+/// narrowed roster. THE HERMES ROUTES ARE DRIVEN OFF THE ROUTE ROSTER, so a
+/// route added there without a literal check is red here.
 #[test]
 fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
-    for (key, values) in [
+    let hermes_routes = pns_domain::routes::ROUTES.iter().map(|route| {
+        (
+            format!("plugins.hermes.keys.{route}"),
+            format!("[plugins.hermes.keys]\n{route} = \"a-literal-key\"\n"),
+        )
+    });
+    let fixed = [
         (
             "plugins.mobile.token",
             "[plugins.mobile]\ntoken = \"a-literal-token\"\n",
-        ),
-        (
-            "plugins.hermes.key",
-            "[plugins.hermes]\nkey = \"a-literal-key\"\n",
         ),
         (
             "plugins.hue.bridge",
@@ -117,11 +120,14 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "plugins.router.api_key",
             "[plugins.router]\napi_key = \"a-literal-key\"\n",
         ),
-    ] {
+    ]
+    .into_iter()
+    .map(|(key, values)| (key.to_string(), values.to_string()));
+    for (key, values) in fixed.chain(hermes_routes) {
         let scratch = Scratch::new(&format!("literal-secret-refusal-{}", key.replace('.', "-")));
         let values_path = scratch.path("config-values.toml");
         let template_path = scratch.path("private_config.toml.tmpl");
-        std::fs::write(&values_path, values).expect("write values");
+        std::fs::write(&values_path, &values).expect("write values");
         std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
         let output = run(&values_path, &template_path);
@@ -130,7 +136,10 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "a literal at `{key}` must refuse rather than exit 0"
         );
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(key), "stderr should name `{key}`: {stderr}");
+        assert!(
+            stderr.contains(&key),
+            "stderr should name `{key}`: {stderr}"
+        );
         assert_refusal_left_the_template_untouched(&template_path);
     }
 }

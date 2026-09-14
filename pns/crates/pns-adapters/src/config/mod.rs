@@ -96,7 +96,7 @@ mod banner;
 pub use banner::banner_click;
 
 mod hermes;
-pub use hermes::hermes_secret;
+pub use hermes::{HermesKeys, hermes_keys};
 
 mod selection;
 pub use selection::select_plugins;
@@ -137,9 +137,13 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let Some((key, _)) = bare.split_once(" = ") else {
             continue;
         };
+        // A HYPHEN IS PART OF A KEY, not a word break: the hermes route
+        // names are keys and one of them is `pns-recap`, so a filter without
+        // it would skip that line and count one fewer than the text
+        // documents.
         if !key
             .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
             || key.is_empty()
         {
             continue;

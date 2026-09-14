@@ -8,8 +8,8 @@ fn every_table_armed() -> toml::Table {
         [plugins.mobile]
         token = "moshi-secret"
 
-        [plugins.hermes]
-        key = "hermes-secret"
+        [plugins.hermes.keys]
+        pns = "hermes-secret"
 
         [plugins.hue]
         bridge = "192.168.1.9"

@@ -74,8 +74,22 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                     // never works. `enabled` is already out of the table and
                     // still listed, since it is a key the operator writes.
                     let table = format!("plugins.{name}");
-                    for key in settings.keys() {
+                    for (key, value) in &settings {
                         admits_flat(&table, key)?;
+                        // AND ONE LEVEL DOWN, because a plugin's settings may
+                        // hold a table of their own (`[plugins.hermes.keys]`,
+                        // whose vocabulary is the route names). A near miss
+                        // there is a route whose key never signs anything,
+                        // which is the same silent hole the walk above closes
+                        // one level up. A nested table the roster has no row
+                        // for stays free-form, exactly as an unregistered
+                        // plugin's own settings do.
+                        if let toml::Value::Table(nested) = value {
+                            let nested_table = format!("{table}.{key}");
+                            for nested_key in nested.keys() {
+                                admits_flat(&nested_table, nested_key)?;
+                            }
+                        }
                     }
                     config
                         .plugins

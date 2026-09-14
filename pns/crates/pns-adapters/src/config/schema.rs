@@ -108,7 +108,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
-    ("plugins.hermes", &["enabled", "key"]),
+    ("plugins.hermes", &["enabled", "keys"]),
+    ("plugins.hermes.keys", pns_domain::routes::ROUTES),
     (
         "plugins.hue",
         &["bridge", "enabled", "key", "quiet_hours", "rooms"],

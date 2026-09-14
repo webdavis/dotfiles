@@ -49,8 +49,8 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     );
     assert!(
         printed.contains(
-            "hermes: FAILED, post SKIPPED, no hermes key in the config \
-             ([plugins.hermes] key); nothing was sent"
+            "hermes: FAILED, post SKIPPED, no hermes key for the pns route \
+             ([plugins.hermes.keys] pns); nothing was sent"
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
     );

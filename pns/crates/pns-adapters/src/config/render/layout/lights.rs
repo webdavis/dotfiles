@@ -5,6 +5,7 @@ pub(super) const LIGHTS_DONE: Table = Table {
                  # only the knobs that APPLY to a behaviour exist, so a blink has a\n\
                  # duration and one brightness and a breath has a duration and two ends.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",
@@ -22,6 +23,7 @@ pub(super) const LIGHTS_FAILED: Table = Table {
     name: "lights.failed",
     prose: "",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",
@@ -39,6 +41,7 @@ pub(super) const LIGHTS_BLOCKED: Table = Table {
     name: "lights.blocked",
     prose: "",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",
@@ -72,6 +75,7 @@ pub(super) const LIGHTS_UNREAD: Table = Table {
     name: "lights.unread",
     prose: "",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",
@@ -101,6 +105,7 @@ pub(super) const LIGHTS_LOOP: Table = Table {
     prose: "# A live pane lease keeps condenser `asking` guesses from arming blocked;\n\
             # real hook waits still take priority.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",
@@ -151,6 +156,7 @@ pub(super) const LIGHTS_DIM: Table = Table {
                  # the faintest levels the hardware has. A dimmed BLINK fires at `low`,\n\
                  # since a blink has no low end to fade to.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "duration_ms",

@@ -48,8 +48,11 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
         terminal,
         "Post every event to hermes, for the durable log and the recap?",
     )? {
-        answers.hermes_key =
-            armed_secret(terminal, "hermes", "the signing key that route verifies")?;
+        answers.hermes_key = armed_secret(
+            terminal,
+            "hermes",
+            "the signing key the default `pns` route verifies",
+        )?;
     }
     terminal.section("Lights", "a lamp that says how the work ended");
     if ask_yes(

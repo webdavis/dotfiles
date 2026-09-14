@@ -1,11 +1,11 @@
 use crate::{Mobile, executable_in_path};
 use pns_adapters::{
-    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, HermesChannel, MoshiChannel,
+    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, HermesChannel, HermesKeys, MoshiChannel,
     SystemCommandRunner, UreqPost, channel_url, refused_backend_line, remote_deadline,
     resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
-use pns_domain::{Event, EventArgs, registry::Selection, render};
+use pns_domain::{Event, EventArgs, registry::Selection, render, routes::DEFAULT_ROUTE};
 use pns_hermes::UreqSignedPost;
 use std::time::Duration;
 
@@ -18,9 +18,9 @@ pub(crate) fn destinations(
     route: &str,
     home: &str,
     mobile: &Mobile,
-    hermes_key: Option<String>,
+    hermes_keys: &HermesKeys,
 ) -> Destinations<Box<dyn NotificationDestination>> {
-    destinations_with_output(selection, route, home, mobile, hermes_key, false)
+    destinations_with_output(selection, route, home, mobile, hermes_keys, false)
 }
 
 pub(crate) fn destinations_with_output(
@@ -28,7 +28,7 @@ pub(crate) fn destinations_with_output(
     route: &str,
     home: &str,
     mobile: &Mobile,
-    hermes_key: Option<String>,
+    hermes_keys: &HermesKeys,
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
     let override_dir = std::env::var("PNS_CHANNELS_DIR")
@@ -49,8 +49,8 @@ pub(crate) fn destinations_with_output(
         registration::choose(banner_channel(), forced, None, json),
         registration::choose(
             hermes_channel(
-                hermes_key,
-                hermes_url_for(route, std::env::var("PNS_HERMES_URL").ok().as_deref()),
+                hermes_keys,
+                hermes_target(route, std::env::var("PNS_HERMES_URL").ok().as_deref()),
             ),
             forced,
             None,
@@ -122,36 +122,56 @@ pub(crate) fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
         url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
     }
 }
-/// The hermes post, with the key the config already provided.
-fn hermes_channel(key: Option<String>, url: String) -> HermesChannel<UreqSignedPost> {
+/// The hermes post, signed with the key the config named FOR THIS ROUTE.
+///
+/// THE LOOKUP IS HERE, at the one place that already knows both the route and
+/// the config, so the route in the channel, the route in its URL and the route
+/// the key was granted to are one value rather than three that agree by habit.
+fn hermes_channel(
+    keys: &HermesKeys,
+    (route, url): (String, String),
+) -> HermesChannel<UreqSignedPost> {
     HermesChannel {
         post: UreqSignedPost,
-        key,
+        key: keys.key_for(&route).map(str::to_string),
+        route,
         url,
         sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
     }
 }
-/// The hermes endpoint one event posts to. The env override wins (an explicit
-/// URL, the tests' escape hatch), then a `--channel` route name derived from
-/// the default gateway, then the default route (`/webhooks/pns`) itself. The
-/// gateway has no route named "alert"; the default is where an event with no
-/// route named goes. An unusable name is said out loud and falls back
-/// LOUD-WARD: a misrouted notification on the default route beats a silently
-/// dropped one.
-fn hermes_url_for(channel: &str, env_override: Option<&str>) -> String {
-    let env_override = env_override.filter(|url| !url.is_empty());
-    if let Some(url) = env_override {
-        return url.to_string();
-    }
-    if channel.is_empty() {
-        return DEFAULT_HERMES_URL.to_string();
-    }
-    channel_url(DEFAULT_HERMES_URL, channel).unwrap_or_else(|| {
+/// The route one event posts to and the endpoint that route answers at.
+///
+/// BOTH AT ONCE, never separately: the route names the signing key and the URL
+/// names the gateway, and a function that answered only the second let the key
+/// be chosen from a name the URL had already fallen away from.
+///
+/// The env override wins for the URL (an explicit URL, the tests' escape
+/// hatch); the route is the `--channel` name, and the default route when
+/// nothing named one. The gateway has no route named "alert"; the default is
+/// where an event with no route named goes. An unusable name is said out loud
+/// and falls back LOUD-WARD to the default route, key and all: a misrouted
+/// notification on the default route beats a silently dropped one.
+fn hermes_target(channel: &str, env_override: Option<&str>) -> (String, String) {
+    let route = if channel.is_empty() {
+        DEFAULT_ROUTE
+    } else if pns_domain::safety::route_name_is_usable(channel) {
+        channel
+    } else {
         eprintln!(
             "pns: --channel {channel:?} is not a usable route name; posting to the default route"
         );
-        DEFAULT_HERMES_URL.to_string()
-    })
+        DEFAULT_ROUTE
+    };
+    let url = match env_override.filter(|url| !url.is_empty()) {
+        Some(url) => url.to_string(),
+        // The route is already usable and the default URL already carries a
+        // path, so this fallback is unreachable; it stands rather than an
+        // `expect`, because a notification path must not panic.
+        None => {
+            channel_url(DEFAULT_HERMES_URL, route).unwrap_or_else(|| DEFAULT_HERMES_URL.to_string())
+        }
+    };
+    (route.to_string(), url)
 }
 /// An endpoint override, where EMPTY means the default like every other path
 /// and URL this binary reads.

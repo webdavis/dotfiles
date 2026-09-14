@@ -70,7 +70,9 @@ fn an_opt_in_table_absent_renders_commented_and_present_renders_live() {
     // opt-in table's `enabled` is written true the moment the table shows
     // up at all, and the parser is what reads its absence as off.
     let mut hermes = toml::Table::new();
-    hermes.insert("key".to_string(), toml::Value::String("secret".to_string()));
+    let mut keys = toml::Table::new();
+    keys.insert("pns".to_string(), toml::Value::String("secret".to_string()));
+    hermes.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
     plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
     let mut values = toml::Table::new();

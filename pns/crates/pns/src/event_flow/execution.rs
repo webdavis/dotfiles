@@ -32,13 +32,15 @@ pub(super) fn execute(
     // that one: its token, its toggle and its refusal are three answers to ONE
     // question, and reading them separately is what let the refusal be dropped
     // on the way to a leg that then delivered anyway.
-    let (hue_table, lights, mobile, hermes_key, recap, focus_silence, presence, stale_after_secs) =
+    let (hue_table, lights, mobile, hermes_keys, recap, focus_silence, presence, stale_after_secs) =
         match &loaded {
             Ok(LoadOutcome::Loaded(config)) => (
                 enabled_hue_table(config),
                 config.lights.clone(),
                 read_mobile(config),
-                plugin_settings(config, "hermes").and_then(hermes_secret),
+                plugin_settings(config, "hermes")
+                    .map(hermes_keys)
+                    .unwrap_or_default(),
                 config.recap.clone(),
                 config.focus_silence.clone(),
                 // A TABLE NOBODY COULD PARSE IS NO READING, never a room: the
@@ -76,7 +78,7 @@ pub(super) fn execute(
                 None,
                 None,
                 Mobile::default(),
-                None,
+                HermesKeys::default(),
                 pns_adapters::Recap::default(),
                 Vec::new(),
                 None,
@@ -186,7 +188,7 @@ pub(super) fn execute(
         selection: &selection,
         home: &home,
         mobile: &mobile,
-        hermes_key: hermes_key.clone(),
+        hermes_keys: &hermes_keys,
         json,
     }
     .submit_request(
@@ -228,7 +230,7 @@ pub(super) fn execute(
         hue_table: hue_table.as_ref(),
         lights: lights.as_deref(),
         mobile: &mobile,
-        hermes_key: hermes_key.clone(),
+        hermes_keys: hermes_keys.clone(),
         recap,
         durable_route,
         json,

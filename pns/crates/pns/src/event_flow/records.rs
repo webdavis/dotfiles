@@ -14,7 +14,7 @@ pub(super) struct EventRecords<'a> {
     pub(super) hue_table: Option<&'a toml::Table>,
     pub(super) lights: Option<&'a pns_domain::lamps::config::Lights>,
     pub(super) mobile: &'a Mobile,
-    pub(super) hermes_key: Option<String>,
+    pub(super) hermes_keys: HermesKeys,
     pub(super) recap: pns_adapters::Recap,
     pub(super) durable_route: bool,
     pub(super) json: bool,
@@ -124,7 +124,7 @@ impl pns_application::MissedReplay for EventRecords<'_> {
                 selection: self.selection,
                 home: self.home,
                 mobile: self.mobile,
-                hermes_key: self.hermes_key.clone(),
+                hermes_keys: &self.hermes_keys,
                 json: self.json,
             },
         );

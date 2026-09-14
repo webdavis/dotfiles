@@ -197,21 +197,36 @@ fn a_new_registered_destination_dispatches_without_editing_a_name_switch() {
 
 #[test]
 fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution() {
-    for route in ["", "priority", "bad/route"] {
+    // THE ROUTE SURVIVES THE OVERRIDE, which the URL alone cannot say: the
+    // route names the signing key, so an override that also reset the route
+    // would sign every captured post with the default route's key.
+    for (route, resolved) in [("", "pns"), ("priority", "priority"), ("bad/route", "pns")] {
         assert_eq!(
-            hermes_url_for(route, Some("http://example.invalid/explicit")),
-            "http://example.invalid/explicit"
+            hermes_target(route, Some("http://example.invalid/explicit")),
+            (
+                resolved.to_string(),
+                "http://example.invalid/explicit".to_string()
+            )
         );
     }
     for override_url in [None, Some("")] {
-        assert_eq!(hermes_url_for("", override_url), DEFAULT_HERMES_URL);
         assert_eq!(
-            hermes_url_for("priority", override_url),
-            "http://127.0.0.1:8644/webhooks/priority"
+            hermes_target("", override_url),
+            ("pns".to_string(), DEFAULT_HERMES_URL.to_string())
         );
         assert_eq!(
-            hermes_url_for("bad/route", override_url),
-            DEFAULT_HERMES_URL
+            hermes_target("priority", override_url),
+            (
+                "priority".to_string(),
+                "http://127.0.0.1:8644/webhooks/priority".to_string()
+            )
+        );
+        // AN UNUSABLE NAME FALLS BACK KEY AND ALL, so the post the default
+        // route takes is signed with the default route's key rather than
+        // refused for want of a key named `bad/route`.
+        assert_eq!(
+            hermes_target("bad/route", override_url),
+            ("pns".to_string(), DEFAULT_HERMES_URL.to_string())
         );
     }
 }

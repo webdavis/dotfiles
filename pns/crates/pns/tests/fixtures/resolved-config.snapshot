@@ -4,8 +4,21 @@ Config {
         "hermes": PluginEntry {
             enabled: true,
             settings: {
-                "key": String(
-                    "from-the-vault:Hermes :: Webhook Secret :: #pns:Password",
+                "keys": Table(
+                    {
+                        "pns": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#pns):Password",
+                        ),
+                        "pns-recap": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#pns-recap):Password",
+                        ),
+                        "posture": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#posture):Password",
+                        ),
+                        "priority": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#priority):Password",
+                        ),
+                    },
                 ),
             },
         },

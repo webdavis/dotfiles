@@ -20,7 +20,10 @@ use support::{Capture, Sandbox, plugin_command, run, stderr, stdout};
 #[test]
 fn an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so() {
     let sandbox = Sandbox::new("recap-agent-fallback");
-    sandbox.write_config("[plugins.hermes]\nenabled = true\nkey = \"gate-signing-key\"\n");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\n\
+         keys = { pns = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
+    );
     let capture = Capture::start(&sandbox, "recap-agent-route", Some("404"), Some("2"));
 
     let mut command = plugin_command(&sandbox);

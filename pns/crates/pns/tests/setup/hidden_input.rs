@@ -35,8 +35,11 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     pty.read_until("Post every event to hermes", PTY_DEADLINE)
         .expect("the hermes question");
     pty.write_all(b"y\n");
-    pty.read_until("the signing key that route verifies: ", PTY_DEADLINE)
-        .expect("the hermes key prompt");
+    pty.read_until(
+        "the signing key the default `pns` route verifies: ",
+        PTY_DEADLINE,
+    )
+    .expect("the hermes key prompt");
     pty.write_all(format!("{HERMES_KEY}\n").as_bytes());
 
     pty.read_until("Flash hue lights", PTY_DEADLINE)

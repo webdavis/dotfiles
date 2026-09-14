@@ -1,3 +1,5 @@
+#[cfg(test)]
+use layout::every_table;
 use layout::{LAYOUT, Sample, Table};
 use prose::*;
 mod layout;
