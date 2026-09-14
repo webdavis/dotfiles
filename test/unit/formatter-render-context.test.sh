@@ -38,7 +38,11 @@ EOF
 }
 
 tear_down() {
-  [[ -n ${RENDER_FIXTURE:-} ]] && rm -rf "$RENDER_FIXTURE"
+  # The build-output fixture below drops a mode to 000, and rm cannot recurse into
+  # that, so the owner's bits go back on before the fixture goes.
+  [[ -n ${RENDER_FIXTURE:-} ]] || return 0
+  chmod -R u+rwX "$RENDER_FIXTURE" 2>/dev/null
+  rm -rf "$RENDER_FIXTURE"
 }
 
 # TMPDIR is inside the fixture so a formatter's own scratch is torn down with it
@@ -88,9 +92,16 @@ function test_shell_formatter_refuses_to_render_a_template_whose_partial_names_k
   assert_file_not_exists "$RENDER_CAPTURE"
 }
 
-function test_shell_render_ignores_unrelated_missing_build_entries_and_keeps_source_hashes() {
+# Two fixtures for the two ways unrelated output in the checkout has broken a render:
+# a cargo build's vanishing dep entry, and the post-commit graphify rebuild churning
+# its AST cache under a push, which died on `lstat graphify-out/cache/ast/<name>.tmp:
+# no such file or directory`. A 000 directory stands in for that churn because a walk
+# which descends cannot open it on any run, where a vanishing file races.
+function test_shell_render_ignores_unrelated_build_output_and_keeps_source_hashes() {
   mkdir -p "$RENDER_SOURCE/pns/target/debug/deps"
   ln -s "$RENDER_FIXTURE/absent-rmeta" "$RENDER_SOURCE/pns/target/debug/deps/rmeta-gone"
+  mkdir -p "$RENDER_SOURCE/graphify-out/cache/ast"
+  chmod 000 "$RENDER_SOURCE/graphify-out/cache/ast"
   run_formatter shellcheck-rendered-template.sh shell.tmpl
   assert_successful_code
   assert_same "#!/bin/bash
