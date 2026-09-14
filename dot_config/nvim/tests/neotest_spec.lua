@@ -450,11 +450,16 @@ cases["JSX written before an import does not swallow it"] = function()
   )
 end
 
-cases["one parse serves all three adapters, and a changed file is parsed again"] = function()
+cases["a parse happens once per file version, and never without the literal"] = function()
   -- Each of the three asks the same question about the same file, and neotest's filtering pass
   -- runs without yielding, so parsing once per adapter is three times the stall for one answer.
   -- The file's own bytes are what the answer depends on, so its size and modification time are
   -- what make a cached answer still true.
+  --
+  -- Parsing is the whole cost of discovery, so the count is what the three versions below are
+  -- for: a file that names node:test is parsed once per version, and one that does not is
+  -- answered from its bytes without a parser at all. Measured over 500 test files of 129 KB,
+  -- that third version is the difference between 11.9 s and 0.3 s.
   local routed = route()
   local parses = 0
   local original = vim.treesitter.get_string_parser
@@ -467,9 +472,15 @@ cases["one parse serves all three adapters, and a changed file is parsed again"]
   local answers = { routed.vitest(path), routed.jest(path), routed.node(path) }
   local after_first = parses
 
-  write_fixture("cached/tests/a.test.js", 'import { test } from "vitest";\n// a longer file now\n')
-  local changed = routed.node(path)
+  -- Still names node:test, so this version is a real question again and not the same answer.
+  write_fixture("cached/tests/a.test.js", 'import { test } from "vitest";\n// no longer from "node:test"\n')
+  local mentioned = routed.node(path)
   local after_change = parses
+
+  -- Names it nowhere, so no parse tree can hold an import of it.
+  write_fixture("cached/tests/a.test.js", 'import { test } from "vitest";\n')
+  local unmentioned = { routed.vitest(path), routed.jest(path), routed.node(path) }
+  local after_unmentioned = parses
   vim.treesitter.get_string_parser = original
 
   -- Without a grammar there is nothing to parse, and the count is what says so.
@@ -478,7 +489,9 @@ cases["one parse serves all three adapters, and a changed file is parsed again"]
   assert(answers[3] == javascript_grammar, "the node:test answer changed under the cache")
   assert(not answers[1] and not answers[2], "an adapter claimed a file it does not own")
   assert(after_change == per_version * 2, "a rewritten file was not parsed again, parses: " .. after_change)
-  assert(not changed, "the cache outlived the file contents it answered for")
+  assert(not mentioned, "a mention in a comment was read as an import, or the cache outlived the bytes")
+  assert(after_unmentioned == after_change, "a file that never names node:test was parsed anyway")
+  assert(not unmentioned[3], "a file importing nothing of node:test was claimed by it")
 end
 
 cases["a file whose language has no grammar has no node:test owner"] = function()
