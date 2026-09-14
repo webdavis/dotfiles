@@ -175,6 +175,7 @@
       "Read(~/.claude/.credentials.json)"
       "Read(~/.codex/auth.json)"
       "Read(~/.config/pns/config.toml)"
+      "Read(~/.config/posture/config.toml)"
       "Read(~/.config/osquery/webhook-secret)"
       "Read(~/.hermes/.env)"
       "Read(~/**/*.kdbx)")
