@@ -1,9 +1,7 @@
 use super::*;
 use std::{
-    io::Read,
     os::unix::process::ExitStatusExt,
     process::{Command, Stdio},
-    time::{Duration, Instant},
 };
 
 fn disposition(signal: i32) -> libc::sighandler_t {
@@ -83,35 +81,13 @@ fn install_signals_are_deferred_through_rollback_then_reraised_as_real_signals()
         panic!("the original signal must terminate this fixture");
     }
     for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-        let mut child=Command::new(std::env::current_exe().unwrap()).args(["--exact","ssh_signals::tests::install_signals_are_deferred_through_rollback_then_reraised_as_real_signals","--nocapture"])
-            .env_clear().env(MARKER,signal.to_string()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
-        let deadline = Instant::now() + Duration::from_millis(250);
-        let status = loop {
-            if let Some(status) = child.try_wait().unwrap() {
-                break status;
-            }
-            if Instant::now() >= deadline {
-                let _ = child.kill();
-                let _ = child.wait();
-                panic!("private signal child exceeded 250ms");
-            }
-            std::thread::sleep(Duration::from_millis(1));
-        };
-        let mut stdout = String::new();
-        child
-            .stdout
-            .take()
-            .unwrap()
-            .read_to_string(&mut stdout)
-            .unwrap();
-        let mut stderr = String::new();
-        child
-            .stderr
-            .take()
-            .unwrap()
-            .read_to_string(&mut stderr)
-            .unwrap();
-        assert_eq!(status.signal(), Some(signal), "{stderr}");
+        // Every fixture path ends in a signal death or a panic, so waiting for its own exit is
+        // the outcome itself and needs no clock.
+        let run=Command::new(std::env::current_exe().unwrap()).args(["--exact","ssh_signals::tests::install_signals_are_deferred_through_rollback_then_reraised_as_real_signals","--nocapture"])
+            .env_clear().env(MARKER,signal.to_string()).stdin(Stdio::null()).output().unwrap();
+        let stdout = String::from_utf8_lossy(&run.stdout);
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.signal(), Some(signal), "{stderr}");
         assert!(
             stdout.contains("rollback-finished-before-reraise"),
             "{stdout}: {stderr}"

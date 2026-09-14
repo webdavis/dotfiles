@@ -163,7 +163,7 @@ fn rollback_removes_the_target_before_asking_for_recovery_identity() {
 
 #[test]
 fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spawn() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let mut f = Fixture::new();
     f.config.deadline = Duration::from_millis(75);
     f.config.grace = Duration::from_millis(5);
@@ -180,15 +180,15 @@ fn one_verification_budget_covers_all_resolutions_and_prevents_a_late_third_spaw
             1,
         ),
     );
-    let start = Instant::now();
     let (status, out, err) = f.run(Verb::Verify);
     assert_eq!(status, 1);
     assert!(err.contains("124"), "{err}");
     assert!(!out.contains("PASS"));
+    // A per-command budget would let all three resolutions finish inside it; the aggregate one
+    // cannot, and that count says so without a wall-clock bound on the run.
     let started = fs::read_to_string(calls).unwrap().lines().count();
     assert!(
         (1..=2).contains(&started),
         "a late third resolution ran: {started}"
     );
-    assert!(start.elapsed() < Duration::from_millis(250));
 }

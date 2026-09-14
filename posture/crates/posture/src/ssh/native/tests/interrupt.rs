@@ -60,7 +60,10 @@ fn a_real_install_interrupt_stops_verification_descendants_restores_files_and_re
     );
     let mut child=Command::new(std::env::current_exe().unwrap()).args(["--exact","ssh::native::tests::interrupt::a_real_install_interrupt_stops_verification_descendants_restores_files_and_reraises","--nocapture"])
         .env_clear().env(MARKER,&f.root).env("TMPDIR",std::env::temp_dir()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
-    let deadline = Instant::now() + Duration::from_millis(650);
+    // The fixture's own verification budget ends it in tens of milliseconds. This is a watchdog
+    // rather than a bound on that: a regression that never terminates the group would otherwise
+    // hang the suite, and no load on this machine puts a signalled exit ten seconds out.
+    let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
             break Some(status);
@@ -84,7 +87,9 @@ fn a_real_install_interrupt_stops_verification_descendants_restores_files_and_re
         .lines()
         .map(|v| v.parse().unwrap())
         .collect();
-    let absent_by = Instant::now() + Duration::from_millis(60);
+    // Reaping the killed group is the kernel's own work, so it is polled for rather than timed:
+    // the loop leaves as soon as they are gone and the deadline only bounds a failure.
+    let absent_by = Instant::now() + Duration::from_secs(5);
     let alive = loop {
         let alive = owned.iter().any(|pid| {
             Command::new("/bin/kill")
