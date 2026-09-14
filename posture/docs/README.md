@@ -115,9 +115,106 @@ was inspected for this mapping. Before task49 retirement, every producer must mi
 queue tables must be empty, and the operator must review dead-letter disposition and approve any
 exact-row removal. The 13 retained queue leaves have no native writer/retry successor by design.
 
-The existing Rust file-size gate already covers posture. This work adds no guard or test suite. Task60
-still needs the final post-port refresh, accepted dispositions, before/after implementation-size table,
-and decision index required by plan step 9.2, after the ports and cutovers have met their own gates.
+The existing Rust file-size gate already covers posture. This work adds no guard or test suite. The
+before/after implementation-size table and the decision index plan step 9.2 requires are below. Accepted
+dispositions and the deployed-status refresh remain open, and wait on the ports and cutovers meeting
+their own gates.
+
+## Implementation size, before and after
+
+Measured on 2026-09-14 against main `f24aba51`. Bash counts are physical lines from `wc -l`. Rust counts
+come from the `clean-code-rust` file-size command, which reads implementation lines as those before a
+file's first `#[cfg(test)]`, and zero for a `tests.rs` or a file under `tests/`. `tokei` is not used
+anywhere here: it mis-parses this tree and its totals fall thousands of lines short of `wc -l`.
+
+```sh
+# Bash still tracked: entry points and the modules they source.
+git ls-files 'dot_local/libexec/osquery/*.sh' 'dot_local/bin/executable_ssh-hardening.sh' |
+  xargs wc -l | sort -rn
+
+# Bash already deleted, each read at the parent of its deleting commit.
+for path in 8f211044^:dot_local/libexec/osquery/executable_enrich-finding.sh \
+  e8048748^:dot_local/libexec/osquery/executable_allowlist.sh \
+  45e18321^:dot_local/libexec/osquery/executable_heartbeat.sh \
+  d2a88b4c^:dot_local/libexec/osquery/executable_digest.sh; do
+  printf '%6d %s\n' "$(git show "$path" | wc -l)" "$path"
+done
+
+# Rust, per crate.
+git ls-files 'posture/*.rs' | while IFS= read -r f; do
+  awk -v F="$f" '
+    /^[[:space:]]*#\[cfg\(test\)\]/ && !seen { seen = 1 }
+    !seen { impl++ }
+    { total++ }
+    END {
+      if (F ~ /(^|\/)tests(\.rs|\/)/) impl = 0
+      printf "%d %d %s\n", impl, total, F
+    }' "$f"
+done | awk '{ split($3, part, "/"); crate = part[3]
+    files[crate]++; implementation[crate] += $1; whole[crate] += $2 }
+  END { for (crate in files)
+    printf "%-20s %4d %6d %6d\n", crate, files[crate], implementation[crate], whole[crate] }' |
+  sort | awk '{ print; f += $2; i += $3; t += $4 }
+    END { printf "%-20s %4d %6d %6d\n", "Workspace", f, i, t }'
+
+wc -c < ~/.cargo/bin/posture
+```
+
+| Bash before                                                         | Lines | posture after                                | Bash source state            |
+| ------------------------------------------------------------------- | ----- | -------------------------------------------- | ---------------------------- |
+| `executable_ssh-hardening.sh`                                       | 2826  | `posture ssh`                                | tracked, operator-typed Bash |
+| `executable_results-alerter.sh` plus its seven sourced stages       | 1945  | `posture alert`                              | tracked, Bash caller         |
+| `executable_alert-dispatch.sh`                                      | 1263  | none, delivery moves to pns (spec section 5) | tracked, Bash caller         |
+| `executable_firewall-gatekeeper-monitor.sh`                         | 998   | `posture poll`                               | tracked, Bash caller         |
+| `executable_osquery-converge.sh` plus `drift-verdict.sh`            | 986   | `posture converge`                           | tracked, caller cut over     |
+| `executable_uptime-watchdog.sh` plus `executable_pipeline-audit.sh` | 826   | `posture watchdog`                           | tracked, Bash caller         |
+| `executable_allowlist.sh`                                           | 359   | `posture allowlist`                          | retired at `e8048748`        |
+| `executable_tailscale-monitor.sh`                                   | 287   | `posture funnel`                             | tracked, Bash caller         |
+| `executable_digest.sh`                                              | 238   | `posture digest`                             | retired at `d2a88b4c`        |
+| `executable_enrich-finding.sh`                                      | 139   | `posture enrich`                             | retired at `8f211044`        |
+| `executable_drain-undelivered-alerts.sh`                            | 114   | none (spec section 6, D1)                    | tracked, Bash caller         |
+| `executable_heartbeat.sh`                                           | 109   | `posture heartbeat`                          | retired at `45e18321`        |
+| `executable_canary-freshness.sh`                                    | 47    | inside `posture heartbeat` and `watchdog`    | tracked, Bash caller         |
+| Bash in the port's scope                                            | 10137 |                                              | 845 retired, 9292 tracked    |
+
+| Crate                 | Files | Implementation lines | Total lines |
+| --------------------- | ----- | -------------------- | ----------- |
+| `posture-adapters`    | 145   | 6351                 | 14975       |
+| `posture-domain`      | 95    | 4420                 | 10578       |
+| `posture`             | 51    | 1888                 | 5863        |
+| `posture-application` | 49    | 2364                 | 7088        |
+| `posture-pns-wire`    | 16    | 883                  | 2051        |
+| `posture-protocol`    | 2     | 111                  | 269         |
+| Workspace             | 358   | 16017                | 40824       |
+
+The installed binary is 3,792,416 bytes (3.6 MiB) at `~/.cargo/bin/posture`, written by the apply of
+2026-09-13 20:50 and well under the builder's 8 MiB refusal bound. Its usage text matches main's `USAGE`
+constant, which is evidence about the deployed subcommand set and not a build identity.
+
+Read the two tables as a size comparison, not a deletion record. 16,017 Rust implementation lines stand
+against 10,137 Bash lines, and 24,807 of the 40,824 total Rust lines are tests the Bash pipeline never
+had, where five tools carried no coverage at all (spec section 9). Only 845 Bash lines have actually left
+the tracked set; the other 9,292 remain until their own cutover and retirement pull requests land.
+
+## Decision index
+
+Each record fixes one boundary before its Rust implementation, and pairs with a policy specification and,
+where behavior was captured from the running Bash, an acceptance map. The normalization boundary has
+three acceptance documents because its captures were taken per statement.
+
+| Decision record                                             | Boundary it fixes                                                                                                    | Specification                           | Bash-derived acceptance                                                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [allowlist-integrity](decisions/allowlist-integrity.md)     | `posture allowlist` curation, publication bytes, and the two known-good manifest consumers                           | [specs](specs/allowlist-integrity.md)   | [acceptance](acceptance/allowlist-integrity.md)                                                                  |
+| [enrichment](decisions/enrichment.md)                       | `posture enrich` inspection order, command-output channels and the shared spawn budget                               | [specs](specs/enrichment.md)            | [acceptance](acceptance/enrichment.md)                                                                           |
+| [finding-normalization](decisions/finding-normalization.md) | the alerter's normalization stage: detector admission, pack prefixes, baseline exemptions, enrichment-path selection | [specs](specs/finding-normalization.md) | [boundaries](acceptance/finding-boundaries.md), [S022](acceptance/S022.md), [S025-S360](acceptance/S025-S360.md) |
+| [heartbeat](decisions/heartbeat.md)                         | `posture heartbeat` epoch admission, two-sided freshness and message vocabulary                                      | [specs](specs/heartbeat.md)             | [acceptance](acceptance/heartbeat.md)                                                                            |
+| [poll-funnel](decisions/poll-funnel.md)                     | `posture poll` and `posture funnel` controls admission, gap-before-exposure order and baseline proposals             | [specs](specs/poll-funnel.md)           | [acceptance](acceptance/poll-funnel.md)                                                                          |
+| [severity-gate](decisions/severity-gate.md)                 | the alerter's severity resolution, detector gate and signing verdict text                                            | [specs](specs/severity-gate.md)         | [acceptance](acceptance/severity-gate.md)                                                                        |
+| [watchdog](decisions/watchdog.md)                           | `posture watchdog` manifest audit, streamed finding order and two-tick confirmation                                  | [specs](specs/watchdog.md)              | [acceptance](acceptance/watchdog.md)                                                                             |
+
+Two decision sets stay outside this index and outside this package. The operator's four delivery,
+vouching, file-location and mute decisions are plan section 8, and the numbered drops D1 to D15, with the
+deliberate behavior changes in section 6.1, are the specification's.
 
 The dotfiles plan is `docs/superpowers/plans/2026-09-05-posture-port-plan.md`; its source inventory is
 `docs/superpowers/specs/2026-09-05-posture-behavioral-specification.md`. These package documents remain
