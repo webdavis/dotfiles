@@ -43,9 +43,12 @@ for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE, FAILING_LANGU
   )
 end
 
--- The keys whose handler goes through the parser gate rather than straight to the module. Each
--- reads the current buffer to decide what to discover, so each needs the grammar that discovery
--- parses with, and each is measured below: pinning one leaves the other two revertible.
+-- The keys whose handler goes through the parser gate rather than straight to the module, and
+-- whose only argument is the buffer they were pressed from. Each reads the current buffer to
+-- decide what to discover, so each needs the grammar that discovery parses with, and each is
+-- measured below: pinning one leaves the other two revertible. `<leader>ta` goes through the same
+-- gate but takes a directory as well, so it is pressed through `press_run_all` instead and pinned
+-- beside these three.
 local GATED_KEYS = { "<leader>tt", "<leader>tf", "<leader>ts" }
 
 -- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
@@ -379,11 +382,32 @@ local function route()
     assert(gated[key], key .. " is not in the plugin spec's keys")
   end
 
-  --- Press `<leader>ta` in `directory`. `choose` is the item the operator picks when asked.
-  ---@return { ran: table|string|nil, prompted: string[]|nil, notified: string[] }
-  local function press_run_all(directory, choose)
+  --- Call `press` from a scratch buffer of `filetype`, which is what the parser gate reads, and
+  --- leave the buffer list as it was found. A nil `filetype` presses from the current buffer.
+  ---@param filetype string?
+  ---@param press fun()
+  ---@return boolean, string?
+  local function press_in_buffer(filetype, press)
+    if not filetype then
+      return pcall(press)
+    end
+    local buffer = vim.api.nvim_create_buf(false, true)
+    local previous_buffer = vim.api.nvim_get_current_buf()
+    vim.api.nvim_set_option_value("filetype", filetype, { buf = buffer })
+    vim.api.nvim_set_current_buf(buffer)
+    local pressed, pressed_error = pcall(press)
+    vim.api.nvim_set_current_buf(previous_buffer)
+    vim.api.nvim_buf_delete(buffer, { force = true })
+    return pressed, pressed_error
+  end
+
+  --- Press `<leader>ta` in `directory`. `choose` is the item the operator picks when asked, and
+  --- `filetype` is the buffer the press is made from, which is the language its gate waits for.
+  ---@return { ran: table|string|nil, prompted: string[]|nil, notified: string[], installs: string[] }
+  local function press_run_all(directory, choose, filetype)
     ran = nil
-    local prompted, notified = nil, {}
+    parser.installs = {}
+    local installs, prompted, notified = parser.installs, nil, {}
     local previous_select, previous_notify = vim.ui.select, vim.notify
     local previous_directory = vim.fn.getcwd()
     vim.ui.select = function(items, _, on_choice)
@@ -396,11 +420,11 @@ local function route()
       notified[#notified + 1] = tostring(message)
     end
     vim.cmd.cd(directory)
-    local pressed, pressed_err = pcall(run_all)
+    local pressed, pressed_err = press_in_buffer(filetype, run_all)
     vim.cmd.cd(previous_directory)
     vim.ui.select, vim.notify = previous_select, previous_notify
     assert(pressed, "<leader>ta failed: " .. tostring(pressed_err))
-    return { ran = ran, prompted = prompted, notified = notified }
+    return { ran = ran, prompted = prompted, notified = notified, installs = installs }
   end
 
   --- Press one of `GATED_KEYS` from a scratch buffer of `filetype`, and report what the request
@@ -416,13 +440,7 @@ local function route()
     vim.notify = function(message)
       notified[#notified + 1] = tostring(message)
     end
-    local buffer = vim.api.nvim_create_buf(false, true)
-    local previous_buffer = vim.api.nvim_get_current_buf()
-    vim.api.nvim_set_option_value("filetype", filetype, { buf = buffer })
-    vim.api.nvim_set_current_buf(buffer)
-    local pressed, pressed_error = pcall(gated[key])
-    vim.api.nvim_set_current_buf(previous_buffer)
-    vim.api.nvim_buf_delete(buffer, { force = true })
+    local pressed, pressed_error = press_in_buffer(filetype, gated[key])
     vim.notify = previous_notify
     assert(pressed, key .. " failed: " .. tostring(pressed_error))
     return { installs = installs, requests = requests - before, notified = notified }
@@ -902,6 +920,17 @@ cases["a test request waits for the parser its discovery needs"] = function()
     )
     assert(retried.requests == 1, "the request never reached neotest")
   end
+
+  -- `<leader>ta` names a directory, but its discovery still parses the buffer the press was made
+  -- from, so it goes through the gate as well. Pressed from a parserless buffer rather than one of
+  -- the two that deliver nothing, because those arm the per-session memo and this case is not
+  -- measuring it.
+  local directory_run = routed.press_run_all(directory_of(dual), nil, PARSERLESS_LANGUAGE)
+  assert(
+    vim.deep_equal(directory_run.installs, { PARSERLESS_LANGUAGE }),
+    "<leader>ta did not wait for its parser: " .. vim.inspect(directory_run.installs)
+  )
+  assert(directory_run.ran, "<leader>ta never reached neotest")
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
