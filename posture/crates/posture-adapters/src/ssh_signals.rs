@@ -33,7 +33,17 @@ impl SshSignals {
             }
         }
         for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-            let mut old = unsafe { std::mem::zeroed() };
+            let mut old: libc::sigaction = unsafe { std::mem::zeroed() };
+            // A null action reads the inherited disposition without changing it.
+            if unsafe { libc::sigaction(signal, std::ptr::null(), &mut old) } == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            // An inherited SIG_IGN (nohup, a launchd job) means the caller already decided this
+            // signal is not an event. Handling it would turn a harmless hangup into a rollback and
+            // a re-raise that kills the process, so it is left exactly as POSIX tools leave it.
+            if old.sa_sigaction == libc::SIG_IGN {
+                continue;
+            }
             if unsafe { libc::sigaction(signal, &action, &mut old) } == -1 {
                 return Err(io::Error::last_os_error());
             }
