@@ -92,8 +92,10 @@ fn software_listeners_logins_and_agent_queries_are_info() {
 }
 
 #[test]
-fn a_critical_finding_belongs_on_the_priority_route() {
-    assert_eq!(severity_route(Some(Severity::Critical)), Some("priority"));
+fn a_critical_finding_is_held_on_the_posture_route_until_priority_can_deliver() {
+    // `priority` is where a page belongs and answers 401 to the key pns signs
+    // with, so this pins the hold: flipping the arm has to come with the route.
+    assert_eq!(severity_route(Some(Severity::Critical)), Some("posture"));
 }
 
 #[test]

@@ -86,17 +86,18 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 
 ### The routes
 
-| Route       | Who posts                  | What                                                                       |
-| ----------- | -------------------------- | -------------------------------------------------------------------------- |
-| `pns`       | pns hook and daemon paths  | Every routine agent event. The default route when nothing names one.       |
-| `priority`  | posture, the alert drainer | Machine health and security ONLY (operator ruling 2026-09-14).             |
-| `uu`        | uu                         | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`. |
-| `posture`   | posture                    | Non-critical pages, the daily digest, the heartbeat, poll and funnel.      |
-| `pns-recap` | pns                        | The return recap.                                                          |
+| Route       | Who posts                 | What                                                                                                          |
+| ----------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pns`       | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                          |
+| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture cannot reach it; see the third gotcha. |
+| `uu`        | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`.                                    |
+| `posture`   | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.     |
+| `pns-recap` | pns                       | The return recap.                                                                                             |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
-posture picks between `priority` and `posture` by the finding's tier, in one place (`severity_route`,
-`posture/crates/posture-domain/src/severity.rs`); uu's default is `DEFAULT_RECORD_URL`
+posture picks its route from the finding's tier in one place (`severity_route`,
+`posture/crates/posture-domain/src/severity.rs`), and that one place holds every tier on `posture` while
+`priority` cannot deliver a pns body (third gotcha); uu's default is `DEFAULT_RECORD_URL`
 (`uu/crates/uu-adapters/src/config/records.rs`); pns's recap route is `RECAP_ROUTE`
 (`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the SHAPE of a route name
 (`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so adding a route to the
@@ -143,7 +144,14 @@ accepted whatever a destination did with it, so posture advances its cursor and 
 nothing in either channel to show for it. `run_after_68` compares the two secrets on every apply and says
 so. The one live signer still using the old key is `drain-undelivered-alerts.sh` on the alert-drainer
 LaunchAgent, draining what the retired Bash alerter left behind; every other osquery agent now runs a
-`posture` subcommand. Reconciling the two is an operator decision, not an apply.
+`posture` subcommand. Reconciling the two is an operator decision, not an apply: the drainer is the one
+thing that still needs the old key, and the prompt above has to be retemplated in the same sitting, or a
+reconciled route delivers two literal placeholders instead of a page.
+
+Because of those two, `severity_route` holds EVERY posture tier on `posture`, critical included, so a
+page is read in the pipeline's own channel rather than refused at the door. Flipping its critical arm
+back to `priority` is the last line of the change that settles the key and the prompt, and the test named
+for the hold is what makes that flip deliberate.
 
 ### When a route changes
 
