@@ -55,6 +55,11 @@ impl<R: CommandRunner> OsqueryRestart<R> {
         let io = CommandIo::Inspection {
             merge_stderr: false,
         };
+        // osqueryctl picks its own database path, so the fallback needs no private
+        // directory and must not inherit a refusal to create one.
+        let Some(daemon) = self.daemon.clone() else {
+            return self.command("config-check", io);
+        };
         let database =
             PrivateDirectory::create(scratch).map_err(|_| InspectionFailure::Unavailable)?;
         // The validation runs under sudo, so osqueryi creates whatever is missing as
@@ -66,25 +71,21 @@ impl<R: CommandRunner> OsqueryRestart<R> {
         // temp-directory leak, never a failed configuration check.
         let db = database.path().join("db");
         std::fs::create_dir(&db).map_err(|_| InspectionFailure::Unavailable)?;
-        if let Some(daemon) = &self.daemon {
-            self.runner
-                .run(
-                    &self.sudo,
-                    &[
-                        "-n".as_ref(),
-                        daemon.as_os_str(),
-                        "--config_path".as_ref(),
-                        self.target.join("osquery.conf").as_os_str(),
-                        "--config_check".as_ref(),
-                        "--database_path".as_ref(),
-                        db.as_os_str(),
-                    ],
-                    io,
-                )
-                .map(|_| ())
-        } else {
-            self.command("config-check", io)
-        }
+        self.runner
+            .run(
+                &self.sudo,
+                &[
+                    "-n".as_ref(),
+                    daemon.as_os_str(),
+                    "--config_path".as_ref(),
+                    self.target.join("osquery.conf").as_os_str(),
+                    "--config_check".as_ref(),
+                    "--database_path".as_ref(),
+                    db.as_os_str(),
+                ],
+                io,
+            )
+            .map(|_| ())
     }
     fn command(&mut self, verb: &str, io: CommandIo<'_>) -> Result<(), InspectionFailure> {
         self.runner

@@ -124,6 +124,28 @@ fn daemon_validation_owns_the_database_directory_root_writes_into() {
 }
 
 #[test]
+fn the_osqueryctl_fallback_check_runs_without_a_private_database() {
+    let root = Scratch::new();
+    let mut control = OsqueryRestart::new(
+        Validation::default(),
+        "/fixture/sudo".into(),
+        "/trusted/osqueryctl".into(),
+        None,
+        root.0.clone(),
+    );
+    assert_eq!(control.config_check_in(&root.0.join("absent")), Ok(()));
+    assert_eq!(
+        control.runner.args,
+        [
+            OsString::from("-n"),
+            "/trusted/osqueryctl".into(),
+            "config-check".into()
+        ]
+    );
+    assert_eq!(control.runner.database_existed, None);
+}
+
+#[test]
 fn unavailable_private_database_refuses_before_any_command() {
     let root = Scratch::new();
     let mut control = OsqueryRestart::new(
