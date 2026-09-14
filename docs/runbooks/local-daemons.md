@@ -1,9 +1,10 @@
-# Local daemons: atuin, happy, tailscaled
+# Local daemons: atuin, happy, tailscaled, the hermes gateway
 
-Three long-running services on dresden, each with its own failure mode and diagnostic ladder. The
-LaunchAgent plists live under `Library/LaunchAgents/`; the loaders that bootstrap them are
-`.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so a loader re-runs when
-its plist changes rather than on every apply.
+Four long-running services on dresden, each with its own failure mode and diagnostic ladder. The first
+three are chezmoi-tracked LaunchAgents: the plists live under `Library/LaunchAgents/` and the loaders
+that bootstrap them are `.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so
+a loader re-runs when its plist changes rather than on every apply. The hermes gateway is not a
+LaunchAgent; `hermes gateway` owns its lifecycle and this repository owns only its configuration.
 
 ## Shell history (atuin)
 
@@ -75,6 +76,67 @@ ps aux | grep '[h]appy daemon'             # supervised start-sync process + the
 tail ~/.local/log/happy-daemon.log         # crash messages
 happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
 ```
+
+## Hermes gateway (webhook routes)
+
+The gateway is the hermes agent's webhook platform, switched on by `WEBHOOK_ENABLED` and `WEBHOOK_PORT`
+in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). It listens on
+`127.0.0.1:8644` and every notification this machine sends to Discord arrives as a signed POST to
+`http://127.0.0.1:8644/webhooks/<route>`.
+
+### The routes
+
+| Route       | Who posts                         | What                                                                       |
+| ----------- | --------------------------------- | -------------------------------------------------------------------------- |
+| `pns`       | pns hook and daemon paths         | Every routine agent event. The default route when nothing names one.       |
+| `priority`  | the bash osquery alerter, posture | Machine health and security ONLY (operator ruling 2026-09-14).             |
+| `uu`        | uu                                | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`. |
+| `posture`   | posture                           | Non-critical pages, the daily digest, the heartbeat, poll and funnel.      |
+| `pns-recap` | pns                               | The return recap.                                                          |
+
+Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
+posture picks between `priority` and `posture` by the finding's tier, in one place (`severity_route`,
+`posture/crates/posture-domain/src/severity.rs`); uu's default is `DEFAULT_RECORD_URL`
+(`uu/crates/uu-adapters/src/config/records.rs`); pns's recap route is `RECAP_ROUTE`
+(`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the SHAPE of a route name
+(`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so adding a route to the
+gateway is the only registration a new route needs.
+
+### Where they live, and what a route carries
+
+The table is `platforms.webhook.extra.routes` inside the age-encrypted
+`private_dot_hermes/encrypted_private_config.yaml.age`, which an apply decrypts to
+`~/.hermes/config.yaml` (see `docs/runbooks/age-key.md`). Read it without changing anything:
+
+```bash
+yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
+```
+
+Every route carries four things: a `secret` (one `Hermes :: Webhook Secret :: #pns` covers all of them,
+and it is the same key `[plugins.hermes] key` hands pns), `deliver: discord`, `deliver_only: true` so the
+body is posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its
+channel. `run_after_68-hermes-log-route-status.sh.tmpl` checks all four on every apply and says so when
+one is missing.
+
+### Two gotchas
+
+**The gateway does not expand `${VAR}` in its platform config.** `gateway/config.py` loads `config.yaml`
+with a bare `yaml.safe_load` and merges `platforms` straight through, so a `chat_id` written as
+`${DISCORD_POSTURE_CHANNEL}` reaches Discord as that literal string. Channel ids are literals in the
+encrypted file; the `DISCORD_*_CHANNEL` lines in the `.env` template are how the ids come out of
+KeePassXC for a human to read, not how the gateway finds them.
+
+**A prompt template renders an unknown placeholder as itself.** `_render_prompt` substitutes a missing
+key with `{the.key}` rather than failing, so a route whose template does not match its producers' body
+shape delivers literal placeholders and no content. pns-shaped bodies carry `agent`, `state`, `project`
+and `detail`; the bash osquery alerter's carry `alert.title` and `alert.detail`. `priority` is templated
+for the latter today, which is why a route serving both shapes needs its template settled first.
+
+### When a route changes
+
+An apply writes the new `~/.hermes/config.yaml`, but the running gateway loaded the old one, so a new or
+renamed route answers 404 until `hermes gateway restart`. That restart drains in-flight runs for up to
+180 seconds, so it is deliberate rather than automatic, and `run_after_68` nudges rather than restarts.
 
 ## Tailscale (headless daemon)
 
