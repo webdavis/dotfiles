@@ -98,13 +98,16 @@ fn execute<R: posture_adapters::CommandRunner>(
     };
     let upgrade_record = Path::new(&config.home)
         .join(".local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv");
-    let mut triage = |row: &ResultsRow| {
+    // THE SINK ARRIVES AS AN ARGUMENT rather than being captured, because the
+    // judge holds the one borrow of it for as long as it is judging and hands
+    // it to whichever collaborator has something to say.
+    let mut triage = |row: &ResultsRow, mut diagnostics: &mut dyn Write| {
         Some(file_integrity_triage(
             &manifests,
             &upgrade_record,
             row.gate_columns().target_path,
             now.as_ref().map(|reading| reading.seconds),
-            stderr,
+            &mut diagnostics,
         ))
     };
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
@@ -114,6 +117,7 @@ fn execute<R: posture_adapters::CommandRunner>(
         allowlist: allowlist.as_ref(),
         spool: &spool,
         now: &stamp,
+        diagnostics: &mut *stderr,
         collaborators: Collaborators {
             vouches: &mut vouches,
             inspect: &mut inspect,

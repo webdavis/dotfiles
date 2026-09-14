@@ -7,7 +7,7 @@ fn only_integrity_pages_collect_triage_and_missing_facts_cannot_drop_a_page() {
         let mut calls = Vec::new();
         let mut vouches = |path: &str| path == "/known";
         let mut inspect = |_: &str| None;
-        let mut triage = |row: &ResultsRow| {
+        let mut triage = |row: &ResultsRow, _: &mut dyn std::io::Write| {
             calls.push(row.column("target_path").to_string());
             provides_facts.then(|| OwnedTriage {
                 recorded: "recorded-fact".into(),
@@ -39,12 +39,14 @@ fn only_integrity_pages_collect_triage_and_missing_facts_cannot_drop_a_page() {
             row("new_admin_user", serde_json::json!({"username":"mallory"})),
         ]
         .join("\n");
+        let mut diagnostics = std::io::sink();
         let page = BatchJudge {
             home: HOME,
             allowlist_path: "/unused",
             allowlist: None,
             spool: &world.spool,
             now: "1970-01-01T00:00:00Z",
+            diagnostics: &mut diagnostics,
             collaborators: Collaborators {
                 vouches: &mut vouches,
                 inspect: &mut inspect,

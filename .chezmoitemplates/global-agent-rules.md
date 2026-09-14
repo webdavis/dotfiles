@@ -81,6 +81,86 @@ them directly.
 Use the `conventional-commits` skill. A user-wide `prepare-commit-msg` hook prepopulates the message;
 `SKIP_AI_COMMIT=1` bypasses it.
 
+## Git worktrees
+
+herdr never scans for worktrees: its sidebar shows only worktrees it opened itself, so a checkout made
+with `git worktree add` or a harness helper stays invisible there.
+
+- Inside herdr (`HERDR_ENV=1`), create a worktree with
+  `herdr worktree create --cwd <repo-root> --branch <name> --no-focus`, never with `git worktree add`. It
+  lands in `~/.herdr/worktrees/<repo>/<branch>` with a sidebar entry from the start.
+- A worktree the harness already made (the Agent tool's `isolation: "worktree"`) gets registered with
+  `herdr worktree open --cwd <repo-root> --path <worktree-path> --no-focus`.
+- Without `HERDR_ENV`, plain `git worktree add` is the fallback.
+- Sub-agents inherit this rule. A brief that sends work to a worktree carries the create line verbatim.
+
+## Work recaps
+
+A work recap is always agent-initiated, never fired by a hook. Produce one when:
+
+1. a pull request is opened and waiting on a human review, or one is auto-approved and merged;
+1. a milestone is reached while a `/goal` runs;
+1. overnight work finishes;
+1. the day ends (the end-of-day summary);
+1. the operator asks, through `/pns:work-recap`.
+
+`/recap` is Claude Code's own built-in and must not be used for this.
+
+The layout is exact:
+
+```
+Recap
+==========
+
+**Git**
+- Branch: `<branch>` (open|merged, position in stack)
+- Worktree: `<path>` (kept|removed)
+- PR: #<n> (open|merged|none)
+- Stack: `<name>` (<k> PRs, trunk main)
+
+ Stack Graph
+ -----------
+  `main` (*trunk*)
+  └─ `<branch-1>`  #<n>  *merged*  ✓
+     └─ `<branch-2>`  #<n>  *open*  ×  ← *current*
+
+A  <added file>
+M  <modified file>
+R  <old> -> <new>
+D  <deleted file>
+
+**Summary**
+- <what got done, one line each, with its state: merged / open, waiting on CI / applied>
+
+**In-Progress**
+- `#<task>` <what is mid-flight and where it lives>
+- Blocked on: <the one thing stopping it, or "nothing">
+
+**Upcoming Agent Tasks**
+- `#<task>` <next thing the agent will do, and any gate it waits on>
+
+**User Tasks**
+1. <the exact command or decision the operator owes, one per line>
+```
+
+Readability rules:
+
+- The stack graph and the file list share ONE fenced code block, so the tree and the status column stay
+  aligned both in a terminal and in Discord.
+- File paths and branch names go in backticks.
+- Keep the whole recap under 2000 characters, which is Discord's message limit, for the day it is
+  forwarded there.
+- Collapse a long file list to counts per status (`A 3  M 4  D 1`) rather than truncating mid-list.
+- Short replies still hold for everything that is not the recap.
+
+Where the data comes from: the Git block and the file list come from `git` in the worktree
+(`git diff --name-status origin/main...HEAD` for the file list, `git log` for stack position), and the PR
+line comes from `npx -y gh-axi pr view`. Never guess a PR number.
+
+Delivery: today the recap goes in the chat reply and nowhere else. Forwarding it to the `#pns` Discord
+channel through pns is planned as `pns recap agent --stdin` and is not built, so never claim the recap
+was posted anywhere.
+
 ## Pull request descriptions
 
 `~/.claude/commands/pr.md` is the single source for the body's section contract and for the

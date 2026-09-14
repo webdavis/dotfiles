@@ -100,7 +100,7 @@ pub use results_cursor::{CursorFile, SingleRunLock};
 mod converge;
 pub use converge::{
     CommandRefusal, ConvergeInstaller, OsqueryParents, OsqueryRestart, RestartTimer,
-    resolve_osqueryctl, resolve_osqueryd,
+    resolve_osqueryctl, resolve_osqueryi,
 };
 
 mod funnel_status;
@@ -120,3 +120,16 @@ pub use watchdog_audit::WatchdogAudit;
 
 mod integrity_triage;
 pub use integrity_triage::file_integrity_triage;
+
+mod sshd_tree;
+pub use sshd_tree::SshConfigTree;
+
+mod ssh_commands;
+mod ssh_signals;
+pub use ssh_commands::{SshFileInstaller, SshKeyscan, SshLaunchd, SshdCommand};
+pub use ssh_signals::{SshSignals, ssh_install_cancelled};
+mod ssh_user;
+pub use ssh_user::ssh_current_user;
+
+#[cfg(test)]
+mod test_sandbox;

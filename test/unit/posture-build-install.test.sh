@@ -189,7 +189,7 @@ ready_to_build() {
 
 run_setup_caller() {
   HOME="$sandbox_home" CHEZMOI_HOME_DIR="$sandbox_home" \
-    TASK50_CALLS="$sandbox/converge.args" TASK50_EXIT="${1:-0}" \
+    CONVERGE_ARGV_LOG="$sandbox/converge.args" CONVERGE_EXIT="${1:-0}" \
     bash "$(repo_root)/.chezmoiscripts/run_after_59-setup-osquery.sh"
 }
 
@@ -202,8 +202,8 @@ function test_setup_caller_runs_converge_from_the_binary_the_builder_just_instal
   cat >"$sandbox_home/.stub-artifact" <<'STUB'
 #!/bin/bash
 set -euo pipefail
-printf '%s\n' "$@" >>"$TASK50_CALLS"
-exit "${TASK50_EXIT:-0}"
+printf '%s\n' "$@" >>"$CONVERGE_ARGV_LOG"
+exit "${CONVERGE_EXIT:-0}"
 STUB
   assert_builder_succeeds
   local output
@@ -362,6 +362,9 @@ function test_an_identical_build_repairs_binary_and_record_permissions() {
   assert_same 1 "$(wc -l <"$runner_calls" | tr -d ' ')"
 }
 
+# 8388608 is posture's own ceiling, about twice its measured size, declared in
+# .chezmoidata/rust_tools.yaml. pns is an order of magnitude larger and carries
+# a ceiling of its own, so neither number is a shared constant.
 function test_an_artifact_at_the_audit_size_limit_can_be_published() {
   ready_to_build
   printf 8388608 >"$sandbox_home/.stub-artifact-bytes"

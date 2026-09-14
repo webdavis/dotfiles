@@ -314,10 +314,31 @@ if [[ ! $owner_uid =~ ^[0-9]{1,10}$ ]]; then
   exit 1
 fi
 
+# The largest artifact each tool may record, keyed by tool. ONE shared ceiling
+# does not work here: pns is an order of magnitude larger than posture, so a
+# ceiling sized for posture refuses every pns record and a ceiling sized for pns
+# lets a runaway posture artifact through. The authority for these numbers is
+# `rust_tools.max_artifact_bytes` in .chezmoidata/rust_tools.yaml, which the two
+# builder TEMPLATES read at render time. This script is a plain script, not a
+# template, so it cannot; the values are repeated here by hand and must be moved
+# with that file and with PNS_MAX_BYTES in posture's watchdog audit.
+declare -A max_artifact_bytes=(
+  [pns]=14680064
+  [posture]=8388608
+)
+
 # The builder publishes this record before its scoped refresh and installation.
 # Reading only that record retains the tuple on applies that ran no build.
 authorized_record_hash() {
-  local tool="$1" record="$home/.local/state/$1-build-record" digest bytes compiler
+  local tool="$1" record="$home/.local/state/$1-build-record" digest bytes compiler maximum
+  # A tool with no declared ceiling is a programming error, never a pass: it
+  # would otherwise compare against an empty string and refuse every record
+  # with an arithmetic failure that names nothing.
+  maximum="${max_artifact_bytes[$tool]:-}"
+  if [[ ! $maximum =~ ^[1-9][0-9]{0,18}$ ]]; then
+    printf 'osquery known-good manifests: no artifact ceiling declared for %s, refusing to rewrite the pipeline manifest\n' "$tool" >&2
+    return 1
+  fi
   if [[ ! -e $record && ! -L $record ]]; then
     printf unbuilt
     return 0
@@ -325,8 +346,8 @@ authorized_record_hash() {
   if [[ -f $record && ! -L $record ]] && {
     IFS= read -r digest && IFS= read -r bytes && IFS= read -r compiler
   } <"$record" &&
-    [[ $digest =~ ^sha256\ [0-9a-f]{64}$ && $bytes =~ ^bytes\ [1-9][0-9]{0,6}$ && $compiler == 'rustc '?* ]] &&
-    ((${bytes#bytes } <= 8388608)); then
+    [[ $digest =~ ^sha256\ [0-9a-f]{64}$ && $bytes =~ ^bytes\ [1-9][0-9]{0,9}$ && $compiler == 'rustc '?* ]] &&
+    ((${bytes#bytes } <= maximum)); then
     printf '%s' "${digest#sha256 }"
     return 0
   fi
@@ -392,8 +413,11 @@ refresh_manifest() {
   done
 
   # Built binaries have no chezmoi cat/dump entry. Never adopt their live bytes.
+  # Named in PATH ORDER, which is what the rest of this manifest is sorted by:
+  # `pns` sorts before `posture` because `n` precedes `o`, and the two share a
+  # parent directory. Reversing them leaves the manifest unsorted at its tail.
   if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
-    for refresh_manifest_binary in posture pns; do
+    for refresh_manifest_binary in pns posture; do
       refresh_manifest_hash="$(authorized_record_hash "$refresh_manifest_binary")" || return 1
       printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/$refresh_manifest_binary" >>"$fresh"
     done

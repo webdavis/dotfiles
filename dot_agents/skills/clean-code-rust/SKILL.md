@@ -100,6 +100,11 @@ fixtures it owns, and pin any generated-file equality from the outer repository 
 
 ## Tests
 
+**New behavior is written test-first, without exception.** Write the failing test, run it under
+`cargo test`, see it fail for the reason you intended, then make it pass. A pure move is exempt: it
+owes a test that already pins the behavior, written before the move if none exists. The full rule,
+and the mutation verification every fix owes after green, is in `clean-code/TESTING.md`.
+
 Unit tests live beside their implementation under `#[cfg(test)] mod tests;`. A large unit-test module
 may live in a private child file (`src/lights/schedule.rs` beside `src/lights/schedule/tests.rs`);
 that is still `cfg(test)` and does not enter production builds.

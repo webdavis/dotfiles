@@ -39,13 +39,14 @@ mod severity;
 pub use cursor::{
     Advance, LiveLog, StoredCursor, advance, parse as parse_cursor, render as render_cursor,
 };
-pub use digest::{BULLETS_PER_GROUP, DigestEntry, GROUP_LIMIT, render_digest};
+pub use digest::{BULLETS_PER_GROUP, DigestEntry, DigestLimits, GROUP_LIMIT, render_digest};
 pub use gate::{
     FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
     LaunchdIdentity, Signing, Triage, gate,
 };
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
 pub use records::{CompleteRecords, complete_records};
+pub use sanitize::FIELD_LIMIT;
 pub use severity::{Action, ProtectionState, Severity, severity};
 
 mod allowlist;
@@ -117,3 +118,6 @@ pub use poll::{
 
 mod triage;
 pub use triage::{UpgradeRecordRefusal, recorded_hash, upgrade_correlation};
+
+mod ssh_policy;
+pub use ssh_policy::*;

@@ -200,7 +200,7 @@ fn native_explicit_nonexecutable_command_does_not_fall_back() {
             "osqueryctl",
             resolve_osqueryctl as fn(Option<&Path>, &OsStr) -> _,
         ),
-        ("osqueryi", resolve_osqueryd),
+        ("osqueryi", resolve_osqueryi),
     ] {
         let shadow = Scratch::new();
         let usable = Scratch::new();
@@ -217,7 +217,7 @@ fn native_search_skips_nonexecutable_files_before_checking_parent_trust() {
             "osqueryctl",
             resolve_osqueryctl as fn(Option<&Path>, &OsStr) -> _,
         ),
-        ("osqueryi", resolve_osqueryd),
+        ("osqueryi", resolve_osqueryi),
     ] {
         let shadow = Scratch::new();
         let usable = Scratch::new();
@@ -235,7 +235,7 @@ fn native_search_skips_directories_the_user_cannot_search() {
             "osqueryctl",
             resolve_osqueryctl as fn(Option<&Path>, &OsStr) -> _,
         ),
-        ("osqueryi", resolve_osqueryd),
+        ("osqueryi", resolve_osqueryi),
     ] {
         let shadow = Scratch::new();
         let usable = Scratch::new();
@@ -256,7 +256,7 @@ fn native_resolution_never_selects_a_directory_as_a_command() {
             "osqueryctl",
             resolve_osqueryctl as fn(Option<&Path>, &OsStr) -> _,
         ),
-        ("osqueryi", resolve_osqueryd),
+        ("osqueryi", resolve_osqueryi),
     ] {
         let root = Scratch::new();
         let directory = root.0.join(name);

@@ -9,14 +9,13 @@
 # action renders it to itself, so a plain pack is validated by exactly the same
 # command as a templated one and neither can be added to the tree unvalidated.
 #
-# The throwaway HOME is chezmoi's read-source-state pre hook, which chdirs
-# there; --source pins the render to this checkout.
 set -uo pipefail
-HOME="$(mktemp -d)"
-export HOME
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/lib-render-context.sh"
+init_render_context || exit 1
 status=0
 for file; do
-  CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$file" | jq empty || {
+  render_template "$file" | jq empty || {
     printf 'osquery-config-render: rendered config is not valid JSON: %s\n' "$file" >&2
     status=1
   }

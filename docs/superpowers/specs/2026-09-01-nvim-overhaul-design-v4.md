@@ -1050,11 +1050,14 @@ the plugin spec's header comment in PR 12:
 1. Local-install PATH: `claude` is on PATH in every herdr pane through the bashrc; nothing to do.
 
 The launch helper is one keymap, `<leader>Cc`, and it lives in the shared herdr seam of 7.4, which is
-also where the agent lookup and the interrupt policy are stated once. The agent lookup is not written
-by this program: `herdr-nvim` (installed, `lua/herdr-nvim/agents.lua`) already lists
-the agents of `HERDR_WORKSPACE_ID` (`agents.list()`), narrows to the one that shares `HERDR_TAB_ID` or
-to a lone agent in the workspace (`agents.resolve()`), and shows a picker when that is ambiguous
-(`ui.pick_agent`). Focus is never consulted, here or in 7.3 or 7.7: herdr focus is UI-wide, one
+also where the agent lookup and the interrupt policy are stated once. The listing is not written by
+this program: `herdr-nvim` (installed, `lua/herdr-nvim/agents.lua`) lists the agents of a workspace
+(`agents.list()`). The narrowing is this program's: it reads the editor's LIVE pane and tab
+(`herdr pane current --current`), because `HERDR_TAB_ID` is stamped when the terminal launches and a
+tab move leaves it stale, which is why the plugin's `agents.resolve()` is not used; then the one agent
+sharing that tab, else a lone agent in the workspace, else a `vim.ui.select` picker whose rows carry
+the pane id (not `ui.pick_agent`, whose rows collide for two agents in one repository). Focus is never
+consulted, here or in 7.3 or 7.7: herdr focus is UI-wide, one
 focused pane in the whole session, so every agent of a background workspace reports `focused = false`
 and the field cannot say which agent an editor pane means. The helper:
 
@@ -1320,9 +1323,15 @@ the launch helper (7.2, PR 13), the selection send (item 39, PR 11) and the anno
 PR 16). It is a thin wrapper over the installed `herdr-nvim` plugin, never a second implementation of
 what that plugin already does.
 
-- `agent_pane()` returns a pane id or nil through `herdr-nvim`'s own workspace-scoped lookup:
-  `agents.list()`, then `agents.resolve()` (the agent sharing `HERDR_TAB_ID`, else a lone agent in
-  the workspace), else `ui.pick_agent`. Focus is never consulted (7.2).
+- `agent_pane(on_pane)` answers through the callback, never a return value: the ambiguous case goes
+  through `vim.ui.select`, which snacks.nvim replaces with an asynchronous picker, so it cannot answer
+  in the caller's stack frame. It first proves the editor is inside herdr and that its live pane still
+  sits in `HERDR_WORKSPACE_ID`; either refusal warns and calls `on_pane` NOT AT ALL. Then
+  `agents.list()` filtered to Claude agents in the live workspace: none calls `on_pane(nil)`; the one
+  sharing the live tab, else a lone agent in the workspace, calls `on_pane(pane_id)`; several open the
+  picker, and a cancelled picker calls `on_pane` not at all, which is what keeps `launch_or_attach`
+  from splitting a pane on the strength of a lookup that never happened. Focus is never consulted
+  (7.2).
 - `send(text, { submit })` delegates to `herdr-nvim`'s
   `dispatch.send(pane_id, text, opts, exec)` (read at the installed plugin: `submit` runs
   `herdr agent prompt`, which presses Enter; otherwise `herdr pane send-text`, which does not).

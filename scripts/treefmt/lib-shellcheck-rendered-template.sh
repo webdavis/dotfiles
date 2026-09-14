@@ -1,9 +1,7 @@
 # shellcheck shell=bash
 # Per-file body of the treefmt `shellcheck-rendered-template` formatter, factored
-# out so test/unit/rendered-template-shellcheck-wrapper.sh can drive it with a stubbed
-# chezmoi and shellcheck. treefmt.nix sources this verbatim (builtins.readFile)
-# into the formatter's writeShellApplication text; chezmoi and shellcheck come
-# from the derivation's runtimeInputs there and from PATH stubs in the test.
+# out so test/unit/rendered-template-shellcheck-wrapper.sh can drive it with a
+# stubbed render_template and shellcheck.
 #
 # Skip semantic: after a SUCCESSFUL render, a blank (empty or whitespace-only)
 # result means an OS-gated template on the other OS has nothing to lint, so the
@@ -14,7 +12,7 @@
 render_and_shellcheck_one() {
   local file="$1"
   local rendered
-  if ! rendered="$(CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$file")"; then
+  if ! rendered="$(render_template "$file")"; then
     printf 'shellcheck-rendered-template: chezmoi render failed: %s\n' "$file" >&2
     return 1
   fi

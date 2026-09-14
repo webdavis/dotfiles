@@ -35,7 +35,9 @@ pub use snapshots::{SnapshotReadFailure, SnapshotsLog};
 
 mod build_digest;
 mod heartbeat;
-pub use build_digest::{BuildDigest, ClaimedBatch, DigestOutcome, DigestRow, DigestSpool};
+pub use build_digest::{
+    BuildDigest, ClaimFailure, ClaimedBatch, DigestOutcome, DigestReport, DigestRow, DigestSpool,
+};
 pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,
@@ -58,6 +60,13 @@ pub use judge_results::{
 
 mod funnel;
 pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};
+mod ssh;
+pub use ssh::{
+    SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshInstallSignals,
+    SshLaunchctl, SshOutput, SshReload, SshScanFailure, SshTree, SshVerification, SshVerifyContext,
+    Sshd, install_ssh, reload_ssh, rollback_ssh, verify_ssh,
+};
+
 mod watchdog;
 pub use watchdog::{
     AuditObservation, DaemonHealth, GatewayHealth, QueueHealth, Watchdog, WatchdogIntegrity,

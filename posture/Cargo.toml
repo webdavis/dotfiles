@@ -24,8 +24,8 @@
 # through bash. Every child has an explicit deadline. Other subcommands exit 2.
 #
 # The release profile is what the builder installs and what the manifest audit
-# hashes. The audit refuses a file over 8 MiB, so the profile is tuned for size
-# and the builder measures the artifact against that bound before installing.
+# hashes. Each tool has its own artifact ceiling and the builder measures the
+# artifact against it before installing, so the profile is tuned for size.
 [workspace]
 resolver = "3"
 members = [

@@ -1,4 +1,3 @@
-use crate::private_directory::PrivateDirectory;
 use crate::{CommandIo, CommandRunner};
 use posture_application::{InspectionFailure, OsqueryControl, VendorPlist};
 use std::path::PathBuf;
@@ -7,7 +6,7 @@ pub struct OsqueryRestart<R> {
     pub(super) runner: R,
     sudo: PathBuf,
     command: PathBuf,
-    daemon: Option<PathBuf>,
+    osqueryi: Option<PathBuf>,
     target: PathBuf,
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
@@ -15,14 +14,14 @@ impl<R: CommandRunner> OsqueryRestart<R> {
         runner: R,
         sudo: PathBuf,
         command: PathBuf,
-        daemon: Option<PathBuf>,
+        osqueryi: Option<PathBuf>,
         target: PathBuf,
     ) -> Self {
         Self {
             runner,
             sudo,
             command,
-            daemon,
+            osqueryi,
             target,
         }
     }
@@ -36,7 +35,31 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
         }
     }
     fn config_check(&mut self) -> Result<(), InspectionFailure> {
-        self.config_check_in(&std::env::temp_dir())
+        let io = CommandIo::Inspection {
+            merge_stderr: false,
+        };
+        // Measured against osqueryi 5.23.1: --disable_database opens no database at
+        // all, so the check neither contends with the lock the running daemon holds
+        // on the live one nor creates a database of its own for the unprivileged
+        // converge to clean up after root. osqueryctl runs its own check, and picks
+        // its own database path, so the fallback needs nothing from this caller.
+        let Some(osqueryi) = &self.osqueryi else {
+            return self.command("config-check", io);
+        };
+        self.runner
+            .run(
+                &self.sudo,
+                &[
+                    "-n".as_ref(),
+                    osqueryi.as_os_str(),
+                    "--config_path".as_ref(),
+                    self.target.join("osquery.conf").as_os_str(),
+                    "--config_check".as_ref(),
+                    "--disable_database".as_ref(),
+                ],
+                io,
+            )
+            .map(|_| ())
     }
     fn stop(&mut self) -> Result<(), InspectionFailure> {
         self.command(
@@ -51,35 +74,6 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
     }
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
-    fn config_check_in(&mut self, scratch: &std::path::Path) -> Result<(), InspectionFailure> {
-        let database =
-            PrivateDirectory::create(scratch).map_err(|_| InspectionFailure::Unavailable)?;
-        let io = CommandIo::Inspection {
-            merge_stderr: false,
-        };
-        let result = if let Some(daemon) = &self.daemon {
-            self.runner
-                .run(
-                    &self.sudo,
-                    &[
-                        "-n".as_ref(),
-                        daemon.as_os_str(),
-                        "--config_path".as_ref(),
-                        self.target.join("osquery.conf").as_os_str(),
-                        "--config_check".as_ref(),
-                        "--database_path".as_ref(),
-                        database.path().join("db").as_os_str(),
-                    ],
-                    io,
-                )
-                .map(|_| ())
-        } else {
-            self.command("config-check", io)
-        };
-        let cleanup =
-            std::fs::remove_dir_all(database.path()).map_err(|_| InspectionFailure::Unavailable);
-        result.and(cleanup)
-    }
     fn command(&mut self, verb: &str, io: CommandIo<'_>) -> Result<(), InspectionFailure> {
         self.runner
             .run(
