@@ -126,9 +126,9 @@ third gotcha).
 
 **The gateway does not expand `${VAR}` in its platform config.** `gateway/config.py` loads `config.yaml`
 with a bare `yaml.safe_load` and merges `platforms` straight through, so a `chat_id` written as
-`${DISCORD_POSTURE_CHANNEL}` reaches Discord as that literal string. Channel ids are literals in the
-encrypted file; the `DISCORD_*_CHANNEL` lines in the `.env` template are how the ids come out of
-KeePassXC for a human to read, not how the gateway finds them.
+`${DISCORD_HOME_CHANNEL}` reaches Discord as that literal string. A route's channel id is a literal in
+the encrypted file and cannot be reached from the `.env`, so a new route gets no `.env` line of its own.
+`DISCORD_HOME_CHANNEL` is there because hermes itself reads it for the fallback channel.
 
 **A prompt template renders an unknown placeholder as itself.** `_render_prompt` substitutes a missing
 key with `{the.key}` rather than failing, so a route whose template does not match its producers' body
