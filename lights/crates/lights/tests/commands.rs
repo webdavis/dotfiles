@@ -132,6 +132,10 @@ const PRESETS: &str = "[presets]\n\
        { room = 'studio', scene = 'Energize' },\n\
        { room = 'kitchen', scene = 'Missing' },\n\
        { room = 'bedroom', scene = 'Read' },\n\
+     ]\n\
+     doomed = [\n\
+       { room = 'No Such Room', scene = 'Read' },\n\
+       { room = 'studio', scene = 'Missing' },\n\
      ]\n";
 
 fn preset(args: &[&str], writes: usize) -> (Response, Vec<Vec<u8>>) {
@@ -178,6 +182,17 @@ fn a_failed_room_leaves_the_rest_applied_and_sets_the_exit_code() {
 }
 
 #[test]
+fn the_first_failure_names_the_exit_code_and_a_room_the_bridge_lacks_is_one() {
+    let (r, w) = preset(&["preset", "doomed"], 0);
+    assert_eq!(r.exit, 2);
+    assert_eq!(r.stdout, "");
+    assert_eq!(r.stderr.lines().count(), 2);
+    assert!(r.stderr.contains("No Such Room"));
+    assert!(r.stderr.contains("Missing"));
+    assert_eq!(w.len(), 1);
+}
+
+#[test]
 fn unknown_preset_name_is_a_usage_error_without_a_read() {
     let (r, w) = preset(&["preset", "midnight"], 0);
     failure(&r, 1, "midnight");
@@ -188,7 +203,7 @@ fn unknown_preset_name_is_a_usage_error_without_a_read() {
 fn bare_preset_lists_the_configured_presets_without_a_read() {
     let (r, w) = preset(&["preset"], 0);
     assert_eq!(r.exit, 0);
-    assert_eq!(r.stdout, "evening\npartial\n");
+    assert_eq!(r.stdout, "doomed\nevening\npartial\n");
     assert!(w.is_empty());
     let (r, w) = command(&["preset"], Some(config()), vec![]);
     assert_eq!((r.exit, r.stdout.as_str()), (0, ""));
