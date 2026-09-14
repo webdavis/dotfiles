@@ -59,6 +59,11 @@ function set_up_before_script() {
   # The dry run needs a repository the sweep has not already emptied.
   prune_build_repository "$PRUNE_ROOT/preview"
   prune_add_worktree "$PRUNE_ROOT/preview" landed
+  # A registered worktree whose directory is momentarily absent, which is what
+  # an unmounted volume or a moved checkout looks like. `git worktree prune`
+  # would deregister it on the spot, so a dry run must not reach one.
+  prune_add_worktree "$PRUNE_ROOT/preview" unmounted
+  mv "$PRUNE_ROOT/preview/unmounted" "$PRUNE_ROOT/preview/unmounted-aside"
   prune_publish_herdr_list "$PRUNE_ROOT/preview/landed" w1
   : >"$PRUNE_HERDR_CALLS"
   PRUNE_PREVIEW_OUTPUT="$(prune_run "$PRUNE_ROOT/preview" --dry-run)"
@@ -171,6 +176,10 @@ function test_a_dry_run_removes_nothing() {
   assert_directory_exists "$PRUNE_ROOT/preview/landed"
   assert_contains 'would remove' "$PRUNE_PREVIEW_OUTPUT"
   assert_not_contains 'worktree remove' "$PRUNE_PREVIEW_CALLS"
+}
+
+function test_a_dry_run_keeps_the_metadata_of_an_absent_worktree() {
+  assert_directory_exists "$PRUNE_ROOT/preview/repo/.git/worktrees/unmounted"
 }
 
 function test_an_unknown_argument_is_refused() {

@@ -208,7 +208,11 @@ main() {
     fail "$UPSTREAM_REF does not exist; nothing was removed"
   load_herdr_workspace_ids
   prune_worktrees
-  git worktree prune
+  # A bare `git worktree prune` deregisters immediately, so it is a write and
+  # stays out of a dry run. The three-month grace is `gc.worktreePruneExpire`,
+  # which `git gc` applies and this does not, so an unguarded call here would
+  # deregister a worktree whose directory is only momentarily absent.
+  ((dry_run)) || git worktree prune
   ((removal_failed == 0)) || fail 'at least one worktree could not be removed'
 }
 
