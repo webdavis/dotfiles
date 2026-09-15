@@ -172,7 +172,8 @@ fits "$terminal" || die 3 "herdr reports terminal '$terminal', which cannot name
 reported="$(bounded nvim --headless --clean \
   -c 'lua local sockets = dofile(vim.fn.stdpath("config") .. "/lua/custom_api/pane_socket.lua"); local root = sockets.root(); io.write(vim.json.encode({ root = root, private = root ~= nil and sockets.private(root), session = sockets.session() }))' -c 'qa!')"
 session="$(jq -r '.session // empty' <<<"$reported" 2>/dev/null || true)"
-[[ $session =~ ^[0-9a-f]{6}$ ]] || die 2 'nvim did not report the session hash, so no socket can be named'
+[[ $session =~ ^[0-9a-f]{6}$ ]] ||
+  die 2 'nvim did not report the session hash, so no socket can be named; check that ~/.config/nvim/lua/custom_api/pane_socket.lua is deployed (chezmoi apply)'
 root="$(jq -r '.root // empty' <<<"$reported" 2>/dev/null || true)"
 jq -e '.private == true' <<<"$reported" >/dev/null 2>&1 ||
   die 2 "the run dir $root must be absolute, owned at 0700, protected by its ancestors, and contain no newline"
