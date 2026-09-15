@@ -73,6 +73,18 @@ pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
         watch_card: watch_card(settings),
     }
 }
+/// The one read of `[plugins.discord]`, and the one place its refusal reaches
+/// stderr. `read_mobile`'s shape exactly, and for its reasons.
+pub(crate) fn read_discord(config: &pns_adapters::Config) -> DiscordSettings {
+    match pns_adapters::armed_discord(config) {
+        Err(reason) => {
+            eprintln!("pns: config error ({reason}); nothing is posted to discord");
+            DiscordSettings::refused(reason)
+        }
+        Ok(None) => DiscordSettings::default(),
+        Ok(Some(settings)) => pns_adapters::discord_settings(settings),
+    }
+}
 /// One line about a table the event path deliberately never refuses.
 ///
 /// A DISABLED TABLE IS INERT (operator ruling 2026-08-31). Nothing at load and
@@ -122,6 +134,9 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
     }
     if switched_off("mobile").is_some_and(|settings| mobile_backend(settings).is_err()) {
         warnings.push(disabled_backend_warning("mobile", MOSHI_TYPE));
+    }
+    if switched_off("discord").is_some_and(|settings| discord_backend(settings).is_err()) {
+        warnings.push(disabled_backend_warning("discord", BOT_TYPE));
     }
     warnings
 }

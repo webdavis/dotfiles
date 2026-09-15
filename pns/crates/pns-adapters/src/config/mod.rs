@@ -30,7 +30,9 @@ pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
-pub use plugins::{DEFAULT_SUBMIT_DEADLINE_SECS, armed_mobile, enabled_hue_table, submit_deadline};
+pub use plugins::{
+    DEFAULT_SUBMIT_DEADLINE_SECS, armed_discord, armed_mobile, enabled_hue_table, submit_deadline,
+};
 mod recap;
 pub use pns_domain::recap::Recap;
 use recap::{MAX_SUMMARIZER_DEADLINE_SECS, parse_recap};
@@ -97,6 +99,9 @@ pub use banner::banner_click;
 
 mod hermes;
 pub use hermes::{HermesKeys, hermes_keys};
+
+mod discord;
+pub use discord::{BOT_TYPE, DiscordSettings, discord_backend, discord_settings};
 
 mod selection;
 pub use selection::select_plugins;

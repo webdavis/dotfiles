@@ -42,6 +42,8 @@ const FOOTER: &str = "{{- end }}\n";
 /// catch a pasted credential landing in the file this repo commits.
 const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
+    "plugins.discord.token",
+    "plugins.discord.channels.default",
     "plugins.hue.bridge",
     "plugins.hue.key",
     "plugins.router.api_key",

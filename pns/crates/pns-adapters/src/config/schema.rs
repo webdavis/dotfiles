@@ -107,6 +107,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
+    ("plugins.discord", &["channels", "enabled", "token", "type"]),
+    ("plugins.discord.channels", &["default"]),
     ("plugins.hermes", &["enabled", "keys"]),
     ("plugins.hermes.keys", pns_domain::routes::ROUTES),
     (

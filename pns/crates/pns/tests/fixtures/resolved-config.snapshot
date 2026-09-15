@@ -1,6 +1,24 @@
 Config {
     phone_marker_file: None,
     plugins: {
+        "discord": PluginEntry {
+            enabled: false,
+            settings: {
+                "channels": Table(
+                    {
+                        "default": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#github-notifications):Password",
+                        ),
+                    },
+                ),
+                "token": String(
+                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
+                ),
+                "type": String(
+                    "bot",
+                ),
+            },
+        },
         "hermes": PluginEntry {
             enabled: true,
             settings: {

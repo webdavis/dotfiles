@@ -40,6 +40,7 @@ pub use config::{
 };
 
 pub use config::banner_click;
+pub use config::{BOT_TYPE, DiscordSettings, armed_discord, discord_backend, discord_settings};
 pub use config::{HermesKeys, hermes_keys};
 
 pub use config::select_plugins;
@@ -109,6 +110,10 @@ pub use destinations::banner::{
 pub use destinations::hermes::{
     DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, probe_route, probe_routes,
     remote_deadline,
+};
+
+pub use destinations::discord::{
+    DiscordChannel, DiscordPost, DiscordRequest, UreqDiscordPost, refused_discord_line,
 };
 
 pub use destinations::moshi::{
