@@ -48,7 +48,7 @@ An empty section says so in one line rather than being dropped.
 
 ## Print it, then post it
 
-The recap goes in the chat reply. To forward it to the `#pns-recap` Discord
+The recap goes in the chat reply. To forward it to the `#pns-events` Discord
 channel, pipe the same text through pns:
 
 ```bash
