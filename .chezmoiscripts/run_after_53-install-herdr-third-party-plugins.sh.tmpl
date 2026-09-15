@@ -54,12 +54,21 @@ plugin_registered() {
 # Install one plugin when it is absent. Quiet when it is already there, so a
 # no-op apply prints nothing. 300s rather than 10s because the install clones the
 # plugin repository, which is a network operation and not a socket round trip.
+# A pinned ref (uu's own `ref:` roster key) is passed through so a fresh install
+# lands at that revision instead of tip; the id-only presence gate above still
+# skips a plugin that is already registered, pinned or not, since only uu's
+# weekly refresh reconciles a plugin sitting at the wrong revision.
 install_plugin() {
-  local plugin_id=$1 source_repo=$2
+  local plugin_id=$1 source_repo=$2 ref=${3:-}
+  local -a install_args=("$source_repo")
+  if [[ -n $ref ]]; then
+    install_args+=(--ref "$ref")
+  fi
+  install_args+=(--yes)
   if plugin_registered "$plugin_id"; then
     return 0
   fi
-  if "$timeout_bin" 300 herdr plugin install "$source_repo" --yes >/dev/null 2>&1 &&
+  if "$timeout_bin" 300 herdr plugin install "${install_args[@]}" >/dev/null 2>&1 &&
     plugin_registered "$plugin_id"; then
     printf 'herdr plugin %s installed from %s\n' "$plugin_id" "$source_repo"
   else
@@ -74,7 +83,7 @@ install_plugin() {
 # `herdr api snapshot` subcommand 0.7.0-preview lacked. The sidebar source path
 # carries a subdirectory because its repository is a monorepo.
 {{ range .packages.herdr_plugins -}}
-install_plugin {{ .id }} {{ .repo }}
+install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
 {{ end -}}
 
 # Quota needs its collectors configured after installation and target updates.

@@ -17,9 +17,13 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
         typed::<HerdrLane>(CONFIG, "herdr"),
         Some(HerdrLane {
             binary: "/stand-in/.local/bin/herdr".to_string(),
+            // THE SHIPPED ROSTER IS UNPINNED and the key is written out at
+            // that default, so the operator can see the knob without being
+            // told it exists.
             plugins: vec![Plugin {
                 id: "stand-in".to_string(),
                 repo: "stand-in".to_string(),
+                pinned_ref: None,
             }],
         })
     );

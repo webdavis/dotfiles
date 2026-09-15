@@ -13,9 +13,17 @@ fn lane(plugins: &[(&str, &str)]) -> HerdrLane {
             .map(|(id, repo)| Plugin {
                 id: id.to_string(),
                 repo: repo.to_string(),
+                pinned_ref: None,
             })
             .collect(),
     }
+}
+
+/// The same lane with one plugin held at a revision.
+fn pinned_lane(id: &str, repo: &str, reference: &str) -> HerdrLane {
+    let mut lane = lane(&[(id, repo)]);
+    lane.plugins[0].pinned_ref = Some(reference.to_string());
+    lane
 }
 
 // --- the herdr lane -------------------------------------------------------
@@ -263,5 +271,105 @@ fn a_lane_with_no_plugins_still_updates_the_binary() {
     assert_eq!(
         runner.calls().first().map(|call| call[1].clone()),
         Some("update".to_string())
+    );
+}
+
+// --- pinning --------------------------------------------------------------
+
+#[test]
+fn an_unpinned_plugin_is_installed_from_tip_with_no_ref_flag() {
+    let runner = ScriptedRunner::new(&[]);
+    let report = lane(&[("a", "o/a")]).run("herdr", &stub_facts(), &runner);
+    assert_eq!(report.failures(), 0);
+    assert!(
+        !runner
+            .calls()
+            .iter()
+            .any(|call| call.contains(&"--ref".to_string())),
+        "{:?}",
+        runner.calls()
+    );
+    assert!(
+        report
+            .lines
+            .iter()
+            .any(|line| line == "plugin a: refreshed"),
+        "{:?}",
+        report.lines
+    );
+}
+
+#[test]
+fn a_pinned_plugin_is_installed_at_its_ref_and_the_argv_carries_the_flag() {
+    let runner = ScriptedRunner::new(&[]);
+    let report = pinned_lane("a", "o/a", "v1.2.0").run("herdr", &stub_facts(), &runner);
+    assert_eq!(report.failures(), 0);
+    assert!(
+        runner.calls().contains(&vec![
+            "herdr".to_string(),
+            "plugin".to_string(),
+            "install".to_string(),
+            "o/a".to_string(),
+            "--ref".to_string(),
+            "v1.2.0".to_string(),
+            "--yes".to_string(),
+        ]),
+        "{:?}",
+        runner.calls()
+    );
+}
+
+#[test]
+fn the_record_tells_a_plugin_that_moved_apart_from_one_held_at_a_pin() {
+    // A PIN THAT READ AS A REFRESH would be a silent freeze: the week the
+    // operator stops noticing is the week the pin stops being a decision.
+    let runner = ScriptedRunner::new(&[]);
+    let mut both = lane(&[("moves", "o/moves"), ("held", "o/held")]);
+    both.plugins[1].pinned_ref = Some("abc1234".to_string());
+    let report = both.run("herdr", &stub_facts(), &runner);
+    assert!(
+        report
+            .lines
+            .iter()
+            .any(|line| line == "plugin moves: refreshed"),
+        "{:?}",
+        report.lines
+    );
+    assert!(
+        report
+            .lines
+            .iter()
+            .any(|line| line == "plugin held: HELD at abc1234 (pinned, not updated)"),
+        "{:?}",
+        report.lines
+    );
+}
+
+#[test]
+fn a_ref_that_will_not_resolve_fails_the_step_and_never_falls_back_to_tip() {
+    let runner = ScriptedRunner::new(&[&[
+        "herdr", "plugin", "install", "o/a", "--ref", "v9.9.9", "--yes",
+    ]]);
+    let report = pinned_lane("a", "o/a", "v9.9.9").run("herdr", &stub_facts(), &runner);
+    assert_eq!(report.failures(), 1);
+    let named = report
+        .lines
+        .iter()
+        .find(|line| line.contains("FAILED"))
+        .unwrap_or_else(|| panic!("{:?}", report.lines));
+    assert!(
+        named.contains("plugin a") && named.contains("v9.9.9"),
+        "{named}"
+    );
+    // Every install attempt carried the ref; none of them was a bare tip
+    // install the operator would then read as a refresh at that revision.
+    assert!(
+        runner
+            .calls()
+            .iter()
+            .filter(|call| call.contains(&"install".to_string()))
+            .all(|call| call.contains(&"v9.9.9".to_string())),
+        "{:?}",
+        runner.calls()
     );
 }
