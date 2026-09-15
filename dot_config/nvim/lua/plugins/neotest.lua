@@ -624,16 +624,30 @@ return {
       -- returns; it does not patch, fork or modify rustaceanvim itself. WHEN THE PIN MOVES,
       -- re-check whether upstream has grown a readiness gate of its own (open question 3 in the
       -- research document); if so, this wrapper becomes dead code and should be deleted.
+      --
+      -- The retry is a one-time warm-up, not a per-file cost: neotest's directory discovery
+      -- calls `discover_positions` once per `.rs` file, and rustaceanvim's `is_test_file`
+      -- returns true for every one, so an unbounded per-file retry would spin every test-less
+      -- source file in a crate to the full 10s deadline. `warmed` latches true the first time
+      -- rust-analyzer has produced a real (non-empty) tree, after which every call, including
+      -- one for a file that genuinely has no tests, returns on its first try.
       local rustaceanvim_neotest = require("rustaceanvim.neotest")
+      local warmed = false
       local rust = vim.tbl_extend("force", rustaceanvim_neotest, {
         discover_positions = function(file_path)
+          if warmed then
+            local ok, tree = pcall(rustaceanvim_neotest.discover_positions, file_path)
+            return ok and tree or nil
+          end
           local deadline = vim.uv.hrtime() + 10e9
           while true do
             local ok, tree = pcall(rustaceanvim_neotest.discover_positions, file_path)
             if ok and tree and #tree:children() > 0 then
+              warmed = true
               return tree
             end
             if vim.uv.hrtime() >= deadline then
+              warmed = true
               return ok and tree or nil
             end
             require("nio").sleep(400)
