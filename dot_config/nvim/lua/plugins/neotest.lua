@@ -700,4 +700,12 @@ return {
   -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
   -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
   { "jfpedroza/neotest-elixir", commit = "a242aebeaa6997c1c149138ff77f6cacbe33b6fc", ft = "elixir" },
+  -- Zig: withheld. lawrence-laz/neotest-zig discovers positions correctly, but its bundled
+  -- Zig-side test runner (zig/neotest_runner.zig) is written against std.io, std.heap's old
+  -- GeneralPurposeAllocator name and std.debug.getStderrMutex, all removed or renamed by the
+  -- time of Zig 0.16.0, which is both this machine's toolchain and the version zls was pinned
+  -- to. `zig test` fails to compile that runner, so no test can actually be run. Discovery-only
+  -- is not a usable adapter, so this stays unpinned; see
+  -- docs/research/2026-09-15-neotest-language-coverage.md for the exact compiler errors and a
+  -- starting point for a from-scratch adapter.
 }
