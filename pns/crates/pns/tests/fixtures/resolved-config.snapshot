@@ -282,6 +282,15 @@ Config {
                         Looping,
                     ],
                 },
+                "2F - Kitchen - HCD5": Target {
+                    shows: Some(
+                        [
+                            Github,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
                 "2F - Kitchen - HCD6": Target {
                     shows: Some(
                         [
@@ -293,12 +302,30 @@ Config {
                     dim_window: None,
                     dim_behaviours: [],
                 },
+                "3F - MBedroom - HCL2": Target {
+                    shows: Some(
+                        [
+                            Github,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
                 "3F - MBedroom - HCL3": Target {
                     shows: Some(
                         [
                             Looping,
                             Blocked,
                             Unread,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: [],
+                },
+                "3F - Studio - HCL2": Target {
+                    shows: Some(
+                        [
+                            Github,
                         ],
                     ),
                     dim_window: None,
@@ -331,6 +358,7 @@ Config {
                         Blocked,
                         Unread,
                         Looping,
+                        Github,
                     ],
                 },
                 "3F - MBedroom": Target {
@@ -359,6 +387,7 @@ Config {
                         Blocked,
                         Unread,
                         Looping,
+                        Github,
                     ],
                 },
             },
