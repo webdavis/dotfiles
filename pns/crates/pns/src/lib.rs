@@ -31,6 +31,7 @@ pub(crate) use std::path::Path;
 pub(crate) use std::time::Duration;
 
 pub(crate) use pns_adapters::select_plugins;
+pub(crate) use pns_adapters::{BOT_TYPE, DiscordSettings, discord_backend};
 pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, hue_settings, quiet_window};
 pub(crate) use pns_adapters::{HermesKeys, hermes_keys};
 pub(crate) use pns_adapters::{
@@ -89,7 +90,7 @@ mod turn_text;
 mod wait_runtime;
 
 pub(crate) use channel_settings::{
-    Mobile, disabled_backend_warnings, plugin_settings, read_mobile,
+    Mobile, disabled_backend_warnings, plugin_settings, read_discord, read_mobile,
 };
 pub(crate) use command_click::click_mode;
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};

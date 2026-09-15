@@ -92,6 +92,7 @@ pub(super) fn every_table() -> Vec<&'static Table> {
 pub(super) const LAYOUT: &[Table] = &[
     PLUGINS_MOBILE,
     PLUGINS_HERMES,
+    PLUGINS_DISCORD,
     PLUGINS_MACOS_BANNER,
     PLUGINS_HUE,
     PLUGINS_PRESENCE,

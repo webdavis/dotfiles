@@ -93,6 +93,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
                 home: root.to_str().unwrap(),
                 mobile: &Mobile::default(),
                 hermes_keys: &pns_adapters::HermesKeys::default(),
+                discord: &pns_adapters::DiscordSettings::default(),
                 json: false,
             };
             let event = EventArgs {
