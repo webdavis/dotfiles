@@ -1906,7 +1906,8 @@ producer.
   checks from remaining rendered, device, agent-session and deployment checks. Source inventory accounts
   for all 90 entries through 59 verified merged-PR receipts. Source documentation reflects existing lazy
   loading, autosave, formatting and test integration; rendered acceptance and the listed language
-  decisions remain open.
+  decisions remain open: run drill two in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
 
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
@@ -2665,7 +2666,8 @@ operator deployment. No source correction was warranted by this audit.
   supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
   `dfe28fd3` passed independent review with 94 private checks; full `just ship` and required continuous
   integration passed. [PR #543](https://github.com/webdavis/dotfiles/pull/543) merged and local main
-  contains it. Operator deployment and live pane-move acceptance remain.
+  contains it. Operator deployment and live pane-move acceptance remain: run drill one in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
