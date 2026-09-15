@@ -19,6 +19,9 @@ fn main() -> ExitCode {
         });
     // One bulk read, then acceptances for as many writes as a whole-house run
     // sends. A queued response nothing asks for is never popped.
+    // ponytail: fixed at 8, enough for any house this harness drives today;
+    // raise it (or make ScriptedConnector hand out acceptances indefinitely)
+    // if a config ever needs more writes than that in one invocation.
     let mut responses = vec![(200, fixture)];
     responses.extend((0..8).map(|_| (200, json!({"errors":[],"data":[]}))));
     let connector = transport::ScriptedConnector::new(responses);
