@@ -55,7 +55,8 @@ function hermes_config_diff_through_chezmoi() {
 
 function test_chezmoi_runs_the_file_as_a_modify_template_not_as_a_script() {
   local out status=0
-  out="$(hermes_config_diff_through_chezmoi <<'LIVE'
+  out="$(
+    hermes_config_diff_through_chezmoi <<'LIVE'
 hermes_own_key: 42
 LIVE
   )" || status=$?
