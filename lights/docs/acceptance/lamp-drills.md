@@ -97,7 +97,7 @@ asks for one. In the Master Bedroom, pass `--room bedroom` in every row.
 | 14  | F5 off the rotation  | `lights --room kitchen scene previous`        | the room lands on `Read` again                        |
 
 Rows 11 through 14 stand in for a key that activates one named scene outside the rotation. Pick a scene
-the drill room has that is outside the rotation (`Nightlight`, `Dimmed`, `Rest`, `Soho`, `Relax`, `Read`,
+the drill room has that is outside the rotation (`Nightlight`, `Soho`, `Rest`, `Dimmed`, `Relax`, `Read`,
 `Energize`), use it as `<other scene>`, and record the name. List them with:
 
 ```bash
@@ -270,7 +270,7 @@ and forget, so a key that does nothing prints nothing anywhere.
 | F9                      | toggle power                   | the room goes dark, and a second press brings it back                           |
 | F10                     | one brightness step up         | one visible step brighter, the size the old key gave                            |
 | F8                      | one brightness step down       | one visible step dimmer                                                         |
-| F6                      | next scene in the rotation     | the next of `Nightlight`, `Dimmed`, `Rest`, `Soho`, `Relax`, `Read`, `Energize` |
+| F6                      | next scene in the rotation     | the next of `Nightlight`, `Soho`, `Rest`, `Dimmed`, `Relax`, `Read`, `Energize` |
 | F5                      | previous scene in the rotation | the rotation steps backward, and wraps at `Nightlight`                          |
 | F4                      | whole-house preset `dusk`      | all three rooms activate `Rest`                                                 |
 | F7                      | whole-house preset `night`     | all three rooms activate `Nightlight`                                           |
