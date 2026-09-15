@@ -6,9 +6,45 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// Match the prior ring lock's 200 attempts spaced one millisecond apart.
-// SQLite owns this bounded wait; refused delivery writes still report and continue.
-const BUSY_TIMEOUT: Duration = Duration::from_millis(200);
+/// How long a writer waits for the database's write lock before the operation
+/// is refused.
+///
+/// THIS NUMBER BOUNDS A WEDGED WRITER AND MEASURES NOTHING. Every transaction
+/// in this crate is a closure of short statements with no delivery, no network
+/// and no sleep inside it, and a writer that dies drops its locks with its
+/// process, so nothing legitimate holds the write lock for whole seconds.
+/// A wait that expires is therefore a machine in trouble, not a busy one.
+///
+/// IT USED TO MEASURE CONTENTION, at the prior ring lock's 200 milliseconds,
+/// and MEASURED silently lost records for it: five events firing together
+/// (a Stop hook, the long-running notifier and their siblings are an ordinary
+/// pair on a busy machine) exhausted that wait on a loaded runner and the
+/// refusal is fail-quiet, so the decision simply never appeared in the log the
+/// operator opens to ask why. Five seconds is the span this tool already uses
+/// for "a holder this long is broken rather than busy" (`RING_LOCK_STALE_SECS`),
+/// and contention between short transactions clears orders of magnitude below it.
+///
+/// THE WORST CASE IS AN INTERACTIVE HOOK STALLING FOR SECONDS, not milliseconds:
+/// `record_decision` runs in-process before the rest of the event path
+/// (`event_flow.rs`), so a genuinely wedged writer now costs a Stop or prompt
+/// hook up to this whole bound per lock acquisition, and the event path makes
+/// more than one. That is the trade this number makes: a rare multi-second
+/// stall against the common case this change fixes, records silently lost to
+/// ordinary contention.
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+/// A TEST-ONLY OVERRIDE of that bound, in `PNS_RING_LOCK_TEST_DELAY_MS`'s own
+/// style and for its mirror-image reason: a test that STAGES a wedged writer
+/// and asserts the refusal would otherwise spend the whole product bound
+/// waiting for a lock it deliberately holds itself. Unset in every real
+/// invocation, which is the only way the shipped default is ever used.
+const BUSY_TIMEOUT_OVERRIDE: &str = "PNS_DB_BUSY_TIMEOUT_MS";
+
+fn busy_timeout() -> Duration {
+    std::env::var(BUSY_TIMEOUT_OVERRIDE)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .map_or(BUSY_TIMEOUT, Duration::from_millis)
+}
 
 pub struct SqliteStore {
     pub(super) state: PathBuf,
@@ -30,7 +66,7 @@ impl SqliteStore {
         Self {
             state,
             claim: std::sync::Mutex::new(None),
-            busy_timeout: BUSY_TIMEOUT,
+            busy_timeout: busy_timeout(),
             legacy_records: false,
             log: PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
                 .join(".local/log/pns-daemon.log"),
