@@ -58,7 +58,7 @@ fn daemon_cancel_reports_the_removed_job_and_then_its_absence() {
 #[test]
 fn recap_posts_unreadable_wall_clocks_as_placeholders() {
     let sandbox = Sandbox::new("recap-clock-placeholder");
-    sandbox.write_config("[plugins.hermes]\nenabled = true\n[recap]\ndigest_as_thread = false\n");
+    sandbox.write_config("[plugins.hermes]\nenabled = true\n");
     std::fs::create_dir_all(sandbox.state()).unwrap();
     std::fs::write(
         sandbox.path("state/activity"),

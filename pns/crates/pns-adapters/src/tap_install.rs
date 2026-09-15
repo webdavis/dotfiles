@@ -75,7 +75,7 @@ fn install_guide(binary: &str, host: &str, user: &str) -> Result<TapInstall, Tap
         shortcut_url: None, verified_ios: None,
         steps: vec![
             step("1. This Mac", "the authorized_keys line", vec![
-                "Enable Remote Login for this account in macOS Sharing settings.".into(),
+                "Enable Remote Login for this account first, in System Settings, General, Sharing, Remote Login. Nothing below works without it.".into(),
                 "Paste this line into ~/.ssh/authorized_keys yourself. Replace an existing entry for this dedicated key; do not add a duplicate.".into(),
                 line,
                 "command= runs this pns binary with tap whenever the key connects.".into(),
@@ -92,7 +92,7 @@ fn install_guide(binary: &str, host: &str, user: &str) -> Result<TapInstall, Tap
                 "Script: pns tap".into(),
                 "sshd ignores this script text and runs the forced command. Display its output only after success; show SSH errors as failures.".into(),
                 "For JSON output, change the forced command on this Mac to pns tap --json. Changing the phone's script alone has no effect.".into(),
-                "If the Mac cannot answer, check Remote Login, host, port, connectivity and sleep/wake behavior. The phone's exact failure display still needs device verification.".into(),
+                "If the Mac cannot answer, the SSH action fails and the Shortcut stops there, so the phone shows that SSH error and never the success notification. Check Remote Login first, then host, port and connectivity.".into(),
             ]),
             step("3. Trigger methods", "Back Tap, Action Button, others", vec![
                 "Attach the Shortcut to Back Tap, an Action Button, a Lock Screen widget, Control Center or Siri where your device supports it.".into(),

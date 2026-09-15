@@ -5,7 +5,11 @@ use serde_json::value::RawValue;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::{fs, fs::OpenOptions, io::Read, path::Path};
 
-pub(super) fn read(path: &Path, controls: &[Control]) -> Option<(SavedPollState, String)> {
+pub(super) fn read(
+    path: &Path,
+    controls: &[Control],
+    mut on_open_error: impl FnMut(&std::io::Error),
+) -> Option<(SavedPollState, String)> {
     if !path.is_file() {
         return None;
     }
@@ -15,6 +19,7 @@ pub(super) fn read(path: &Path, controls: &[Control]) -> Option<(SavedPollState,
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
         .open(path)
+        .inspect_err(|error| on_open_error(error))
         .ok()?;
     if !file.metadata().ok()?.is_file() {
         return None;

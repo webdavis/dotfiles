@@ -1,5 +1,5 @@
+use posture_adapters::is_executable;
 use std::ffi::OsString;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 pub(super) struct Configuration {
@@ -36,10 +36,7 @@ impl Configuration {
 fn executable(name: &str, path: &std::ffi::OsStr) -> Option<PathBuf> {
     std::env::split_paths(path)
         .map(|directory| directory.join(name))
-        .find(|file| {
-            file.metadata()
-                .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
-        })
+        .find(|file| is_executable(file))
 }
 
 #[cfg(test)]

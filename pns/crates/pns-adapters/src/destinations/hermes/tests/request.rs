@@ -15,7 +15,8 @@ fn request(event: &Event) -> DeliveryRequest<'_> {
 #[test]
 fn the_original_request_id_is_in_the_signed_hermes_body_on_every_attempt() {
     for original in ["original-42", "second-19"] {
-        let channel = channel_with_settings(r#"key = "key""#, PostOutcome::Status(200));
+        let channel =
+            channel_with_settings("[keys]\npns-events = \"key\"\n", PostOutcome::Status(200));
         let event = event();
         let mut request = request(&event);
         request.request_id = Some(original);
@@ -31,7 +32,7 @@ fn the_original_request_id_is_in_the_signed_hermes_body_on_every_attempt() {
             let value: serde_json::Value = serde_json::from_str(body).unwrap();
             assert_eq!(value["request_id"], original);
             assert_eq!(value["detail"], "the full message");
-            assert_eq!(value.as_object().unwrap().len(), 5);
+            assert_eq!(value.as_object().unwrap().len(), 9);
             assert_eq!(Some(signature.as_str()), sign("key", body).as_deref());
             assert_eq!(*deadline, Some(Duration::from_secs(5)));
         }
@@ -41,7 +42,8 @@ fn the_original_request_id_is_in_the_signed_hermes_body_on_every_attempt() {
 #[test]
 fn the_original_request_id_is_the_hermes_idempotency_key_on_every_attempt() {
     for original in ["original-42", "second-19"] {
-        let channel = channel_with_settings(r#"key = "key""#, PostOutcome::Status(200));
+        let channel =
+            channel_with_settings("[keys]\npns-events = \"key\"\n", PostOutcome::Status(200));
         let event = event();
         let mut request = request(&event);
         request.request_id = Some(original);
@@ -58,7 +60,7 @@ fn the_original_request_id_is_the_hermes_idempotency_key_on_every_attempt() {
 
 #[test]
 fn an_unretained_hermes_attempt_omits_unavailable_identity_without_blocking_delivery() {
-    let channel = channel_with_settings(r#"key = "key""#, PostOutcome::Status(200));
+    let channel = channel_with_settings("[keys]\npns-events = \"key\"\n", PostOutcome::Status(200));
     let event = event();
     let mut request = request(&event);
     request.request_id = None;

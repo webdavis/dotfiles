@@ -7,8 +7,8 @@ use crate::*;
 /// prints nothing, so the mode only ever moved the deadline. MEASURED against
 /// a dead endpoint, `pns recap --since ... --until ...` printed nothing and
 /// exited 0, which is exactly the drill an operator runs by hand to check a
-/// `pns-recap` route they have just prepared, against exactly the failure it
-/// is most likely to meet.
+/// route they have just prepared, against exactly the failure it is most
+/// likely to meet.
 ///
 /// THE SAME LINE `run_event` PRINTS, prefix and all, because a second spelling
 /// of one report is a second thing to keep in step. The detached child's
@@ -17,13 +17,13 @@ pub(crate) fn deliver_recap(
     body: &str,
     channel: &str,
     home: &str,
-    hermes_key: Option<String>,
+    hermes_keys: &HermesKeys,
 ) -> Vec<(pns_domain::routing::Leg, Delivery)> {
     use pns_application::NotificationDestination;
     let selection = roster().all();
     let mobile = Mobile::default();
     let destinations =
-        channel_dispatch::destinations(&selection, channel, home, &mobile, hermes_key.clone());
+        channel_dispatch::destinations(&selection, channel, home, &mobile, hermes_keys);
     let Some(destination) = destinations.durable() else {
         return Vec::new();
     };
@@ -49,7 +49,7 @@ pub(crate) fn deliver_recap(
         selection: &selection,
         home,
         mobile: &mobile,
-        hermes_key,
+        hermes_keys,
         json: false,
     }
     .submit_request(

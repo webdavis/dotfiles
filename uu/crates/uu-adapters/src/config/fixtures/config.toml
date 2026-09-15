@@ -2,7 +2,7 @@
 day = "sunday"
 time = "12:00"
 [records]
-url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
+url = "http://127.0.0.1:8644/webhooks/uu-runs"
 key = "/stand-in"
 [alerts]
 binary = "/stand-in/.cargo/bin/pns"
@@ -16,7 +16,7 @@ type = "brew"
 brew = "/opt/homebrew/bin/brew"
 mas = "/opt/homebrew/bin/mas"
 tailscaled = "/opt/homebrew/opt/tailscale/bin/tailscaled"
-osquery_converge = "/stand-in/.local/libexec/osquery/osquery-converge.sh"
+osquery_converge = ["/stand-in/.cargo/bin/posture", "converge"]
 mas_manifest = "/stand-in/.local/state/homebrew/mas.Brewfile"
 upgrade_record = "/stand-in/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
 deadline_secs = 21600

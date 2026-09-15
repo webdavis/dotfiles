@@ -1,12 +1,17 @@
 mod policy;
+mod presets;
+mod windows;
 
-use lights_domain::{Aliases, RoomName, Rotation};
+use lights_domain::{Aliases, PresetWindows, Presets, RoomName, Rotation};
 use std::path::Path;
 
 pub struct Settings {
     pub default_room: RoomName,
     pub aliases: Aliases,
     pub rotation: Rotation,
+    pub remember_position: bool,
+    pub presets: Presets,
+    pub preset_windows: PresetWindows,
     pub step: u8,
     pub notify: bool,
     pub controller: HueSettings,
@@ -40,6 +45,8 @@ pub fn parse(text: &str) -> Result<Settings, ConfigError> {
             "scenes",
             "brightness",
             "notify",
+            "presets",
+            "preset_windows",
         ],
     )?;
     let controller = table(&root, "controller")?;

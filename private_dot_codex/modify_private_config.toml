@@ -20,7 +20,7 @@
                  says: the model and reasoning settings, the sandbox and
                  approval policy, notify, tui.vim_mode_default, [features],
                  [memories], the three git [marketplaces.*] identities, and the
-                 five MCP servers this repo declares.
+                 MCP servers this repo declares.
     FREE-DRIFT   passed through untouched: [hooks.state], the desktop app's
                  own [desktop] block and the MCP servers it injects, the
                  [plugins.*] roster, tui.model_availability_nux, the
@@ -147,7 +147,7 @@
        drifting freely. --- */ -}}
 {{- $merged = setValueAtPath (list "plugins" "babysitter@babysitter" "enabled") false $merged -}}
 
-{{- /* --- stable: the five MCP servers this repo declares, whole entry each,
+{{- /* --- stable: the MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Three
        of them carry the secrets, which come from KeePassXC at apply time and
        are the reason this target needs the vault unlocked.
@@ -193,6 +193,61 @@
     (dict
       "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)
       "env_vars" (list "HERDR_ENV" "HERDR_PANE_ID" "HERDR_SESSION" "HERDR_SOCKET_PATH" "HERDR_TAB_ID" "HERDR_WORKSPACE_ID" "NVIM_MCP_SOCKET" "XDG_RUNTIME_DIR")) $merged -}}
+
+{{- /* ynab is the local YNAB stdio server and its WRITES ARE ON. Full and
+       complete access to the YNAB account is the operator's ruling of
+       2026-09-14, so `YNAB_ALLOW_WRITES` is "1" and the server registers its
+       write tools alongside the read ones (measured on 5.2.0: 62 tools rather
+       than the 38 read tools alone). The value is still declared here rather
+       than left to a fallback, because the variable decides the tool surface
+       and this repository is where that decision is recorded.
+
+       Nine of those tools additionally require a `confirmed: true` field in
+       their own input: the two deletes, the two bulk-filter writes
+       (`approve_transactions`, `reassign_payee_transactions`), the three
+       category and split operations, `undo_operation`, and the generic
+       `ynab_write_tool_execute`. Upstream means it as a human confirmation
+       gate (every one of those fields is described as "Pass true only after
+       the user explicitly confirms"), but nothing except the schema enforces
+       it and upstream offers no switch to turn it off, so a caller can satisfy
+       it unaided. The 2026-09-14 ruling is that agents do exactly that: supply
+       the field as part of the call rather than stopping to ask the operator
+       per call.
+
+       The client-side rate limiter keeps its upstream defaults,
+       `YNAB_RATE_LIMIT_PER_HOUR` 190 and `YNAB_RATE_LIMIT_BURST` 10, and is
+       deliberately left unset here. It protects nothing across clients: the
+       token bucket and its trailing-hour counter both live inside one server
+       PROCESS, while YNAB's hard 200-per-hour lockout is per TOKEN, and one
+       token now serves three declared clients that each start a process per
+       session. The reachable budget is therefore 190 times the number of live
+       processes, so the lockout stays reachable whenever two of them run at
+       once, and it takes the whole account off the API until the rolling
+       window moves. That exposure is accepted rather than mitigated: no
+       per-process share fixes the arithmetic, and a counter shared across
+       processes would mean changing a third-party server.
+
+       `YNAB_BUDGET_ID` is unset too, so every tool falls back to YNAB's most
+       recently accessed budget. Under reads that only misroutes an answer;
+       with writes on, a create, update or delete lands there. Run
+       `list_budgets` in the first session after the apply and pin the id in
+       all three declarations if the account holds more than one budget.
+
+       `YNAB_DISABLE_AGENT_CONFIG_FALLBACK` stays "1". Without it the server
+       resolves its runtime keys out of `[shell_environment_policy.set]` and
+       `mcp_servers.ynab.env` in this very file, and out of
+       `~/.claude/settings.json` `env`. All three are free-drift, this file's
+       own header names the first as NOT declared, and leaving that channel open
+       would put the token and the tool surface at the mercy of whatever last
+       wrote those files. Writing the whole map rather than a per-key overlay is
+       what keeps every key asserted on every apply. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "ynab")
+    (dict
+      "command" (printf "%s/.local/share/fnm/aliases/default/bin/mcp-server-for-ynab" $home)
+      "env" (dict
+        "YNAB_ALLOW_WRITES" "1"
+        "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
+        "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
 
 {{- /* --- the declared project ROSTER, trusted, with every live entry this
        repo does not name PRESERVED.

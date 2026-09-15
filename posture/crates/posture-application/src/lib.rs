@@ -11,8 +11,8 @@
 //! means the engine has committed a retriable obligation for the request and
 //! not merely that a channel was tried. Notify-before-persist is therefore one
 //! line in each producer: state advances only on an accepted submission. The
-//! watchdog owns separate ledger-health and independent-alarm ports; its pns
-//! integrity/health alarm runs regardless of an engine acknowledgement.
+//! watchdog owns separate ledger-health and independent-alarm ports; its
+//! engine integrity/health alarm runs regardless of an engine acknowledgement.
 //!
 //! It is responsible for no concrete I/O and no policy: policy lives in
 //! `posture-domain`, and every trait here is implemented from the outside by
@@ -35,7 +35,9 @@ pub use snapshots::{SnapshotReadFailure, SnapshotsLog};
 
 mod build_digest;
 mod heartbeat;
-pub use build_digest::{BuildDigest, ClaimedBatch, DigestOutcome, DigestRow, DigestSpool};
+pub use build_digest::{
+    BuildDigest, ClaimFailure, ClaimedBatch, DigestOutcome, DigestReport, DigestRow, DigestSpool,
+};
 pub use heartbeat::{
     Alert, AlertSignal, AlertSink, Clock, ClockUnavailable, Heartbeat, Submission,
     SubmissionFailure, WallTime,
@@ -54,4 +56,19 @@ mod judge_results;
 pub use judge_results::{
     BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
     RunLock,
+};
+
+mod funnel;
+pub use funnel::{Funnel, FunnelFailure, FunnelGap, FunnelStateFailure, FunnelStore};
+mod ssh;
+pub use ssh::{
+    SshBannerProbe, SshCommandResult, SshCompleted, SshFile, SshInstallFiles, SshInstallSignals,
+    SshLaunchctl, SshOutput, SshReload, SshScanFailure, SshTree, SshVerification, SshVerifyContext,
+    Sshd, install_ssh, reload_ssh, rollback_ssh, verify_ssh,
+};
+
+mod watchdog;
+pub use watchdog::{
+    AuditObservation, DaemonHealth, GatewayHealth, QueueHealth, Watchdog, WatchdogIntegrity,
+    WatchdogOutcome, WatchdogProcesses, WatchdogState, WatchdogStateFailure, WatchdogStateStore,
 };

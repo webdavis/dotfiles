@@ -22,6 +22,8 @@ pub(super) mod records;
 
 pub(super) mod nag;
 
+pub(super) mod stale;
+
 pub(super) mod jobs;
 
 pub(super) mod lights;

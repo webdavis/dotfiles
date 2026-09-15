@@ -44,3 +44,18 @@ fn asking_for_the_answer_does_not_invent_a_failure() {
     ];
     assert_eq!(super::run(&argv, |_| 0), 0);
 }
+
+/// A kind pns does not know is refused whole: routing it by guess would put a
+/// page on the routine channel or a routine event on the one reserved for
+/// things that need a human.
+#[test]
+fn an_unknown_kind_is_refused_before_anything_is_delivered() {
+    for word in ["", "critical", "--agent"] {
+        let argv = ["--kind".to_string(), word.to_string()];
+        assert_eq!(
+            super::run(&argv, |_| panic!("an unknown kind reached submission")),
+            2,
+            "--kind {word:?}"
+        );
+    }
+}

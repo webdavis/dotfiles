@@ -3,7 +3,7 @@
 # Depends on domain, application and adapters to compose the tool. It decodes
 # argv, constructs adapters, invokes the named use case and translates its
 # outcome to stderr and an exit code. Wire codecs stay behind the adapters;
-# this crate depends on neither posture-protocol nor posture-pns-wire.
+# this crate depends on neither posture-protocol nor posture-producer-wire.
 #
 # The binary target keeps the tool's name because every caller (seven
 # LaunchAgent plists, the osquery setup runner, uu's brew lane and the
@@ -22,3 +22,12 @@ path = "src/main.rs"
 posture-adapters = { path = "../posture-adapters" }
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
+
+[dev-dependencies]
+serde_json = "1.0.151"
+# The SSH install fixtures state their own signal dispositions rather than
+# inheriting whatever started the suite.
+libc = "0.2.189"
+rusqlite = { version = "=0.39.0", default-features = false, features = [
+  "bundled",
+] }

@@ -21,7 +21,7 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
         Some("moshi-secret")
     );
     assert_eq!(
-        config.plugins["hermes"].settings["key"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
     let hue = &config.plugins["hue"].settings;

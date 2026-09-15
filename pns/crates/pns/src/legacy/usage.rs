@@ -18,6 +18,7 @@ pns: usage:
   pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
+  pns stale                        page about every session stuck past the window
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
@@ -28,5 +29,10 @@ pns: usage:
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --channel <route> --elapsed <secs>
-                --local-only --remote-only --long-running --require-delivery
+                --kind <agent|health> --local-only --remote-only --long-running
+                --require-delivery
+
+kinds:          agent, the default, is a session event and takes the default
+                pns-events route; health is a machine's own health and takes the
+                priority route, unless --channel already named one.
 ";

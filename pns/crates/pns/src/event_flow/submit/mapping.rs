@@ -20,6 +20,12 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             project: request.context.project.clone().unwrap_or_default(),
             branch: request.context.branch.clone().unwrap_or_default(),
             pane: request.context.pane.clone().unwrap_or_default(),
+            // THE ENVELOPE'S SESSION STAYS WHERE IT IS. A producer names one
+            // for correlation, not for attribution: the header's second line
+            // is about which of the operator's own agent sessions sent an
+            // event, and `posture`, `uu` and `pns` each have exactly one.
+            session: String::new(),
+            session_title: String::new(),
             detail: request.detail.clone(),
             channel: request
                 .route

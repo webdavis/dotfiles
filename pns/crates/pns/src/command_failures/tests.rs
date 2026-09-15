@@ -74,7 +74,12 @@ fn the_listing_clock_is_cut_at_the_minute_whatever_the_seconds_are() {
 fn the_address_follows_the_gateway_override_the_channel_itself_reads() {
     // SAFETY: single-threaded test process; the variable is restored below.
     let previous = std::env::var("PNS_HERMES_URL").ok();
-    unsafe { std::env::set_var("PNS_HERMES_URL", "http://127.0.0.1:9999/webhooks/pns") };
+    unsafe {
+        std::env::set_var(
+            "PNS_HERMES_URL",
+            "http://127.0.0.1:9999/webhooks/pns-events",
+        )
+    };
     assert_eq!(
         address(failure::DESTINATION_HERMES, "testpath"),
         "http://127.0.0.1:9999/webhooks/testpath"

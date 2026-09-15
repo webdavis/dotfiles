@@ -6,10 +6,12 @@ Everything `pns recap --since <epoch> --until <epoch>` does: how it parses its t
 one window off the activity ring, how it reaches the two sources it cannot find on its own (merged pull
 requests through `gh`, review notes matching a glob), how it spends one summarizer budget across up to
 three questions, how it composes a body under two budgets at once, how it renders a local wall clock, and
-how it posts to one durable route with one fallback. It also covers the other caller: the event path
-starts this same mode in a detached process at the return moment. Everything below is derived from the
-crate at `pns` and its tests only. Where the code does not settle a question, the line
-begins `NOT ESTABLISHED:` and names what was looked for and where.
+how it posts to the one durable route it has. It also covers the other caller: the event path
+starts this same mode in a detached process at the return moment. Behaviors 17 and 18 cover the
+subcommand's two other verbs, which serve an AGENT rather than the event path: `pns recap agent --stdin`
+posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and `gh`
+can answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does
+not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 ## Vocabulary, in the code's own words
 
@@ -126,26 +128,25 @@ Then the window is every entry whose clock satisfies `at > since && at <= until`
   and the parent card's read are two independent reads of one ring and may differ by one, which
   `src/main.rs:spawn_recap` states rather than reconciles.
 
-### 3. The composition root fails closed on the route and the summarizer, open on the post
+### 3. The composition root fails closed on the summarizer, open on the post
 
 Given a config file that cannot be loaded, or is missing
 
 When `recap_mode` resolves its settings
 
-Then the hermes key is `None`, `digest_as_thread` is forced `false`, and every other `Recap` field takes its default, so the recap goes to the DEFAULT route with no summarizer and no external source
+Then the hermes key is `None` and every `Recap` field takes its default, so the recap goes to the DEFAULT route with no summarizer and no external source
 
 - Success: `src/main.rs:recap_mode` matches only `Ok(LoadOutcome::Loaded(config))`; every other outcome
   (`LoadOutcome::Missing` and every `ConfigError`) falls to
-  `(None, Recap { digest_as_thread: false, ..Default::default() })`.
+  `(HermesKeys::default(), Recap::default())`.
 - Failure sources: a config that will not parse; a config whose file cannot be read; no config at all.
-- Fail direction: "FAIL CLOSED ON THE ROUTE AND ON THE SUMMARIZER, AND OPEN ON THE POST ... a config
-  nobody can read named no route and no command, so the recap goes to the default route, plainly, rather
-  than to a route the operator never asked for or through a program they never named"
-  (`src/main.rs:recap_mode`).
+- Fail direction: "FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST ... a config nobody can read named
+  no command, so the recap posts the plain mechanical lists rather than running a program the operator
+  never named" (`src/main.rs:recap_mode`). The route needs no fail-closed arm of its own: a recap has one
+  route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
-  `replay_card: true`, `digest: true`, `digest_as_thread: true`, `min_events: 8`, `summarizer: None`,
-  `summarizer_deadline_secs: 240`, `repos: []`, `review_notes: None`. Only `digest_as_thread` is
-  overridden on the unreadable path. `summarizer_deadline_secs` is refused above
+  `replay_card: true`, `digest: true`, `min_events: 8`, `summarizer: None`,
+  `summarizer_deadline_secs: 240`, `repos: []`, `review_notes: None`. `summarizer_deadline_secs` is refused above
   `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: 3600 is accepted, 3601 is refused by name
   (`src/config.rs:seconds`), and the refusal exists because
   `Instant::now() + Duration::from_secs(i64::MAX)` PANICS inside a process whose stderr is `/dev/null`.
@@ -155,9 +156,9 @@ Then the hermes key is `None`, `digest_as_thread` is forced `false`, and every o
   from the default.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: the config is read once per recap process.
-- Privacy: the `[plugins.hermes] key` is read here and used only to sign the POST
+- Privacy: the `[plugins.hermes.keys] <route>` is read here and used only to sign the POST
   (`src/channels/hermes.rs:sign`). It is never placed in a prompt, never passed to `gh`, and never
-  printed: `hermes_secret` returns it and `deliver_recap` hands it to `dispatch_legs` alone
+  printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
 - Process ownership and cleanup: none.
 - Compatibility contract: `repos` unset and `review_notes` unset are the WORKING settings, not degraded
@@ -806,80 +807,72 @@ Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per w
   (`src/missed_notifications.rs:needing_you` serves both), so the two layers of one return agree about
   what is urgent.
 
-### 15. The recap posts to one durable route, with exactly one fallback
+### 15. The recap posts once, to the one durable route it has
 
-Given a composed body and `[recap] digest_as_thread`
+Given a composed body
 
-When `post_recap` delivers
+When `post_return_recap` delivers
 
-Then `digest_as_thread = false` posts once to the DEFAULT route; `true` posts to the `pns-recap` route first and, only if that dispatch was REFUSED, posts the same body plus one line to the default route. The mode exits 0 either way
+Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever that post answered
 
-- Success: `src/main.rs:post_recap`. `src/main.rs:deliver_recap` builds ONE leg by hand
+- Success: `pns-application/src/post_return_recap.rs:post_return_recap`.
+  `pns/src/recap_delivery_runtime.rs:deliver_recap` builds ONE leg by hand
   (`Leg { name: "hermes", mode: ReportMode::ReportOutcome, decorative: false }`) and one
-  `EventArgs { agent: "pns", state: "recap", detail: body, channel }`, dispatches it through
-  `dispatch_legs`, and PRINTS what came back as `pns: {line}`. The route name becomes a URL path segment
-  through `hermes::channel_url` (`src/main.rs:hermes_url_for`).
+  `EventArgs { agent: "pns", state: "recap", detail: body, channel }`, submits it, and PRINTS what came
+  back as `pns: {line}`. An empty route name posts to the default URL
+  (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`).
 - Failure sources: no hermes key; the gateway refusing (404 for a route it does not know, 502 when the
-  target rejects); no response at all; a curl-level failure.
+  target rejects); no response at all; a transport-level failure.
 - Fail direction: LOUD AND REPORTING, and still exit 0. "SYNCHRONOUS INSIDE THIS PROCESS, and REPORTING,
   which is the mode whose whole purpose is that a failure is visible. Nobody is behind this, and a
-  silently dropped recap is the exact failure the feature exists to prevent" (`src/main.rs:post_recap`).
-  Pinned by `tests/native.rs:a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero`, which
-  points the gateway at a refusing port and asserts a printed `pns: ...FAILED...` line naming the hermes
-  gateway. Exit 0 is the binary's contract and is not this mode's to break; only a mistyped argument
-  earns 2 (behavior 1).
-- Thresholds: `refused` fires on `Delivery::Failed` and `Delivery::Unlaunched` ONLY
-  (`src/main.rs:refused`). `Delivery::Silent` is NOT a refusal: "`Silent` is an executable channel that
-  RAN and has no second surface to answer on, and reading it as a failure would post every recap twice on
-  every machine with a shell channel installed" (`src/main.rs:post_recap`). Only a 2xx is `Delivered`
-  (`src/channels/hermes.rs:delivered`). The fallback line
-  `"(the pns-recap route did not take this, so it landed on the default route instead)"` is 82 characters
-  plus a newline, and it is appended to a body `fit` has ALREADY fitted, so the second post may exceed
-  `MAX_CHARS` by that one line; the 100 characters of headroom under the gateway's 1,900 threshold cover
-  it, so the post still lands as one message (`src/main.rs:post_recap`).
-- Required side effects: ONE FALLBACK AND NO LOOP. "A default route that refuses too is a gateway
-  problem, and a recap is not worth a retry storm against one." The POST is HMAC-SHA256 signed with the
-  `[plugins.hermes] key`; with no key, `deliver` returns
-  `Delivery::Failed("post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent")`
-  before any network call (`src/channels/hermes.rs:deliver`, `src/channels/hermes.rs:skipped_line`).
-  Pinned on the wire by
-  `tests/native.rs:a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`, which
+  silently dropped recap is the exact failure the feature exists to prevent"
+  (`post_return_recap.rs:post_return_recap`). Pinned by
+  `tests/native.rs:a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero`, which points the
+  gateway at a refusing port and asserts a printed `pns: ...FAILED...` line naming the hermes gateway.
+  Exit 0 is the binary's contract and is not this mode's to break; only a mistyped argument earns 2
+  (behavior 1).
+- Thresholds: none left. THE FALLBACK IS GONE WITH ITS ROUTE. The recap took `pns-recap` first and
+  re-posted to the default route on a refusal, appending
+  `"(the pns-recap route did not take this, so it landed on the default route instead)"`; the route and
+  its Discord channel retired on 2026-09-15 (operator decision), so the recap goes where every other
+  session event goes, `fit`'s character budget is the only budget the body meets, and a refusal is
+  reported rather than re-posted. What that removed, and deliberately: the `Delivery::Silent` carve-out
+  that kept an executable channel from being read as a refusal, the `[recap] digest_as_thread` key that
+  chose between the two routes, and the accepted limit that a 404 was invisible on a machine running
+  executable channels.
+- Required side effects: ONE POST AND NO RETRY. A gateway having a bad minute would otherwise put every
+  recap in the channel twice. The POST is HMAC-SHA256 signed with the `[plugins.hermes.keys] <route>`;
+  with no key, `deliver` returns
+  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent")`
+  before any network call (`pns-adapters/src/destinations/hermes.rs`). Pinned on the wire by
+  `tests/native.rs:a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it`, which
   proxies the gateway, answers 404, and asserts exactly
-  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]` with the second body carrying
-  both `did not take this` and `While you were away`.
+  `["POST /webhooks/pns-events HTTP/1.1"]`, and at the unit level by
+  `post_return_recap/tests.rs:a_recap_is_posted_once_on_the_default_route_whatever_that_post_answered`,
+  which sweeps `Failed`, `Unlaunched` and `Silent` and asserts one delivery on the empty route for each.
 - Forbidden side effects: the recap NEVER reaches the phone or the banner. "IT REACHES ONE DESTINATION,
   the durable route, and never the phone or the banner. The phone layer was already delivered by the card
-  that pointed here" (`src/main.rs:recap_mode`). The leg is `decorative: false`, "because nothing about
-  this was chosen to put something in front of the operator; the card already did that"
-  (`src/main.rs:deliver_recap`). And the body itself is never rendered to a terminal: only the delivery
-  OUTCOME line is printed (`src/recap.rs` module comment, `src/main.rs:deliver_recap`).
-- Timeout and cancellation: the leg is `ReportMode::ReportOutcome`, so the hermes channel posts under
+  that pointed here" (`pns/src/command_recap.rs:recap_mode`). The leg is `decorative: false`, "because
+  nothing about this was chosen to put something in front of the operator; the card already did that"
+  (`pns/src/recap_delivery_runtime.rs:deliver_recap`). And the body itself is never rendered to a
+  terminal: only the delivery OUTCOME line is printed.
+- Timeout and cancellation: the leg is `ReportMode::ReportOutcome`, so the hermes destination posts under
   `sync_deadline = remote_deadline(PNS_REMOTE_TIMEOUT)`, which defaults to 5 seconds, clamps at 86,400,
-  and is `None` (no deadline at all) only when the variable parses to exactly `0`
-  (`src/channels/hermes.rs:remote_deadline`, `src/channels/hermes.rs:DEFAULT_SYNC_DEADLINE_SECS`). A
-  garbled value falls back to 5 rather than to zero or forever.
-- Idempotency and duplicates: a POST is not idempotent at the gateway, which is why the fallback fires on
-  a VERDICT and never on a sentence. DERIVED from `src/main.rs:post_recap` and
-  `src/channels/hermes.rs:deliver`: on a machine whose config LOADS but names no hermes key, the first
-  dispatch answers `Failed(skipped_line())`, `refused` is true, and the fallback dispatches a second time
-  and fails the same way, so the operator sees the `post SKIPPED` line twice. On an unreadable or missing
-  config, `digest_as_thread` is forced false (behavior 3), so that path attempts once.
+  and is `None` (no deadline at all) only when the variable parses to exactly `0`. A garbled value falls
+  back to 5 rather than to zero or forever.
+- Idempotency and duplicates: one dispatch, so nothing to dedupe inside a run. A POST is not idempotent
+  at the gateway, and nothing dedupes two runs of the mode over the same window.
 - Privacy: the whole composed body leaves the machine, HMAC-signed, to whichever gateway `PNS_HERMES_URL`
-  or the compiled-in default names. `hermes_body` carries `agent`, `state`, `project` and `detail`, where
-  `detail` is `render::message("", body, "recap")` and therefore the body verbatim, newlines and all
-  (`src/channels/hermes.rs:hermes_body`, `src/main.rs:rendered_event`, `src/render.rs:message`). The
-  signing key is never in the body and never printed.
+  or the compiled-in default names. The hermes body carries `agent`, `state`, `project` and `detail`,
+  where `detail` is the body verbatim, newlines and all. The signing key is never in the body and never
+  printed.
 - Process ownership and cleanup: no child. The POST is synchronous inside the recap process, which then
   exits.
-- Compatibility contract: `RECAP_ROUTE` is a CONST, not a key: "a second machine wanting another name can
-  have the key the day it exists, and the operator prepares this route in hermes either way"
-  (`src/main.rs:RECAP_ROUTE`). The name must satisfy `safety::route_name_is_usable` (non-empty ASCII
-  alphanumerics, `-` and `_`), which `pns-recap` does. `PNS_HERMES_URL` OUTRANKS the route name
-  (`src/main.rs:hermes_url_for`), so with that override set both posts go to the same URL and the
-  fallback is invisible on the wire, which is why the wire test proxies the gateway rather than moving
-  it. ACCEPTED LIMIT, stated in the source: on a machine running EXECUTABLE channels (`PNS_CHANNELS_DIR`
-  set), `deliver` always answers `Silent` for a channel that ran, so a 404 from an unprepared `pns-recap`
-  route is invisible there and the fallback never fires (`src/main.rs:post_recap`).
+- Compatibility contract: the route is `DEFAULT_ROUTE` (`pns-domain/src/routes.rs`), the same const every
+  routeless event takes, so a machine wanting a recap channel of its own gets it by pointing
+  `#pns-events` somewhere else rather than by a key. `PNS_HERMES_URL` OUTRANKS the route name
+  (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`), which is why the wire test proxies the gateway rather than moving
+  it.
 
 ### 16. The event path starts the recap detached, in a process group of its own
 
@@ -957,6 +950,118 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since
   reads, so an event landing in the shared `until` second between them, or a prune, can leave the two
   counts one apart. "Each is honest about what IT read ... reconciling them would mean serializing a
   snapshot the child is deliberately free to re-read" (`src/main.rs:spawn_recap`, `src/recap.rs:header`).
+
+### 17. An agent's own recap is made safe, fitted, and posted on the same route
+
+Given a markdown recap on stdin, in the layout the shared agent rules lock
+
+When `pns recap agent --stdin` runs
+
+Then every character a reader cannot see is dropped, a body over `MAX_CHARS` is shortened by collapsing
+its file list and then by shedding whole sections in a fixed order, and the result is posted through the
+same `post_return_recap` the night recap uses
+
+- Success: `crates/pns/src/command_recap.rs:agent_recap` reads stdin whole, hands it to
+  `pns_domain::recap::agent::fitted`, and posts through `crates/pns/src/command_recap.rs:post`, which is
+  the same `pns_application::post_return_recap` call the window form makes. The one-post behavior is
+  behavior 15's, unchanged and not re-implemented.
+- Failure sources: a missing or misspelled `--stdin`; a stdin that will not read; a body that is empty or
+  whitespace once sanitized; every delivery failure behavior 15 already names.
+- Fail direction: REFUSING, with exit 2, for all three input failures. "EMPTY IS A TYPO, NOT AN EMPTY
+  RECAP. Nothing was piped in, or the pipe broke; posting a blank message to the channel would report
+  work nobody can read" (`crates/pns/src/command_recap.rs:agent_recap`). Delivery keeps behavior 15's
+  direction: loud, reporting, and still exit 0. Pinned by
+  `tests/recap_commands.rs:an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message`
+  and `tests/recap_commands.rs:an_agent_recap_with_no_source_named_refuses_rather_than_reading_a_terminal`.
+- Thresholds: `MAX_CHARS` = 1,800, behavior 13's own ceiling and the same gateway's, reached through
+  `crates/pns-domain/src/recap/agent.rs:fits`. A body at or under it is returned sanitized and otherwise
+  UNCHANGED (`recap/tests/agent.rs:a_recap_already_under_the_ceiling_is_posted_exactly_as_it_was_written`);
+  one over it is collapsed and then shed until it is under.
+- Required side effects: THE LAYOUT SURVIVES. Sanitizing is
+  `crates/pns-domain/src/recap/sanitize.rs:printable_line`, which is `safe_line`'s own character filter
+  with the flatten removed, "because run over the agent recap's stack graph it would leave every branch
+  at the same depth". Pinned both ways by
+  `recap/tests/agent.rs:the_characters_the_night_recap_drops_are_dropped_here_too` and
+  `recap/tests/agent.rs:the_stack_graph_keeps_the_indentation_that_makes_it_a_tree`.
+- Forbidden side effects: NO LINE IS EVER CUT IN HALF, which is the layout's own readability rule
+  ("collapse a long file list to counts per status rather than truncating mid-list"). A line survives
+  whole or is replaced by a count, pinned by
+  `recap/tests/agent.rs:a_recap_over_the_ceiling_is_never_cut_in_the_middle_of_a_line`. And
+  `**User Tasks**` is NOT in `SHED_ORDER`, so it is carried whole even when the message then runs over,
+  which is behavior 14's direction applied to the section that holds it here
+  (`recap/tests/agent.rs:a_recap_whose_user_tasks_alone_fill_the_message_still_carries_every_one_of_them`).
+- Timeout and cancellation: this verb does NOT run under `run_recap_bounded`. That watchdog exists for a
+  detached child nobody is watching; an agent is waiting on this one, and the only unbounded thing it
+  could do is the POST, which behavior 15's `remote_deadline` already bounds.
+- Idempotency and duplicates: `fitted` is pure and its collapse is idempotent. A body whose file list
+  `pns recap git` ALREADY collapsed is left exactly as it is, because a row is told from a counts line by
+  its two-space column (`recap/tests/agent.rs:a_file_list_pns_recap_git_already_collapsed_is_left_exactly_as_it_is`).
+  The POST itself is not idempotent, which is behavior 15's own note. NOT ESTABLISHED: nothing dedupes
+  two runs of this command over the same recap; a second run posts a second message.
+- Privacy: the whole fitted body leaves the machine, HMAC-signed, exactly as behavior 15 describes. The
+  body is the agent's own text and pns adds nothing to it.
+- Process ownership and cleanup: no child at all. One stdin read, one pure fit, one POST.
+- Compatibility contract: this verb posts through the same `post`, so it reaches the same route the
+  night's recap does and neither can drift onto one of its own. Pinned on the wire by
+  `tests/recap_commands.rs:an_agent_recap_posts_once_on_the_default_route_and_exits_zero_when_refused`,
+  which proxies the gateway, answers 404, and asserts `["POST /webhooks/pns-events HTTP/1.1"]`.
+
+### 18. The Git block is read from git and `gh`, and a PR number is never guessed
+
+Given a worktree
+
+When `pns recap git` runs
+
+Then it prints the recap's `**Git**` block and, inside ONE fenced code block, the stack graph and the
+file list, and exits 0 without delivering anything
+
+- Success: `crates/pns/src/command_recap.rs:git_recap` reads the facts with
+  `pns_adapters::git_facts` and renders them with `pns_domain::recap::git_block::git_block`. The reads
+  are `git rev-parse --show-toplevel`, `git symbolic-ref --short refs/remotes/origin/HEAD`,
+  `git branch --merged HEAD`, `git branch --merged origin/<trunk>`, `git rev-list --count`,
+  `git diff --name-status origin/<trunk>...HEAD`, and one
+  `gh pr list --head <branch> --state all --json number,state --limit 1` per stack branch.
+- Failure sources: no repository; no `origin/HEAD`; no `origin/<trunk>` ref; a `gh` that is not
+  installed, refuses, or times out; a listing in a shape this was not written against.
+- Fail direction: EACH READ DEGRADES ON ITS OWN and the PR line fails CLOSED into "unknown". "`none` is
+  `gh` saying there is no pull request; a `gh` that never ran said nothing at all, and printing
+  `none` for it is the guess the rule forbids"
+  (`crates/pns-domain/src/recap/git_block/facts.rs:PullRequestLookup`). The three answers are pinned by
+  `recap/tests/git_block.rs:a_branch_with_a_pull_request_names_its_number_and_its_state`,
+  `recap/tests/git_block.rs:a_branch_with_no_pull_request_says_none_and_never_a_number` and
+  `recap/tests/git_block.rs:a_listing_nobody_could_run_is_unknown_rather_than_none`, and the listing
+  parse by
+  `recap/worktree/tests.rs:anything_that_is_not_the_listing_that_was_asked_for_is_unavailable`.
+- Thresholds: `COLLAPSE_ABOVE` = 20 rows, past which the file list prints its counts per status instead,
+  in the layout's own `A 3  M 4  D 1` shape. One step either side is pinned by
+  `recap/tests/git_block.rs:a_file_list_past_the_collapse_line_says_its_counts_instead_of_its_rows`. The
+  git reads are bounded at 10 seconds and 524,288 bytes each; the `gh` listing at 30 seconds and 65,536
+  bytes, which is `recap::merges`' own bound on the same tool, "to stop a wedged network call holding
+  the whole recap rather than to hurry a slow one".
+- Required side effects: THE STACK IS DERIVED FROM GIT ANCESTRY. Worktrunk has no stack to ask for
+  (`wt list` reports worktrees and their status), and a stack listing needs the `github/gh-stack`
+  extension, which is not installed on this machine (both MEASURED 2026-09-14). A branch is below HEAD in
+  the stack when its tip is an ancestor of HEAD and is not already in the trunk, ordered by
+  `rev-list --count` from the trunk, with the current branch last. The trunk listing FAILS CLOSED: without
+  it, every stale local branch merged into HEAD would read as part of this stack, so the stack is the
+  current branch alone.
+- Forbidden side effects: IT DELIVERS NOTHING AND WRITES NOTHING. Every spawn is a query; nothing checks
+  out, fetches, rebases or posts. Printing here and posting in behavior 17 is what keeps one recap from
+  being sent twice.
+- Timeout and cancellation: per-spawn deadlines only, through the same `run_bounded` seam behavior 6
+  uses. No group watchdog, for behavior 17's reason.
+- Idempotency and duplicates: pure reads; running it twice prints the same thing twice.
+- Privacy: the branch name is sent to GitHub through `gh`, which carries its own auth and is never
+  handed a token by pns. Nothing else leaves the machine, and the block is printed rather than posted.
+- Process ownership and cleanup: `run_bounded` owns every child, and its kill reaches the child PID
+  rather than a process group, which is the same accepted limit the `gh` spawn in behavior 8 already
+  carries in this document's Gaps.
+- Compatibility contract: `pr view` takes a NUMBER and has no branch form, so the branch is resolved
+  with `pr list --head`, read as JSON through the same `--json` flag `recap::merges` already uses. ONE
+  GITHUB CLI FOR THE WHOLE PRODUCT: pns is installed by people who do not have this machine's npm
+  cache, so it may not fetch a package from a registry at recap time, nor parse a text listing with no
+  stability contract. `gh` answers the state in UPPER case and the layout writes it in lower, folded in
+  `crates/pns-adapters/src/recap/worktree.rs:listed`.
 
 ## Gaps
 

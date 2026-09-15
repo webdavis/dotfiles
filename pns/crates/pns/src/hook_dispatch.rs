@@ -29,9 +29,16 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // PermissionRequest (Claude Code decides that off this hook's own
         // stdout), so without this the lamp stayed blocked until the turn's Stop,
         // one whole tool call after the operator had already answered.
+        // AND THE SESSION IS NAMED HERE, once: the first prompt of a session
+        // is what the header's second line carries for every event after it,
+        // and a later prompt does not relabel the ones before it. It goes
+        // LAST of the three, because the two above are the marker writes an
+        // operator is waiting on and this one is a row nobody reads until
+        // the session's next event.
         "prompt" => {
             start_of_turn(&payload);
             end_blocked_wait(&payload.session_id);
+            name_session(&payload, &agent);
         }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
@@ -78,12 +85,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // existing chain to the tool request.
         "asked" | "plan-ready" | "denied" => drop(run_event(
             &pns_domain::EventArgs {
-                agent,
+                agent: agent.clone(),
                 state: event.to_string(),
-                project: project_of(&payload.cwd),
                 detail: payload.message.clone(),
                 pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                ..Default::default()
+                ..attribution(&payload, &agent)
             },
             &system_probes(),
             &payload,
@@ -106,12 +112,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
             if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
                 run_event(
                     &pns_domain::EventArgs {
-                        agent,
+                        agent: agent.clone(),
                         state: event.to_string(),
-                        project: project_of(&payload.cwd),
                         detail,
                         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                        ..Default::default()
+                        ..attribution(&payload, &agent)
                     },
                     &system_probes(),
                     &payload,
@@ -144,12 +149,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 }
                 run_event(
                     &pns_domain::EventArgs {
-                        agent,
+                        agent: agent.clone(),
                         state: event.to_string(),
-                        project: project_of(&payload.cwd),
                         detail,
                         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                        ..Default::default()
+                        ..attribution(&payload, &agent)
                     },
                     &probes,
                     &payload,
@@ -186,12 +190,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 }
                 run_event(
                     &pns_domain::EventArgs {
-                        agent,
+                        agent: agent.clone(),
                         state: event.to_string(),
-                        project: project_of(&payload.cwd),
                         detail,
                         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                        ..Default::default()
+                        ..attribution(&payload, &agent)
                     },
                     &probes,
                     &payload,

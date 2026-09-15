@@ -1,10 +1,14 @@
 mod brightness;
+mod presets;
 mod rooms;
 mod rotation;
+mod windows;
 
 pub use brightness::{Brightness, Direction, ReportedBrightness};
+pub use presets::{PresetStep, PresetTarget, Presets};
 pub use rooms::{Aliases, RoomName};
 pub use rotation::Rotation;
+pub use windows::{MINUTES_PER_DAY, MinuteOfDay, PresetWindow, PresetWindows};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueError(pub &'static str);

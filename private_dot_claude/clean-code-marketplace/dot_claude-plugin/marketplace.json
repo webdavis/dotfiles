@@ -1,0 +1,11 @@
+{
+  "name": "clean-code",
+  "owner": {"name": "webdavis"},
+  "plugins": [
+    {
+      "name": "clean-code",
+      "source": "./plugins/clean-code",
+      "description": "Namespaced entry points to the clean-code standard held in the shared skills store."
+    }
+  ]
+}

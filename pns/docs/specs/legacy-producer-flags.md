@@ -29,14 +29,16 @@ knows.
 | `--detail`       | one following token, free text           | warn `--detail given without a value; ignoring`, field stays empty                            | taken as the value verbatim, no warning                                        | `src/args.rs:a_trailing_value_flag_is_warned_and_ignored`, `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`         |
 | `--pane`         | one following token, a pane id           | warn `--pane given without a value; ignoring`, field stays empty                              | taken as the value verbatim, then judged by `safety::pane_is_safe` at dispatch | `src/args.rs:a_recognized_flag_is_never_consumed_as_a_value`, `tests/dispatch.rs:a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event` |
 | `--channel`      | one following token, a hermes route name | warn `--channel given without a value; ignoring`, field stays empty (the default route)       | taken as the value verbatim, then judged by `safety::route_name_is_usable`     | `src/args.rs:the_channel_flag_names_a_route_and_is_protected_like_every_value_flag`                                                                       |
+| `--kind`         | one following token, `agent` or `health` | refused: `--kind requires one of: agent, health` on stderr, exit 2, nothing delivered          | any other word is refused the same way, because a guessed kind is a misrouted page              | `src/legacy/argv/tests.rs:a_health_kind_pages_and_an_agent_kind_keeps_the_default_route`, `src/legacy/tests.rs:an_unknown_kind_is_refused_before_anything_is_delivered`                        |
 | `--local-only`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:local_only_keeps_the_banner_and_reaches_nothing_off_the_machine`                                                                       |
 | `--remote-only`  | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`                                                                                             |
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
 | `--help`, `-h`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:the_help_flag_prints_the_usage_and_reaches_nothing_at_all`                                                                             |
 
-The two lists behind the table are `src/args.rs:VALUE_FLAGS` (the seven value-taking flags) and
-`src/args.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`). `--help` and `-h` are
-deliberately in NEITHER list: `src/args.rs:is_help_flag` answers them separately, which is what keeps
+The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the nine value-taking flags) and
+`src/legacy/argv.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`,
+`--require-delivery`). `--help` and `-h` are deliberately in NEITHER list:
+`src/legacy/argv.rs:is_help_flag` answers them separately, which is what keeps
 `--agent --help` an agent literally named `--help` rather than a warn-and-drop
 (`src/args.rs:help_in_value_position_is_still_just_a_value`).
 
@@ -66,8 +68,13 @@ pns: usage:
   pns --help, -h                   this text
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route>
-                --local-only --remote-only --long-running
+                --detail <text> --pane <id> --channel <route> --elapsed <secs>
+                --kind <agent|health> --local-only --remote-only --long-running
+                --require-delivery
+
+kinds:          agent, the default, is a session event and takes the default
+                pns-events route; health is a machine's own health and takes the
+                priority route, unless --channel already named one.
 ```
 
 The subcommand-specific usage texts are separate constants and are printed instead of `USAGE` when the
@@ -609,8 +616,9 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives `DEFAULT_HERMES_URL`
-(`http://127.0.0.1:8644/webhooks/pns`); else `channel_url` swaps the final path segment for the route.
+Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives
+`DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
+path segment for the route.
 
 - Success: the post goes to `<gateway>/<route>` with the host and port unmoved.
 - Failure sources: a route name `safety::route_name_is_usable` refuses (empty, or anything outside ASCII

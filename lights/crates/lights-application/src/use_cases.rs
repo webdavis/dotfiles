@@ -1,5 +1,5 @@
-use crate::{BrightnessChange, LightController, LightsError};
-use lights_domain::{Action, RoomName, Rotation};
+use crate::{BrightnessChange, LightController, LightsError, SceneMemory};
+use lights_domain::{Action, PresetStep, PresetTarget, RoomName, Rotation};
 
 pub struct TogglePower;
 impl TogglePower {
@@ -51,23 +51,34 @@ impl AdjustBrightness {
 }
 pub enum SceneSelection<'a> {
     Named(&'a str),
-    Next(&'a Rotation),
-    Previous(&'a Rotation),
+    Next,
+    Previous,
 }
 pub struct SetScene;
 impl SetScene {
     pub fn run<C: LightController>(
         controller: &C,
         room: &RoomName,
+        rotation: &Rotation,
+        memory: &SceneMemory<'_>,
         selection: SceneSelection<'_>,
     ) -> Result<Action, LightsError> {
         let state = controller.room(room)?;
         let scenes = controller.scenes(&state.room)?;
-        let current = scenes.iter().find(|s| s.active).map(|s| s.name.as_str());
+        let active = scenes.iter().find(|s| s.active).map(|s| s.name.as_str());
+        // A scene the bridge reports is the room's real place, in the rotation
+        // or out of it. Memory only answers the question the bridge stopped
+        // answering, which is what a pause between presses produces, and only
+        // for a selection that reads the room's place at all.
+        let rotating = matches!(selection, SceneSelection::Next | SceneSelection::Previous);
+        let remembered = (rotating && active.is_none())
+            .then(|| memory.recall(room))
+            .flatten();
+        let current = active.or(remembered.as_deref());
         let name = match selection {
             SceneSelection::Named(name) => name,
-            SceneSelection::Next(rotation) => rotation.next(current),
-            SceneSelection::Previous(rotation) => rotation.previous(current),
+            SceneSelection::Next => rotation.next(current),
+            SceneSelection::Previous => rotation.previous(current),
         };
         let scene =
             scenes
@@ -78,10 +89,35 @@ impl SetScene {
                     room: room.as_str().into(),
                 })?;
         controller.set_scene(&scene.scene)?;
+        memory.record(room, &scene.name, rotation);
         Ok(Action::SceneSet {
             room: room.clone(),
             scene: scene.name.clone(),
         })
+    }
+}
+/// Walks a preset's plan in order. A failed room is reported and the walk
+/// continues: the point of one key is that the other rooms still change.
+pub struct ApplyPreset;
+impl ApplyPreset {
+    pub fn run<C: LightController>(
+        controller: &C,
+        plan: &[PresetStep],
+        rotation: &Rotation,
+        memory: &SceneMemory<'_>,
+    ) -> Vec<Result<Action, LightsError>> {
+        plan.iter()
+            .map(|step| match &step.target {
+                PresetTarget::Scene(name) => SetScene::run(
+                    controller,
+                    &step.room,
+                    rotation,
+                    memory,
+                    SceneSelection::Named(name),
+                ),
+                PresetTarget::Off => SetPower::run(controller, &step.room, false),
+            })
+            .collect()
     }
 }
 pub struct ReportStatus;

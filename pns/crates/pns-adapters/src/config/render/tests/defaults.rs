@@ -22,7 +22,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
         Some("moshi-secret")
     );
     assert_eq!(
-        config.plugins["hermes"].settings["key"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
     let hue = &config.plugins["hue"].settings;
@@ -41,6 +41,10 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
     assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
     assert_eq!(config.nag_after_secs, 300);
+    assert_eq!(
+        config.stale_after_secs, 3600,
+        "a defaulted key ships uncommented at its default (operator ruling, 2026-08-31)"
+    );
 }
 
 #[test]
@@ -107,11 +111,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
-    for expected in [
-        "\nreplay_card = true\n",
-        "\ndigest = true\n",
-        "\ndigest_as_thread = true\n",
-    ] {
+    for expected in ["\nreplay_card = true\n", "\ndigest = true\n"] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
     // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.

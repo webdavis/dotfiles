@@ -22,6 +22,56 @@ pub fn title(agent: &str, state: &str, project: &str) -> String {
     }
 }
 
+/// How much of a session's own label a header line can carry. Sixty
+/// characters hold a typical first prompt and still fit one Discord line on a
+/// phone without wrapping (operator ruling, 2026-09-14).
+pub const SESSION_TITLE_MAX_CHARS: usize = 60;
+
+/// What separates the parts of a composed line, everywhere one is composed.
+const SEPARATOR: &str = " · ";
+
+/// The header's first line: WHICH CHECKOUT, which branch, and what happened.
+///
+/// Scan order is the whole argument for this order. A channel carrying four
+/// agents in four worktrees of one repository has to answer "which checkout,
+/// on which branch" first, so those two lead and the state closes the line.
+pub fn header(project: &str, branch: &str, state: &str) -> String {
+    let state = if state.is_empty() { "done" } else { state };
+    joined(&[project, branch, state])
+}
+
+/// The header's second line: who sent it, which of their sessions, and what
+/// that session was asked to do.
+///
+/// The identifiers are needed only when two first lines tie, so they sit on
+/// the dim line rather than competing with it.
+pub fn subheader(agent: &str, session: &str, title: &str) -> String {
+    let agent = if agent.is_empty() { "pns" } else { agent };
+    joined(&[agent, session, title])
+}
+
+/// A session id shortened to what tells two live sessions apart.
+///
+/// FOUR CHARACTERS of a hexadecimal id separate the handful alive at once, and
+/// a collision costs one ambiguous line rather than a misrouted message.
+pub fn short_session(session_id: &str) -> String {
+    session_id.chars().take(SHORT_SESSION_CHARS).collect()
+}
+const SHORT_SESSION_CHARS: usize = 4;
+
+/// The parts as one line. AN EMPTY PART TAKES ITS SEPARATOR WITH IT, which is
+/// what keeps a branchless event off `dotfiles ·  · done`: the gateway's
+/// renderer has no conditionals, so a line this composes is the line Discord
+/// shows.
+fn joined(parts: &[&str]) -> String {
+    parts
+        .iter()
+        .filter(|part| !part.is_empty())
+        .copied()
+        .collect::<Vec<_>>()
+        .join(SEPARATOR)
+}
+
 /// The body: the summary itself, branch-prefixed. Deliberately NOT a repeat of
 /// the state and project the title already carries, so a channel with a short
 /// preview spends it on content rather than boilerplate.

@@ -3,6 +3,10 @@
 
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[path = "tests/concurrent_fold.rs"]
+mod concurrent_fold;
+#[path = "tests/read_failures.rs"]
+mod read_failures;
 
 struct Fixture {
     root: PathBuf,
@@ -57,6 +61,14 @@ impl Drop for Fixture {
     }
 }
 
+/// The batch a run takes, when the spool was readable and had something in it.
+fn claimed(spool: &DigestSpoolFile) -> ClaimedBatch {
+    spool
+        .claim()
+        .expect("the spool is readable")
+        .expect("the spool holds a batch")
+}
+
 fn line(detector: &str, identity: &str) -> String {
     posture_protocol::encode(&posture_protocol::DigestRecord {
         detector: Some(detector.into()),
@@ -75,9 +87,9 @@ fn an_absent_or_empty_spool_offers_no_batch() {
     // Two spellings of the same fact, and the digest treats them alike: a run
     // that claimed an empty file would send a message with nothing in it.
     let fixture = Fixture::new();
-    assert!(fixture.spool(100).claim().is_none());
+    assert!(fixture.spool(100).claim().unwrap().is_none());
     fixture.write_spool("");
-    assert!(fixture.spool(100).claim().is_none());
+    assert!(fixture.spool(100).claim().unwrap().is_none());
 }
 
 #[test]
@@ -86,7 +98,7 @@ fn a_spool_of_only_blank_lines_is_claimed_away_rather_than_left_to_accumulate() 
     // them and the file grows forever.
     let fixture = Fixture::new();
     fixture.write_spool("\n\n  \n");
-    assert!(fixture.spool(100).claim().is_none());
+    assert!(fixture.spool(100).claim().unwrap().is_none());
     assert_eq!(fixture.spool_contents(), "");
     assert!(fixture.strays().is_empty(), "{:?}", fixture.strays());
 }
@@ -97,7 +109,7 @@ fn claiming_moves_the_batch_aside_so_the_alerter_writes_into_a_fresh_spool() {
     // append the alerter makes while the digest renders.
     let fixture = Fixture::new();
     fixture.write_spool(&format!("{}\n", line("alpha", "one")));
-    let batch = fixture.spool(100).claim().unwrap();
+    let batch = claimed(&fixture.spool(100));
     assert_eq!(fixture.spool_contents(), "");
     assert!(Path::new(&batch.handle).exists());
 }
@@ -112,7 +124,7 @@ fn a_claimed_batch_carries_its_rows_and_counts_the_lines_that_arrived() {
         line("alpha", "one"),
         line("beta", "two")
     ));
-    let batch = fixture.spool(100).claim().unwrap();
+    let batch = claimed(&fixture.spool(100));
     assert_eq!(batch.item_count, 3);
     assert_eq!(batch.rows.len(), 2);
     assert_eq!(batch.rows[0].detector.as_deref(), Some("alpha"));
@@ -126,7 +138,7 @@ fn a_kept_batch_is_rotated_to_one_forensic_copy_readable_only_by_its_owner() {
     let fixture = Fixture::new();
     fixture.write_spool(&format!("{}\n", line("alpha", "one")));
     let spool = fixture.spool(100);
-    let batch = spool.claim().unwrap();
+    let batch = claimed(&spool);
     spool.keep(&batch);
     assert!(fixture.kept().unwrap().contains("alpha"));
     assert_eq!(
@@ -147,7 +159,7 @@ fn keeping_a_batch_leaves_no_claim_for_a_later_sweep_to_send_twice() {
     let fixture = Fixture::new();
     fixture.write_spool(&format!("{}\n", line("alpha", "one")));
     let spool = fixture.spool(100);
-    let batch = spool.claim().unwrap();
+    let batch = claimed(&spool);
     spool.keep(&batch);
     fixture.spool(200).sweep_orphans();
     assert_eq!(fixture.spool_contents(), "");
@@ -162,7 +174,7 @@ fn a_restored_batch_is_appended_so_a_concurrent_append_survives_it() {
     let fixture = Fixture::new();
     fixture.write_spool(&format!("{}\n", line("alpha", "one")));
     let spool = fixture.spool(100);
-    let batch = spool.claim().unwrap();
+    let batch = claimed(&spool);
     fixture.write_spool(&format!("{}\n", line("beta", "two")));
     spool.restore(&batch);
     let back = fixture.spool_contents();
@@ -182,9 +194,9 @@ fn a_restored_batch_is_claimed_whole_by_the_next_run() {
         line("beta", "two")
     ));
     let first = fixture.spool(100);
-    let batch = first.claim().unwrap();
+    let batch = claimed(&first);
     first.restore(&batch);
-    let second = fixture.spool(200).claim().unwrap();
+    let second = claimed(&fixture.spool(200));
     assert_eq!(second.item_count, 2);
     assert_eq!(second.rows.len(), 2);
 }
@@ -197,13 +209,13 @@ fn a_batch_a_killed_run_abandoned_is_folded_back_by_the_next_sweep() {
     let fixture = Fixture::new();
     fixture.write_spool(&format!("{}\n", line("alpha", "one")));
     let abandoned = fixture.spool(100);
-    let _orphan = abandoned.claim().unwrap();
+    let _orphan = claimed(&abandoned);
     std::mem::forget(_orphan);
     fixture.write_spool(&format!("{}\n", line("beta", "two")));
 
     let next = fixture.spool(200);
     next.sweep_orphans();
-    let batch = next.claim().unwrap();
+    let batch = claimed(&next);
     assert_eq!(batch.item_count, 2);
 }
 
@@ -225,13 +237,13 @@ fn a_folded_batch_never_runs_two_lines_together() {
     let fixture = Fixture::new();
     fixture.write_spool(&line("alpha", "one"));
     let abandoned = fixture.spool(100);
-    let orphan = abandoned.claim().unwrap();
+    let orphan = claimed(&abandoned);
     std::mem::forget(orphan);
     fixture.write_spool(&line("beta", "two"));
 
     let next = fixture.spool(200);
     next.sweep_orphans();
-    assert_eq!(next.claim().unwrap().rows.len(), 2);
+    assert_eq!(claimed(&next).rows.len(), 2);
 }
 
 #[test]

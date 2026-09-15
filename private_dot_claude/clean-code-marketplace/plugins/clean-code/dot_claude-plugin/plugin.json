@@ -1,0 +1,5 @@
+{
+  "name": "clean-code",
+  "description": "Thin wrappers that load the clean-code standard from ~/.agents/skills.",
+  "version": "0.1.0"
+}

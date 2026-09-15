@@ -55,6 +55,7 @@ export SHELLCHECK_MARKER
 
 # shellcheck source=/dev/null
 . "$LIB"
+render_template() { chezmoi <"$1"; }
 
 fails=0
 check() { # <name> <expected-rc> <expected-marker: yes|no|any>

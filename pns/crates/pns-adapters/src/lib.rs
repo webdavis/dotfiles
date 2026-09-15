@@ -40,7 +40,7 @@ pub use config::{
 };
 
 pub use config::banner_click;
-pub use config::hermes_secret;
+pub use config::{HermesKeys, hermes_keys};
 
 pub use config::select_plugins;
 
@@ -138,7 +138,7 @@ pub use herdr::HerdrWork;
 pub use protocols::markers::FileLampMarkers;
 
 mod recap;
-pub use recap::{GitHubMerges, ProcessSummarizer, ReviewNotes};
+pub use recap::{GitHubMerges, ProcessSummarizer, ReviewNotes, git_facts};
 
 mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
@@ -158,11 +158,11 @@ mod git;
 mod moshi_hook;
 mod recap_child;
 pub use codex::condense;
-pub use git::git_branch;
+pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_child::{run_recap_bounded, spawn_recap};
 
-pub use persistence::{DeliveryClaim, ImportFailure, SqliteStore, StoreError};
+pub use persistence::{DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError};
 
 mod harness;
 pub use harness::{

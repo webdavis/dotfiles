@@ -33,13 +33,14 @@ display text. Empty or nonnumeric values quietly use 1800. Invalid octal or over
 one fixed line: `posture heartbeat: invalid OSQUERY_CANARY_MAX_AGE literal; using 1800 seconds`.
 Freshness still uses unsigned distances and the existing two-sided boundary.
 
-The command submits through `$HOME/.cargo/bin/pns` on the proposed named route `posture`. Heartbeat
-remains an observation without the security class. Submission has a five-second command budget; an
-independent runner gives the local failure banner ten seconds. Correlated `ledger_committed` acceptance
-is the only durable acknowledgement. Refusal, engine failure and alarm failure all leave the command's
-best-effort exit status at zero. Missing `HOME` refuses setup with a fixed diagnostic and exit 1.
+The command submits through whichever delivery path `~/.config/posture/config.toml` names, on the route
+`posture`. Heartbeat remains an observation without the security class. Submission has a five-second
+command budget; an independent runner gives the local failure banner ten seconds. Correlated
+`ledger_committed` acceptance is the only durable acknowledgement. Refusal, engine failure and alarm
+failure all leave the command's best-effort exit status at zero. Missing `HOME` refuses setup with a
+fixed diagnostic and exit 1.
 
 The route name is a deployment prerequisite, not an installed binding. The operator must configure the
-pns-keyed Hermes route to preserve the silent daily Discord record and desktop banner before the held
+keyed Hermes route to preserve the silent daily Discord record and desktop banner before the held
 LaunchAgent change can land. The Bash entry point, its 17 tests and the shared canary helper remain
 active until that separate caller and operator cutover.

@@ -113,7 +113,7 @@ persist_baseline() {
 # render_exposure <funnel-json> -- the public-exposure page body. The exposed
 # SNI:port values come from AllowFunnel and are ATTACKER-INFLUENCEABLE (an attacker
 # who opened the funnel controls the string), so each crosses into the body as
-# INERT data through the same chokepoint render-page.sh uses: backticks stripped
+# INERT data through the same chokepoint posture's sanitize uses: backticks stripped
 # (they end an inline-code span), \r\n\t squashed to spaces (a newline also breaks
 # the span and could forge a markdown line), then length-capped and wrapped in a
 # Discord inline-code span. Display-only.

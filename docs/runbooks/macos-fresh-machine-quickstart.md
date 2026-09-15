@@ -190,6 +190,67 @@ console or Screen Sharing over the tailnet, run `ssh-hardening.sh --rollback` (o
 System Settings > General > Sharing. `--rollback` removes the drop-in and confirms the hardening is out
 of the effective configuration; the next sshd start accepts password authentication again.
 
+#### The tailnet-only rule
+
+The drop-in also carries a network restriction: a connection that did not arrive on loopback or on a
+tailnet address is refused.
+
+```
+Match LocalAddress "!127.0.0.0/8,!::1,!100.64.0.0/10,!fd7a:115c:a1e0::/48,*"
+  RefuseConnection yes
+```
+
+`LocalAddress` is the address the connection ARRIVED on, which is a property of this Mac's own
+interfaces, so a client cannot claim its way into the allowed branch. A rule keyed on the client's
+address instead lets a local network client claiming a `100.64.0.0/10` source straight through.
+`100.64.0.0/10` and `fd7a:115c:a1e0::/48` are the ranges Tailscale documents for every node of every
+tailnet, so the block names the tailnet by its address space rather than by this node's current
+addresses. Loopback stays allowed because `--reload`'s readiness probe connects to `127.0.0.1`.
+
+The listener is untouched. launchd owns the socket, so port 22 still answers on the local network, a port
+scan still shows it open, and a refused connection is still accepted at the transport layer: it gets the
+version banner and the host key, and is cut at the authentication request. `ssh-keyscan` against a
+refused address SUCCEEDS, so it is not a test of the restriction. Only a real `ssh` attempt is. This
+narrows who can log in, not what can connect.
+
+No restart is needed for the rule to apply, in either direction. launchd spawns one sshd per connection,
+so the next connection reads whatever is on disk: the rule lands as soon as the file is written and it is
+gone as soon as the file is.
+
+**The way back in, if the rule locks you out.** At the physical console, with the keyboard and screen,
+run `posture ssh rollback`, which removes the drop-in. To keep the public-key-only policy while dropping
+only the restriction, edit `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` and delete the `Match` block
+and its `RefuseConnection` line. Removing the whole file throws the public-key-only policy away with the
+restriction, so it is the last resort rather than the first move. Either way there is nothing to restart.
+Any SSH session already open stays open, which is why the reload preamble above says to keep one.
+
+**After deploying the rule, four checks, all four run from this Mac.** Connecting to one of its own
+addresses gives the socket that address as its local address, which is exactly what the block keys on, so
+no second device is needed:
+
+1. Allowed over IPv4: `ssh stephen@100.77.192.92 true` succeeds, source and destination both on the
+   tailnet.
+1. Refused over IPv4: `ssh -o BatchMode=yes stephen@192.168.1.26 true` ends with
+   `Connection closed by 192.168.1.26 port 22`.
+1. The IPv6 pair, the same way: `ssh stephen@"$(tailscale ip -6)" true` succeeds (that address is in
+   `fd7a:115c:a1e0::/48`), and
+   `ssh -o BatchMode=yes stephen@"$(ifconfig en0 | awk '/inet6 fe80/{print $2}')" true` is refused. en0
+   carries no routable IPv6 on this network, so the refused address is the link-local one and it needs
+   its `%en0` scope suffix, which that command keeps.
+1. A real phone tap: one Back Tap, then `pns tap --info` reports a "Last tap" of a few seconds and
+   `Fresh: yes`. The tap arrives over whatever the Shortcut's `Hostname` global variable holds, so a
+   Shortcut pointed at `192.168.1.26` or at a `.local` name stops working here and nowhere else. Move it
+   to `100.77.192.92` or the MagicDNS name before deploying, and confirm a tap over the tailnet first, so
+   a failing tap afterwards means something.
+
+`PerSourcePenalties` is on with `refuseconnection:10` in its default policy, so repeating check 2 or the
+refused half of check 3 from the same source accumulates a penalty and later attempts are dropped earlier
+and more quietly. Space them out, or read the first attempt as the answer.
+
+Each change to the drop-in raises one file-integrity alert naming
+`/etc/ssh/sshd_config.d/000-ssh-hardening.conf`. That is expected. An alert naming a different path is a
+real finding.
+
 ### Hardware pairing
 
 - **Bluetooth**: pair AirPods, mice, keyboards via System Settings → Bluetooth.

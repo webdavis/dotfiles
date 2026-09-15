@@ -31,6 +31,15 @@ pub(super) struct Table {
     /// them at all.
     pub opt_in: bool,
     pub keys: &'static [Key],
+    /// The tables nested INSIDE this one, written after its own keys because
+    /// a TOML sub-heading ends the table above it.
+    ///
+    /// DATA, LIKE EVERY OTHER PART OF THIS LAYOUT: `[plugins.hermes.keys]` is
+    /// a nested table whose vocabulary is the route names, and declaring it
+    /// here is what keeps the walk in `render` one walk. A child inherits its
+    /// parent's `present`, because a nested table under a commented-out
+    /// heading has to be commented too, and its `opt_in` is therefore unread.
+    pub children: &'static [Table],
 }
 
 /// One key inside a table.
@@ -62,6 +71,22 @@ mod lights;
 use lights::*;
 mod sensors;
 use sensors::*;
+
+/// Every table this layout declares, nested children included and in walk
+/// order: a guard over the layout has to reach the same set of headings the
+/// render writes, and `LAYOUT` alone stops at the outermost level.
+#[cfg(test)]
+pub(super) fn every_table() -> Vec<&'static Table> {
+    fn push(into: &mut Vec<&'static Table>, tables: &'static [Table]) {
+        for table in tables {
+            into.push(table);
+            push(into, table.children);
+        }
+    }
+    let mut all = Vec::new();
+    push(&mut all, LAYOUT);
+    all
+}
 
 /// Every table this schema serves, in the order the file writes them.
 pub(super) const LAYOUT: &[Table] = &[

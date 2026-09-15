@@ -7,6 +7,7 @@ pub(super) const PLUGINS_PRESENCE: Table = Table {
                  # [plugins.hue] above, so switching this on with that one off is refused\n\
                  # by name.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "enabled",
@@ -77,6 +78,7 @@ pub(super) const PLUGINS_ROUTER: Table = Table {
                  # router's own client list. A SENSOR rather than a destination, so no\n\
                  # event ever routes to it; `pns home` is how it is read.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "enabled",

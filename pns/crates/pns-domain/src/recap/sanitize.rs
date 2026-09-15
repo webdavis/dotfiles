@@ -26,8 +26,22 @@
 /// line from the same end. Cutting the two ends in turn would leave the middle
 /// of a sentence and nothing to say which part of it that was.
 pub(super) fn safe_line(line: &str, max_chars: usize) -> String {
-    let printable: String = line
-        .chars()
+    crate::render::clipped(
+        &crate::render::flatten_reply(&printable_line(line), usize::MAX),
+        max_chars,
+    )
+}
+/// The same characters dropped, and the line's OWN SPACING LEFT ALONE.
+///
+/// TWO READERS, ONE FILTER. `safe_line` goes on to flatten every run of
+/// whitespace, which is right for a sentence a summarizer wrote and wrong for
+/// a body whose layout is load-bearing: run over the agent recap's stack graph
+/// it would leave every branch at the same depth, and over its file list it
+/// would lose the status column. So the dropping is shared and the flattening
+/// is not, which is what keeps "the same characters the night recap drops"
+/// literally true rather than a claim two copies have to keep agreeing on.
+pub(super) fn printable_line(line: &str) -> String {
+    line.chars()
         .map(|character| {
             if character.is_whitespace() {
                 ' '
@@ -36,11 +50,7 @@ pub(super) fn safe_line(line: &str, max_chars: usize) -> String {
             }
         })
         .filter(|character| !character.is_control() && !is_invisible(*character))
-        .collect();
-    crate::render::clipped(
-        &crate::render::flatten_reply(&printable, usize::MAX),
-        max_chars,
-    )
+        .collect()
 }
 /// Whether a character is one the reader cannot see: every Unicode FORMAT
 /// (Cf) code point, stated as ranges because std has no category lookup and

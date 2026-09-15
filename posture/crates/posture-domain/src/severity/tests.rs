@@ -90,3 +90,26 @@ fn software_listeners_logins_and_agent_queries_are_info() {
         );
     }
 }
+
+#[test]
+fn a_critical_finding_belongs_on_the_priority_route() {
+    // The operator reserved `priority` for machine health and security, and a
+    // critical finding is the one thing posture ever puts there.
+    assert_eq!(severity_route(Some(Severity::Critical)), Some("priority"));
+}
+
+#[test]
+fn every_tier_below_critical_belongs_on_the_posture_pages_route() {
+    for tier in [Severity::Notice, Severity::Info] {
+        assert_eq!(
+            severity_route(Some(tier)),
+            Some("posture-pages"),
+            "{tier:?}"
+        );
+    }
+}
+
+#[test]
+fn a_submission_carrying_no_tier_names_no_route_of_its_own() {
+    assert_eq!(severity_route(None), None);
+}

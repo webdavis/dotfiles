@@ -1,4 +1,6 @@
-use super::{ConfigError, HueSettings, Settings, error, integer, keys, required_string};
+use super::{
+    ConfigError, HueSettings, Settings, error, integer, keys, presets, required_string, windows,
+};
 use lights_domain::{Aliases, RoomName, Rotation};
 use std::collections::BTreeMap;
 
@@ -19,7 +21,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
     let mut aliases = BTreeMap::new();
     for (alias, room) in [
         ("studio", "3F - Studio"),
-        ("bedroom", "3F - Master Bedroom"),
+        ("bedroom", "3F - MBedroom"),
         ("kitchen", "2F - Kitchen"),
     ] {
         aliases.insert(alias.into(), RoomName::new(room).map_err(|e| error(e.0))?);
@@ -35,7 +37,12 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
         );
     }
     let scenes = optional_table(root, "scenes")?;
-    keys(&scenes, &["rotation", "fallback"])?;
+    keys(&scenes, &["rotation", "fallback", "remember_position"])?;
+    let remember_position = match scenes.get("remember_position") {
+        None => false,
+        Some(toml::Value::Boolean(value)) => *value,
+        Some(_) => return Err(error("invalid remember_position")),
+    };
     let names = match scenes.get("rotation") {
         None => ["Dimmed", "Read", "Energize", "Concentrate"]
             .map(str::to_owned)
@@ -53,12 +60,20 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
     };
     let rotation =
         Rotation::new(names, string_or(&scenes, "fallback", "Read")?).map_err(|e| error(e.0))?;
+    // Preset steps name rooms the same way `--room` does, so the alias table
+    // has to be complete before the plans that read it are resolved.
+    let aliases = Aliases::new(aliases);
+    let presets = presets::parse(root, &aliases)?;
+    let preset_windows = windows::parse(root, &presets)?;
     Ok(Settings {
         controller,
         notify,
         default_room,
-        aliases: Aliases::new(aliases),
+        aliases,
         rotation,
+        remember_position,
+        presets,
+        preset_windows,
         step: step as u8,
     })
 }

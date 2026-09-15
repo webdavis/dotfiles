@@ -7,6 +7,10 @@ pub enum Command {
     Brightness(BrightnessRequest),
     Scene(String),
     Status,
+    /// `None` lists the configured presets; `Some` applies one by name.
+    Preset(Option<String>),
+    /// Applies the preset the configured clock windows give this minute.
+    PresetNow,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BrightnessRequest {
@@ -63,8 +67,20 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
             }
             _ => return Err("brightness requires up, down or a non-negative integer".into()),
         }),
+        ["preset"] => Command::Preset(None),
+        // A LITERAL WORD, so a preset the operator named `now` is reached as
+        // `preset now` would reach the clock instead. The help says so.
+        ["preset", "now"] => Command::PresetNow,
+        ["preset", name] if !name.is_empty() && !name.starts_with('-') => {
+            Command::Preset(Some((*name).into()))
+        }
         _ => return Err("unknown command, flag or extra argument".into()),
     };
+    // A PRESET NAMES ITS OWN ROOMS. Accepting `--room` here could only
+    // discard it silently.
+    if room.is_some() && matches!(command, Command::Preset(_) | Command::PresetNow) {
+        return Err("--room does not apply to a preset".into());
+    }
     Ok(Request {
         command,
         room,

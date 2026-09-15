@@ -15,17 +15,21 @@ fn notify(
     replies: Vec<(u16, serde_json::Value)>,
     runner: impl Fn(&mut Command) -> io::Result<ExitStatus>,
 ) -> (lights::Response, usize) {
-    let root = home();
+    let home = home();
+    let root = home.path();
     let path = root.join("notify.toml");
     std::fs::write(&path, settings).unwrap();
+    // Every scripted reply is one request the run must have finished before it
+    // announces anything, which is what keeps a multi-room preset honest too.
+    let requests = replies.len();
     let connector = ScriptedConnector::new(replies);
     let writes = Arc::clone(&connector.requests);
     let calls = Cell::new(0);
-    let notifier = PnsNotifier::with_runner(&root, |command: &mut Command| {
+    let notifier = PnsNotifier::with_runner(root, |command: &mut Command| {
         assert_eq!(
             writes.lock().unwrap().len(),
-            2,
-            "write must precede notification"
+            requests,
+            "every write must precede notification"
         );
         calls.set(calls.get() + 1);
         runner(command)
@@ -33,13 +37,19 @@ fn notify(
     let response = lights::run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
+        &root.join("state/position.toml"),
         &notifier,
         |settings| HueLightController::with_transport(settings, connector, ScriptedResolver),
     );
     (response, calls.get())
 }
 fn replies() -> Vec<(u16, serde_json::Value)> {
-    vec![(200, fixture()), (200, json!({"errors":[],"data":[]}))]
+    with_writes(1)
+}
+fn with_writes(count: usize) -> Vec<(u16, serde_json::Value)> {
+    let mut replies = vec![(200, fixture())];
+    replies.extend((0..count).map(|_| (200, json!({"errors":[],"data":[]}))));
+    replies
 }
 fn ok(_: &mut Command) -> io::Result<ExitStatus> {
     Ok(ExitStatus::from_raw(0))
@@ -122,13 +132,15 @@ fn notify_defaults_off() {
 }
 #[test]
 fn missing_pns_does_not_fail_action() {
-    let root = home();
+    let home = home();
+    let root = home.path();
     let path = root.join("config.toml");
     std::fs::write(&path, config()).unwrap();
-    let notifier = PnsNotifier::new(&root);
+    let notifier = PnsNotifier::new(root);
     let response = lights::run(
         &["toggle".into(), "--notify".into()],
         &path,
+        &root.join("state/position.toml"),
         &notifier,
         |settings| {
             HueLightController::with_transport(
@@ -157,4 +169,28 @@ fn notification_status_never_changes_success() {
         original(&response);
         assert_eq!(calls, 1);
     }
+}
+
+#[test]
+fn a_preset_announces_every_room_it_applied() {
+    let (response, calls) = notify(
+        &["preset", "evening", "--notify"],
+        &format!("{}{PRESETS}", config()),
+        with_writes(3),
+        ok,
+    );
+    assert_eq!(response.exit, 0);
+    assert_eq!(response.stderr, "");
+    assert_eq!(calls, 3);
+}
+#[test]
+fn a_preset_announces_only_the_rooms_it_applied() {
+    let (response, calls) = notify(
+        &["preset", "partial"],
+        &format!("notify=true\n{}{PRESETS}", config()),
+        with_writes(2),
+        ok,
+    );
+    assert_eq!(response.exit, 3);
+    assert_eq!(calls, 2);
 }

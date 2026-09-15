@@ -6,6 +6,7 @@ packages:
         - buo/cask-upgrade
         - eugene1g/safehouse
         - felixkratz/formulae
+        - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
         - openai/tools
@@ -30,6 +31,7 @@ packages:
         - buo/cask-upgrade
         - eugene1g/safehouse
         - felixkratz/formulae
+        - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
         - openai/tools
@@ -74,6 +76,7 @@ packages:
         - deno
         - difftastic
         - direnv
+        - droast
         - dust
         - espeak-ng
         - eza
@@ -81,6 +84,7 @@ packages:
         - felixkratz/formulae/borders
         - ffmpeg
         - fnm
+        - furkankly/tap/zoetrope
         - fzf
         - gawk
         - gh
@@ -198,6 +202,7 @@ packages:
         - font-symbols-only-nerd-font
         - gcloud-cli
         - ghostty
+        - gitbutler
         - google-chrome
         - karabiner-elements
         - keepassxc
@@ -270,11 +275,18 @@ packages:
           - "@fission-ai/openspec"
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
+          - "@oliverames/mcp-server-for-ynab"
           - "@tobilu/qmd"
           - acpx
           - agentmail-cli
           - backpass
           - clawhub
+          # Pinned: an overnight orchestrator that commits unattended, still
+          # pre-1.0 and releasing weekly, so the version it runs under is a
+          # deliberate choice rather than whatever `latest` points at that
+          # night. `npm ls -g <pkg>@<version>` is exact, so the guard above
+          # reinstalls whenever the pin moves.
+          - "gnhf@0.1.49"
           - happy
           - hyperframes
           - mcporter
@@ -297,3 +309,5 @@ packages:
       repo: ChmaraX/herdr-nvim
     - id: annotate
       repo: plannotator/herdr-annotate
+    - id: furkankly.zoetrope
+      repo: furkankly/zoetrope/herdr-plugin

@@ -13,6 +13,7 @@ pub(super) struct Configuration {
     pub target: PathBuf,
     pub sudo: PathBuf,
     pub osqueryctl: Option<PathBuf>,
+    pub osqueryd: Option<PathBuf>,
     pub search_path: OsString,
     pub log_directory: PathBuf,
     pub bounds: RestartBounds,
@@ -27,6 +28,7 @@ impl Configuration {
             "OSQUERY_CONVERGE_TARGET_DIR",
             "OSQUERY_CONVERGE_SUDO",
             "OSQUERY_CONVERGE_OSQUERYCTL",
+            "OSQUERY_CONVERGE_OSQUERYD",
         ];
         let overrides = names.map(&mut variable);
         let test_seam = variable("OSQUERY_CONVERGE_TEST_SEAM").is_some_and(|value| value == "1");
@@ -50,7 +52,7 @@ impl Configuration {
                 }
             }
         }
-        let [desired, target, sudo, osqueryctl] =
+        let [desired, target, sudo, osqueryctl, osqueryd] =
             overrides.map(|value| value.filter(|value| !value.is_empty()));
         let home = PathBuf::from(variable("HOME").unwrap_or_default());
         let deadline = variable("OSQUERY_CONVERGE_RESTART_DEADLINE");
@@ -58,7 +60,7 @@ impl Configuration {
         Ok(Self {
             desired: desired
                 .map(PathBuf::from)
-                .unwrap_or_else(|| home.join(".local/libexec/osquery/osquery-converge/desired")),
+                .unwrap_or_else(|| home.join(".local/libexec/posture/converge/desired")),
             target: target
                 .map(PathBuf::from)
                 .unwrap_or_else(|| "/var/osquery".into()),
@@ -66,6 +68,7 @@ impl Configuration {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| "/usr/bin/sudo".into()),
             osqueryctl: osqueryctl.map(PathBuf::from),
+            osqueryd: osqueryd.map(PathBuf::from),
             search_path: variable("PATH").unwrap_or_default(),
             log_directory: variable("OSQUERY_CONVERGE_LOG_DIR")
                 .filter(|value| !value.is_empty())

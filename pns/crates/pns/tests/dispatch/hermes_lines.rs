@@ -17,17 +17,18 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
             "no key in the config",
             "[plugins.hermes]\nenabled = true\n",
             "http://127.0.0.1:1/hook",
-            "pns: post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent\n",
+            "pns: post SKIPPED, no hermes key for the pns-events route \
+             ([plugins.hermes.keys] pns-events); nothing was sent\n",
         ),
         (
             "a gateway nothing is listening for",
-            "[plugins.hermes]\nenabled = true\nkey = \"k\"\n",
+            "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n",
             "http://127.0.0.1:1/hook",
             "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n",
         ),
         (
             "a url that is never put on the wire",
-            "[plugins.hermes]\nenabled = true\nkey = \"k\"\n",
+            "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n",
             "http://[::1",
             "pns: post FAILED (curl reported no HTTP status at all)\n",
         ),

@@ -2,8 +2,9 @@ use super::{
     DEFAULT_HERMES_URL, HermesChannel, SignedPost, hermes_body, remote_deadline, sign, skipped_line,
 };
 use crate::destinations::{Delivery, Event};
-use crate::hermes_secret;
+use crate::hermes_keys;
 use pns_application::{DeliveryRequest, NotificationDestination};
+use pns_domain::routes::DEFAULT_ROUTE;
 use pns_domain::routing::ReportMode;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -47,18 +48,31 @@ fn event() -> Event {
     }
 }
 
-/// The channel as the composition root builds it: the key already
-/// extracted from the `[plugins.hermes]` settings.
-fn channel_with_settings(settings: &str, outcome: PostOutcome) -> HermesChannel<RecordingPost> {
+/// The channel as the composition root builds it: the key for THIS ROUTE
+/// already looked up in the `[plugins.hermes]` settings.
+fn channel_for_route(
+    route: &str,
+    settings: &str,
+    outcome: PostOutcome,
+) -> HermesChannel<RecordingPost> {
     HermesChannel {
         post: RecordingPost {
             outcome,
             posts: Mutex::new(Vec::new()),
         },
-        key: hermes_secret(&settings.parse().unwrap()),
+        key: hermes_keys(&settings.parse().unwrap())
+            .key_for(route)
+            .map(str::to_string),
+        route: route.to_string(),
         url: "http://127.0.0.1:9/test".to_string(),
         sync_deadline: Some(Duration::from_secs(5)),
     }
+}
+
+/// The same channel on the default route, which is what most of these cases
+/// are about.
+fn channel_with_settings(settings: &str, outcome: PostOutcome) -> HermesChannel<RecordingPost> {
+    channel_for_route(DEFAULT_ROUTE, settings, outcome)
 }
 
 // --- the production post, against real sockets ---------------------------

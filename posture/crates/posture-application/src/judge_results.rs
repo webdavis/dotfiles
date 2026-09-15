@@ -17,7 +17,7 @@
 //! in and nothing else.
 
 use crate::{Alert, AlertSignal, AlertSink, Submission};
-use posture_domain::{Advance, LiveLog, StoredCursor, advance, complete_records};
+use posture_domain::{Advance, LiveLog, Severity, StoredCursor, advance, complete_records};
 
 mod judgment;
 pub use judgment::{BatchPage, JudgeFindings, JudgedBatch};
@@ -126,6 +126,11 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
             )),
             event: "alert",
             signal: AlertSignal::NeedsAttention,
+            // A PAGE IS INHERENTLY CRITICAL (`docs/specs/severity-gate.md`):
+            // the gate's own digest tier is where a lesser finding goes, and
+            // the renderer stamps every page CRIT. That tier is what puts this
+            // on the loud route while the digest below it stays on posture's.
+            severity: Some(Severity::Critical),
             occurred_at: self.occurred_at,
             title: page.title,
             detail: page.body,
@@ -155,6 +160,9 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
             occurrence_id: Some(format!("cursor-reset:{}:{}", live.inode, live.size)),
             event: "cursor-reset",
             signal: AlertSignal::NeedsAttention,
+            // NO TIER: this is the alerter's own state, not a finding the gate
+            // judged, so it keeps the route the sink was configured with.
+            severity: None,
             occurred_at: self.occurred_at,
             title: String::from("🔴 **osquery cursor reset**"),
             detail: String::from(

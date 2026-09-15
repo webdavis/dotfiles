@@ -345,6 +345,20 @@ fn a_lost_cursor_replays_the_whole_log_and_pages_that_it_happened() {
 }
 
 #[test]
+fn the_batch_page_is_tiered_critical_while_the_reset_warning_carries_no_tier() {
+    // THE TIER IS WHAT ROUTES A SUBMISSION. A page is inherently critical, so
+    // it belongs on the loud channel; the warning about this alerter's own
+    // state has no finding to read a tier off and keeps the sink's route.
+    let mut case = Case::new(TWO_ROWS, None);
+    case.judge.page = page();
+    assert_eq!(case.run(), JudgeOutcome::Advanced { paged: true });
+    assert_eq!(case.sink.sent[0].event, "cursor-reset");
+    assert_eq!(case.sink.sent[0].severity, None);
+    assert_eq!(case.sink.sent[1].event, "alert");
+    assert_eq!(case.sink.sent[1].severity, Some(Severity::Critical));
+}
+
+#[test]
 fn the_reset_page_is_raised_before_the_batch_and_never_gates_it() {
     // The warning is best effort. A batch held behind a failed warning would
     // trade the finding for the meta-signal about the finding.

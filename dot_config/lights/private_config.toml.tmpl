@@ -1,24 +1,55 @@
-# The room targeted when --room is absent.
+# Room used when --room is absent.
 default_room = "3F - Studio"
-# Send a local pns event after each accepted write. --notify enables one command.
+# Send a pns event after each write; --notify does it for one command.
 notify = false
 
 [controller]
 type = "hue"
 address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
-# Maximum duration of one bridge request, in seconds.
+# Seconds allowed per bridge request.
 timeout_secs = 2
 
 [brightness]
-# Percentage points per relative step.
+# Percent per step.
 step = 15
 
 [rooms]
 studio = "3F - Studio"
-bedroom = "3F - Master Bedroom"
+bedroom = "3F - MBedroom"
 kitchen = "2F - Kitchen"
 
 [scenes]
-rotation = ["Dimmed", "Read", "Energize", "Concentrate"]
+# Scene order for next and previous; fallback when the room is on none of them.
+rotation = ["Nightlight", "Soho", "Rest", "Dimmed", "Relax", "Read", "Energize"]
 fallback = "Read"
+# Carry on from the room's last rotation scene when the bridge reports none.
+remember_position = true
+
+# `lights preset <name>` runs the steps in order; a step is a scene or `off = true`.
+[presets]
+morning = [
+  { room = "studio", scene = "Energize" },
+  { room = "bedroom", scene = "Energize" },
+  { room = "kitchen", scene = "Energize" },
+]
+afternoon = [
+  { room = "studio", scene = "Concentrate" },
+  { room = "bedroom", scene = "Concentrate" },
+  { room = "kitchen", scene = "Concentrate" },
+]
+evening = [
+  { room = "studio", scene = "Relax" },
+  { room = "bedroom", scene = "Relax" },
+  { room = "kitchen", scene = "Relax" },
+]
+dusk = [
+  { room = "studio", scene = "Rest" },
+  { room = "bedroom", scene = "Rest" },
+  { room = "kitchen", scene = "Rest" },
+]
+night = [
+  { room = "studio", scene = "Nightlight" },
+  { room = "bedroom", scene = "Nightlight" },
+  { room = "kitchen", scene = "Nightlight" },
+]

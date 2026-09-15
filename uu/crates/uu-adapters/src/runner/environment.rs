@@ -21,6 +21,7 @@ pub(super) fn run(
             runner.budget,
             runner.declared,
             program,
+            crate::interruption().is_some(),
         )),
     }
 }

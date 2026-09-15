@@ -9,7 +9,10 @@ pub const HELP: &str = "Usage: lights [--room <alias|name>] [--notify] <command>
   brightness up | down    request one configured step\n\
   brightness <n>          request an absolute level, clamped to 1-100\n\
   scene <name>            activate a scene in the selected room\n\
-  scene next | previous  cycle the configured rotation\n\
+  scene next | previous   cycle the rotation from the room's current scene\n\
   status                  report power, brightness and scene\n\
+  preset <name>           apply a configured whole-house preset\n\
+  preset now              apply the preset the current window names\n\
+  preset                  list the configured presets\n\
   --notify                notify after an accepted write\n\
   --help                  print this help\n";

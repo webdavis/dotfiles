@@ -45,7 +45,17 @@ submit_deadline_secs = 5
 # with the key that route verifies.
 [plugins.hermes]
 enabled = true
-key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}
+
+# One signing key per route, each prepared in ~/.hermes/config.yaml under
+# the same name. A route with no key here posts nothing and says which
+# key is missing.
+[plugins.hermes.keys]
+# Every event with no route of its own, the return recap included.
+pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
+# Pages the posture pipeline submits.
+posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
+# Machine health and security, and the stale-block escalation.
+priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]
@@ -186,12 +196,6 @@ replay_card = true
 # by a second process that nothing waits for. Off records the window
 # just the same; only the posting stops.
 digest = true
-# Whether that recap posts to the `pns-recap` route rather than the
-# default one. The route has to exist in hermes first, prepared with
-# the pns signing secret and a prompt of bare `{detail}`; a route that
-# refuses the post is not silent, the recap goes to the default route
-# instead, carrying one line saying why it landed there.
-digest_as_thread = true
 # How many events a window needs before it is worth a recap rather than
 # the catch-up card alone. Every recap's header prints the window's real
 # count, which is how the number gets settled. One is the floor and
@@ -266,6 +270,18 @@ summarizer_deadline_secs = 240
 # name; no table at all, and after_secs of zero, are the same statement.
 [nag]
 after_secs = 300
+# And the OTHER end of the same wait: how long a session stays blocked before
+# ONE page about it goes to the priority route, the one reserved for things
+# that need a human. It fires once per block and then says nothing until
+# that block resolves, and only when you could act on it: nothing is sent
+# while you are away from both the desk and the phone, or while the screen
+# has been locked for the whole window, because a page nobody can answer is
+# how the route reserved for the ones you must answer stops being read. A
+# screen locked for PART of the window still pages, which is the case this
+# exists for: you were here, you stepped away, and a session is stuck. It
+# needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,
+# anything outside is refused by name, and zero is the feature off.
+stale_after_secs = 3600
 
 # Phone attention, shared by `pns tap` and the presence reader.
 # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap --install.

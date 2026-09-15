@@ -2,8 +2,8 @@ pub(super) mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
     AllowlistText, BatchJudge, Collaborators, CursorFile, DigestAppendFile, KnownGoodManifests,
-    LastResortBanner, PnsProducer, ResultsFile, ResultsRow, SingleRunLock, SystemClock,
-    SystemRunner, file_integrity_triage,
+    LastResortBanner, ResultsFile, ResultsRow, SingleRunLock, SystemClock, SystemRunner,
+    alert_sink, file_integrity_triage,
 };
 use posture_adapters::{OwnedSigning, SystemInspection};
 use posture_application::{Clock, JudgeOutcome, JudgeResults, enrich};
@@ -58,15 +58,11 @@ fn execute<R: posture_adapters::CommandRunner>(
     let spool = DigestAppendFile::new(config.spool);
     let allowlist = AllowlistText::read(&config.allowlist, &config.home);
 
-    let mut sink = PnsProducer::new(
+    let mut sink = alert_sink(
+        config.delivery,
         SystemRunner::per_command(PRODUCER_BUDGET),
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(SystemRunner::per_command(ALARM_BUDGET), config.alarm),
+        &mut *stderr,
     );
 
     let manifests = KnownGoodManifests::new(
@@ -98,13 +94,16 @@ fn execute<R: posture_adapters::CommandRunner>(
     };
     let upgrade_record = Path::new(&config.home)
         .join(".local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv");
-    let mut triage = |row: &ResultsRow| {
+    // THE SINK ARRIVES AS AN ARGUMENT rather than being captured, because the
+    // judge holds the one borrow of it for as long as it is judging and hands
+    // it to whichever collaborator has something to say.
+    let mut triage = |row: &ResultsRow, mut diagnostics: &mut dyn Write| {
         Some(file_integrity_triage(
             &manifests,
             &upgrade_record,
             row.gate_columns().target_path,
             now.as_ref().map(|reading| reading.seconds),
-            stderr,
+            &mut diagnostics,
         ))
     };
     let allowlist_path = config.allowlist.to_string_lossy().into_owned();
@@ -114,6 +113,7 @@ fn execute<R: posture_adapters::CommandRunner>(
         allowlist: allowlist.as_ref(),
         spool: &spool,
         now: &stamp,
+        diagnostics: &mut *stderr,
         collaborators: Collaborators {
             vouches: &mut vouches,
             inspect: &mut inspect,

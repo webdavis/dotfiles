@@ -45,7 +45,7 @@ pub(crate) fn home_mode() {
         }
     };
     // WHERE THE ALERT GOES, settled at the config read rather than at the
-    // post. `hermes_url_for`'s own refusal names `--channel`, a flag nobody
+    // post. `hermes_target`'s own refusal names `--channel`, a flag nobody
     // typed on this path; this one names the key in the file, and it is said
     // on every run of the diagnostic instead of only on the run that happens
     // to have something to deliver.

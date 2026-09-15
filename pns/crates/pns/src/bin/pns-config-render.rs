@@ -30,21 +30,34 @@ const BANNER: &str = "\
 ";
 const FOOTER: &str = "{{- end }}\n";
 
-/// The five keys this repo's own values file treats as secret-bearing:
+/// The fixed keys this repo's own values file treats as secret-bearing:
 /// present, each must hold a keepassxc marker table rather than a literal.
+/// `[plugins.hermes.keys]` adds one per route on top, off the route roster
+/// rather than written out again here.
 ///
 /// A SCAN OF THE RENDERED TEXT CANNOT STAND IN FOR THIS: `render` accepts a
 /// plain string for any of these keys just as happily as it accepts a
-/// marker table (the schema does not know these five are special), so only
+/// marker table (the schema does not know these are special), so only
 /// a check that reads the VALUES FILE ITSELF, before it is rendered, can
 /// catch a pasted credential landing in the file this repo commits.
-const SECRET_BEARING_KEYS: [&str; 5] = [
+const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
-    "plugins.hermes.key",
     "plugins.hue.bridge",
     "plugins.hue.key",
     "plugins.router.api_key",
 ];
+
+/// Every secret-bearing path, the per-route hermes keys included.
+fn secret_bearing_keys() -> impl Iterator<Item = String> {
+    SECRET_BEARING_KEYS
+        .iter()
+        .map(|path| (*path).to_string())
+        .chain(
+            pns_domain::routes::ROUTES
+                .iter()
+                .map(|route| format!("plugins.hermes.keys.{route}")),
+        )
+}
 
 const RESOLVED_CONFIG_SNAPSHOT: &str =
     include_str!("../../tests/fixtures/resolved-config.snapshot");
@@ -112,12 +125,12 @@ fn rendered_configuration(values_path: &str) -> Result<(String, Config), String>
     Ok((rendered, config))
 }
 
-/// Refuses by name when one of `SECRET_BEARING_KEYS` is present but is not a
+/// Refuses by name when one of `secret_bearing_keys` is present but is not a
 /// table: `render` itself validates a present table's shape (the entry name,
 /// the field), so this only has to rule out a literal standing in its place.
 fn refuse_literal_secrets(values: &toml::Table) -> Result<(), String> {
-    for path in SECRET_BEARING_KEYS {
-        if let Some(value) = lookup(values, path)
+    for path in secret_bearing_keys() {
+        if let Some(value) = lookup(values, &path)
             && !matches!(value, toml::Value::Table(_))
         {
             return Err(format!(

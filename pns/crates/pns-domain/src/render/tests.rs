@@ -1,7 +1,10 @@
 //! The composition rules' own tests: what a heading and a body fall back to,
 //! and where a cut lands when the text is longer than the surface.
 
-use super::{DEFAULT_REPLY_MAX_CHARS, PREVIEW_MAX_CHARS, flatten_reply, message, preview, title};
+use super::{
+    DEFAULT_REPLY_MAX_CHARS, PREVIEW_MAX_CHARS, flatten_reply, header, message, preview,
+    short_session, subheader, title,
+};
 
 // --- title -------------------------------------------------------------
 
@@ -251,4 +254,29 @@ fn a_multibyte_body_that_fits_passes_through_rather_than_being_measured_in_bytes
     // where the cut then indexes past the end of a shorter text.
     let body = repeat('é', 200);
     assert_eq!(preview(&body), body);
+}
+
+// --- the sender header ---------------------------------------------------
+
+#[test]
+fn the_header_names_the_project_the_branch_and_the_state() {
+    assert_eq!(
+        header("dotfiles", "feat/posture-alert-cutover", "blocked"),
+        "dotfiles · feat/posture-alert-cutover · blocked"
+    );
+}
+
+#[test]
+fn the_header_drops_an_empty_branch_with_its_separator() {
+    assert_eq!(header("dotfiles", "", "done"), "dotfiles · done");
+}
+
+#[test]
+fn the_subheader_drops_an_empty_title_with_its_separator() {
+    assert_eq!(subheader("codex", "7f31", ""), "codex · 7f31");
+}
+
+#[test]
+fn the_short_session_is_the_first_four_characters_of_the_id() {
+    assert_eq!(short_session("a1b2c3d4-dead-beef"), "a1b2");
 }

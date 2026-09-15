@@ -5,6 +5,7 @@ pub(super) const PHONE: Table = Table {
     prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
             # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap --install.\n",
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "marker_file",
         prose: "# An absolute path or ~/ path. Missing config uses this default too.\n",
@@ -15,6 +16,7 @@ pub(super) const DAEMON: Table = Table {
     name: "daemon",
     prose: DAEMON_PROSE,
     opt_in: false,
+    children: &[],
     keys: &[Key {
         name: "enabled",
         prose: "",
@@ -25,6 +27,7 @@ pub(super) const RECAP: Table = Table {
     name: "recap",
     prose: RECAP_PROSE,
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "replay_card",
@@ -39,15 +42,6 @@ pub(super) const RECAP: Table = Table {
             prose: "# The recap of the whole window posted to hermes, rendered and posted\n\
                          # by a second process that nothing waits for. Off records the window\n\
                          # just the same; only the posting stops.\n",
-            sample: Sample::Default("true"),
-        },
-        Key {
-            name: "digest_as_thread",
-            prose: "# Whether that recap posts to the `pns-recap` route rather than the\n\
-                         # default one. The route has to exist in hermes first, prepared with\n\
-                         # the pns signing secret and a prompt of bare `{detail}`; a route that\n\
-                         # refuses the post is not silent, the recap goes to the default route\n\
-                         # instead, carrying one line saying why it landed there.\n",
             sample: Sample::Default("true"),
         },
         Key {
@@ -125,6 +119,7 @@ pub(super) const FOCUS: Table = Table {
                  # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
                  # table at all.\n",
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "silence",
         prose: "",
@@ -149,11 +144,29 @@ pub(super) const NAG: Table = Table {
                  # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
                  # name; no table at all, and after_secs of zero, are the same statement.\n",
     opt_in: true,
-    keys: &[Key {
-        name: "after_secs",
-        prose: "",
-        sample: Sample::Default("300"),
-    }],
+    children: &[],
+    keys: &[
+        Key {
+            name: "after_secs",
+            prose: "",
+            sample: Sample::Default("300"),
+        },
+        Key {
+            name: "stale_after_secs",
+            prose: "# And the OTHER end of the same wait: how long a session stays blocked before\n\
+                         # ONE page about it goes to the priority route, the one reserved for things\n\
+                         # that need a human. It fires once per block and then says nothing until\n\
+                         # that block resolves, and only when you could act on it: nothing is sent\n\
+                         # while you are away from both the desk and the phone, or while the screen\n\
+                         # has been locked for the whole window, because a page nobody can answer is\n\
+                         # how the route reserved for the ones you must answer stops being read. A\n\
+                         # screen locked for PART of the window still pages, which is the case this\n\
+                         # exists for: you were here, you stepped away, and a session is stuck. It\n\
+                         # needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,\n\
+                         # anything outside is refused by name, and zero is the feature off.\n",
+            sample: Sample::Default("3600"),
+        },
+    ],
 };
 pub(super) const FAILURES: Table = Table {
     name: "failures",
@@ -170,6 +183,7 @@ pub(super) const FAILURES: Table = Table {
                  # else: the notification stands alone, Discord still carries the full\n\
                  # form whenever the hermes leg worked, and `pns failures` is unchanged.\n",
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "serve",
@@ -187,6 +201,7 @@ pub(super) const LIGHTS: Table = Table {
     name: "lights",
     prose: LIGHTS_PROSE,
     opt_in: true,
+    children: &[],
     keys: &[Key {
         name: "refresh_secs",
         prose: "# How often the daemon re-arms the lamps, in seconds. It is also the breath\n\

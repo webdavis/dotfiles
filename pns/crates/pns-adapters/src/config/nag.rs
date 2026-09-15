@@ -3,25 +3,92 @@ use super::*;
 /// The schedule that means the nag is off. See `Config::nag_after_secs`.
 pub(super) const NAG_OFF: u64 = 0;
 
-/// `[nag]`'s one key, in `parse_daemon`'s shape: an unknown key inside the
+/// The two schedules `[nag]` carries: the nudge about an approval, and the
+/// page about a block nobody came back to.
+///
+/// ONE VALUE RATHER THAN A PAIR OF `u64`s, because the two are the same type
+/// and would sit adjacent at both ends of this parse: a transposition nothing
+/// would catch, where named fields cannot be swapped.
+pub(super) struct Schedules {
+    pub after_secs: u64,
+    pub stale_after_secs: u64,
+}
+
+/// `[nag]`'s keys, in `parse_daemon`'s shape: an unknown key inside the
 /// table and a value of the wrong shape are each refused BY NAME rather than
 /// half-read into a schedule the operator believes they set.
-pub(super) fn parse_nag(value: toml::Value) -> Result<u64, ConfigError> {
+pub(super) fn parse_nag(value: toml::Value) -> Result<Schedules, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`nag` is not a table".to_string()));
     };
-    let mut after_secs = NAG_OFF;
+    let mut schedules = Schedules {
+        after_secs: NAG_OFF,
+        stale_after_secs: DEFAULT_STALE_AFTER_SECS,
+    };
     for (key, setting) in table {
         admits_flat("nag", &key)?;
         match key.as_str() {
-            "after_secs" => after_secs = nag_schedule(&setting)?,
+            "after_secs" => schedules.after_secs = nag_schedule(&setting)?,
+            "stale_after_secs" => schedules.stale_after_secs = stale_window(&setting)?,
             _ => {
                 return Err(unknown_key("nag", "nag", &key));
             }
         }
     }
-    Ok(after_secs)
+    Ok(schedules)
 }
+
+/// `stale_after_secs`, in whole seconds, BOUNDED ON BOTH SIDES with zero
+/// carved out, exactly as `nag_schedule` above is and for its reasons.
+///
+/// THE FLOOR IS A MINUTE. Below that this is a nudge rather than an
+/// escalation, and the nudge is the key beside it; a minute is also low
+/// enough to drill the whole path in a minute.
+///
+/// THE CEILING IS A DAY, which is `jobs::EVERY_MAX_SECS`'s own reading of "a
+/// mistyped value rather than a schedule". The job's lease is one more window
+/// past its due second, so a day still sits far inside the daemon's
+/// registration window (`jobs::DUE_WINDOW_SECS`, thirty days).
+pub(super) fn stale_window(setting: &toml::Value) -> Result<u64, ConfigError> {
+    let Some(count) = setting
+        .as_integer()
+        .and_then(|count| u64::try_from(count).ok())
+    else {
+        return Err(ConfigError::Invalid(format!(
+            "`nag` key `stale_after_secs` has type `{}`, not a count of seconds",
+            setting.type_str()
+        )));
+    };
+    if count == STALE_OFF {
+        return Ok(STALE_OFF);
+    }
+    if !(MIN_STALE_AFTER_SECS..=MAX_STALE_AFTER_SECS).contains(&count) {
+        return Err(ConfigError::Invalid(format!(
+            "`nag` key `stale_after_secs` is {count}, outside the {MIN_STALE_AFTER_SECS} to \
+             {MAX_STALE_AFTER_SECS} second range; 0 is the feature off"
+        )));
+    }
+    Ok(count)
+}
+
+/// The window that means the escalation is off.
+pub(super) const STALE_OFF: u64 = 0;
+
+/// How long a block stands before it is escalated when nothing says otherwise
+/// (design, 2026-09-14).
+///
+/// DEFAULT ON, where the nudge beside it is default off, and the difference is
+/// which mistake each default makes. A nudge nobody asked for interrupts a
+/// session the operator is already watching; a page nobody asked for arrives
+/// about a session that has been stuck for an hour, which is the one thing
+/// they would want to know.
+pub(super) const DEFAULT_STALE_AFTER_SECS: u64 = 3_600;
+
+/// The shortest escalation anyone may schedule. See `stale_window`.
+pub(super) const MIN_STALE_AFTER_SECS: u64 = 60;
+
+/// The longest. See `stale_window`.
+pub(super) const MAX_STALE_AFTER_SECS: u64 = pns_domain::jobs::EVERY_MAX_SECS;
 
 /// `after_secs`, in whole seconds, BOUNDED ON BOTH SIDES with zero carved out.
 ///

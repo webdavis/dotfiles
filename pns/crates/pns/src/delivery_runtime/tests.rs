@@ -60,7 +60,7 @@ fn unavailable_identity_or_clock_keeps_the_owned_live_path_without_inventing_a_l
         selection: &selection,
         home: root.to_str().unwrap(),
         mobile: &Mobile::default(),
-        hermes_key: None,
+        hermes_keys: &pns_adapters::HermesKeys::default(),
         json: false,
     };
     for (identity, now, expected) in [

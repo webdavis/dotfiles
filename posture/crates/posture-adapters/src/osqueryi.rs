@@ -13,6 +13,13 @@ pub struct PostureTrio {
     pub(crate) baseline_rows: String,
 }
 impl PostureTrio {
+    pub fn unreadable() -> Self {
+        Self {
+            values: Default::default(),
+            exit: 1,
+            baseline_rows: String::new(),
+        }
+    }
     pub fn reading(&self) -> TrioReading<'_> {
         TrioReading {
             values: self.values.each_ref().map(String::as_str),
@@ -33,6 +40,9 @@ impl PostureQuery<SystemRunner> {
     }
 }
 impl<R: CommandRunner> PostureQuery<R> {
+    pub fn with_runner(runner: R, program: PathBuf) -> Self {
+        Self { runner, program }
+    }
     pub fn read(&mut self) -> Result<PostureTrio, InspectionFailure> {
         let completed = self.runner.run_completed(
             &self.program,

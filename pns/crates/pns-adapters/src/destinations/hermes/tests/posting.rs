@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
-    let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
+    let channel = channel_with_settings("[keys]\npns-events = \"key\"\n", PostOutcome::Status(200));
     assert_eq!(
         channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
         Delivery::Delivered("posted HTTP 200".to_string()),
@@ -27,7 +27,7 @@ fn a_key_posts_once_with_the_signature_of_the_exact_body_bytes() {
 
 #[test]
 fn sync_carries_the_validated_sync_deadline() {
-    let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(200));
+    let channel = channel_with_settings("[keys]\npns-events = \"key\"\n", PostOutcome::Status(200));
     channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome));
     assert_eq!(
         channel.post.posts.lock().unwrap()[0].3,
@@ -41,7 +41,7 @@ fn no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure() {
         let channel = channel_with_settings("", PostOutcome::Status(200));
         assert_eq!(
             channel.deliver(&delivery_request(&event(), mode)),
-            Delivery::Failed(super::skipped_line()),
+            Delivery::Failed(super::skipped_line("pns-events")),
             "not set up is reported in both modes; only sync prints it"
         );
         assert!(channel.post.posts.lock().unwrap().is_empty());
@@ -91,7 +91,7 @@ fn a_2xx_is_delivered_and_every_other_answer_is_failed_carrying_its_own_sentence
             Delivery::Failed("post FAILED (curl reported no HTTP status at all)".to_string()),
         ),
     ] {
-        let channel = channel_with_settings("key = \"key\"\n", outcome);
+        let channel = channel_with_settings("[keys]\npns-events = \"key\"\n", outcome);
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome)),
             expected,
@@ -112,7 +112,10 @@ fn every_answer_carrying_a_status_leaves_the_channel_with_that_exact_status() {
         199, 200, 299, 300, 400, 401, 402, 403, 404, 405, 408, 409, 412, 413, 414, 422, 429, 500,
         599,
     ] {
-        let channel = channel_with_settings("key = \"key\"\n", PostOutcome::Status(status));
+        let channel = channel_with_settings(
+            "[keys]\npns-events = \"key\"\n",
+            PostOutcome::Status(status),
+        );
         let result = channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome));
         match status {
             200..=299 => assert!(matches!(result, Delivery::Delivered(_)), "status {status}"),
@@ -130,7 +133,7 @@ fn every_answer_carrying_a_status_leaves_the_channel_with_that_exact_status() {
 #[test]
 fn an_answer_with_no_status_stays_a_plain_failure() {
     for outcome in [PostOutcome::NoResponse, PostOutcome::NoStatus] {
-        let channel = channel_with_settings("key = \"key\"\n", outcome);
+        let channel = channel_with_settings("[keys]\npns-events = \"key\"\n", outcome);
         assert!(
             matches!(
                 channel.deliver(&delivery_request(&event(), ReportMode::ReportOutcome)),

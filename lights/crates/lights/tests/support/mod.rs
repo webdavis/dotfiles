@@ -1,32 +1,41 @@
+mod home;
 pub(super) mod transport;
 
+pub use home::Home;
 use lights::{Response, run};
 use lights_adapters::HueLightController;
 use serde_json::{Value, json};
-use std::{
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
 };
 use transport::{ScriptedConnector, ScriptedResolver};
 
-pub fn home() -> PathBuf {
+pub fn home() -> Home {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
         "lights-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
-    std::fs::create_dir_all(&path).unwrap();
-    path
+    Home::fresh(path)
 }
 pub fn config() -> &'static str {
     "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n"
 }
 pub fn fixture() -> Value {
     serde_json::from_str(include_str!("../fixtures/resources.json")).unwrap()
+}
+/// The same bridge after a pause: every scene reports itself inactive, which is
+/// what the bridge does once a room has sat untouched.
+pub fn fixture_with_no_active_scene() -> Value {
+    let mut fixture = fixture();
+    for resource in fixture["data"].as_array_mut().unwrap() {
+        if resource["type"] == "scene" {
+            resource["status"]["active"] = json!("inactive");
+        }
+    }
+    fixture
 }
 pub struct Quiet;
 impl lights_application::Notifier for Quiet {
@@ -38,7 +47,17 @@ pub fn command(
     config: Option<&str>,
     responses: Vec<(u16, Value)>,
 ) -> (Response, Vec<Vec<u8>>) {
-    let path = home().join("config.toml");
+    command_in(&home(), args, config, responses)
+}
+/// The same invocation against a home that outlives it, so a second press sees
+/// what the first one left on disk.
+pub fn command_in(
+    home: &Home,
+    args: &[&str],
+    config: Option<&str>,
+    responses: Vec<(u16, Value)>,
+) -> (Response, Vec<Vec<u8>>) {
+    let path = home.path().join("config.toml");
     if let Some(config) = config {
         std::fs::write(&path, config).unwrap();
     }
@@ -47,6 +66,7 @@ pub fn command(
     let response = run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
+        &home.path().join("state/position.toml"),
         &Quiet,
         |settings| HueLightController::with_transport(settings, connector, ScriptedResolver),
     );
@@ -73,9 +93,11 @@ pub fn failure(response: &Response, exit: u8, name: &str) {
     assert!(!response.stderr.contains("test-secret"));
 }
 pub fn timeout_command() -> Response {
-    let path = home().join("config.toml");
+    let home = home();
+    let path = home.path().join("config.toml");
     std::fs::write(&path, config()).unwrap();
-    run(&["toggle".into()], &path, &Quiet, |settings| {
+    let state = home.path().join("state/position.toml");
+    run(&["toggle".into()], &path, &state, &Quiet, |settings| {
         HueLightController::with_transport(
             settings,
             transport::TimeoutConnector,

@@ -1,5 +1,5 @@
 //! The category names are checked against the osquery config that STAMPS them
-//! (`osquery-converge/desired/osquery.conf.tmpl`, the `file_paths` block), not
+//! (`posture/converge/desired/osquery.conf.tmpl`, the `file_paths` block), not
 //! against the alerter that read them.
 
 use super::*;

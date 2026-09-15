@@ -1,6 +1,7 @@
 use posture_application::InspectionFailure;
-use std::ffi::OsStr;
+use std::ffi::{CString, OsStr};
 use std::io::{self, Read};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
@@ -10,6 +11,18 @@ mod input;
 mod terminal;
 use child::OwnedChild;
 use std::time::{Duration, Instant};
+
+pub fn is_executable(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: the NUL-terminated path remains valid for this call. AT_FDCWD
+    // resolves relative paths; AT_EACCESS checks the identity that will execute it.
+    unsafe { libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::X_OK, libc::AT_EACCESS) == 0 }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandIo<'a> {
@@ -49,20 +62,35 @@ pub struct CommandOutput {
 
 pub struct SystemRunner {
     budget: Budget,
+    termination_grace: Duration,
+    cancelled: fn() -> bool,
 }
 enum Budget {
     Total(Instant),
     PerCommand(Duration),
 }
 impl SystemRunner {
+    pub fn with_cancellation(mut self, cancelled: fn() -> bool) -> Self {
+        self.cancelled = cancelled;
+        self
+    }
+    pub fn with_termination_grace(mut self, grace: Duration) -> Self {
+        self.termination_grace = grace;
+        self
+    }
+
     pub fn per_command(budget: Duration) -> Self {
         Self {
             budget: Budget::PerCommand(budget),
+            termination_grace: Duration::ZERO,
+            cancelled: || false,
         }
     }
     pub fn new(budget: Duration) -> Self {
         Self {
             budget: Budget::Total(Instant::now() + budget),
+            termination_grace: Duration::ZERO,
+            cancelled: || false,
         }
     }
 }
@@ -74,6 +102,9 @@ impl CommandRunner for SystemRunner {
         args: &[&OsStr],
         io: CommandIo<'_>,
     ) -> Result<CommandOutput, InspectionFailure> {
+        if (self.cancelled)() {
+            return Err(InspectionFailure::Failed);
+        }
         let expires = match self.budget {
             Budget::Total(expires) => expires,
             Budget::PerCommand(duration) => Instant::now() + duration,
@@ -84,6 +115,19 @@ impl CommandRunner for SystemRunner {
         let interactive = matches!(io, CommandIo::CaptureStdout | CommandIo::InheritAll);
         let mut command = Command::new(program);
         command.args(args).process_group(0);
+        if !self.termination_grace.is_zero() && !interactive {
+            // Only async-signal-safe operations run after fork; dispositions change in this child.
+            unsafe {
+                command.pre_exec(|| {
+                    if libc::signal(libc::SIGTTOU, libc::SIG_IGN) == libc::SIG_ERR
+                        || libc::signal(libc::SIGTTIN, libc::SIG_IGN) == libc::SIG_ERR
+                    {
+                        return Err(io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        }
         command.stdin(if interactive {
             Stdio::inherit()
         } else {
@@ -128,7 +172,12 @@ impl CommandRunner for SystemRunner {
         let mut output = Vec::new();
         let mut eof = reader.is_none();
         loop {
+            if (self.cancelled)() {
+                child.stop(self.termination_grace);
+                return Err(InspectionFailure::Failed);
+            }
             if Instant::now() >= expires {
+                child.stop(self.termination_grace);
                 return Err(InspectionFailure::TimedOut);
             }
             let mut bytes = [0_u8; 4096];

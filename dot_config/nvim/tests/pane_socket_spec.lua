@@ -102,7 +102,7 @@ local function capturing_notify(fn)
   vim.notify = function(message, level)
     table.insert(seen, { message = message, level = level })
   end
-  local ok, err = pcall(fn)
+  local ok, err = pcall(fn, seen)
   vim.notify = real
   assert(ok, err)
   return seen
@@ -112,7 +112,94 @@ end
 -- same six characters, so the two sides are held to one rule.
 local SESSION = "9a663d"
 
+local function refuses_root(root)
+  with_env(herdr_env(root, "term_a1"), function()
+    local before = vim.fn.serverlist()
+    local seen = capturing_notify(function(notices)
+      pane_socket().listen()
+      vim.wait(500, function()
+        return #notices > 0 or not vim.deep_equal(vim.fn.serverlist(), before)
+      end, 1)
+    end)
+    local after = vim.fn.serverlist()
+    for _, socket in ipairs(after) do
+      if not vim.tbl_contains(before, socket) then
+        vim.fn.serverstop(socket)
+      end
+    end
+    assert(vim.deep_equal(after, before), "bound through an unsafe root: " .. vim.inspect(after))
+    assert(#seen == 1 and seen[1].level == vim.log.levels.WARN, "missing root refusal")
+    assert(#herdr_calls(root .. "/herdr.log") == 0, "asked herdr before refusing the root")
+  end)
+end
+
 return {
+  ["a private root below a world-writable ancestor binds nothing"] = function()
+    local parent = private_root()
+    local root = parent .. "/inner/run"
+    assert(vim.fn.mkdir(root, "p", 448) == 1)
+    assert(vim.uv.fs_chmod(parent, 511)) -- 0777, without sticky protection
+    refuses_root(root)
+  end,
+
+  ["a private root below a group-writable ancestor binds nothing"] = function()
+    local parent = private_root()
+    local root = parent .. "/run"
+    assert(vim.fn.mkdir(root, "p", 448) == 1)
+    assert(vim.uv.fs_chmod(parent, 504)) -- 0770
+    refuses_root(root)
+  end,
+
+  ["an alias through a replaceable ancestor cannot hide a safe target"] = function()
+    local parent, target = private_root(), private_root()
+    assert(vim.uv.fs_symlink(target, parent .. "/alias"))
+    assert(vim.fn.mkdir(target .. "/run", "p", 448) == 1)
+    assert(vim.uv.fs_chmod(parent, 511))
+    refuses_root(parent .. "/alias/run")
+  end,
+
+  ["a safe alias cannot hide a replaceable target ancestor"] = function()
+    local parent, target = private_root(), private_root()
+    assert(vim.fn.mkdir(target .. "/run", "p", 448) == 1)
+    assert(vim.uv.fs_symlink(target .. "/run", parent .. "/alias"))
+    assert(vim.uv.fs_chmod(target, 511))
+    refuses_root(parent .. "/alias")
+  end,
+
+  ["an indirect alias cannot skip a replaceable intermediate target"] = function()
+    local parent, target = private_root(), private_root()
+    assert(vim.fn.mkdir(parent .. "/open", "p", 511) == 1)
+    assert(vim.uv.fs_chmod(parent .. "/open", 511))
+    assert(vim.fn.mkdir(target .. "/run", "p", 448) == 1)
+    assert(vim.uv.fs_symlink(target, parent .. "/open/bridge"))
+    assert(vim.uv.fs_symlink(parent .. "/open/bridge", parent .. "/alias"))
+    refuses_root(parent .. "/alias/run")
+  end,
+
+  ["a newline in the runtime root binds nothing"] = function()
+    local root = private_root() .. "/line\nbreak"
+    assert(vim.fn.mkdir(root, "p", 448) == 1)
+    refuses_root(root)
+  end,
+
+  ["a sticky ancestor protects an owned private root and preserves its socket spelling"] = function()
+    local parent = private_root()
+    local root = parent .. "/run"
+    assert(vim.fn.mkdir(root, "p", 448) == 1)
+    assert(vim.uv.fs_chmod(parent, 1023)) -- 01777
+    local expected = root .. "/herdr-" .. SESSION .. "-term_a1.sock"
+    with_env(herdr_env(root, "term_a1"), function()
+      pane_socket().listen()
+      assert(
+        vim.wait(500, function()
+          return serving(expected)
+        end, 1),
+        "sticky ancestor prevented a safe bind"
+      )
+      vim.fn.serverstop(expected)
+    end)
+  end,
+
   ["a terminal id becomes a socket path in the run root, namespaced by the session"] = function()
     local root = private_root()
     with_env({ XDG_RUNTIME_DIR = root, HERDR_SOCKET_PATH = "/s/a.sock" }, function()
