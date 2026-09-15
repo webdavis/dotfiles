@@ -520,6 +520,19 @@ lamp is the judge.
 
 ## Decision 5: Discord, one channel per repo
 
+**SUPERSEDED on 2026-09-15 by `docs/superpowers/specs/2026-09-15-pns-discord-destination-design.md`,
+and the table below is not to be built.** The operator's ruling is one `repo -> channel entry` map in
+the pns config, shared by the GitHub source and by session events, so `[plugins.github.channels]` is
+cancelled in favour of `[plugins.discord.channels]`: one repository resolves to one channel whichever
+producer named it, GitHub spelling it `webdavis/dotfiles` and a session spelling it `dotfiles`. The
+channels are `#<project>-dev` rather than `#github-<repo>`, the catch-all is `#github-notifications`
+rather than `#github`, the interim hermes `github` route below is cancelled outright, and a config
+still holding `[plugins.github]` is refused naming it as a plugin nothing registered. What survives
+from this decision is its reasoning, which the replacement keeps: the full name is tried first because
+the extraction is coming, and the catch-all is a required key because a map without one silently
+swallows the first event from every new repository. Everything after this paragraph is the cancelled
+original, kept for that reasoning.
+
 **A `[plugins.github.channels]` map keyed on the full repository name, plus a catch-all.**
 
 ```toml

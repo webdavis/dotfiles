@@ -63,8 +63,8 @@ return {
     autosave.setup(opts)
 
     -- An automatic write must not reformat the buffer under the operator's
-    -- cursor, so it announces itself and lsp-format's BufWritePre handler
-    -- (plugins/lsp.lua) stands down while the flag is set. An explicit `:w`
+    -- cursor, so it announces itself and conform's format-on-save hook
+    -- (plugins/conform.lua) stands down while the flag is set. An explicit `:w`
     -- never sets it and keeps formatting.
     local write_flag_group = vim.api.nvim_create_augroup("AutoSaveWriteFlag", { clear = true })
 

@@ -189,3 +189,31 @@ fn the_event_picks_its_channel_and_the_route_picks_it_first() {
         assert_eq!(posted_to(&channel), expected, "route {route:?}");
     }
 }
+
+#[test]
+fn a_github_event_and_a_session_event_about_one_repository_reach_one_channel() {
+    // THE MUTANT THIS PINS: a second map, or a second lookup order, for the
+    // source that spells a repository `owner/name`. This is why
+    // `[plugins.github.channels]` is deleted rather than filled in: GitHub
+    // only ever knows `webdavis/dotfiles` and a session only ever knows
+    // `dotfiles`, and both are the same repository, so both are one channel.
+    let map = channels(&[("default", "catch-all"), ("dotfiles", "dotfiles-dev")]);
+    let mut from_github = event();
+    from_github.project = "webdavis/dotfiles".to_string();
+    from_github.branch = "lint".to_string();
+    from_github.state = "failed".to_string();
+    for subject in [event(), from_github] {
+        let channel = armed_on("", map.clone(), DeliveryOutcome::Status(200));
+        assert!(
+            matches!(delivered_about(&channel, &subject), Delivery::Delivered(_)),
+            "project {:?} delivered",
+            subject.project
+        );
+        assert_eq!(
+            posted_to(&channel),
+            "dotfiles-dev",
+            "project {:?}",
+            subject.project
+        );
+    }
+}
