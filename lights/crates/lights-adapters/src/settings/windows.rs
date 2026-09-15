@@ -52,7 +52,13 @@ fn minute(row: &toml::Table, name: &str) -> Result<MinuteOfDay, ConfigError> {
     let text = required_string(row, name)?;
     let invalid = || error(&format!("preset window {name} must be HH:MM"));
     let (hours, minutes) = text.split_once(':').ok_or_else(invalid)?;
-    if hours.len() != 2 || minutes.len() != 2 {
+    if hours.len() != 2
+        || minutes.len() != 2
+        || !hours
+            .bytes()
+            .chain(minutes.bytes())
+            .all(|b| b.is_ascii_digit())
+    {
         return Err(invalid());
     }
     let hours: MinuteOfDay = hours.parse().map_err(|_| invalid())?;

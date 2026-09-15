@@ -258,7 +258,7 @@ fn a_window_naming_an_unknown_preset_is_refused_at_load() {
 #[test]
 fn a_window_time_that_is_not_hh_colon_mm_is_refused() {
     for time in [
-        "'6:00'", "'24:00'", "'22:60'", "'2200'", "'noon'", "6", "[]",
+        "'6:00'", "'24:00'", "'22:60'", "'2200'", "'noon'", "'+3:00'", "6", "[]",
     ] {
         let input = format!(
             "{VALID}{WINDOW_PRESETS}\
