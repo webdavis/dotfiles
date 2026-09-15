@@ -57,4 +57,16 @@ fn a_colour_outside_the_unit_range_or_the_wrong_shape_is_refused_by_name() {
         parse_config("[lights.github]\npass = [0.0, 0.0]\nfail = [1.0, 1.0]\n").is_ok(),
         "the corners of the unit square are coordinates"
     );
+    // A BARE INTEGER IS THE SAME NUMBER a person is most likely to type at the
+    // corners, and the refusal wording says "a pair of numbers" without
+    // carving out a spelling, so it is accepted rather than refused.
+    assert!(
+        parse_config("[lights.github]\npass = [0, 1]\n").is_ok(),
+        "an integer coordinate is still a number in range"
+    );
+    let said = refusal("[lights.github]\npass = [2, 0]\n");
+    assert!(
+        said.contains("lights.github") && said.contains("pass") && said.contains("out of range"),
+        "an out-of-range integer is refused on value, not spelling: {said}"
+    );
 }

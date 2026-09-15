@@ -176,7 +176,10 @@ pub(super) fn coordinate(
     };
     let mut pair = [0.0; 2];
     for (slot, stated) in pair.iter_mut().zip([x, y]) {
-        let Some(number) = stated.as_float() else {
+        let Some(number) = stated
+            .as_float()
+            .or_else(|| stated.as_integer().map(|whole| whole as f64))
+        else {
             return Err(refused(&format!(
                 "holds a `{}`, not a number",
                 stated.type_str()
