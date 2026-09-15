@@ -23,6 +23,19 @@ pns-events = { keepassxc = "Hermes :: Webhook Secret (#pns-events)", field = "Pa
 posture-pages = { keepassxc = "Hermes :: Webhook Secret (#posture-pages)", field = "Password" }
 priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Password" }
 
+# SHIPPED DISABLED, and it has to be: [plugins.hermes] above is enabled, and
+# both durable logs at once is refused at load, naming both tables. The
+# cutover is two lines in one edit, `enabled = false` there and `true` here,
+# and the rollback is the same two the other way.
+[plugins.discord]
+enabled = false
+token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
+
+# The catch-all channel every post lands on. A channel id is a secret like
+# every other id here, so it is named rather than written.
+[plugins.discord.channels]
+default = { keepassxc = "Discord (Uriel) :: Channel ID (#github-notifications)", field = "Password" }
+
 [plugins.hue]
 bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
 key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }

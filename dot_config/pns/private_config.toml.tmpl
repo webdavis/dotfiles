@@ -57,6 +57,28 @@ posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Passw
 # Machine health and security, and the stale-block escalation.
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 
+# The durable paper trail, posted straight to Discord by pns's own bot with
+# no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a
+# companion: both enabled at once is refused at load, naming both tables,
+# because two durable logs post every event twice. The cutover is two lines
+# in one edit, and the rollback is the same two the other way.
+[plugins.discord]
+enabled = false
+# Which compiled-in transport carries the post. "bot" is the only one
+# today, and a table naming none, or naming one nothing answers, is
+# refused out loud rather than read as this one.
+type = "bot"
+# The bot token, from the Discord application's Bot page. Every call
+# carries it as `Authorization: Bot <token>`, and a table with none
+# posts nothing and says which key is missing.
+token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
+
+# Where a post goes. `default` is the catch-all and the only entry read
+# today; a channel id is the number Discord copies from a channel's
+# Copy Channel ID, and it is a secret like every other id here.
+[plugins.discord.channels]
+default = {{ (keepassxc "Discord (Uriel) :: Channel ID (#github-notifications)").Password | toToml }}
+
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]
 enabled = true
