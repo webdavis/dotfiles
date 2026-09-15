@@ -125,10 +125,24 @@ pub fn enabled_hue_table(config: &Config) -> Option<toml::Table> {
         .map(|hue| hue.settings.clone())
 }
 
-/// The two plugins that are each the DURABLE LOG. One machine has one.
-const DURABLE_PLUGINS: [&str; 2] = ["hermes", "discord"];
+/// The plugins that are each a DURABLE LOG, READ OFF THE ROSTER rather than
+/// restated here: `pns_domain::registry::ROSTER` is the single source of
+/// truth for which channel declares `Routing { durable: true, .. }`, so a
+/// third one added there is caught here too instead of loading silently
+/// alongside the other two and posting every event twice.
+fn durable_plugin_names() -> impl Iterator<Item = &'static str> {
+    pns_domain::registry::ROSTER
+        .iter()
+        .filter_map(|registration| match registration.kind {
+            pns_domain::registry::PluginKind::Channel(routing) if routing.durable => {
+                Some(registration.name)
+            }
+            _ => None,
+        })
+}
 
-/// Refuses a config that switches BOTH durable logs on, naming both tables.
+/// Refuses a config that switches more than one durable log on, naming every
+/// one enabled.
 ///
 /// A MEASURED DUPLICATE, not caution. `channel_plan` keeps every plugin whose
 /// declaration passes the selection, so two durable channels produce two legs
@@ -138,22 +152,26 @@ const DURABLE_PLUGINS: [&str; 2] = ["hermes", "discord"];
 /// first while every other event doubled.
 ///
 /// AT LOAD, WHICH BLOCKS THE WHOLE FILE, rather than in the registry: a
-/// refusal there selects the entire roster and turns both of them on, which is
+/// refusal there selects the entire roster and turns all of them on, which is
 /// the opposite of what this refuses. Here the file is unusable, the sentence
-/// names both tables, and the machine falls back to the core until one of the
-/// two lines is edited.
+/// names every enabled table, and the machine falls back to the core until
+/// all but one of the lines is edited.
 pub(super) fn refuse_two_durable_logs(config: &Config) -> Result<(), ConfigError> {
-    let both_on = DURABLE_PLUGINS
-        .iter()
-        .all(|name| config.plugins.get(*name).is_some_and(|entry| entry.enabled));
-    if !both_on {
+    let enabled: Vec<&str> = durable_plugin_names()
+        .filter(|name| config.plugins.get(*name).is_some_and(|entry| entry.enabled))
+        .collect();
+    if enabled.len() <= 1 {
         return Ok(());
     }
+    let named = enabled
+        .iter()
+        .map(|name| format!("`[plugins.{name}]`"))
+        .collect::<Vec<_>>()
+        .join(" and ");
     Err(ConfigError::Invalid(format!(
-        "`[plugins.{}]` and `[plugins.{}]` are both enabled and only one durable log may be: \
+        "{named} are all enabled and only one durable log may be: \
          two of them post every event twice, and the recap goes to whichever registered first. \
-         Switch one off.",
-        DURABLE_PLUGINS[0], DURABLE_PLUGINS[1]
+         Switch all but one off."
     )))
 }
 
