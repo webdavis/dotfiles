@@ -93,7 +93,7 @@ function M.private(dir)
   return stat ~= nil
     and stat.type == "directory"
     and stat.uid == uid
-    and stat.mode % 4096 == 448
+    and stat.mode % 4096 == 448 -- 0700 exactly, setuid, setgid and sticky included
     and protected_ancestors(dir, uid)
 end
 
