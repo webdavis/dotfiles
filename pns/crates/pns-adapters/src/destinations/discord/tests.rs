@@ -1,105 +1,8 @@
+use super::double::*;
 use super::request::API_BASE;
 use super::*;
 use pns_domain::channel_map::ChannelMap;
 use pns_domain::retry::{DeadletterReason, FailureClass, RetryLimits};
-use std::sync::Mutex;
-
-/// The seam standing in for discord.com: it answers whatever it was built
-/// with and keeps the request it was handed, which is how the composed
-/// authorization, User-Agent and body are asserted without a socket.
-struct Sent {
-    url: String,
-    headers: Vec<(String, String)>,
-    body: String,
-}
-
-struct Recorder {
-    answer: DeliveryOutcome,
-    seen: Mutex<Vec<Sent>>,
-}
-
-impl Recorder {
-    fn answering(answer: DeliveryOutcome) -> Self {
-        Self {
-            answer,
-            seen: Mutex::new(Vec::new()),
-        }
-    }
-}
-
-impl DiscordPost for Recorder {
-    fn post(&self, request: &DiscordRequest) -> DeliveryOutcome {
-        self.seen.lock().unwrap().push(Sent {
-            url: request.url.clone(),
-            headers: request.headers.clone(),
-            body: request.body.clone(),
-        });
-        self.answer
-    }
-}
-
-const TOKEN: &str = "MTIzNDU2.a-secret-bot-token";
-
-fn event() -> Event {
-    Event {
-        agent: "claude".to_string(),
-        state: "blocked".to_string(),
-        project: "dotfiles".to_string(),
-        branch: "feat/x".to_string(),
-        detail: "Bash(git push) needs approval".to_string(),
-        ..Event::default()
-    }
-}
-
-fn delivered_by(channel: &DiscordChannel<Recorder>) -> Delivery {
-    delivered_about(channel, &event())
-}
-
-fn delivered_about(channel: &DiscordChannel<Recorder>, event: &Event) -> Delivery {
-    channel.deliver(&DeliveryRequest {
-        producer: "pns",
-        request_id: Some("req-1"),
-        producer_request: None,
-        event,
-        route: "",
-        mode: pns_domain::routing::ReportMode::ReportOutcome,
-    })
-}
-
-fn channels(entries: &[(&str, &str)]) -> ChannelMap {
-    entries
-        .iter()
-        .map(|(key, channel)| ((*key).to_string(), (*channel).to_string()))
-        .collect()
-}
-
-fn armed(answer: DeliveryOutcome) -> DiscordChannel<Recorder> {
-    armed_on("", channels(&[("default", "9001")]), answer)
-}
-
-fn armed_on(
-    route: &str,
-    channels: ChannelMap,
-    answer: DeliveryOutcome,
-) -> DiscordChannel<Recorder> {
-    DiscordChannel {
-        post: Recorder::answering(answer),
-        token: Some(TOKEN.to_string()),
-        channels,
-        route: route.to_string(),
-    }
-}
-
-/// The channel one post was addressed to, read off the URL the seam recorded.
-fn posted_to(channel: &DiscordChannel<Recorder>) -> String {
-    let seen = channel.post.seen.lock().unwrap();
-    let sent = seen.first().expect("one post went out");
-    sent.url
-        .strip_prefix(&format!("{API_BASE}/channels/"))
-        .and_then(|rest| rest.strip_suffix("/messages"))
-        .expect("a channel URL")
-        .to_string()
-}
 
 #[test]
 fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
@@ -113,6 +16,7 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
                 token: None,
                 channels: channels(&[("default", "9001")]),
                 route: String::new(),
+                threads: Box::new(Remembered::default()),
             },
             "[plugins.discord] token",
         ),

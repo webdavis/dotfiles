@@ -1,0 +1,71 @@
+//! The thread a session already owns in a channel, one row per pair.
+//!
+//! KEYED ON THE PAIR, NOT THE SESSION, which is what makes a session that
+//! spans two repositories correct rather than surprising: an agent that
+//! starts in one checkout and posts an event from another resolves a second
+//! channel, finds no row for that pair, and opens a second thread there. A
+//! single column on `sessions` would have posted the second repository's
+//! events into the first repository's channel.
+//!
+//! A ROW IS REPLACED IN PLACE AND NEVER SWEPT, for `sessions`'s own recorded
+//! reason: every marker family under the state directory carries a sweeper,
+//! and a row overwritten in place needs none.
+//!
+//! A STORE FAILURE IS NOT A DELIVERY FAILURE. Every method here answers in
+//! the shape the destination can act on and swallows the error: the worst a
+//! dead database can do to an event is cost it a thread, and an event posted
+//! at channel level beats an event not posted at all.
+
+use super::{SqliteStore, StoreError};
+use crate::destinations::discord::SessionThreads;
+use rusqlite::Transaction;
+
+pub(in crate::persistence::sqlite) fn create(
+    transaction: &Transaction<'_>,
+) -> Result<(), StoreError> {
+    transaction.execute_batch(
+        "CREATE TABLE session_threads (
+          session TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          thread TEXT NOT NULL,
+          PRIMARY KEY (session, channel));",
+    )?;
+    Ok(())
+}
+
+impl SessionThreads for SqliteStore {
+    fn thread(&self, session: &str, channel: &str) -> Option<String> {
+        self.transaction(|transaction| {
+            Ok(transaction
+                .query_row(
+                    "SELECT thread FROM session_threads WHERE session = ?1 AND channel = ?2",
+                    rusqlite::params![session, channel],
+                    |row| row.get::<_, String>(0),
+                )
+                .ok())
+        })
+        .ok()
+        .flatten()
+    }
+
+    fn remember(&self, session: &str, channel: &str, thread: &str) {
+        let _ = self.transaction(|transaction| {
+            transaction.execute(
+                "INSERT INTO session_threads(session,channel,thread) VALUES (?1,?2,?3)
+                 ON CONFLICT(session,channel) DO UPDATE SET thread = ?3",
+                rusqlite::params![session, channel, thread],
+            )?;
+            Ok(())
+        });
+    }
+
+    fn forget(&self, session: &str, channel: &str) {
+        let _ = self.transaction(|transaction| {
+            transaction.execute(
+                "DELETE FROM session_threads WHERE session = ?1 AND channel = ?2",
+                rusqlite::params![session, channel],
+            )?;
+            Ok(())
+        });
+    }
+}
