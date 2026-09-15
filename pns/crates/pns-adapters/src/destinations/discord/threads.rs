@@ -8,10 +8,11 @@
 //! ARCHIVAL NEEDS NO HANDLING AT ALL: "sending a message will automatically
 //! unarchive the thread, unless the thread has been locked by a moderator"
 //! (docs.discord.com/developers/topics/threads, read 2026-09-15). A thread
-//! that is DELETED answers code 10003 and a LOCKED one 50083 or 160005, and
-//! the bot holds no Manage Threads permission, so it can unlock neither: all
-//! three take the one path, the stored row dropped and a fresh thread opened
-//! from a new message.
+//! that is DELETED answers code 10003, one that is ARCHIVED and cannot
+//! auto-unarchive on send answers 50083, and one that is LOCKED answers
+//! 160005, and the bot holds no Manage Threads permission, so it can unlock
+//! neither: all three take the one path, the stored row dropped and a fresh
+//! thread opened from a new message.
 
 use super::request::{DiscordReply, error_code};
 
@@ -40,8 +41,9 @@ pub fn thread_name(project: &str, branch: &str, state: &str) -> String {
 
 /// Whether this refusal means the stored thread can never be posted to again.
 ///
-/// THE CODE DECIDES, NOT THE STATUS: 10003 arrives as a 404 a mistyped
-/// channel id would also earn, and the locked pair arrive beside a 403. On
+/// THE CODE DECIDES, NOT THE STATUS: 10003 (unknown channel) arrives as a
+/// 404 a mistyped channel id would also earn, and 50083 (thread archived,
+/// cannot auto-unarchive) and 160005 (thread locked) arrive beside a 403. On
 /// any of the three the row is dropped and the event is reposted to the
 /// channel, which is the trade `channel_url` already makes for an unusable
 /// route name: a message in a second-choice place beats a message nowhere.
