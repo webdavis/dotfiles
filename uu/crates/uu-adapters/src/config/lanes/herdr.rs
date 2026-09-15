@@ -13,12 +13,19 @@ pub struct HerdrLane {
 /// The herdr command when no key states one.
 pub const DEFAULT_HERDR_BINARY: &str = "herdr";
 
-/// One GitHub-sourced herdr plugin: the installed id, and the source to
-/// reinstall it from.
+/// One GitHub-sourced herdr plugin: the installed id, the source to reinstall
+/// it from, and the revision to hold it at.
+///
+/// `pinned_ref` IS THE POLICY. `None` means the plugin follows its source tip
+/// every week, which is what an entry without a `ref` has always done. `Some`
+/// means herdr installs that revision, the plugin does not move, and the
+/// weekly record says so by name rather than reporting a refresh that did not
+/// happen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Plugin {
     pub(crate) id: String,
     pub(crate) repo: String,
+    pub(crate) pinned_ref: Option<String>,
 }
 
 pub(crate) fn parse_herdr_lane(
@@ -44,11 +51,17 @@ pub(crate) fn parse_herdr_lane(
     Ok(lane)
 }
 
-/// `plugins`, a list of `{ id, repo }` tables.
+/// `plugins`, a list of `{ id, repo, ref }` tables.
 ///
-/// BOTH FIELDS ARE REQUIRED AND NEITHER MAY BE EMPTY. The refresh is an
+/// `id` AND `repo` ARE REQUIRED AND NEITHER MAY BE EMPTY. The refresh is an
 /// uninstall by id followed by an install from the repo, so half an entry
 /// uninstalls a plugin nothing can put back.
+///
+/// `ref` IS OPTIONAL and is spelled the way herdr spells it, because it is
+/// passed straight to `herdr plugin install --ref`. An absent or empty `ref`
+/// is the unpinned default: the plugin follows its source tip. Any other
+/// value is whatever herdr accepts there, a tag, a branch or a commit, and an
+/// unresolvable one fails the step rather than falling back to tip.
 fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
     let Some(entries) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
@@ -66,9 +79,9 @@ fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>
                 )));
             };
             for key in fields.keys() {
-                if key != "id" && key != "repo" {
+                if key != "id" && key != "ref" && key != "repo" {
                     return Err(ConfigError::Invalid(format!(
-                        "unknown `{table_label}` plugin key `{key}`; a plugin serves id, repo"
+                        "unknown `{table_label}` plugin key `{key}`; a plugin serves id, ref, repo"
                     )));
                 }
             }
@@ -88,6 +101,12 @@ fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>
             Ok(Plugin {
                 id: field("id")?,
                 repo: field("repo")?,
+                pinned_ref: fields
+                    .get("ref")
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string),
             })
         })
         .collect()
@@ -159,10 +178,12 @@ mod tests {
                 Plugin {
                     id: "worktrunk".to_string(),
                     repo: "owner/herdr-worktrunk".to_string(),
+                    pinned_ref: None,
                 },
                 Plugin {
                     id: "herdr-bar".to_string(),
                     repo: "other/herdr-bar".to_string(),
+                    pinned_ref: None,
                 },
             ]
         );
@@ -186,11 +207,34 @@ mod tests {
     }
 
     #[test]
+    fn a_ref_is_read_off_the_entry_and_a_blank_one_is_the_unpinned_default() {
+        // AN EMPTY `ref` IS NOT A REFUSAL, unlike a blank id or repo: the
+        // rendered config ships the key at its default on every entry, and
+        // that default is "follow the source tip".
+        for (written, expected) in [
+            ("ref = \"v1.2.0\"", Some("v1.2.0".to_string())),
+            ("ref = \" v1.2.0 \"", Some("v1.2.0".to_string())),
+            ("ref = \"\"", None),
+            ("ref = \"  \"", None),
+        ] {
+            let text =
+                format!("[lanes.herdr]\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n");
+            let Some(herdr) = typed::<HerdrLane>(checked_text(&text), "herdr") else {
+                panic!("expected a herdr lane for {written}");
+            };
+            assert_eq!(herdr.plugins[0].pinned_ref, expected, "{written}");
+        }
+    }
+
+    #[test]
     fn a_plugin_entry_refuses_a_key_it_does_not_serve() {
         let detail =
             refusal("[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n");
+        // `pin` is NOT the spelling: the revision key is `ref`, because it is
+        // handed to `herdr plugin install --ref` unchanged.
         assert!(
-            detail.contains("unknown `lanes.herdr` plugin key `pin`"),
+            detail.contains("unknown `lanes.herdr` plugin key `pin`")
+                && detail.contains("id, ref, repo"),
             "{detail}"
         );
     }
