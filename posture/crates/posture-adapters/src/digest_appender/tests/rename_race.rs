@@ -6,7 +6,9 @@
 use super::*;
 use crate::DigestSpoolFile;
 use posture_application::DigestSpool;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// A spool directory of this run's own, removed when the test ends.
@@ -126,16 +128,151 @@ fn one_race() {
         writer.join().unwrap();
     }
 
-    let found: std::collections::HashSet<String> = race.identities().into_iter().collect();
+    let mut copies: HashMap<String, usize> = HashMap::new();
+    for identity in race.identities() {
+        *copies.entry(identity).or_default() += 1;
+    }
     let missing: Vec<String> = (0..WRITERS)
         .flat_map(|writer| (0..APPENDS).map(move |n| format!("live-{writer}-{n}")))
-        .filter(|identity| !found.contains(identity))
+        .filter(|identity| !copies.contains_key(identity))
         .collect();
     assert!(
         missing.is_empty(),
         "{} lines were lost to one claim: {missing:?}",
         missing.len()
     );
+    // ONE CLAIM COSTS AT MOST ONE REPEAT, which is the ceiling's whole
+    // justification: the loop only runs again while the spool keeps moving.
+    let chased: Vec<_> = copies.iter().filter(|(_, count)| **count > 2).collect();
+    assert!(
+        chased.is_empty(),
+        "one claim wrote a line more than twice: {chased:?}"
+    );
+}
+
+/// A digest thread that claims the spool by rename and reads the claim, so a
+/// line landing in one after its read is lost exactly as in production.
+/// Three of them, spinning, is the pathological condition the ceiling exists
+/// for: a real digest claims once a day.
+const DIGESTS: usize = 4;
+const REPRODUCER_APPENDS: usize = 1000;
+
+#[test]
+fn a_digest_that_keeps_claiming_loses_no_line_without_saying_so() {
+    // ONE RE-APPEND WAS NOT ENOUGH. The retry can land in a second claim that
+    // has also already been read, and that line is gone: this reproducer at
+    // 20000 appends lost 9 to 14 lines silently against the single retry and
+    // none against the loop. So the appender re-appends until the file it
+    // wrote to is still the file at the spool path.
+    //
+    // WHAT IS ASSERTED IS SILENCE, not survival. Claims here arrive thousands
+    // of times a second rather than once a day, which is the one condition
+    // that can reach the ceiling, and a line the appender gave up on was
+    // reported to its caller. `one_retry_is_not_enough_for_a_spool_that_moved_twice`
+    // is the deterministic version of the same defect.
+    let race = Race::new();
+    std::fs::create_dir_all(race.store.parent().unwrap()).unwrap();
+    let collected = Arc::new(std::sync::Mutex::new(HashSet::new()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let digests: Vec<_> = (0..DIGESTS)
+        .map(|digest| {
+            let store = race.store.clone();
+            let collected = Arc::clone(&collected);
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                let mut round = 0u64;
+                while !stop.load(Ordering::Relaxed) {
+                    let claim = store.with_extension(format!("claim-{digest}-{round}"));
+                    if std::fs::rename(&store, &claim).is_ok() {
+                        round += 1;
+                        if let Ok(text) = std::fs::read_to_string(&claim) {
+                            let mut seen = collected.lock().unwrap();
+                            for row in posture_protocol::decode_spool(&text) {
+                                seen.insert(row.identity.unwrap_or_default());
+                            }
+                        }
+                        // THE CLAIM IS KEPT, not deleted. A deleted claim's
+                        // inode number can be recycled into the fresh spool,
+                        // and the appender's device-and-inode check would then
+                        // read a line that landed in the dead claim as one
+                        // that landed in the live file.
+                        let _ = std::fs::rename(&claim, claim.with_extension("read"));
+                    }
+                }
+            })
+        })
+        .collect();
+
+    let appender = DigestAppendFile::new(race.store.clone());
+    let mut reported = HashSet::new();
+    for n in 0..REPRODUCER_APPENDS {
+        let identity = format!("kept-{n}");
+        if !appender.append(&finding(&identity), &mut std::io::sink()) {
+            reported.insert(identity);
+        }
+    }
+    stop.store(true, Ordering::Relaxed);
+    for digest in digests {
+        digest.join().unwrap();
+    }
+
+    let mut seen = collected.lock().unwrap().clone();
+    seen.extend(race.identities());
+    let lost: Vec<String> = (0..REPRODUCER_APPENDS)
+        .map(|n| format!("kept-{n}"))
+        .filter(|identity| !seen.contains(identity) && !reported.contains(identity))
+        .collect();
+    assert!(
+        lost.is_empty(),
+        "{} lines vanished with nothing said about them: {lost:?}",
+        lost.len()
+    );
+}
+
+#[test]
+fn one_retry_is_not_enough_for_a_spool_that_moved_twice() {
+    // THE RESIDUAL, deterministically. Two appends is what shipped, and a
+    // spool that moved under both of them leaves the line in a batch already
+    // read. Only more appends can settle it, which is what the shipped
+    // ceiling has to leave room for.
+    let moved_twice = || {
+        let mut moved = [true, true, false].into_iter();
+        move || Ok(moved.next().unwrap())
+    };
+    let store = Path::new("/nowhere/digest-spool");
+    assert!(append_until_the_spool_stops_moving(store, 2, &mut moved_twice()).is_err());
+    assert!(
+        append_until_the_spool_stops_moving(store, APPEND_ATTEMPTS, &mut moved_twice()).is_ok()
+    );
+}
+
+#[test]
+fn a_spool_that_will_not_settle_is_given_up_on_by_name_and_by_count() {
+    // AN UNBOUNDED LOOP HERE IS WORSE THAN THE BUG. Reaching the ceiling is a
+    // reported failure naming the spool and how many appends it took, not a
+    // spin and not a silent drop: the line is on disk after every attempt.
+    let mut attempts = 0;
+    let store = Path::new("/nowhere/state/digest-spool");
+    let error = append_until_the_spool_stops_moving(store, 4, &mut || {
+        attempts += 1;
+        Ok(true)
+    })
+    .unwrap_err();
+    assert_eq!(attempts, 4, "the line is written on every attempt");
+    let said = error.to_string();
+    assert!(said.contains("/nowhere/state/digest-spool"), "{said}");
+    assert!(said.contains('4'), "{said}");
+}
+
+#[test]
+fn a_spool_that_settles_on_a_later_attempt_is_not_a_failure() {
+    // The ceiling is not a budget the quiet path spends: a spool that stops
+    // moving is done, however many claims it took to get there.
+    let mut moved = [true, true, false].into_iter();
+    append_until_the_spool_stops_moving(Path::new("/nowhere/digest-spool"), 4, &mut || {
+        Ok(moved.next().unwrap())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -153,51 +290,4 @@ fn a_line_no_claim_raced_is_written_exactly_once() {
         written,
         (0..5).map(|n| format!("quiet-{n}")).collect::<Vec<_>>()
     );
-}
-
-#[test]
-fn a_spool_renamed_again_and_again_still_takes_each_line_at_most_twice() {
-    // The re-append is a retry, not a chase. A loop that kept following the
-    // renames would write the same finding into every spool it lost a race to.
-    const APPENDS: usize = 400;
-    let race = Race::new();
-    let appender = DigestAppendFile::new(race.store.clone());
-    // Seed the directory so the renamer has somewhere to work from the start.
-    assert!(appender.append(&finding("seed"), &mut std::io::sink()));
-    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let renamer = {
-        let store = race.store.clone();
-        let stop = std::sync::Arc::clone(&stop);
-        std::thread::spawn(move || {
-            let mut moved = 0u64;
-            while !stop.load(Ordering::Relaxed) {
-                let aside = store.with_extension(format!("aside-{moved}"));
-                if std::fs::rename(&store, &aside).is_ok() {
-                    moved += 1;
-                }
-            }
-        })
-    };
-
-    for n in 0..APPENDS {
-        assert!(appender.append(&finding(&format!("chased-{n}")), &mut std::io::sink()));
-    }
-    stop.store(true, Ordering::Relaxed);
-    renamer.join().unwrap();
-
-    let written = race.identities();
-    let mut twice = 0;
-    for n in 0..APPENDS {
-        let identity = format!("chased-{n}");
-        let copies = written.iter().filter(|found| **found == identity).count();
-        assert!(
-            (1..=2).contains(&copies),
-            "{identity} was written {copies} times"
-        );
-        twice += usize::from(copies == 2);
-    }
-    // Between a third and a half of these lines meet a rename in practice, so
-    // a run where none did means the renamer never raced anything and the
-    // bound above was never tested.
-    assert!(twice > 0, "no line met a rename");
 }
