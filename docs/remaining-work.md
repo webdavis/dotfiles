@@ -1906,7 +1906,8 @@ producer.
   checks from remaining rendered, device, agent-session and deployment checks. Source inventory accounts
   for all 90 entries through 59 verified merged-PR receipts. Source documentation reflects existing lazy
   loading, autosave, formatting and test integration; rendered acceptance and the listed language
-  decisions remain open.
+  decisions remain open: run drill two in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
 
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
@@ -2435,7 +2436,7 @@ is missing.
   off by default. What the operator declined is an image on their own recap card specifically, a setting
   in their own config, not a limit on the capability; the trade is a real one, since a Moshi card's
   `data` carries one `type`, so turning images on for a card type gives up the deep link that focuses the
-  originating herdr pane when that card is tapped. See task 78 (the decision) and task 88 (the build).
+  originating herdr pane when that card is tapped. See task 78 (the decision) and task 90 (the build).
   Also noticed while checking: moshi-hook is six releases behind (0.3.16 installed, 0.3.22 in the tap).
   Full document: `docs/research/2026-09-moshi-image-cards.md`. Operator steps: (1) Read
   docs/research/2026-09-moshi-image-cards.md, specifically the Verdict and the seven assumptions in
@@ -2464,7 +2465,7 @@ is missing.
   2026-09-15: whether a documented web API endpoint satisfies "an upstream upload interface" with no
   `upload` subcommand on moshi-hook itself (yes, this is the surface pns actually calls), and whether the
   capability is worth building (yes, approved as a per-card-type opt-in). Superseded by task 78 (the
-  decision) and task 88 (the build).
+  decision) and task 90 (the build).
 - [ ] 78. Decide whether a recap card on the phone carries an image, and build it only if the answer is
   yes (operator ruling 2026-09-15, low priority). Decided 2026-09-15: approved. The capability covers
   every card type, the recap included; what the operator declined is an image on their own recap card
@@ -2475,9 +2476,9 @@ is missing.
   on for a card type gives up the deep link that focuses the originating herdr pane when that card is
   tapped. The operator's own configuration keeps the recap card's images off and keeps its deep link. The
   build itself, the per-card-type opt-in, the deep-link tradeoff stated at the toggle, and the
-  card-ownership refactor `replay_missed` still needs, is filed separately as task 88, approved and not
+  card-ownership refactor `replay_missed` still needs, is filed separately as task 90, approved and not
   yet started. Full record: `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-- [ ] 88. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
+- [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
   recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and into the detached
@@ -2665,7 +2666,8 @@ operator deployment. No source correction was warranted by this audit.
   supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
   `dfe28fd3` passed independent review with 94 private checks; full `just ship` and required continuous
   integration passed. [PR #543](https://github.com/webdavis/dotfiles/pull/543) merged and local main
-  contains it. Operator deployment and live pane-move acceptance remain.
+  contains it. Operator deployment and live pane-move acceptance remain: run drill one in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
