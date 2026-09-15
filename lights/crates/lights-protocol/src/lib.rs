@@ -1,6 +1,6 @@
 mod command;
 mod output;
-pub use command::{BrightnessRequest, Command, MAX_OVER_MILLIS, Request, parse};
+pub use command::{BrightnessRequest, Command, Request, parse};
 pub use output::Output;
 
 pub const HELP: &str = "Usage: lights [--room <alias|name> | --all] [--notify] [--over <duration>] <command>\n\
