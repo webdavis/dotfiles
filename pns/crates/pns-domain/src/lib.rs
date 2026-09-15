@@ -19,6 +19,7 @@
 //! here, so every existing caller keeps its old path until the composition
 //! step removes the re-exports.
 
+pub mod channel_map;
 pub mod count;
 mod decision;
 mod decision_record;

@@ -26,17 +26,35 @@ priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Passwo
 # SHIPPED DISABLED, and it has to be: [plugins.hermes] above is enabled, and
 # both durable logs at once is refused at load, naming both tables. The
 # cutover is two lines in one edit, `enabled = false` there and `true` here,
-# and the rollback is the same two the other way. The cutover waits for the
-# per-route channel map: until it lands, flipping it routes every event,
-# priority and posture-pages included, onto the catch-all channel below.
+# and the rollback is the same two the other way.
 [plugins.discord]
 enabled = false
 token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
 
-# The catch-all channel every post lands on. A channel id is a secret like
-# every other id here, so it is named rather than written.
+# One entry per project, plus the two fallbacks and the severity channel. A
+# channel id is a secret like every other id here, so every entry NAMES its
+# vault record rather than writing the id into a committed file.
+#
+# `priority` is what a critical page carries whatever project it was about,
+# `pns-events` is where an event with no project at all lands, and `default`
+# is the catch-all for a project nobody mapped. A repository that needs its
+# own channel under its full name is one more line, keyed `owner/name`.
 [plugins.discord.channels]
 default = { keepassxc = "Discord (Uriel) :: Channel ID (#github-notifications)", field = "Password" }
+pns-events = { keepassxc = "Discord (Uriel) :: Channel ID (#pns-events)", field = "Password" }
+priority = { keepassxc = "Discord (Uriel) :: Channel ID (#priority)", field = "Password" }
+posture-pages = { keepassxc = "Discord (Uriel) :: Channel ID (#posture-pages)", field = "Password" }
+casually-concerned = { keepassxc = "Discord (Uriel) :: Channel ID (#casually-concerned-dev)", field = "Password" }
+dotfiles = { keepassxc = "Discord (Uriel) :: Channel ID (#dotfiles-dev)", field = "Password" }
+essential-feed-case-study = { keepassxc = "Discord (Uriel) :: Channel ID (#essential-feed-case-study-dev)", field = "Password" }
+homelab = { keepassxc = "Discord (Uriel) :: Channel ID (#homelab-dev)", field = "Password" }
+justdavis-ansible = { keepassxc = "Discord (Uriel) :: Channel ID (#justdavis-ansible-dev)", field = "Password" }
+netpulse = { keepassxc = "Discord (Uriel) :: Channel ID (#netpulse-dev)", field = "Password" }
+plantpulse = { keepassxc = "Discord (Uriel) :: Channel ID (#plantpulse-dev)", field = "Password" }
+pns = { keepassxc = "Discord (Uriel) :: Channel ID (#pns-dev)", field = "Password" }
+posture = { keepassxc = "Discord (Uriel) :: Channel ID (#posture-dev)", field = "Password" }
+scalebar = { keepassxc = "Discord (Uriel) :: Channel ID (#scalebar-dev)", field = "Password" }
+uu = { keepassxc = "Discord (Uriel) :: Channel ID (#uu-dev)", field = "Password" }
 
 [plugins.hue]
 bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
