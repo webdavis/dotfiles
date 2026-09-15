@@ -1753,12 +1753,20 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
   [PR #557](https://github.com/webdavis/dotfiles/pull/557) (`fix/pns-private-process-budget`, the pns
   fixture process budget) merged into `main`, reviewed NO_ISSUE, after continuous integration passed.
-- [ ] 79. Stop the posture digest repeating the same file. The 2026-09-14 digest carried 110
+- [x] 79. Stop the posture digest repeating the same file. The 2026-09-14 digest carried 110
   `agent_authfile_changed` findings for `~/.codex/config.toml`, which Codex rewrites from its own model
   while it runs, so every rewrite arrives as a fresh finding rather than as news. Decide between an
   allowlist entry for that path and a debounce that collapses repeats of one path inside a digest window,
   then build the one chosen. Record the reasoning either way, because an allowlist entry stops watching
-  an agent credential file while a debounce keeps watching it.
+  an agent credential file while a debounce keeps watching it. DONE 2026-09-15 in
+  [PR #642](https://github.com/webdavis/dotfiles/pull/642)
+  (`feat(posture): collapse repeats of one path inside a digest window`, merged): the debounce was chosen
+  over the allowlist entry, because `~/.codex/config.toml` records Codex's hook trust and MCP servers, so
+  it is exactly the file worth watching for a change nobody made. The digest renderer now folds two
+  findings that share both identity and summary inside an already-grouped detector into one bullet
+  carrying a count, and the bullet and group caps apply to collapsed lines rather than raw findings.
+  Measured against a synthetic 112-line spool: 11 bullet lines and 924 characters before, 3 and 323
+  after, with `~/.claude.json` (previously evicted) now rendering.
 
 ### STOP POINT G
 
@@ -3998,7 +4006,7 @@ force.
 - [ ] Finish the recorded pi harness setup/evaluation and its configuration, skills and hook integration.
   Reconcile babysitter's evaluation with its existing declaration and holds, and Understand-Anything with
   its current adoption decision. OpenSpec and credential-access work have explicit entries below.
-- [ ] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and
+- [x] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and
   version `1.12.0` is installed. The live global configuration exists with profile `core` and delivery
   `both`, but no OpenSpec configuration or generated integrations are tracked here, and this checkout has
   no `openspec/` root. Choose the intended global settings and project scope, then configure the
@@ -4022,7 +4030,13 @@ force.
   `docs/remaining-work.md` and `.chezmoidata/macos_posture_controls.yaml`, outside the pre-approved
   conflict scope, so no further merge was attempted. Gated on GitHub Actions/Blacksmith CI recovering
   (verify with `gh-axi pr checks 586`), then merging `origin/main` again, rerunning `just ship`, pushing,
-  and resuming.
+  and resuming. [PR #586](https://github.com/webdavis/dotfiles/pull/586) merged 2026-09-14 (`cdaa33fb`):
+  `dot_config/openspec/config.json` deploys `~/.config/openspec/config.json` with `profile: core`,
+  `delivery: both`, `telemetry.enabled: false` and `completionTipSeen: true`, and
+  `docs/runbooks/agent-tooling.md` documents the tracked config, the per-project `openspec init` flow,
+  and the separate upgrade-versus-refresh jobs. Deliberately out of scope, per the task's own "project
+  specifications in their owning repositories" line: no `openspec/` root, no `openspec init` and no
+  generated harness integrations in this checkout, since it gets no OpenSpec project of its own.
 - [ ] Configure [YNAB (You Need a Budget)](https://github.com/oliverames/ynab-mcp-server) through its MCP
   (Model Context Protocol) server, added by the operator on 2026-09-12. Track the upstream npm package
   `@oliverames/mcp-server-for-ynab` in the existing fnm package declaration and use its local stdio
