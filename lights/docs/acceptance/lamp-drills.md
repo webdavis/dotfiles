@@ -346,6 +346,24 @@ move a lamp mid-reading.
 | `lights --all scene next`        | each room lands on the scene after its own, not on a shared one  |
 | `lights --all --room kitchen on` | exit 1, one line naming both `--all` and `--room`, no lamp moves |
 
+## Checking `--over`
+
+`--over <duration>` hands the bridge its own transition duration rather than stepping the change from
+here, so one write per room still goes out and the fade finishes even if the command is interrupted. A
+brightness write carries it as `dynamics.duration` and a scene recall as `recall.duration`, both in
+milliseconds. The accepted spellings are a whole number with one unit, `750ms`, `2s` or `5m`; anything
+else, including a bare number, is refused by name before the bridge is read, as is a duration longer than
+one hour and the flag on any command but `scene` or `brightness`. Omitting it changes nothing: no
+transition field is sent at all. It composes with `--all`, which fades every room.
+
+| What to run                            | What to see                                          |
+| -------------------------------------- | ---------------------------------------------------- |
+| `lights --over 5s brightness 40`       | the room ramps to 40% over about five seconds        |
+| `lights --over 5s scene Read`          | the room crossfades into `Read` rather than snapping |
+| `lights --all --over 5s brightness 40` | all three rooms ramp together, one printed line each |
+| `lights --over 2 brightness 40`        | exit 1, one line naming `--over`, no lamp moves      |
+| `lights --over 2s off`                 | exit 1, one line naming `--over`, no lamp moves      |
+
 ## When all four are filled
 
 The cutover is complete only with drills 1 through 3 and the key-press check all recorded as passing. A
