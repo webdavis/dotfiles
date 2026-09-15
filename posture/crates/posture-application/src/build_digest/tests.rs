@@ -199,3 +199,24 @@ fn the_digest_is_an_observation_and_never_a_page() {
     assert_eq!(sink.sent[0].event, "digest");
     assert_eq!(sink.sent[0].occurrence_id, None);
 }
+
+#[test]
+fn collapsing_repeats_changes_the_body_alone_and_not_the_batch() {
+    // The collapse is presentation. The title still counts every arrival, and
+    // the batch is claimed and kept exactly as it would have been.
+    let rows = vec![row("agent_authfile_changed", "~/.codex/config.toml"); 110];
+    let spool = Spool::holding(rows.len(), rows);
+    let mut sink = Sink::default();
+    assert_eq!(run(&spool, &mut sink).outcome, DigestOutcome::Sent);
+    assert_eq!(spool.did(), ["sweep", "claim", "keep"]);
+    assert!(
+        sink.sent[0].title.contains("110 item(s)"),
+        "{:?}",
+        sink.sent[0]
+    );
+    assert_eq!(
+        sink.sent[0].detail,
+        "**agent_authfile_changed** (110)\n\
+         - `~/.codex/config.toml` - `agent_authfile_changed ~/.codex/config.toml` (×110)\n"
+    );
+}
