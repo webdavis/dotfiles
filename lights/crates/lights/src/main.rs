@@ -18,12 +18,18 @@ fn main() -> ExitCode {
         .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
         .map(|p| p.join("lights/config.toml"))
         .unwrap_or_default();
+    let state = std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".local/state")))
+        .map(|p| p.join("lights/position.toml"))
+        .unwrap_or_default();
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default();
     let response = lights::run(
         &args,
         &config,
+        &state,
         &PnsNotifier::new(&home),
         HueLightController::new,
     );

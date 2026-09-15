@@ -23,6 +23,8 @@ kitchen = "2F - Kitchen"
 # Scene order for next and previous; fallback when the room is on none of them.
 rotation = ["Nightlight", "Soho", "Rest", "Dimmed", "Relax", "Read", "Energize"]
 fallback = "Read"
+# Carry on from the room's last rotation scene when the bridge reports none.
+remember_position = true
 
 # `lights preset <name>` runs the steps in order; a step is a scene or `off = true`.
 [presets]
