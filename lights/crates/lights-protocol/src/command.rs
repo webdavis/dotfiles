@@ -25,12 +25,22 @@ pub struct Request {
     /// Act on every room the alias table names rather than on one.
     pub all: bool,
     pub notify: bool,
+    /// Milliseconds the bridge is asked to spread the change over. `None`
+    /// sends no transition field at all, which is the bridge's own default.
+    pub over: Option<u32>,
 }
+
+/// One hour. The published grouped_light schema puts no ceiling on
+/// `dynamics.duration`, so an unbounded value would be the bridge's to
+/// truncate however it likes; a fade longer than an hour is refused here
+/// instead of guessed at.
+pub const MAX_OVER_MILLIS: u32 = 60 * 60 * 1000;
 
 pub fn parse(args: &[String]) -> Result<Request, String> {
     let mut room = None;
     let mut all = false;
     let mut notify = false;
+    let mut over = None;
     let mut words = Vec::new();
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -47,6 +57,14 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
                 return Err("duplicate --all".into());
             }
             all = true;
+        } else if arg == "--over" {
+            let value = args
+                .next()
+                .filter(|s| !s.starts_with('-') && !s.trim().is_empty())
+                .ok_or("--over requires a duration")?;
+            if over.replace(millis(value)?).is_some() {
+                return Err("duplicate --over".into());
+            }
         } else if arg == "--notify" {
             if notify {
                 return Err("duplicate --notify".into());
@@ -97,12 +115,42 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
     if all && !matches!(command, Command::Scene(_) | Command::Brightness(_)) {
         return Err("--all applies to scene and brightness only".into());
     }
+    // A FADE NEEDS A LEVEL TO FADE TOWARDS. Power and status name no such
+    // target, so the flag is refused there rather than sent and ignored.
+    if over.is_some() && !matches!(command, Command::Scene(_) | Command::Brightness(_)) {
+        return Err("--over applies to scene and brightness only".into());
+    }
     Ok(Request {
         command,
         room,
         all,
         notify,
+        over,
     })
+}
+
+/// `750ms`, `2s`, `5m`: a whole number and one unit, the only spellings, so a
+/// bare `2` never has to be guessed as seconds or as milliseconds.
+fn millis(text: &str) -> Result<u32, String> {
+    let invalid = || "--over takes a whole number with a unit: 750ms, 2s or 5m".to_string();
+    let (digits, per_unit) = if let Some(digits) = text.strip_suffix("ms") {
+        (digits, 1)
+    } else if let Some(digits) = text.strip_suffix('s') {
+        (digits, 1000)
+    } else if let Some(digits) = text.strip_suffix('m') {
+        (digits, 60_000)
+    } else {
+        return Err(invalid());
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(invalid());
+    }
+    digits
+        .parse::<u32>()
+        .ok()
+        .and_then(|count| count.checked_mul(per_unit))
+        .filter(|millis| *millis <= MAX_OVER_MILLIS)
+        .ok_or_else(|| "--over must be one hour or less".into())
 }
 
 #[cfg(test)]

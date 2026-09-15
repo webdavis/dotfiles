@@ -64,7 +64,7 @@ a SECOND card.
 
 The internal repositories use one `pns.db` in the configured state directory. Each mutation and its
 retention change commit in one explicit transaction. A connection uses write-ahead logging and a
-200-millisecond busy timeout. This bounds the wait for another writer; it is not a disk-operation
+5-second busy timeout. This bounds the wait for another writer; it is not a disk-operation
 execution deadline. Tests inject a shorter timeout and exercise contention from a separate process.
 
 The database and its sidecars are private files. An existing irregular or publicly readable database is

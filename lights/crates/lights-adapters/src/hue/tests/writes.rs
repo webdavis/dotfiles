@@ -39,8 +39,12 @@ fn absolute_body_uses_requested_level() {
     for n in [0, 1, 42, 101] {
         successful_write(
             |c, r| {
-                c.set_brightness(r, BrightnessChange::Absolute(Brightness::new(n)))
-                    .unwrap()
+                c.set_brightness(
+                    r,
+                    BrightnessChange::Absolute(Brightness::new(n)),
+                    Fade::INSTANT,
+                )
+                .unwrap()
             },
             &format!("grouped_light/{}", id(2)),
             json!({"dimming":{"brightness":n.clamp(1,100)}}),
@@ -58,6 +62,7 @@ fn relative_body_uses_direction_and_delta() {
                         direction,
                         percent: 5,
                     },
+                    Fade::INSTANT,
                 )
                 .unwrap()
             },
@@ -76,7 +81,7 @@ fn scene_recall_body_requests_active() {
                 .into_iter()
                 .find(|s| s.name == "Read")
                 .unwrap();
-            c.set_scene(&scene.scene).unwrap();
+            c.set_scene(&scene.scene, Fade::INSTANT).unwrap();
         },
         &format!("scene/{}", id(6)),
         json!({"recall":{"action":"active"}}),
@@ -94,7 +99,8 @@ fn invalid_room_reference_does_not_write() {
         assert_eq!(
             c.set_brightness(
                 &RoomRef::from_index(index),
-                BrightnessChange::Absolute(Brightness::new(1))
+                BrightnessChange::Absolute(Brightness::new(1)),
+                Fade::INSTANT
             ),
             Err(LightControlError::InvalidReference)
         );
@@ -107,7 +113,7 @@ fn invalid_scene_reference_does_not_write() {
     c.room(&room()).unwrap();
     for index in [0, 99] {
         assert_eq!(
-            c.set_scene(&SceneRef::from_index(index)),
+            c.set_scene(&SceneRef::from_index(index), Fade::INSTANT),
             Err(LightControlError::InvalidReference)
         );
     }

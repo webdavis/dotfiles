@@ -5,7 +5,11 @@ use std::{
     process::{Child, ChildStderr, ChildStdout, Command, Stdio},
     time::{Duration, Instant},
 };
-const DEADLINE: Duration = Duration::from_millis(500);
+/// How long the host is given to answer before the call is refused. It is a
+/// PRODUCT decision: somebody is waiting on a pane to open. `pub(super)` so a
+/// test can assert a freshly opened call still carries this value rather than
+/// one an edit silently swapped in underneath it.
+pub(super) const DEADLINE: Duration = Duration::from_millis(500);
 const OUTPUT_LIMIT: usize = 65536;
 const READ_BUDGET: usize = 8192;
 
@@ -16,6 +20,11 @@ pub struct HostCall {
     output: Vec<u8>,
     errors: Vec<u8>,
     started: Instant,
+    /// This call's own copy of `DEADLINE`. A TEST OWNS ITS OWN BOUND: the
+    /// suite's doubles are spawned shells, and on a loaded machine the spawn
+    /// alone can outlast the product's half second, which turned a test about
+    /// a malformed reply into a test about how fast this machine forks.
+    deadline: Duration,
     expected: Expected,
     outcome: Option<Result<HostReply, HostFailure>>,
 }
@@ -36,6 +45,7 @@ impl HostCall {
             output: Vec::new(),
             errors: Vec::new(),
             started,
+            deadline: DEADLINE,
             expected,
             outcome: None,
         };
@@ -78,8 +88,22 @@ impl HostCall {
         result
     }
 
+    /// Move this call's bound, so a test can wait on the signal its double
+    /// actually raises rather than race the product's deadline.
+    #[cfg(test)]
+    pub(super) fn bound(&mut self, deadline: Duration) {
+        self.deadline = deadline;
+    }
+
+    /// This call's current bound. TEST-ONLY: lets a test pin the initializer
+    /// to `DEADLINE` without reading a wall clock.
+    #[cfg(test)]
+    pub(super) fn deadline(&self) -> Duration {
+        self.deadline
+    }
+
     fn advance(&mut self) -> Result<Option<HostReply>, HostFailure> {
-        if self.started.elapsed() >= DEADLINE {
+        if self.started.elapsed() >= self.deadline {
             return Err(HostFailure::new(HostFailureCode::Timeout));
         }
         read_pipe(&mut self.stdout, &mut self.output, self.errors.len())?;

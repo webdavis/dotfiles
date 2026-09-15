@@ -3,8 +3,9 @@ mod render;
 use lights_adapters::settings::{self, HueSettings, Settings};
 use lights_adapters::{FilePositionStore, SystemClock};
 use lights_application::{
-    AdjustBrightness, ApplyPreset, BrightnessChange, ChoosePreset, LightController, LightsError,
-    Notifier, ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene, TogglePower,
+    AdjustBrightness, ApplyPreset, BrightnessChange, ChoosePreset, Fade, LightController,
+    LightsError, Notifier, ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene,
+    TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
 use lights_protocol::{BrightnessRequest, Command};
@@ -36,6 +37,7 @@ pub fn run<C: LightController>(
         Err(error) => return failure(5, &error.0),
     };
     let notify = request.notify || settings.notify;
+    let fade = request.over.map_or(Fade::INSTANT, Fade::over_millis);
     let store = FilePositionStore::new(state);
     let memory = SceneMemory::new(&store, settings.remember_position);
     if matches!(request.command, Command::Preset(_) | Command::PresetNow) {
@@ -85,7 +87,16 @@ pub fn run<C: LightController>(
         }
         let results = rooms
             .iter()
-            .map(|room| execute(&controller, &settings, &memory, room, &request.command))
+            .map(|room| {
+                execute(
+                    &controller,
+                    &settings,
+                    &memory,
+                    room,
+                    &request.command,
+                    fade,
+                )
+            })
             .collect::<Vec<_>>();
         if notify {
             for action in results.iter().flatten() {
@@ -101,7 +112,14 @@ pub fn run<C: LightController>(
         },
         None => settings.default_room.clone(),
     };
-    match execute(&controller, &settings, &memory, &room, &request.command) {
+    match execute(
+        &controller,
+        &settings,
+        &memory,
+        &room,
+        &request.command,
+        fade,
+    ) {
         Ok(action) => {
             if notify && !matches!(action, Action::Reported { .. }) {
                 notifier.announce(&action);
@@ -121,6 +139,7 @@ fn execute<C: LightController>(
     memory: &SceneMemory<'_>,
     room: &lights_domain::RoomName,
     command: &Command,
+    fade: Fade,
 ) -> Result<Action, LightsError> {
     match command {
         Command::Toggle => TogglePower::run(controller, room),
@@ -138,7 +157,7 @@ fn execute<C: LightController>(
                     percent: settings.step,
                 },
             };
-            AdjustBrightness::run(controller, room, change)
+            AdjustBrightness::run(controller, room, change, fade)
         }
         Command::Scene(name) => SetScene::run(
             controller,
@@ -150,6 +169,7 @@ fn execute<C: LightController>(
                 "previous" => SceneSelection::Previous,
                 name => SceneSelection::Named(name),
             },
+            fade,
         ),
         Command::Status => ReportStatus::run(controller, room),
         Command::Help | Command::Preset(_) | Command::PresetNow => {

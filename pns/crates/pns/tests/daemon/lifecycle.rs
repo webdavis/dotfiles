@@ -145,39 +145,38 @@ fn guard_cleans_delivery(unwind: bool) {
     );
     // Keep the real daemon's job timeout beyond this test's deadline.
     let guard = DaemonGuard::start(&sandbox, 100);
-    let deadline = Instant::now() + Duration::from_millis(750);
-    owned.pids = loop {
-        if let Ok(record) = std::fs::read_to_string(sandbox.path("owned-pids")) {
-            let pids: Vec<i32> = record
-                .split_whitespace()
-                .filter_map(|pid| pid.parse().ok())
-                .collect();
-            if pids.len() == 2 {
-                break pids;
-            }
-        }
-        assert!(
-            Instant::now() < deadline,
-            "delivery never started: {}",
-            guard.said()
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    };
+    // THE STUB'S OWN RECORD IS THE SIGNAL, waited for through `poll_until`,
+    // whose bound stops a hang and measures nothing. The hand-rolled 750 ms
+    // here measured how long a daemon start plus a channel spawn takes, which
+    // is a reading a loaded runner owns rather than this test.
+    owned.pids = poll_until(|| {
+        let record = std::fs::read_to_string(sandbox.path("owned-pids")).ok()?;
+        let pids: Vec<i32> = record
+            .split_whitespace()
+            .filter_map(|pid| pid.parse().ok())
+            .collect();
+        (pids.len() == 2).then_some(pids)
+    })
+    .unwrap_or_else(|| panic!("delivery never started: {}", guard.said()));
     assert!(owned.pids.iter().all(|pid| process_lives(&pid.to_string())));
     let result = std::panic::catch_unwind(move || {
         let _guard = guard;
         assert!(!unwind, "exercise fixture cleanup during unwinding");
     });
     assert_eq!(result.is_err(), unwind);
-    while owned.pids.iter().any(|pid| process_lives(&pid.to_string())) && Instant::now() < deadline
-    {
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    // A FRESH BOUND, not the one the wait above already spent: the two shared
+    // one `Instant` deadline, so every millisecond the delivery took to start
+    // came out of the budget for proving it was stopped, and a slow start left
+    // that second wait with none at all.
     assert!(
-        owned
-            .pids
-            .iter()
-            .all(|pid| !process_lives(&pid.to_string())),
+        poll_until(|| {
+            owned
+                .pids
+                .iter()
+                .all(|pid| !process_lives(&pid.to_string()))
+                .then_some(())
+        })
+        .is_some(),
         "owned job and delivery survived DaemonGuard: {:?}",
         owned.pids
     );

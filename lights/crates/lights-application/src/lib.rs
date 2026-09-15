@@ -5,7 +5,8 @@ mod schedule;
 mod use_cases;
 
 pub use controller::{
-    BrightnessChange, LightControlError, LightController, RoomRef, RoomState, SceneRef, SceneState,
+    BrightnessChange, Fade, LightControlError, LightController, RoomRef, RoomState, SceneRef,
+    SceneState,
 };
 pub use memory::{PositionStore, SceneMemory};
 pub use notification::Notifier;
