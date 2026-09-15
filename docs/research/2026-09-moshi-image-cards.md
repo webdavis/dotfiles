@@ -283,20 +283,32 @@ alternative stated so it can be overturned.
 
 ## Open questions for the operator
 
+Question 2 was answered by the operator on 2026-09-15, and question 5 follows from that answer; both are
+recorded again in `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md` so the two documents agree.
+Question 3 is left open for the build to answer with evidence. Questions 1, 4 and the unrelated
+moshi-hook item were not part of that ruling.
+
 1. **Does the phone's own image test action display a rich image notification on `mister`?** Settings,
    notifications, the image test action. Zero code, no token handling, one tap. Everything below is moot
    if this fails.
 1. **Is one saved tap into Discord worth two pull requests and moving recap card ownership into the
-   detached child?** This is the whole remaining decision. The technical answer is now yes-it-can-be-
-   built; the value answer is unchanged from 2026-09-01 and is a no unless you say otherwise.
+   detached child?** **Answered: the capability is approved**, and it covers every card type, the recap
+   included. What the operator declined is an image on their own recap card, which is a setting in their
+   own config, not a limit on the capability; another user might want exactly that for their recap. The
+   pattern is the one this repository already uses everywhere: build the capability, ship it off, and
+   leave it off in the operator's own configuration. It is opt-in per card type because of a real
+   tradeoff: a Moshi card's `data` carries one `type`, so turning images on for a card type gives up the
+   deep link that focuses the originating herdr pane when that card is tapped. The operator's own
+   configuration keeps the recap card's images off and keeps its deep link.
 1. **May the Moshi token ride an `Authorization: Bearer` header on the upload leg?** The documented
-   interface requires it, and `moshi.rs`'s rule currently says body and nowhere else. If the answer is
-   no, the task stays blocked and nothing further is needed.
+   interface requires it, and `moshi.rs`'s rule currently says body and nowhere else. **Left open**: now
+   that image cards are approved, this question is live again, and it is left for the build to answer
+   with evidence rather than re-decided here.
 1. **Do you want the real round trip proved with your token, and if so may it happen while you are
    awake?** The two commands are below. They spend one of ten hourly uploads and send one real card.
-1. **Does the ledger entry get rewritten, or does the task get closed outright?** "Blocked on transport"
-   is now factually wrong either way. The two honest replacements are "transport available, unbuilt
-   because it duplicates the Discord recap" and "closed, will not build".
+1. **Does the ledger entry get rewritten, or does the task get closed outright?** Rewritten: the entry
+   now reads transport-available, capability-approved-as-opt-in, not-yet-started, tracked as ledger task
+   88\.
 1. **Unrelated to this task, and noticed while checking it: moshi-hook is six releases behind** (0.3.16
    installed, 0.3.22 in the tap). Worth a separate `brew upgrade moshi-hook` decision, since 0.3.20
    through 0.3.22 carry Pi agent detection, Codex named-session reset fixes and Herdr sidebar controls
