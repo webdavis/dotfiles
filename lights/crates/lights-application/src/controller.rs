@@ -32,6 +32,20 @@ pub struct SceneState {
     pub name: String,
     pub active: bool,
 }
+/// How long the bridge is asked to spread a change over. `INSTANT` sends no
+/// transition field at all, leaving the bridge its own default.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Fade(Option<u32>);
+impl Fade {
+    pub const INSTANT: Self = Self(None);
+    pub fn over_millis(millis: u32) -> Self {
+        Self(Some(millis))
+    }
+    pub fn millis(self) -> Option<u32> {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrightnessChange {
     Absolute(Brightness),
@@ -55,6 +69,7 @@ pub trait LightController {
         &self,
         room: &RoomRef,
         change: BrightnessChange,
+        fade: Fade,
     ) -> Result<(), LightControlError>;
-    fn set_scene(&self, scene: &SceneRef) -> Result<(), LightControlError>;
+    fn set_scene(&self, scene: &SceneRef, fade: Fade) -> Result<(), LightControlError>;
 }

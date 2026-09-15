@@ -35,13 +35,18 @@ impl LightController for RecordingLightController {
         self.writes.borrow_mut().push(on);
         Ok(())
     }
-    fn set_brightness(&self, room: &RoomRef, _: BrightnessChange) -> Result<(), LightControlError> {
+    fn set_brightness(
+        &self,
+        room: &RoomRef,
+        _: BrightnessChange,
+        _: Fade,
+    ) -> Result<(), LightControlError> {
         if room.index() != 0 {
             return Err(LightControlError::InvalidReference);
         }
         Ok(())
     }
-    fn set_scene(&self, scene: &SceneRef) -> Result<(), LightControlError> {
+    fn set_scene(&self, scene: &SceneRef, _: Fade) -> Result<(), LightControlError> {
         if scene.index() != 5 {
             return Err(LightControlError::InvalidReference);
         }
@@ -75,7 +80,7 @@ fn controller_contract(controller: &impl LightController) {
         Err(LightControlError::InvalidReference)
     );
     assert_eq!(
-        controller.set_scene(&SceneRef::from_index(usize::MAX)),
+        controller.set_scene(&SceneRef::from_index(usize::MAX), Fade::INSTANT),
         Err(LightControlError::InvalidReference)
     );
 }

@@ -1,4 +1,4 @@
-use crate::{BrightnessChange, LightController, LightsError, SceneMemory};
+use crate::{BrightnessChange, Fade, LightController, LightsError, SceneMemory};
 use lights_domain::{Action, PresetStep, PresetTarget, RoomName, Rotation};
 
 pub struct TogglePower;
@@ -34,9 +34,10 @@ impl AdjustBrightness {
         controller: &C,
         room: &RoomName,
         change: BrightnessChange,
+        fade: Fade,
     ) -> Result<Action, LightsError> {
         let state = controller.room(room)?;
-        controller.set_brightness(&state.room, change)?;
+        controller.set_brightness(&state.room, change, fade)?;
         Ok(match change {
             BrightnessChange::Absolute(level) => Action::BrightnessSet {
                 room: room.clone(),
@@ -62,6 +63,7 @@ impl SetScene {
         rotation: &Rotation,
         memory: &SceneMemory<'_>,
         selection: SceneSelection<'_>,
+        fade: Fade,
     ) -> Result<Action, LightsError> {
         let state = controller.room(room)?;
         let scenes = controller.scenes(&state.room)?;
@@ -88,7 +90,7 @@ impl SetScene {
                     name: name.into(),
                     room: room.as_str().into(),
                 })?;
-        controller.set_scene(&scene.scene)?;
+        controller.set_scene(&scene.scene, fade)?;
         memory.record(room, &scene.name, rotation);
         Ok(Action::SceneSet {
             room: room.clone(),
@@ -114,6 +116,7 @@ impl ApplyPreset {
                     rotation,
                     memory,
                     SceneSelection::Named(name),
+                    Fade::INSTANT,
                 ),
                 PresetTarget::Off => SetPower::run(controller, &step.room, false),
             })

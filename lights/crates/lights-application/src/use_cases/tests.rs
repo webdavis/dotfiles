@@ -2,7 +2,7 @@ mod scenes;
 
 use super::*;
 use crate::memory::tests::{RecordingPositionStore, StoreCall};
-use crate::{LightControlError, RoomRef, RoomState, SceneRef, SceneState};
+use crate::{Fade, LightControlError, RoomRef, RoomState, SceneRef, SceneState};
 use lights_domain::{Brightness, Direction, ReportedBrightness};
 use std::cell::RefCell;
 
@@ -71,12 +71,13 @@ impl LightController for RecordingLightController {
         &self,
         room: &RoomRef,
         change: BrightnessChange,
+        _: Fade,
     ) -> Result<(), LightControlError> {
         assert_eq!(room.index(), 7);
         self.calls.borrow_mut().push(Call::Brightness(change));
         Ok(())
     }
-    fn set_scene(&self, scene: &SceneRef) -> Result<(), LightControlError> {
+    fn set_scene(&self, scene: &SceneRef, _: Fade) -> Result<(), LightControlError> {
         self.calls.borrow_mut().push(Call::Scene(scene.index()));
         Ok(())
     }
@@ -139,7 +140,12 @@ fn absolute_write_has_no_readback_or_power_off() {
     let c = RecordingLightController::new(false);
     let level = Brightness::new(0);
     assert_eq!(
-        AdjustBrightness::run(&c, &room(), BrightnessChange::Absolute(level)),
+        AdjustBrightness::run(
+            &c,
+            &room(),
+            BrightnessChange::Absolute(level),
+            Fade::INSTANT
+        ),
         Ok(Action::BrightnessSet {
             room: room(),
             level
@@ -161,7 +167,7 @@ fn relative_step_ignores_snapshot_level() {
         percent: 5,
     };
     assert_eq!(
-        AdjustBrightness::run(&c, &room(), change),
+        AdjustBrightness::run(&c, &room(), change, Fade::INSTANT),
         Ok(Action::BrightnessStepped {
             room: room(),
             direction: Direction::Down
