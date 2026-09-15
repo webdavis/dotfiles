@@ -98,7 +98,7 @@ pub(crate) fn doctor_mode() -> i32 {
         }
     }
     // EVERY ROUTE WITH NO KEY, because the test send below cannot find them.
-    // It posts on the DEFAULT route alone, so it exercises one key of four,
+    // It posts on the DEFAULT route alone, so it exercises one key of three,
     // and a route whose posts are raised asynchronously (the stale-block
     // escalation on `priority`) records its refusal where nothing prints it.
     // An unarmed route is silence in the channel it was created for, which is

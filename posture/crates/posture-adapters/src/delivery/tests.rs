@@ -33,7 +33,7 @@ fn hermes_mode_carries_the_gateway_base_and_one_key_per_route() {
         [delivery.hermes]
         url = "http://127.0.0.1:8644/webhooks"
         [delivery.hermes.keys]
-        posture = "k-posture"
+        posture-pages = "k-posture-pages"
         priority = "k-priority"
         "#,
     );
@@ -41,7 +41,10 @@ fn hermes_mode_carries_the_gateway_base_and_one_key_per_route() {
         panic!("hermes mode")
     };
     assert_eq!(base_url, "http://127.0.0.1:8644/webhooks");
-    assert_eq!(keys.get("posture").map(String::as_str), Some("k-posture"));
+    assert_eq!(
+        keys.get("posture-pages").map(String::as_str),
+        Some("k-posture-pages")
+    );
     assert_eq!(keys.get("priority").map(String::as_str), Some("k-priority"));
 }
 
@@ -115,7 +118,7 @@ fn formatting_a_delivery_names_the_routes_and_never_prints_a_signing_key() {
             [delivery]
             mode = "hermes"
             [delivery.hermes.keys]
-            posture = "s3cret-posture"
+            posture-pages = "s3cret-posture"
             priority = "s3cret-priority"
             "#,
         ),
@@ -123,7 +126,7 @@ fn formatting_a_delivery_names_the_routes_and_never_prints_a_signing_key() {
     };
     let formatted = format!("{delivery:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
-    assert!(formatted.contains("posture"), "{formatted}");
+    assert!(formatted.contains("posture-pages"), "{formatted}");
     assert!(formatted.contains("priority"), "{formatted}");
 }
 

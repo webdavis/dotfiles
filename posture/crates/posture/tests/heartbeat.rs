@@ -83,7 +83,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     for text in [
         "\"event\":\"heartbeat\"",
         "\"kind\":\"observation\"",
-        "\"route\":\"posture\"",
+        "\"route\":\"posture-pages\"",
         "STALE",
         "over 020s",
     ] {

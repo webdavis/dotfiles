@@ -33,7 +33,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns = \"k\"\n             pns-recap = \"k\"\nposture = \"k\"\npriority = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }
@@ -125,18 +125,30 @@ fn a_hermes_key_named_for_a_route_no_code_posts_to_is_refused_listing_the_routes
     // A KEY UNDER A ROUTE NOTHING POSTS TO IS A SECRET THAT NEVER SIGNS
     // ANYTHING, and the operator who wrote it has a prepared gateway route,
     // a vault entry and a config line, all inert. `general` is the real
-    // near-miss: hermes serves that route and pns never posts to it.
-    let said =
-        refusal("[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\ngeneral = \"secret\"\n");
-    assert!(
-        said.contains("`plugins.hermes.keys`"),
-        "the nested table is named: {said}"
-    );
-    assert!(said.contains("`general`"), "and so is the route: {said}");
-    for route in pns_domain::routes::ROUTES {
+    // near-miss: hermes serves that route and pns never posts to it. `pns`
+    // and `posture` are the near-misses of 2026-09-14, when the channels were
+    // renamed and those two names became GitHub repo channels no route serves,
+    // so a key still written under either is a stale config line rather than a
+    // route that quietly signs nothing. `pns-recap` is the near-miss of
+    // 2026-09-15: the channel and both its vault entries were deleted, so a
+    // key left under that name is one whose entry no longer exists.
+    for unserved in ["general", "pns", "pns-recap", "posture"] {
+        let said = refusal(&format!(
+            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{unserved} = \"secret\"\n"
+        ));
         assert!(
-            said.contains(route),
-            "and `{route}` is among the routes it says it serves: {said}"
+            said.contains("`plugins.hermes.keys`"),
+            "the nested table is named: {said}"
         );
+        assert!(
+            said.contains(&format!("`{unserved}`")),
+            "and so is the route: {said}"
+        );
+        for route in pns_domain::routes::ROUTES {
+            assert!(
+                said.contains(route),
+                "and `{route}` is among the routes it says it serves: {said}"
+            );
+        }
     }
 }

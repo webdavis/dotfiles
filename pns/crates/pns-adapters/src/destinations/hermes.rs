@@ -23,7 +23,7 @@ use std::time::Duration;
 /// pins: the route name is what selects the signing key, so a default URL
 /// pointing at one route while the key came from another would sign every
 /// unrouted post with the wrong secret.
-pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns";
+pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns-events";
 
 /// The gateway body carries the original request id, agent, state, project
 /// and the FULL message as detail, because Discord has no preview ceiling,

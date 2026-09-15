@@ -6,14 +6,11 @@ Config {
             settings: {
                 "keys": Table(
                     {
-                        "pns": String(
-                            "from-the-vault:Hermes :: Webhook Secret (#pns):Password",
+                        "pns-events": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#pns-events):Password",
                         ),
-                        "pns-recap": String(
-                            "from-the-vault:Hermes :: Webhook Secret (#pns-recap):Password",
-                        ),
-                        "posture": String(
-                            "from-the-vault:Hermes :: Webhook Secret (#posture):Password",
+                        "posture-pages": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#posture-pages):Password",
                         ),
                         "priority": String(
                             "from-the-vault:Hermes :: Webhook Secret (#priority):Password",
@@ -124,7 +121,6 @@ Config {
     recap: Recap {
         replay_card: true,
         digest: true,
-        digest_as_thread: true,
         min_events: 8,
         summarizer: None,
         summarizer_deadline_secs: 240,

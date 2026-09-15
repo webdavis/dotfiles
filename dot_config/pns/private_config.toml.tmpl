@@ -50,12 +50,10 @@ enabled = true
 # the same name. A route with no key here posts nothing and says which
 # key is missing.
 [plugins.hermes.keys]
-# Every event with no route of its own.
-pns = {{ (keepassxc "Hermes :: Webhook Secret (#pns)").Password | toToml }}
-# The threaded recap.
-pns-recap = {{ (keepassxc "Hermes :: Webhook Secret (#pns-recap)").Password | toToml }}
+# Every event with no route of its own, the return recap included.
+pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
 # Pages the posture pipeline submits.
-posture = {{ (keepassxc "Hermes :: Webhook Secret (#posture)").Password | toToml }}
+posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
 # Machine health and security, and the stale-block escalation.
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 
@@ -198,12 +196,6 @@ replay_card = true
 # by a second process that nothing waits for. Off records the window
 # just the same; only the posting stops.
 digest = true
-# Whether that recap posts to the `pns-recap` route rather than the
-# default one. The route has to exist in hermes first, prepared with
-# the pns signing secret and a prompt of bare `{detail}`; a route that
-# refuses the post is not silent, the recap goes to the default route
-# instead, carrying one line saying why it landed there.
-digest_as_thread = true
 # How many events a window needs before it is worth a recap rather than
 # the catch-up card alone. Every recap's header prints the window's real
 # count, which is how the number gets settled. One is the floor and

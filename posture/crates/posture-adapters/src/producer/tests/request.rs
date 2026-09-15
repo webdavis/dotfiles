@@ -97,7 +97,7 @@ fn a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configu
     );
 }
 #[test]
-fn a_finding_below_critical_takes_the_posture_route_whatever_the_caller_configured() {
+fn a_finding_below_critical_takes_the_posture_pages_route_whatever_the_caller_configured() {
     for tier in [
         posture_domain::Severity::Notice,
         posture_domain::Severity::Info,
@@ -108,7 +108,7 @@ fn a_finding_below_critical_takes_the_posture_route_whatever_the_caller_configur
         assert_eq!(sut.submit(&input), Submission::Accepted);
         assert_eq!(
             sut.runner.requests[0].route.as_ref().unwrap().as_str(),
-            "posture",
+            "posture-pages",
             "{tier:?}"
         );
     }

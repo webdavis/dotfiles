@@ -72,17 +72,12 @@ const PLUGINS_HERMES_KEYS: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "pns",
-            prose: "# Every event with no route of its own.\n",
+            name: "pns-events",
+            prose: "# Every event with no route of its own, the return recap included.\n",
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "pns-recap",
-            prose: "# The threaded recap.\n",
-            sample: Sample::Example("\"\""),
-        },
-        Key {
-            name: "posture",
+            name: "posture-pages",
             prose: "# Pages the posture pipeline submits.\n",
             sample: Sample::Example("\"\""),
         },

@@ -79,8 +79,10 @@ fn an_absurd_deadline_clamps_to_a_day_instead_of_panicking_the_edge() {
 
 #[test]
 fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
-    let channel =
-        channel_with_settings("[keys]\npns = \"sekrit-key-9\"\n", PostOutcome::Status(200));
+    let channel = channel_with_settings(
+        "[keys]\npns-events = \"sekrit-key-9\"\n",
+        PostOutcome::Status(200),
+    );
     channel.deliver(&delivery_request(&event(), ReportMode::Silent));
     let posts = channel.post.posts.lock().unwrap();
     assert!(!posts[0].0.contains("sekrit-key-9"));
@@ -90,5 +92,8 @@ fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
 
 #[test]
 fn the_default_url_is_the_local_gateway_route() {
-    assert_eq!(DEFAULT_HERMES_URL, "http://127.0.0.1:8644/webhooks/pns");
+    assert_eq!(
+        DEFAULT_HERMES_URL,
+        "http://127.0.0.1:8644/webhooks/pns-events"
+    );
 }

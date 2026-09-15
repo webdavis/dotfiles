@@ -138,7 +138,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
             continue;
         };
         // A HYPHEN IS PART OF A KEY, not a word break: the hermes route
-        // names are keys and one of them is `pns-recap`, so a filter without
+        // names are keys and one of them is `pns-events`, so a filter without
         // it would skip that line and count one fewer than the text
         // documents.
         if !key

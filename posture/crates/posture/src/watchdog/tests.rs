@@ -209,7 +209,7 @@ fn assembled_pns_outage_alarms_before_a_security_submission_even_when_accepted()
     for field in [
         "\"event\":\"watchdog\"",
         "\"class\":\"security\"",
-        "\"route\":\"posture\"",
+        "\"route\":\"posture-pages\"",
     ] {
         assert!(effects.requests[0].contains(field));
     }

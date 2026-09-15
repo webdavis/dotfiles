@@ -726,7 +726,7 @@ stdout or stderr
 
 ### 18. The hermes signing key never leaves the process; the signature does
 
-Given `[plugins.hermes.keys] pns = "gate-signing-key"`
+Given `[plugins.hermes.keys] pns-events = "gate-signing-key"`
 
 When the hermes channel posts
 
@@ -758,8 +758,8 @@ environment and no printed line
   (`200..300`), "so the rule cannot be moved for one and left standing for the other, which would have a
   doctor call a post good while the printed line called it FAILED".
 - Privacy: the body is the operator's own event text and it goes to a LOCAL gateway
-  (`http://127.0.0.1:8644/webhooks/pns` by default). Where hermes forwards it from there is hermes's
-  business, not this crate's.
+  (`http://127.0.0.1:8644/webhooks/pns-events` by default). Where hermes forwards it from there is
+  hermes's business, not this crate's.
 - Process ownership and cleanup: in-process HTTP, no child.
 - Compatibility contract: `hermes_secret` reads `key` off `[plugins.hermes]`, non-empty, else `None`,
   "Silent, like every not-set-up reading".
@@ -777,9 +777,9 @@ Then exactly five outbound destinations exist and each carries a stated payload
      (`agent · state · project`), the message (the PREVIEW, at most 260 characters, which is the reply or
      detail text), and an optional `moshi://herdr?pane=<pane>` deep link built only from a `pane_is_safe`
      pane. This is the one destination outside the local network by default.
-  1. hermes, `http://127.0.0.1:8644/webhooks/pns` or `PNS_HERMES_URL`, or the same base with its final
-     path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the FULL
-     message as `detail`, signed. Local by default.
+  1. hermes, `http://127.0.0.1:8644/webhooks/pns-events` or `PNS_HERMES_URL`, or the same base with its
+     final path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the
+     FULL message as `detail`, signed. Local by default.
   1. The hue bridge on the local network, `hue-application-key` header, carrying lamp state bodies only.
      No event text is sent to hue.
   1. The router on the local network, `X-API-KEY` header, a GET of the clients listing. Nothing but the
