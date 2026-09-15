@@ -98,15 +98,23 @@ fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>
                         ))
                     })
             };
+            let pinned_ref = match fields.get("ref") {
+                None => None,
+                Some(value) => {
+                    let text = value.as_str().ok_or_else(|| {
+                        ConfigError::Invalid(format!(
+                            "`{table_label}` plugin `ref` has type `{}`, not a revision string",
+                            value.type_str()
+                        ))
+                    })?;
+                    let trimmed = text.trim();
+                    (!trimmed.is_empty()).then(|| trimmed.to_string())
+                }
+            };
             Ok(Plugin {
                 id: field("id")?,
                 repo: field("repo")?,
-                pinned_ref: fields
-                    .get("ref")
-                    .and_then(toml::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .map(str::to_string),
+                pinned_ref,
             })
         })
         .collect()
@@ -223,6 +231,19 @@ mod tests {
                 panic!("expected a herdr lane for {written}");
             };
             assert_eq!(herdr.plugins[0].pinned_ref, expected, "{written}");
+        }
+    }
+
+    #[test]
+    fn a_non_string_ref_is_refused_rather_than_treated_as_unpinned() {
+        for written in ["ref = 2024", "ref = 1.2"] {
+            let text =
+                format!("[lanes.herdr]\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n");
+            let detail = refusal(&text);
+            assert!(
+                detail.contains("plugin `ref` has type") && detail.contains("revision string"),
+                "{detail}"
+            );
         }
     }
 
