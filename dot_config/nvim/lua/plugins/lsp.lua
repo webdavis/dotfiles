@@ -129,6 +129,16 @@ return {
           },
         })
         vim.lsp.enable("sourcekit")
+
+        -- jdtls requires a Java Development Kit (JDK) 21 or newer to run itself (it is a Java
+        -- program), which is separate from any JDK a project under edit targets. Homebrew's
+        -- `openjdk` formula is keg-only and not linked onto PATH, so without this jdtls falls
+        -- back to macOS's `/usr/bin/java` stub, which prompts to install a JDK rather than
+        -- running one. Mason's `jdtls` wrapper script reads `JAVA_HOME` itself when set, ahead
+        -- of the bare `java` it would otherwise resolve from PATH, so setting it here is enough;
+        -- lspconfig's default jdtls `cmd` (root markers, per-project `-data` workspace) is left
+        -- untouched.
+        vim.env.JAVA_HOME = "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home"
       end
     end),
   },
@@ -195,6 +205,7 @@ return {
         "gopls",
         "graphql",
         "html",
+        "jdtls",
         "lua_ls",
         "marksman",
         "nil_ls", -- nix

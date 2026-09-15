@@ -354,6 +354,11 @@ local function route()
     -- rustaceanvim ships its adapter under its own name, not "neotest-rust"; matched here so the
     -- routing extends the same module real rustaceanvim would hand back.
     ["rustaceanvim.neotest"] = { name = "rustaceanvim", root = no_root },
+    ["neotest-java"] = setmetatable({}, {
+      __call = function()
+        return { name = "neotest-java", root = no_root, constructed = true }
+      end,
+    }),
   }
   -- Left in place rather than restored: the configured predicates are called after this returns,
   -- and none of these names is a real module under the headless runner.

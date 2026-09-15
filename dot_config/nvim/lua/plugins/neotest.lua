@@ -641,6 +641,14 @@ return {
         end,
       })
 
+      -- Proven against a scratch Maven project with one JUnit 5 test, discovered, compiled and
+      -- run through a real jdtls client (`lsp.lua`'s mason-lspconfig roster now installs it).
+      -- Classpath and compilation both come from that LSP client, which is why `lsp.lua` adds
+      -- `jdtls` rather than this file wiring a language server of its own. First use on a
+      -- machine needs one manual `:NeotestJava setup`, which downloads and checksums the JUnit
+      -- Platform Console Standalone jar; nothing here can do that download unattended.
+      local java = require("neotest-java")({})
+
       -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
       -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
       -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
@@ -651,7 +659,7 @@ return {
       -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
       -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
       -- `discover_positions` needs overriding and the readiness gate above already built the
-      -- replacement.
+      -- replacement; `java` IS constructed at load, like neotest-python.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -661,6 +669,7 @@ return {
           jest,
           node,
           rust,
+          java,
           require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
@@ -679,4 +688,5 @@ return {
     ft = "swift",
   },
   { "mrcjkb/rustaceanvim", commit = "a968f5133b8b24f481de12f08cd79420d1ace559", ft = "rust" },
+  { "rcasia/neotest-java", commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870", ft = "java" },
 }

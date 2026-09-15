@@ -113,6 +113,7 @@ packages:
         - librsvg
         - luacheck
         - mas
+        - maven
         - mosh
         - mtr
         - neovim
@@ -125,6 +126,7 @@ packages:
         - openai-whisper
         - openai/tools/softnet
         - openhue/cli/openhue-cli
+        - openjdk
         - opus
         - oven-sh/bun/bun
         - p7zip
