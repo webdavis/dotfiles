@@ -2,8 +2,9 @@
   Hermes Agent environment -> ~/.hermes/.env (0600). Secrets and Discord IDs render from KeePassXC and never
   enter git; non-secret settings are inline. This is a REGULAR template (not create_): re-synced on every
   apply, so rotating a secret in KeePassXC and re-applying updates the live .env, which the gateway reloads
-  at runtime to pick up the new credentials. (config.yaml is on the encrypted track instead, because Hermes
-  rewrites it at runtime, bug #4775 -- the .env is only read, so re-sync is safe.)
+  at runtime to pick up the new credentials. Whole-file ownership is safe HERE because hermes only ever
+  READS the .env; config.yaml, which hermes rewrites at runtime, is a modify-template instead
+  (private_dot_hermes/modify_private_config.yaml.tmpl).
 
   APPLY CAUTION: this OVERWRITES the entire live ~/.hermes/.env. Every KeePassXC entry below must exist and be
   populated before `chezmoi apply ~/.hermes/.env`, or the rendered file drops that secret and breaks Hermes
@@ -25,8 +26,13 @@ OPENROUTER_API_KEY={{ (keepassxc "OpenRouter :: API Key (Hermes Agent)").Passwor
 TAVILY_API_KEY={{ (keepassxc "Tavily :: API Key").Password }}
 
 # --- Discord IDs (rendered from KeePassXC; kept out of git) ---
+# Both of these are read by hermes itself: DISCORD_HOME_CHANNEL is the gateway's fallback channel and
+# DISCORD_ALLOWED_USERS its direct-message allowlist. A webhook ROUTE's channel cannot be reached from
+# here at all, because the gateway expands no ${VAR} in its platform config, so a new route gets no .env
+# line of its own -- it gets a KeePassXC entry the config.yaml modify-template reads. A third line,
+# DISCORD_OSQUERY_CHANNEL, was removed on 2026-09-14 after a grep of the installed hermes source and of
+# this repository found no reader for it at all.
 DISCORD_HOME_CHANNEL={{ (keepassxc "Discord (Uriel) :: Channel ID (#general)").Password }}
-DISCORD_OSQUERY_CHANNEL={{ (keepassxc "Discord (Uriel) :: Channel ID (#osquery)").Password }}
 DISCORD_ALLOWED_USERS={{ (keepassxc "Discord (Uriel) :: User ID (Stephen)").Password }}
 
 # --- Non-secret settings (inline) ---
