@@ -98,9 +98,9 @@ Overwritten from the template on every apply, whatever the live file holds.
   (measured 2026-09-13: a skill added under the same 0.1.0 stayed invisible, "already at the latest
   version"). Adding or changing a skill under one of those `plugins/<name>/` trees therefore bumps that
   plugin's version in the same change; after the apply, run `claude plugin update <plugin>@<marketplace>`
-  and restart Claude Code. The `clean-code` plugin's skills are thin wrappers that read
-  `~/.agents/skills` at run time, so a change to the STANDARD ITSELF needs no bump; only a change to a
-  wrapper does.
+  and restart Claude Code. The `clean-code` and `pns` plugins ship skills that are thin wrappers reading
+  `~/.agents/skills` at run time, so a change to the STORE CONTENT ITSELF needs no bump; only a change to
+  a wrapper does.
 
 `plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That
 script writes a binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are

@@ -1,6 +1,6 @@
 # Agent skills: the cross-harness store
 
-`~/.agents/skills` is the single canonical skills store (78 roster skills). It serves Claude Code for the
+`~/.agents/skills` is the single canonical skills store (81 roster skills). It serves Claude Code for the
 roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
 `private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
 hermes for exactly the store-symlink subset of the delivery model below
@@ -15,7 +15,7 @@ flowchart LR
   subgraph provenance["Provenance lanes (dot_agents/custom-skill-lock.json)"]
     NPX["npxTracked, 65<br/>npx skills add, GitHub"]
     CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
-    VEND["forks + vendored, 8<br/>dot_agents/skills, chezmoi apply"]
+    VEND["forks + vendored, 11<br/>dot_agents/skills, chezmoi apply"]
     APP["app-owned, 2<br/>updated by the owning app"]
   end
   NPX --> GEN
@@ -112,9 +112,13 @@ The `forks` table records each one's upstream for weekly drift-watch. `moshi` is
 fork (`fork: true`). `herdr` is upstream verbatim since 2026-09-13, kept vendored because it was already
 a chezmoi-delivered store entry. `elevenlabs` is vendored because npx cannot install it full-tree (its
 `SKILL.md` sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`).
-`tiktok-crawling` is the one plain committed dir with no `forks` entry: a ClawHub-published skill left
-vendored because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster
-name (`tiktok-scraping-yt-dlp`), and the Hermes update key is that installed name.
+`tiktok-crawling` is a plain committed dir with no `forks` entry: a ClawHub-published skill left vendored
+because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster name
+(`tiktok-scraping-yt-dlp`), and the Hermes update key is that installed name.
+
+`pns-loop` and `pns-work-recap` are committed dirs with no `forks` entry for the other reason: they are
+locally authored content with no upstream to watch, the way a promoted `backpass` extraction is. Their
+content used to live inside the `pns` Claude plugin, which left Codex and hermes unable to see it.
 
 ### App-owned (`cua-driver`, `composio-cli`)
 
@@ -202,8 +206,8 @@ in use; source wiring alone does not establish live or scheduled acceptance.
 A store entry mapped to `"none"` is one this vertical deliberately does NOT deliver to Claude Code. It
 carries no `private_dot_claude/skills` declaration and `uu run skills` skips it in the weekly Claude
 fan-out, so a `~/.claude/skills` link removed by hand stays removed instead of coming back on the next
-weekly run. An absent key is the default, a store symlink. Four entries today: `last30days` and the three
-clean-code skills.
+weekly run. An absent key is the default, a store symlink. Six entries today: `last30days`, the three
+clean-code skills and the two pns skills.
 
 The three clean-code skills reach Claude Code through a plugin instead. `clean-code`, `clean-code-rust`
 and `clean-code-swift` are `"none"` here because `private_dot_claude/clean-code-marketplace` ships a
@@ -216,6 +220,13 @@ showing each skill twice. One consequence of the version-bump rule in
 `docs/runbooks/claude-code-settings.md`: editing a WRAPPER needs `plugin.json`'s version bumped in the
 same change, because Claude Code runs the installed copy under `~/.claude/plugins/cache/`; editing the
 store CONTENT needs no bump at all, since the wrappers read the store at run time.
+
+`pns-loop` and `pns-work-recap` are the same shape under a different plugin, since 2026-09-14.
+`private_dot_claude/pns-marketplace` ships a `pns` plugin whose `loop` and `work-recap` skills are thin
+wrappers over those two store copies, which keeps `/pns:loop` and `/pns:work-recap` in the picker while
+the instructions themselves sit in the store, where Codex scans them natively and the hermes default
+profile symlinks them. The wrapper-edit rule applies here too: the plugin went to 0.4.0 in the change
+that made its skills wrappers, and later edits to the store copies need no bump.
 
 The table states only what THIS vertical does: its VALUES name no other delivery mechanism and read no
 other lock, per the operator's strict-decoupling ruling. `"none"` is the only legal value, and a
@@ -233,7 +244,7 @@ next full weekly run.
 
 ## Tier model (the lock's `tiers` table)
 
-Every roster skill is `core` (22) or `on-demand` (56). Core skills auto-load in every harness; on-demand
+Every roster skill is `core` (24) or `on-demand` (57). Core skills auto-load in every harness; on-demand
 skills stay installed everywhere but load only when explicitly invoked:
 
 - Claude Code: `skillOverrides.<name> = "user-invocable-only"`, one `setValueAtPath` per skill in the
