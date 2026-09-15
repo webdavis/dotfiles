@@ -4,7 +4,7 @@
   apply, so rotating a secret in KeePassXC and re-applying updates the live .env, which the gateway reloads
   at runtime to pick up the new credentials. Whole-file ownership is safe HERE because hermes only ever
   READS the .env; config.yaml, which hermes rewrites at runtime, is a modify-template instead
-  (private_dot_hermes/modify_private_config.yaml.tmpl).
+  (private_dot_hermes/modify_private_config.yaml).
 
   APPLY CAUTION: this OVERWRITES the entire live ~/.hermes/.env. Every KeePassXC entry below must exist and be
   populated before `chezmoi apply ~/.hermes/.env`, or the rendered file drops that secret and breaks Hermes

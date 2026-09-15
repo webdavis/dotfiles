@@ -9,7 +9,7 @@
 # so 401 is deliberately not reported here as a restart-me condition.)
 #
 # It runs in the AFTER phase, which is what makes the check meaningful: by then chezmoi has rendered
-# private_dot_hermes/modify_private_config.yaml.tmpl over ~/.hermes/config.yaml and
+# private_dot_hermes/modify_private_config.yaml over ~/.hermes/config.yaml and
 # run_after_59-hermes-config-migrate has migrated it forward to the installed hermes version's schema,
 # so the file this reads is the one the next gateway start will load. It is also the only thing that
 # sees the VALUES: the routes are rendered from KeePassXC at apply time, so nothing in git can be
@@ -51,7 +51,7 @@ for route in "${expected_routes[@]}"; do
   # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
   # so a config that had lost a route was indistinguishable from a machine with no hermes at all.
   if ! yq -e ".platforms.webhook.extra.routes // {} | has(\"$route\")" "$cfg" >/dev/null 2>&1; then
-    printf '\n  ⚠ hermes: the %s route is NOT in %s, so every message to it will 404.\n    Run: chezmoi apply (the routes render from KeePassXC through private_dot_hermes/modify_private_config.yaml.tmpl)\n\n' \
+    printf '\n  ⚠ hermes: the %s route is NOT in %s, so every message to it will 404.\n    Run: chezmoi apply (the routes render from KeePassXC through private_dot_hermes/modify_private_config.yaml)\n\n' \
       "$route" "$cfg"
     continue
   fi

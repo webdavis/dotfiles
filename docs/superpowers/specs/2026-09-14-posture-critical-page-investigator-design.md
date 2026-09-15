@@ -67,7 +67,7 @@ accepted here rather than left standing.
 2. **The operator runs applies. Agents do not.** `~/.hermes/config.yaml` reaches the machine only
    through an operator apply.
 3. **`~/.hermes/config.yaml` is owned through a chezmoi modify template** (ruling 2026-09-14,
-   afternoon): `private_dot_hermes/modify_private_config.yaml.tmpl` declares the routes and their
+   afternoon): `private_dot_hermes/modify_private_config.yaml` declares the routes and their
    secrets, hermes keeps every other line, one secret per route and one channel id per route come
    from KeePassXC by entry name, and `${VAR}` is never an option because the gateway reads those
    values as literals.
@@ -615,7 +615,7 @@ Three pull requests, in this order. Prerequisites first, and they are not part o
 six-route modify template lands, `priority` carries the pns signing key and a prompt naming a pns
 body's fields, and `severity_route` flips `Critical` to `priority`.
 
-**PR 1, hermes configuration.** `private_dot_hermes/modify_private_config.yaml.tmpl` gains the
+**PR 1, hermes configuration.** `private_dot_hermes/modify_private_config.yaml` gains the
 `posture-explain` route (agent mode, the prompt template, `deliver: discord`, `deliver_extra.chat_id`
 from the `priority` channel entry) and the `platform_toolsets.webhook: ["no_mcp"]` field. The
 operator creates one KeePassXC entry, `Hermes :: Webhook Secret (#posture-explain)`. Inert until

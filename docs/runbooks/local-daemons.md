@@ -113,7 +113,7 @@ alone.
 ### Where they live, and what a route carries
 
 `~/.hermes/config.yaml` is a chezmoi **modify-template**,
-`private_dot_hermes/modify_private_config.yaml.tmpl`, and it owns exactly two things:
+`private_dot_hermes/modify_private_config.yaml`, and it owns exactly two things:
 `platforms.webhook.extra.routes` (the whole map) and `tts.elevenlabs.voice_id` (one key). **Hermes owns
 every other line of that file.** It rewrites the config from its own model at runtime, so the age capture
 that used to hold this target turned every runtime write into source drift and pushed a snapshot back
