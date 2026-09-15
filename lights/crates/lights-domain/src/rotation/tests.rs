@@ -41,3 +41,12 @@ fn empty_rotation_is_rejected() {
 fn fallback_outside_rotation_is_rejected() {
     assert!(Rotation::new(vec!["Dimmed".into()], "Read".into()).is_err());
 }
+#[test]
+fn only_a_listed_scene_is_part_of_the_rotation() {
+    for name in SCENES {
+        assert!(rotation().contains(name));
+    }
+    for name in ["CC Halo Amber", "dimmed", ""] {
+        assert!(!rotation().contains(name), "claimed {name}");
+    }
+}
