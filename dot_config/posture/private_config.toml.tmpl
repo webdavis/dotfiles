@@ -37,8 +37,8 @@ arguments = ["submit", "--json"]
 
 # The path selected above. `url` is the gateway's webhook base, one path
 # segment above the route: a page for the `posture-pages` route is posted to
-# `<url>/posture-pages`. A route the gateway does not serve answers 404, which is a
-# failed delivery and a local banner, never a page reported as delivered.
+# `<url>/posture-pages`. A route the gateway does not serve answers 404, which
+# is a failed delivery and a local banner, never a page reported as delivered.
 [delivery.hermes]
 url = "http://127.0.0.1:8644/webhooks"
 

@@ -759,8 +759,7 @@ environment and no printed line
   doctor call a post good while the printed line called it FAILED".
 - Privacy: the body is the operator's own event text and it goes to a LOCAL gateway
   (`http://127.0.0.1:8644/webhooks/pns-events` by default). Where hermes forwards it from there is
-  hermes's
-  business, not this crate's.
+  hermes's business, not this crate's.
 - Process ownership and cleanup: in-process HTTP, no child.
 - Compatibility contract: `hermes_secret` reads `key` off `[plugins.hermes]`, non-empty, else `None`,
   "Silent, like every not-set-up reading".
@@ -779,9 +778,8 @@ Then exactly five outbound destinations exist and each carries a stated payload
      detail text), and an optional `moshi://herdr?pane=<pane>` deep link built only from a `pane_is_safe`
      pane. This is the one destination outside the local network by default.
   1. hermes, `http://127.0.0.1:8644/webhooks/pns-events` or `PNS_HERMES_URL`, or the same base with its
-     final
-     path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the FULL
-     message as `detail`, signed. Local by default.
+     final path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the
+     FULL message as `detail`, signed. Local by default.
   1. The hue bridge on the local network, `hue-application-key` header, carrying lamp state bodies only.
      No event text is sent to hue.
   1. The router on the local network, `X-API-KEY` header, a GET of the clients listing. Nothing but the
