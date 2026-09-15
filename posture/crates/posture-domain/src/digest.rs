@@ -18,6 +18,8 @@
 //! or asks the clock; every one of those is the adapter's. What arrives is a
 //! list of entries and what leaves is a string.
 
+use std::collections::HashMap;
+
 use crate::sanitize;
 
 /// How many bullets one detector's group renders before it rolls the rest up.
@@ -196,15 +198,23 @@ fn bullet(member: &DigestEntry<'_>, times: usize, limits: DigestLimits) -> Strin
 /// IDENTITY AND SUMMARY TOGETHER are what makes two findings the same finding.
 /// Identity alone would fold two different things said about one path into a
 /// line naming only the first of them.
+///
+/// KEYED BY A HASH MAP rather than a linear scan of what is folded so far: a
+/// day's spool can carry tens of thousands of distinct findings under one
+/// detector, and a scan-per-member makes that quadratic. The map holds the
+/// key's index into `folded`, so first-arrival order still comes from the
+/// Vec and never from iteration order over the map.
 fn collapsed<'a>(members: &[DigestEntry<'a>]) -> Vec<(DigestEntry<'a>, usize)> {
     let mut folded: Vec<(DigestEntry<'a>, usize)> = Vec::new();
+    let mut index: HashMap<(Option<&'a str>, Option<&'a str>), usize> = HashMap::new();
     for member in members {
-        match folded
-            .iter_mut()
-            .find(|(seen, _)| seen.identity == member.identity && seen.summary == member.summary)
-        {
-            Some((_, times)) => *times += 1,
-            None => folded.push((*member, 1)),
+        let key = (member.identity, member.summary);
+        match index.get(&key) {
+            Some(&position) => folded[position].1 += 1,
+            None => {
+                index.insert(key, folded.len());
+                folded.push((*member, 1));
+            }
         }
     }
     folded
