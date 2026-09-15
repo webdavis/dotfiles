@@ -37,13 +37,57 @@ return {
           },
           function()
             local in_git = Snacks.git.get_root() ~= nil
+
+            -- Every command below runs in a pty `dashboard.width` (60) minus
+            -- `indent` (3) columns wide, so any line over 57 columns wraps
+            -- mid-word inside the pane. Each one bounds its own output to 57
+            -- columns and prints a placeholder rather than nothing, because an
+            -- empty pane renders as Neovim's `[Process exited 0]` line.
+            --
+            -- The jq programs live in long-bracket strings, so their \u001b
+            -- escapes and double quotes reach jq exactly as written, and the
+            -- shell's single quotes hold each together (no program here
+            -- contains one). `gsub("[^ -~]"; "")` drops every non-ASCII and
+            -- control character first, which is what makes jq's codepoint
+            -- slicing below agree with the pane's display columns.
+
+            -- `--stat=57` bounds the file rows but not the trailing
+            -- "N files changed, X insertions(+), Y deletions(-)" line, which
+            -- passes 57 columns on a large diff, so sed shortens it to
+            -- "X+, Y-" (that line is the one part of the stat git never
+            -- colors, so the substitution cannot land inside an escape).
+
+            -- One row per notification: unread marker, the repository name
+            -- without its owner in grey, then as much of the title as fits.
+            -- 1 marker + 1 space + repo + 1 space + title, so title <= 54 - repo.
+            local notifications_jq = [[
+if length == 0 then "inbox zero" else
+  .[]
+  | (if .unread then "*" else " " end) as $mark
+  | (.repository.name | gsub("[^ -~]"; "") | .[0:20]) as $repo
+  | (.subject.title | gsub("[^ -~]"; "") | .[0:(54 - ($repo | length))]) as $title
+  | $mark + " \u001b[90m" + $repo + "\u001b[0m " + $title
+end
+]]
+
+            -- One row per issue or pull request: `#<number> <title>`, shared by
+            -- both sections. 1 space between them, so title <= 56 - #number.
+            local number_title_jq = [[
+if length == 0 then "none" else
+  .[]
+  | ("#" + (.number | tostring)) as $id
+  | (.title | gsub("[^ -~]"; "")) as $title
+  | $id + " " + $title[0:(56 - ($id | length))]
+end
+]]
+
             -- stylua: ignore start
             local cmds = {
-                { icon = " ", title = "Git Status", cmd = "git --no-pager diff --stat -B -M -C", height = 10 },
-                { icon = " ", title = "Git Log", cmd = "git log --oneline", height = 10 },
+                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=57 -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "working tree clean"]], height = 10 },
+                { icon = " ", title = "Git Log", cmd = [[git log -n 10 --no-decorate --color=always --format='%C(yellow)%h%C(reset) %<|(57,trunc)%s' 2>/dev/null | grep . || echo "no commits yet"]], height = 10 },
                 {
                   title = "Notifications",
-                  cmd = "GH_PAGER=cat gh api 'notifications?all=true&per_page=5' --jq '.[] | \"\\(.repository.full_name)  \\(.subject.title)\"'",
+                  cmd = "GH_PAGER=cat gh api 'notifications?all=true&per_page=5' --jq '" .. notifications_jq .. "'",
                   action = function() vim.ui.open( "https://github.com/notifications") end,
                   key = "n",
                   icon = " ",
@@ -52,19 +96,21 @@ return {
                 },
                 {
                   title = "Open Issues",
-                  cmd = "gh issue list -L 3",
+                  cmd = "GH_PAGER=cat gh issue list -L 3 --json number,title --jq '" .. number_title_jq .. "'",
                   key = "i",
                   action = function() vim.fn.jobstart( "gh issue list --web", { detach = true, }) end,
                   icon = " ",
                   height = 5,
+                  ttl = 15 * 60,
                 },
                 {
                   icon = " ",
                   title = "Open PRs",
-                  cmd = "gh pr list -L 3",
+                  cmd = "GH_PAGER=cat gh pr list -L 3 --json number,title --jq '" .. number_title_jq .. "'",
                   key = "P",
                   action = function() vim.fn.jobstart( "gh pr list --web", { detach = true, }) end,
                   height = 5,
+                  ttl = 15 * 60,
                 },
             }
             -- stylua: ignore end
