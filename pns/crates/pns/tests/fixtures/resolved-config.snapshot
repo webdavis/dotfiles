@@ -6,8 +6,47 @@ Config {
             settings: {
                 "channels": Table(
                     {
+                        "casually-concerned": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#casually-concerned-dev):Password",
+                        ),
                         "default": String(
                             "from-the-vault:Discord (Uriel) :: Channel ID (#github-notifications):Password",
+                        ),
+                        "dotfiles": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#dotfiles-dev):Password",
+                        ),
+                        "essential-feed-case-study": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#essential-feed-case-study-dev):Password",
+                        ),
+                        "homelab": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#homelab-dev):Password",
+                        ),
+                        "justdavis-ansible": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#justdavis-ansible-dev):Password",
+                        ),
+                        "netpulse": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#netpulse-dev):Password",
+                        ),
+                        "plantpulse": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#plantpulse-dev):Password",
+                        ),
+                        "pns": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#pns-dev):Password",
+                        ),
+                        "pns-events": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#pns-events):Password",
+                        ),
+                        "posture": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#posture-dev):Password",
+                        ),
+                        "priority": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#priority):Password",
+                        ),
+                        "scalebar": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#scalebar-dev):Password",
+                        ),
+                        "uu": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#uu-dev):Password",
                         ),
                     },
                 ),
