@@ -59,7 +59,7 @@ pub(crate) fn destinations_with_output(
             json,
         ),
         registration::choose(
-            discord_channel(discord),
+            discord_channel(discord, route),
             forced,
             discord.refusal().map(refused_discord_line),
             json,
@@ -154,11 +154,20 @@ fn hermes_channel(
 /// while this one names discord.com, and a variable that could repoint an
 /// authenticated bot post is a credential-exfiltration lever for no gain. The
 /// seam is the test seam.
-fn discord_channel(settings: &DiscordSettings) -> DiscordChannel<UreqDiscordPost> {
+fn discord_channel(settings: &DiscordSettings, route: &str) -> DiscordChannel<UreqDiscordPost> {
     DiscordChannel {
         post: UreqDiscordPost,
         token: settings.token().map(str::to_string),
-        channel_id: settings.channel().map(str::to_string),
+        channels: settings.channels().clone(),
+        // THE LEG'S OWN ROUTE, taken here for `hermes_channel`'s reason above:
+        // the submission and the retry both build their destinations from it,
+        // and it is what a severity override has already written.
+        route: route.to_string(),
+        // THE STORE IS BUILT HERE rather than threaded through every caller
+        // of `destinations`: it holds a path and opens its connection per
+        // transaction, which is how `recap_delivery_runtime` already builds
+        // one beside the destinations it hands them to.
+        threads: Box::new(pns_adapters::SqliteStore::new(pns_adapters::state_dir())),
     }
 }
 /// The route one event posts to and the endpoint that route answers at.

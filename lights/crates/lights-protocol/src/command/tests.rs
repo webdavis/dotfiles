@@ -41,6 +41,7 @@ fn room_option_works_before_and_after_command() {
             Request {
                 command: Command::Toggle,
                 room: Some("Custom Room".into()),
+                all: false,
                 notify: false
             }
         );
@@ -107,4 +108,44 @@ fn preset_now_decodes_to_the_clock_rather_than_a_preset_of_that_name() {
         Command::PresetNow
     );
     assert!(decode(&["--room", "studio", "preset", "now"]).is_err());
+}
+#[test]
+fn all_decodes_for_the_two_commands_it_applies_to() {
+    for args in [
+        vec!["--all", "scene", "Read"],
+        vec!["scene", "Read", "--all"],
+        vec!["--all", "brightness", "up"],
+        vec!["brightness", "50", "--all"],
+    ] {
+        assert!(decode(&args).unwrap().all);
+    }
+}
+#[test]
+fn all_and_room_are_refused_by_name_rather_than_one_winning() {
+    for args in [
+        vec!["--all", "--room", "studio", "scene", "Read"],
+        vec!["scene", "Read", "--room", "studio", "--all"],
+    ] {
+        let message = decode(&args).unwrap_err();
+        assert!(
+            message.contains("--all") && message.contains("--room"),
+            "{message}"
+        );
+    }
+    assert!(decode(&["--all", "--all", "scene", "Read"]).is_err());
+}
+#[test]
+fn all_is_refused_on_commands_that_do_not_take_it() {
+    for args in [
+        vec!["--all"],
+        vec!["--all", "toggle"],
+        vec!["--all", "on"],
+        vec!["--all", "off"],
+        vec!["--all", "status"],
+        vec!["--all", "preset", "evening"],
+        vec!["--all", "preset", "now"],
+        vec!["--all", "--help"],
+    ] {
+        assert!(decode(&args).is_err(), "{args:?}");
+    }
 }

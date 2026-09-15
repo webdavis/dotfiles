@@ -49,9 +49,7 @@ pub(super) const PLUGINS_DISCORD: Table = Table {
                  # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a\n\
                  # companion: both enabled at once is refused at load, naming both tables,\n\
                  # because two durable logs post every event twice. The cutover is two lines\n\
-                 # in one edit, and the rollback is the same two the other way. It waits for\n\
-                 # the per-route channel map: until then, flipping it routes every event,\n\
-                 # priority and posture-pages included, onto the catch-all channel below.\n",
+                 # in one edit, and the rollback is the same two the other way.\n",
     opt_in: true,
     children: &[PLUGINS_DISCORD_CHANNELS],
     keys: &[
@@ -76,12 +74,19 @@ pub(super) const PLUGINS_DISCORD: Table = Table {
         },
     ],
 };
-/// The channels the bot posts to. ONE ENTRY TODAY: the catch-all every event
-/// lands on until the per-project map is written.
+/// The channels the bot posts to, keyed by PROJECT. An OPEN table: every key
+/// but `default` is a name the operator chose, so the render writes whatever
+/// the values file states rather than a roster of its own.
 const PLUGINS_DISCORD_CHANNELS: Table = Table {
     name: "plugins.discord.channels",
-    prose: "# Where a post goes. `default` is the catch-all and the only entry read\n\
-                 # today; a channel id is the number Discord copies from a channel\u{27}s\n\
+    prose: "# Where a post goes, looked up in this order, first hit wins: the route the\n\
+                 # event named (`priority` carries anything critical, whatever the\n\
+                 # project), then its repository as `owner/name`, then the bare project\n\
+                 # name, then `pns-events` for an event with no project at all, then\n\
+                 # `default`. The last two are deliberately different channels: an\n\
+                 # unmapped project and no project are two failures, in two places to\n\
+                 # look. `default` is REQUIRED and an armed table without it is refused at\n\
+                 # load. A channel id is the number Discord copies from a channel\u{27}s\n\
                  # Copy Channel ID, and it is a secret like every other id here.\n",
     opt_in: true,
     children: &[],

@@ -288,3 +288,6 @@ fn preset_now_without_windows_names_what_to_add_without_a_read() {
     failure(&r, 1, "preset_windows");
     assert!(w.is_empty());
 }
+
+#[path = "commands/all_rooms.rs"]
+mod all_rooms;

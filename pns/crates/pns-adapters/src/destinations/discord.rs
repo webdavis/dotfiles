@@ -20,11 +20,21 @@
 
 use super::{Delivery, Event};
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
+use pns_domain::channel_map::{ChannelMap, channel_for};
 use pns_domain::registry::Routing;
 use pns_domain::retry::DeliveryOutcome;
 
 mod request;
-pub use request::{DiscordPost, DiscordRequest, UreqDiscordPost, message};
+mod threads;
+pub use request::{DiscordPost, DiscordReply, DiscordRequest, UreqDiscordPost, message};
+use request::{create_thread, id_of};
+pub use threads::SessionThreads;
+use threads::{thread_is_gone, thread_name};
+
+/// The state a recap is raised with. A RECAP OPENS NO THREAD: it is a window
+/// of time rather than a session, and threading it would bury the one message
+/// a day the operator most wants at channel level.
+const RECAP_STATE: &str = "recap";
 
 /// The most a `content` field may carry, kept at the recap's own budget
 /// rather than Discord's 2000 character ceiling: the 200 character margin is
@@ -105,10 +115,19 @@ pub struct DiscordChannel<P: DiscordPost> {
     /// The bot token, read from `[plugins.discord]` at the composition root.
     /// None is the not-set-up case, which posts nothing and says so.
     pub token: Option<String>,
-    /// The channel id every post goes to, read from
-    /// `[plugins.discord.channels] default`. None is the same not-set-up case
-    /// by a different missing key, and the sentence says which.
-    pub channel_id: Option<String>,
+    /// `[plugins.discord.channels]` whole, because the channel is decided per
+    /// EVENT rather than per process: one map, one lookup, and no branch here.
+    pub channels: ChannelMap,
+    /// The route this leg was submitted on, taken at construction the way
+    /// `HermesChannel`'s is and for the same reason: the submission and the
+    /// retry both build their destinations from the leg's own route, while a
+    /// `DeliveryRequest` carries an empty one on the paths that never reached
+    /// the ledger.
+    pub route: String,
+    /// Where the thread this session already owns in a channel is kept. A
+    /// `dyn` seam for the tests' reason and no other: the production value is
+    /// always the sqlite store.
+    pub threads: Box<dyn SessionThreads>,
 }
 
 impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P> {
@@ -131,13 +150,18 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
         // the record's point of view it reads the same as a refusal, and an
         // empty Discord channel otherwise looks like the jobs stopped. The
         // sentence names the KEY to write, never the value that is missing.
-        let (Some(token), Some(channel_id)) = (self.token.as_deref(), self.channel_id.as_deref())
-        else {
-            return Delivery::Failed(skipped_line(self.token.is_none()));
+        let Some(token) = self.token.as_deref() else {
+            return Delivery::Failed(skipped_line(true));
         };
-        let outcome = self
-            .post
-            .post(&message(token, channel_id, &content(request.event)));
+        // THE SUBJECT PICKS THE CHANNEL, and the route the severity already
+        // chose picks it first: the order is the domain's, so this destination
+        // holds no policy of its own.
+        let Some(channel_id) = channel_for(&self.channels, &self.route, &request.event.project)
+        else {
+            return Delivery::Failed(skipped_line(false));
+        };
+        let reply = self.posted(token, channel_id, request.event);
+        let outcome = reply.outcome;
         let line = outcome_line(outcome);
         if outcome.delivered() {
             return Delivery::Delivered(line);
@@ -153,6 +177,57 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
             },
             DeliveryOutcome::NoStatus | DeliveryOutcome::NoResponse => Delivery::Failed(line),
         }
+    }
+}
+
+impl<P: DiscordPost> DiscordChannel<P> {
+    /// Where this event goes: the thread its session already owns in this
+    /// channel, or the channel itself.
+    ///
+    /// THE WHOLE RECOVERY HAPPENS HERE, before `deliver` answers and therefore
+    /// before the ledger records anything: an event whose thread was deleted
+    /// or locked is reposted to the channel in the same call, so the record
+    /// says delivered because it was.
+    fn posted(&self, token: &str, channel_id: &str, event: &Event) -> DiscordReply {
+        let content = content(event);
+        let session = event.session.as_str();
+        if session.is_empty() || event.state == RECAP_STATE {
+            return self.post.post(&message(token, channel_id, &content));
+        }
+        if let Some(thread) = self.threads.thread(session, channel_id) {
+            let reply = self.post.post(&message(token, &thread, &content));
+            if !thread_is_gone(&reply) {
+                return reply;
+            }
+            self.threads.forget(session, channel_id);
+        }
+        self.opening(token, channel_id, event, &content)
+    }
+
+    /// The first event of a pair: post to the channel, then open a thread on
+    /// the message that post returned.
+    ///
+    /// THE MESSAGE IS THE DELIVERY and its reply is what comes back, whatever
+    /// the thread call did: the event has landed in the channel either way,
+    /// and a pair with no row simply opens its thread on the next event.
+    fn opening(&self, token: &str, channel_id: &str, event: &Event, content: &str) -> DiscordReply {
+        let reply = self.post.post(&message(token, channel_id, content));
+        if !reply.outcome.delivered() {
+            return reply;
+        }
+        let Some(message_id) = id_of(&reply.body) else {
+            return reply;
+        };
+        let name = thread_name(&event.project, &event.branch, &event.state);
+        let opened = self
+            .post
+            .post(&create_thread(token, channel_id, &message_id, &name));
+        if opened.outcome.delivered()
+            && let Some(thread) = id_of(&opened.body)
+        {
+            self.threads.remember(&event.session, channel_id, &thread);
+        }
+        reply
     }
 }
 
@@ -175,6 +250,10 @@ fn outcome_line(outcome: DeliveryOutcome) -> String {
 
 /// The line for a channel that was selected and never set up, naming the one
 /// key to write.
+///
+/// THE MAP'S FAILURE IS THE CATCH-ALL'S, always: every lookup ends at
+/// `default`, so a map that answered nothing is a map missing that one key
+/// rather than a project nobody mapped.
 fn skipped_line(no_token: bool) -> String {
     let key = if no_token {
         "[plugins.discord] token"
@@ -195,5 +274,11 @@ pub fn refused_discord_line(reason: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "discord/double.rs"]
+mod double;
+#[cfg(test)]
 #[path = "discord/tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "discord/thread_tests.rs"]
+mod thread_tests;

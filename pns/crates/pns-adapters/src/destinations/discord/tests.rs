@@ -1,74 +1,8 @@
+use super::double::*;
 use super::request::API_BASE;
 use super::*;
+use pns_domain::channel_map::ChannelMap;
 use pns_domain::retry::{DeadletterReason, FailureClass, RetryLimits};
-use std::sync::Mutex;
-
-/// The seam standing in for discord.com: it answers whatever it was built
-/// with and keeps the request it was handed, which is how the composed
-/// authorization, User-Agent and body are asserted without a socket.
-struct Sent {
-    url: String,
-    headers: Vec<(String, String)>,
-    body: String,
-}
-
-struct Recorder {
-    answer: DeliveryOutcome,
-    seen: Mutex<Vec<Sent>>,
-}
-
-impl Recorder {
-    fn answering(answer: DeliveryOutcome) -> Self {
-        Self {
-            answer,
-            seen: Mutex::new(Vec::new()),
-        }
-    }
-}
-
-impl DiscordPost for Recorder {
-    fn post(&self, request: &DiscordRequest) -> DeliveryOutcome {
-        self.seen.lock().unwrap().push(Sent {
-            url: request.url.clone(),
-            headers: request.headers.clone(),
-            body: request.body.clone(),
-        });
-        self.answer
-    }
-}
-
-const TOKEN: &str = "MTIzNDU2.a-secret-bot-token";
-
-fn event() -> Event {
-    Event {
-        agent: "claude".to_string(),
-        state: "blocked".to_string(),
-        project: "dotfiles".to_string(),
-        branch: "feat/x".to_string(),
-        detail: "Bash(git push) needs approval".to_string(),
-        ..Event::default()
-    }
-}
-
-fn delivered_by(channel: &DiscordChannel<Recorder>) -> Delivery {
-    let event = event();
-    channel.deliver(&DeliveryRequest {
-        producer: "pns",
-        request_id: Some("req-1"),
-        producer_request: None,
-        event: &event,
-        route: "",
-        mode: pns_domain::routing::ReportMode::ReportOutcome,
-    })
-}
-
-fn armed(answer: DeliveryOutcome) -> DiscordChannel<Recorder> {
-    DiscordChannel {
-        post: Recorder::answering(answer),
-        token: Some(TOKEN.to_string()),
-        channel_id: Some("9001".to_string()),
-    }
-}
 
 #[test]
 fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
@@ -80,16 +14,14 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
             DiscordChannel {
                 post: Recorder::answering(DeliveryOutcome::Status(200)),
                 token: None,
-                channel_id: Some("9001".to_string()),
+                channels: channels(&[("default", "9001")]),
+                route: String::new(),
+                threads: Box::new(Remembered::default()),
             },
             "[plugins.discord] token",
         ),
         (
-            DiscordChannel {
-                post: Recorder::answering(DeliveryOutcome::Status(200)),
-                token: Some(TOKEN.to_string()),
-                channel_id: None,
-            },
+            armed_on("", ChannelMap::new(), DeliveryOutcome::Status(200)),
             "[plugins.discord.channels] default",
         ),
     ] {
@@ -226,4 +158,34 @@ fn a_single_oversized_line_is_clipped_to_its_start_and_the_note_is_singular() {
         "the paste's start survives: {content}"
     );
     assert!(content.contains("(1 more line dropped)"), "{content}");
+}
+
+#[test]
+fn the_event_picks_its_channel_and_the_route_picks_it_first() {
+    // THE MUTANT THIS PINS: one channel for every event, which is the whole
+    // map ignored, and a critical page posted to whichever channel the
+    // catch-all names.
+    let map = channels(&[
+        ("default", "catch-all"),
+        ("pns-events", "engine"),
+        ("priority", "pages"),
+        ("dotfiles", "dotfiles-dev"),
+    ]);
+    let mut nothing_mapped = event();
+    nothing_mapped.project = "netpulse".to_string();
+    let mut no_project = event();
+    no_project.project = String::new();
+    for (route, event, expected) in [
+        ("", event(), "dotfiles-dev"),
+        ("priority", event(), "pages"),
+        ("", nothing_mapped, "catch-all"),
+        ("", no_project, "engine"),
+    ] {
+        let channel = armed_on(route, map.clone(), DeliveryOutcome::Status(200));
+        assert!(
+            matches!(delivered_about(&channel, &event), Delivery::Delivered(_)),
+            "route {route:?} delivered"
+        );
+        assert_eq!(posted_to(&channel), expected, "route {route:?}");
+    }
 }

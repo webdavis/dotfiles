@@ -4,6 +4,8 @@
 use super::*;
 use std::os::unix::fs::MetadataExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[path = "tests/rename_race.rs"]
+mod rename_race;
 
 fn store() -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);

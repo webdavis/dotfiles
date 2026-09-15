@@ -129,6 +129,23 @@ return {
           },
         })
         vim.lsp.enable("sourcekit")
+
+        -- jdtls requires a Java Development Kit (JDK) 21 or newer to run itself (it is a Java
+        -- program), which is separate from any JDK a project under edit targets. Homebrew's
+        -- `openjdk` formula is keg-only and not linked onto PATH, so without this jdtls falls
+        -- back to macOS's `/usr/bin/java` stub, which prompts to install a JDK rather than
+        -- running one. Mason's `jdtls` wrapper script reads `JAVA_HOME` itself when set, ahead
+        -- of the bare `java` it would otherwise resolve from PATH. Scoped to jdtls's own
+        -- `cmd_env` rather than `vim.env`, so it does not leak into every `:terminal`, `:!`, or
+        -- other LSP client in the process and override a project's own JDK; guarded so a
+        -- machine where `openjdk` is not installed yet (a fresh apply, before `brew bundle`)
+        -- falls back to PATH resolution instead of pointing jdtls at a directory that does not
+        -- exist. lspconfig's default jdtls `cmd` (root markers, per-project `-data` workspace)
+        -- is left untouched; `cmd_env` merges into it.
+        local jdk_home = "/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home"
+        if vim.fn.isdirectory(jdk_home) == 1 then
+          vim.lsp.config("jdtls", { cmd_env = { JAVA_HOME = jdk_home } })
+        end
       end
     end),
   },
@@ -191,10 +208,12 @@ return {
         "cssls",
         "docker_compose_language_service",
         "dockerls",
+        "elixirls",
         "eslint",
         "gopls",
         "graphql",
         "html",
+        "jdtls",
         "lua_ls",
         "marksman",
         "nil_ls", -- nix
@@ -206,7 +225,13 @@ return {
         "tflint",
         "zls",
       },
-      automatic_enable = true,
+      -- rustaceanvim manages rust-analyzer itself, attaching a client named `rust-analyzer`
+      -- rather than mason-lspconfig's `rust_analyzer`, and its README warns against also
+      -- calling lspconfig's own setup for it: doing so starts a second server on the same
+      -- buffer, which is what dot_config/nvim's own probe reproduced (see
+      -- docs/research/2026-09-rust-neotest-disposition.md, finding 5). Mason still installs
+      -- the `rust_analyzer` binary above; only the automatic client start is excluded.
+      automatic_enable = { exclude = { "rust_analyzer" } },
     },
   },
   {

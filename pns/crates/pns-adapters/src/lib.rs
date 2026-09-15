@@ -113,7 +113,8 @@ pub use destinations::hermes::{
 };
 
 pub use destinations::discord::{
-    DiscordChannel, DiscordPost, DiscordRequest, UreqDiscordPost, refused_discord_line,
+    DiscordChannel, DiscordPost, DiscordReply, DiscordRequest, SessionThreads, UreqDiscordPost,
+    refused_discord_line,
 };
 
 pub use destinations::moshi::{
