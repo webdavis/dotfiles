@@ -479,11 +479,20 @@ shows = ["loop", "blocked", "unread"]
 dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unread", "loop"]
 
+[lights.lamp."2F - Kitchen - HCD5"]
+shows = ["github"]
+
 [lights.lamp."2F - Kitchen - HCD6"]
 shows = ["loop", "blocked", "unread"]
 
+[lights.lamp."3F - MBedroom - HCL2"]
+shows = ["github"]
+
 [lights.lamp."3F - MBedroom - HCL3"]
 shows = ["loop", "blocked", "unread"]
+
+[lights.lamp."3F - Studio - HCL2"]
+shows = ["github"]
 
 [lights.lamp."3F - Studio - HCL3"]
 shows = ["loop", "blocked", "unread"]
@@ -491,7 +500,7 @@ shows = ["loop", "blocked", "unread"]
 [lights.room."2F - Kitchen"]
 shows = ["done", "failed"]
 dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop"]
+dim_behaviours = ["blocked", "unread", "loop", "github"]
 
 [lights.room."3F - MBedroom"]
 shows = ["done", "failed"]
@@ -501,7 +510,7 @@ dim_behaviours = []
 [lights.room."3F - Studio"]
 shows = ["done", "failed"]
 dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop"]
+dim_behaviours = ["blocked", "unread", "loop", "github"]
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #
