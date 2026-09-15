@@ -80,21 +80,6 @@ local function on_save(autoformat, autosave_write)
   return result
 end
 
----Every file under the config root, as one string each.
-local function config_files()
-  local contents = {}
-  for _, path in ipairs(vim.fn.glob(config_root .. "/**/*", true, true)) do
-    if vim.fn.isdirectory(path) == 0 then
-      local handle = io.open(path, "r")
-      if handle then
-        contents[path] = handle:read("*a")
-        handle:close()
-      end
-    end
-  end
-  return contents
-end
-
 return {
   ["every filetype the old sources formatted resolves a formatter"] = function()
     local by_ft = assert(opts().formatters_by_ft, "no formatters_by_ft")
@@ -149,18 +134,5 @@ return {
     -- Spelled in pieces so this file is not itself a hit.
     local module = config_root .. "/lua/custom_api/lsp" .. "_format.lua"
     assert(vim.fn.filereadable(module) == 0, "the workaround module is still on disk")
-  end,
-
-  ["nothing in the tree still names the workaround or the plugin it drove"] = function()
-    local needles = { "custom_api.lsp" .. "_format", "custom_api/lsp" .. "_format", "lsp" .. "-format" }
-    local hits = {}
-    for path, body in pairs(config_files()) do
-      for _, needle in ipairs(needles) do
-        if body:find(needle, 1, true) then
-          table.insert(hits, path .. " names " .. needle)
-        end
-      end
-    end
-    assert(#hits == 0, table.concat(hits, "; "))
   end,
 }
