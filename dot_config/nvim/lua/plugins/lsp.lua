@@ -287,6 +287,7 @@ return {
         "revive",
         "shellcheck",
         "shfmt",
+        "taplo",
         "tree-sitter-cli",
         "lua-language-server",
         "stylua",
