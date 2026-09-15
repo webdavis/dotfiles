@@ -190,10 +190,11 @@ worktree, the trunk, the stack and the diff, and `gh` for the PR number and stat
 rather than composing those parts by hand, and never guess a PR number: `none` is `gh` saying there is
 none, `unknown` is `gh` not answering.
 
-Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the `#pns-recap`
-Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the file list and
-then shedding whole sections, never by cutting a line in half, and it never sheds User Tasks. It prints
-one line saying where the post landed; claim the recap was posted only when that line says it was.
+Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the
+`#pns-events` Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the
+file list and then shedding whole sections, never by cutting a line in half, and it never sheds User
+Tasks. It prints one line saying where the post landed; claim the recap was posted only when that line
+says it was.
 
 ## Pull request descriptions
 

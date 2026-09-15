@@ -63,8 +63,8 @@ fn agent_recap() -> i32 {
         return 2;
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, recap) = recap_settings(&home);
-    post(&body, &recap, &home, &hermes_keys)
+    let (hermes_keys, _) = recap_settings(&home);
+    post(&body, &home, &hermes_keys)
 }
 
 /// The Git block, the stack graph and the file list, printed.
@@ -111,15 +111,15 @@ fn recap() -> i32 {
             move || end.saturating_duration_since(std::time::Instant::now())
         },
     );
-    post(&body, &recap, &home, &hermes_keys)
+    post(&body, &home, &hermes_keys)
 }
 
 /// The hermes key and the recap's own settings, or the fail-closed reading.
 ///
-/// FAIL CLOSED ON THE ROUTE AND ON THE SUMMARIZER, AND OPEN ON THE POST,
-/// which is `pulse_mode`'s split: a config nobody can read named no route and
-/// no command, so the recap goes to the default route, plainly, rather than to
-/// a route the operator never asked for or through a program they never named.
+/// FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST, which is
+/// `pulse_mode`'s split: a config nobody can read named no command, so the
+/// recap posts the plain mechanical lists rather than running a program the
+/// operator never named.
 fn recap_settings(home: &str) -> (HermesKeys, pns_adapters::Recap) {
     match load_config(&config_path(home)) {
         Ok(LoadOutcome::Loaded(config)) => (
@@ -128,22 +128,14 @@ fn recap_settings(home: &str) -> (HermesKeys, pns_adapters::Recap) {
                 .unwrap_or_default(),
             config.recap,
         ),
-        _ => (
-            HermesKeys::default(),
-            pns_adapters::Recap {
-                digest_as_thread: false,
-                ..Default::default()
-            },
-        ),
+        _ => (HermesKeys::default(), pns_adapters::Recap::default()),
     }
 }
 
-/// One composed body on the durable route, with the one fallback the spec
-/// names. ONE POSTER FOR BOTH RECAPS, so `[recap] digest_as_thread` answers
-/// the same question for each: whether a recap takes the `pns-recap` route or
-/// the default one.
-fn post(body: &str, recap: &pns_adapters::Recap, home: &str, hermes_keys: &HermesKeys) -> i32 {
-    pns_application::post_return_recap(body, recap.digest_as_thread, |body, route| {
+/// One composed body on the durable route. ONE POSTER FOR BOTH RECAPS, the
+/// night's and the agent's, so neither can drift onto a route of its own.
+fn post(body: &str, home: &str, hermes_keys: &HermesKeys) -> i32 {
+    pns_application::post_return_recap(body, |body, route| {
         crate::recap_delivery_runtime::deliver_recap(body, route, home, hermes_keys)
             .into_iter()
             .map(|(_, outcome)| outcome)

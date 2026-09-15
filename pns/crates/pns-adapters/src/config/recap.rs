@@ -34,7 +34,6 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
             "summarizer_deadline_secs" => recap.summarizer_deadline_secs = seconds(&setting)?,
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
             "digest" => recap.digest = flag(&key, &setting)?,
-            "digest_as_thread" => recap.digest_as_thread = flag(&key, &setting)?,
             _ => {
                 return Err(unknown_key("recap", "recap", &key));
             }

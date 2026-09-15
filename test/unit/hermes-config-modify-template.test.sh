@@ -100,8 +100,12 @@ tts:
 LIVE
   )"
   assert_not_contains 'osquery' "$rendered"
+  # AND NEITHER IS A ROUTE THE TEMPLATE NO LONGER DECLARES: `pns-recap`
+  # retired with its Discord channel on 2026-09-15, so a live file still
+  # carrying it loses it on the next apply exactly as `osquery` did.
+  assert_not_contains 'pns-recap' "$rendered"
   assert_contains 'model_id: keep-me' "$rendered"
-  for route in general pns-events pns-recap posture-pages priority uu-runs; do
+  for route in general pns-events posture-pages priority uu-runs; do
     assert_contains "        ${route}:" "$rendered"
   done
 }

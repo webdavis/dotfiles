@@ -4,7 +4,7 @@
 
   WHAT THIS OWNS, and nothing else:
 
-    platforms.webhook.extra.routes   the WHOLE map, six routes, whole value
+    platforms.webhook.extra.routes   the WHOLE map, five routes, whole value
     tts.elevenlabs.voice_id          one key
 
   Hermes owns every other line of the file. It rewrites config.yaml from its
@@ -18,10 +18,11 @@
 
   THE ROUTES MAP IS WRITTEN WHOLE, SO AN UNDECLARED ROUTE IS REMOVED. A live
   route this file does not name is gone after the next apply: that is how
-  `unattended-upgrades` (superseded by `uu-runs`) and `osquery` (superseded by
-  `posture-pages`) leave, and it is what keeps the set of channels a webhook can post
-  to exactly the set declared here. Adding a route means adding it below AND
-  creating its two KeePassXC entries.
+  `unattended-upgrades` (superseded by `uu-runs`), `osquery` (superseded by
+  `posture-pages`) and `pns-recap` (retired with its channel on 2026-09-15,
+  recaps post to `pns-events`) leave, and it is what keeps the set of channels a
+  webhook can post to exactly the set declared here. Adding a route means adding
+  it below AND creating its two KeePassXC entries.
 
   EVERY SECRET AND EVERY CHANNEL ID COMES FROM KEEPASSXC BY ENTRY NAME. The
   gateway does no environment expansion at all: `load_gateway_config()` in
@@ -30,7 +31,7 @@
   `deliver_extra.chat_id` raw, so both have to be literals in the rendered
   file and neither can be a ${VAR}. That is why this target needs KeePassXC
   unlocked, and it is the reason the two names below are built from the route
-  name: twelve entries, two per route.
+  name: ten entries, two per route.
 
   A MISSING KEEPASSXC ENTRY ABORTS THE WHOLE APPLY. keepassxc-cli exits
   non-zero on a title it cannot find, chezmoi fails the template on that, and a
@@ -71,7 +72,7 @@
   migrate` then fills back out. That is what a FRESH MACHINE gets, and it was
   measured rather than assumed: the 52-line render went through
   `hermes config migrate` in a throwaway HERMES_HOME and came out 703 lines at
-  config version 30, six routes and the voice id intact, and the apply after
+  config version 30, the routes and the voice id intact, and the apply after
   that one is a byte-for-byte no-op. There is no quarantine script for the
   unparseable case, unlike ~/.claude/settings.json and ~/.codex/config.toml;
   hermes writes this file through an atomic replace, so a truncated write is
@@ -79,9 +80,10 @@
 
   IN FLIGHT: until one apply has landed, the senders and this gateway disagree.
   The deployed pns still signs every route with one `[plugins.hermes] key`,
-  so the five routes whose secret is not that one key answer 401 and the
-  message is dropped. This change adds the three route renames to that same
-  apply. See the hermes section of docs/runbooks/local-daemons.md.
+  so the four routes whose secret is not that one key answer 401 and the
+  message is dropped. This change adds the three route renames and the
+  `pns-recap` retirement to that same apply. See the hermes section of
+  docs/runbooks/local-daemons.md.
 */ -}}
 {{- /* Kept BOTH trimmed and raw. The trimmed copy is what gets parsed, and the
        raw copy is what a no-op apply emits back byte for byte, trailing
@@ -98,8 +100,8 @@
 {{-   $merged = dict -}}
 {{- end -}}
 
-{{- /* The six routes, name -> prompt. Every other field is the same for all
-       six, so only the prompt varies.
+{{- /* The five routes, name -> prompt. Every other field is the same for all
+       five, so only the prompt varies.
 
        A ROUTE IS NAMED FOR ITS DISCORD CHANNEL, and both KeePassXC titles
        below are built from that one name, so route name == channel name ==
@@ -110,7 +112,7 @@
 
        general and priority carry the same three-line layout the pns-events
        route does: a bold header, a Discord subtext line, then the body.
-       posture-pages, pns-recap and uu-runs keep the prompts they already had.
+       posture-pages and uu-runs keep the prompts they already had.
        A prompt is a hermes template over the JSON the sender POSTs, so a field
        a sender does not send renders empty rather than failing. */ -}}
 {{- $headerLayout := "**{header}**\n-# {subheader}\n{body}" -}}
@@ -119,7 +121,6 @@
     "general"       $headerLayout
     "pns-events"    $headerLayout
     "priority"      $headerLayout
-    "pns-recap"     $eventLayout
     "posture-pages" $eventLayout
     "uu-runs"       (printf "unattended · %s" $eventLayout) -}}
 

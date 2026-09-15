@@ -9,22 +9,25 @@ mod support;
 use std::process::Command;
 use support::{Capture, Sandbox, plugin_command, run, stderr, stdout};
 
-/// AN AGENT'S OWN RECAP ON THE SAME WIRE, and the same fallback behind it.
+/// AN AGENT'S OWN RECAP ON THE SAME WIRE, and the one route it has.
 ///
 /// THE ROUTE IS THE WHOLE POINT OF THE COMMAND. The operator asked for these
-/// recaps in `#pns-recap`, and that route is prepared in hermes separately from
-/// pns, so the one thing this must never do is fail when it is absent. The
-/// gateway is PROXIED rather than moved, for the reason the night recap's own
-/// route test states: `PNS_HERMES_URL` outranks the route name, so an endpoint
-/// override cannot observe the path.
+/// recaps in a channel, and a recap that signed for one route and posted to
+/// another would land nowhere: the gateway verifies the signature per route.
+/// The gateway is PROXIED rather than moved, for the reason the night recap's
+/// own route test states: `PNS_HERMES_URL` outranks the route name, so an
+/// endpoint override cannot observe the path.
+///
+/// AND IT IS REFUSED HERE, 404, because that is the failure a route change
+/// makes: the recap still exits 0 and posts nowhere else, so the refusal is
+/// reported rather than retried.
 #[test]
-fn an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so() {
-    let sandbox = Sandbox::new("recap-agent-fallback");
+fn an_agent_recap_posts_once_on_the_default_route_and_exits_zero_when_refused() {
+    let sandbox = Sandbox::new("recap-agent-route");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\n\
-         keys = { pns-events = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "recap-agent-route", Some("404"), Some("2"));
+    let capture = Capture::start(&sandbox, "recap-agent-route", Some("404"), Some("1"));
 
     let mut command = plugin_command(&sandbox);
     command
@@ -45,21 +48,13 @@ fn an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_s
         .collect();
     assert_eq!(
         posted,
-        [
-            "POST /webhooks/pns-recap HTTP/1.1",
-            "POST /webhooks/pns-events HTTP/1.1"
-        ],
-        "the recap route was tried first and the default caught it: {raw}"
+        ["POST /webhooks/pns-events HTTP/1.1"],
+        "the recap took a route of its own: {raw}"
     );
-    let bodies: Vec<&str> = raw.split("\r\n\r\n").skip(1).collect();
-    let fallback = bodies.last().expect("a second body");
+    let body = raw.split("\r\n\r\n").last().expect("a posted body");
     assert!(
-        fallback.contains("did not take this"),
-        "the fallback said nothing about why it landed here: {fallback}"
-    );
-    assert!(
-        fallback.contains("User Tasks"),
-        "the fallback carried a different body from the one it retried: {fallback}"
+        body.contains("User Tasks"),
+        "the posted body is not the one that was piped in: {body}"
     );
 }
 
