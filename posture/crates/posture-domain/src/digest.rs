@@ -10,9 +10,15 @@
 //! when the bullets under it are capped, so the roll-up never hides how much
 //! there was.
 //!
+//! AND COLLAPSED WITHIN A GROUP, for the same reason one level down: a file
+//! that changes all day is one fact with a count, not a hundred facts. The
+//! repeats are folded into a single line naming how many times it happened.
+//!
 //! DISPLAY ONLY. Nothing here reads the spool, claims a batch, rotates a file
 //! or asks the clock; every one of those is the adapter's. What arrives is a
 //! list of entries and what leaves is a string.
+
+use std::collections::HashMap;
 
 use crate::sanitize;
 
@@ -147,14 +153,11 @@ fn block(detector: Option<&str>, members: &[DigestEntry<'_>], limits: DigestLimi
         detector.unwrap_or(UNKNOWN),
         members.len()
     )];
-    for member in members.iter().take(limits.bullets_per_group) {
-        lines.push(format!(
-            "- {} - {}",
-            sanitize::code_with_limit(member.identity.unwrap_or(UNKNOWN), limits.field_chars),
-            sanitize::code_with_limit(member.summary.unwrap_or(UNKNOWN), limits.field_chars)
-        ));
+    let repeats = collapsed(members);
+    for (member, times) in repeats.iter().take(limits.bullets_per_group) {
+        lines.push(bullet(member, *times, limits));
     }
-    if let Some(dropped) = members
+    if let Some(dropped) = repeats
         .len()
         .checked_sub(limits.bullets_per_group)
         .filter(|n| *n > 0)
@@ -163,6 +166,58 @@ fn block(detector: Option<&str>, members: &[DigestEntry<'_>], limits: DigestLimi
     }
     lines.push(String::new());
     lines.join("\n")
+}
+
+/// One bullet, carrying how many times its finding arrived when that was more
+/// than once.
+///
+/// THE COUNT SITS OUTSIDE BOTH CODE SPANS, so a field that spelled `(×9)`
+/// cannot be read as ours. A single arrival carries no suffix at all: `(×1)` on
+/// every quiet line would cost the reader the signal the suffix exists for.
+fn bullet(member: &DigestEntry<'_>, times: usize, limits: DigestLimits) -> String {
+    let line = format!(
+        "- {} - {}",
+        sanitize::code_with_limit(member.identity.unwrap_or(UNKNOWN), limits.field_chars),
+        sanitize::code_with_limit(member.summary.unwrap_or(UNKNOWN), limits.field_chars)
+    );
+    match times {
+        0 | 1 => line,
+        times => format!("{line} (×{times})"),
+    }
+}
+
+/// The group's findings with repeats of one thing folded into one line each,
+/// in first-arrival order, each paired with how many times it arrived.
+///
+/// ONE FILE MUST NOT DROWN A DAY. A rewritten agent config arrives as a fresh
+/// finding on every rewrite, and the 2026-09-14 digest spent 110 identical
+/// lines on one path. Folding them is a PRESENTATION choice and nothing else:
+/// the spool still holds all 110, the group header still counts all 110, and
+/// the file is still watched, which an allowlist entry for it would have ended.
+///
+/// IDENTITY AND SUMMARY TOGETHER are what makes two findings the same finding.
+/// Identity alone would fold two different things said about one path into a
+/// line naming only the first of them.
+///
+/// KEYED BY A HASH MAP rather than a linear scan of what is folded so far: a
+/// day's spool can carry tens of thousands of distinct findings under one
+/// detector, and a scan-per-member makes that quadratic. The map holds the
+/// key's index into `folded`, so first-arrival order still comes from the
+/// Vec and never from iteration order over the map.
+fn collapsed<'a>(members: &[DigestEntry<'a>]) -> Vec<(DigestEntry<'a>, usize)> {
+    let mut folded: Vec<(DigestEntry<'a>, usize)> = Vec::new();
+    let mut index: HashMap<(Option<&'a str>, Option<&'a str>), usize> = HashMap::new();
+    for member in members {
+        let key = (member.identity, member.summary);
+        match index.get(&key) {
+            Some(&position) => folded[position].1 += 1,
+            None => {
+                index.insert(key, folded.len());
+                folded.push((*member, 1));
+            }
+        }
+    }
+    folded
 }
 
 /// The body, cut to the configured character limit if it overruns.

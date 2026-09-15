@@ -150,8 +150,10 @@ fn large_digit_only_caps_remain_effectively_uncapped_without_numeric_overflow() 
     let mut spool: String = (0..13)
         .map(|n| finding(&format!("d{n:02}"), &long))
         .collect();
-    for _ in 0..12 {
-        spool.push_str(&finding("d00", "extra"));
+    // Distinct, so the bullet count measures the raised cap rather than the
+    // repeat collapse.
+    for n in 0..12 {
+        spool.push_str(&finding("d00", &format!("extra{n:02}")));
     }
     let huge = "9".repeat(400);
     let request = request(
