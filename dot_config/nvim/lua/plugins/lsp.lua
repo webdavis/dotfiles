@@ -1,29 +1,3 @@
--- ╭─────────────╮
--- │   Helpers   │
--- ╰─────────────╯
-local log_info = vim.log.levels.INFO
-local log_warning = vim.log.levels.WARN
-local log_error = vim.log.levels.ERROR
-
-local notify_lsp_format_title = { title = "LSP Format" }
-
--- Shared by lsp-format's `keys` rows and by its `BufWritePre` autocmd. The rows are
--- the mappings themselves, so they have to reach this from outside `config`.
-local function safe_format()
-  if not vim.g.autoformat_on_save then
-    return true
-  end
-
-  local ok, err = pcall(function()
-    vim.cmd("Format sync")
-  end)
-
-  if not ok then
-    vim.notify("Autoformat failed: " .. err, log_error, notify_lsp_format_title)
-  end
-  return ok
-end
-
 return {
   {
     "neovim/nvim-lspconfig",
@@ -287,6 +261,7 @@ return {
         "revive",
         "shellcheck",
         "shfmt",
+        "taplo",
         "tree-sitter-cli",
         "lua-language-server",
         "stylua",
@@ -340,264 +315,30 @@ return {
     },
   },
   {
+    -- none-ls is here for its CODE ACTIONS and nothing else. Formatting moved to
+    -- conform.nvim (plugins/conform.lua) and diagnostics to nvim-lint
+    -- (plugins/nvim-lint.lua); neither of those replaces a code-action source, so
+    -- the plugin stays, narrowed to the two sources that provide one.
+    --
+    -- Do not add a formatter or a diagnostic back here. A none-ls source is a
+    -- language server as far as Neovim is concerned, so a formatter registered
+    -- here would compete with conform for the buffer and a diagnostic would
+    -- publish into the shared LSP namespace instead of nvim-lint's own.
     "nvimtools/none-ls.nvim",
     event = { "BufReadPre", "BufNewFile" },
     dependencies = {
       "nvim-lua/plenary.nvim",
-      "nvimtools/none-ls-extras.nvim",
     },
     config = function()
       local null_ls = require("null-ls")
-      local diagnostics = null_ls.builtins.diagnostics
-      local formatting = null_ls.builtins.formatting
       local code_actions = null_ls.builtins.code_actions
-      local completion = null_ls.builtins.completion
 
-      -- For configuring sources by filetype, see:
-      -- https://github.com/nvimtools/null-ls.nvim/blob/main/doc/BUILTIN_CONFIG.md#filetypes
       null_ls.setup({
         sources = {
-          diagnostics.actionlint.with({
-            disabled_filetypes = { "yaml.ansible" },
-          }),
-          diagnostics.ansiblelint,
-          -- diagnostics.codespell,
-          diagnostics.dotenv_linter.with({
-            disabled_filetypes = { "sh", "bash" },
-          }),
-          diagnostics.hadolint, -- Filetypes: Dockerfile.
-
-          formatting.shfmt.with({
-            extra_args = { "-i", "2", "-ci", "-s" },
-          }),
-          formatting.mdformat.with({
-            extra_args = { "--number", "--wrap", "105" },
-          }),
-          -- nixfmt and rubocop come from a project's toolchain, not Mason. A source whose
-          -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
-          -- only where its command exists.
-          formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
-            condition = function()
-              return vim.fn.executable("nixfmt") == 1
-            end,
-          }),
-          formatting.nix_flake_fmt.with({ -- Filetypes: flake.nix files, specifically.
-            filetypes = { "nix" },
-          }),
-          formatting.prettierd.with({
-            disabled_filetypes = { "markdown", "yaml.ansible" },
-          }),
-          formatting.rubocop.with({ -- Filetypes: Ruby (supports linting & formatting).
-            extra_args = { "--display-time", "--extra-details", "--autocorrect", "--fail-level autocorrect" },
-            condition = function()
-              return vim.fn.executable("rubocop") == 1
-            end,
-          }),
-          formatting.stylua,
-          formatting.swiftformat,
-          formatting.swiftlint,
-          formatting.terraform_fmt,
-          formatting.treefmt, -- A polyglot formatter/linter orchestration tool.
-          formatting.yamlfmt.with({
-            disabled_filetypes = { "yaml.ansible" },
-          }),
-
-          completion.spell,
-
           code_actions.gitsigns,
           code_actions.refactoring, -- Filetypes: go, javascript, lua, python, typescript.
-
-          -- The following require none-ls-extras.nvim:
-          require("none-ls.formatting.ansiblelint"),
-          -- Project-local eslint only, and NOT gated on a global one: a `condition` runs
-          -- once at setup, so gating would drop the source for the whole session on every
-          -- machine that keeps eslint in `node_modules/.bin` rather than on PATH. The
-          -- source's own `from_node_modules()` resolver falls back to a literal `eslint`,
-          -- whose failed spawn in a project without one warns and sets `_failed`, which
-          -- disables the shared source for the rest of the session; `only_local` drops that
-          -- fallback, so a project with no eslint is a quiet no-op instead.
-          require("none-ls.diagnostics.eslint").with({ only_local = "node_modules/.bin" }),
         },
       })
-    end,
-  },
-  {
-    "lukas-reineke/lsp-format.nvim",
-    event = { "BufReadPre", "BufNewFile" },
-    -- The mappings and the two commands live in `config`, which now only runs
-    -- once a buffer is read, so they are named here too. Without them a fresh
-    -- instance with no file has no `ZZ` and no `<leader>c` formatting keys at
-    -- all. The rows are the mappings themselves; lazy.nvim installs the
-    -- placeholder and sets the real mapping from the same row on first press.
-    cmd = { "CustomFormatDisable", "CustomFormatEnable" },
-    keys = {
-      {
-        "ZZ",
-        function()
-          safe_format() -- runs formatting and logs errors
-          if vim.bo.modified then
-            vim.cmd("update")
-          end
-          vim.cmd("quit")
-        end,
-        desc = "Custom ZZ with safe formatting before closing the file",
-        silent = true,
-      },
-      {
-        "<leader>uf",
-        function()
-          if vim.g.autoformat_on_save then
-            vim.cmd("CustomFormatDisable")
-          else
-            vim.cmd("CustomFormatEnable")
-          end
-        end,
-        desc = "Format: toggle autoformat-on-save (alias of <leader>cc)",
-        silent = true,
-      },
-      {
-        "<leader>cc",
-        function()
-          if vim.g.autoformat_on_save then
-            vim.cmd("CustomFormatDisable")
-          else
-            vim.cmd("CustomFormatEnable")
-          end
-        end,
-        desc = "Format: toggle autoformat-on-save",
-        silent = true,
-      },
-      {
-        "<leader>ce",
-        function()
-          vim.cmd("CustomFormatEnable")
-        end,
-        desc = "Format: enable autoformat-on-save",
-        silent = true,
-      },
-      {
-        "<leader>cd",
-        function()
-          vim.cmd("CustomFormatDisable")
-        end,
-        desc = "Format: disable autoformat-on-save",
-        silent = true,
-      },
-      {
-        "<leader>cf",
-        function()
-          vim.lsp.buf.format({
-            filter = function(client)
-              -- apply whatever logic you want (in this example, we'll only use null-ls)
-              return client.name == "null-ls"
-            end,
-            bufnr = vim.api.nvim_get_current_buf(),
-          })
-        end,
-        desc = "Format: default",
-        silent = true,
-      },
-    },
-    dependencies = {
-      "mfussenegger/nvim-ansible",
-    },
-    config = function()
-      local lsp_format = require("lsp-format")
-      local format_admission = require("custom_api.lsp_format")
-
-      lsp_format.setup({
-        lua = {
-          exclude = { "lua_ls" },
-        },
-        sh = {
-          exclude = { "bashls" },
-        },
-        markdown = {
-          exclude = {
-            "prettierd",
-            "nix flake fmt",
-          },
-        },
-        ["yaml.ansible"] = {
-          exclude = {
-            "prettierd",
-            "action-lint",
-            "yamlfmt",
-            "nix flake fmt",
-          },
-        },
-      })
-
-      vim.g.autoformat_on_save = true
-
-      local format_group = vim.api.nvim_create_augroup("AutoformatGroup", { clear = true })
-
-      -- ╭──────────────╮
-      -- │   Autocmds   │
-      -- ╰──────────────╯
-      vim.api.nvim_create_autocmd("LspAttach", {
-        group = format_group,
-        callback = function(args)
-          local client = assert(vim.lsp.get_client_by_id(args.data.client_id))
-          format_admission.admit(client, args.buf, lsp_format)
-        end,
-      })
-
-      -- A server can gain or lose `textDocument/formatting` long after it attached,
-      -- and neither event reaches LspAttach. The configured ESLint server registers
-      -- formatting once it has resolved its project settings, and unregisters it when
-      -- that configuration changes; a client left in the queue after losing it is
-      -- selected by the plugin, which then returns WITHOUT advancing to the sibling
-      -- formatters behind it, so the whole save sends nothing.
-      format_admission.install_handlers(lsp_format)
-
-      vim.api.nvim_create_autocmd("BufWritePre", {
-        group = format_group,
-        pattern = "*",
-        -- Wrapped, not passed directly: `safe_format` returns true on success and
-        -- Neovim deletes an autocmd whose callback returns true, so passing it bare
-        -- makes the first successful save the last one that formats.
-        callback = function()
-          -- auto-save.nvim raises this flag over its own write (plugins/autosave.lua).
-          -- Reformatting a buffer the operator did not ask to write moves their cursor
-          -- and their undo history on a timer; an explicit `:w` still formats.
-          if vim.b.autosave_write then
-            return
-          end
-          safe_format()
-        end,
-      })
-
-      -- ╭──────────────╮
-      -- │   Commands   │
-      -- ╰──────────────╯
-      vim.api.nvim_create_user_command("CustomFormatEnable", function()
-        local ok, err = pcall(function()
-          vim.cmd("FormatEnable")
-        end)
-        if not ok then
-          vim.notify("CustomFormatEnable failed: " .. err, log_error, notify_lsp_format_title)
-          return
-        end
-
-        vim.g.autoformat_on_save = true
-
-        vim.notify("Enabled **Autoformat on Save**", log_info, notify_lsp_format_title)
-      end, { desc = "LSP Format: custom FormatEnable" })
-
-      vim.api.nvim_create_user_command("CustomFormatDisable", function()
-        local ok, err = pcall(function()
-          vim.cmd("FormatDisable")
-        end)
-        if not ok then
-          vim.notify("CustomFormatDisable failed: " .. err, log_error, notify_lsp_format_title)
-          return
-        end
-
-        vim.g.autoformat_on_save = false
-
-        vim.notify("Disabled **Autoformat on Save**", log_warning, notify_lsp_format_title)
-      end, { desc = "LSP Format: custom FormatDisable" })
     end,
   },
 }
