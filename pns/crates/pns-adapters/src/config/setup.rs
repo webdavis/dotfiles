@@ -17,13 +17,16 @@ fn values(answers: &Answers) -> toml::Table {
         plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
     }
     if !answers.hermes_key.is_empty() {
-        // THE WALK'S ONE ANSWER IS THE DEFAULT ROUTE'S KEY. Every route has
-        // its own key, and the default route is the one a machine reaching
-        // this wizard has prepared; the rest are written by hand as their
-        // routes are prepared.
+        // THE WALK'S ONE ANSWER IS THE DEFAULT ROUTE'S KEY, under its SHIPPED
+        // name because the wizard does not ask about `[routes]`: every route
+        // has its own key, and the default route is the one a machine
+        // reaching this wizard has prepared; the rest are written by hand as
+        // their routes are prepared.
         let mut keys = toml::Table::new();
         keys.insert(
-            pns_domain::routes::DEFAULT_ROUTE.to_string(),
+            pns_domain::routes::Routes::default()
+                .default_route()
+                .to_string(),
             toml::Value::String(answers.hermes_key.clone()),
         );
         let mut hermes = toml::Table::new();

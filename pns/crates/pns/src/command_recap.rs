@@ -63,8 +63,8 @@ fn agent_recap() -> i32 {
         return 2;
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, _) = recap_settings(&home);
-    post(&body, &home, &hermes_keys, &discord)
+    let (hermes_keys, discord, _, routes) = recap_settings(&home);
+    post(&body, &home, &hermes_keys, &discord, &routes)
 }
 
 /// The Git block, the stack graph and the file list, printed.
@@ -94,7 +94,7 @@ fn recap() -> i32 {
         return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, recap) = recap_settings(&home);
+    let (hermes_keys, discord, recap, routes) = recap_settings(&home);
     let body = pns_application::BuildReturnRecap {
         activity: &pns_adapters::SqliteStore::for_records(state_dir()),
         merges: &pns_adapters::GitHubMerges,
@@ -111,7 +111,7 @@ fn recap() -> i32 {
             move || end.saturating_duration_since(std::time::Instant::now())
         },
     );
-    post(&body, &home, &hermes_keys, &discord)
+    post(&body, &home, &hermes_keys, &discord, &routes)
 }
 
 /// The durable destinations' credentials and the recap's own settings, or the fail-closed reading.
@@ -120,7 +120,14 @@ fn recap() -> i32 {
 /// `pulse_mode`'s split: a config nobody can read named no command, so the
 /// recap posts the plain mechanical lists rather than running a program the
 /// operator never named.
-fn recap_settings(home: &str) -> (HermesKeys, DiscordSettings, pns_adapters::Recap) {
+fn recap_settings(
+    home: &str,
+) -> (
+    HermesKeys,
+    DiscordSettings,
+    pns_adapters::Recap,
+    pns_domain::routes::Routes,
+) {
     match load_config(&config_path(home)) {
         Ok(LoadOutcome::Loaded(config)) => (
             plugin_settings(&config, "hermes")
@@ -128,23 +135,38 @@ fn recap_settings(home: &str) -> (HermesKeys, DiscordSettings, pns_adapters::Rec
                 .unwrap_or_default(),
             read_discord(&config),
             config.recap,
+            config.routes,
         ),
         _ => (
             HermesKeys::default(),
             DiscordSettings::default(),
             pns_adapters::Recap::default(),
+            pns_domain::routes::Routes::default(),
         ),
     }
 }
 
 /// One composed body on the durable route. ONE POSTER FOR BOTH RECAPS, the
 /// night's and the agent's, so neither can drift onto a route of its own.
-fn post(body: &str, home: &str, hermes_keys: &HermesKeys, discord: &DiscordSettings) -> i32 {
+fn post(
+    body: &str,
+    home: &str,
+    hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
+    routes: &pns_domain::routes::Routes,
+) -> i32 {
     pns_application::post_return_recap(body, |body, route| {
-        crate::recap_delivery_runtime::deliver_recap(body, route, home, hermes_keys, discord)
-            .into_iter()
-            .map(|(_, outcome)| outcome)
-            .collect()
+        crate::recap_delivery_runtime::deliver_recap(
+            body,
+            route,
+            home,
+            hermes_keys,
+            discord,
+            routes,
+        )
+        .into_iter()
+        .map(|(_, outcome)| outcome)
+        .collect()
     })
 }
 

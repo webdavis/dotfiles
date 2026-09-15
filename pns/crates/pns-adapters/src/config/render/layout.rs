@@ -90,6 +90,8 @@ pub(super) fn every_table() -> Vec<&'static Table> {
 
 /// Every table this schema serves, in the order the file writes them.
 pub(super) const LAYOUT: &[Table] = &[
+    // FIRST, because it names the routes every table below is keyed by.
+    ROUTES,
     PLUGINS_MOBILE,
     PLUGINS_HERMES,
     PLUGINS_DISCORD,

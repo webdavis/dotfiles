@@ -334,3 +334,93 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
         "the posted body is not the composed recap: {body}"
     );
 }
+
+/// THE ROUTE NAMES ARE THE OPERATOR'S, ON THE WIRE.
+///
+/// THE ONE ASSERTION NO UNIT TEST CAN MAKE. That `[routes]` parses, that a
+/// health event takes the urgent route and that a key table grants a route its
+/// key are each pinned on their own; what nothing pinned is the ASSIGNMENT of
+/// all three onto one POST, and every compiled route name this change removed
+/// used to be what carried it. So the gateway is PROXIED rather than moved,
+/// exactly as the stale alert's own route test does it and for its reason:
+/// `PNS_HERMES_URL` outranks the route, so an endpoint override cannot observe
+/// one.
+///
+/// NOT ONE SHIPPED NAME IN THE CONFIG. Neither route below is a name this
+/// repository ships a default for, and neither is granted a key under one, so
+/// a roster compiled back in would refuse this file at load or sign the post
+/// with a key it was never granted.
+#[test]
+fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_that_routes_key() {
+    let sandbox = Sandbox::new("invented-routes");
+    let capture = Capture::start(&sandbox, "invented-routes", None, None);
+    sandbox.write_config(
+        "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
+         [plugins.hermes]\nenabled = true\n\
+         keys = { logbook = \"logbook-key\", sirens = \"sirens-key\" }\n",
+    );
+
+    let mut command = plugin_command(&sandbox);
+    command
+        .env("HTTP_PROXY", capture.url())
+        .env("http_proxy", capture.url());
+    sandbox.stub_notifier(&mut command);
+    run(command
+        .args([
+            "--agent", "upgrades", "--state", "failed", "--detail", "ran",
+        ])
+        .args(["--kind", "health"])
+        .arg("--remote-only"));
+
+    let raw = capture.finish();
+    assert_eq!(
+        raw.lines().next().unwrap_or_default(),
+        "POST /webhooks/sirens HTTP/1.1",
+        "the health event did not take the configured urgent route: {raw}"
+    );
+    // AND THE GATEWAY IS UNMOVED: the config names ROUTES, never URLs.
+    assert_eq!(
+        header_of(&raw, "host").as_deref(),
+        Some("127.0.0.1:8644"),
+        "the route swap moved the gateway too: {raw}"
+    );
+    // AND SIGNED WITH THAT ROUTE'S OWN KEY, which is the half a path cannot
+    // show: the default route's key would verify nowhere on this route.
+    assert_eq!(
+        header_of(&raw, "x-webhook-signature"),
+        Some(expected_signature("sirens-key", body_of(&raw))),
+        "the post was signed with a key the sirens route was never granted: {raw}"
+    );
+}
+
+/// AND A SESSION EVENT TAKES THE CONFIGURED DEFAULT ROUTE, on the same wire.
+///
+/// THE OTHER HALF OF THE PAIR ABOVE, and the mutant it pins is different: a
+/// default route resolved from a compiled name rather than the table would put
+/// every unrouted event on a route this gateway does not serve, which is the
+/// whole durable log gone at 404.
+#[test]
+fn an_unrouted_event_takes_the_default_route_the_config_invented() {
+    let sandbox = Sandbox::new("invented-default-route");
+    let capture = Capture::start(&sandbox, "invented-default", None, None);
+    sandbox.write_config(
+        "[routes]\ndefault = \"logbook\"\n\
+         [plugins.hermes]\nenabled = true\nkeys = { logbook = \"logbook-key\" }\n",
+    );
+
+    let mut command = plugin_command(&sandbox);
+    command
+        .env("HTTP_PROXY", capture.url())
+        .env("http_proxy", capture.url());
+    sandbox.stub_notifier(&mut command);
+    run(command
+        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .arg("--remote-only"));
+
+    let raw = capture.finish();
+    assert_eq!(
+        raw.lines().next().unwrap_or_default(),
+        "POST /webhooks/logbook HTTP/1.1",
+        "the event did not take the configured default route: {raw}"
+    );
+}

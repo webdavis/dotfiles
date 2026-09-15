@@ -16,6 +16,9 @@ pub(super) struct EventRecords<'a> {
     pub(super) mobile: &'a Mobile,
     pub(super) hermes_keys: HermesKeys,
     pub(super) discord: DiscordSettings,
+    /// What this machine calls the two routes pns selects for itself, off the
+    /// config this event already loaded.
+    pub(super) routes: pns_domain::routes::Routes,
     pub(super) recap: pns_adapters::Recap,
     pub(super) durable_route: bool,
     pub(super) json: bool,
@@ -127,6 +130,7 @@ impl pns_application::MissedReplay for EventRecords<'_> {
                 mobile: self.mobile,
                 hermes_keys: &self.hermes_keys,
                 discord: &self.discord,
+                routes: &self.routes,
                 json: self.json,
             },
         );

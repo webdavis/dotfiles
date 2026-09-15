@@ -1,44 +1,79 @@
-//! The hermes routes pns posts to, named once.
+//! What pns's routes are called, which is the operator's to say and not this
+//! crate's.
 //!
-//! ONE ROSTER, because three layers ask the same question and used to answer
-//! it with three literals: the config schema decides which route names
-//! `[plugins.hermes.keys]` may carry, the signer looks a key up by the route
-//! it is about to post to, and the failure wording quotes that key back at the
-//! operator. A route added in one of the three and missed in the others is a
-//! key the config refuses, or one nothing ever reads.
+//! NO COMPILED ROSTER, and that is the whole point (operator ruling,
+//! 2026-09-15). pns and every producer that posts through it are separate
+//! tools that learn about each other when somebody configures them together
+//! and never before, so a route name compiled in here would be one
+//! deployment's gateway baked into a product other people install. Which
+//! routes exist is the set of signing keys `[plugins.hermes.keys]` grants: a
+//! route the operator granted a key to is a route they granted, and a route
+//! with no key is refused rather than signed with somebody else's. The two
+//! routes pns SELECTS for itself are named in `[routes]`.
+//!
+//! WHAT IS STILL pns'S OWN, because it names no other tool: the producer
+//! words `agent` and `health`, the rule that a health event takes the urgent
+//! route rather than the routine one, and the refusal above.
 
-/// The route an event that named none takes: the gateway's own `pns-events`
-/// webhook, which is also the final segment of `DEFAULT_HERMES_URL`. THE
-/// RETURN RECAP TAKES IT TOO. The `pns-recap` route and its Discord channel
-/// retired on 2026-09-15, and a recap is a session event like any other.
-pub const DEFAULT_ROUTE: &str = "pns-events";
-
-/// The route a page submitted by the posture pipeline posts to. NOTHING IN
-/// PNS SELECTS IT: posture is the producer that names it, and this is the wire
-/// name its own `severity_route` spells
-/// (`posture/crates/posture-domain/src/severity.rs`). It is here because the
-/// roster is what grants a route a key, and a route pns has no key for is a
-/// posture page pns refuses to sign.
-pub const POSTURE_ROUTE: &str = "posture-pages";
-
-/// Every route pns posts to, each verified by its OWN signing key: one
-/// compromised key reaches one Discord channel rather than all of them.
+/// What the two routes pns selects for itself are called.
 ///
-/// A ROUTE NOT IN THIS LIST HAS NO KEY, and a post to one is refused rather
-/// than signed with somebody else's: `--channel` takes any usable name, so
-/// falling back to a shared key would sign for a route nobody granted.
-pub const ROUTES: &[&str] = &[DEFAULT_ROUTE, POSTURE_ROUTE, crate::stale::PRIORITY_ROUTE];
+/// TWO NAMES AND NOT A LIST, because these are the only routes pns picks
+/// without being told: everything else arrives already named by the producer
+/// that raised it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Routes {
+    default: String,
+    urgent: String,
+}
+
+impl Routes {
+    /// `[routes]` as the operator wrote it.
+    ///
+    /// NO VALIDATION HERE. A name that could not stand as a URL path segment
+    /// is refused BY NAME where the table is read, which is the layer that
+    /// can tell the operator which key to fix; a second, quieter rule here
+    /// would be a route silently swapped for another.
+    pub fn named(default: &str, urgent: &str) -> Self {
+        Routes {
+            default: default.to_string(),
+            urgent: urgent.to_string(),
+        }
+    }
+
+    /// The route an event whose producer named none takes.
+    ///
+    /// IT IS ALSO THE FINAL SEGMENT OF THE DEFAULT GATEWAY URL, which
+    /// `channel_url` swaps for whatever this says, so the two cannot disagree
+    /// however the table is written.
+    pub fn default_route(&self) -> &str {
+        &self.default
+    }
+
+    /// The route reserved for what needs a human now.
+    pub fn urgent_route(&self) -> &str {
+        &self.urgent
+    }
+}
+
+impl Default for Routes {
+    /// The names this repository's own gateway uses, and the ONE place either
+    /// string is written: they are defaults a config overrides, never a
+    /// roster a config is checked against.
+    fn default() -> Self {
+        Routes::named("pns-events", "priority")
+    }
+}
 
 /// What an event IS, which is what decides where it lands when its producer
 /// named no route.
 ///
-/// A PRODUCER NAMES A KIND, NEVER A ROUTE (operator ruling, 2026-09-15). uu
-/// knows its lane failed and nothing about Discord channels, so the word it
-/// sends is what the failure is; this mapping is what turns that into a route,
-/// and it is FIXED rather than configurable for the same reason the stale
-/// escalation's route is: `priority` is defined as machine health and security,
-/// so a config that pointed a health event elsewhere would contradict the
-/// definition.
+/// A PRODUCER NAMES A KIND, NEVER A ROUTE (operator ruling, 2026-09-15). A
+/// producer knows its own work failed and nothing about the gateway's
+/// channels, so the word it sends is what the failure is; this mapping is
+/// what turns that into a route, and WHICH ROUTE A KIND TAKES is fixed even
+/// though the route's NAME is not: `health` is defined as a machine's own
+/// health, so a mapping that sent one to the routine route would contradict
+/// the definition.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Kind {
     /// A session event: a harness hook, the shell notifier, a daemon job.
@@ -63,11 +98,11 @@ impl Kind {
 
     /// The route this kind takes when the event named none, or `None` when it
     /// takes the default route, which is the empty route every path already
-    /// reads as `DEFAULT_ROUTE`.
-    pub fn route(self) -> Option<&'static str> {
+    /// reads as the default.
+    pub fn route(self, routes: &Routes) -> Option<&str> {
         match self {
             Self::Agent => None,
-            Self::Health => Some(crate::stale::PRIORITY_ROUTE),
+            Self::Health => Some(routes.urgent_route()),
         }
     }
 
@@ -80,14 +115,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_health_event_pages_and_an_agent_event_takes_the_default() {
-        assert_eq!(Kind::Health.route(), Some(crate::stale::PRIORITY_ROUTE));
+    fn a_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
+        let named = Routes::named("logbook", "sirens");
+        assert_eq!(Kind::Health.route(&named), Some("sirens"));
         assert_eq!(
-            Kind::Agent.route(),
+            Kind::Agent.route(&named),
             None,
             "the default route is the empty route, not a second spelling of it"
         );
         assert_eq!(Kind::default(), Kind::Agent);
+    }
+
+    #[test]
+    fn the_two_route_names_are_read_from_configuration() {
+        let named = Routes::named("logbook", "sirens");
+        assert_eq!(named.default_route(), "logbook");
+        assert_eq!(named.urgent_route(), "sirens");
+    }
+
+    #[test]
+    fn the_shipped_names_are_defaults_and_nothing_else_states_them() {
+        // THE DEFAULTS ARE THIS REPOSITORY'S OWN GATEWAY, which is exactly
+        // what a default is for; a config naming other routes must not have to
+        // agree with them.
+        let shipped = Routes::default();
+        assert_eq!(shipped.default_route(), "pns-events");
+        assert_eq!(shipped.urgent_route(), "priority");
+        assert_ne!(shipped, Routes::named("logbook", "sirens"));
     }
 
     #[test]
@@ -101,34 +155,15 @@ mod tests {
     }
 
     #[test]
-    fn every_route_a_kind_takes_is_on_the_roster() {
-        // A kind routing somewhere the roster does not grant a key would be a
-        // post pns refuses at the last moment instead of a page.
-        for kind in [Kind::Agent, Kind::Health] {
-            let route = kind.route().unwrap_or(DEFAULT_ROUTE);
-            assert!(ROUTES.contains(&route), "`{route}` has no signing key");
-        }
-    }
-
-    #[test]
-    fn every_route_name_can_stand_as_a_url_path_segment() {
-        // The roster is what the schema admits, so a name that could not
-        // become a path segment would be a key an operator may write and no
+    fn every_default_route_name_can_stand_as_a_url_path_segment() {
+        // A name that could not become a path segment would be a default no
         // post could ever use.
-        for route in ROUTES {
+        let shipped = Routes::default();
+        for route in [shipped.default_route(), shipped.urgent_route()] {
             assert!(
                 crate::safety::route_name_is_usable(route),
                 "`{route}` cannot stand as a route"
             );
         }
-    }
-
-    #[test]
-    fn the_roster_names_each_route_once() {
-        let mut sorted: Vec<&&str> = ROUTES.iter().collect();
-        sorted.sort_unstable();
-        let mut unique = sorted.clone();
-        unique.dedup();
-        assert_eq!(sorted, unique, "a duplicated route is a duplicated key");
     }
 }

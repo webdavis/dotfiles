@@ -192,6 +192,10 @@ Config {
         "security",
     ],
     daemon_enabled: true,
+    routes: Routes {
+        default: "pns-events",
+        urgent: "priority",
+    },
     retry_limits: RetryLimits {
         max_attempts: 20,
         max_age_secs: 604800,

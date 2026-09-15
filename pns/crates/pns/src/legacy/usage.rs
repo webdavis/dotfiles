@@ -32,7 +32,7 @@ producer flags: --agent <name> --state <word> --project <name> --branch <name>
                 --kind <agent|health> --local-only --remote-only --long-running
                 --require-delivery
 
-kinds:          agent, the default, is a session event and takes the default
-                pns-events route; health is a machine's own health and takes the
-                priority route, unless --channel already named one.
+kinds:          agent, the default, is a session event and takes the route
+                `[routes] default` names; health is a machine's own health and
+                takes `[routes] urgent`, unless --channel already named one.
 ";

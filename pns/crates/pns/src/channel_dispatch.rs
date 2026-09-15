@@ -5,7 +5,7 @@ use pns_adapters::{
     channel_url, refused_backend_line, refused_discord_line, remote_deadline, resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
-use pns_domain::{Event, EventArgs, registry::Selection, render, routes::DEFAULT_ROUTE};
+use pns_domain::{Event, EventArgs, registry::Selection, render, routes::Routes};
 use pns_hermes::UreqSignedPost;
 use std::time::Duration;
 
@@ -20,10 +20,26 @@ pub(crate) fn destinations(
     mobile: &Mobile,
     hermes_keys: &HermesKeys,
     discord: &DiscordSettings,
+    routes: &Routes,
 ) -> Destinations<Box<dyn NotificationDestination>> {
-    destinations_with_output(selection, route, home, mobile, hermes_keys, discord, false)
+    destinations_with_output(
+        selection,
+        route,
+        home,
+        mobile,
+        hermes_keys,
+        discord,
+        routes,
+        false,
+    )
 }
 
+// EIGHT ARGUMENTS, and the lint is wrong here: every one is a separate
+// reading the composition root already took off one config, and the
+// alternative is a struct that exists only to be destructured on the next
+// line. The grouping that would earn its keep (one "what the config said"
+// value) is a change to every caller of the event path, not to this signature.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn destinations_with_output(
     selection: &Selection,
     route: &str,
@@ -31,6 +47,7 @@ pub(crate) fn destinations_with_output(
     mobile: &Mobile,
     hermes_keys: &HermesKeys,
     discord: &DiscordSettings,
+    routes: &Routes,
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
     let override_dir = std::env::var("PNS_CHANNELS_DIR")
@@ -52,14 +69,18 @@ pub(crate) fn destinations_with_output(
         registration::choose(
             hermes_channel(
                 hermes_keys,
-                hermes_target(route, std::env::var("PNS_HERMES_URL").ok().as_deref()),
+                hermes_target(
+                    route,
+                    std::env::var("PNS_HERMES_URL").ok().as_deref(),
+                    routes,
+                ),
             ),
             forced,
             None,
             json,
         ),
         registration::choose(
-            discord_channel(discord, route),
+            discord_channel(discord, route, routes),
             forced,
             discord.refusal().map(refused_discord_line),
             json,
@@ -154,7 +175,11 @@ fn hermes_channel(
 /// while this one names discord.com, and a variable that could repoint an
 /// authenticated bot post is a credential-exfiltration lever for no gain. The
 /// seam is the test seam.
-fn discord_channel(settings: &DiscordSettings, route: &str) -> DiscordChannel<UreqDiscordPost> {
+fn discord_channel(
+    settings: &DiscordSettings,
+    route: &str,
+    routes: &Routes,
+) -> DiscordChannel<UreqDiscordPost> {
     DiscordChannel {
         post: UreqDiscordPost,
         token: settings.token().map(str::to_string),
@@ -163,6 +188,10 @@ fn discord_channel(settings: &DiscordSettings, route: &str) -> DiscordChannel<Ur
         // the submission and the retry both build their destinations from it,
         // and it is what a severity override has already written.
         route: route.to_string(),
+        // AND THE NAME THIS MACHINE GIVES ITS DEFAULT ROUTE, which is the map
+        // key an event with no project lands on. Taken here for the same
+        // reason: the config is read at the root, never in the destination.
+        default_route: routes.default_route().to_string(),
         // THE STORE IS BUILT HERE rather than threaded through every caller
         // of `destinations`: it holds a path and opens its connection per
         // transaction, which is how `recap_delivery_runtime` already builds
@@ -177,21 +206,23 @@ fn discord_channel(settings: &DiscordSettings, route: &str) -> DiscordChannel<Ur
 /// be chosen from a name the URL had already fallen away from.
 ///
 /// The env override wins for the URL (an explicit URL, the tests' escape
-/// hatch); the route is the `--channel` name, and the default route when
-/// nothing named one. The gateway has no route named "alert"; the default is
-/// where an event with no route named goes. An unusable name is said out loud
-/// and falls back LOUD-WARD to the default route, key and all: a misrouted
+/// hatch); the route is the `--channel` name, and the DEFAULT ROUTE THE CONFIG
+/// NAMED when nothing named one. The URL's final segment is swapped for that
+/// route, so renaming the default route moves the path and not the gateway.
+/// The gateway has no route named "alert"; the default is where an event
+/// with no route named goes. An unusable name is said out loud and falls
+/// back LOUD-WARD to the default route, key and all: a misrouted
 /// notification on the default route beats a silently dropped one.
-fn hermes_target(channel: &str, env_override: Option<&str>) -> (String, String) {
+fn hermes_target(channel: &str, env_override: Option<&str>, routes: &Routes) -> (String, String) {
     let route = if channel.is_empty() {
-        DEFAULT_ROUTE
+        routes.default_route()
     } else if pns_domain::safety::route_name_is_usable(channel) {
         channel
     } else {
         eprintln!(
             "pns: --channel {channel:?} is not a usable route name; posting to the default route"
         );
-        DEFAULT_ROUTE
+        routes.default_route()
     };
     let url = match env_override.filter(|url| !url.is_empty()) {
         Some(url) => url.to_string(),

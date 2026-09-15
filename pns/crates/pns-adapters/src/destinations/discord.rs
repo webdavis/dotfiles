@@ -124,6 +124,11 @@ pub struct DiscordChannel<P: DiscordPost> {
     /// `DeliveryRequest` carries an empty one on the paths that never reached
     /// the ledger.
     pub route: String,
+    /// What this machine calls its default route (`[routes] default`), which
+    /// is the map key an event with NO PROJECT lands on and the one route the
+    /// lookup does not try ahead of the project. Taken at construction
+    /// because the composition root is where the config is read.
+    pub default_route: String,
     /// Where the thread this session already owns in a channel is kept. A
     /// `dyn` seam for the tests' reason and no other: the production value is
     /// always the sqlite store.
@@ -156,8 +161,12 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
         // THE SUBJECT PICKS THE CHANNEL, and the route the severity already
         // chose picks it first: the order is the domain's, so this destination
         // holds no policy of its own.
-        let Some(channel_id) = channel_for(&self.channels, &self.route, &request.event.project)
-        else {
+        let Some(channel_id) = channel_for(
+            &self.channels,
+            &self.route,
+            &request.event.project,
+            &self.default_route,
+        ) else {
             return Delivery::Failed(skipped_line(false));
         };
         let reply = self.posted(token, channel_id, request.event);

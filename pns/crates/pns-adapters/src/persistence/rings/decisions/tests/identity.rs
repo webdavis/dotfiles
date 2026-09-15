@@ -88,6 +88,7 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         session_title: "SECRETTITLE".to_string(),
         scope: pns_domain::DeliveryScope::LocalOnly,
         long_running: true,
+        kind: pns_domain::routes::Kind::Health,
     };
     let decision = decision(GateInputs {
         pane_present: true,
