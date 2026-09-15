@@ -26,6 +26,17 @@ pub fn config() -> &'static str {
 pub fn fixture() -> Value {
     serde_json::from_str(include_str!("../fixtures/resources.json")).unwrap()
 }
+/// The same bridge after a pause: every scene reports itself inactive, which is
+/// what the bridge does once a room has sat untouched.
+pub fn fixture_with_no_active_scene() -> Value {
+    let mut fixture = fixture();
+    for resource in fixture["data"].as_array_mut().unwrap() {
+        if resource["type"] == "scene" {
+            resource["status"]["active"] = json!("inactive");
+        }
+    }
+    fixture
+}
 pub struct Quiet;
 impl lights_application::Notifier for Quiet {
     fn announce(&self, _: &lights_domain::Action) {}
@@ -36,7 +47,16 @@ pub fn command(
     config: Option<&str>,
     responses: Vec<(u16, Value)>,
 ) -> (Response, Vec<Vec<u8>>) {
-    let home = home();
+    command_in(&home(), args, config, responses)
+}
+/// The same invocation against a home that outlives it, so a second press sees
+/// what the first one left on disk.
+pub fn command_in(
+    home: &Home,
+    args: &[&str],
+    config: Option<&str>,
+    responses: Vec<(u16, Value)>,
+) -> (Response, Vec<Vec<u8>>) {
     let path = home.path().join("config.toml");
     if let Some(config) = config {
         std::fs::write(&path, config).unwrap();
@@ -46,6 +66,7 @@ pub fn command(
     let response = run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
+        &home.path().join("state/position.toml"),
         &Quiet,
         |settings| HueLightController::with_transport(settings, connector, ScriptedResolver),
     );
@@ -75,7 +96,8 @@ pub fn timeout_command() -> Response {
     let home = home();
     let path = home.path().join("config.toml");
     std::fs::write(&path, config()).unwrap();
-    run(&["toggle".into()], &path, &Quiet, |settings| {
+    let state = home.path().join("state/position.toml");
+    run(&["toggle".into()], &path, &state, &Quiet, |settings| {
         HueLightController::with_transport(
             settings,
             transport::TimeoutConnector,

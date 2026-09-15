@@ -117,6 +117,43 @@ fn named_and_rotated_scenes_use_real_adapter() {
         )));
     }
 }
+const REMEMBERING: &str = "[scenes]\nremember_position = true\n";
+
+fn press(home: &support::Home, config: &str, fixture: serde_json::Value) -> Response {
+    command_in(
+        home,
+        &["scene", "next"],
+        Some(config),
+        vec![(200, fixture), (200, json!({"errors":[],"data":[]}))],
+    )
+    .0
+}
+#[test]
+fn a_remembered_place_continues_the_rotation_after_the_bridge_forgets() {
+    let home = home();
+    let config = format!("{}{REMEMBERING}", config());
+    assert_eq!(
+        press(&home, &config, fixture()).stdout,
+        "Room: 3F - Studio | Scene: Energize\n"
+    );
+    assert_eq!(
+        press(&home, &config, fixture_with_no_active_scene()).stdout,
+        "Room: 3F - Studio | Scene: Concentrate\n"
+    );
+}
+#[test]
+fn without_the_setting_nothing_is_written_and_the_pause_falls_back() {
+    let home = home();
+    assert_eq!(
+        press(&home, config(), fixture()).stdout,
+        "Room: 3F - Studio | Scene: Energize\n"
+    );
+    assert!(!home.path().join("state/position.toml").exists());
+    assert_eq!(
+        press(&home, config(), fixture_with_no_active_scene()).stdout,
+        "Room: 3F - Studio | Scene: Read\n"
+    );
+}
 #[test]
 fn transport_timeout_exits_four_without_success() {
     failure(&timeout_command(), 4, "timed out");

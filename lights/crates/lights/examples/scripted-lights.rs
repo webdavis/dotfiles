@@ -24,6 +24,8 @@ fn main() -> ExitCode {
     let requests = Arc::clone(&connector.requests);
     let path =
         PathBuf::from(std::env::var_os("XDG_CONFIG_HOME").unwrap()).join("lights/config.toml");
+    let state =
+        PathBuf::from(std::env::var_os("XDG_STATE_HOME").unwrap()).join("lights/position.toml");
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     let notifications = RefCell::new(Vec::new());
     let home = PathBuf::from(std::env::var_os("HOME").unwrap());
@@ -36,7 +38,7 @@ fn main() -> ExitCode {
         Ok(ExitStatus::from_raw(0))
     });
     let response = if std::env::var_os("LIGHTS_TEST_TIMEOUT").is_some() {
-        lights::run(&args, &path, &notifier, |s| {
+        lights::run(&args, &path, &state, &notifier, |s| {
             HueLightController::with_transport(
                 s,
                 transport::TimeoutConnector,
@@ -44,7 +46,7 @@ fn main() -> ExitCode {
             )
         })
     } else {
-        lights::run(&args, &path, &notifier, |s| {
+        lights::run(&args, &path, &state, &notifier, |s| {
             HueLightController::with_transport(s, connector, transport::ScriptedResolver)
         })
     };
