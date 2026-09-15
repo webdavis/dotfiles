@@ -18,7 +18,9 @@ its own failure envelope. Each caller keeps only its plugin-specific pre/postamb
 {{- end }}
 #   Cargo.lock {{ include (joinPath $source "Cargo.lock") | sha256sum }}
 #   Cargo.toml {{ include (joinPath $source "Cargo.toml") | sha256sum }}
+{{ if stat (joinPath $source "herdr-plugin.toml") -}}
 #   herdr-plugin.toml {{ include (joinPath $source "herdr-plugin.toml") | sha256sum }}
+{{ end -}}
 #
 # Retry state (embedded so a retryable non-success re-fires this run_onchange).
 # A missing toolchain or an unverified registration must NOT consume the trigger:
@@ -172,6 +174,24 @@ if ! (cd "$plugin_dir" && "$cargo_bin" build --release --locked); then
   exit 1
 fi
 
+{{ if hasKey . "manifestCommand" -}}
+# --- manifest phase (callers whose herdr-plugin.toml is GENERATED, not vendored) ---
+# `herdr plugin link` reads herdr-plugin.toml and nothing else writes one, so a
+# plugin that derives its manifest from the operator's own configuration renders
+# it here, between the compile and the link, with the binary just built.
+# Failure is retryable-quiet rather than loud: the inputs are the operator's
+# config files, so a malformed one must not abort the whole apply. Leave the
+# trigger retryable, skip registration (so a MISSING manifest is never
+# linked; a manifest already registered from a prior successful generate
+# stays linked, stale, until the next successful generate replaces it) and
+# exit 0 so the rest of the apply proceeds.
+if ! (cd "$plugin_dir" && {{ .manifestCommand }}); then
+  bump_retry_marker
+  printf 'herdr plugin %s built but manifest generation failed; registration skipped (trigger left retryable).\n' "$plugin_id" >&2
+  exit 0
+fi
+
+{{ end -}}
 # --- registration phase (its own failure envelope, separate from the build) ---
 # Registration is retryable-quiet, NOT loud: it fails on a headless apply where
 # the herdr server is not up, which is a legitimate "link later" condition, not a
