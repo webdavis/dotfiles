@@ -7,7 +7,7 @@ use lights_application::{
     Notifier, ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene, TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
-use lights_protocol::{BrightnessRequest, Command, Request};
+use lights_protocol::{BrightnessRequest, Command};
 use std::path::Path;
 
 #[derive(Debug, PartialEq)]
@@ -73,7 +73,26 @@ pub fn run<C: LightController>(
                 notifier.announce(action);
             }
         }
-        return render::preset(&results);
+        return render::per_room(&results);
+    }
+    let controller = controller(&settings.controller);
+    // EVERY CONFIGURED ROOM, each read and written on its own, so `scene next`
+    // leaves each room one step past where that room actually was.
+    if request.all {
+        let mut rooms = settings.aliases.rooms();
+        if !rooms.contains(&settings.default_room) {
+            rooms.push(settings.default_room.clone());
+        }
+        let results = rooms
+            .iter()
+            .map(|room| execute(&controller, &settings, &memory, room, &request.command))
+            .collect::<Vec<_>>();
+        if notify {
+            for action in results.iter().flatten() {
+                notifier.announce(action);
+            }
+        }
+        return render::per_room(&results);
     }
     let room = match request.room.as_deref() {
         Some(name) => match settings.aliases.resolve(name) {
@@ -82,13 +101,7 @@ pub fn run<C: LightController>(
         },
         None => settings.default_room.clone(),
     };
-    match execute(
-        &controller(&settings.controller),
-        &settings,
-        &memory,
-        &room,
-        request,
-    ) {
+    match execute(&controller, &settings, &memory, &room, &request.command) {
         Ok(action) => {
             if notify && !matches!(action, Action::Reported { .. }) {
                 notifier.announce(&action);
@@ -107,15 +120,15 @@ fn execute<C: LightController>(
     settings: &Settings,
     memory: &SceneMemory<'_>,
     room: &lights_domain::RoomName,
-    request: Request,
+    command: &Command,
 ) -> Result<Action, LightsError> {
-    match request.command {
+    match command {
         Command::Toggle => TogglePower::run(controller, room),
         Command::On => SetPower::run(controller, room, true),
         Command::Off => SetPower::run(controller, room, false),
         Command::Brightness(value) => {
             let change = match value {
-                BrightnessRequest::Absolute(n) => BrightnessChange::Absolute(Brightness::new(n)),
+                BrightnessRequest::Absolute(n) => BrightnessChange::Absolute(Brightness::new(*n)),
                 BrightnessRequest::Up => BrightnessChange::Step {
                     direction: Direction::Up,
                     percent: settings.step,
