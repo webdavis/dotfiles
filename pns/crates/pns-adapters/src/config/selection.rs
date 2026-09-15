@@ -24,12 +24,15 @@ pub fn select_plugins(
 mod tests {
     use super::*;
 
-    /// THE MUTANT THIS PINS: a table for a plugin nothing registered read as
-    /// no table at all. `[plugins.github.channels]` was the GitHub source
-    /// design's own map and is deleted in favour of the one
-    /// `[plugins.discord.channels]`, so an operator whose local file still
-    /// holds it has to be told it moved rather than left with a map that
-    /// resolves nothing and a source that posts to the catch-all.
+    /// DOCUMENTS THE RETIRED TABLE NAME, not a new code path: the refusal
+    /// comes from the generic unknown-plugin arm, already pinned for an
+    /// arbitrary name by `channel_settings.rs`. `[plugins.github.channels]`
+    /// was the GitHub source design's own map and is deleted in favour of
+    /// the one `[plugins.discord.channels]`, so an operator whose local file
+    /// still holds it has to be told it moved rather than left with a map
+    /// that resolves nothing and a source that posts to the catch-all. This
+    /// test exists to keep that specific name legible in the suite, not to
+    /// guard a mutant the generic case does not already catch.
     #[test]
     fn a_config_still_holding_the_deleted_github_table_is_refused_naming_it() {
         let text = "[plugins.github.channels]\n\
