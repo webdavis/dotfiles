@@ -46,6 +46,7 @@ pub fn event_json(event: &Event, mode: ReportMode) -> String {
 pub use pns_domain::Delivery;
 
 pub(crate) mod banner;
+pub(crate) mod discord;
 mod executable;
 pub(crate) mod hermes;
 pub(crate) mod moshi;

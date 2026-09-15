@@ -18,12 +18,13 @@ pub(crate) fn deliver_recap(
     channel: &str,
     home: &str,
     hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
 ) -> Vec<(pns_domain::routing::Leg, Delivery)> {
     use pns_application::NotificationDestination;
     let selection = roster().all();
     let mobile = Mobile::default();
     let destinations =
-        channel_dispatch::destinations(&selection, channel, home, &mobile, hermes_keys);
+        channel_dispatch::destinations(&selection, channel, home, &mobile, hermes_keys, discord);
     let Some(destination) = destinations.durable() else {
         return Vec::new();
     };
@@ -50,6 +51,7 @@ pub(crate) fn deliver_recap(
         home,
         mobile: &mobile,
         hermes_keys,
+        discord,
         json: false,
     }
     .submit_request(

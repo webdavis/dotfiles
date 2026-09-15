@@ -1,7 +1,8 @@
 use super::{delivery_notice, lease};
 use crate::{
-    HermesKeys, LoadOutcome, Mobile, channel_dispatch, config_path, hermes_keys, load_config,
-    now_secs, plugin_settings, read_mobile, roster, select_plugins, state_dir,
+    DiscordSettings, HermesKeys, LoadOutcome, Mobile, channel_dispatch, config_path, hermes_keys,
+    load_config, now_secs, plugin_settings, read_discord, read_mobile, roster, select_plugins,
+    state_dir,
 };
 use pns_adapters::SqliteStore;
 use pns_application::{DeliveryLedger, SubmissionDelivery};
@@ -14,14 +15,19 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
         Ok(LoadOutcome::Loaded(config)) => (config.retry_limits, config.retry_backoff),
         _ => Default::default(),
     };
-    let (mobile, hermes_keys) = match &loaded {
+    let (mobile, hermes_keys, discord) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             read_mobile(config),
             plugin_settings(config, "hermes")
                 .map(hermes_keys)
                 .unwrap_or_default(),
+            read_discord(config),
         ),
-        _ => (Mobile::default(), HermesKeys::default()),
+        _ => (
+            Mobile::default(),
+            HermesKeys::default(),
+            DiscordSettings::default(),
+        ),
     };
     let (selection, _) = select_plugins(&roster(), loaded);
     retry_once(
@@ -36,6 +42,7 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
                 &home,
                 &mobile,
                 &hermes_keys,
+                &discord,
             );
             SubmissionDelivery {
                 ledger: &store,
