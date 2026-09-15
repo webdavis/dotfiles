@@ -52,10 +52,16 @@ impl SessionThreads for SqliteStore {
     }
 
     fn remember(&self, session: &str, channel: &str, thread: &str) {
+        // FIRST WRITER WINS, ON PURPOSE: `remember` only ever runs on a pair
+        // with no row (opened fresh, or forgotten first), so a conflict here
+        // means two concurrent `opening` calls raced and both created a
+        // thread. DO NOTHING keeps the earlier row instead of clobbering it,
+        // so every later lookup for the pair converges on one thread instead
+        // of flapping between the two the race created.
         let _ = self.transaction(|transaction| {
             transaction.execute(
                 "INSERT INTO session_threads(session,channel,thread) VALUES (?1,?2,?3)
-                 ON CONFLICT(session,channel) DO UPDATE SET thread = ?3",
+                 ON CONFLICT(session,channel) DO NOTHING",
                 rusqlite::params![session, channel, thread],
             )?;
             Ok(())
