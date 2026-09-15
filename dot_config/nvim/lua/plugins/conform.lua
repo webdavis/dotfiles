@@ -181,6 +181,14 @@ return {
         shfmt = {
           prepend_args = { "-i", "2", "-ci", "-s" },
         },
+        -- mdformat runs over stdin, so it has no file path to resolve
+        -- .mdformat.toml from and falls back to Neovim's cwd. Editing a repo
+        -- markdown file while cwd is elsewhere would format with mdformat's
+        -- own default wrap instead of the 105 columns treefmt.toml runs, so
+        -- the wrap is passed explicitly rather than left to config discovery.
+        mdformat = {
+          prepend_args = { "--wrap", "105" },
+        },
       },
       -- Formatting through a language server for any filetype the table does not
       -- name, and never for one it does.
