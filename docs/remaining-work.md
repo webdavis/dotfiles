@@ -1500,7 +1500,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   Closed 2026-09-15: `.worktrees/` holds only a `.DS_Store`, and `git worktree list` shows every
   remaining worktree under `~/.herdr/worktrees/dotfiles/`.
 
-- [ ] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
+- [x] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
   [PR #605](https://github.com/webdavis/dotfiles/pull/605)
   (`feat(worktrees): sweep merged, clean worktrees through herdr`, merged), not a numbered task.
   `dot_local/libexec/executable_prune-merged-worktrees.sh`, deployed to
