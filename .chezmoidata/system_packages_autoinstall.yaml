@@ -78,6 +78,7 @@ packages:
         - direnv
         - droast
         - dust
+        - elixir
         - espeak-ng
         - eza
         - fd

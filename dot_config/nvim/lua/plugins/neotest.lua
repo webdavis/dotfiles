@@ -649,6 +649,11 @@ return {
       -- Platform Console Standalone jar; nothing here can do that download unattended.
       local java = require("neotest-java")({})
 
+      -- Proven against a scratch mix project with one ExUnit test and one doctest, both
+      -- discovered and run through a plain `elixir -S mix test` invocation. No LSP or classpath
+      -- dependency, unlike Java.
+      local elixir = require("neotest-elixir")
+
       -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
       -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
       -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
@@ -659,7 +664,8 @@ return {
       -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
       -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
       -- `discover_positions` needs overriding and the readiness gate above already built the
-      -- replacement; `java` IS constructed at load, like neotest-python.
+      -- replacement; `java` IS constructed at load, like neotest-python, and `elixir` takes the
+      -- bare module, like busted.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -670,6 +676,7 @@ return {
           node,
           rust,
           java,
+          elixir,
           require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
@@ -689,4 +696,8 @@ return {
   },
   { "mrcjkb/rustaceanvim", commit = "a968f5133b8b24f481de12f08cd79420d1ace559", ft = "rust" },
   { "rcasia/neotest-java", commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870", ft = "java" },
+  -- jfpedroza/neotest-elixir has had no commit since 2025-01-19, twenty months as of this pin,
+  -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
+  -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
+  { "jfpedroza/neotest-elixir", commit = "a242aebeaa6997c1c149138ff77f6cacbe33b6fc", ft = "elixir" },
 }

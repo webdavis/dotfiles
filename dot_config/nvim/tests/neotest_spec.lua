@@ -359,6 +359,7 @@ local function route()
         return { name = "neotest-java", root = no_root, constructed = true }
       end,
     }),
+    ["neotest-elixir"] = { name = "neotest-elixir", root = no_root },
   }
   -- Left in place rather than restored: the configured predicates are called after this returns,
   -- and none of these names is a real module under the headless runner.
