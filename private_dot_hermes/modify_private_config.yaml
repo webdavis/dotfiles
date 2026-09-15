@@ -77,11 +77,11 @@
   hermes writes this file through an atomic replace, so a truncated write is
   not a shape it produces.
 
-  IN FLIGHT: until the parallel change that moves pns to one key per route has
-  merged and one apply has landed, the senders and this gateway disagree. pns
-  signs every route with a single `[plugins.hermes] key`, so the five routes
-  whose secret is not that one key answer 401 and the message is dropped. See
-  the hermes section of docs/runbooks/local-daemons.md.
+  IN FLIGHT: until one apply has landed, the senders and this gateway disagree.
+  The deployed pns still signs every route with one `[plugins.hermes] key`,
+  so the five routes whose secret is not that one key answer 401 and the
+  message is dropped. This change adds the three route renames to that same
+  apply. See the hermes section of docs/runbooks/local-daemons.md.
 */ -}}
 {{- /* Kept BOTH trimmed and raw. The trimmed copy is what gets parsed, and the
        raw copy is what a no-op apply emits back byte for byte, trailing
