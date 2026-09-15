@@ -46,6 +46,14 @@ binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 # next apply. Local plugins are built from source at apply time and are not
 # listed here.
 #
+# `ref` is each plugin's revision, empty below because nothing is pinned. Give
+# one a tag, a branch or a commit (it is handed to `herdr plugin install --ref`
+# unchanged) and that plugin is installed at that revision and does not move
+# again; the weekly record says HELD at it rather than refreshed, so a pin stays
+# a visible decision instead of a silent freeze. A revision herdr cannot resolve
+# fails the step by name and never falls back to tip. Add `ref:` beside a
+# roster entry's `id` and `repo` to set one.
+#
 # Lanes run in NAME order, not the order they are written below: `brew` runs
 # before `herdr` regardless of where either block sits in this file.
 [lanes.herdr]
@@ -54,7 +62,7 @@ binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
 deadline_secs = 21600
 plugins = [
 {{- range .packages.herdr_plugins }}
-  { id = {{ .id | quote }}, repo = {{ .repo | quote }} },
+  { id = {{ .id | quote }}, repo = {{ .repo | quote }}, ref = {{ dig "ref" "" . | quote }} },
 {{- end }}
 ]
 
