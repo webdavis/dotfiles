@@ -26,21 +26,23 @@ pub type ChannelMap = BTreeMap<String, String>;
 /// the first event from every project nobody mapped.
 pub const DEFAULT_KEY: &str = "default";
 
-/// Where an event with NO PROJECT AT ALL lands, which is the engine's own
-/// channel.
-///
-/// DELIBERATELY NOT `DEFAULT_KEY`. "I know the project and have no channel for
-/// it" and "there is no project" are two different failures, and sending both
-/// to one channel loses the distinction exactly when it is being looked for.
-pub const NO_PROJECT_KEY: &str = crate::routes::DEFAULT_ROUTE;
-
 /// The channel this event posts to, or `None` for a map that states none.
 ///
 /// FIRST HIT WINS over the keys below, in order. A step whose key is not in
 /// the map falls through rather than failing, so a route nobody mapped still
 /// reaches the project's own channel instead of nowhere.
-pub fn channel_for<'a>(channels: &'a ChannelMap, route: &str, project: &str) -> Option<&'a str> {
-    keys_tried(route, project)
+///
+/// THE DEFAULT ROUTE'S NAME IS AN ARGUMENT because it is the operator's to
+/// choose (`[routes] default`): it is both the key an event with NO PROJECT
+/// AT ALL lands on and the one route this lookup does not try ahead of the
+/// project, and a copy compiled in here would disagree with their table.
+pub fn channel_for<'a>(
+    channels: &'a ChannelMap,
+    route: &str,
+    project: &str,
+    default_route: &str,
+) -> Option<&'a str> {
+    keys_tried(route, project, default_route)
         .into_iter()
         .find_map(|key| channels.get(key).map(String::as_str))
 }
@@ -53,13 +55,17 @@ pub fn channel_for<'a>(channels: &'a ChannelMap, route: &str, project: &str) -> 
 /// its basename second. Until somebody writes an `owner/name` key, both
 /// spellings land on the same bare entry; the day `git subtree split` puts a
 /// `pns` repository beside a `pns` directory, one config line separates them.
-fn keys_tried<'a>(route: &'a str, project: &'a str) -> Vec<&'a str> {
+fn keys_tried<'a>(route: &'a str, project: &'a str, default_route: &'a str) -> Vec<&'a str> {
     let mut keys = Vec::with_capacity(4);
-    if !route.is_empty() && route != crate::routes::DEFAULT_ROUTE {
+    if !route.is_empty() && route != default_route {
         keys.push(route);
     }
     if project.is_empty() {
-        keys.push(NO_PROJECT_KEY);
+        // DELIBERATELY NOT `DEFAULT_KEY`. "I know the project and have no
+        // channel for it" and "there is no project" are two different
+        // failures, and sending both to one channel loses the distinction
+        // exactly when it is being looked for.
+        keys.push(default_route);
     } else {
         keys.push(project);
         match project.rsplit_once('/') {
@@ -75,6 +81,12 @@ fn keys_tried<'a>(route: &'a str, project: &'a str) -> Vec<&'a str> {
 mod tests {
     use super::*;
 
+    /// The route names this deployment happens to use. TEST-LOCAL, because
+    /// the point of the change these pin is that no route name is this
+    /// crate's to know.
+    const DEFAULT_ROUTE: &str = "logbook";
+    const URGENT_ROUTE: &str = "sirens";
+
     fn map(entries: &[(&str, &str)]) -> ChannelMap {
         entries
             .iter()
@@ -85,10 +97,15 @@ mod tests {
     fn mapped() -> ChannelMap {
         map(&[
             (DEFAULT_KEY, "catch-all"),
-            (NO_PROJECT_KEY, "engine"),
-            ("priority", "pages"),
+            (DEFAULT_ROUTE, "engine"),
+            (URGENT_ROUTE, "pages"),
             ("dotfiles", "dotfiles-dev"),
         ])
+    }
+
+    /// `channel_for` with this deployment's own default route name.
+    fn looked_up<'a>(channels: &'a ChannelMap, route: &str, project: &str) -> Option<&'a str> {
+        channel_for(channels, route, project, DEFAULT_ROUTE)
     }
 
     #[test]
@@ -96,12 +113,12 @@ mod tests {
         // THE MUTANT THIS PINS: the route dropped from the lookup, which sends
         // a critical page to the project's routine channel.
         assert_eq!(
-            channel_for(&mapped(), "priority", "dotfiles"),
+            looked_up(&mapped(), URGENT_ROUTE, "dotfiles"),
             Some("pages")
         );
-        assert_eq!(channel_for(&mapped(), "", "dotfiles"), Some("dotfiles-dev"));
+        assert_eq!(looked_up(&mapped(), "", "dotfiles"), Some("dotfiles-dev"));
         assert_eq!(
-            channel_for(&mapped(), NO_PROJECT_KEY, "dotfiles"),
+            looked_up(&mapped(), DEFAULT_ROUTE, "dotfiles"),
             Some("dotfiles-dev"),
             "the default route names no channel of its own; the project does"
         );
@@ -112,11 +129,12 @@ mod tests {
         // SEVERITY AHEAD OF SUBJECT, read off the routing rule rather than
         // restated here: whatever `Kind::Health` routes to is the key this
         // lookup consults first, so the two cannot disagree.
+        let routes = crate::routes::Routes::named(DEFAULT_ROUTE, URGENT_ROUTE);
         let route = crate::routes::Kind::Health
-            .route()
+            .route(&routes)
             .expect("health takes a route of its own");
         let channels = map(&[(DEFAULT_KEY, "catch-all"), (route, "pages")]);
-        assert_eq!(channel_for(&channels, route, "dotfiles"), Some("pages"));
+        assert_eq!(looked_up(&channels, route, "dotfiles"), Some("pages"));
     }
 
     #[test]
@@ -127,11 +145,11 @@ mod tests {
             ("pns", "the-directory"),
         ]);
         assert_eq!(
-            channel_for(&channels, "", "webdavis/pns"),
+            looked_up(&channels, "", "webdavis/pns"),
             Some("the-repository")
         );
         assert_eq!(
-            channel_for(&channels, "", "pns"),
+            looked_up(&channels, "", "pns"),
             Some("the-directory"),
             "a bare project name never reads an `owner/name` entry"
         );
@@ -140,7 +158,7 @@ mod tests {
     #[test]
     fn a_full_name_nobody_mapped_falls_back_to_its_bare_entry() {
         assert_eq!(
-            channel_for(&mapped(), "", "webdavis/dotfiles"),
+            looked_up(&mapped(), "", "webdavis/dotfiles"),
             Some("dotfiles-dev")
         );
     }
@@ -150,19 +168,35 @@ mod tests {
         // THE TWO FALLBACKS ARE DIFFERENT CHANNELS ON PURPOSE: a project
         // nobody mapped and no project at all are two failures, and folding
         // them together loses which one happened.
-        assert_eq!(channel_for(&mapped(), "", "netpulse"), Some("catch-all"));
-        assert_eq!(channel_for(&mapped(), "", ""), Some("engine"));
+        assert_eq!(looked_up(&mapped(), "", "netpulse"), Some("catch-all"));
+        assert_eq!(looked_up(&mapped(), "", ""), Some("engine"));
         assert_eq!(
-            channel_for(&map(&[(DEFAULT_KEY, "catch-all")]), "", ""),
+            looked_up(&map(&[(DEFAULT_KEY, "catch-all")]), "", ""),
             Some("catch-all"),
             "and with no engine entry written, the catch-all still answers"
         );
     }
 
     #[test]
+    fn the_no_project_key_is_whatever_the_config_calls_the_default_route() {
+        // THE MUTANT THIS PINS: the argument ignored for a compiled-in name.
+        // A deployment that renamed its default route would otherwise lose
+        // every event with no project to the catch-all.
+        let channels = map(&[(DEFAULT_KEY, "catch-all"), ("pns-events", "stale-name")]);
+        assert_eq!(
+            channel_for(&channels, "", "", DEFAULT_ROUTE),
+            Some("catch-all")
+        );
+        assert_eq!(
+            channel_for(&channels, "", "", "pns-events"),
+            Some("stale-name")
+        );
+    }
+
+    #[test]
     fn a_map_stating_nothing_answers_nothing() {
         assert_eq!(
-            channel_for(&ChannelMap::new(), "priority", "dotfiles"),
+            looked_up(&ChannelMap::new(), URGENT_ROUTE, "dotfiles"),
             None
         );
     }

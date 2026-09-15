@@ -32,8 +32,9 @@ const FOOTER: &str = "{{- end }}\n";
 
 /// The fixed keys this repo's own values file treats as secret-bearing:
 /// present, each must hold a keepassxc marker table rather than a literal.
-/// `[plugins.hermes.keys]` adds one per route on top, off the route roster
-/// rather than written out again here.
+/// `[plugins.hermes.keys]` adds one per route on top, READ OFF THE VALUES
+/// FILE'S OWN TABLE rather than a roster: the route names are the operator's
+/// gateway's, so the only statement of which exist is the file being checked.
 ///
 /// A SCAN OF THE RENDERED TEXT CANNOT STAND IN FOR THIS: `render` accepts a
 /// plain string for any of these keys just as happily as it accepts a
@@ -50,13 +51,29 @@ const SECRET_BEARING_KEYS: &[&str] = &[
 ];
 
 /// Every secret-bearing path, the per-route hermes keys included.
-fn secret_bearing_keys() -> impl Iterator<Item = String> {
+///
+/// EVERY ROUTE THE VALUES FILE NAMES IS SECRET-BEARING, whatever it is
+/// called: a signing key is a secret, so a route line added to that table is
+/// covered the moment it is written rather than when somebody remembers to
+/// add it here too.
+fn secret_bearing_keys(values: &toml::Table) -> impl Iterator<Item = String> {
+    let routes: Vec<String> = lookup(values, "plugins.hermes.keys")
+        .and_then(toml::Value::as_table)
+        .map(|keys| {
+            keys.keys()
+                // `note` IS THE RENDER'S RESERVED KEY, never a route: it
+                // becomes the comment above the table and reaches no config.
+                .filter(|key| *key != "note")
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
     SECRET_BEARING_KEYS
         .iter()
         .map(|path| (*path).to_string())
         .chain(
-            pns_domain::routes::ROUTES
-                .iter()
+            routes
+                .into_iter()
                 .map(|route| format!("plugins.hermes.keys.{route}")),
         )
 }
@@ -131,7 +148,7 @@ fn rendered_configuration(values_path: &str) -> Result<(String, Config), String>
 /// table: `render` itself validates a present table's shape (the entry name,
 /// the field), so this only has to rule out a literal standing in its place.
 fn refuse_literal_secrets(values: &toml::Table) -> Result<(), String> {
-    for path in secret_bearing_keys() {
+    for path in secret_bearing_keys(values) {
         if let Some(value) = lookup(values, &path)
             && !matches!(value, toml::Value::Table(_))
         {

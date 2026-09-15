@@ -83,9 +83,10 @@ impl Failure {
     ///
     /// The `agent · state · project` triple is used as a notification key, and
     /// four probes sharing one triple produced ONE notification where four
-    /// distinct ones produced four. Every posture delivery failure would
-    /// otherwise carry the same triple, so a second failure could quietly
-    /// displace the first and the operator would never learn there were two.
+    /// distinct ones produced four. Every delivery failure raised by one
+    /// producer would otherwise carry the same triple, so a second failure
+    /// could quietly displace the first and the operator would never learn
+    /// there were two.
     /// For a security page that is a lost page, which is the outcome this whole
     /// design exists to prevent. The id is the natural discriminator: unique by
     /// construction, and already in the message.

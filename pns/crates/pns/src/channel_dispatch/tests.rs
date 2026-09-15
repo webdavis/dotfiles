@@ -200,15 +200,18 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
     // THE ROUTE SURVIVES THE OVERRIDE, which the URL alone cannot say: the
     // route names the signing key, so an override that also reset the route
     // would sign every captured post with the default route's key.
-    // The default route is read from the roster rather than spelled here: it
-    // is named for its Discord channel, so a channel rename moves it.
+    //
+    // AND THE DEFAULT ROUTE IS THE CONFIGURED NAME, never a compiled one:
+    // these names are this case's own, so a deployment that renames its
+    // routes is what the resolution is measured against.
+    let routes = Routes::named("logbook", "sirens");
     for (route, resolved) in [
-        ("", DEFAULT_ROUTE),
-        ("priority", "priority"),
-        ("bad/route", DEFAULT_ROUTE),
+        ("", "logbook"),
+        ("sirens", "sirens"),
+        ("bad/route", "logbook"),
     ] {
         assert_eq!(
-            hermes_target(route, Some("http://example.invalid/explicit")),
+            hermes_target(route, Some("http://example.invalid/explicit"), &routes),
             (
                 resolved.to_string(),
                 "http://example.invalid/explicit".to_string()
@@ -216,25 +219,60 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
         );
     }
     for override_url in [None, Some("")] {
+        // THE PATH FOLLOWS THE NAME AND THE GATEWAY DOES NOT MOVE: the
+        // default URL's final segment is swapped for the configured route,
+        // which is what keeps the route the key was granted to and the route
+        // the URL names one value.
         assert_eq!(
-            hermes_target("", override_url),
-            (DEFAULT_ROUTE.to_string(), DEFAULT_HERMES_URL.to_string())
+            hermes_target("", override_url, &routes),
+            (
+                "logbook".to_string(),
+                "http://127.0.0.1:8644/webhooks/logbook".to_string()
+            )
         );
         assert_eq!(
-            hermes_target("priority", override_url),
+            hermes_target("sirens", override_url, &routes),
             (
-                "priority".to_string(),
-                "http://127.0.0.1:8644/webhooks/priority".to_string()
+                "sirens".to_string(),
+                "http://127.0.0.1:8644/webhooks/sirens".to_string()
             )
         );
         // AN UNUSABLE NAME FALLS BACK KEY AND ALL, so the post the default
         // route takes is signed with the default route's key rather than
         // refused for want of a key named `bad/route`.
         assert_eq!(
-            hermes_target("bad/route", override_url),
-            (DEFAULT_ROUTE.to_string(), DEFAULT_HERMES_URL.to_string())
+            hermes_target("bad/route", override_url, &routes),
+            (
+                "logbook".to_string(),
+                "http://127.0.0.1:8644/webhooks/logbook".to_string()
+            )
         );
     }
+    // AND THE SHIPPED DEFAULT IS THE DEFAULT URL'S OWN LAST SEGMENT, which is
+    // the one case where the two are allowed to be the same string.
+    assert_eq!(
+        hermes_target("", None, &Routes::default()),
+        (
+            Routes::default().default_route().to_string(),
+            DEFAULT_HERMES_URL.to_string()
+        )
+    );
+}
+
+#[test]
+fn the_discord_leg_is_built_with_the_default_route_the_config_named() {
+    // THE MUTANT THIS PINS: the configured name replaced by a compiled one on
+    // the way into the leg. It is the map key an event with NO PROJECT lands
+    // on, and no assertion on the lookup itself can see the assignment: a
+    // deployment that renamed its default route would lose every projectless
+    // event to the catch-all with nothing red.
+    let routes = Routes::named("logbook", "sirens");
+    let leg = discord_channel(&pns_adapters::DiscordSettings::default(), "sirens", &routes);
+    assert_eq!(leg.default_route, "logbook");
+    assert_eq!(
+        leg.route, "sirens",
+        "the leg's own route is not the default"
+    );
 }
 
 /// THE PHONE CARD IS UNCHANGED BY THE SENDER HEADER. An iOS notification

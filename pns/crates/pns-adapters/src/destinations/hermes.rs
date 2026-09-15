@@ -201,18 +201,31 @@ pub use probe::{probe_route, probe_routes};
 
 #[cfg(test)]
 mod default_route_tests {
-    use super::DEFAULT_HERMES_URL;
-    use pns_domain::routes::DEFAULT_ROUTE;
+    use super::{DEFAULT_HERMES_URL, channel_url};
+    use pns_domain::routes::Routes;
 
-    /// THE MUTANT THIS PINS: either constant moved without the other. The
-    /// unrouted post takes `DEFAULT_HERMES_URL` and is signed with
-    /// `DEFAULT_ROUTE`'s key, so a disagreement signs it with a key the
-    /// gateway will not verify and the whole durable log goes quiet at 401.
+    /// THE MUTANT THIS PINS: the shipped default route renamed without this
+    /// URL. An unrouted post takes `DEFAULT_HERMES_URL` and is signed with the
+    /// default route's key, so a disagreement between the two signs it with a
+    /// key the gateway will not verify and the whole durable log goes quiet at
+    /// 401.
     #[test]
     fn the_default_url_ends_at_the_default_route() {
+        let shipped = Routes::default().default_route().to_string();
         assert!(
-            DEFAULT_HERMES_URL.ends_with(&format!("/{DEFAULT_ROUTE}")),
-            "{DEFAULT_HERMES_URL} does not end at the {DEFAULT_ROUTE} route"
+            DEFAULT_HERMES_URL.ends_with(&format!("/{shipped}")),
+            "{DEFAULT_HERMES_URL} does not end at the {shipped} route"
+        );
+    }
+
+    /// AND A CONFIGURED NAME CANNOT DISAGREE WITH IT EITHER, because the
+    /// segment is swapped rather than assumed: `[routes] default = "logbook"`
+    /// posts to the gateway's `logbook` route on the same host and port.
+    #[test]
+    fn a_renamed_default_route_moves_the_path_and_not_the_gateway() {
+        assert_eq!(
+            channel_url(DEFAULT_HERMES_URL, "logbook").as_deref(),
+            Some("http://127.0.0.1:8644/webhooks/logbook")
         );
     }
 }

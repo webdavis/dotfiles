@@ -84,6 +84,7 @@ fn check_factory(scenario: &str) {
         &mobile,
         &pns_adapters::HermesKeys::default(),
         &pns_adapters::DiscordSettings::default(),
+        &pns_domain::routes::Routes::default(),
     );
     let outcome = selected.deliver("mobile", &request(&Event::default()));
     match scenario {

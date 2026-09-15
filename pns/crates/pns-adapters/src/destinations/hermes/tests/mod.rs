@@ -4,7 +4,6 @@ use super::{
 use crate::destinations::{Delivery, Event};
 use crate::hermes_keys;
 use pns_application::{DeliveryRequest, NotificationDestination};
-use pns_domain::routes::DEFAULT_ROUTE;
 use pns_domain::routing::ReportMode;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -68,6 +67,11 @@ fn channel_for_route(
         sync_deadline: Some(Duration::from_secs(5)),
     }
 }
+
+/// This deployment's own default route name. TEST-LOCAL, because no route
+/// name is pns's to know: the shipped default is one value of a configured
+/// key, and these cases only need a route both halves agree on.
+const DEFAULT_ROUTE: &str = "pns-events";
 
 /// The same channel on the default route, which is what most of these cases
 /// are about.

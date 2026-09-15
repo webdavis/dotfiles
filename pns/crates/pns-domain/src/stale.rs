@@ -10,6 +10,11 @@
 //! nag says "this approval is still waiting" minutes later on the ordinary
 //! route; this says "nobody is coming" an hour later on the route reserved for
 //! things that need a human, once per block.
+//!
+//! WHICH ROUTE THAT IS stays the operator's to name. The page carries the
+//! HEALTH kind rather than a route name, so the one statement that turns a
+//! kind into a route (`routes::Kind::route`) settles this page too and this
+//! module names no route at all.
 
 use crate::surface::Surface;
 
@@ -42,12 +47,6 @@ const JOB_PREFIX: &str = "stale:";
 
 /// The word the daemon re-executes this binary with.
 pub const FIRE_WORD: &str = "stale";
-
-/// The route a page about a stuck session goes to, FIXED AND NOT CONFIGURABLE:
-/// `priority` is defined as machine health and security plus this escalation
-/// (operator ruling, 2026-09-14), so a key naming another route would be a
-/// config that contradicts the definition.
-pub const PRIORITY_ROUTE: &str = "priority";
 
 /// The state word the page carries, which is also the word that started the
 /// wait being escalated.
@@ -134,7 +133,9 @@ pub fn page(blocked: &Blocked, now: u64) -> crate::EventArgs {
         project: blocked.project.clone(),
         branch: blocked.branch.clone(),
         detail: waited(now.saturating_sub(blocked.since)),
-        channel: PRIORITY_ROUTE.to_string(),
+        // NOT A ROUTE NAME: the kind is what puts this on the urgent route,
+        // whatever `[routes] urgent` calls it.
+        kind: crate::routes::Kind::Health,
         session: blocked.session.clone(),
         session_title: blocked.title.clone(),
         ..crate::EventArgs::default()

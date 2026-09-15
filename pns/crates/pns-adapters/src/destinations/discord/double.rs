@@ -7,6 +7,12 @@ use pns_domain::channel_map::ChannelMap;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
+/// This deployment's own default route name. TEST-LOCAL, because no route
+/// name is pns's to know: it is the map key an event with no project lands on
+/// and the one route the lookup does not try ahead of the project, and these
+/// cases only need a name both halves agree on.
+pub(super) const DEFAULT_ROUTE: &str = "pns-events";
+
 /// One request the seam was handed, kept whole so the composed
 /// authorization, User-Agent and body are asserted without a socket.
 pub(super) struct Sent {
@@ -176,6 +182,7 @@ pub(super) fn holding(
         token: Some(TOKEN.to_string()),
         channels,
         route: route.to_string(),
+        default_route: DEFAULT_ROUTE.to_string(),
         threads: Box::new(threads),
     }
 }

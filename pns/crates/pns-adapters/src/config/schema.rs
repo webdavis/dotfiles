@@ -39,9 +39,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins", "recap",
+            "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins",
+            "recap", "routes",
         ],
     ),
+    (ROUTES, &["default", "urgent"]),
     (
         "recap",
         &[
@@ -118,7 +120,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // roster can enumerate. See `OPEN_TABLES`.
     (DISCORD_CHANNELS, &["default"]),
     ("plugins.hermes", &["enabled", "keys"]),
-    ("plugins.hermes.keys", pns_domain::routes::ROUTES),
+    // AN OPEN TABLE, and the one that decides which routes exist at all: its
+    // keys are the ROUTE NAMES the operator's own gateway serves, which no
+    // roster compiled into pns can enumerate. See `OPEN_TABLES`.
+    (HERMES_KEYS, &[]),
     (
         "plugins.hue",
         &["bridge", "enabled", "key", "quiet_hours", "rooms"],
@@ -182,6 +187,12 @@ pub(super) const TARGET_KEYS: &str = "lights.<level>";
 /// The channel map, whose keys are PROJECT NAMES.
 pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
 
+/// The per-route signing keys, whose keys are ROUTE NAMES.
+pub(super) const HERMES_KEYS: &str = "plugins.hermes.keys";
+
+/// What the two routes pns selects for itself are called.
+pub(super) const ROUTES: &str = "routes";
+
 /// Tables whose vocabulary is the OPERATOR'S rather than this schema's.
 ///
 /// A KEY HERE CANNOT BE REFUSED BY NAME, and that is the trade: a project
@@ -190,7 +201,14 @@ pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
 /// load. What the roster still states is the one key the schema itself
 /// requires, `default`, and an armed map missing THAT is refused by
 /// `plugins::refuse_a_map_without_a_catch_all`.
-pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS];
+///
+/// THE ROUTE KEYS ARE HERE FOR THE SAME REASON AND ONE MORE (operator ruling,
+/// 2026-09-15): a route name belongs to the gateway the operator runs, and a
+/// mistyped one is a route with a key and no posts rather than a refusal.
+/// What still holds is the safety property the old roster was checked for: a
+/// route pns is asked to post to and has no key for is refused at the
+/// signature, so one compromised key reaches one channel.
+pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS, HERMES_KEYS];
 
 /// Whether a table takes keys this schema never declared.
 pub(super) fn is_open(table: &str) -> bool {

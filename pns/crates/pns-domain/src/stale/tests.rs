@@ -16,8 +16,21 @@ fn blocked() -> Blocked {
 }
 
 #[test]
-fn the_page_goes_to_the_priority_route() {
-    assert_eq!(page(&blocked(), 4_780).channel, "priority");
+fn the_page_goes_to_the_urgent_route_the_config_named() {
+    // THE PAGE NAMES NO ROUTE ITSELF. It carries the health kind, and the
+    // route that kind takes is the one `[routes] urgent` spells.
+    let raised = page(&blocked(), 4_780);
+    assert!(
+        raised.channel.is_empty(),
+        "the page pinned a route name: {}",
+        raised.channel
+    );
+    assert_eq!(
+        raised
+            .routed(&crate::routes::Routes::named("logbook", "sirens"))
+            .channel,
+        "sirens"
+    );
 }
 
 #[test]

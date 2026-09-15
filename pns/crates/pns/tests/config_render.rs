@@ -93,11 +93,13 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 /// narrowed by dropping any one path out of `secret_bearing_keys`. A single
 /// case covering only `plugins.hue.bridge` stays green if the others are
 /// removed from that list; table-driving across all of them is what catches a
-/// narrowed roster. THE HERMES ROUTES ARE DRIVEN OFF THE ROUTE ROSTER, so a
-/// route added there without a literal check is red here.
+/// narrowed roster. THE HERMES ROUTES ARE READ OFF THE VALUES FILE'S OWN KEY
+/// TABLE, so a route line added there is covered the moment it is written.
 #[test]
 fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
-    let hermes_routes = pns_domain::routes::ROUTES.iter().map(|route| {
+    // A ROUTE NAME NOTHING IN pns MENTIONS, which is the point: the check is
+    // over the table the file wrote, so any name in it is secret-bearing.
+    let hermes_routes = ["pns-events", "weather-balloons"].into_iter().map(|route| {
         (
             format!("plugins.hermes.keys.{route}"),
             format!("[plugins.hermes.keys]\n{route} = \"a-literal-key\"\n"),

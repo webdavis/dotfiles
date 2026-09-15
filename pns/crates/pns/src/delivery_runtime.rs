@@ -21,6 +21,9 @@ pub(crate) struct DeliveryRuntime<'a> {
     pub(crate) mobile: &'a Mobile,
     pub(crate) hermes_keys: &'a HermesKeys,
     pub(crate) discord: &'a DiscordSettings,
+    /// What this machine calls the two routes pns selects for itself, off the
+    /// config the caller already loaded.
+    pub(crate) routes: &'a pns_domain::routes::Routes,
     pub(crate) json: bool,
 }
 
@@ -67,6 +70,7 @@ impl DeliveryRuntime<'_> {
             self.mobile,
             self.hermes_keys,
             self.discord,
+            self.routes,
             self.json,
         );
         self.attempt(input, clock, &destinations)

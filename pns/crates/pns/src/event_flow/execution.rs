@@ -42,6 +42,7 @@ pub(super) fn execute(
         focus_silence,
         presence,
         stale_after_secs,
+        routes,
     ) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
@@ -59,6 +60,7 @@ pub(super) fn execute(
             // shaped to avoid.
             pns_adapters::parse_presence(config).ok().flatten(),
             config.stale_after_secs,
+            config.routes.clone(),
         ),
         // A config that is absent or could not be read falls back to the
         // DEFAULTS of all five, and deliberately disagrees with the plugin
@@ -84,6 +86,10 @@ pub(super) fn execute(
         // THE ESCALATION FALLS BACK TO OFF, the same reading as the secrets
         // beside it: a file nobody could parse asked for nothing, and a
         // feature that PAGES must not be switched on by a parse failure.
+        // THE ROUTE NAMES FALL BACK TO THE SHIPPED PAIR, which is the one
+        // reading in this arm that is not fail-closed, and deliberately: a
+        // name is not a permission, and an event still has to land somewhere
+        // on a machine whose config nobody could read.
         _ => (
             None,
             None,
@@ -94,8 +100,15 @@ pub(super) fn execute(
             Vec::new(),
             None,
             wait_runtime::WINDOW_OFF,
+            pns_domain::routes::Routes::default(),
         ),
     };
+    // THE ROUTE IS SETTLED HERE, at the one place that holds both the event
+    // and the names the operator gave their routes: `channel` is what the
+    // ledger row, the retry that rebuilds off it and every destination read,
+    // so a page recorded on one route and posted to another is impossible
+    // rather than unlikely.
+    let event = &event.clone().routed(&routes);
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");
@@ -201,6 +214,7 @@ pub(super) fn execute(
         mobile: &mobile,
         hermes_keys: &hermes_keys,
         discord: &discord,
+        routes: &routes,
         json,
     }
     .submit_request(
@@ -244,6 +258,7 @@ pub(super) fn execute(
         mobile: &mobile,
         hermes_keys: hermes_keys.clone(),
         discord: discord.clone(),
+        routes: routes.clone(),
         recap,
         durable_route,
         json,

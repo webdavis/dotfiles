@@ -30,17 +30,10 @@ impl StaleWaits for Recorder {
 }
 impl RaiseNotification for Recorder {
     fn raise(&self, event: &EventArgs) {
-        self.pages.borrow_mut().push(EventArgs {
-            agent: event.agent.clone(),
-            state: event.state.clone(),
-            project: event.project.clone(),
-            branch: event.branch.clone(),
-            detail: event.detail.clone(),
-            channel: event.channel.clone(),
-            session: event.session.clone(),
-            session_title: event.session_title.clone(),
-            ..EventArgs::default()
-        });
+        // WHOLE, never field by field: a page whose kind the recorder dropped
+        // is a page these cases could not tell from one bound for the routine
+        // route.
+        self.pages.borrow_mut().push(event.clone());
     }
 }
 
@@ -94,7 +87,11 @@ fn a_stale_block_is_claimed_before_it_is_paged_about() {
     assert_eq!(*recorder.claimed.borrow(), ["s1"]);
     let pages = recorder.pages.borrow();
     assert_eq!(pages.len(), 1);
-    assert_eq!(pages[0].channel, "priority");
+    // THE PAGE NAMES A KIND, NEVER A ROUTE: the route it lands on is the one
+    // `[routes] urgent` spells, resolved on the event path this fire raises
+    // the page through.
+    assert!(pages[0].channel.is_empty(), "{}", pages[0].channel);
+    assert_eq!(pages[0].kind, pns_domain::routes::Kind::Health);
     assert_eq!(pages[0].detail, "blocked 60 minutes, no answer");
     assert_eq!(pages[0].session, "s1");
 }
