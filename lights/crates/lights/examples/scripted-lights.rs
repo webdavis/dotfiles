@@ -17,10 +17,11 @@ fn main() -> ExitCode {
         .unwrap_or_else(|| {
             serde_json::from_str(include_str!("../tests/fixtures/resources.json")).unwrap()
         });
-    let connector = transport::ScriptedConnector::new(vec![
-        (200, fixture),
-        (200, json!({"errors":[],"data":[]})),
-    ]);
+    // One bulk read, then acceptances for as many writes as a whole-house run
+    // sends. A queued response nothing asks for is never popped.
+    let mut responses = vec![(200, fixture)];
+    responses.extend((0..8).map(|_| (200, json!({"errors":[],"data":[]}))));
+    let connector = transport::ScriptedConnector::new(responses);
     let requests = Arc::clone(&connector.requests);
     let path =
         PathBuf::from(std::env::var_os("XDG_CONFIG_HOME").unwrap()).join("lights/config.toml");
