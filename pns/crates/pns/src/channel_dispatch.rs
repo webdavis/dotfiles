@@ -163,6 +163,11 @@ fn discord_channel(settings: &DiscordSettings, route: &str) -> DiscordChannel<Ur
         // the submission and the retry both build their destinations from it,
         // and it is what a severity override has already written.
         route: route.to_string(),
+        // THE STORE IS BUILT HERE rather than threaded through every caller
+        // of `destinations`: it holds a path and opens its connection per
+        // transaction, which is how `recap_delivery_runtime` already builds
+        // one beside the destinations it hands them to.
+        threads: Box::new(pns_adapters::SqliteStore::new(pns_adapters::state_dir())),
     }
 }
 /// The route one event posts to and the endpoint that route answers at.

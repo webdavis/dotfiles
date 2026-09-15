@@ -25,7 +25,16 @@ use pns_domain::registry::Routing;
 use pns_domain::retry::DeliveryOutcome;
 
 mod request;
-pub use request::{DiscordPost, DiscordRequest, UreqDiscordPost, message};
+mod threads;
+pub use request::{DiscordPost, DiscordReply, DiscordRequest, UreqDiscordPost, message};
+use request::{create_thread, id_of};
+pub use threads::SessionThreads;
+use threads::{thread_is_gone, thread_name};
+
+/// The state a recap is raised with. A RECAP OPENS NO THREAD: it is a window
+/// of time rather than a session, and threading it would bury the one message
+/// a day the operator most wants at channel level.
+const RECAP_STATE: &str = "recap";
 
 /// The most a `content` field may carry, kept at the recap's own budget
 /// rather than Discord's 2000 character ceiling: the 200 character margin is
@@ -115,6 +124,10 @@ pub struct DiscordChannel<P: DiscordPost> {
     /// `DeliveryRequest` carries an empty one on the paths that never reached
     /// the ledger.
     pub route: String,
+    /// Where the thread this session already owns in a channel is kept. A
+    /// `dyn` seam for the tests' reason and no other: the production value is
+    /// always the sqlite store.
+    pub threads: Box<dyn SessionThreads>,
 }
 
 impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P> {
@@ -147,9 +160,8 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
         else {
             return Delivery::Failed(skipped_line(false));
         };
-        let outcome = self
-            .post
-            .post(&message(token, channel_id, &content(request.event)));
+        let reply = self.posted(token, channel_id, request.event);
+        let outcome = reply.outcome;
         let line = outcome_line(outcome);
         if outcome.delivered() {
             return Delivery::Delivered(line);
@@ -165,6 +177,57 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
             },
             DeliveryOutcome::NoStatus | DeliveryOutcome::NoResponse => Delivery::Failed(line),
         }
+    }
+}
+
+impl<P: DiscordPost> DiscordChannel<P> {
+    /// Where this event goes: the thread its session already owns in this
+    /// channel, or the channel itself.
+    ///
+    /// THE WHOLE RECOVERY HAPPENS HERE, before `deliver` answers and therefore
+    /// before the ledger records anything: an event whose thread was deleted
+    /// or locked is reposted to the channel in the same call, so the record
+    /// says delivered because it was.
+    fn posted(&self, token: &str, channel_id: &str, event: &Event) -> DiscordReply {
+        let content = content(event);
+        let session = event.session.as_str();
+        if session.is_empty() || event.state == RECAP_STATE {
+            return self.post.post(&message(token, channel_id, &content));
+        }
+        if let Some(thread) = self.threads.thread(session, channel_id) {
+            let reply = self.post.post(&message(token, &thread, &content));
+            if !thread_is_gone(&reply) {
+                return reply;
+            }
+            self.threads.forget(session, channel_id);
+        }
+        self.opening(token, channel_id, event, &content)
+    }
+
+    /// The first event of a pair: post to the channel, then open a thread on
+    /// the message that post returned.
+    ///
+    /// THE MESSAGE IS THE DELIVERY and its reply is what comes back, whatever
+    /// the thread call did: the event has landed in the channel either way,
+    /// and a pair with no row simply opens its thread on the next event.
+    fn opening(&self, token: &str, channel_id: &str, event: &Event, content: &str) -> DiscordReply {
+        let reply = self.post.post(&message(token, channel_id, content));
+        if !reply.outcome.delivered() {
+            return reply;
+        }
+        let Some(message_id) = id_of(&reply.body) else {
+            return reply;
+        };
+        let name = thread_name(&event.project, &event.branch, &event.state);
+        let opened = self
+            .post
+            .post(&create_thread(token, channel_id, &message_id, &name));
+        if opened.outcome.delivered()
+            && let Some(thread) = id_of(&opened.body)
+        {
+            self.threads.remember(&event.session, channel_id, &thread);
+        }
+        reply
     }
 }
 
@@ -211,5 +274,11 @@ pub fn refused_discord_line(reason: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "discord/double.rs"]
+mod double;
+#[cfg(test)]
 #[path = "discord/tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "discord/thread_tests.rs"]
+mod thread_tests;
