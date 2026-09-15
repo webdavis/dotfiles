@@ -311,6 +311,24 @@ powering it off.
 
 Date: \_\_\_\_\_\_\_\_\_\_
 
+## Checking `preset now`
+
+`lights preset now` picks the preset whose `[[preset_windows]]` entry covers the current minute, so one
+key can stand in for the five time-of-day presets. Nothing ships configured: with no `[[preset_windows]]`
+entry the command exits 1 and names what to add, which is itself worth pressing once. To check the clock
+path without touching the deployed configuration, copy it to a scratch directory the way drill 3 does,
+append two windows covering the hour on either side of now, and run
+`XDG_CONFIG_HOME="$drill" lights preset now` twice with a window boundary between the runs.
+
+| What to run                                    | What to see                                                 |
+| ---------------------------------------------- | ----------------------------------------------------------- |
+| `lights preset now` with no windows configured | exit 1, one line naming `[[preset_windows]]`                |
+| `XDG_CONFIG_HOME="$drill" lights preset now`   | the rooms the covering window's preset names, one line each |
+| the same after the boundary passes             | the next window's preset instead                            |
+
+A window whose end is earlier than its start wraps past midnight, two windows that overlap resolve to the
+one written first, and a minute no window covers exits 1 naming that minute.
+
 ## When all four are filled
 
 The cutover is complete only with drills 1 through 3 and the key-press check all recorded as passing. A

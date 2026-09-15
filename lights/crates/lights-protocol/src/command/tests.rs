@@ -100,3 +100,11 @@ fn preset_refuses_a_room_override_rather_than_ignoring_it() {
         assert!(decode(&args).is_err());
     }
 }
+#[test]
+fn preset_now_decodes_to_the_clock_rather_than_a_preset_of_that_name() {
+    assert_eq!(
+        decode(&["preset", "now"]).unwrap().command,
+        Command::PresetNow
+    );
+    assert!(decode(&["--room", "studio", "preset", "now"]).is_err());
+}
