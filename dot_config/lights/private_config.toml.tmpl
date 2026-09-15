@@ -1,17 +1,17 @@
-# The room targeted when --room is absent.
+# Room used when --room is absent.
 default_room = "3F - Studio"
-# Send a local pns event after each accepted write. --notify enables one command.
+# Send a pns event after each write; --notify does it for one command.
 notify = false
 
 [controller]
 type = "hue"
 address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
-# Maximum duration of one bridge request, in seconds.
+# Seconds allowed per bridge request.
 timeout_secs = 2
 
 [brightness]
-# Percentage points per relative step.
+# Percent per step.
 step = 15
 
 [rooms]
@@ -20,22 +20,11 @@ bedroom = "3F - MBedroom"
 kitchen = "2F - Kitchen"
 
 [scenes]
-rotation = ["Nightlight", "Dimmed", "Rest", "Soho", "Relax", "Read", "Energize"]
+# Scene order for next and previous; fallback when the room is on none of them.
+rotation = ["Nightlight", "Soho", "Rest", "Dimmed", "Relax", "Read", "Energize"]
 fallback = "Read"
 
-# Whole-house presets, applied by `lights preset <name>`; `lights preset` lists
-# them. Each step names one room (an alias above, or a full bridge room name)
-# and either a scene in that room or `off = true`. Steps run in the order
-# written, a room that fails does not stop the rest, and the command exits
-# non-zero when any room failed. Add a preset by adding a key here.
-#
-# One preset per time of day, bound to F1 through F4 and F7 in
-# `~/.aerospace.toml`. Morning and afternoon mirror the 07:00 and 10:00 slots of
-# the time-based dimmer automations already on the bridge for the Studio and the
-# bedroom; evening, dusk and night were picked at the lamps. The kitchen follows
-# the same scene names: its own automation drives the `Kitchen` zone, which
-# `--room` cannot address, and none of that automation's scene names exists in
-# the `2F - Kitchen` room.
+# `lights preset <name>` runs the steps in order; a step is a scene or `off = true`.
 [presets]
 morning = [
   { room = "studio", scene = "Energize" },
