@@ -49,7 +49,9 @@ pub(super) const PLUGINS_DISCORD: Table = Table {
                  # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a\n\
                  # companion: both enabled at once is refused at load, naming both tables,\n\
                  # because two durable logs post every event twice. The cutover is two lines\n\
-                 # in one edit, and the rollback is the same two the other way.\n",
+                 # in one edit, and the rollback is the same two the other way. It waits for\n\
+                 # the per-route channel map: until then, flipping it routes every event,\n\
+                 # priority and posture-pages included, onto the catch-all channel below.\n",
     opt_in: true,
     children: &[PLUGINS_DISCORD_CHANNELS],
     keys: &[

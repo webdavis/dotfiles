@@ -61,7 +61,9 @@ priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toTo
 # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a
 # companion: both enabled at once is refused at load, naming both tables,
 # because two durable logs post every event twice. The cutover is two lines
-# in one edit, and the rollback is the same two the other way.
+# in one edit, and the rollback is the same two the other way. It waits for
+# the per-route channel map: until then, flipping it routes every event,
+# priority and posture-pages included, onto the catch-all channel below.
 [plugins.discord]
 enabled = false
 # Which compiled-in transport carries the post. "bot" is the only one
