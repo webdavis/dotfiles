@@ -6,14 +6,14 @@ Config {
             settings: {
                 "keys": Table(
                     {
-                        "pns": String(
-                            "from-the-vault:Hermes :: Webhook Secret (#pns):Password",
+                        "pns-events": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#pns-events):Password",
                         ),
                         "pns-recap": String(
                             "from-the-vault:Hermes :: Webhook Secret (#pns-recap):Password",
                         ),
-                        "posture": String(
-                            "from-the-vault:Hermes :: Webhook Secret (#posture):Password",
+                        "posture-pages": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#posture-pages):Password",
                         ),
                         "priority": String(
                             "from-the-vault:Hermes :: Webhook Secret (#priority):Password",

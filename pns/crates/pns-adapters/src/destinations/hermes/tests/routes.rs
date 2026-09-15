@@ -11,7 +11,13 @@ fn one_rule_judges_a_route_name_wherever_it_is_read() {
     // route by name and the URL swap that spends it must agree about what
     // a name is, or a value the config waved through becomes a URL the
     // swap refuses (or worse, the other way around).
-    for usable in ["priority", "unattended-upgrades", "pns", "log_2", "A9"] {
+    for usable in [
+        "priority",
+        "unattended-upgrades",
+        "pns-events",
+        "log_2",
+        "A9",
+    ] {
         assert!(route_name_is_usable(usable), "case: {usable:?}");
     }
     // Every form `channel_url` refuses, refused here too AND still refused
@@ -64,8 +70,11 @@ fn a_base_without_a_path_yields_nothing_rather_than_a_bogus_url() {
 /// key in the table, or the only key in it, would pass a single-route case.
 #[test]
 fn each_route_signs_with_its_own_key_off_one_settings_table() {
-    const SETTINGS: &str = "[keys]\npns = \"for-pns\"\npriority = \"for-priority\"\n";
-    for (route, key) in [("pns", "for-pns"), ("priority", "for-priority")] {
+    const SETTINGS: &str = "[keys]\npns-events = \"for-pns-events\"\npriority = \"for-priority\"\n";
+    for (route, key) in [
+        ("pns-events", "for-pns-events"),
+        ("priority", "for-priority"),
+    ] {
         let channel = super::channel_for_route(route, SETTINGS, PostOutcome::Status(200));
         let event = super::event();
         let request = super::delivery_request(&event, ReportMode::ReportOutcome);
@@ -89,14 +98,14 @@ fn each_route_signs_with_its_own_key_off_one_settings_table() {
 #[test]
 fn a_route_with_no_key_of_its_own_posts_nothing_and_names_the_missing_key() {
     let channel = super::channel_for_route(
-        "posture",
-        "[keys]\npns = \"for-pns\"\npriority = \"for-priority\"\n",
+        "posture-pages",
+        "[keys]\npns-events = \"for-pns-events\"\npriority = \"for-priority\"\n",
         PostOutcome::Status(200),
     );
     let event = super::event();
     assert_eq!(
         channel.deliver(&super::delivery_request(&event, ReportMode::ReportOutcome)),
-        Delivery::Failed(skipped_line("posture"))
+        Delivery::Failed(skipped_line("posture-pages"))
     );
     assert!(
         channel.post.posts.lock().unwrap().is_empty(),

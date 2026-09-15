@@ -22,7 +22,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
         Some("moshi-secret")
     );
     assert_eq!(
-        config.plugins["hermes"].settings["keys"]["pns"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
     let hue = &config.plugins["hue"].settings;
