@@ -6,9 +6,9 @@
 -- `setup()` a SECOND time after that file has run, so add one only to change a
 -- default, never to restate one.
 --
--- This runs ALONGSIDE the none-ls `diagnostics.hadolint` source in `lsp.lua`,
--- deliberately, and needs no none-ls adapter of its own because it publishes into
--- its own `vim.diagnostic` namespace (so neither linter clears the other).
+-- This runs ALONGSIDE the nvim-lint `hadolint` linter in `nvim-lint.lua`,
+-- deliberately, and needs no adapter of its own because it publishes into its
+-- own `vim.diagnostic` namespace (so neither linter clears the other).
 -- Overlap on instruction rules is near-total, and upstream ships the authoritative
 -- map rather than a hand-copied list: `droast --hadolint-compatible
 -- --hadolint-compatibility-report` maps 52 DL rules, then "All other DL rules:
