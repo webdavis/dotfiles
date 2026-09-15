@@ -1368,11 +1368,12 @@ contracts run against a concrete in-memory repository and SQLite.
 ### 30. Refused writes do not become completed mutations
 
 Given an owned write transaction, when another process attempts a mutation, then its wait is bounded by
-the configured busy timeout, 200 milliseconds in composition. This is a lock-wait budget, not a
-disk-operation deadline. A failed append or replacement rolls back its whole transaction. A killed writer
-leaves no uncommitted row, and a later writer can proceed. Delivery-facing record methods return without
-changing hook streams and report a bounded, non-secret miss through the existing daemon log when
-possible. Explicit mutations return failure and retain prior state.
+the configured busy timeout, 5 seconds in composition. This is a lock-wait budget, not a
+disk-operation deadline. Tests that stage a wedged writer on purpose shorten that wait with
+`PNS_DB_BUSY_TIMEOUT_MS`, unset in every real invocation. A failed append or replacement rolls back its
+whole transaction. A killed writer leaves no uncommitted row, and a later writer can proceed.
+Delivery-facing record methods return without changing hook streams and report a bounded, non-secret miss
+through the existing daemon log when possible. Explicit mutations return failure and retain prior state.
 
 ### 31. Return claims keep ownership until completed
 

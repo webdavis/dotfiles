@@ -70,7 +70,7 @@ fn a_mute_that_could_not_be_written_reports_the_mute_that_still_stands() {
         .set_quiet_expiry(Some(standing))
         .expect("the standing mute");
     let writer = quiet_records::writer(&sandbox);
-    let output = quiet_command(&sandbox)
+    let output = refused_quiet_command(&sandbox)
         .arg("30m")
         .output()
         .expect("the engine runs");
@@ -135,7 +135,7 @@ fn a_publish_whose_rename_fails_leaves_no_pending_file_behind() {
         .set_quiet_expiry(None)
         .expect("the initialized empty mute");
     let writer = quiet_records::writer(&sandbox);
-    let output = quiet_command(&sandbox)
+    let output = refused_quiet_command(&sandbox)
         .arg("30m")
         .output()
         .expect("the engine runs");
