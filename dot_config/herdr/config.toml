@@ -320,6 +320,17 @@ type = "plugin_action"
 command = "herdr-agent-quota.refresh"
 description = "refresh all agent quotas"
 
+# ╭─────────────────╮
+# │  herdr-process  │
+# ╰─────────────────╯
+# tuicr's window; Ctrl-C hides it rather than quitting. Other generated
+# actions (split-right, split-below, kill) are available but unbound.
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "plugin_action"
+command = "herdr-process.tuicr:toggle-float"
+description = "tuicr: toggle floating window"
+
 # ╭────────────────────╮
 # │  tab-smart-rename  │
 # ╰────────────────────╯
