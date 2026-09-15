@@ -34,7 +34,7 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs) -> i32) -
             );
             return 0;
         }
-        Err(argv::Refusal::Elapsed(error)) => {
+        Err(argv::Refusal::Value(error)) => {
             eprintln!("pns: {error}");
             return 2;
         }
