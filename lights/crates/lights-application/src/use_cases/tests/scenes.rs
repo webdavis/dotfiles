@@ -11,7 +11,8 @@ fn named_scene_returns_typed_action_after_write() {
             &room(),
             &rotation(),
             &SceneMemory::new(&store, false),
-            SceneSelection::Named("Read")
+            SceneSelection::Named("Read"),
+            Fade::INSTANT
         ),
         Ok(Action::SceneSet {
             room: room(),
@@ -33,7 +34,8 @@ fn unknown_scene_has_no_write() {
             &room(),
             &rotation(),
             &SceneMemory::new(&store, false),
-            SceneSelection::Named("Missing")
+            SceneSelection::Named("Missing"),
+            Fade::INSTANT
         ),
         Err(LightsError::UnknownScene {
             name: "Missing".into(),
@@ -56,7 +58,8 @@ fn a_remembered_place_is_used_only_when_the_bridge_reports_no_active_scene() {
             &room(),
             &rotation(),
             &SceneMemory::new(&store, true),
-            SceneSelection::Next
+            SceneSelection::Next,
+            Fade::INSTANT
         ),
         Ok(Action::SceneSet {
             room: room(),
@@ -90,7 +93,8 @@ fn an_active_scene_outside_the_rotation_still_means_the_fallback() {
                 &room(),
                 &rotation(),
                 &SceneMemory::new(&store, true),
-                selection
+                selection,
+                Fade::INSTANT
             ),
             Ok(Action::SceneSet {
                 room: room(),
@@ -120,7 +124,8 @@ fn a_scene_outside_the_rotation_records_nothing() {
             &room(),
             &rotation(),
             &SceneMemory::new(&store, true),
-            SceneSelection::Named("CC Halo Amber")
+            SceneSelection::Named("CC Halo Amber"),
+            Fade::INSTANT
         ),
         Ok(Action::SceneSet {
             room: room(),

@@ -3,7 +3,8 @@ mod snapshot;
 
 use crate::settings::HueSettings;
 use lights_application::{
-    BrightnessChange, LightControlError, LightController, RoomRef, RoomState, SceneRef, SceneState,
+    BrightnessChange, Fade, LightControlError, LightController, RoomRef, RoomState, SceneRef,
+    SceneState,
 };
 use lights_domain::Direction;
 use lights_domain::RoomName;
@@ -143,9 +144,10 @@ impl LightController for HueLightController {
         &self,
         room: &RoomRef,
         change: BrightnessChange,
+        fade: Fade,
     ) -> Result<(), LightControlError> {
         let id = self.grouped_id(room)?;
-        let body = match change {
+        let mut body = match change {
             BrightnessChange::Absolute(level) => json!({"dimming":{"brightness":level.percent()}}),
             BrightnessChange::Step { direction, percent } => {
                 if !(1..=100).contains(&percent) {
@@ -154,16 +156,23 @@ impl LightController for HueLightController {
                 json!({"dimming_delta":{"action":match direction { Direction::Up => "up", Direction::Down => "down" },"brightness_delta":percent}})
             }
         };
+        // ONE WRITE, FADED BY THE BRIDGE: `dynamics.duration` is the
+        // grouped_light transition field, so the change outlives this process
+        // instead of needing a client-side loop.
+        if let Some(millis) = fade.millis() {
+            body["dynamics"] = json!({"duration": millis});
+        }
         self.write(&format!("grouped_light/{id}"), body)
     }
-    fn set_scene(&self, scene: &SceneRef) -> Result<(), LightControlError> {
+    fn set_scene(&self, scene: &SceneRef, fade: Fade) -> Result<(), LightControlError> {
         let Some(Resource::Scene { id, .. }) = self.resources()?.get(scene.index()) else {
             return Err(LightControlError::InvalidReference);
         };
-        self.write(
-            &format!("scene/{id}"),
-            json!({"recall":{"action":"active"}}),
-        )
+        let mut recall = json!({"action":"active"});
+        if let Some(millis) = fade.millis() {
+            recall["duration"] = json!(millis);
+        }
+        self.write(&format!("scene/{id}"), json!({"recall": recall}))
     }
 }
 

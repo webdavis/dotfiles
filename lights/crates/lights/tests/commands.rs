@@ -291,3 +291,6 @@ fn preset_now_without_windows_names_what_to_add_without_a_read() {
 
 #[path = "commands/all_rooms.rs"]
 mod all_rooms;
+
+#[path = "commands/fade.rs"]
+mod fade;
