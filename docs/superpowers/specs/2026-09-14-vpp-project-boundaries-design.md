@@ -365,6 +365,10 @@ rejected and what it would cost to switch.
 
 ## Open questions for the operator
 
+**Decided 2026-09-15:** question 5 below is answered. `minutes` is out: vpp does not use or depend on it
+in any form. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. The remaining six
+questions are untouched by that decision and stand as written.
+
 1. **Own repository, or a fifth workspace in dotfiles?** Recommendation: own repository
    (`webdavis/vpp`). This is the one answer everything else in the document hangs from.
 1. **Does the tool keep the name `vpp`?** The acronym is taken by a well-known networking project and
@@ -379,7 +383,10 @@ rejected and what it would cost to switch.
 1. **Is `minutes` in or out?** It is installed, declared, already symlinked into the vault, and
    already handles voice memos. If it is in, vpp's scope shrinks; if it is out, its ledger evaluation
    should record that vpp supersedes it. Recommendation: answer this before vpp's ingestion design is
-   approved, because it can remove a whole layer.
+   approved, because it can remove a whole layer. **Decided 2026-09-15: out.** vpp does not use or depend
+   on `minutes`, in any form. The operator's reasoning: `minutes` is poorly designed, though it has good
+   features worth learning from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`,
+   decision 1.
 1. **Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
    maintains the folder note for a directory a tool writes into?** This is a vault-governance
    question that vpp's output format depends on.

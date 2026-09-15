@@ -802,6 +802,8 @@ folder note to the three the tagging design named and the fourth the brief desig
    not. If shared drafts are usually going to be PDFs, the metadata question needs its own answer.
 1. **If `minutes` stays, should its `vocabulary` be a source of terms alongside `known-terms.txt`?** It
    manages the same kind of list, and two lists that disagree would produce a draft that masks a name in
-   one pipeline and not the other. This is downstream of the `minutes` keep-or-replace ruling.
+   one pipeline and not the other. This is downstream of the `minutes` keep-or-replace ruling. **Moot,
+   decided 2026-09-15:** `minutes` is out entirely, so there is only `known-terms.txt`. See
+   `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
 1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
    design, because the chain should not stay in disagreement with itself.
