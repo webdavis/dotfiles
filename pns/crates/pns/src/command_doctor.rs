@@ -47,6 +47,7 @@ pub(crate) fn doctor_mode() -> i32 {
         hue_table,
         mobile,
         hermes_keys,
+        discord,
         replay_card,
         focus_silence,
         daemon_enabled,
@@ -60,6 +61,7 @@ pub(crate) fn doctor_mode() -> i32 {
             plugin_settings(config, "hermes")
                 .map(hermes_keys)
                 .unwrap_or_default(),
+            read_discord(config),
             config.recap.replay_card,
             config.focus_silence.clone(),
             config.daemon_enabled,
@@ -82,6 +84,7 @@ pub(crate) fn doctor_mode() -> i32 {
             None,
             Mobile::default(),
             HermesKeys::default(),
+            DiscordSettings::default(),
             true,
             Vec::new(),
             true,
@@ -156,8 +159,14 @@ pub(crate) fn doctor_mode() -> i32 {
     .run(
         pns_application::DoctorActions {
             deliver: |legs: &[pns_domain::routing::Leg], event: &pns_domain::EventArgs| {
-                let destinations =
-                    channel_dispatch::destinations(&selection, "", &home, &mobile, &hermes_keys);
+                let destinations = channel_dispatch::destinations(
+                    &selection,
+                    "",
+                    &home,
+                    &mobile,
+                    &hermes_keys,
+                    &discord,
+                );
                 let identity = match delivery_runtime::fresh_identity() {
                     Ok(identity) => identity,
                     Err(_) => {

@@ -99,6 +99,23 @@ pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
 /// key whose only function is to restore it.
 pub(super) const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 
+/// The `[plugins.discord]` settings, but ONLY when the table is ARMED:
+/// switched on, and naming a transport this binary answers.
+///
+/// `armed_mobile`'s shape exactly, and for its reasons: `discord` is the plugin
+/// and `type` is what is behind it, so a table naming none contributes no
+/// settings anywhere rather than being honoured on whichever path forgot to
+/// ask. `Ok(None)` is the inert table (absent, or present with the switch off),
+/// and `Err` carries the reason so a report cannot name `token` for a fault
+/// that was `type`.
+pub fn armed_discord(config: &Config) -> Result<Option<&toml::Table>, String> {
+    let Some(discord) = config.plugins.get("discord").filter(|entry| entry.enabled) else {
+        return Ok(None);
+    };
+    super::discord_backend(&discord.settings)?;
+    Ok(Some(&discord.settings))
+}
+
 /// Hue's settings, only when the operator enabled it explicitly.
 pub fn enabled_hue_table(config: &Config) -> Option<toml::Table> {
     config
@@ -106,4 +123,92 @@ pub fn enabled_hue_table(config: &Config) -> Option<toml::Table> {
         .get("hue")
         .filter(|hue| hue.enabled)
         .map(|hue| hue.settings.clone())
+}
+
+/// The plugins that are each a DURABLE LOG, READ OFF THE ROSTER rather than
+/// restated here: `pns_domain::registry::ROSTER` is the single source of
+/// truth for which channel declares `Routing { durable: true, .. }`, so a
+/// third one added there is caught here too instead of loading silently
+/// alongside the other two and posting every event twice.
+fn durable_plugin_names() -> impl Iterator<Item = &'static str> {
+    pns_domain::registry::ROSTER
+        .iter()
+        .filter_map(|registration| match registration.kind {
+            pns_domain::registry::PluginKind::Channel(routing) if routing.durable => {
+                Some(registration.name)
+            }
+            _ => None,
+        })
+}
+
+/// Refuses a config that switches more than one durable log on, naming every
+/// one enabled.
+///
+/// A MEASURED DUPLICATE, not caution. `channel_plan` keeps every plugin whose
+/// declaration passes the selection, so two durable channels produce two legs
+/// and one event reaches Discord twice; `Destinations::durable()` answers the
+/// FIRST durable entry in registration order, and the recap posts through
+/// exactly that call, so the recap would silently pick whichever registered
+/// first while every other event doubled.
+///
+/// AT LOAD, WHICH BLOCKS THE WHOLE FILE, rather than in the registry: a
+/// refusal there selects the entire roster and turns all of them on, which is
+/// the opposite of what this refuses. Here the file is unusable, the sentence
+/// names every enabled table, and the machine falls back to the core until
+/// all but one of the lines is edited.
+pub(super) fn refuse_two_durable_logs(config: &Config) -> Result<(), ConfigError> {
+    let enabled: Vec<&str> = durable_plugin_names()
+        .filter(|name| config.plugins.get(*name).is_some_and(|entry| entry.enabled))
+        .collect();
+    if enabled.len() <= 1 {
+        return Ok(());
+    }
+    let named = enabled
+        .iter()
+        .map(|name| format!("`[plugins.{name}]`"))
+        .collect::<Vec<_>>()
+        .join(" and ");
+    Err(ConfigError::Invalid(format!(
+        "{named} are all enabled and only one durable log may be: \
+         two of them post every event twice, and the recap goes to whichever registered first. \
+         Switch all but one off."
+    )))
+}
+
+#[cfg(test)]
+mod durable_tests {
+    use super::super::{ConfigError, parse_config};
+
+    /// THE MUTANT THIS PINS: the refusal dropped, which is a config that loads
+    /// happily and posts every event to Discord twice while the recap follows
+    /// whichever destination registered first.
+    #[test]
+    fn a_config_enabling_both_durable_logs_is_refused_naming_both() {
+        let refusal = parse_config(
+            "[plugins.hermes]\nenabled = true\n[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+        )
+        .expect_err("two durable logs is refused");
+        let ConfigError::Invalid(said) = refusal else {
+            panic!("a schema refusal, not a parse failure");
+        };
+        // BOTH TABLES, because the fix is one line in either of them and an
+        // operator reading only one name would go and edit the one that is
+        // right.
+        assert!(said.contains("[plugins.hermes]"), "{said}");
+        assert!(said.contains("[plugins.discord]"), "{said}");
+    }
+
+    #[test]
+    fn either_one_alone_and_either_one_switched_off_still_loads() {
+        // The positive control: a refusal that fired on a lone durable log
+        // would pass the test above and take the paper trail away entirely.
+        for text in [
+            "[plugins.hermes]\nenabled = true\n",
+            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+            "[plugins.hermes]\nenabled = true\n[plugins.discord]\nenabled = false\ntype = \"bot\"\n",
+            "[plugins.hermes]\nenabled = false\n[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+        ] {
+            assert!(parse_config(text).is_ok(), "case: {text:?}");
+        }
+    }
 }

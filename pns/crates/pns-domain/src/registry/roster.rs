@@ -10,7 +10,7 @@ use super::{PluginKind, Registration, Routing};
 /// run against the real thing. Each entry states its KIND, so a sensor rides
 /// in the same list as the channels rather than in a second one the
 /// composition root has to remember.
-pub const ROSTER: [Registration; 6] = [
+pub const ROSTER: [Registration; 7] = [
     Registration {
         // The home probe's router: an INPUT, so it holds no delivery order to
         // state and sits ahead of the channels, whose order is delivery order.
@@ -57,6 +57,25 @@ pub const ROSTER: [Registration; 6] = [
     },
     Registration {
         name: "hermes",
+        kind: PluginKind::Channel(Routing {
+            local: false,
+            presence_gated: false,
+            durable: true,
+            event_dispatched: true,
+        }),
+    },
+    Registration {
+        // The SECOND durable log, and the alternative to hermes rather than a
+        // companion: pns's own Discord bot, posting straight to a channel with
+        // no gateway in between. `hermes`'s declaration exactly, because it is
+        // the same job by a different road.
+        //
+        // ENABLING BOTH AT ONCE IS REFUSED AT CONFIG LOAD, naming both tables,
+        // because `channel_plan` keeps every durable plugin the selection
+        // passes: two of them post every event twice, while `durable()` answers
+        // the first, so the recap would quietly pick whichever registered
+        // first. The cutover is therefore two lines in one edit.
+        name: "discord",
         kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: false,

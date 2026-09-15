@@ -110,6 +110,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             }
         }
     }
+    plugins::refuse_two_durable_logs(&config)?;
     backstop_outlasts_the_nag(&config)?;
     Ok(config)
 }
