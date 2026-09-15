@@ -83,7 +83,7 @@ end
 
             -- stylua: ignore start
             local cmds = {
-                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=57 -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "working tree clean"]], height = 10 },
+                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=57 -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "no unstaged changes"]], height = 10 },
                 { icon = " ", title = "Git Log", cmd = [[git log -n 10 --no-decorate --color=always --format='%C(yellow)%h%C(reset) %<|(57,trunc)%s' 2>/dev/null | grep . || echo "no commits yet"]], height = 10 },
                 {
                   title = "Notifications",
