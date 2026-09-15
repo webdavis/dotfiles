@@ -19,9 +19,9 @@ token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 # every route. A route left out here posts nothing and says which key is
 # missing, rather than borrowing another route's secret.
 [plugins.hermes.keys]
-pns = { keepassxc = "Hermes :: Webhook Secret (#pns)", field = "Password" }
+pns-events = { keepassxc = "Hermes :: Webhook Secret (#pns-events)", field = "Password" }
 pns-recap = { keepassxc = "Hermes :: Webhook Secret (#pns-recap)", field = "Password" }
-posture = { keepassxc = "Hermes :: Webhook Secret (#posture)", field = "Password" }
+posture-pages = { keepassxc = "Hermes :: Webhook Secret (#posture-pages)", field = "Password" }
 priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Password" }
 
 [plugins.hue]

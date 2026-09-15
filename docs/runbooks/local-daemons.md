@@ -87,21 +87,27 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 ### The routes
 
 Six routes, and the template that owns them declares exactly these. A live route it does not name is
-REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu`) and `osquery`
-(superseded by `posture`) leave.
+REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu-runs`) and `osquery`
+(superseded by `posture-pages`) leave.
 
-| Route       | Who posts                 | What                                                                                                       |
-| ----------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `general`   | nothing in this repo yet  | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one. |
-| `pns`       | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                       |
-| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`. |
-| `uu`        | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`.                                 |
-| `posture`   | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.  |
-| `pns-recap` | pns                       | The return recap.                                                                                          |
+**A route is named for its Discord channel**, which is also the name both of its KeePassXC entries are
+built from, so route name == channel name == entry name. The channels were renamed on 2026-09-14 and the
+routes followed: `pns` became `pns-events`, `uu` became `uu-runs` and `posture` became `posture-pages`,
+because the bare tool names are now GitHub repo channels (a future pns GitHub source posts there) and no
+webhook route may take one.
+
+| Route           | Who posts                 | What                                                                                                       |
+| --------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `general`       | nothing in this repo yet  | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one. |
+| `pns-events`    | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                       |
+| `priority`      | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`. |
+| `uu-runs`       | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`, then from `uu`.                 |
+| `posture-pages` | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.  |
+| `pns-recap`     | pns                       | The return recap.                                                                                          |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks its route from the finding's tier in one place (`severity_route`,
-`posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture`,
+`posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture-pages`,
 critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
 gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`); pns's
 recap route is `RECAP_ROUTE` (`pns/crates/pns-domain/src/routes.rs`). pns keeps a ROSTER of the routes it
@@ -129,20 +135,20 @@ yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 
 Every route carries four things: a `secret`, `deliver: discord`, `deliver_only: true` so the body is
 posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its channel.
-`general`, `pns` and `priority` share the three-line prompt (`**{header}**`, `-# {subheader}`, `{body}`);
-`posture`, `pns-recap` and `uu` keep the event-shaped prompt they already had.
+`general`, `pns-events` and `priority` share the three-line prompt (`**{header}**`, `-# {subheader}`,
+`{body}`); `posture-pages`, `pns-recap` and `uu-runs` keep the event-shaped prompt they already had.
 
 **Every secret and every channel id comes from KeePassXC by entry name, two entries per route.** Twelve
 entries, named off the route:
 
-| Route       | Secret entry                            | Channel entry                                |
-| ----------- | --------------------------------------- | -------------------------------------------- |
-| `general`   | `Hermes :: Webhook Secret (#general)`   | `Discord (Uriel) :: Channel ID (#general)`   |
-| `pns`       | `Hermes :: Webhook Secret (#pns)`       | `Discord (Uriel) :: Channel ID (#pns)`       |
-| `pns-recap` | `Hermes :: Webhook Secret (#pns-recap)` | `Discord (Uriel) :: Channel ID (#pns-recap)` |
-| `posture`   | `Hermes :: Webhook Secret (#posture)`   | `Discord (Uriel) :: Channel ID (#posture)`   |
-| `priority`  | `Hermes :: Webhook Secret (#priority)`  | `Discord (Uriel) :: Channel ID (#priority)`  |
-| `uu`        | `Hermes :: Webhook Secret (#uu)`        | `Discord (Uriel) :: Channel ID (#uu)`        |
+| Route           | Secret entry                                | Channel entry                                    |
+| --------------- | ------------------------------------------- | ------------------------------------------------ |
+| `general`       | `Hermes :: Webhook Secret (#general)`       | `Discord (Uriel) :: Channel ID (#general)`       |
+| `pns-events`    | `Hermes :: Webhook Secret (#pns-events)`    | `Discord (Uriel) :: Channel ID (#pns-events)`    |
+| `pns-recap`     | `Hermes :: Webhook Secret (#pns-recap)`     | `Discord (Uriel) :: Channel ID (#pns-recap)`     |
+| `posture-pages` | `Hermes :: Webhook Secret (#posture-pages)` | `Discord (Uriel) :: Channel ID (#posture-pages)` |
+| `priority`      | `Hermes :: Webhook Secret (#priority)`      | `Discord (Uriel) :: Channel ID (#priority)`      |
+| `uu-runs`       | `Hermes :: Webhook Secret (#uu-runs)`       | `Discord (Uriel) :: Channel ID (#uu-runs)`       |
 
 The parentheses in the secret titles are load-bearing: the retired single shared key lived at
 `Hermes :: Webhook Secret :: #pns`, which is a different entry. The ElevenLabs voice is one more lookup,
@@ -167,14 +173,14 @@ secret or moving a channel is a KeePassXC edit plus an apply.
 The gateway and the senders read the SAME entries, so one apply lands both sides together and nothing is
 left signing with a key the gateway no longer holds:
 
-| Route       | Sender and the key it reads                                                    |
-| ----------- | ------------------------------------------------------------------------------ |
-| `pns`       | `[plugins.hermes.keys] pns` in `dot_config/pns/config-values.toml`             |
-| `pns-recap` | `[plugins.hermes.keys] pns-recap`                                              |
-| `posture`   | `[plugins.hermes.keys] posture` (posture pipes its pages through `pns submit`) |
-| `priority`  | `[plugins.hermes.keys] priority`                                               |
-| `uu`        | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                    |
-| `general`   | no sender in this repository; an ad-hoc signed POST                            |
+| Route           | Sender and the key it reads                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                      |
+| `pns-recap`     | `[plugins.hermes.keys] pns-recap`                                                                                              |
+| `posture-pages` | `[delivery.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table |
+| `priority`      | `[plugins.hermes.keys] priority`, and `[delivery.hermes.keys] priority` on posture's own side                                  |
+| `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                    |
+| `general`       | no sender in this repository; an ad-hoc signed POST                                                                            |
 
 pns refuses to post to a route its table names no key for, and records the refusal the way every other
 refused hermes post is recorded; `pns doctor` names every route left without a key. Until the apply that
@@ -200,7 +206,7 @@ and `detail`, plus the composed `header`, `subheader` and `body`; the bash osque
 `general` included, so its old producer is the one that would deliver placeholders.
 
 **Route keys are now per route, and the comparison that used to police them is gone.** Every route once
-had to carry the ONE secret pns signs with, and `run_after_68` compared the others against the `pns`
+had to carry the ONE secret pns signs with, and `run_after_68` compared the others against the default
 route's value. Six separate vault entries leave nothing to compare a route against: agreement is now
 between the entry a route renders from and the key its sender holds, and neither of those is in
 `config.yaml`. What the check still sees is PRESENCE, by shape and never by value, which is why it
@@ -211,9 +217,9 @@ What that leaves. Nothing signs with the old key any more. The alert-drainer Lau
 was 0) and every osquery agent ran a `posture` subcommand, so nothing writes that store and nothing reads
 that key. `~/.config/osquery/webhook-secret` is dead weight, and it is watched by the
 agent-attack-surface pack, so trash it alongside the LaunchAgent and the queue rather than on its own.
-`severity_route` still holds EVERY posture tier on `posture`, critical included; flipping its critical
-arm back to `priority` is now a one-line change in posture's own workspace, and the test named for the
-hold is what makes that flip deliberate.
+`severity_route` still holds EVERY posture tier on `posture-pages`, critical included; flipping its
+critical arm back to `priority` is now a one-line change in posture's own workspace, and the test named
+for the hold is what makes that flip deliberate.
 
 ### When a route changes
 
@@ -229,11 +235,11 @@ yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 ```
 
 The first loads the new table. The second is the read-only confirmation, and it should list exactly
-`general`, `pns`, `pns-recap`, `posture`, `priority`, `uu`. What to expect from the apply itself:
-`run_after_68` prints NOTHING when all six routes are present with a secret, a snowflake `chat_id` and
-`deliver_only: true`, no undeclared route is left, `tts.elevenlabs.voice_id` is set, and the gateway
-already answers each route. Every line it does print names the route, the condition, and the KeePassXC
-entry or command that fixes it, and never a value.
+`general`, `pns-events`, `pns-recap`, `posture-pages`, `priority`, `uu-runs`. What to expect from the
+apply itself: `run_after_68` prints NOTHING when all six routes are present with a secret, a snowflake
+`chat_id` and `deliver_only: true`, no undeclared route is left, `tts.elevenlabs.voice_id` is set, and
+the gateway already answers each route. Every line it does print names the route, the condition, and the
+KeePassXC entry or command that fixes it, and never a value.
 
 ## Tailscale (headless daemon)
 

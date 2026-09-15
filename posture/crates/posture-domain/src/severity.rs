@@ -51,8 +51,8 @@ pub fn severity(detector: Detector, action: Action, protection: ProtectionState)
 ///
 /// `priority` is machine health and security ONLY (operator ruling
 /// 2026-09-14), so a critical finding is the one thing posture ever puts
-/// there. Everything below critical goes to `posture`, the channel read at
-/// leisure.
+/// there. Everything below critical goes to `posture-pages`, the channel read
+/// at leisure.
 ///
 /// TWO THINGS HAVE TO BE TRUE ON THE GATEWAY for a critical page to land, and
 /// both are properties of the route rather than of this function: the route
@@ -71,7 +71,7 @@ pub fn severity(detector: Detector, action: Action, protection: ProtectionState)
 pub fn severity_route(severity: Option<Severity>) -> Option<&'static str> {
     match severity? {
         Severity::Critical => Some("priority"),
-        Severity::Notice | Severity::Info => Some("posture"),
+        Severity::Notice | Severity::Info => Some("posture-pages"),
     }
 }
 

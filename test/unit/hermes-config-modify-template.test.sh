@@ -101,7 +101,7 @@ LIVE
   )"
   assert_not_contains 'osquery' "$rendered"
   assert_contains 'model_id: keep-me' "$rendered"
-  for route in general pns pns-recap posture priority uu; do
+  for route in general pns-events pns-recap posture-pages priority uu-runs; do
     assert_contains "        ${route}:" "$rendered"
   done
 }

@@ -48,7 +48,7 @@ fn alert(severity: Option<Severity>) -> Alert {
 
 fn keys() -> BTreeMap<String, String> {
     BTreeMap::from([
-        ("posture".to_string(), "key-posture".to_string()),
+        ("posture-pages".to_string(), "key-posture-pages".to_string()),
         ("priority".to_string(), "key-priority".to_string()),
     ])
 }
@@ -61,7 +61,7 @@ fn subject(keys: BTreeMap<String, String>, outcome: PostOutcome) -> HermesWebhoo
         },
         "http://127.0.0.1:8644/webhooks".to_string(),
         keys,
-        Name::new("posture").unwrap(),
+        Name::new("posture-pages").unwrap(),
         Alarm::default(),
     )
 }
@@ -69,7 +69,7 @@ fn subject(keys: BTreeMap<String, String>, outcome: PostOutcome) -> HermesWebhoo
 #[test]
 fn a_page_is_posted_to_its_tiers_route_signed_with_that_routes_own_key() {
     for (severity, route, key) in [
-        (Some(Severity::Notice), "posture", "key-posture"),
+        (Some(Severity::Notice), "posture-pages", "key-posture-pages"),
         (Some(Severity::Critical), "priority", "key-priority"),
     ] {
         let mut sut = subject(keys(), PostOutcome::Status(204));
@@ -87,7 +87,7 @@ fn a_page_is_posted_to_its_tiers_route_signed_with_that_routes_own_key() {
 fn a_route_this_machine_holds_no_key_for_refuses_the_page_and_records_it() {
     for held in [
         BTreeMap::new(),
-        BTreeMap::from([("posture".to_string(), String::new())]),
+        BTreeMap::from([("posture-pages".to_string(), String::new())]),
     ] {
         let mut sut = subject(held, PostOutcome::Status(204));
         assert_eq!(
@@ -138,7 +138,7 @@ fn an_untiered_page_takes_the_route_the_sink_was_built_with() {
     assert_eq!(sut.submit(&alert(None)), Submission::Accepted);
     assert_eq!(
         sut.post.sent.borrow()[0].0,
-        "http://127.0.0.1:8644/webhooks/posture"
+        "http://127.0.0.1:8644/webhooks/posture-pages"
     );
 }
 
@@ -151,12 +151,12 @@ fn a_gateway_base_written_with_a_trailing_slash_does_not_double_it() {
         },
         "http://127.0.0.1:8644/webhooks/".to_string(),
         keys(),
-        Name::new("posture").unwrap(),
+        Name::new("posture-pages").unwrap(),
         Alarm::default(),
     );
     assert_eq!(sut.submit(&alert(None)), Submission::Accepted);
     assert_eq!(
         sut.post.sent.borrow()[0].0,
-        "http://127.0.0.1:8644/webhooks/posture"
+        "http://127.0.0.1:8644/webhooks/posture-pages"
     );
 }

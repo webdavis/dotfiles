@@ -34,7 +34,7 @@ fn recorder(answer: PostOutcome) -> Recorder {
     }
 }
 
-const BASE: &str = "http://127.0.0.1:8644/webhooks/pns";
+const BASE: &str = "http://127.0.0.1:8644/webhooks/pns-events";
 
 /// THE WHOLE SAFETY ARGUMENT. The signature is what authorizes a delivery, so a
 /// probe that carried one would be a page. This is the case that fails if the
@@ -59,7 +59,7 @@ fn a_probe_carries_no_signature_no_key_and_no_event() {
 #[test]
 fn the_gateways_measured_answers_read_as_served_missing_and_unknown() {
     assert_eq!(
-        probe_route(&recorder(PostOutcome::Status(401)), BASE, "pns"),
+        probe_route(&recorder(PostOutcome::Status(401)), BASE, "pns-events"),
         RouteVerdict::Served
     );
     assert_eq!(
@@ -67,7 +67,7 @@ fn the_gateways_measured_answers_read_as_served_missing_and_unknown() {
         RouteVerdict::Missing
     );
     assert!(matches!(
-        probe_route(&recorder(PostOutcome::NoResponse), BASE, "pns"),
+        probe_route(&recorder(PostOutcome::NoResponse), BASE, "pns-events"),
         RouteVerdict::Unknown(_)
     ));
 }

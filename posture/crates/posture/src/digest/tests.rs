@@ -187,7 +187,7 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
         // that did not earn one.
         "\"kind\":\"observation\"",
         "\"occurred_at\":10000",
-        "\"route\":\"posture\"",
+        "\"route\":\"posture-pages\"",
         "2026-09-08",
         "2 item(s)",
         "launchd",

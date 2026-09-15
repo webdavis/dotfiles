@@ -126,8 +126,9 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
 #[test]
 fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     let sandbox = Sandbox::new("native-hermes");
-    sandbox
-        .write_config("[plugins.hermes]\nenabled = true\nkeys = { pns = \"gate-signing-key\" }\n");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+    );
     let capture = Capture::start(&sandbox, "hermes", None, None);
 
     let mut command = plugin_command(&sandbox);
@@ -153,8 +154,9 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     // "No response" would send the operator to restart a healthy gateway
     // instead of rotating the key.
     let sandbox = Sandbox::new("hermes-401");
-    sandbox
-        .write_config("[plugins.hermes]\nenabled = true\nkeys = { pns = \"gate-signing-key\" }\n");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+    );
     let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
 
     let mut command = plugin_command(&sandbox);
@@ -173,8 +175,9 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     // The alert-path silence check cannot see this: its config carries no
     // hermes key, so that run returns before any outcome exists.
     let sandbox = Sandbox::new("hermes-async-silent");
-    sandbox
-        .write_config("[plugins.hermes]\nenabled = true\nkeys = { pns = \"gate-signing-key\" }\n");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+    );
     let mut command = plugin_command(&sandbox);
     command
         .env("PNS_IDLE_SECS", "99999")
@@ -212,7 +215,7 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     let capture = Capture::start(&sandbox, "stale-route", None, None);
     sandbox.write_config(&format!(
         "[plugins.hermes]\nenabled = true\n\
-         keys = {{ pns = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
+         keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
          {}stale_alert_channel = \"priority\"\n",
         router_table(&router.localhost_url())
     ));
@@ -256,15 +259,16 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     // in the ARGUMENTS is the one thing that earns a 2, and its own test owns
     // that.
     let sandbox = Sandbox::new("recap-refused");
-    sandbox
-        .write_config("[plugins.hermes]\nenabled = true\nkeys = { pns = \"gate-signing-key\" }\n");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+    );
 
     let mut command = plugin_command(&sandbox);
     command
         .env("PNS_STATE_DIR", sandbox.path("state"))
         // PORT 1 REFUSES IMMEDIATELY rather than hanging, so the failure this
         // test is about is the one it measures and not a deadline.
-        .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns");
+        .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns-events");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
 
@@ -299,7 +303,7 @@ fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so(
     let sandbox = Sandbox::new("recap-thread-fallback");
     sandbox.write_config(
         "[plugins.hermes]\nenabled = true\n\
-         keys = { pns = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
+         keys = { pns-events = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("2"));
 
@@ -323,7 +327,7 @@ fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so(
         posted,
         [
             "POST /webhooks/pns-recap HTTP/1.1",
-            "POST /webhooks/pns HTTP/1.1"
+            "POST /webhooks/pns-events HTTP/1.1"
         ],
         "the thread route was tried first and the default caught it: {raw}"
     );

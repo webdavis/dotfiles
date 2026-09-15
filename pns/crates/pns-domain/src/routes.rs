@@ -7,9 +7,9 @@
 //! operator. A route added in one of the three and missed in the others is a
 //! key the config refuses, or one nothing ever reads.
 
-/// The route an event that named none takes: the gateway's own `pns` webhook,
-/// which is also the final segment of `DEFAULT_HERMES_URL`.
-pub const DEFAULT_ROUTE: &str = "pns";
+/// The route an event that named none takes: the gateway's own `pns-events`
+/// webhook, which is also the final segment of `DEFAULT_HERMES_URL`.
+pub const DEFAULT_ROUTE: &str = "pns-events";
 
 /// The route a threaded recap posts to, read by `post_return_recap`.
 pub const RECAP_ROUTE: &str = "pns-recap";
@@ -20,7 +20,7 @@ pub const RECAP_ROUTE: &str = "pns-recap";
 /// (`posture/crates/posture-domain/src/severity.rs`). It is here because the
 /// roster is what grants a route a key, and a route pns has no key for is a
 /// posture page pns refuses to sign.
-pub const POSTURE_ROUTE: &str = "posture";
+pub const POSTURE_ROUTE: &str = "posture-pages";
 
 /// Every route pns posts to, each verified by its OWN signing key: one
 /// compromised key reaches one Discord channel rather than all of them.

@@ -847,8 +847,8 @@ Then `digest_as_thread = false` posts once to the DEFAULT route; `true` posts to
   Pinned on the wire by
   `tests/native.rs:a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`, which
   proxies the gateway, answers 404, and asserts exactly
-  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]` with the second body carrying
-  both `did not take this` and `While you were away`.
+  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns-events HTTP/1.1"]` with the second body
+  carrying both `did not take this` and `While you were away`.
 - Forbidden side effects: the recap NEVER reaches the phone or the banner. "IT REACHES ONE DESTINATION,
   the durable route, and never the phone or the banner. The phone layer was already delivered by the card
   that pointed here" (`src/main.rs:recap_mode`). The leg is `decorative: false`, "because nothing about
@@ -1015,7 +1015,7 @@ same `post_return_recap` the night recap uses
   to the `pns-recap` route rather than the default one"). Pinned on the wire by
   `tests/recap_commands.rs:an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`,
   which proxies the gateway, answers 404, and asserts
-  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns HTTP/1.1"]`.
+  `["POST /webhooks/pns-recap HTTP/1.1", "POST /webhooks/pns-events HTTP/1.1"]`.
 
 ### 18. The Git block is read from git and `gh`, and a PR number is never guessed
 

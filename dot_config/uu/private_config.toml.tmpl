@@ -26,8 +26,8 @@ time = "12:00"
 # coalesces missed calendar slots, so a healthy job can produce one entry
 # covering three weeks and a missing entry says nothing on its own.
 [records]
-url = "http://127.0.0.1:8644/webhooks/uu"
-key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu)").Password }}"
+url = "http://127.0.0.1:8644/webhooks/uu-runs"
+key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}"
 # Optional second destination for failed, stale, pending and record-lost alarms.
 # Signed with the same key. Each configured destination is attempted once;
 # a refusal stays retryable for one-shot alarms without changing the run verdict.

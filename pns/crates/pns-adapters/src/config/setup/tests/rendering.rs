@@ -28,7 +28,7 @@ fn a_credential_carrying_quotes_and_backslashes_reaches_the_config_as_itself() {
     };
     let config = parsed(&compose_config(&answers));
     assert_eq!(
-        config.plugins["hermes"].settings["keys"]["pns"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("a\"b\\c")
     );
 }

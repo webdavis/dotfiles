@@ -57,8 +57,8 @@ mod tests {
             "other = \"x\"\n",
             "keys = \"secret\"\n",
             "[keys]\n",
-            "[keys]\npns = \"\"\n",
-            "[keys]\npns = 42\n",
+            "[keys]\npns-events = \"\"\n",
+            "[keys]\npns-events = 42\n",
         ] {
             assert_eq!(
                 hermes_keys(&settings.parse().unwrap()).key_for(DEFAULT_ROUTE),
@@ -71,14 +71,14 @@ mod tests {
     #[test]
     fn each_route_answers_with_its_own_key_and_nobody_elses() {
         let keys = hermes_keys(
-            &"[keys]\npns = \"for-pns\"\npriority = \"for-priority\"\n"
+            &"[keys]\npns-events = \"for-pns-events\"\npriority = \"for-priority\"\n"
                 .parse()
                 .unwrap(),
         );
-        assert_eq!(keys.key_for("pns"), Some("for-pns"));
+        assert_eq!(keys.key_for("pns-events"), Some("for-pns-events"));
         assert_eq!(keys.key_for("priority"), Some("for-priority"));
         // THE POINT OF THE WHOLE TABLE: a route the file named no key for
         // does not inherit one, however many other routes are set up.
-        assert_eq!(keys.key_for("posture"), None);
+        assert_eq!(keys.key_for("posture-pages"), None);
     }
 }

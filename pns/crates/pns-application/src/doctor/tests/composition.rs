@@ -102,7 +102,10 @@ fn doctor_unpaired_host_and_failed_pulse_grade_the_whole_completed_report() {
 fn each_route_gets_a_line_and_the_summary_counts_them_apart() {
     let history = History {
         routes: vec![
-            ("pns".into(), pns_domain::doctor::RouteVerdict::Served),
+            (
+                "pns-events".into(),
+                pns_domain::doctor::RouteVerdict::Served,
+            ),
             ("gone".into(), pns_domain::doctor::RouteVerdict::Missing),
             (
                 "quiet".into(),

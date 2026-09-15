@@ -22,7 +22,7 @@ fn an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_s
     let sandbox = Sandbox::new("recap-agent-fallback");
     sandbox.write_config(
         "[plugins.hermes]\nenabled = true\n\
-         keys = { pns = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
+         keys = { pns-events = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "recap-agent-route", Some("404"), Some("2"));
 
@@ -47,7 +47,7 @@ fn an_agent_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_s
         posted,
         [
             "POST /webhooks/pns-recap HTTP/1.1",
-            "POST /webhooks/pns HTTP/1.1"
+            "POST /webhooks/pns-events HTTP/1.1"
         ],
         "the recap route was tried first and the default caught it: {raw}"
     );

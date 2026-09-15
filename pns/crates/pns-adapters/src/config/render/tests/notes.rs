@@ -9,7 +9,7 @@ fn a_note_renders_above_its_heading_as_a_commented_line() {
     );
     let mut keys = toml::Table::new();
     keys.insert(
-        "pns".to_string(),
+        "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
     hermes.insert("keys".to_string(), toml::Value::Table(keys));
@@ -44,7 +44,7 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
     );
     let mut keys = toml::Table::new();
     keys.insert(
-        "pns".to_string(),
+        "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
     hermes.insert("keys".to_string(), toml::Value::Table(keys));
@@ -190,7 +190,7 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
         hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
         let mut keys = toml::Table::new();
         keys.insert(
-            "pns".to_string(),
+            "pns-events".to_string(),
             toml::Value::String("hermes-secret".to_string()),
         );
         hermes.insert("keys".to_string(), toml::Value::Table(keys));
