@@ -104,7 +104,7 @@ impl pns_application::RaiseNotification for StaleNotification {
         );
         if landed == event_flow::Landed::No {
             // SAID RATHER THAN SWALLOWED, on the stream the daemon keeps. The
-            // `priority` route is the one thing about this page that is not
+            // urgent route is the one thing about this page that is not
             // the ordinary event path's problem: a gateway that refuses it
             // answers 401 or 404, the ledger records the refusal for
             // `pns failures`, and this line is what puts it in front of an
