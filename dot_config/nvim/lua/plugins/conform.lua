@@ -172,6 +172,16 @@ return {
         yaml = { "prettierd", "yamlfmt" },
         ["yaml.ansible"] = { "ansible-lint" },
       },
+      -- conform's shfmt builtin only adds an indent flag when no .editorconfig
+      -- is found upward from the buffer; this repo's root .editorconfig covers
+      -- only dot_fzf* and dot_bash*, so scripts/**/*.sh would otherwise format
+      -- with shfmt's own defaults instead of the flags treefmt.toml runs
+      -- (`-i 2 -ci -s`), fighting the drift gate on every save.
+      formatters = {
+        shfmt = {
+          prepend_args = { "-i", "2", "-ci", "-s" },
+        },
+      },
       -- Formatting through a language server for any filetype the table does not
       -- name, and never for one it does.
       default_format_opts = {
