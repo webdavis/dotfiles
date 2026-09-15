@@ -23,6 +23,14 @@ use std::time::Duration;
 /// operator opens to ask why. Five seconds is the span this tool already uses
 /// for "a holder this long is broken rather than busy" (`RING_LOCK_STALE_SECS`),
 /// and contention between short transactions clears orders of magnitude below it.
+///
+/// THE WORST CASE IS AN INTERACTIVE HOOK STALLING FOR SECONDS, not milliseconds:
+/// `record_decision` runs in-process before the rest of the event path
+/// (`event_flow.rs`), so a genuinely wedged writer now costs a Stop or prompt
+/// hook up to this whole bound per lock acquisition, and the event path makes
+/// more than one. That is the trade this number makes: a rare multi-second
+/// stall against the common case this change fixes, records silently lost to
+/// ordinary contention.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// A TEST-ONLY OVERRIDE of that bound, in `PNS_RING_LOCK_TEST_DELAY_MS`'s own
 /// style and for its mirror-image reason: a test that STAGES a wedged writer
