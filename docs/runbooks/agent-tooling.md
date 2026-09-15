@@ -25,8 +25,10 @@ its `config.yaml`) and leaves `CLAUDE.md` and `AGENTS.md` byte-identical, so no 
 to protect the two chezmoi-rendered instruction files. Re-measure that before trusting a much newer CLI,
 since appending to an instruction file is the kind of behavior an init flow can regain in a release.
 hermes needs one more step per project: it loads skills from `~/.hermes/skills` only, so the project's
-`.hermes/skills` has to be added to `skills.external_dirs` in `~/.hermes/config.yaml`, whose source is
-the age-encrypted `private_dot_hermes/encrypted_private_config.yaml.age`.
+`.hermes/skills` has to be added to `skills.external_dirs` in `~/.hermes/config.yaml`. That key is
+hermes's own: since 2026-09-14 the file is a chezmoi modify-template that declares only the webhook
+routes and the ElevenLabs voice id, so `skills.external_dirs` is set with `hermes config set` and passes
+through every apply untouched.
 
 Upgrading the CLI and refreshing a project are separate jobs. The weekly uu npm lane (`[lanes.npm]` in
 `dot_config/uu/private_config.toml.tmpl`) does the first, since it upgrades every globally installed npm
