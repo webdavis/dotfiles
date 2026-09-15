@@ -401,27 +401,36 @@ If the operator wants the alert now, or on the day the sandbox is switched on:
 
 ## Open questions
 
+Questions 1 through 4 were answered by the operator on 2026-09-15; recorded again in
+`docs/decisions/2026-09-15-pns-behavior-backlog-brief.md` so the two documents agree. Question 5 stays
+open, since it was not one of the four filed rows.
+
 1. **Does `denied` belong in `LAMP_BLOCKED`?** `PermissionDenied` fires after the auto-mode classifier
    refused a call on its own. Nobody is waiting on an answer, yet the word arms a wait that only the
    session's next event ends. There is one live `denied` event, so this is nearly theoretical, but it
-   is the same defect class as `asked`. Recommendation: route `denied` as an observation, which keeps
-   the card and stops it colouring a lamp that claims someone is waiting. Not done here because it was
-   not in the three filed rows.
+   is the same defect class as `asked`. **Answered: no.** `denied` stops arming the waiting lamp and
+   becomes an observation. `pns/crates/pns/src/hook_dispatch.rs` already treats a denial as a decision
+   the harness has taken on its own, which is why it never forwards to the phone; the lamp had not
+   caught up to that.
 2. **Should `SubagentStop` end a subagent's wait?** Today a subagent's approval arms the parent
    session's marker and `resolved` deliberately skips subagent batches, so the marker holds until the
    parent's own Stop. `SubagentStop` would bound it at the subagent's own end instead, which makes a
-   subagent's wait shorter without making it invisible. Recommendation: yes, as a fifth declaration
-   routed to `resolved`, if the operator agrees the reduced residual is worth one more declaration.
-3. **B39: build now with the text allowlist, or wait?** The recommendation is to wait, and the trigger
-   to revisit is either switching the sandbox on locally or Claude Code giving the dialog its own
-   notification type. If the operator would rather have the alert standing, approach A is written out
-   above and is about an hour.
+   subagent's wait shorter without making it invisible. **Answered: yes**, as a fifth declaration
+   routed to `resolved`.
+3. **B39: build now with the text allowlist, or wait?** **Answered: build now**, so it is ready if
+   sandboxing is ever turned on. The alert stays approximate rather than specific, and that is a
+   property of the platform, not a defect in the build: a sandbox network dialog reaches the dialog
+   host with no `PermissionRequest`, its only hook-visible trace is a `Notification` whose type
+   defaults to `permission_prompt`, and no matcher can separate it from a tool approval. Exposure on
+   this machine is currently zero, since no `sandbox` block exists in the managed template or the live
+   settings.
 4. **Should the sandbox-network gap be reported upstream?** The clean fix is a distinct
    `notification_type` for `sandbox_network_access`, which would make every option here robust instead
-   of text-matched. Worth one issue, and it is the operator's call whether to file it.
+   of text-matched. **Answered: no.** The operator's words: the lack of distinction is fine.
 5. **Is the `[lights]` gate on arming a marker still right?** Approach B for B39 fails on a machine
    with no lamps configured purely because the marker's Start is lamp-gated. Nothing needs changing
-   today, but the gate is the reason the state-based discriminator cannot be the recommendation.
+   today, but the gate is the reason the state-based discriminator cannot be the recommendation. Not
+   answered; not one of the four filed rows.
 
 ## What was verified, and what was not
 
