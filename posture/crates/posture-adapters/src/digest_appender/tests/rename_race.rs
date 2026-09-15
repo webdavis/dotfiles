@@ -106,8 +106,16 @@ fn one_race() {
         .collect();
 
     // Spin rather than yield: the whole round is milliseconds long, and a
-    // claim that gives up its core arrives after the writing is over.
-    while written.load(Ordering::Relaxed) < APPENDS_BEFORE_THE_CLAIM {
+    // claim that gives up its core arrives after the writing is over. Bounded
+    // by a deadline, not just the counter: a writer that panics before
+    // reaching APPENDS_BEFORE_THE_CLAIM (a spool the fixture could not
+    // create, EMFILE, a full temp filesystem) must not spin this thread
+    // forever waiting for a count that will never arrive. The join below
+    // surfaces that panic once the wait gives up.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while written.load(Ordering::Relaxed) < APPENDS_BEFORE_THE_CLAIM
+        && std::time::Instant::now() < deadline
+    {
         std::hint::spin_loop();
     }
     let spool = DigestSpoolFile::new(race.store.clone(), 1, std::process::id());
