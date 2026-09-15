@@ -13,13 +13,13 @@
 //! while the same word sitting where a flag's value belongs is still just a
 //! value, under the second rule.
 
-use pns_domain::{DeliveryScope, EventArgs};
+use pns_domain::{DeliveryScope, EventArgs, routes::Kind};
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
 /// hand-typed usage text mentioned every flag, a declaration-parity check
 /// rather than one about this parser's behavior; that test is gone.
-const VALUE_FLAGS: [&str; 8] = [
+const VALUE_FLAGS: [&str; 9] = [
     "--agent",
     "--state",
     "--project",
@@ -28,6 +28,7 @@ const VALUE_FLAGS: [&str; 8] = [
     "--pane",
     "--channel",
     "--elapsed",
+    "--kind",
 ];
 
 /// Every flag that takes no value. It is a LIST rather than a chain of
@@ -71,17 +72,23 @@ pub(super) struct ParsedArgs {
     /// exit-0 contract untouched.
     pub require_delivery: bool,
     elapsed: Result<Option<u64>, String>,
+    /// `--kind`: what the event IS, which decides its route when the producer
+    /// named none. A word that is neither kind refuses the event rather than
+    /// falling back to the default, the same way a bad `--elapsed` does.
+    kind: Result<Kind, String>,
     scope: Option<DeliveryScope>,
 }
 
 pub(super) enum Refusal {
     Scope,
-    Elapsed(String),
+    /// A flag value pns refuses: said on stderr, and nothing is delivered.
+    Value(String),
 }
 
 impl ParsedArgs {
     pub fn into_event(self) -> Result<Option<EventArgs>, Refusal> {
-        let elapsed = self.elapsed.map_err(Refusal::Elapsed)?;
+        let elapsed = self.elapsed.map_err(Refusal::Value)?;
+        let kind = self.kind.map_err(Refusal::Value)?;
         let event = match elapsed {
             Some(seconds) => pns_domain::elapsed_event(self.event, seconds),
             None => Some(self.event),
@@ -89,6 +96,13 @@ impl ParsedArgs {
         let Some(mut event) = event else {
             return Ok(None);
         };
+        // THE NAMED ROUTE WINS. A producer that said where already answered
+        // the question the kind is here to answer.
+        if event.channel.is_empty()
+            && let Some(route) = kind.route()
+        {
+            event.channel = route.to_owned();
+        }
         event.scope = self.scope.ok_or(Refusal::Scope)?;
         Ok(Some(event))
     }
@@ -106,6 +120,7 @@ where
     let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
+    let mut kind = Ok(Kind::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
@@ -119,12 +134,16 @@ where
             // `--help` as `--state`'s value by the time this token is asked
             // about again.
             flag if is_help_flag(flag) => help = true,
+            "--kind" => {
+                let word = tokens.next_if(|next| !is_producer_flag(next));
+                if kind.is_ok() {
+                    kind = word.as_deref().and_then(Kind::from_word).ok_or_else(|| {
+                        format!("--kind requires one of: {}", Kind::WORDS.join(", "))
+                    });
+                }
+            }
             "--elapsed" => {
-                let value = if tokens.peek().is_some_and(|next| !is_producer_flag(next)) {
-                    tokens.next()
-                } else {
-                    None
-                };
+                let value = tokens.next_if(|next| !is_producer_flag(next));
                 let seconds = value
                     .as_deref()
                     .filter(|value| {
@@ -167,6 +186,7 @@ where
         warnings,
         require_delivery,
         elapsed,
+        kind,
         scope: match (local_only, remote_only) {
             (false, false) => Some(DeliveryScope::Automatic),
             (true, false) => Some(DeliveryScope::LocalOnly),
