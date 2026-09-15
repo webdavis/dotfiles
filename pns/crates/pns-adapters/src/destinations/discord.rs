@@ -58,30 +58,44 @@ pub fn content(event: &Event) -> String {
 
 /// The lines that fit, with a note counting whatever was shed.
 ///
-/// THE RECAP'S OWN SHED RULE: whole lines go from the END, never half a line,
-/// and the count of what went is appended so a truncated post says it was
-/// truncated. The header and the subheader are the first two lines and are
-/// therefore the last to go, which is what keeps the one line a push preview
-/// shows.
+/// THE RECAP'S OWN SHED RULE: lines go from the END, and the count of what
+/// went is appended so a truncated post says it was truncated. The header and
+/// the subheader are the first two lines and are therefore the last to go,
+/// which is what keeps the one line a push preview shows. The first line that
+/// does not fit whole is CLIPPED to what remains rather than dropped outright,
+/// so a single oversized paste still shows its start instead of vanishing
+/// under the note alone.
 fn fitted(lines: Vec<String>) -> String {
     let whole = lines.join("\n");
     if whole.chars().count() <= MAX_CONTENT_CHARS {
         return whole;
     }
+    // The note is the last line and needs room of its own; 40 characters
+    // is more than "(N more lines dropped)" can ever spend.
+    const NOTE_ROOM: usize = 40;
     let mut kept: Vec<String> = Vec::new();
     let mut spent = 0;
-    for line in &lines {
-        // The note is the last line and needs room of its own; 40 characters
-        // is more than "(N more lines dropped)" can ever spend.
+    let mut shown = lines.len();
+    for (index, line) in lines.iter().enumerate() {
+        let ceiling = MAX_CONTENT_CHARS.saturating_sub(NOTE_ROOM);
         let next = spent + line.chars().count() + 1;
-        if next + 40 > MAX_CONTENT_CHARS {
-            break;
+        if next <= ceiling {
+            spent = next;
+            kept.push(line.clone());
+            continue;
         }
-        spent = next;
-        kept.push(line.clone());
+        shown = index;
+        let room = ceiling.saturating_sub(spent);
+        if room > 1 {
+            kept.push(pns_domain::render::clipped(line, room - 1));
+        }
+        break;
     }
-    let dropped = lines.len() - kept.len();
-    kept.push(format!("({dropped} more lines dropped)"));
+    let dropped = lines.len() - shown;
+    if dropped > 0 {
+        let noun = if dropped == 1 { "line" } else { "lines" };
+        kept.push(format!("({dropped} more {noun} dropped)"));
+    }
     kept.join("\n")
 }
 

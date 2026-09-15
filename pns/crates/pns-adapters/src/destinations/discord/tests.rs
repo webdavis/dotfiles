@@ -210,3 +210,20 @@ fn a_body_past_the_budget_sheds_whole_lines_from_the_end_and_says_how_many() {
     );
     assert!(content.contains("more lines dropped)"), "{content}");
 }
+
+#[test]
+fn a_single_oversized_line_is_clipped_to_its_start_and_the_note_is_singular() {
+    // THE MUTANT THIS PINS: the whole oversized line dropped rather than
+    // clipped, which turns one giant paste into a bare header and subheader
+    // with none of the paste's own start visible, and a note that reads "1
+    // more lines dropped" instead of "1 more line dropped".
+    let mut event = event();
+    event.detail = "x".repeat(5_000);
+    let content = content(&event);
+    assert!(content.chars().count() <= MAX_CONTENT_CHARS, "{content}");
+    assert!(
+        content.contains("xxxxx"),
+        "the paste's start survives: {content}"
+    );
+    assert!(content.contains("(1 more line dropped)"), "{content}");
+}
