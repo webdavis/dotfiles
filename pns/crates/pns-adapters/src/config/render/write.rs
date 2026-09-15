@@ -90,6 +90,17 @@ pub(super) fn render_block(
             }
         }
     }
+    // AN OPEN TABLE WRITES WHAT IT WAS GIVEN. Its keys are the operator's own
+    // project names, so there is no roster to walk and nothing to refuse: the
+    // entries go out after the declared ones, in the map's own sorted order,
+    // which is what makes a regenerated template byte-stable.
+    if crate::config::schema::is_open(table.name) {
+        for (name, value) in std::mem::take(settings) {
+            let rendered = render_value(&value)
+                .map_err(|error| format!("`{}` key `{name}`: {error}", table.name))?;
+            out.push_str(&format!("{} = {rendered}\n", written_key(&name)));
+        }
+    }
     out.push('\n');
     if let Some(name) = settings.keys().next() {
         return Err(format!("unknown `{}` key `{name}`", table.name));
@@ -155,4 +166,17 @@ pub(super) fn write_note(out: &mut String, note: Option<String>) {
         out.push_str(line);
         out.push('\n');
     }
+}
+
+/// One key as TOML spells it: bare where the name is a bare key, quoted where
+/// it is not.
+///
+/// AN `owner/name` PROJECT KEY IS WHY: a slash cannot stand in a bare key, and
+/// an unquoted one would make the regenerated template refuse to parse.
+fn written_key(name: &str) -> String {
+    let bare = !name.is_empty()
+        && name.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        });
+    if bare { name.to_string() } else { quoted(name) }
 }

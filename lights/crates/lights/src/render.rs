@@ -36,10 +36,11 @@ pub(super) fn preset_names(presets: &Presets) -> String {
     presets.names().map(|name| format!("{name}\n")).collect()
 }
 
-/// One line per step, successes on stdout and failures on stderr, and the exit
+/// One line per room, successes on stdout and failures on stderr, and the exit
 /// code of the FIRST failure. A later room's fault does not relabel an earlier
-/// one, and a preset that lit every room it could still exits non-zero.
-pub(super) fn preset(results: &[Result<Action, LightsError>]) -> Response {
+/// one, and a run that lit every room it could still exits non-zero. Serves a
+/// preset's plan and `--all` alike: both are a list of rooms to walk.
+pub(super) fn per_room(results: &[Result<Action, LightsError>]) -> Response {
     let mut response = Response {
         exit: 0,
         stdout: String::new(),
