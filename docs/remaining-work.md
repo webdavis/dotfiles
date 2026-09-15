@@ -4,7 +4,7 @@ The open task list for the dotfiles modernization, including pns, posture, uu, l
 review tools and the deferred subprojects. Use the resume order below; task numbers are stable
 references.
 
-Updated as tasks complete. Last updated 2026-09-13.
+Updated as tasks complete. Last updated 2026-09-15.
 
 ## Where things stand
 
@@ -28,6 +28,33 @@ The final sweep also checked the consolidated review backlog, all 48 open tasks 
 projects and pns, the four open pull requests and 14 open issues, and the new homelab/vpp decisions.
 Recovered follow-ups are recorded below with their source and disposition. This did not run runtime
 acceptance or authorize the deferred builds.
+
+On 2026-09-15 the operator ran a full `chezmoi apply` and it passed, closing the apply gate that most of
+the entries below were waiting on. The first attempt that night failed in
+`.chezmoiscripts/80-bootstrap-nvim.sh`, where Mason could not install ansible-lint because `ensurepip`
+crashed: Homebrew's python@3.14 3.14.7 bottle carried a `pyexpat` module that expected a newer system
+libexpat than macOS 26.2 shipped, so `import pyexpat` failed with
+`Symbol not found: _XML_SetAllocTrackerActivationThreshold`. The operator upgraded macOS to 27.0, after
+which both `import pyexpat` and the full apply passed. `claude plugin update` does not exist on Claude
+Code 2.1.272, where it falls through to a Claude self-update check, so the pns plugin moved from 0.2.0 to
+0.4.0 through `claude plugin marketplace update pns`, then `claude plugin uninstall pns@pns` followed by
+`claude plugin install pns@pns`; `claude plugin list` now reads `pns@pns` 0.4.0, enabled. The Neovim
+dashboard's Notifications command, the `gh api` call PR #619 introduced, ran through Neovim the same day
+and returned five rows at exit 0.
+
+Merged on 2026-09-14 into 2026-09-15: #617 moved the hermes routes into a chezmoi modify template with
+one KeePassXC secret per route; #618 designed the posture critical-page explainer; #619 dropped gh-notify
+from the Neovim dashboard; #620 designed the pns GitHub source; #621 moved `pns-loop` and
+`pns-work-recap` into the shared skills store; #622 retired the Bash alerter's dispatch library and its
+drainer; #623 made posture pns-agnostic, delivering to hermes directly or through any producer command
+and routing critical pages to `priority`; #624 gave pns per-route hermes keys; #625 took the `.tmpl`
+suffix off that modify template, which chezmoi had been rendering as a template and then executing
+(`exec format error`), and added a test that drives `chezmoi diff` over a scratch source with the real
+basename; #626 renamed the routes to `pns-events`, `uu-runs` and `posture-pages` to match the Discord
+channels; #627 added the seven-step lights rotation (Nightlight, Dimmed, Rest, Soho, Relax, Read and
+Energize, falling back to Read); #628 dropped the `pns-recap` route so recaps post to the default route;
+and #629 added five time-of-day lights presets (morning Energize, afternoon Concentrate, evening Relax,
+dusk Rest on F4, night Nightlight on F7).
 
 ### Resume order and completion rules
 
@@ -398,15 +425,18 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   [PR #566](https://github.com/webdavis/dotfiles/pull/566) (`docs/work-recap-command`) merged 2026-09-14
   (`2f3e6294`): the "Work recaps" section in `.chezmoitemplates/global-agent-rules.md` and the
   `work-recap` skill in the pns plugin. The 2026-09-13 20:15 apply converged the marketplace directory,
-  but Claude Code runs the INSTALLED copy and `claude plugin update pns@pns` re-copies it only on a
-  version change ("already at the latest version (0.1.0)", cache still `loop` only), so a follow-up,
+  but Claude Code runs the INSTALLED copy and re-copies it only on a version change ("already at the
+  latest version (0.1.0)", cache still `loop` only; `claude plugin update` turned out not to exist on
+  2.1.272, so the working sequence is `claude plugin marketplace update pns`, then
+  `claude plugin uninstall pns@pns` and `claude plugin install pns@pns`), so a follow-up,
   [PR #568](https://github.com/webdavis/dotfiles/pull/568) (`chore/pns-plugin-version-bump`, merged
   2026-09-14, `3edf50dc`), bumps `plugin.json` to 0.2.0 and records the rule in
   `docs/runbooks/claude-code-settings.md`. Operator steps left: `chezmoi apply`,
-  `claude plugin update pns@pns`, restart Claude Code; then `/pns:work-recap` exists. (2) and (3) remain.
-  Schedule (1) with the next Workflow round and (2) and (3) after the posture queue (#552, #549, #548,
-  #553) clears, and before gnhf's first unattended night. (2) and (3) shipped together 2026-09-14 on
-  `feat/pns-recap-agent` in [PR #604](https://github.com/webdavis/dotfiles/pull/604)
+  `claude plugin marketplace update pns`, `claude plugin uninstall pns@pns`,
+  `claude plugin install pns@pns`, restart Claude Code; then `/pns:work-recap` exists. (2) and (3)
+  remain. Schedule (1) with the next Workflow round and (2) and (3) after the posture queue (#552, #549,
+  #548, #553) clears, and before gnhf's first unattended night. (2) and (3) shipped together 2026-09-14
+  on `feat/pns-recap-agent` in [PR #604](https://github.com/webdavis/dotfiles/pull/604)
   (`feat(pns): add recap agent --stdin and recap git`, merged): `pns recap agent --stdin` reads the
   markdown recap an agent composed, sanitizes it through the shared `sanitize::printable_line` filter,
   fits it under the same 1,800-character ceiling the night recap posts under (shedding whole sections in
@@ -418,11 +448,17 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   are written into `pns/docs/specs/return-recap.md`, and the work-recap skill and the shared agent rules
   now call these commands instead of saying they are not built; the pns plugin moved to 0.3.0.
   Twenty-five new tests, `just lint-check`, `just test-unit`, both template renders and a live
-  `pns recap git` run all passed. Operator steps left: `chezmoi apply`, `claude plugin update pns@pns`,
-  restart Claude Code, confirm the `pns-recap` hermes route is configured, then run `/pns:work-recap`
-  once and confirm the recap lands in `#pns-recap`. Open question left for the operator: `pns-adapters`
-  now shells `npx -y gh-axi` while the sibling `recap/merges.rs` shells `gh` directly, so the two
-  adapters disagree about which GitHub CLI they depend on; needs a ruling on which one moves.
+  `pns recap git` run all passed. Operator steps left: `chezmoi apply`,
+  `claude plugin marketplace update pns`, `claude plugin uninstall pns@pns`,
+  `claude plugin install pns@pns`, restart Claude Code, then run `/pns:work-recap` once and confirm the
+  recap lands. Open question left for the operator: `pns-adapters` now shells `npx -y gh-axi` while the
+  sibling `recap/merges.rs` shells `gh` directly, so the two adapters disagree about which GitHub CLI
+  they depend on; needs a ruling on which one moves. On 2026-09-15 the full `chezmoi apply` ran and the
+  plugin move landed: `claude plugin list` reads `pns@pns` 0.4.0, enabled, and
+  [PR #621](https://github.com/webdavis/dotfiles/pull/621) moved `pns-loop` and `pns-work-recap` into the
+  shared skills store. [PR #628](https://github.com/webdavis/dotfiles/pull/628) dropped the `pns-recap`
+  route the same day, so a recap now posts to the default route rather than `#pns-recap`. Still owed: one
+  live `/pns:work-recap` run.
 
 ### STOP POINT C
 
@@ -765,7 +801,7 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
 
 ## SSH exposure (not a pns task)
 
-- [ ] 75. Restrict this Mac's SSH exposure to the tailnet using a supported mechanism. This belongs to
+- [x] 75. Restrict this Mac's SSH exposure to the tailnet using a supported mechanism. This belongs to
   dotfiles; pns remains network-independent. The earlier `ListenAddress` proposal did not account for
   launchd owning Remote Login's listening socket, documented in `executable_ssh-hardening.sh` and the
   installed `/System/Library/LaunchDaemons/ssh.plist`. Investigate that ownership and available controls
@@ -797,7 +833,9 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   rule); the tailnet IPv6 self-address times out at TCP connect from this Mac itself, before any sshd
   exchange, so that half is proven only by the sshd -G -T -C resolve table in the PR. Remaining for the
   operator: one real phone tap after confirming the Shortcut's Hostname global variable is 100.77.192.92
-  or the MagicDNS name, not 192.168.1.26; expect one file-integrity alert naming the drop-in.
+  or the MagicDNS name, not 192.168.1.26; expect one file-integrity alert naming the drop-in. Closed
+  2026-09-15: [PR #609](https://github.com/webdavis/dotfiles/pull/609) merged and deployed on 2026-09-14,
+  and the phone tap was tested with Tailscale both on and off, which was the last check this task owed.
 
   Open questions left: (1) LOUD, unconfirmed: the pns tap Shortcut's `Hostname` global variable was not
   read from the repository (it lives only on the phone), so if it still holds the LAN address or a
@@ -948,7 +986,13 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   and `enrichment.md` need annotating for the shell tests this branch retires (left untouched as dated
   port plans); and a stale doc comment at `uu/crates/uu-adapters/src/lanes/brew/upgrade_record.rs:8`
   naming the deleted `file-integrity-triage.sh`, deferred as a separate cargo workspace out of this
-  slice.
+  slice. [PR #584](https://github.com/webdavis/dotfiles/pull/584) has since merged and the full
+  `chezmoi apply` ran and passed on 2026-09-15: `osqueryi` reads `com.webdavis.osquery-results-alerter`
+  as `/Users/stephen/.cargo/bin/posture alert`. Still owed: one live tick in
+  `~/.local/log/osquery/results-alerter.log`, the `posture allowlist list` tuple check, trashing
+  `~/.local/libexec/osquery/results-alerter.sh` and the six files under
+  `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh` (all eight were still on disk
+  on 2026-09-15), the digest spool handoff and the at-least-once retry check.
 - [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -1005,7 +1049,12 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   post-apply tick. Stays open: `uptime-watchdog.sh`, `pipeline-audit.sh` and
   `results-alerter/pipeline-verdict.sh` retire from source together in a follow-up pull request that also
   retires the firewall-gatekeeper-monitor and tailscale-monitor Bash producers, after all three lanes'
-  live acceptance; nothing was trashed by #575.
+  live acceptance; nothing was trashed by #575. The full `chezmoi apply` ran and passed on 2026-09-15 and
+  `osqueryi` reads `com.webdavis.osquery-uptime-watchdog` as
+  `/Users/stephen/.cargo/bin/posture watchdog`. Still owed: the kickstart and exit-code check, the one
+  expected CRIT watchdog page with its dead-letter banner, the `osquery-watchdog-state.json` read, and
+  the follow-up pull request retiring `uptime-watchdog.sh`, `pipeline-audit.sh` and
+  `results-alerter/pipeline-verdict.sh` from source.
 - [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
@@ -1035,6 +1084,9 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `firewall` back to 1; a second off/on cycle must page again, proving the marker rearms. Stays open: the
   Bash `firewall-gatekeeper-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the follow-up pull request under task 46, after this acceptance; nothing was trashed by #575.
+  The full `chezmoi apply` ran and passed on 2026-09-15 and `osqueryi` reads
+  `com.webdavis.osquery-firewall-gatekeeper-monitor` as `/Users/stephen/.cargo/bin/posture poll`. Still
+  owed: the two ticks 60 seconds apart, and the firewall exposure and recovery drill.
 - [ ] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -1085,15 +1137,24 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `posture funnel`, so the next full apply would otherwise deploy a funnel without these fixes. That pull
   request merged 2026-09-14 as [PR #587](https://github.com/webdavis/dotfiles/pull/587)
   (`fix(posture): carry the reviewed funnel fixes to main`), carrying all five fix commits to main in
-  their original order.
-- [ ] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
+  their original order. The full `chezmoi apply` ran and passed on 2026-09-15 and `osqueryi` reads
+  `com.webdavis.osquery-tailscale-monitor` as `/Users/stephen/.cargo/bin/posture funnel`. Still owed: one
+  tick after `sleep 70` at exit 0, and the `osquery-tailscale-funnel.json` cross-check against
+  `tailscale funnel status --json`.
+- [x] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
   Preserve an export of reviewed dead letters, obtain fresh approval for exact-row removal and reread all
   three counts. Unresolved rows retain the route, key, drainer and queue. Once empty and no other
   consumer needs them, retire the old `priority` route/key and propose cleanup of the queue's three
   files, `osquery-spool/`, `osquery-tailscale-funnel` and `~/.config/osquery/webhook-secret` as required
-  by the port plan. Secret values stay out of logs and review artifacts.
+  by the port plan. Secret values stay out of logs and review artifacts. Done:
+  [PR #622](https://github.com/webdavis/dotfiles/pull/622) removed the drainer and the Bash alerter's
+  dispatch library from source on 2026-09-15, and after the apply the LaunchAgent was booted out and its
+  plist, the two scripts, the webhook secret file, the queue database (0 pending rows) and its log were
+  trashed the same day. Confirmed 2026-09-15:
+  `launchctl print gui/$(id -u)/com.webdavis.osquery-alert-drainer` reports no such service in the user
+  domain, and `~/.local/libexec/osquery/drain-undelivered-alerts.sh` is absent.
 - [x] 50. posture 7.1: publish converge integration from `fix/posture-converge-validation`.
   Private-database validation now precedes daemon probing or repair; the apply caller uses slot 59 after
   its build, and uu supplies the configuration argument. Independent review, ten executable-discovery
@@ -1275,7 +1336,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   under `~/.claude/skills`, `~/.local/share/graphify` or `~/workspaces/backups`. Loss judged nil: the
   July directory was an older upstream graphify skill, superseded by the bundle now linked.
 
-- [ ] 57e. Retire the `deleteValueAtPath "skillOverrides.<name>"` lines in
+- [x] 57e. Retire the `deleteValueAtPath "skillOverrides.<name>"` lines in
   `private_dot_claude/modify_settings.json`. The branch `docs/clean-code-rust-test-first` added nine
   (clean-code, clean-code-rust, clean-code-swift, defuddle, obsidian-bases, obsidian-cli,
   obsidian-markdown, owasp-security, tuicr) so one apply scrubs the stale `user-invocable-only` key a
@@ -1289,7 +1350,10 @@ The planned Rust lanes are implemented. The following deployment check remains.
   in this same file's install-comment block (this branch's trimmed wording against origin/main's fuller
   2.1.257/2.1.270 history), not confined to `graphify-out/graph.json`, so the merge was aborted, leaving
   the branch clean at `37a1e55a`. No push, ship run, or merge was attempted past that point; the wording
-  conflict needs a human decision before resuming.
+  conflict needs a human decision before resuming. Closed 2026-09-15:
+  [PR #582](https://github.com/webdavis/dotfiles/pull/582) merged on 2026-09-14, and
+  `grep -n deleteValueAtPath private_dot_claude/modify_settings.json` now returns a single line, inside a
+  comment, with no tombstone call left.
 
 - [x] 57f. [PR #562](https://github.com/webdavis/dotfiles/pull/562) (`docs/clean-code-rust-test-first`)
   merged (`066fd762`): twelve skills promoted from on-demand to core (clean-code, clean-code-rust,
@@ -1323,7 +1387,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   (`~/.config/osquery/page-launchd-allowlist.txt` carries the line). Remaining acceptance: the next
   persistence_launchd finding for that label digests instead of paging.
 
-- [ ] 57h. Nested worktrees leak their `.chezmoidata` into every apply. Measured 2026-09-14 on dresden:
+- [x] 57h. Nested worktrees leak their `.chezmoidata` into every apply. Measured 2026-09-14 on dresden:
   with the source data file at 8 MiB, chezmoi still rendered `max_artifact_bytes=2097152`, because
   chezmoi reads `.chezmoidata` directories RECURSIVELY and the 78 worktrees under `.worktrees/` (66
   merged, 12 unmerged, 115 GB) each carry their own copy; a nested value wins over the root.
@@ -1433,6 +1497,8 @@ The planned Rust lanes are implemented. The following deployment check remains.
   ~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt covers the same
   registrations with an ancestry-only merged column that reads 12 of the 54 as unmerged when their
   content is in main. Use the 57h verdict column for that question and the task 68 file for the rest.
+  Closed 2026-09-15: `.worktrees/` holds only a `.DS_Store`, and `git worktree list` shows every
+  remaining worktree under `~/.herdr/worktrees/dotfiles/`.
 
 - [ ] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
   [PR #605](https://github.com/webdavis/dotfiles/pull/605)
@@ -1450,14 +1516,16 @@ The planned Rust lanes are implemented. The following deployment check remains.
   merged, with this recipe as the sweep. A live dry run reported six merged, clean worktrees. Operator
   steps left: run a full `chezmoi apply` (KeePassXC unlocked), then `just worktrees-prune --dry-run`
   followed by `just worktrees-prune` for real, confirming no session is still using a listed worktree
-  first since the sweep cannot detect that itself.
+  first since the sweep cannot detect that itself. The full `chezmoi apply` ran and passed on 2026-09-15
+  and `~/.local/libexec/prune-merged-worktrees.sh` is deployed. Still owed: the
+  `just worktrees-prune --dry-run` read and the real run.
 
 - [x] 57j. Espanso `,,ee` for `echo $?` (operator request 2026-09-14):
   [PR #565](https://github.com/webdavis/dotfiles/pull/565) (`feat/espanso-echo-exit-status`) adds the
   match to the Commands section of `snippets.yml`; merged 2026-09-14 (`1fdfb288`) and deployed by the
   2026-09-13 20:15 apply (the deployed file carries the trigger).
 
-- [ ] 57l. clean-code as a Claude Code plugin (operator 2026-09-14: a plugin for Claude specifically,
+- [x] 57l. clean-code as a Claude Code plugin (operator 2026-09-14: a plugin for Claude specifically,
   skills for the other harnesses, no duplication). Facts that shape it: plugin skills are always
   namespaced (docs: "`/my-first-plugin:hello` … to prevent conflicts"), so the bare `/clean-code` cannot
   come from a plugin; Claude Code runs an installed copy refreshed only on a version bump (57j's lesson);
@@ -1488,9 +1556,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   [PR #582](https://github.com/webdavis/dotfiles/pull/582) (`chore/settings-tombstones`, commits
   `c847c49e` and `fbdbae1c`): it names the 2.1.270 install form in both the template comment and this
   runbook sentence, but is not yet merged, stopped behind the same unresolved `modify_settings.json`
-  merge conflict recorded under 57e.
+  merge conflict recorded under 57e. Closed 2026-09-15:
+  [PR #573](https://github.com/webdavis/dotfiles/pull/573) shipped the plugin and
+  [PR #582](https://github.com/webdavis/dotfiles/pull/582) carried the runbook sentence.
 
-- [ ] 57m. zoetrope (operator request 2026-09-14): `brew install furkankly/tap/zoetrope` (0.2.0, `zoe`)
+- [x] 57m. zoetrope (operator request 2026-09-14): `brew install furkankly/tap/zoetrope` (0.2.0, `zoe`)
   and `herdr plugin install furkankly/zoetrope/herdr-plugin` (`furkankly.zoetrope`, enabled) done by hand
   on dresden; the tap, trusted tap, formula and herdr plugin roster entry merged in
   [PR #571](https://github.com/webdavis/dotfiles/pull/571) (`feat/zoetrope`, 2026-09-14, `6da70bfb`). The
@@ -1500,7 +1570,9 @@ The planned Rust lanes are implemented. The following deployment check remains.
   plugin-writes-into-config drift class as 57k, so the block was copied byte for byte into
   `dot_config/herdr/config.toml` in [PR #572](https://github.com/webdavis/dotfiles/pull/572)
   (`fix/herdr-zoetrope-keys`, merged 2026-09-14, `6c571969`). Acceptance: the next apply neither asks
-  about the file nor drops the `prefix+shift+z` binding.
+  about the file nor drops the `prefix+shift+z` binding. Accepted 2026-09-15: the full apply ran without
+  asking about the file, and `grep -n 'prefix+shift+z' ~/.config/herdr/config.toml` still reports the
+  binding at line 340.
 
 - [x] 57k. Every apply asked `.config/herdr/config.toml has changed since chezmoi last wrote it?` (seen
   on the operator's 2026-09-13 20:31 apply). Cause: the source carried the herdr-agent-quota sidebar row
@@ -1549,7 +1621,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
 
 ## posture cleanup
 
-- [ ] 58. posture 8.1 to 8.3: implement the SSH hardening port in its three planned stages. The command
+- [x] 58. posture 8.1 to 8.3: implement the SSH hardening port in its three planned stages. The command
   is implemented on `feat/posture-ssh` at source `539ecbb0`, with all three stages committed. Full
   `just ship` passed, including 991 posture tests; all 86 new tests passed individually within one
   second. Eight mutation controls and sixteen private Bash/native comparisons passed. Exit status, final
@@ -1576,7 +1648,9 @@ The planned Rust lanes are implemented. The following deployment check remains.
   [PR #549](https://github.com/webdavis/dotfiles/pull/549) merged 2026-09-14 (`235891e4`); the worktree
   is removed. A pre-existing grace-test flake (30 ms grace under load) was fixed in the same round. Live
   configuration/output acceptance remains before Bash retirement. Evidence:
-  `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`.
+  `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`. Closed 2026-09-15:
+  [PR #549](https://github.com/webdavis/dotfiles/pull/549) merged, and `posture ssh install`,
+  `posture ssh verify` and `posture ssh reload` all exited 0 live on 2026-09-14.
 - [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
   coverage for relocated data and update its consumers, then retire the old managed scripts and approved
   deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
@@ -1679,6 +1753,12 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
   [PR #557](https://github.com/webdavis/dotfiles/pull/557) (`fix/pns-private-process-budget`, the pns
   fixture process budget) merged into `main`, reviewed NO_ISSUE, after continuous integration passed.
+- [ ] 79. Stop the posture digest repeating the same file. The 2026-09-14 digest carried 110
+  `agent_authfile_changed` findings for `~/.codex/config.toml`, which Codex rewrites from its own model
+  while it runs, so every rewrite arrives as a fresh finding rather than as news. Decide between an
+  allowlist entry for that path and a debounce that collapses repeats of one path inside a digest window,
+  then build the one chosen. Record the reasoning either way, because an allowlist entry stops watching
+  an agent credential file while a debounce keeps watching it.
 
 ### STOP POINT G
 
@@ -1731,7 +1811,21 @@ producer.
   whether f1 through f3, which sit under the macOS brightness and Mission Control glyphs, are the right
   keys versus F4 through F10 or the fn row beyond F10; whether `lights preset` with no name should also
   print each preset's steps; and that an acceptance run against real hardware, one press of each key with
-  all three rooms in view, has not happened yet.
+  all three rooms in view, has not happened yet. On 2026-09-15
+  [PR #627](https://github.com/webdavis/dotfiles/pull/627) added the seven-step rotation (Nightlight,
+  Dimmed, Rest, Soho, Relax, Read and Energize, falling back to Read) and
+  [PR #629](https://github.com/webdavis/dotfiles/pull/629) added five time-of-day presets, morning
+  Energize, afternoon Concentrate, evening Relax, dusk Rest on F4 and night Nightlight on F7. The full
+  apply ran that day and keys F1 to F4, F7, F8, F9 and F10 were tested live. Still owed: F5 and F6, and
+  the three lamp drills, which were not run.
+
+- [ ] 80. Lights features the operator wants built but NOT bound to a key and NOT set in
+  `~/.config/lights/config.toml` (operator ruling 2026-09-15): `bed` and `away` presets whose steps
+  switch rooms off (`off = true`), `lights preset now` picking the preset from clock windows, `--all` on
+  `scene` and `brightness`, and `--over <duration>` for a fade. Each of these is a change to `lights`
+  alone; `dot_aerospace.toml` and the shipped `[presets]` table stay as they are until the operator asks
+  for them. Ship them as separate pull requests in that order, since only the first two touch the preset
+  walker.
 
 - [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
   existing generated-binary exception covers posture only. Update the stale target in the lights plan and
@@ -1842,7 +1936,7 @@ producer.
 
 ## Repository hygiene
 
-- [ ] 67. Reconcile local branches before further cleanup. On 2026-09-13 there are 577, of which 518 are
+- [x] 67. Reconcile local branches before further cleanup. On 2026-09-13 there are 577, of which 518 are
   ancestors of `origin/main`. No `wf_*`, `worktree-agent-*` or `agent-*` branches remain. The four
   `backup/*` branches contain unmerged work and were deliberately retained by the Claude session.
   Classify the other throwaway candidates by reachability, attached worktree, dirty state and owner.
@@ -1903,9 +1997,11 @@ producer.
   the approved deletions yourself, or reply with the group letters and an agent can run exactly those.
   Nothing was deleted tonight.; (10) Review Todoist task 6hW4J6GVgVQ4w2c3 in project homelab, which
   carries the same approval gate and the evidence as comment 6hW4J7wmGvWcwFmV, and complete it once the
-  groups are settled.
+  groups are settled. Closed 2026-09-15: the operator approved the deletions and 28 stale branches were
+  deleted that night, each on its own evidence (`git cherry` against `origin/main` plus a file-presence
+  check on main); 8 branches remain, and Todoist task `6hW4J6GVgVQ4w2c3` was closed.
 
-- [ ] 68. Finish the worktree inventory and approved cleanup. There are 238 registrations: 28 under
+- [x] 68. Finish the worktree inventory and approved cleanup. There are 238 registrations: 28 under
   `~/.herdr/worktrees`, 75 in this checkout's `.worktrees`, 108 under `~/workspaces/dotfiles-worktrees`,
   19 under `~/workspaces/dotfiles-agent-worktrees`, and eight elsewhere. One Claude scratch worktree
   registration points at a missing directory. The old count of 195 under Herdr is obsolete. Preserve
@@ -2040,6 +2136,10 @@ producer.
   ~/.herdr/worktrees/dotfiles (chain-553.sh, ledger-pr.sh, five merge-5\*.sh, ledger-pr.log, and sixteen
   commit-*/push-* logs). None is tracked by git and none belongs to a worktree.; (8) Leave groups A, B
   and C alone: 11 live worktrees, two behind open pull requests #546 and #51, and herdr-process-plan.
+  Closed 2026-09-15: eight stale worktrees were removed that night, and `git worktree list` now shows
+  four, the `main` checkout plus `fix/nvim-mcp-boundary` (behind open
+  [PR #546](https://github.com/webdavis/dotfiles/pull/546)), `feat/herdr-process` (the uncommitted plugin
+  source) and `refactor/herdr-smart-nav-clean-code` (an uncommitted crate split).
 
 - [x] 68b. Review and remove the untracked `.merge_file_*` artifacts in this checkout. They were Graphify
   merge-driver residue, not source. The operator deleted all 126 matching artifacts and `nvim.log` on
@@ -2064,7 +2164,10 @@ producer.
   fixes four ShellCheck findings in its test. Ten focused cases, synthetic installer checks, full
   `just ship` and independent review passed. [PR #534](https://github.com/webdavis/dotfiles/pull/534)
   merged and local main contains it. Operator deployment and hook-trust review remain separate from
-  exact-file cleanup approval.
+  exact-file cleanup approval. The full `chezmoi apply` ran and passed on 2026-09-15 and all four old
+  binaries are still on disk: `ls` reports `~/.local/libexec/pns/pns`, `~/.local/libexec/uu/uu`,
+  `~/.local/libexec/posture/posture` and `~/.local/libexec/lights`, each dated 2026-09-09. Still owed:
+  the operator's approval of the exact files, then the trash pass.
 
 ## Waiting on the operator
 
@@ -2083,7 +2186,11 @@ Each of these gates work that cannot start without it.
   default toolchain stays nightly; task 51 is what pins stable per directory.
 - [x] Stop and retire the hourly log writer, task 57. Source retirement landed and the deployed script,
   plist and loaded label are absent on 2026-09-12. No further bootout or removal remains.
-- [ ] The clean-home apply from PR #385, gates task 65
+- [x] The clean-home apply from PR #385, gates task 65. The full `chezmoi apply` ran and passed on
+  2026-09-15, after a first attempt that night failed in `.chezmoiscripts/80-bootstrap-nvim.sh` (Mason
+  could not install ansible-lint because `ensurepip` crashed on Homebrew's python@3.14 3.14.7, whose
+  `pyexpat` expected a newer system libexpat than macOS 26.2 shipped); the operator upgraded macOS to
+  27.0 and both `import pyexpat` and the apply then passed.
 - [ ] The lamp drills, gates task 62. ONE OF FOUR DONE 2026-09-09: `bulk_read_latency` is measured and
   answered. Seven samples each against the operator's own bridge: the shipped bulk read of
   `/clip/v2/resource` runs a 210 ms median (127 min, 261 max), which is over the design's 150 ms bound,
@@ -2097,10 +2204,11 @@ Each of these gates work that cannot start without it.
   drills, plus a Studio key check, was written 2026-09-14 in
   [PR #599](https://github.com/webdavis/dotfiles/pull/599) (`docs(lights): lamp drill runbook`, merged)
   at `lights/docs/acceptance/lamp-drills.md`. The Kitchen and bedroom lamp drills and the Studio key
-  check remain operator-run, so no tick.
+  check remain operator-run, so no tick. Still not run as of 2026-09-15.
 - [x] Archive `webdavis/neovim-config` and remove `~/.config/nvim/.git`. Both verified complete on
   2026-09-12.
-- [ ] Approve the branch and worktree deletions, gates tasks 67 and 68
+- [x] Approve the branch and worktree deletions, gates tasks 67 and 68. The operator approved them on
+  2026-09-15 and they were executed the same night.
 - [x] Deploy the uu skills lane, task 11c. Live configuration, binary usage and launchd metadata confirm
   it. The later config drift is task 57a.
 - [x] Retire the deployed tailnet pin script, task 66c. The script is absent and
@@ -2238,7 +2346,7 @@ is missing.
   remains excluded. [PR #536](https://github.com/webdavis/dotfiles/pull/536) combines this change with
   B18 while preserving separate commits. Combined `just ship` and the installer release build passed;
   required checks passed and the PR merged. Operator deployment and visual acceptance remain open.
-- [ ] Resolve the historical condenser-stall task
+- [x] Resolve the historical condenser-stall task
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
   300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
   Reproduce under representative load and record closure or fix the remaining cause. The audit found no
@@ -2285,7 +2393,9 @@ is missing.
   sandboxes cross it under load while behaving correctly, and `allow_slow` cannot quiet them: reading
   `Drop for Sandbox`, the excuse lifts only the 5000 ms hard ceiling while the warning fires off
   `over_budget` unconditionally. Recommended: accept the noise; across ten runs those two sandboxes
-  produced five lines while the rest of the suite produced between 8 and 38 per run.
+  produced five lines while the rest of the suite produced between 8 and 38 per run. Closed 2026-09-15:
+  the load drill is recorded in `docs/research/2026-09-condenser-deadline-load-drill.md` and that Todoist
+  task was closed the same day.
 - [ ] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
   hook fixtures still inherit the five-second payload deadline and need bounded fixture inputs. The
   Hermes redirect fixture already consumes the complete request and keeps its socket until disconnect;
@@ -2294,6 +2404,12 @@ is missing.
   include B105's approval-submission exit-code failure, historically `0` instead of `42` under load. The
   September 7 disposition leaves it unresolved after #383 and #441; #378 closed unmerged. A bounded
   fixture is not proof of closure, and this audit did not establish a current reproduction.
+- [ ] 87. Make the pns nag delivery test deterministic. Continuous integration for
+  [PR #629](https://github.com/webdavis/dotfiles/pull/629) failed once on
+  `nag_delivery::the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`, which saw
+  two cards where it expects one, although that pull request touched no pns code; a rerun passed.
+  Reproduce it under load before changing anything, since a second card is either a real double fire or a
+  fixture reading one delivery twice.
 - [ ] Retain Moshi image recap cards as blocked on transport, not ready to build. The recorded reopening
   conditions are a homelab HTTPS image host, an upstream upload interface, or a documented data-URL path.
   An operator-approved single-card probe must establish actual image display before treating data URLs as
@@ -2352,6 +2468,11 @@ is missing.
   `unversioned` module, whose stated policy is that breaking changes there will not produce a major
   version bump? (8) Unrelated to the verdict: upgrade moshi-hook from 0.3.16 to the tap's 0.3.22 now, or
   leave it pinned?
+- [ ] 78. Decide whether a recap card on the phone carries an image, and build it only if the answer is
+  yes (operator ruling 2026-09-15, low priority). The research above settled the technical half: the
+  upload interface exists and the app's own image test action proves display, so what is left is the
+  value call and the card-ownership refactor an image card would need. Nothing starts until that decision
+  is recorded here.
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
@@ -2543,7 +2664,7 @@ operator deployment. No source correction was warranted by this audit.
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
   absent; decide whether that language workflow is wanted before adding it.
-- [ ] Preserve B107's deferred JavaScript test-discovery responsiveness work. Caching shipped, but cold
+- [x] Preserve B107's deferred JavaScript test-discovery responsiveness work. Caching shipped, but cold
   parsing remains synchronous; the recorded 7.4-second UI stall was not remeasured in this audit. Source
   for B97/B103/B107: `~/.claude/pipeline/backlog-consolidated-2026-09-02.md`. B92's canonical-hour,
   rainbow and X11 colour cycles were deliberately excluded, not missed implementation. On 2026-09-14
@@ -2573,6 +2694,9 @@ operator deployment. No source correction was warranted by this audit.
   [PR #589](https://github.com/webdavis/dotfiles/pull/589) (`fix/nvim-js-discovery-cold-parse`, merged
   `2d9c6e188b2db896c7be78ec89dabf412a075bcf`). Operator: run a full `chezmoi apply` to deploy
   `~/.config/nvim/lua/plugins/neotest.lua` (no template touched, no KeePassXC or manifest involved).
+  Closed 2026-09-15: the full apply ran and passed, and `diff` reports
+  `dot_config/nvim/lua/plugins/neotest.lua` identical to the deployed
+  `~/.config/nvim/lua/plugins/neotest.lua` at exit 0.
 - [ ] Preserve B95's Rust neotest discovery and duplicate-client follow-up. Rust, Java and Elixir
   adapters are absent from the configured adapter list; verify Rust's intended workflow before calling
   language coverage complete. Record the Java/Elixir disposition against plan task 46b, step 2, which
@@ -2648,7 +2772,7 @@ operator deployment. No source correction was warranted by this audit.
   reproduction is one line. (7) Is a Java or Elixir project anywhere on the horizon? If yes, both
   dispositions should be filed as deferred with a named trigger rather than withheld, and each needs the
   toolchain declaration decisions that go with it.
-- [ ] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
+- [x] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
   missing-parser installation is asynchronous, and the Go adapter returns without discovery when its
   parser is absent. Verify the first test request in that state and provide a working first-use path
   through supported integration. The historical failure was not reproduced during this audit. On
@@ -2679,6 +2803,10 @@ operator deployment. No source correction was warranted by this audit.
   nothing outside that directory. [PR #590](https://github.com/webdavis/dotfiles/pull/590)
   (`fix/nvim-go-parser-readiness`, merged `15e885bc`). Operator: run a full `chezmoi apply` (the nvim
   bootstrap re-runs and builds the `go` parser synchronously; that build measured 4.3 s in the probe).
+  Closed 2026-09-15: the full apply ran and passed, `diff` reports
+  `dot_config/nvim/lua/plugins/treesitter.lua` identical to the deployed
+  `~/.config/nvim/lua/plugins/treesitter.lua` at exit 0, and `~/.local/share/nvim/site/parser/go.so` is
+  present.
 - [x] Correct B100's stale pane-selection contract in the canonical Neovim spec/plan: the owned helper
   uses `agent_pane(on_pane)`, not a synchronous returned pane identifier. Preserve cancellation/refusal
   behavior. This is documentation reconciliation, not a missing helper implementation. On 2026-09-13
@@ -3181,7 +3309,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `✓ nothing to act on` over two route warnings is a one-line severity change (`RouteVerdict::Missing`
   from `Mark::Warn` to `Mark::Bad`). Fold it into this work, or file it separately?
 
-- [ ] 2026-09-14: the hermes gateway gained the `posture` and `pns-recap` webhook routes, and posture
+- [x] 2026-09-14: the hermes gateway gained the `posture` and `pns-recap` webhook routes, and posture
   learned to pick its route from a finding's tier, in
   [PR #607](https://github.com/webdavis/dotfiles/pull/607)
   (`feat(hermes): add the posture and pns-recap gateway routes`, merged), a piece of the missing-route
@@ -3206,7 +3334,22 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   since posture's own agents already cover its job; (2) the `priority` route's prompt template is still
   the Bash alerter's `{alert.title}`/`{alert.detail}` shape, so even with the secret reconciled a
   pns-shaped CRIT body delivers literal placeholders until the stale-escalation PR's prompt-template
-  change lands too.
+  change lands too. Closed 2026-09-15. The routes moved into a chezmoi modify template carrying one
+  KeePassXC secret and one channel id per route in
+  [PR #617](https://github.com/webdavis/dotfiles/pull/617); pns gained per-route keys in
+  [PR #624](https://github.com/webdavis/dotfiles/pull/624); posture became engine-agnostic and sends its
+  critical pages to `priority` in [PR #623](https://github.com/webdavis/dotfiles/pull/623); the
+  `pns-recap` route was dropped in [PR #628](https://github.com/webdavis/dotfiles/pull/628); and the
+  survivors were renamed to match their Discord channels in
+  [PR #626](https://github.com/webdavis/dotfiles/pull/626).
+  [PR #625](https://github.com/webdavis/dotfiles/pull/625) took the `.tmpl` suffix off that modify
+  template, which chezmoi had been rendering as a template and then executing (`exec format error`), and
+  pinned the basename with a test that drives `chezmoi diff` over a scratch source. The full
+  `chezmoi apply` and a `hermes gateway restart` both ran on 2026-09-15; the gateway config now lists
+  `general`, `pns-events`, `posture-pages`, `priority` and `uu-runs`, the same five names the source
+  template builds, and live posts reached `pns-events`, `priority` and `posture-pages` that day. Both
+  open questions are answered: every route carries its own key, so the `priority` secret question is
+  moot, and that route now renders the shared three-line layout.
 
 - [ ] 2026-09-14: pns learned to say who an event is from, a structured sender header on every hermes
   message, merged in [PR #612](https://github.com/webdavis/dotfiles/pull/612)
@@ -3236,7 +3379,9 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   on a `deliver_only` response; whether a retried hermes post's dim line, which names only the agent
   because the delivery ledger keeps no session, needs a session column on `ledger_events` if that reads
   wrong in the channel; and whether the sixty-character title cap and the state's position at the end of
-  the header's first line hold up once the operator sees them in front of them.
+  the header's first line hold up once the operator sees them in front of them. The full `chezmoi apply`
+  and a `hermes gateway restart` both ran on 2026-09-15. Still owed: one live event confirming the
+  header, subheader and body layout in Discord.
 
 - [ ] 2026-09-14: the stale-block escalation shipped, the second pull request of the pns
   session-attribution design, merged in [PR #613](https://github.com/webdavis/dotfiles/pull/613)
@@ -3277,20 +3422,79 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   suppressed escalation later or left as an unmentioned self-resolving block; whether a fire suppressed
   while away should re-arm itself one window out instead of staying a one-shot, if missed pages while
   away matter more than the extra spawns; and whether the escalation's `blocked <n> minutes, no answer`
-  wording should share one renderer with the nag's more compact `<n>m` form.
+  wording should share one renderer with the nag's more compact `<n>m` form. The full `chezmoi apply` and
+  a `hermes gateway restart` both ran on 2026-09-15. Still owed: one deliberate escalation, either by
+  staying blocked past the hour or by backdating a session's `blocked_since` and running `pns stale` by
+  hand.
 
-- [ ] 2026-09-14: the hermes unattended-upgrades route was renamed to `uu`, merged in
+- [x] 2026-09-14: the hermes unattended-upgrades route was renamed to `uu`, merged in
   [PR #592](https://github.com/webdavis/dotfiles/pull/592)
   (`chore(hermes): rename the unattended-upgrades route to uu`, merged), moving the shipped `[records]`
   URL, the commented-out `failure_webhook` example and the apply-time route check to `/webhooks/uu`
-  together with the Discord channel rename.
+  together with the Discord channel rename. Closed 2026-09-15:
+  [PR #592](https://github.com/webdavis/dotfiles/pull/592) merged on 2026-09-14 and
+  [PR #626](https://github.com/webdavis/dotfiles/pull/626) renamed the route again to `uu-runs` on
+  2026-09-15, matching the Discord channel.
 
-- [ ] 2026-09-14: the pns session-attribution, threads and stale-block escalation design was written and
+- [x] 2026-09-14: the pns session-attribution, threads and stale-block escalation design was written and
   merged as [PR #593](https://github.com/webdavis/dotfiles/pull/593)
   (`docs(specs): pns session attribution, threads and stale-block escalation design`, merged), the spec
   behind PR #612 and PR #613, at
   `docs/superpowers/specs/2026-09-14-pns-session-attribution-and-threads-design.md`; one Discord thread
-  per session was verified unbuildable on hermes 0.17.0 webhooks and stays an upstream ask.
+  per session was verified unbuildable on hermes 0.17.0 webhooks and stays an upstream ask. Closed
+  2026-09-15: [PR #593](https://github.com/webdavis/dotfiles/pull/593) merged, and the two pull requests
+  the spec describes, #612 and #613, are both merged too.
+
+- [ ] 81. Settle the Discord channel model in configuration (operator rulings 2026-09-14 and 2026-09-15).
+  Every channel is `#<project>-<stream>` and never a bare project name, and each project gets
+  `#<project>-dev` for continuous integration, pull requests, GitHub notifications and agent session
+  threads, covering dotfiles, pns, uu, posture, homelab, justdavis-ansible, essential-feed-case-study,
+  scalebar, netpulse, plantpulse and casually-concerned. `#github-notifications` is the catch-all, and
+  `#priority` is the severity channel for anything critical from any source, which means rare, actionable
+  and worse if ignored, posted once with the subject in its header. The notification channels are
+  `#pns-events`, `#uu-runs`, `#posture-pages` and `#general`, while `#pns-recap` and `#uu-failures` were
+  deleted. Routing is two-axis: the subject picks the channel and severity overrides it to `#priority`.
+  The Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by
+  the GitHub source and by session events.
+
+- [ ] 82. Give pns its own Discord destination. A `pns` Discord bot exists, with View Channels, Send
+  Messages, Create Public Threads, Send Messages in Threads, Embed Links and Read Message History, no
+  privileged intents, not public and guild-install only, and it stays offline until that destination
+  ships: one thread per agent session, recaps into the project channels, and the slash commands
+  `/pns pending`, `/pns approve` and `/pns reject`. Repository channels are delivered by this bot and
+  never by a hermes route. Its secrets are the KeePassXC entries `Discord (Uriel) :: Bot Token (pns)`,
+  `Discord (Uriel) :: Public Key (pns)`, `Discord (Uriel) :: Application/User ID (pns)`, and one
+  `Discord (Uriel) :: Channel ID (#<project>-dev)` per project plus `(#github-notifications)`.
+
+- [ ] 83. Route a failed upgrade to `priority`. The producer event carries a kind, health or agent, and
+  pns maps that kind to a route, so `uu` never names a route itself; the agent triage then lands under
+  that page in the same channel. The `#uu-failures` channel was dropped on 2026-09-15. Operator step:
+  delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
+  `Discord (Uriel) :: Channel ID (#uu-failures)`.
+
+- [ ] 84. Build the posture critical-page explainer, three pull requests, on the design merged in
+  [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel as
+  the page it explains and directly under it, moving into the page's own thread once the pns Discord bot
+  of task 82 exists. The accepted defaults are that the explainer runs with zero tools
+  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after six explanations in an hour, never puts a
+  command in its text, and that pns sends a request id on every hermes post.
+
+- [ ] 85. Build the pns GitHub source, four pull requests, on the design merged in
+  [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
+  `#github` are superseded by `#<project>-dev` and `#github-notifications` under task 81. The baseline
+  polls the notifications API with the classic token
+  `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, which carries the `notifications`
+  scope only and no expiry, and push arrives later through the existing Cloudflare tunnel with a separate
+  receiver process. The GitHub colours are configurable in the pns config, defaulting to purple for a
+  pass and orange for a failure, and three dedicated lamps carry them, `3F - Studio - HCL2`,
+  `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]` and nothing else. On
+  GitHub itself, Actions notifications are set to On GitHub with failed-only off, and Dependabot alerts
+  to On GitHub plus CLI.
+
+- [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
+  `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
+  `uu` run, and `general` has no producer in this repository, so it stays unproven until something posts
+  to it.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
@@ -3843,7 +4047,9 @@ force.
   `chezmoi apply`; quit and reopen Claude Desktop; in Claude Code, list the YNAB tools and confirm 62.
   Open question: whether the YNAB account holds more than one budget, since `YNAB_BUDGET_ID` unset
   resolves each call against the most recently accessed budget, which is a footgun with more than one
-  budget; `list_budgets` answers this in the first session after the apply.
+  budget; `list_budgets` answers this in the first session after the apply. The full `chezmoi apply` ran
+  and passed on 2026-09-15 and [PR #585](https://github.com/webdavis/dotfiles/pull/585) merged. Still
+  owed: quitting and reopening Claude Desktop, and confirming the 62-tool listing.
 - [ ] Reconcile [Backpass](https://github.com/kunchenguid/backpass) configuration and finish any missing
   integration, requested 2026-09-12. It is installed, declared in npm, and
   `dot_config/backpass/config.json` matches the deployed copy, directing user instruction edits to
@@ -4039,7 +4245,9 @@ force.
   install `droast.nvim` at its locked commit, since editing `lazy-lock.json` alone installs nothing.
   Optional follow-ups the implementer left open: a smoke check (open a Dockerfile, `:w`, expect droast
   and hadolint diagnostics together, `:DroastQuickfix` fills the quickfix list) and removing the
-  verification harness at `/private/tmp/dr` when no longer wanted.
+  verification harness at `/private/tmp/dr` when no longer wanted. The full `chezmoi apply` ran and
+  passed on 2026-09-15. Still owed: `:Lazy restore` in Neovim, without which `droast.nvim` is not
+  installed.
 - [x] Review native Neovim language-server configuration, requested 2026-09-12. Installed Neovim is
   `0.12.5`; `dot_config/nvim/lua/plugins/lsp.lua` already uses `vim.lsp.config()` and `vim.lsp.enable()`,
   with no legacy `require("lspconfig").SERVER.setup()` calls. Keep nvim-lspconfig for maintained server
@@ -4241,7 +4449,7 @@ force.
   [6hVp9mV63cg2J8PM](https://app.todoist.com/app/task/6hVp9mV63cg2J8PM) got the same evidence in comment
   `6hW4JGmgcQJCmFGM` for its matching line item and stays open for its other gaps. Nothing remains for
   the operator.
-- [ ] Reconcile stale GitHub issues #8 (Kulala-LS is declared), #9 (gh-notify was superseded), #13
+- [x] Reconcile stale GitHub issues #8 (Kulala-LS is declared), #9 (gh-notify was superseded), #13
   (Zellij predates the Herdr decision), and #18 (fixed), then align the surviving issues and Todoist
   items with this file. The earlier migration's cutover ledger has all five completion markers dated
   2026-08-10; do not confuse those completed gates with the new posture cutovers. Reconciled on
@@ -4288,7 +4496,10 @@ force.
   step: Todoist 6gfVJ7VwcFQvg7xM (P10, "Notify via Bob on long-running shell command completion") is
   still open although dot_bashrc.tmpl now delivers that through pns and [plugins.hermes]. It sits outside
   this ledger line's four issues and was left untouched; it belongs to whichever reconcile task owns the
-  pns notification tasks.
+  pns notification tasks. Closed 2026-09-15: all four issues are closed, the operator took option 2 on #9
+  and [PR #619](https://github.com/webdavis/dotfiles/pull/619) dropped gh-notify from the snacks
+  dashboard in favour of a plain `gh api notifications` call, and Todoist task `6gfVJ9P5vpX64JhM` was
+  closed. The replacement command ran through Neovim the same day and returned five rows at exit 0.
 - [x] Resolve scope for the older warden import/quarterly-cleanup tasks and obsolete agent-session
   restoration tasks. The restic script is the operator's learning exercise; keep its later LaunchAgent
   dependent on that work and do not take over writing it without a new instruction. These older tasks
@@ -5238,7 +5449,7 @@ process-toggle plugin and worktree review launcher.
   source rather than a deployed copy that the next apply would overwrite. Preview changes and affected
   scopes, provide backups and rollback, and preserve the operator-run chezmoi apply flow.
 
-- [ ] Install and configure [gnhf](https://github.com/kunchenguid/gnhf), the overnight agent orchestrator
+- [x] Install and configure [gnhf](https://github.com/kunchenguid/gnhf), the overnight agent orchestrator
   ("each iteration makes one small, committed, documented change towards an objective"), requested by the
   operator on 2026-09-14. It is an npm CLI, so it goes on the fnm lane in
   `.chezmoidata/system_packages_autoinstall.yaml` (pinned, like the other npm tools there), with its
@@ -5267,7 +5478,9 @@ process-toggle plugin and worktree review launcher.
   `docs/runbooks/local-agents.md` documenting the invocation, the worktree procedure and the graphify
   hook interaction. `just ship` passed twice locally and the pre-push gate passed. Nothing runs gnhf
   automatically and `--push` stays off, so a run never reaches GitHub without the operator pushing by
-  hand. Operator step left: run `chezmoi apply` to install the binary and deploy the config.
+  hand. Operator step left: run `chezmoi apply` to install the binary and deploy the config. Closed
+  2026-09-15: the full apply ran and passed, `command -v gnhf` resolves on the fnm lane, and
+  `~/.gnhf/config.yml` is deployed.
 
 - [ ] 2026-09-14: [GitButler](https://gitbutler.com/) was installed for AI agents in
   [PR #603](https://github.com/webdavis/dotfiles/pull/603)
@@ -5288,6 +5501,8 @@ process-toggle plugin and worktree review launcher.
   while other worktrees run from it; optionally launch `/Applications/GitButler.app` to log in, only
   needed for the GUI, cloud review or `but pr`; optionally remove the one stray
   `gitbutler.project.portedMeta` local config key that merely running `but` wrote during verification.
+  The full `chezmoi apply` ran and passed on 2026-09-15. Still owed: `but skill check --global`, and the
+  decision on whether to run `but setup` on this repository.
 
 ## Late in the goal: slim the global instruction files
 
@@ -5318,7 +5533,7 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   implement their approved stages with the recorded staging and go-live gates. Todoist remains the user's
   task store. Preserve the stopped-gateway activation transaction, external watchdog, rollback and
   explicit approval for real outbound communication.
-- [ ] Correct #51's integration path before merging its documents. It targets `integration/modernization`
+- [x] Correct #51's integration path before merging its documents. It targets `integration/modernization`
   at remote `034d9a07`, not main; its two-file review becomes 222 changed files against current main
   (`76b37ae4`). The local integration branch also has nine additional commits. Preserve that history and
   carry the two reviewed Forzare documents onto current main in an isolated branch, then review the final
@@ -5337,7 +5552,9 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   for launchd-run scripts instead of dot_local/libexec/ (spec 3155; plan 29, 38, 243, 251, 347, 350, 663,
   839, 864, 3028, 3114, 3175, 3229, 3912), the old uptime-watchdog path (plan 3034, 3060), and the
   pre-commit gate named as lint-check plus test where main runs test-unit plus gitleaks (plan 114, 3218).
-  No paseo or tmux reference remains; the `relay` mentions read as a rename to pns.
+  No paseo or tmux reference remains; the `relay` mentions read as a rename to pns. Closed 2026-09-15:
+  [PR #615](https://github.com/webdavis/dotfiles/pull/615) merged, carrying both Forzare documents onto
+  main, and PR #51 was closed in its favour.
 - [ ] Let Bob consume vpp's transcripts, metadata and briefs for meeting preparation. Keep provenance and
   unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
   Decide whether Bob supplies optional calendar/Todoist context or vpp reads it directly during design.
