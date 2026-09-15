@@ -37,6 +37,7 @@ fn notify(
     let response = lights::run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
         &path,
+        &root.join("state/position.toml"),
         &notifier,
         |settings| HueLightController::with_transport(settings, connector, ScriptedResolver),
     );
@@ -139,6 +140,7 @@ fn missing_pns_does_not_fail_action() {
     let response = lights::run(
         &["toggle".into(), "--notify".into()],
         &path,
+        &root.join("state/position.toml"),
         &notifier,
         |settings| {
             HueLightController::with_transport(

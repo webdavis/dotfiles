@@ -265,16 +265,22 @@ pns lights quiet "3F - Studio - HCL3" off
 Press each key once, in this order, and watch the lamps rather than the terminal. The bindings are fire
 and forget, so a key that does nothing prints nothing anywhere.
 
-| Key                     | What it does                   | What to observe                                                                 |
-| ----------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| F9                      | toggle power                   | the room goes dark, and a second press brings it back                           |
-| F10                     | one brightness step up         | one visible step brighter, the size the old key gave                            |
-| F8                      | one brightness step down       | one visible step dimmer                                                         |
-| F6                      | next scene in the rotation     | the next of `Nightlight`, `Soho`, `Rest`, `Dimmed`, `Relax`, `Read`, `Energize` |
-| F5                      | previous scene in the rotation | the rotation steps backward, and wraps at `Nightlight`                          |
-| F4                      | whole-house preset `dusk`      | all three rooms activate `Rest`                                                 |
-| F7                      | whole-house preset `night`     | all three rooms activate `Nightlight`                                           |
-| F6 or F5 after F4 or F7 | cycle off a preset scene       | the room lands on `Read`, the fallback                                          |
+| Key                     | What it does                   | What to observe                                                                                            |
+| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| F9                      | toggle power                   | the room goes dark, and a second press brings it back                                                      |
+| F10                     | one brightness step up         | one visible step brighter, the size the old key gave                                                       |
+| F8                      | one brightness step down       | one visible step dimmer                                                                                    |
+| F6                      | next scene in the rotation     | the next of `Nightlight`, `Soho`, `Rest`, `Dimmed`, `Relax`, `Read`, `Energize`                            |
+| F5                      | previous scene in the rotation | the rotation steps backward, and wraps at `Nightlight`                                                     |
+| F4                      | whole-house preset `dusk`      | all three rooms activate `Rest`                                                                            |
+| F7                      | whole-house preset `night`     | all three rooms activate `Nightlight`                                                                      |
+| F6 or F5 after F4 or F7 | cycle on from a preset scene   | the cycle continues from the preset's own scene, so F6 takes `Rest` to `Dimmed` and `Nightlight` to `Soho` |
+
+**The pause.** The bridge stops reporting any scene as active once a room has sat untouched, which is why
+a press after a long pause used to restart the cycle at `Read`. With `remember_position = true` under
+`[scenes]` the press continues from the last rotation scene `lights` set in that room; with the setting
+off it lands on `Read`. Leave ten minutes or so between the F6 rows to observe it, and read
+`~/.local/state/lights/position.toml` to see what was remembered.
 
 **Held keys.** The deployed step is back to 15 points, so from 50 percent there are only about three
 steps before the lamp clips. Set a known level with `lights brightness 50`, hold F8 for about two
@@ -284,8 +290,9 @@ held key fires the binding more than once, so "no repeat at all" is a legitimate
 a failure.
 
 **Pass condition.** Every key performs the action its row names; both wraps behave; a preset key is a
-one-shot whose only effect on the rotation is that the next cycle lands on `Read`; and a held key either
-does nothing extra or moves the room in whole steps, clipping at the floor without ever powering it off.
+one-shot whose only effect on the rotation is that the next cycle continues from the scene it set; and a
+held key either does nothing extra or moves the room in whole steps, clipping at the floor without ever
+powering it off.
 
 | Key | Action seen | Matches the old binding (yes/no) | Notes |
 | --- | ----------- | -------------------------------- | ----- |
