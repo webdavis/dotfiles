@@ -1,6 +1,6 @@
 use posture_adapters::{
-    CommandRunner, ControlProbes, LastResortBanner, PnsProducer, PollStateFiles, PostureQuery,
-    PostureTrio, SystemClock, SystemRunner, is_executable, read_controls,
+    CommandRunner, ControlProbes, Delivery, LastResortBanner, PollStateFiles, PostureQuery,
+    PostureTrio, SystemClock, SystemRunner, alert_sink, is_executable, read_controls,
 };
 use posture_application::{Clock, Poll, PollFailure, PollStateFailure};
 use posture_domain::{ControlObservation, ControlsRead, LuluProfile};
@@ -14,7 +14,7 @@ use std::{
 struct Configuration {
     state: PathBuf,
     controls: PathBuf,
-    pns: PathBuf,
+    delivery: Delivery,
     alarm: PathBuf,
 }
 
@@ -23,7 +23,7 @@ impl Configuration {
         Self {
             state: home.join(".local/state/osquery-posture-state.json"),
             controls: home.join(".local/libexec/posture/controls.json"),
-            pns: home.join(".cargo/bin/pns"),
+            delivery: Delivery::read(home),
             alarm: "/usr/bin/osascript".into(),
         }
     }
@@ -112,15 +112,11 @@ fn execute(
         })
         .unwrap_or_default();
     let prior = prior.as_ref().and_then(|state| state.baseline(&priors));
-    let mut sink = PnsProducer::new(
+    let mut sink = alert_sink(
+        config.delivery,
         producer,
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(alarm, config.alarm),
+        &mut *stderr,
     );
     let result = Poll {
         markers: &state,

@@ -68,7 +68,7 @@ impl Subject {
         };
         let config = Configuration {
             state: self.state(),
-            pns: "/fake/pns".into(),
+            delivery: crate::producer_delivery(std::path::Path::new("/fake/engine")),
             alarm: "/fake/alarm".into(),
             ..Configuration::from_home(&self.0)
         };
@@ -138,7 +138,7 @@ impl CommandRunner for Runner {
                 assert_eq!(io, CommandIo::Inspection { merge_stderr: true });
             }
             "submit" => {
-                assert_eq!(program, Path::new("/fake/pns"));
+                assert_eq!(program, Path::new("/fake/engine"));
                 assert_eq!(args, [OsStr::new("submit"), OsStr::new("--json")]);
                 let CommandIo::Input(input) = io else {
                     panic!("stdin request required")

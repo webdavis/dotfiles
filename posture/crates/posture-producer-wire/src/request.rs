@@ -1,11 +1,11 @@
-//! The producer request: what any producer, in any language, tells pns about
-//! one event, in version 1 of the `pns.request` envelope.
+//! The producer request: what any producer, in any language, tells an engine
+//! about one event, in version 1 of the `pns.request` envelope.
 //!
 //! The source's own event name (`event`) is carried as metadata; the
-//! normalized [`Signal`] is what pns policy reads. Delivery scope is one
+//! normalized [`Signal`] is what engine policy reads. Delivery scope is one
 //! typed word, so the legacy pair of independent flags cannot be spelled
-//! here (decision 0007). A producer states `elapsed_secs` and pns decides the
-//! tier from it; there is no field for a caller-decided tier.
+//! here (decision 0007). A producer states `elapsed_secs` and the engine
+//! decides the tier from it; there is no field for a caller-decided tier.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -20,7 +20,7 @@ const SCHEMA_MAJOR: u32 = 1;
 
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
-/// newer producer must not break an older pns.
+/// newer producer must not break an older engine.
 const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
@@ -46,7 +46,7 @@ fn schema() -> SchemaId {
     }
 }
 
-/// What happened, in pns's own terms. A producer's event name never controls
+/// What happened, in the contract's own terms. A producer's event name never controls
 /// routing, state or lighting directly; this does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -115,7 +115,7 @@ pub struct Request {
     /// Epoch seconds, when the producer knows when it happened.
     #[serde(default)]
     pub occurred_at: Option<u64>,
-    /// How long the work ran. pns decides the tier from it.
+    /// How long the work ran. The engine decides the tier from it.
     #[serde(default)]
     pub elapsed_secs: Option<u64>,
     #[serde(default)]

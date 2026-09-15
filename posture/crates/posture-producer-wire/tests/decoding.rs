@@ -1,4 +1,4 @@
-use posture_pns_wire::{Rejection, Violation, decode_request, decode_result};
+use posture_producer_wire::{Rejection, Violation, decode_request, decode_result};
 use serde_json::{Value, json};
 
 const REQUEST: &str = include_str!("../fixtures/request-v1.json");

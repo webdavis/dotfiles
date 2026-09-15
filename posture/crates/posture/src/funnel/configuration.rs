@@ -1,10 +1,10 @@
-use posture_adapters::{is_executable, parse_command_duration as duration};
+use posture_adapters::{Delivery, is_executable, parse_command_duration as duration};
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 pub(super) struct Configuration {
     pub state: PathBuf,
     pub tailscale: PathBuf,
-    pub pns: PathBuf,
+    pub delivery: Delivery,
     pub budget: Option<Duration>,
 }
 impl Configuration {
@@ -32,7 +32,7 @@ impl Configuration {
         Some(Self {
             state,
             tailscale,
-            pns: home.join(".cargo/bin/pns"),
+            delivery: Delivery::read(&home),
             budget,
         })
     }
@@ -124,7 +124,6 @@ mod tests {
         let config = Configuration::read(vars).unwrap();
         assert_eq!(config.state, PathBuf::from("/private/other/state"));
         assert_eq!(config.tailscale, PathBuf::from("/private/other/tailscale"));
-        assert_eq!(config.pns, PathBuf::from("/private/fixture/.cargo/bin/pns"));
         assert_eq!(config.budget, Some(Duration::from_millis(20)));
         let config = Configuration::read(|name| {
             if name == "HOME" {

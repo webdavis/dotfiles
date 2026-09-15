@@ -81,11 +81,13 @@ fn check(case: &str) {
     .unwrap();
     let inode = std::fs::metadata(&config.log).unwrap().ino();
     std::fs::write(&config.cursor, format!("{inode} 0\n")).unwrap();
-    std::fs::create_dir_all(config.pns.parent().unwrap()).unwrap();
+    let engine = root.path.join(".local/libexec/engine");
+    config.delivery = crate::producer_delivery(&engine);
+    std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
     // THE PATHS ARE BAKED IN rather than read from `$HOME`, because this stub
     // inherits the test runner's environment instead of a cleared one.
     std::fs::write(
-        &config.pns,
+        &engine,
         format!(
             r##"#!/bin/sh
 set -eu
@@ -101,7 +103,7 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnos
         ),
     )
     .unwrap();
-    std::fs::set_permissions(&config.pns, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
 
     let mut diagnostics = Vec::new();
     assert_eq!(execute(config, Time, || NoInspection, &mut diagnostics), 0);

@@ -1,8 +1,8 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, GatewayProbe, LastResortBanner, PnsProducer, QueueDatabase, SnapshotsFile,
-    SystemClock, SystemRunner, SystemWatchdogProcesses, WatchdogAudit, WatchdogStateFile,
+    CommandRunner, GatewayProbe, LastResortBanner, QueueDatabase, SnapshotsFile, SystemClock,
+    SystemRunner, SystemWatchdogProcesses, WatchdogAudit, WatchdogStateFile, alert_sink,
 };
 use posture_application::{Clock, GatewayHealth, Watchdog, WatchdogOutcome};
 use std::{ffi::OsString, io::Write, time::Duration};
@@ -43,15 +43,11 @@ fn execute(
     gateway: &mut dyn GatewayHealth,
     stderr: &mut impl Write,
 ) -> u8 {
-    let mut sink = PnsProducer::new(
+    let mut sink = alert_sink(
+        config.delivery,
         runners.producer,
-        config.pns.clone(),
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(runners.fallback, config.alarm.clone()),
+        &mut *stderr,
     );
     let outcome = Watchdog {
         clock: &mut clock,

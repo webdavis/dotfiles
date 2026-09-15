@@ -1,4 +1,4 @@
-use posture_pns_wire::{
+use posture_producer_wire::{
     DeliveryOutcome, DestinationOutcome, Name, Rejected, Rejection, Request, RequestId,
     ResultEnvelope, Signal, Violation, decode_request, decode_result,
 };

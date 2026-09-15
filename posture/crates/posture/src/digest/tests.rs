@@ -117,10 +117,15 @@ impl Fixture {
         }
     }
 
+    /// The one owned command this fixture's pages are handed to.
+    fn engine(&self) -> std::path::PathBuf {
+        self.home.join("engine")
+    }
+
     fn config(&self) -> Configuration {
         Configuration {
             store: self.store.clone(),
-            pns: self.home.join("pns"),
+            delivery: crate::producer_delivery(&self.engine()),
             alarm: self.home.join("osascript"),
             limits: Default::default(),
         }
@@ -129,7 +134,7 @@ impl Fixture {
     fn run(&self, reply: Reply, stderr: &mut Vec<u8>) -> u8 {
         let config = self.config();
         let runner = Runner {
-            expected: config.pns.clone(),
+            expected: self.engine(),
             reply: Some(reply),
             effects: self.effects.clone(),
         };
@@ -275,7 +280,7 @@ fn a_clock_that_cannot_answer_leaves_the_batch_untouched_and_says_so() {
     let fixture = Fixture::new(&finding("launchd", "com.example.agent"));
     let config = fixture.config();
     let runner = Runner {
-        expected: config.pns.clone(),
+        expected: fixture.engine(),
         reply: Some(Reply::Committed),
         effects: fixture.effects.clone(),
     };

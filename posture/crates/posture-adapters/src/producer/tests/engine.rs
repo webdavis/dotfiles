@@ -24,10 +24,11 @@ impl Engine {
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         Self { executable }
     }
-    fn producer(&self) -> PnsProducer<SystemRunner, Alarm> {
-        PnsProducer::new(
+    fn producer(&self) -> ProducerCommand<SystemRunner, Alarm> {
+        ProducerCommand::new(
             SystemRunner::new(Duration::from_millis(150)),
             self.executable.clone(),
+            vec!["submit".to_string(), "--json".to_string()],
             None,
             Alarm::default(),
         )

@@ -18,7 +18,7 @@
 //!
 //! File append, claim, restore and permissions belong to adapters. Derivation,
 //! grouping, sanitization and caps belong to domain policy. Notification
-//! request/result envelopes live in posture-pns-wire; this crate neither
+//! request/result envelopes live in posture-producer-wire; this crate neither
 //! copies nor forwards them.
 
 use serde::{Deserialize, Serialize};

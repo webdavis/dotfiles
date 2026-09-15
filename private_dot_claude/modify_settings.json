@@ -206,6 +206,7 @@
       "Read(~/.hermes/config.yaml)"
       "Read(~/.hermes/profiles/*/config.yaml)"
       "Read(~/.config/pns/config.toml)"
+      "Read(~/.config/posture/config.toml)"
       "Read(~/.config/uu/config.toml)"
       "Read(~/.config/lights/config.toml)"
       "Read(~/.config/atuin/config.toml)"

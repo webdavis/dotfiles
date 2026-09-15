@@ -42,7 +42,9 @@ fn an_integrity_page_carries_the_actual_hashes_and_upgrade_record() {
     config.pipeline_manifest = root.join("pipeline-manifest");
     config.managed_bin_manifest = root.join("managed-manifest");
     config.alarm = "/usr/bin/false".into();
-    for path in [&config.pns, &config.log, &config.cursor] {
+    let engine = root.join(".local/libexec/engine");
+    config.delivery = crate::producer_delivery(&engine);
+    for path in [&engine, &config.log, &config.cursor] {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     }
     let target = root.join(".local/bin/tool");
@@ -65,23 +67,23 @@ fn an_integrity_page_carries_the_actual_hashes_and_upgrade_record() {
         target.display()
     )).unwrap();
     let request = root.join("request");
-    std::fs::write(&config.pns, format!(r##"#!/bin/sh
+    std::fs::write(&engine, format!(r##"#!/bin/sh
 set -eu
 IFS= read -r request
 printf '%s\n' "$request" >'{}'
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
 printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}}\n' "$identity"
 "##, request.display())).unwrap();
-    std::fs::set_permissions(&config.pns, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
 
     let mut stderr = Vec::new();
     assert_eq!(execute(config, Time, || NoInspection, &mut stderr), 0);
     let request = std::fs::read_to_string(request).unwrap();
     for expected in [
         // THE TIER NAMES THE ROUTE, end to end, whatever route this command
-        // built its sink with. It names `posture` while `priority` cannot
-        // deliver a pns body (posture_domain::severity_route).
-        "\"route\":\"posture\"",
+        // built its sink with: a critical finding is `priority`
+        // (posture_domain::severity_route).
+        "\"route\":\"priority\"",
         "aaaaaaaaaaaa",
         "ba7816bf8f01",
         "recorded upgrade: tool 1 -> 2 at 1970-01-01T02:30:00Z",

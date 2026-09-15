@@ -49,35 +49,28 @@ pub fn severity(detector: Detector, action: Action, protection: ProtectionState)
 
 /// Which hermes route a submission of this tier belongs on.
 ///
-/// `priority` is machine health and security ONLY (operator ruling 2026-09-14),
-/// so a critical finding is the one thing posture would ever put there. It does
-/// not go there yet, and this function is where that is held.
+/// `priority` is machine health and security ONLY (operator ruling
+/// 2026-09-14), so a critical finding is the one thing posture ever puts
+/// there. Everything below critical goes to `posture`, the channel read at
+/// leisure.
 ///
-/// Two facts about the `priority` route, both measured against the live gateway:
-/// it is signed with the retired Bash alerter's key rather than the one
-/// `pns submit` signs with, so a page posted there answers 401; and its prompt
-/// names `{alert.title}` and `{alert.detail}`, while a pns body carries `agent`,
-/// `state`, `project`, `detail` and `request_id`. Hermes renders an unknown
-/// placeholder as itself and a `deliver_only` route delivers the rendered
-/// prompt, so reconciling the key alone would turn the 401 into a page reading
-/// those two literals. A refused page is worse than a late one, because pns
-/// reports a submission accepted off its own ledger rather than the
-/// destination's answer, so posture advances its cursor and the finding is gone
-/// with nothing in either channel.
-///
-/// So every tier goes to `posture`, where a page is read rather than dropped,
-/// until `priority` carries the pns key AND a prompt naming a pns body's
-/// fields. Flipping the critical arm below is the last line of the change that
-/// settles both; the tests that pin the hold are what make the flip deliberate.
+/// TWO THINGS HAVE TO BE TRUE ON THE GATEWAY for a critical page to land, and
+/// both are properties of the route rather than of this function: the route
+/// must be signed with the key the sender holds for it, which is why delivery
+/// carries ONE KEY PER ROUTE, and its prompt must name fields the posted body
+/// actually carries. A page refused by the gateway is worse than a late one
+/// when the sender reports acceptance off its own ledger rather than the
+/// destination's answer, because the cursor then advances and the finding is
+/// gone from both channels. The direct delivery path closes both halves: it
+/// signs with the route's own key and posts a body serving both prompt shapes
+/// the gateway's routes are written in.
 ///
 /// `None` is not a default: it is a submission with no tier to read at all, the
 /// heartbeat, the digest and the cursor-reset warning, and it leaves the
 /// caller's configured route standing rather than inventing one.
 pub fn severity_route(severity: Option<Severity>) -> Option<&'static str> {
     match severity? {
-        // HELD, not chosen. `priority` is where this belongs and cannot deliver
-        // it in any configuration today; see above.
-        Severity::Critical => Some("posture"),
+        Severity::Critical => Some("priority"),
         Severity::Notice | Severity::Info => Some("posture"),
     }
 }
