@@ -13,36 +13,6 @@ use crate::*;
 /// THE SAME LINE `run_event` PRINTS, prefix and all, because a second spelling
 /// of one report is a second thing to keep in step. The detached child's
 /// stdout is `/dev/null`, so this costs the event path nothing.
-/// The project this recap is about: the repository the composing directory
-/// belongs to, or nothing when it is not one.
-///
-/// THE CWD, WHICH IS WHERE THE RECAP WAS WRITTEN. A recap covers a window of
-/// time rather than one repository, so there is no field on it to read a
-/// project off; what there is, is the checkout the operator or the skill ran
-/// it in, which is the repository the window was about in every case that has
-/// ever produced one.
-///
-/// NEVER `named_project`'S DIRECTORY FALLBACK. That fallback exists for
-/// session attribution, where a worktree's directory naming its branch slug
-/// is still a name worth showing. A recap has no such use for it: git is the
-/// only source that can tell a repository from a bare directory, so a recap
-/// composed outside one carries an EMPTY project and lands on the engine's
-/// own channel through `channel_map::NO_PROJECT_KEY`, which is where every
-/// recap goes today. Filling the directory name in instead would send it to
-/// whatever channel happens to be mapped under that name, or the catch-all.
-fn recap_project() -> String {
-    let cwd = std::env::current_dir()
-        .map(|path| path.display().to_string())
-        .unwrap_or_default();
-    recap_project_of(&cwd)
-}
-
-/// `recap_project`, taking the checkout directory rather than reading it off
-/// the process, so the no-repository case is a call rather than a `chdir`.
-fn recap_project_of(cwd: &str) -> String {
-    pns_adapters::git_checkout(cwd).repository
-}
-
 pub(crate) fn deliver_recap(
     body: &str,
     channel: &str,
@@ -113,6 +83,36 @@ pub(crate) fn deliver_recap(
         }
     }
     outcomes
+}
+
+/// The project this recap is about: the repository the composing directory
+/// belongs to, or nothing when it is not one.
+///
+/// THE CWD, WHICH IS WHERE THE RECAP WAS WRITTEN. A recap covers a window of
+/// time rather than one repository, so there is no field on it to read a
+/// project off; what there is, is the checkout the operator or the skill ran
+/// it in, which is the repository the window was about in every case that has
+/// ever produced one.
+///
+/// NEVER `named_project`'S DIRECTORY FALLBACK. That fallback exists for
+/// session attribution, where a worktree's directory naming its branch slug
+/// is still a name worth showing. A recap has no such use for it: git is the
+/// only source that can tell a repository from a bare directory, so a recap
+/// composed outside one carries an EMPTY project and lands on the engine's
+/// own channel through `channel_map::NO_PROJECT_KEY`, which is where every
+/// recap goes today. Filling the directory name in instead would send it to
+/// whatever channel happens to be mapped under that name, or the catch-all.
+fn recap_project() -> String {
+    let cwd = std::env::current_dir()
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
+    recap_project_of(&cwd)
+}
+
+/// `recap_project`, taking the checkout directory rather than reading it off
+/// the process, so the no-repository case is a call rather than a `chdir`.
+fn recap_project_of(cwd: &str) -> String {
+    pns_adapters::git_checkout(cwd).repository
 }
 
 #[cfg(test)]
