@@ -7,11 +7,27 @@
 //! no longer exists, which is worse than saying nothing, because they will go
 //! and look for it. These cases turn that into a build failure.
 
-use crate::config::schema::TABLE_KEYS;
+use crate::config::schema::{TABLE_KEYS, is_open};
 use pns_domain::failure::{MOBILE_TOKEN, hermes_key_named};
-use pns_domain::routes::ROUTES;
+use pns_domain::routes::Routes;
+
+/// Every route a message in these cases is composed about: the two this
+/// machine's defaults name, and one the operator invented, because the table
+/// those keys live in takes any name the gateway serves.
+fn routes() -> Vec<String> {
+    let shipped = Routes::default();
+    vec![
+        shipped.default_route().to_string(),
+        shipped.urgent_route().to_string(),
+        "weather-balloons".to_string(),
+    ]
+}
 
 /// A quoted key, split back into the table and key the roster states.
+///
+/// AN OPEN TABLE SERVES EVERY KEY, which is what makes the route keys pass:
+/// their names are the operator's gateway's, so the commitment a message makes
+/// is to the TABLE, and that table still has to be one the schema declares.
 fn declared(quoted: &str) -> bool {
     let Some((table, key)) = quoted
         .strip_prefix('[')
@@ -21,16 +37,16 @@ fn declared(quoted: &str) -> bool {
     };
     TABLE_KEYS
         .iter()
-        .any(|(name, keys)| *name == table && keys.contains(&key))
+        .any(|(name, keys)| *name == table && (is_open(table) || keys.contains(&key)))
 }
 
 #[test]
 fn every_config_key_a_failure_message_quotes_is_a_key_the_schema_declares() {
     let mut quoted = vec![MOBILE_TOKEN.to_string()];
     // ONE PER ROUTE, because the hermes wording names the route's own key and
-    // a roster missing a route is a message pointing at a key the config
-    // refuses.
-    quoted.extend(ROUTES.iter().map(|route| hermes_key_named(route)));
+    // a table that stopped serving them is a message pointing at a key the
+    // config refuses.
+    quoted.extend(routes().iter().map(|route| hermes_key_named(route)));
     for quoted in quoted {
         assert!(
             declared(&quoted),
@@ -45,7 +61,8 @@ fn every_config_key_a_failure_message_quotes_is_a_key_the_schema_declares() {
 /// gateway's own answers.
 #[test]
 fn the_no_key_refusal_quotes_a_key_the_schema_declares() {
-    for route in ROUTES {
+    for route in routes() {
+        let route = route.as_str();
         let said = pns_hermes::skipped_line(route);
         let quoted = hermes_key_named(route);
         assert!(
@@ -65,5 +82,8 @@ fn a_quoted_key_the_schema_does_not_declare_is_rejected() {
     assert!(!declared("[plugins.hermes.nested] pns"));
     assert!(!declared("[plugins.hermes.keys]pns"));
     assert!(!declared("plugins.hermes.keys pns"));
-    assert!(!declared("[plugins.hermes.keys] general"));
+    assert!(
+        !declared("[plugins.mobile] tokens"),
+        "a closed table still refuses a key it does not serve"
+    );
 }

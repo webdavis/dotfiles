@@ -80,9 +80,9 @@ pub(super) const PLUGINS_DISCORD: Table = Table {
 const PLUGINS_DISCORD_CHANNELS: Table = Table {
     name: "plugins.discord.channels",
     prose: "# Where a post goes, looked up in this order, first hit wins: the route the\n\
-                 # event named (`priority` carries anything critical, whatever the\n\
+                 # event named (the urgent route carries anything critical, whatever the\n\
                  # project), then its repository as `owner/name`, then the bare project\n\
-                 # name, then `pns-events` for an event with no project at all, then\n\
+                 # name, then the default route for an event with no project at all, then\n\
                  # `default`. The last two are deliberately different channels: an\n\
                  # unmapped project and no project are two failures, in two places to\n\
                  # look. `default` is REQUIRED and an armed table without it is refused at\n\
@@ -111,35 +111,20 @@ pub(super) const PLUGINS_HERMES: Table = Table {
 /// One signing key per route, because one key for all of them means a key
 /// leaked from any route can post to every route.
 ///
-/// A ROUTE WITH NO KEY POSTS NOTHING and says so on the spot, so a key left
-/// commented below is that route switched off rather than a route signing with
-/// somebody else's secret. The ROSTER is `pns_domain::routes::ROUTES` and the
-/// keys below are that list written out; a route in one and not the other is a
-/// red test.
+/// AN OPEN TABLE, AND THE ROSTER ITSELF. Its keys are the route names the
+/// operator's own gateway serves, which pns compiles in no list of, so there
+/// is nothing to declare here: whatever the values file writes is what goes
+/// out, and a route with no key here posts nothing and says which key is
+/// missing rather than signing with somebody else's secret.
 const PLUGINS_HERMES_KEYS: Table = Table {
     name: "plugins.hermes.keys",
-    prose: "# One signing key per route, each prepared in ~/.hermes/config.yaml under\n\
-                 # the same name. A route with no key here posts nothing and says which\n\
-                 # key is missing.\n",
+    prose: "# One signing key per route, keyed by the route name and each prepared in\n\
+                 # ~/.hermes/config.yaml under that same name. These keys are the whole\n\
+                 # roster: a route named here is a route this machine will post to, and\n\
+                 # one with no key posts nothing and says which key is missing.\n",
     opt_in: true,
     children: &[],
-    keys: &[
-        Key {
-            name: "pns-events",
-            prose: "# Every event with no route of its own, the return recap included.\n",
-            sample: Sample::Example("\"\""),
-        },
-        Key {
-            name: "posture-pages",
-            prose: "# Pages the posture pipeline submits.\n",
-            sample: Sample::Example("\"\""),
-        },
-        Key {
-            name: "priority",
-            prose: "# Machine health and security, and the stale-block escalation.\n",
-            sample: Sample::Example("\"\""),
-        },
-    ],
+    keys: &[],
 };
 pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
     name: "plugins.macos-banner",

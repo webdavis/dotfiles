@@ -38,6 +38,13 @@ pub struct Config {
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
+    /// `[routes]`: what the two routes pns selects for itself are called.
+    ///
+    /// NOT AN OPTION and not a list: both names are defaulted, so a file with
+    /// no table and a file writing the defaults are the same statement, and
+    /// every OTHER route this machine posts to is named by the producer that
+    /// raised the event and granted a key in `[plugins.hermes.keys]`.
+    pub routes: pns_domain::routes::Routes,
     pub retry_limits: pns_domain::retry::RetryLimits,
     pub retry_backoff: pns_domain::retry::RetryBackoff,
     /// `[nag] after_secs`: how long an unanswered approval waits before it is
@@ -82,6 +89,7 @@ impl Default for Config {
             recap: Recap::default(),
             focus_silence: Vec::new(),
             bypass_silence_classes: vec!["security".into()],
+            routes: pns_domain::routes::Routes::default(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),

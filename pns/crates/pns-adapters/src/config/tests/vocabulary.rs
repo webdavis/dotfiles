@@ -133,34 +133,47 @@ fn every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves() {
 }
 
 #[test]
-fn a_hermes_key_named_for_a_route_no_code_posts_to_is_refused_listing_the_routes() {
-    // A KEY UNDER A ROUTE NOTHING POSTS TO IS A SECRET THAT NEVER SIGNS
-    // ANYTHING, and the operator who wrote it has a prepared gateway route,
-    // a vault entry and a config line, all inert. `general` is the real
-    // near-miss: hermes serves that route and pns never posts to it. `pns`
-    // and `posture` are the near-misses of 2026-09-14, when the channels were
-    // renamed and those two names became GitHub repo channels no route serves,
-    // so a key still written under either is a stale config line rather than a
-    // route that quietly signs nothing. `pns-recap` is the near-miss of
-    // 2026-09-15: the channel and both its vault entries were deleted, so a
-    // key left under that name is one whose entry no longer exists.
-    for unserved in ["general", "pns", "pns-recap", "posture"] {
-        let said = refusal(&format!(
-            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{unserved} = \"secret\"\n"
-        ));
-        assert!(
-            said.contains("`plugins.hermes.keys`"),
-            "the nested table is named: {said}"
+fn a_key_under_any_route_name_the_gateway_serves_is_accepted() {
+    // THE MUTANT THIS PINS: the compiled route roster restored. Until
+    // 2026-09-15 this table was checked against a list of three names in
+    // pns's own source, which made one deployment's gateway a condition of
+    // the product loading: every name below was refused at load. The keys ARE
+    // the roster now, so a route this repository has never heard of works.
+    //
+    // `general` is the real case: hermes serves that route, and a machine
+    // that wants its own events there says so here. `weather-balloons` is a
+    // route nothing in this repository will ever mention.
+    for route in ["general", "weather-balloons", "pns_events_2"] {
+        let text = format!(
+            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{route} = \"secret\"\n"
         );
-        assert!(
-            said.contains(&format!("`{unserved}`")),
-            "and so is the route: {said}"
+        let config = crate::config::parse_config(&text)
+            .unwrap_or_else(|error| panic!("`{route}` was refused: {error:?}"));
+        let settings = &config.plugins["hermes"].settings;
+        assert_eq!(
+            crate::config::hermes_keys(settings).key_for(route),
+            Some("secret"),
+            "`{route}` parsed and then granted no key"
         );
-        for route in pns_domain::routes::ROUTES {
-            assert!(
-                said.contains(route),
-                "and `{route}` is among the routes it says it serves: {said}"
-            );
-        }
     }
+}
+
+#[test]
+fn a_route_name_no_url_could_carry_still_signs_nothing() {
+    // AND THE SAFETY PROPERTY THE OLD ROSTER WAS CHECKED FOR SURVIVES: a name
+    // pns cannot build a URL out of is one nothing posts to, so the key it
+    // holds signs nothing rather than signing for a route nobody granted.
+    let config = crate::config::parse_config(
+        "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\"a/b\" = \"secret\"\n",
+    )
+    .expect("an unusable name is the operator's to write");
+    assert!(
+        !pns_domain::safety::route_name_is_usable("a/b"),
+        "the name this case is about became usable"
+    );
+    assert_eq!(
+        crate::config::hermes_keys(&config.plugins["hermes"].settings).key_for("pns-events"),
+        None,
+        "the unusable name granted the default route a key"
+    );
 }

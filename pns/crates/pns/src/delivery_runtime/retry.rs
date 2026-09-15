@@ -15,18 +15,24 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
         Ok(LoadOutcome::Loaded(config)) => (config.retry_limits, config.retry_backoff),
         _ => Default::default(),
     };
-    let (mobile, hermes_keys, discord) = match &loaded {
+    let (mobile, hermes_keys, discord, routes) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             read_mobile(config),
             plugin_settings(config, "hermes")
                 .map(hermes_keys)
                 .unwrap_or_default(),
             read_discord(config),
+            config.routes.clone(),
         ),
+        // THE ROUTE NAMES FALL BACK TO THE SHIPPED PAIR rather than to
+        // nothing, unlike the secrets beside them: a name is not a
+        // permission, and a retry whose leg already carries its own route
+        // only needs these for the default the URL is built from.
         _ => (
             Mobile::default(),
             HermesKeys::default(),
             DiscordSettings::default(),
+            pns_domain::routes::Routes::default(),
         ),
     };
     let (selection, _) = select_plugins(&roster(), loaded);
@@ -43,6 +49,7 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
                 &mobile,
                 &hermes_keys,
                 &discord,
+                &routes,
             );
             SubmissionDelivery {
                 ledger: &store,

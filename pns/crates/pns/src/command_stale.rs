@@ -29,6 +29,17 @@ pub(crate) fn stale_mode() -> i32 {
     // WHICH IS WHY THE CLOCK IS READ FIRST. A machine with no clock cannot ask
     // the fire anything, off or not, so it says so and stops.
     let window = stale_after_secs();
+    // THE ROUTE'S NAME, for the unattended line alone: the page itself names
+    // a KIND, and the event path turns that into a route off this same table.
+    let urgent_route = || {
+        let home = std::env::var("HOME").unwrap_or_default();
+        match load_config(&config_path(&home)) {
+            Ok(LoadOutcome::Loaded(config)) => config.routes.urgent_route().to_string(),
+            _ => pns_domain::routes::Routes::default()
+                .urgent_route()
+                .to_string(),
+        }
+    };
     // NO CLOCK IS NO PAGE. Every input this cannot read resolves to silence,
     // and a wait nothing can measure is one of them.
     let probes = system_probes();
@@ -43,7 +54,9 @@ pub(crate) fn stale_mode() -> i32 {
         pns_application::operator_surface_reading(&probes, &overrides_from_env(), Some(now));
     match (pns_application::EscalateStaleBlocks {
         waits: &pns_adapters::SqliteStore::new(state_dir()),
-        notifier: &StaleNotification,
+        notifier: &StaleNotification {
+            urgent_route: urgent_route(),
+        },
     })
     .run(now, window, &reading)
     {
@@ -70,7 +83,14 @@ pub(crate) fn stale_mode() -> i32 {
 }
 
 /// The page itself, through the ordinary event path.
-struct StaleNotification;
+///
+/// IT CARRIES THE ROUTE'S NAME ONLY TO SAY IT. The page names no route: it is
+/// a health event, and the event path resolves that against `[routes]`. This
+/// is the name that resolution will pick, read once at the top of the fire so
+/// the unattended line can print it.
+struct StaleNotification {
+    urgent_route: String,
+}
 impl pns_application::RaiseNotification for StaleNotification {
     fn raise(&self, event: &pns_domain::EventArgs) {
         // `Attempt::Nudge` FOR THE NAG'S REASON: this is a second card about
@@ -98,8 +118,7 @@ impl pns_application::RaiseNotification for StaleNotification {
             // line claiming it never arrived would be the false half.
             eprintln!(
                 "pns stale: the page about {} is not confirmed on the {} route",
-                event.project,
-                pns_domain::stale::PRIORITY_ROUTE
+                event.project, self.urgent_route
             );
         }
     }

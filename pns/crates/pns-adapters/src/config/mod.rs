@@ -58,6 +58,8 @@ use values::{bounded, flag, strings, text};
 mod schema;
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
 use schema::{TARGET_KEYS, admits, admits_flat, keys_of, unknown_key};
+mod routes;
+use routes::parse_routes;
 mod lights_tables;
 use lights_tables::parse_lights;
 mod lights_bounds;
@@ -144,9 +146,9 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let Some((key, _)) = bare.split_once(" = ") else {
             continue;
         };
-        // A HYPHEN IS PART OF A KEY, not a word break: the hermes route
-        // names are keys and one of them is `pns-events`, so a filter without
-        // it would skip that line and count one fewer than the text
+        // A HYPHEN IS PART OF A KEY, not a word break: the hermes route names
+        // are keys and this repository's own carry hyphens, so a filter
+        // without it would skip those lines and count fewer than the text
         // documents.
         if !key
             .chars()
@@ -163,6 +165,14 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         };
         let serves = keys_of(&roster_table)
             .unwrap_or_else(|| panic!("it writes `[{table}]`, which no table serves"));
+        // AN OPEN TABLE'S KEYS ARE THE OPERATOR'S, so there is no roster to
+        // hold a documented one against: the route names and the project
+        // names in this repository's own shipped config are exactly the lines
+        // this scan cannot judge, and counting them is all it does.
+        if schema::is_open(&roster_table) {
+            found += 1;
+            continue;
+        }
         assert!(
             serves.contains(&key),
             "it documents `{key}` under `[{table}]`, which does not serve it"

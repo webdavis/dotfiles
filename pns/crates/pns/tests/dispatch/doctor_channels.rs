@@ -218,18 +218,25 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
 #[test]
 fn the_doctor_names_every_route_the_config_armed_no_key_for() {
     // THE TEST SEND CANNOT FIND THESE. It posts on the default route alone, so
-    // two of the three keys are never exercised, and `priority` carries the
+    // every other key is never exercised, and the urgent route carries the
     // stale-block escalation, which is raised asynchronously and records its
     // refusal where nothing prints it. Without this census an unarmed route is
     // silence in its own channel and a green doctor.
+    //
+    // WHICH ROUTES ARE ASKED ABOUT IS THE CONFIG'S TO SAY: the two this file
+    // names in `[routes]`, plus every route it wrote a key line for and left
+    // empty. `posture-pages` is a route pns has never heard of, which is
+    // exactly why it has to come out of the file.
     let sandbox = Sandbox::new("doctor-unarmed-routes");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"armed\"\n",
+        "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
+         [plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\
+         logbook = \"armed\"\nposture-pages = \"\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let said = stderr(&output);
-    for route in ["posture-pages", "priority"] {
+    for route in ["posture-pages", "sirens"] {
         assert!(
             said.contains(&format!(
                 "no hermes signing key for the {route} route, so every post to it is \
@@ -239,7 +246,11 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
         );
     }
     assert!(
-        !said.contains("for the pns-events route"),
+        !said.contains("for the logbook route"),
         "the one route that IS armed is not named: {said}"
+    );
+    assert!(
+        !said.contains("for the pns-events route"),
+        "a route name the config never wrote was invented: {said}"
     );
 }

@@ -12,6 +12,36 @@ pub(super) const PHONE: Table = Table {
         sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
     }],
 };
+/// What the two routes pns picks for itself are called.
+///
+/// A CORE TABLE WRITTEN LIVE AT ITS DEFAULTS, because there is no such thing
+/// as this machine having no default route: something has to receive an event
+/// whose producer named none, and the name is worth reading in the file
+/// rather than guessing at.
+pub(super) const ROUTES: Table = Table {
+    name: "routes",
+    prose: "# The two routes pns picks for itself, by the name your gateway serves them\n\
+            # under. Every OTHER route is named by the producer that raised the event,\n\
+            # and exists for this machine as soon as it has a key below.\n",
+    opt_in: false,
+    children: &[],
+    keys: &[
+        Key {
+            name: "default",
+            prose: "# Where an event whose producer named no route lands, the return recap\n\
+                         # included. It is also the last path segment of the gateway URL pns\n\
+                         # posts to unless PNS_HERMES_URL says otherwise.\n",
+            sample: Sample::Default("\"pns-events\""),
+        },
+        Key {
+            name: "urgent",
+            prose: "# The route reserved for what needs a human now: a machine-health event\n\
+                         # (`pns --kind health`) and the stale-block escalation both take it,\n\
+                         # whatever it is called.\n",
+            sample: Sample::Default("\"priority\""),
+        },
+    ],
+};
 pub(super) const DAEMON: Table = Table {
     name: "daemon",
     prose: DAEMON_PROSE,

@@ -19,6 +19,19 @@
 # and uncomment it. A plugin names its backend with `type`, and the key is
 # required: nothing guesses which implementation a table meant.
 
+# The two routes pns picks for itself, by the name your gateway serves them
+# under. Every OTHER route is named by the producer that raised the event,
+# and exists for this machine as soon as it has a key below.
+[routes]
+# Where an event whose producer named no route lands, the return recap
+# included. It is also the last path segment of the gateway URL pns
+# posts to unless PNS_HERMES_URL says otherwise.
+default = "pns-events"
+# The route reserved for what needs a human now: a machine-health event
+# (`pns --kind health`) and the stale-block escalation both take it,
+# whatever it is called.
+urgent = "priority"
+
 [plugins.mobile]
 enabled = true
 # Which compiled-in backend carries the card. "moshi" is the only one
@@ -46,15 +59,15 @@ submit_deadline_secs = 5
 [plugins.hermes]
 enabled = true
 
-# One signing key per route, each prepared in ~/.hermes/config.yaml under
-# the same name. A route with no key here posts nothing and says which
-# key is missing.
+# One signing key per route, keyed by the route name and each prepared in
+# ~/.hermes/config.yaml under that same name. These keys are the whole
+# roster: a route named here is a route this machine will post to, and
+# one with no key posts nothing and says which key is missing.
+# pns-events and priority are the two routes [routes] above names; posture-pages
+# is named by the producer that submits pages under it and nowhere in pns.
 [plugins.hermes.keys]
-# Every event with no route of its own, the return recap included.
 pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
-# Pages the posture pipeline submits.
 posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
-# Machine health and security, and the stale-block escalation.
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 
 # The durable paper trail, posted straight to Discord by pns's own bot with
@@ -74,9 +87,9 @@ type = "bot"
 token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
 
 # Where a post goes, looked up in this order, first hit wins: the route the
-# event named (`priority` carries anything critical, whatever the
+# event named (the urgent route carries anything critical, whatever the
 # project), then its repository as `owner/name`, then the bare project
-# name, then `pns-events` for an event with no project at all, then
+# name, then the default route for an event with no project at all, then
 # `default`. The last two are deliberately different channels: an
 # unmapped project and no project are two failures, in two places to
 # look. `default` is REQUIRED and an armed table without it is refused at

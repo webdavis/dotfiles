@@ -45,6 +45,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.stale_after_secs = schedules.stale_after_secs;
             }
             "failures" => config.failures = parse_failures(value)?,
+            "routes" => config.routes = parse_routes(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
             "plugins" => {
                 let toml::Value::Table(plugins) = value else {

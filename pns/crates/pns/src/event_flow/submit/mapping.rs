@@ -39,6 +39,10 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             long_running: request
                 .elapsed_secs
                 .is_some_and(|seconds| seconds >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
+            // THE PRODUCER API NAMES A ROUTE, NEVER A KIND: version one of the
+            // request carries `route`, so a submission that wants the urgent
+            // one spells it, and the kind is the ordinary session default.
+            kind: pns_domain::routes::Kind::default(),
         },
         attempt,
     )

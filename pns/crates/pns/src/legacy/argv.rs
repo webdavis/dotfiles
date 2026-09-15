@@ -96,13 +96,11 @@ impl ParsedArgs {
         let Some(mut event) = event else {
             return Ok(None);
         };
-        // THE NAMED ROUTE WINS. A producer that said where already answered
-        // the question the kind is here to answer.
-        if event.channel.is_empty()
-            && let Some(route) = kind.route()
-        {
-            event.channel = route.to_owned();
-        }
+        // THE KIND TRAVELS, NEVER THE ROUTE IT NAMES. Which route a kind takes
+        // is settled once the config is read (`EventArgs::routed`), because the
+        // route's NAME is the operator's (`[routes] urgent`) and this parse
+        // runs before any file is opened.
+        event.kind = kind;
         event.scope = self.scope.ok_or(Refusal::Scope)?;
         Ok(Some(event))
     }
