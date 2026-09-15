@@ -1,7 +1,7 @@
 -- custom_api.autosave (spec 5.3, item 42): auto-save.nvim keeps its hands off
 -- the buffers claudecode.nvim opens for a proposed edit, so a diff is resolved
 -- by `<leader>Cy`/`<leader>Cn` and never by a write that fired on a timer, and
--- an automatic write announces itself so lsp-format can stand down.
+-- an automatic write announces itself so conform can stand down.
 --
 -- `should_save` identifies a proposal by the marker claudecode sets on it, not
 -- by buftype: `acwrite` is a shared buftype that Octo and gitsigns also use for
@@ -86,7 +86,7 @@ return {
     assert(autosave().should_save(buf) == true)
   end,
 
-  -- ── the write flag lsp-format reads ──
+  -- ── the write flag conform reads ──
 
   ["the write flag is up for the write itself"] = function()
     local buf = scratch()
