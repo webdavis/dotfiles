@@ -66,30 +66,35 @@ return {
             -- colors, so the substitution cannot land inside an escape).
 
             -- One row per notification: unread marker, the repository name
-            -- without its owner in grey, then as much of the title as fits.
-            -- 1 marker + 1 space + repo + 1 space + title, so the title gets
-            -- the pane less those three columns and the repository name.
+            -- without its owner in grey, then as much of the title as fits,
+            -- ending in ".." when the title was cut. 1 marker + 1 space + repo
+            -- + 1 space + title, so the title gets the pane less those three
+            -- columns and the repository name.
             local notifications_title_budget = pane_width - 3
             local notifications_jq = [[
 if length == 0 then "inbox zero" else
   .[]
   | (if .unread then "*" else " " end) as $mark
   | (.repository.name | gsub("[^ -~]"; "") | .[0:20]) as $repo
-  | (.subject.title | gsub("[^ -~]"; "") | .[0:(]] .. notifications_title_budget .. [[ - ($repo | length))]) as $title
-  | $mark + " \u001b[90m" + $repo + "\u001b[0m " + $title
+  | (]] .. notifications_title_budget .. [[ - ($repo | length)) as $room
+  | (.subject.title | gsub("[^ -~]"; "")) as $title
+  | (if ($title | length) > $room then $title[0:($room - 2)] + ".." else $title end) as $row
+  | $mark + " \u001b[90m" + $repo + "\u001b[0m " + $row
 end
 ]]
 
-            -- One row per issue or pull request: `#<number> <title>`, shared by
-            -- both sections. 1 space between them, so the title gets the pane
-            -- less that space and the number.
+            -- One row per issue or pull request: `#<number> <title>`, shared
+            -- by both sections, the title ending in ".." when it was cut.
+            -- 1 space between them, so the title gets the pane less that space
+            -- and the number.
             local number_title_budget = pane_width - 1
             local number_title_jq = [[
 if length == 0 then "none" else
   .[]
   | ("#" + (.number | tostring)) as $id
+  | (]] .. number_title_budget .. [[ - ($id | length)) as $room
   | (.title | gsub("[^ -~]"; "")) as $title
-  | $id + " " + $title[0:(]] .. number_title_budget .. [[ - ($id | length))]
+  | $id + " " + (if ($title | length) > $room then $title[0:($room - 2)] + ".." else $title end)
 end
 ]]
 

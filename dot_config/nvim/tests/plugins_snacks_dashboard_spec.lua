@@ -128,6 +128,7 @@ return {
       not lines[1]:find("🚀", 1, true),
       "an emoji survived, so jq's codepoint slicing no longer matches the pane"
     )
+    assert(lines[1]:sub(-2) == "..", "a cut title is not marked as cut: " .. lines[1])
   end,
 
   ["notifications name the repository without its owner"] = function()
@@ -154,6 +155,7 @@ return {
     assert(#lines == 2, ("one row per item, got %d: %s"):format(#lines, vim.inspect(lines)))
     assert(widest(lines) <= pane_width, ("widest row is %d columns: %s"):format(widest(lines), vim.inspect(lines)))
     assert(lines[1]:sub(1, 6) == "#12345", "the row lost its number: " .. lines[1])
+    assert(lines[1]:sub(-2) == "..", "a cut title is not marked as cut: " .. lines[1])
     assert(lines[2] == "#1 short enough", "a row that fits was changed: " .. lines[2])
   end,
 
