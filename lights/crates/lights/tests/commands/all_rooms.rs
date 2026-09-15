@@ -124,3 +124,21 @@ fn all_room_names_are_the_ones_the_help_promises() {
         assert!(r.stdout.contains(room), "{room}");
     }
 }
+
+#[test]
+fn all_reaches_the_default_room_even_when_no_alias_names_it() {
+    // A config that names a default_room but leaves [rooms] empty still has
+    // three compiled-in aliases (studio/bedroom/kitchen), none of which is
+    // this default room, so the alias table alone would never reach it.
+    let config = format!("default_room = \"Office\"\n{}", config());
+    let mut responses = vec![(200, fixture())];
+    responses.extend((0..3).map(|_| (200, json!({"errors":[],"data":[]}))));
+    let (r, w) = command(&["--all", "brightness", "up"], Some(&config), responses);
+    assert_eq!(r.exit, 2);
+    assert_eq!(
+        r.stdout,
+        "3F - MBedroom: brightness up\n2F - Kitchen: brightness up\n3F - Studio: brightness up\n"
+    );
+    assert_eq!(r.stderr, "lights: unknown room \"Office\"\n");
+    assert_eq!(w.len(), 4);
+}

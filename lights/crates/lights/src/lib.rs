@@ -79,9 +79,11 @@ pub fn run<C: LightController>(
     // EVERY CONFIGURED ROOM, each read and written on its own, so `scene next`
     // leaves each room one step past where that room actually was.
     if request.all {
-        let results = settings
-            .aliases
-            .rooms()
+        let mut rooms = settings.aliases.rooms();
+        if !rooms.contains(&settings.default_room) {
+            rooms.push(settings.default_room.clone());
+        }
+        let results = rooms
             .iter()
             .map(|room| execute(&controller, &settings, &memory, room, &request.command))
             .collect::<Vec<_>>();
