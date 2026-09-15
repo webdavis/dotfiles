@@ -606,6 +606,68 @@ return {
         end,
       })
 
+      -- rustaceanvim's own neotest adapter, proven against a scratch two-test crate
+      -- (docs/research/2026-09-rust-neotest-disposition.md, finding 2): the tree it discovers is
+      -- correct once rust-analyzer has loaded the workspace. Getting there is the problem the
+      -- wrapper below solves. rustaceanvim discovers and runs tests through the LSP rather than
+      -- tree-sitter, so it needs no filetype-lazy parser wait of its own.
+      --
+      -- Readiness gate (Option 1 of that document): the adapter has none, so a discovery asked
+      -- before rust-analyzer has produced test runnables comes back as either a file-only tree
+      -- (finding 3, phase A) or a raised assertion from neotest's own empty-tree path (phase B),
+      -- and both are treated as final, since rustaceanvim retries on nothing but a buffer write.
+      -- This wraps `discover_positions` in a bounded retry instead: up to 10s, polled every
+      -- 400ms, comfortably past the ~3s a scratch crate needed to become ready and well short of
+      -- the point an operator would give up and press the key again. A tree still empty at the
+      -- deadline is returned as-is, matching what a manual retry after a save would produce
+      -- anyway, rather than raising. This configures the table rustaceanvim's own module
+      -- returns; it does not patch, fork or modify rustaceanvim itself. WHEN THE PIN MOVES,
+      -- re-check whether upstream has grown a readiness gate of its own (open question 3 in the
+      -- research document); if so, this wrapper becomes dead code and should be deleted.
+      --
+      -- The retry is a one-time warm-up, not a per-file cost: neotest's directory discovery
+      -- calls `discover_positions` once per `.rs` file, and rustaceanvim's `is_test_file`
+      -- returns true for every one, so an unbounded per-file retry would spin every test-less
+      -- source file in a crate to the full 10s deadline. `warmed` latches true the first time
+      -- rust-analyzer has produced a real (non-empty) tree, after which every call, including
+      -- one for a file that genuinely has no tests, returns on its first try.
+      local rustaceanvim_neotest = require("rustaceanvim.neotest")
+      local warmed = false
+      local rust = vim.tbl_extend("force", rustaceanvim_neotest, {
+        discover_positions = function(file_path)
+          if warmed then
+            local ok, tree = pcall(rustaceanvim_neotest.discover_positions, file_path)
+            return ok and tree or nil
+          end
+          local deadline = vim.uv.hrtime() + 10e9
+          while true do
+            local ok, tree = pcall(rustaceanvim_neotest.discover_positions, file_path)
+            if ok and tree and #tree:children() > 0 then
+              warmed = true
+              return tree
+            end
+            if vim.uv.hrtime() >= deadline then
+              warmed = true
+              return ok and tree or nil
+            end
+            require("nio").sleep(400)
+          end
+        end,
+      })
+
+      -- Proven against a scratch Maven project with one JUnit 5 test, discovered, compiled and
+      -- run through a real jdtls client (`lsp.lua`'s mason-lspconfig roster now installs it).
+      -- Classpath and compilation both come from that LSP client, which is why `lsp.lua` adds
+      -- `jdtls` rather than this file wiring a language server of its own. First use on a
+      -- machine needs one manual `:NeotestJava setup`, which downloads and checksums the JUnit
+      -- Platform Console Standalone jar; nothing here can do that download unattended.
+      local java = require("neotest-java")({})
+
+      -- Proven against a scratch mix project with one ExUnit test and one doctest, both
+      -- discovered and run through a plain `elixir -S mix test` invocation. No LSP or classpath
+      -- dependency, unlike Java.
+      local elixir = require("neotest-elixir")
+
       -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
       -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
       -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
@@ -614,6 +676,10 @@ return {
       -- `__call` override only what the caller supplies, busted's config module starts at its
       -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
       -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
+      -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
+      -- `discover_positions` needs overriding and the readiness gate above already built the
+      -- replacement; `java` IS constructed at load, like neotest-python, and `elixir` takes the
+      -- bare module, like busted.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -622,6 +688,9 @@ return {
           vitest,
           jest,
           node,
+          rust,
+          java,
+          elixir,
           require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
@@ -639,4 +708,18 @@ return {
     commit = "5b2d7efea43cb0d66d97de65b9ebc7b1db4659fd",
     ft = "swift",
   },
+  { "mrcjkb/rustaceanvim", commit = "a968f5133b8b24f481de12f08cd79420d1ace559", ft = "rust" },
+  { "rcasia/neotest-java", commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870", ft = "java" },
+  -- jfpedroza/neotest-elixir has had no commit since 2025-01-19, twenty months as of this pin,
+  -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
+  -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
+  { "jfpedroza/neotest-elixir", commit = "a242aebeaa6997c1c149138ff77f6cacbe33b6fc", ft = "elixir" },
+  -- Zig: withheld. lawrence-laz/neotest-zig discovers positions correctly, but its bundled
+  -- Zig-side test runner (zig/neotest_runner.zig) is written against std.io, std.heap's old
+  -- GeneralPurposeAllocator name and std.debug.getStderrMutex, all removed or renamed by the
+  -- time of Zig 0.16.0, which is both this machine's toolchain and the version zls was pinned
+  -- to. `zig test` fails to compile that runner, so no test can actually be run. Discovery-only
+  -- is not a usable adapter, so this stays unpinned; see
+  -- docs/research/2026-09-15-neotest-language-coverage.md for the exact compiler errors and a
+  -- starting point for a from-scratch adapter.
 }
