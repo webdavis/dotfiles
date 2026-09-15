@@ -27,6 +27,7 @@ pub(super) fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
                 lights.blocked = parse_blocked(&setting, lights.blocked)?;
             }
             "dim" => lights.dim = parse_breath("lights.dim", &setting, lights.dim)?,
+            "github" => lights.github = parse_github(&setting, lights.github)?,
             "unread" => lights.unread = parse_unread(&setting, lights.unread)?,
             "loop" => lights.looping = parse_looping(&setting, lights.looping)?,
             "lamp" => lights.lamps = parse_targets("lamp", &setting)?,
@@ -62,6 +63,32 @@ pub(super) fn parse_pulse(
         }
     }
     Ok(pulse)
+}
+
+/// `[lights.github]`: the one blink that carries its own two COLOURS.
+///
+/// THE PAIR IS PARSED LIKE ANY OTHER KEY and refused by name, rather than
+/// being read as a bare array and validated later: a coordinate outside the
+/// unit square is not a colour the bridge can be asked for, and a lamp armed
+/// with one would either clamp somewhere nobody chose or not light at all.
+pub(super) fn parse_github(
+    setting: &toml::Value,
+    mut github: Github,
+) -> Result<Github, ConfigError> {
+    const WHERE: &str = "lights.github";
+    for (key, stated) in behaviour_table(WHERE, setting)? {
+        admits_flat(WHERE, key)?;
+        match key.as_str() {
+            "duration_ms" => {
+                github.pulse.duration_ms = bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+            }
+            "brightness" => github.pulse.brightness = percent(WHERE, key, stated)?,
+            "pass" => github.pass = coordinate(WHERE, key, stated)?,
+            "fail" => github.fail = coordinate(WHERE, key, stated)?,
+            _ => return Err(unknown_key(WHERE, WHERE, key)),
+        }
+    }
+    Ok(github)
 }
 
 pub(super) fn parse_breath(
