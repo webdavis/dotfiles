@@ -8,6 +8,7 @@ pub(super) const DELIVERY: Table = Table {
             # unchanged. Names match exactly. An empty list allows no bypass.\n\
             # Exhausted delivery retries remain available for operator review.\n",
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "bypass_silence_classes",

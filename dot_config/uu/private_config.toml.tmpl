@@ -26,12 +26,12 @@ time = "12:00"
 # coalesces missed calendar slots, so a healthy job can produce one entry
 # covering three weeks and a missing entry says nothing on its own.
 [records]
-url = "http://127.0.0.1:8644/webhooks/unattended-upgrades"
-key = "{{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password }}"
+url = "http://127.0.0.1:8644/webhooks/uu-runs"
+key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}"
 # Optional second destination for failed, stale, pending and record-lost alarms.
 # Signed with the same key. Each configured destination is attempted once;
 # a refusal stays retryable for one-shot alarms without changing the run verdict.
-# failure_webhook = "http://127.0.0.1:8644/webhooks/unattended-upgrades-failures"
+# failure_webhook = "http://127.0.0.1:8644/webhooks/uu-failures"
 
 # Where a failed lane is reported. uu is a client here and takes no delivery
 # decision: pns owns presence and escalation. An engine that is not there leaves
@@ -82,7 +82,7 @@ type = "brew"
 brew = "/opt/homebrew/bin/brew"
 mas = "/opt/homebrew/bin/mas"
 tailscaled = "/opt/homebrew/opt/tailscale/bin/tailscaled"
-osquery_converge = "{{ .chezmoi.homeDir }}/.local/libexec/osquery/osquery-converge.sh"
+osquery_converge = ["{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "posture" }}", "converge"]
 mas_manifest = "{{ .chezmoi.homeDir }}/.local/state/homebrew/mas.Brewfile"
 upgrade_record = "{{ .chezmoi.homeDir }}/.local/state/homebrew-weekly-upgrade/last-upgrade-changes.tsv"
 deadline_secs = 21600
@@ -310,7 +310,6 @@ logs = [
   "{{ .chezmoi.homeDir }}/.local/log/atuin-daemon.log",
   "{{ .chezmoi.homeDir }}/.local/log/graphify/dotfiles-post-commit.log",
   "{{ .chezmoi.homeDir }}/.local/log/happy-daemon.log",
-  "{{ .chezmoi.homeDir }}/.local/log/osquery/alert-drainer.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/firewall-gatekeeper-monitor.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log",

@@ -1,4 +1,4 @@
-/// The recap's three delivery switches, its volume threshold, and the command
+/// The recap's two delivery switches, its volume threshold, and the command
 /// it hands the window to.
 ///
 /// ABSENT IS ALL ON, which is what makes the table optional: a machine that
@@ -31,8 +31,8 @@
 /// spawned and no directory is opened, which is the fence that makes both
 /// sections opt-in rather than merely empty.
 ///
-/// ONE NAMED VALUE, never a row of loose booleans. Four of the eight fields are
-/// bools or counts; spread through a call they would sit adjacent and a swap
+/// ONE NAMED VALUE, never a row of loose booleans. Three of the seven fields
+/// are bools or counts; spread through a call they would sit adjacent and a swap
 /// would go unnoticed, and named fields cannot be transposed. It is CLONE
 /// rather than Copy only because the argv is a `Vec`, and the composition root
 /// clones it once off a borrowed config.
@@ -40,7 +40,6 @@
 pub struct Recap {
     pub replay_card: bool,
     pub digest: bool,
-    pub digest_as_thread: bool,
     pub min_events: usize,
     pub summarizer: Option<Vec<String>>,
     pub summarizer_deadline_secs: u64,
@@ -53,7 +52,6 @@ impl Default for Recap {
         Recap {
             replay_card: true,
             digest: true,
-            digest_as_thread: true,
             min_events: DEFAULT_MIN_EVENTS,
             summarizer: None,
             summarizer_deadline_secs: DEFAULT_SUMMARIZER_DEADLINE_SECS,

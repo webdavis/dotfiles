@@ -1,14 +1,34 @@
-# Neovim Config Task List
+# Neovim configuration status
 
-- [ ] Figure out fallback LSP formatting compatibility with https://github.com/okuuva/auto-save.nvim:
-  - Ref: https://github.com/nvimtools/none-ls.nvim/wiki/Compatibility-with-other-plugins
-  - Note: this configures https://github.com/Pocco81/auto-save.nvim, which may is a little different. So
-    it's not a one-to-one drop-in and some adjustments will need to be made
-- [x] Setup [wojciech-kulik/xcodebuild.nvim](https://github.com/wojciech-kulik/xcodebuild.nvim)
-  <!-- completed: 2026-09-02 -->
-- [ ] Setup [nvim-neotest/neotest](https://github.com/nvim-neotest/neotest)
-- [x] Figure out what the difference between `cspell` and `codespell` (if there is one), and then
-  configure Neovim (via Mason or none-ls) to handle its installation and integration automatically
-      <!-- completed: 2025-11-04 -->
-- [x] Fix Neovim `lsp-format` config (currently, it's mucking up my code every time the auto-formatter
-  runs, which is every time I save) <!-- completed: 2025-11-04 -->
+Source status checked on 2026-09-13. The
+[acceptance record](../../../docs/research/2026-09-nvim-overhaul-acceptance.md) separates merged
+implementation from private checks and operator acceptance.
+
+- [x] Configure auto-save compatibility with language server protocol (LSP) formatting. Automatic writes
+  skip formatting; explicit writes retain it. Proposed claudecode diff buffers are excluded. Auto-save
+  starts disabled and is enabled with `<leader>uv`. See `lua/plugins/autosave.lua`,
+  `lua/custom_api/autosave.lua`, `lua/plugins/lsp.lua` and
+  [#337](https://github.com/webdavis/dotfiles/pull/337).
+
+- [x] Configure xcodebuild.nvim. [#292](https://github.com/webdavis/dotfiles/pull/292) added the Swift
+  stack; [#363](https://github.com/webdavis/dotfiles/pull/363) completed the configuration against its
+  pin. UIKit/Xcode and Vapor workflow acceptance remains open.
+
+- [x] Configure neotest under `<leader>t`. Python and Go landed in
+  [#334](https://github.com/webdavis/dotfiles/pull/334), JavaScript/TypeScript, Lua and Swift Testing in
+  [#338](https://github.com/webdavis/dotfiles/pull/338), and the published Bash adapter in
+  [#376](https://github.com/webdavis/dotfiles/pull/376), updated in
+  [#435](https://github.com/webdavis/dotfiles/pull/435). Rust, Zig, Java and Elixir coverage remains
+  unresolved in the existing follow-ups; this checkbox covers the configured runner and listed adapters.
+
+- [x] Resolve the cspell work. [#326](https://github.com/webdavis/dotfiles/pull/326) removed its unused
+  dependency. Both the codespell install entry and diagnostic source are commented out in
+  `lua/plugins/lsp.lua`; this configuration does not enable either spell checker.
+
+- [x] Correct format-on-save. [#335](https://github.com/webdavis/dotfiles/pull/335) removed duplicate
+  formatting; [#347](https://github.com/webdavis/dotfiles/pull/347) repaired repeated saves and formatter
+  admission. Autosave/format behavior has owned regression coverage in `tests/`.
+
+- [ ] Complete the acceptance record's rendered startup, buffer-local keys, real agent loops, custom
+  plugin interactions, Swift workflows, quiescent performance and fresh-user full apply checks. The
+  operator owns deployment and session/device checks.

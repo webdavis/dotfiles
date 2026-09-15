@@ -1,5 +1,5 @@
 use crate::SnapshotsLog;
-use posture_domain::{HeartbeatWindow, canary_freshness, heartbeat_text};
+use posture_domain::{HeartbeatWindow, Severity, canary_freshness, heartbeat_text};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WallTime {
     pub seconds: u64,
@@ -20,6 +20,11 @@ pub struct Alert {
     pub occurrence_id: Option<String>,
     pub event: &'static str,
     pub signal: AlertSignal,
+    /// The tier this submission was judged at, which decides its route.
+    ///
+    /// `None` for everything that is not a judged finding, and the sink then
+    /// keeps the route it was configured with. See `severity_route`.
+    pub severity: Option<Severity>,
     pub occurred_at: Option<u64>,
     pub title: String,
     pub detail: String,
@@ -39,9 +44,17 @@ pub enum Submission {
     NotAccepted(SubmissionFailure),
 }
 // Accepted promises a committed retriable obligation for this request, before dispatch.
-// PnsProducer establishes that from the engine's correlated ledger_committed diagnostic.
+// A delivery sink establishes that from the engine's correlated ledger_committed diagnostic.
 pub trait AlertSink {
     fn submit(&mut self, alert: &Alert) -> Submission;
+}
+/// A boxed sink IS a sink, so a composition root that picks between delivery
+/// paths at run time hands every use case one word for "wherever a page goes"
+/// rather than making each of them generic over the choice.
+impl<S: AlertSink + ?Sized> AlertSink for Box<S> {
+    fn submit(&mut self, alert: &Alert) -> Submission {
+        (**self).submit(alert)
+    }
 }
 pub struct Heartbeat<C, L, S> {
     pub clock: C,
@@ -70,6 +83,7 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
             occurrence_id: None,
             event: "heartbeat",
             signal: AlertSignal::Observation,
+            severity: None,
             occurred_at: time.map(|time| time.seconds),
             title: text.title,
             detail: text.detail,

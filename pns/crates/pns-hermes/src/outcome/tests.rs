@@ -37,10 +37,14 @@ fn sync_outcomes_are_spelled_exactly_as_the_bash_spells_them() {
 }
 
 #[test]
-fn the_no_key_line_names_the_config_key_the_operator_must_fix() {
+fn the_no_key_line_names_the_route_and_the_config_key_the_operator_must_fix() {
+    // BOTH HALVES, because with a key per route the operator needs to know
+    // which route refused as well as which table to edit: a line naming only
+    // the table leaves three keys to choose between.
     assert_eq!(
-        skipped_line(),
-        "post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent"
+        skipped_line("priority"),
+        "post SKIPPED, no hermes key for the priority route \
+         ([plugins.hermes.keys] priority); nothing was sent"
     );
 }
 

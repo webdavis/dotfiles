@@ -24,8 +24,8 @@ OSQUERY_SNAPSHOTS_LOG="${OSQUERY_SNAPSHOTS_LOG:-$HOME/.local/log/osquery/osquery
 # newest_canary_timestamp, print the NEWEST heartbeat_canary row's timestamp as a
 # plain integer, or nothing when there is no readable, well-formed canary. Select the
 # canary rows by PARSED .name and take the last (newest). fromjson? drops a torn or
-# non-JSON line instead of aborting (the resilient idiom normalize.sh uses to read
-# these same logs), and matching the PARSED .name is whitespace-tolerant, so the read
+# non-JSON line instead of aborting (the resilient idiom posture's snapshots reader
+# takes on this log), and matching the PARSED .name is whitespace-tolerant, so the read
 # does not couple to osquery's compact serialization. Prefer the envelope unixTime (an
 # integer); fall back to the snapshot column. This is the ONE place the log-derived
 # value is read AND validated, protecting BOTH consumers.

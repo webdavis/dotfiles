@@ -1,3 +1,4 @@
+use posture_adapters::Delivery;
 use std::{ffi::OsString, path::PathBuf};
 
 /// The results log the alerter reads, relative to `$HOME`.
@@ -26,7 +27,7 @@ pub(super) struct Configuration {
     pub cursor: PathBuf,
     pub allowlist: PathBuf,
     pub spool: PathBuf,
-    pub pns: PathBuf,
+    pub delivery: Delivery,
     pub alarm: PathBuf,
 }
 
@@ -66,11 +67,10 @@ impl Configuration {
             DEFAULT_MANAGED_BIN_MANIFEST,
             false,
         );
-        let mut pns = home.clone();
-        pns.push("/.cargo/bin/pns");
         // THE MANIFESTS ARE ABSOLUTE, not under HOME. They are root-owned in
         // /var/osquery precisely so the account being watched cannot rewrite
         // them, which is the whole reason a manifest is worth consulting.
+        let delivery = Delivery::read(std::path::Path::new(&home));
         Some(Self {
             home: home.to_string_lossy().into_owned(),
             log,
@@ -79,7 +79,7 @@ impl Configuration {
             spool,
             pipeline_manifest,
             managed_bin_manifest,
-            pns: pns.into(),
+            delivery,
             alarm: "/usr/bin/osascript".into(),
         })
     }

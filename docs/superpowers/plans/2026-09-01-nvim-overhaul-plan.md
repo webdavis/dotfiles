@@ -864,9 +864,11 @@ no `g:slime_target`, and no `<leader>CP`.
 **Files:** Create `lua/custom_api/herdr.lua`, `tests/herdr_spec.lua`. Modify
 `lua/plugins/claudecode.lua` (key `<leader>Cp`, `desc = "Claude: send selection or paragraph"`).
 
-**Interfaces:** `herdr.agent_pane()` wraps `herdr-nvim` (`lua/herdr-nvim/agents.lua`, module path
-re-read from the installed plugin at PR time): `agents.list()` filtered to `kind == "claude"`, then
-`agents.resolve()`, else `ui.pick_agent`; returns the pane id or nil. `herdr.may_send(status)` (pure)
+**Interfaces:** `herdr.agent_pane(on_pane)` wraps `herdr-nvim` (`lua/herdr-nvim/agents.lua`, module
+path re-read from the installed plugin at PR time): `agents.list()` filtered to `kind == "claude"` in
+the live workspace, then the agent sharing the live tab, else a lone agent, else a `vim.ui.select`
+picker; it answers through `on_pane` (the pane id, or nil when the workspace runs no Claude agent) and
+calls it not at all on a refusal or a cancelled picker. `herdr.may_send(status)` (pure)
 is the spec 7.4 table: `send` on `idle` and `done`, warn-and-send on `working` and `unknown`, REFUSE
 on `blocked`. `herdr.send(text, { submit })` reads `herdr agent get <pane>`
 (`.result.agent.agent_status`), applies `may_send`, then delegates to `herdr-nvim`'s

@@ -3,7 +3,7 @@
 # firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
 # agent. The security-posture monitor: it reads the live firewall (alf),
 # Gatekeeper, AND screen-lock state via osqueryi in the gui/501 user session,
-# plus every control declared in posture-controls.json (the chezmoi render of
+# plus every control declared in posture/controls.json (the chezmoi render of
 # .chezmoidata/macos_posture_controls.yaml: FileVault, SIP, automatic login,
 # the Guest account, and whatever later slices declare), compares against the
 # previous run's baseline, and pages CRIT only on a protection turning OFF or
@@ -24,10 +24,10 @@ OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # The declared posture controls, rendered by chezmoi from
 # .chezmoidata/macos_posture_controls.yaml. The poller reads the FILE rather
 # than carrying the control list in its body, so adding a control is a data
-# change. It lives beside this script so the pipeline-integrity watch and the
-# known-good manifest cover it: the file decides WHAT gets monitored, so it is
-# part of the monitor's body.
-CONTROLS_FILE="${OSQUERY_POSTURE_CONTROLS:-$HOME/.local/libexec/osquery/posture-controls.json}"
+# change. The posture directory's pipeline-integrity watch and known-good
+# manifest cover it: the file decides WHAT gets monitored, so it is part of
+# the monitor's body.
+CONTROLS_FILE="${OSQUERY_POSTURE_CONTROLS:-$HOME/.local/libexec/posture/controls.json}"
 # Absolute probe paths by default: the LaunchAgent PATH is minimal, and a
 # status probe that silently resolved to something unexpected would be an
 # untrustworthy read. The env overrides are the test seam.
@@ -76,7 +76,7 @@ sanitize() {
 }
 
 # sanitize_span <text> -- sanitize, then wrap in a Discord inline-code span:
-# the same chokepoint treatment render-page.sh gives attacker-influenceable
+# the same chokepoint treatment the posture page gives attacker-influenceable
 # fields (backticks stripped so the span cannot be broken out of, newlines and
 # tabs squashed, length-capped, wrapped in backticks). Character-stripping
 # alone leaves markdown STRUCTURE intact -- emphasis, [links](...), @mentions
@@ -949,7 +949,7 @@ sl_to_text() {
 # A trusted baseline exists: page CRIT only on a protection turning OFF or a
 # declared control leaving its declared value. A re-enable (a return to the
 # declared/on state) is good news, not actionable, and there is no notice
-# channel, so it is silent. Each block mirrors the results-alerter
+# channel, so it is silent. Each block mirrors the posture page's
 # protection-off shape: bold header, Was/Now state, then a decision-first next
 # step.
 crit_blocks=()

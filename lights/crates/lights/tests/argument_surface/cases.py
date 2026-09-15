@@ -2,7 +2,7 @@
 from itertools import combinations
 
 STUDIO = "3F - Studio"
-BEDROOM = "3F - Master Bedroom"
+BEDROOM = "3F - MBedroom"
 KITCHEN = "2F - Kitchen"
 CASES = []
 
@@ -37,9 +37,12 @@ def add(
 add("default", [], [], "power", value=False)
 for args in [["-p"], ["--power"], ["--pow"], ["-pp"], ["--power", "--power"]]:
     add("power-" + "-".join(args), args, ["toggle"], "power", value=False)
+# The bedroom row spells the room out. The `bedroom` alias is a deliberate
+# divergence: legacy resolves it to `3F - Master Bedroom`, a name the bridge's
+# own inventory does not list, and the Rust tool resolves it to `3F - MBedroom`.
 for alias, name, on in [
     ("studio", STUDIO, False),
-    ("bedroom", BEDROOM, True),
+    (BEDROOM, BEDROOM, True),
     ("kitchen", KITCHEN, True),
     ("Custom Room", "Custom Room", True),
 ]:

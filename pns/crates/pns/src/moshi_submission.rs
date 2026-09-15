@@ -44,10 +44,9 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
     let event = pns_domain::EventArgs {
         agent: agent.to_string(),
         state: "blocked".to_string(),
-        project: project_of(&payload.cwd),
         detail: payload.message.clone(),
         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-        ..Default::default()
+        ..attribution(payload, agent)
     };
     // Each test guards the reading below it: the surface probe never runs for
     // a payload that was never going to be forwarded.

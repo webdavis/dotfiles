@@ -21,15 +21,26 @@ pub const DESTINATION_HERMES: &str = "hermes";
 /// `mobile` and the backend behind it is moshi.
 pub const DESTINATION_MOBILE: &str = "mobile";
 
-/// The config key holding the hermes signing key, quoted verbatim in a message.
+/// The config table holding the hermes signing keys, one per route.
 ///
 /// NAMING A CONFIG KEY INSIDE AN ERROR IS A COMMITMENT: rename it and these
 /// messages go stale silently. A test in `pns-adapters`, which can see both this
 /// and the live config schema, asserts the two agree, so a rename breaks the
 /// build rather than the message.
-pub const HERMES_KEY: &str = "[plugins.hermes] key";
+pub const HERMES_KEYS_TABLE: &str = "plugins.hermes.keys";
 
-/// The config key holding the moshi token. Same commitment as [`HERMES_KEY`].
+/// The one key inside that table a route's own signature comes from, spelled
+/// the way the schema's refusals spell a table and a key.
+///
+/// PER ROUTE RATHER THAN ONE CONSTANT, because there is no longer one signing
+/// key to name: an operator told to check "the hermes key" would have four to
+/// choose from and no way to know which route refused them.
+pub fn hermes_key_named(route: &str) -> String {
+    format!("[{HERMES_KEYS_TABLE}] {route}")
+}
+
+/// The config key holding the moshi token. Same commitment as
+/// [`hermes_key_named`].
 pub const MOBILE_TOKEN: &str = "[plugins.mobile] token";
 
 /// The `status` field: the code paired with its registered name, because a
@@ -90,8 +101,11 @@ fn hermes(outcome: DeliveryOutcome, route: &str, address: &str) -> String {
     };
     match code {
         400 => format!("hermes could not parse the body pns posted to {route}"),
-        401 => format!("the {HERMES_KEY} is wrong or missing"),
-        403 => format!("the {HERMES_KEY} may not post to the {route} route"),
+        401 => format!("the {} is wrong or missing", hermes_key_named(route)),
+        403 => format!(
+            "the {} may not post to the {route} route",
+            hermes_key_named(route)
+        ),
         404 => format!("the hermes gateway has no route named {route}"),
         405 => format!("the {route} route exists but refuses a POST"),
         410 => format!("the {route} route existed once and has been removed"),

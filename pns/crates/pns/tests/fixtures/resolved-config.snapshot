@@ -4,8 +4,18 @@ Config {
         "hermes": PluginEntry {
             enabled: true,
             settings: {
-                "key": String(
-                    "from-the-vault:Hermes :: Webhook Secret :: #pns:Password",
+                "keys": Table(
+                    {
+                        "pns-events": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#pns-events):Password",
+                        ),
+                        "posture-pages": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#posture-pages):Password",
+                        ),
+                        "priority": String(
+                            "from-the-vault:Hermes :: Webhook Secret (#priority):Password",
+                        ),
+                    },
                 ),
             },
         },
@@ -111,7 +121,6 @@ Config {
     recap: Recap {
         replay_card: true,
         digest: true,
-        digest_as_thread: true,
         min_events: 8,
         summarizer: None,
         summarizer_deadline_secs: 240,
@@ -131,6 +140,7 @@ Config {
         base_secs: 60,
     },
     nag_after_secs: 300,
+    stale_after_secs: 3600,
     lights: Some(
         Lights {
             refresh_secs: 12,

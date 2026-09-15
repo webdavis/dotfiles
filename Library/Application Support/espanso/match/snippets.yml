@@ -383,3 +383,6 @@ matches:
 
   - trigger: ",,ca"
     replace: "chezmoi apply"
+
+  - trigger: ",,ee"
+    replace: "echo $?"

@@ -299,6 +299,8 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/stale_arming.rs"]
+mod stale_arming;
 #[path = "hooks/turn_markers.rs"]
 mod turn_markers;
 #[path = "hooks/turn_reply.rs"]

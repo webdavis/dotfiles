@@ -7,7 +7,7 @@ pub use clock::RestartTimer;
 pub use control::OsqueryRestart;
 pub use install::ConvergeInstaller;
 pub use parents::OsqueryParents;
-pub use resolution::{CommandRefusal, resolve_osqueryctl};
+pub use resolution::{CommandRefusal, resolve_osqueryctl, resolve_osqueryi};
 
 #[cfg(test)]
 mod tests;

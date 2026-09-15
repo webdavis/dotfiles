@@ -24,11 +24,20 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
     }
 }
 
-/// The line sync mode prints when there is no signing key. It names the
-/// config key to write, because "not set up" without an address sends the
-/// operator hunting.
-pub fn skipped_line() -> String {
-    "post SKIPPED, no hermes key in the config ([plugins.hermes] key); nothing was sent".to_string()
+/// The line sync mode prints when the route it was about to post to has no
+/// signing key. It names the config key to write, because "not set up"
+/// without an address sends the operator hunting.
+///
+/// THE ROUTE IS IN THE SENTENCE TWICE, and that is the point: every route has
+/// its own key now, so a line naming only "the hermes key" would leave an
+/// operator with a set-up gateway guessing which of three keys is the missing
+/// one. `pns-adapters` holds the sentence's config path against the live
+/// schema, so the spelling below cannot drift away from the table it names.
+pub fn skipped_line(route: &str) -> String {
+    format!(
+        "post SKIPPED, no hermes key for the {route} route \
+         ([plugins.hermes.keys] {route}); nothing was sent"
+    )
 }
 
 #[cfg(test)]

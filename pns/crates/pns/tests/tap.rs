@@ -4,6 +4,7 @@ mod support;
 
 use serde_json::Value;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, SystemTime};
 use support::{Sandbox, run, stdout};
 
@@ -26,9 +27,32 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
     assert_eq!(answer["surface"], "mobile");
     assert_eq!(answer["marker"]["source"], "default");
     assert!(s.path(".local/state/pns/phone-attention.marker").is_file());
+    for created in [".local", ".local/state", ".local/state/pns"] {
+        let mode = fs::metadata(s.path(created)).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "{created} is not private: {mode:o}");
+    }
     for channel in ["mobile", "hermes", "macos-banner"] {
         assert!(!s.fired(channel));
     }
+}
+
+#[test]
+fn the_json_marker_dates_the_recorded_tap() {
+    let s = Sandbox::without_config("tap-touched-at");
+    let answer = json(&tap(&s, &["tap", "--json"]));
+    let recorded = &answer["marker"];
+    let mtime = recorded["mtime_epoch_secs"]
+        .as_u64()
+        .expect("a recorded mtime");
+    assert_eq!(
+        recorded["touched_at"].as_str(),
+        pns_adapters::utc_timestamp(mtime).as_deref(),
+        "{recorded}"
+    );
+    let never = Sandbox::without_config("tap-never-touched");
+    let absent = json(&tap(&never, &["tap", "--info", "--json"]));
+    assert_eq!(absent["marker"]["exists"], false);
+    assert!(absent["marker"]["touched_at"].is_null(), "{absent}");
 }
 
 #[test]
@@ -116,6 +140,8 @@ fn a_failed_directory_creation_is_an_operational_failure() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["ok"], false);
     assert_eq!(json(&out)["error"]["code"], "mkdir_failed");
+    let reported = json(&out)["error"]["message"].as_str().unwrap().to_owned();
+    assert!(reported.contains("os error 17"), "{reported}");
     assert_eq!(fs::read_to_string(s.path("blocked")).unwrap(), "keep");
 }
 
@@ -165,6 +191,7 @@ fn invalid_config_refuses_a_tap_without_falling_back_or_exposing_values() {
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["error"]["code"], "config_error");
+    assert!(json(&out)["marker"].is_null(), "{out:?}");
     assert!(!stdout(&out).contains("42"));
     assert!(!s.path(".local/state/pns").exists());
 }

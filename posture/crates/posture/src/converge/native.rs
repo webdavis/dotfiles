@@ -1,16 +1,18 @@
 use super::{Configuration, Failure, reporting};
 use posture_adapters::{
     ConvergeInstaller, DesiredStaging, InstalledTree, OsqueryParents, OsqueryRestart, RestartTimer,
-    SystemRunner, resolve_osqueryctl,
+    SystemRunner, resolve_osqueryctl, resolve_osqueryi,
 };
 use posture_application::{converge, restart_daemon};
 use std::{io::Write, time::Duration};
 
 const COMMAND_BUDGET: Duration = Duration::from_secs(10);
 pub(super) fn run(config: &Configuration, stdout: &mut impl Write) -> Result<(), Failure> {
-    let Some(command) = resolve_osqueryctl(config.osqueryctl.as_deref(), &config.search_path)
-        .map_err(Failure::Command)?
-    else {
+    let command = resolve_osqueryctl(config.osqueryctl.as_deref(), &config.search_path)
+        .map_err(Failure::Command)?;
+    let osqueryi = resolve_osqueryi(config.osqueryd.as_deref(), &config.search_path)
+        .map_err(Failure::Command)?;
+    let Some(command) = command else {
         return Ok(());
     };
     let staging = DesiredStaging::new(config.desired.clone(), std::env::temp_dir());
@@ -25,6 +27,7 @@ pub(super) fn run(config: &Configuration, stdout: &mut impl Write) -> Result<(),
         SystemRunner::per_command(COMMAND_BUDGET),
         config.sudo.clone(),
         command,
+        osqueryi,
         config.target.clone(),
     );
     let mut processes = OsqueryParents::new(SystemRunner::per_command(COMMAND_BUDGET));

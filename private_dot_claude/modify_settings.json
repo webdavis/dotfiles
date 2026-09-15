@@ -19,7 +19,7 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 effortLevel, and the seven extraKnownMarketplaces entries this
+                 effortLevel, and the nine extraKnownMarketplaces entries this
                  repo declares.
     statusLine   the managed command below, unless the quota plugin has wrapped
                  it with its collector; that wrapper survives applies.
@@ -147,7 +147,32 @@
        Claude Code recognizes as file reads, and the allow list carries
        `Bash(grep *)` and `Bash(find *)`, either of which reads a key anyway.
        Moot at defaultMode bypassPermissions; it matters the moment the mode
-       tightens. */ -}}
+       tightens.
+
+       THE RENDERED SECRET-BEARING TARGETS ARE DENIED BY PATH, the twelve added
+       2026-09-14 when the hermes config became a rendered target rather than an
+       age blob. Each one is a file this repository RENDERS a KeePassXC value
+       into, so the secret sits in $HOME in plaintext even though it is nowhere
+       in git, and the SOURCE template is the copy an agent has any business
+       editing. `~/.config/chezmoi/key.txt` is the age identity itself, which
+       decrypts the four hermes profile configs, so it is the one whose loss
+       costs the most.
+
+       Two path facts, both from the Claude Code permissions reference, read
+       2026-09-14. The hermes profiles rule leans on gitignore semantics, where
+       a single star matches within ONE path segment, which is exactly the
+       profile-directory level. And the two `~/Library/Application Support`
+       rules carry literal spaces and need no quoting or escaping: only the
+       gitignore metacharacters do, and that page says parentheses need no
+       escaping either. A star followed by a slash appears nowhere in THIS
+       comment on purpose: the pair closes a Go template comment, and the apply
+       then fails on the next line with `comment ends before closing
+       delimiter`.
+
+       A Read deny rule also blocks Edit and Write on the same path, so these
+       twelve are read-only AND write-protected for every built-in file tool.
+       That is the intent: the deployed copy is chezmoi's output, and changing it
+       in place would be drift the next apply silently reverses. */ -}}
 {{- $permissions := dict
     "allow" (list
       "Read"
@@ -174,10 +199,23 @@
       "Read(~/.ssh/*_ed25519)"
       "Read(~/.claude/.credentials.json)"
       "Read(~/.codex/auth.json)"
-      "Read(~/.config/pns/config.toml)"
       "Read(~/.config/osquery/webhook-secret)"
       "Read(~/.hermes/.env)"
-      "Read(~/**/*.kdbx)")
+      "Read(~/**/*.kdbx)"
+      "Read(~/.config/chezmoi/key.txt)"
+      "Read(~/.hermes/config.yaml)"
+      "Read(~/.hermes/profiles/*/config.yaml)"
+      "Read(~/.config/pns/config.toml)"
+      "Read(~/.config/posture/config.toml)"
+      "Read(~/.config/uu/config.toml)"
+      "Read(~/.config/lights/config.toml)"
+      "Read(~/.config/atuin/config.toml)"
+      "Read(~/.config/himalaya/config.toml)"
+      "Read(~/.config/openhue/config.yaml)"
+      "Read(~/.config/gogcli/credentials.json)"
+      "Read(~/.composio/user_data.json)"
+      "Read(~/Library/Application Support/Claude/claude_desktop_config.json)"
+      "Read(~/Library/Application Support/espanso/match/identity.yml)")
     "defaultMode" "bypassPermissions" -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
@@ -485,21 +523,22 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       Seven of these come from marketplaces Anthropic does not ship: ponytail,
-       worktrunk, last30days, codex, plannotator, pns and strategy. An entry here
-       only records that the plugin should be ENABLED once installed, and enabling
-       a plugin that is not installed is inert, so the declaration is safe on a
-       fresh machine. The marketplaces themselves are declared in the block below.
+       Nine of these come from marketplaces Anthropic does not ship: ponytail,
+       worktrunk, last30days, codex, plannotator, babysitter, pns, strategy and
+       clean-code. An entry here only records that the plugin should be ENABLED
+       once installed, and enabling a plugin that is not installed is inert, so
+       the declaration is safe on a fresh machine. The marketplaces themselves are
+       declared in the block below.
 
-       `pns@pns` and `strategy@strategy` ARE THIS REPO'S OWN, out of marketplaces
-       deployed under ~/.claude/pns-marketplace and ~/.claude/strategy-marketplace
-       rather than fetched from anywhere. Installing one is still one deliberate
-       command: `claude plugin install pns@pns` fails on 2.1.257 with "Invalid
-       channel" (the release-channel parser takes the `@marketplace` suffix as a
-       channel name), even though `--help` still documents that
-       `plugin@marketplace` spelling. The WORKAROUND on 2.1.257 is the bare
-       `claude plugin install pns`, which is what worked on this machine on
-       2026-09-01. --- */ -}}
+       `pns@pns`, `strategy@strategy` and `clean-code@clean-code` ARE THIS REPO'S
+       OWN, out of marketplaces deployed under ~/.claude/pns-marketplace,
+       ~/.claude/strategy-marketplace and ~/.claude/clean-code-marketplace rather
+       than fetched from anywhere. Installing one is still one deliberate
+       command: `claude plugin install clean-code@clean-code` (exit 0 on
+       2.1.270, 2026-09-13). The bare name resolves to the same plugin once
+       that marketplace is registered; the namespaced spelling is preferred
+       because it names the marketplace rather than whatever happens to be
+       registered. --- */ -}}
 {{- $declaredPlugins := list
     "superpowers@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
@@ -515,14 +554,15 @@
     "last30days@last30days-skill"
     "plannotator@plannotator"
     "babysitter@a5c.ai" -}}
-{{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: both the pns
-       and the strategy marketplaces are DIRECTORIES on disk, and neither
-       directory is deployed on Linux. Declaring a marketplace whose path is not
-       there is a refresh that fails at every startup, which the five github ones
-       above cannot do. */ -}}
+{{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: the pns, the
+       strategy and the clean-code marketplaces are all DIRECTORIES on disk, and
+       none of those directories is deployed on Linux. Declaring a marketplace
+       whose path is not there is a refresh that fails at every startup, which the
+       six github ones above cannot do. */ -}}
 {{- if eq .chezmoi.os "darwin" -}}
 {{-   $declaredPlugins = append $declaredPlugins "pns@pns" -}}
 {{-   $declaredPlugins = append $declaredPlugins "strategy@strategy" -}}
+{{-   $declaredPlugins = append $declaredPlugins "clean-code@clean-code" -}}
 {{- end -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
@@ -574,7 +614,7 @@
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
        machine would produce an entry Claude Code rejects. The repo owns these
-       eight keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       nine keys and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
@@ -612,11 +652,11 @@
     "source" (dict "source" "github" "repo" "a5c-ai/babysitter-claude")
     "autoUpdate" true) $merged -}}
 
-{{- /* THIS REPO'S OWN MARKETPLACE, a DIRECTORY rather than a repo to fetch.
+{{- /* THIS REPO'S OWN MARKETPLACES, DIRECTORIES rather than repos to fetch.
        `{source: "directory", path: <absolute>}` is the shape `claude plugin
        marketplace add <path>` writes into user settings, read back off a real
-       registration on 2.1.251. NO `autoUpdate`: chezmoi is what updates this
-       one, so asking Claude Code to refresh it at startup would be a second
+       registration on 2.1.251. NO `autoUpdate`: chezmoi is what updates these,
+       so asking Claude Code to refresh one at startup would be a second
        updater for a directory that is already converged on every apply. */ -}}
 {{- if eq .chezmoi.os "darwin" -}}
 {{-   $merged = setValueAtPath "extraKnownMarketplaces.pns" (dict
@@ -624,34 +664,40 @@
 {{-   $merged = setValueAtPath "extraKnownMarketplaces.strategy" (dict
       "source" (dict "source" "directory" "path"
         (printf "%s/.claude/strategy-marketplace" $home))) $merged -}}
+{{-   $merged = setValueAtPath "extraKnownMarketplaces.clean-code" (dict
+      "source" (dict "source" "directory" "path"
+        (printf "%s/.claude/clean-code-marketplace" $home))) $merged -}}
 {{- end -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
-       dot_agents/custom-skill-lock.json, every on-demand skill gets exactly
-       one entry here, core skills get none, and test/unit/skills-roster-fanout.sh
-       fails the build when the two sets diverge. Per-key setValueAtPath (not
+       dot_agents/custom-skill-lock.json: an on-demand skill gets one entry
+       here, a core skill gets none. Nothing checks that the two agree since
+       the 2026-08-05 scope ruling, so move them together by hand (26
+       on-demand rows had no entry on 2026-09-13). Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
-       via /config pass through untouched. --- */ -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-rust" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.clean-code-swift" "user-invocable-only" $merged -}}
+       via /config pass through untouched. A per-key write never removes a
+       key, so a skill promoted to core keeps its stale override in the live
+       file until a deleteValueAtPath "skillOverrides.<name>" line scrubs it (a
+       no-op when the key or skillOverrides itself is absent, measured on
+       chezmoi 2.72.1). Such a line is a TOMBSTONE: add it with the promotion
+       and delete it again once every machine has applied. --- */ -}}
 {{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.tuicr" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-review" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.plannotator-tui" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.defuddle" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.embedded-captions" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.faceless-explainer" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.general-video" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.gitbutler" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.home-assistant" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.home-assistant-best-practices" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-animation" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-audio" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-cli" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-core" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.hyperframes-creative" "user-invocable-only" $merged -}}
@@ -664,10 +710,6 @@
 {{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-bases" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-cli" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.obsidian-markdown" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.owasp-security" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}

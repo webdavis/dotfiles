@@ -56,7 +56,7 @@ pub use ports::notification::{PhoneSuppression, RaiseNotification};
 pub use ports::process::CommandRunner;
 pub use ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, JobSpool, Journal, LampRecords, LightsTick,
-    LoopLease, ReplayBatch, ReplayState, ReturnMoment,
+    LoopLease, ReplayBatch, ReplayState, ReturnMoment, SessionWait,
 };
 pub use replay_missed::{RecapPolicy, ReplayMissedNotifications};
 pub use request_approval::RequestApproval;
@@ -65,6 +65,12 @@ pub use submission_delivery::{SubmissionDelivery, Submitted};
 pub use submit_notification::{Attempt, Submission, SubmitNotification};
 
 pub use ports::nag::{Claimed, NagRecords, NagSchedule};
+pub use ports::stale::{SessionWaits, StaleWaits};
+
+mod escalate_stale;
+mod track_wait;
+pub use escalate_stale::{EscalateStaleBlocks, StaleOutcome};
+pub use track_wait::{end_wait, track_wait};
 
 mod poll_presence;
 pub use poll_presence::{PollClaim, Polled, PresencePoll, poll_presence};

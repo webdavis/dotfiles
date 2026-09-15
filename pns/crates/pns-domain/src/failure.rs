@@ -20,7 +20,9 @@ mod render;
 
 pub use click::{ClickView, ID_PLACEHOLDER, click_command, parse_view};
 pub use fix::{NotificationSurface, Surface};
-pub use meaning::{DESTINATION_HERMES, DESTINATION_MOBILE, HERMES_KEY, MOBILE_TOKEN};
+pub use meaning::{
+    DESTINATION_HERMES, DESTINATION_MOBILE, HERMES_KEYS_TABLE, MOBILE_TOKEN, hermes_key_named,
+};
 pub use notify::warrants_notification;
 pub use render::{full, notification};
 

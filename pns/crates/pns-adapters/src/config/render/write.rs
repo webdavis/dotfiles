@@ -62,6 +62,13 @@ pub(super) fn render_block(
     } else {
         out.push_str(&format!("# [{}]\n", table.name));
     }
+    // EVERY CHILD IS PULLED OUT FIRST, for `render_lights`'s own reason: the
+    // leftover check below would otherwise see a nested table sitting under
+    // this heading and refuse it as an unknown key of the parent.
+    let mut children = Vec::with_capacity(table.children.len());
+    for child in table.children {
+        children.push((child, take_table(settings, last_segment(child.name))?));
+    }
     for key in table.keys {
         out.push_str(key.prose);
         match settings.remove(key.name) {
@@ -86,6 +93,9 @@ pub(super) fn render_block(
     out.push('\n');
     if let Some(name) = settings.keys().next() {
         return Err(format!("unknown `{}` key `{name}`", table.name));
+    }
+    for (child, mut nested) in children {
+        render_block(out, child, &mut nested, present)?;
     }
     Ok(())
 }

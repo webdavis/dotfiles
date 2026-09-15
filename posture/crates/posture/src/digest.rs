@@ -1,10 +1,10 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, DigestSpoolFile, LastResortBanner, PnsProducer, SystemClock, SystemRunner,
+    CommandRunner, DigestSpoolFile, LastResortBanner, SystemClock, SystemRunner, alert_sink,
     prepare_spool_directory,
 };
-use posture_application::{BuildDigest, Clock};
+use posture_application::{BuildDigest, Clock, DigestOutcome};
 use std::{io::Write, time::Duration};
 
 const PRODUCER_BUDGET: Duration = Duration::from_secs(5);
@@ -47,27 +47,51 @@ fn execute(
         return 1;
     }
     let spool = DigestSpoolFile::new(config.store, now.seconds, std::process::id());
-    let mut sink = PnsProducer::new(
+    let mut sink = alert_sink(
+        config.delivery,
         runner,
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(alarm, config.alarm),
+        &mut *stderr,
     );
-    BuildDigest {
+    let report = BuildDigest {
         spool: &spool,
         sink: &mut sink,
         utc_day: &now.utc_day,
         occurred_at: Some(now.seconds),
+        limits: config.limits,
     }
     .run();
-    // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in the
-    // spool for tomorrow, so a refused send is not this run's failure to
-    // report. The engine raises its own alarm when the pipeline itself broke.
-    0
+    // A DROPPED LINE IS A FINDING NOBODY WILL EVER READ. One torn line no
+    // longer wedges the digest, and this is what keeps that from being a
+    // silent trade: the count lands in the log beside the run that made it.
+    if report.dropped > 0 {
+        let _ = writeln!(
+            stderr,
+            "posture digest: dropped {} unreadable line(s) from the batch",
+            report.dropped
+        );
+    }
+    match report.outcome {
+        // A SPOOL THAT COULD NOT BE TAKEN IS NOT A QUIET DAY, and exiting 0
+        // with nothing on stderr made the two identical. The batch is still on
+        // disk for the next run's sweep, so nothing is lost, but the run says
+        // what it could not read and fails. Nonzero is safe here: this
+        // LaunchAgent runs on a calendar interval with no KeepAlive, so nothing
+        // retries it, and the uptime watchdog pages only after two failing runs
+        // in a row.
+        DigestOutcome::NotClaimed(failure) => {
+            let _ = writeln!(
+                stderr,
+                "posture digest: the spool could not be claimed: {failure}"
+            );
+            1
+        }
+        // A LOST DAILY DIGEST IS LOW STAKES and the batch is already back in
+        // the spool for tomorrow, so a refused send is not this run's failure
+        // to report. The engine raises its own alarm when the pipeline itself
+        // broke.
+        _ => 0,
+    }
 }
 
 #[cfg(test)]

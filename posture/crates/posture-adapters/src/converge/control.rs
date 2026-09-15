@@ -6,14 +6,22 @@ pub struct OsqueryRestart<R> {
     pub(super) runner: R,
     sudo: PathBuf,
     command: PathBuf,
+    osqueryi: Option<PathBuf>,
     target: PathBuf,
 }
 impl<R: CommandRunner> OsqueryRestart<R> {
-    pub fn new(runner: R, sudo: PathBuf, command: PathBuf, target: PathBuf) -> Self {
+    pub fn new(
+        runner: R,
+        sudo: PathBuf,
+        command: PathBuf,
+        osqueryi: Option<PathBuf>,
+        target: PathBuf,
+    ) -> Self {
         Self {
             runner,
             sudo,
             command,
+            osqueryi,
             target,
         }
     }
@@ -27,12 +35,31 @@ impl<R: CommandRunner> OsqueryControl for OsqueryRestart<R> {
         }
     }
     fn config_check(&mut self) -> Result<(), InspectionFailure> {
-        self.command(
-            "config-check",
-            CommandIo::Inspection {
-                merge_stderr: false,
-            },
-        )
+        let io = CommandIo::Inspection {
+            merge_stderr: false,
+        };
+        // Measured against osqueryi 5.23.1: --disable_database opens no database at
+        // all, so the check neither contends with the lock the running daemon holds
+        // on the live one nor creates a database of its own for the unprivileged
+        // converge to clean up after root. osqueryctl runs its own check, and picks
+        // its own database path, so the fallback needs nothing from this caller.
+        let Some(osqueryi) = &self.osqueryi else {
+            return self.command("config-check", io);
+        };
+        self.runner
+            .run(
+                &self.sudo,
+                &[
+                    "-n".as_ref(),
+                    osqueryi.as_os_str(),
+                    "--config_path".as_ref(),
+                    self.target.join("osquery.conf").as_os_str(),
+                    "--config_check".as_ref(),
+                    "--disable_database".as_ref(),
+                ],
+                io,
+            )
+            .map(|_| ())
     }
     fn stop(&mut self) -> Result<(), InspectionFailure> {
         self.command(
@@ -60,3 +87,6 @@ impl<R: CommandRunner> OsqueryRestart<R> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod validation_tests;

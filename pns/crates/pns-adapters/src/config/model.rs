@@ -54,6 +54,13 @@ pub struct Config {
     /// this key), and a default-on feature that silently does nothing until all
     /// three are done is a mystery rather than a default.
     pub nag_after_secs: u64,
+    /// `[nag] stale_after_secs`: how long a session stays blocked before ONE
+    /// page about it reaches the priority route, in seconds. ZERO IS THE
+    /// FEATURE OFF.
+    ///
+    /// DEFAULT ON AT AN HOUR, unlike `nag_after_secs` above it: see
+    /// `DEFAULT_STALE_AFTER_SECS`.
+    pub stale_after_secs: u64,
     /// `[lights]`: the lamp policy, or None when no table was written.
     ///
     /// Boxed because this is the largest optional policy. Configurations
@@ -79,6 +86,7 @@ impl Default for Config {
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
             nag_after_secs: NAG_OFF,
+            stale_after_secs: DEFAULT_STALE_AFTER_SECS,
             lights: None,
             failures: Failures::default(),
         }

@@ -609,8 +609,9 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives `DEFAULT_HERMES_URL`
-(`http://127.0.0.1:8644/webhooks/pns`); else `channel_url` swaps the final path segment for the route.
+Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives
+`DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
+path segment for the route.
 
 - Success: the post goes to `<gateway>/<route>` with the host and port unmoved.
 - Failure sources: a route name `safety::route_name_is_usable` refuses (empty, or anything outside ASCII

@@ -15,8 +15,13 @@
 [plugins.mobile]
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 
-[plugins.hermes]
-key = { keepassxc = "Hermes :: Webhook Secret :: #pns", field = "Password" }
+# One key per hermes route, so a key leaked from any route cannot post to
+# every route. A route left out here posts nothing and says which key is
+# missing, rather than borrowing another route's secret.
+[plugins.hermes.keys]
+pns-events = { keepassxc = "Hermes :: Webhook Secret (#pns-events)", field = "Password" }
+posture-pages = { keepassxc = "Hermes :: Webhook Secret (#posture-pages)", field = "Password" }
+priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Password" }
 
 [plugins.hue]
 bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }

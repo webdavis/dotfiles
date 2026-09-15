@@ -18,6 +18,7 @@ pns: usage:
   pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
+  pns stale                        page about every session stuck past the window
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel

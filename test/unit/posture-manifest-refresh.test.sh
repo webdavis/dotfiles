@@ -186,6 +186,46 @@ function test_a_record_with_an_invalid_artifact_size_refuses_pipeline_publicatio
   done
 }
 
+# The managed rows are path-sorted, and the two built binaries are appended
+# after them because no chezmoi entry places them. They still hold path order
+# between themselves, so the whole file reads in one order rather than two.
+function test_the_appended_binary_rows_hold_path_order_between_themselves() {
+  write_record
+  write_pns_record 3
+  run_refresh --pipeline-only
+  assert_successful_code
+  local paths
+  paths="$(cut -d ' ' -f 4- <"$pipeline_manifest" | grep '/\.cargo/bin/')"
+  assert_same "$(LC_ALL=C sort <<<"$paths")" "$paths"
+}
+
+write_pns_record() {
+  local record="$sandbox_home/.local/state/pns-build-record"
+  mkdir -p "$(dirname "$record")"
+  printf 'sha256 %s\nbytes %s\nrustc 1.92.0-nightly (stub)\nhost: aarch64-apple-darwin\n' \
+    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$1" >"$record"
+  chmod 600 "$record"
+}
+
+# pns is an order of magnitude larger than posture, so one shared ceiling has to
+# be wrong for one of them: 8388609 bytes is a runaway posture artifact and an
+# ordinary pns one. Both ceilings come from rust_tools.max_artifact_bytes in
+# .chezmoidata/rust_tools.yaml.
+function test_one_artifact_size_is_refused_for_posture_and_allowed_for_pns() {
+  local status=0
+  write_record aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 8388609
+  run_refresh --pipeline-only || status=$?
+  assert_not_same 0 "$status"
+  assert_same old-pipeline "$(cat "$pipeline_manifest")"
+  write_record
+  write_pns_record 8388609
+  run_refresh --pipeline-only
+  assert_successful_code
+  assert_contains \
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 0755 $(id -u) $sandbox_home/.cargo/bin/pns" \
+    "$(cat "$pipeline_manifest")"
+}
+
 function test_a_truncated_record_is_refused_instead_of_treated_as_unbuilt() {
   printf 'sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' >"$build_record"
   local status=0
@@ -320,4 +360,30 @@ function test_a_failed_builder_refresh_preserves_the_prior_record_tuple_and_bina
   assert_same abc "$(cat "$binary")"
   run_consumer _pipeline_deployed_state_is_known_good "$binary"
   assert_successful_code
+}
+
+function test_pns_tuple_uses_its_authorized_record_and_ignores_live_bytes() {
+  local pns_record="$sandbox_home/.local/state/pns-build-record"
+  local pns_binary="$sandbox_home/.cargo/bin/pns"
+  printf 'sha256 %s\nbytes 3\nrustc fixture\n' \
+    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb >"$pns_record"
+  printf tampered >"$pns_binary"
+  run_refresh --pipeline-only
+  assert_successful_code
+  assert_contains "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 0755 $(id -u) $pns_binary" "$(cat "$pipeline_manifest")"
+}
+
+function test_missing_pns_record_is_explicitly_unbuilt_without_adopting_the_binary() {
+  printf tampered >"$sandbox_home/.cargo/bin/pns"
+  run_refresh --pipeline-only
+  assert_successful_code
+  assert_contains "unbuilt 0755 $(id -u) $sandbox_home/.cargo/bin/pns" "$(cat "$pipeline_manifest")"
+}
+
+function test_malformed_pns_record_refuses_the_whole_pipeline_publication() {
+  printf 'sha256 malformed\nbytes 3\nrustc fixture\n' >"$sandbox_home/.local/state/pns-build-record"
+  local status=0
+  run_refresh --pipeline-only || status=$?
+  assert_not_same 0 "$status"
+  assert_same old-pipeline "$(cat "$pipeline_manifest")"
 }

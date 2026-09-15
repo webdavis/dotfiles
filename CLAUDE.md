@@ -28,9 +28,12 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | Runbook                                           | Covers                                                                 |
 | ------------------------------------------------- | ---------------------------------------------------------------------- |
 | `docs/runbooks/agent-skills-store.md`             | the cross-harness skills store, its lock, and the plugin update record |
+| `docs/runbooks/agent-tooling.md`                  | OpenSpec: the tracked global config and the per-project init           |
 | `docs/runbooks/claude-code-settings.md`           | the `modify_settings.json` field model and plugin-state trade          |
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
-| `docs/runbooks/local-daemons.md`                  | atuin, happy and tailscaled: config, gotchas, diagnostic ladders       |
+| `docs/runbooks/gitbutler.md`                      | the `but` CLI, the vendored skill, and the workspace-mode decision     |
+| `docs/runbooks/local-agents.md`                   | gnhf: its config, its Claude wiring, and its worktree rule             |
+| `docs/runbooks/local-daemons.md`                  | atuin, happy, tailscaled and the hermes gateway's webhook routes       |
 | `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |
 | `docs/runbooks/macos-fresh-machine-quickstart.md` | first-apply setup, TCC grants, LuLu, and SSH hardening                 |
 | `docs/runbooks/age-key.md`                        | the age identity behind encrypted source files                         |
@@ -163,7 +166,7 @@ possible way to find them; every such failure is reproducible without an apply.
 deployed copy of a templated target behind its source, while the osquery known-good manifest derives its
 hashes from the SOURCE. The two then disagree, and the pipeline audit reads that as tampering: a FALSE
 CRIT page on every tick until a full apply catches up, across ten manifested templated targets (seven
-osquery LaunchAgent plists, `posture-controls.json`, and the two osquery staging files). It also never
+osquery LaunchAgent plists, `posture/controls.json`, and the two osquery staging files). It also never
 delivered what it was for: it does NOT skip a `modify_` template (measured 2026-08-02), and two of those
 call `keepassxc`, so the excluded apply reached the vault anyway.
 
@@ -171,17 +174,18 @@ call `keepassxc`, so the excluded apply reached the vault anyway.
 the `run_` scripts, so `run_after_05-osquery-known-good-manifests.sh` never refreshes the known-good
 manifests. Deploy a MANIFESTED file that way and its hash no longer matches the manifest, which the
 pipeline audit reads as tampering and pages CRIT on every tick until a full apply. The manifested set is
-the osquery pipeline under `~/.local/libexec/osquery/`, the managed scripts under `~/.local/bin` and
-`~/.local/libexec`, and the osquery LaunchAgents. Use a full `chezmoi apply`; it is what keeps the
-deployed state and the manifests derived from the same source state. The by-name form existed to dodge
-the vault, which is no longer a goal now that the operator applies with it unlocked.
+the osquery pipeline under `~/.local/libexec/osquery/` and `~/.local/libexec/posture/`, the managed
+scripts under `~/.local/bin` and `~/.local/libexec`, and the osquery LaunchAgents. Use a full
+`chezmoi apply`; it is what keeps the deployed state and the manifests derived from the same source
+state. The by-name form existed to dodge the vault, which is no longer a goal now that the operator
+applies with it unlocked.
 
-Fifteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Seventeen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
 `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`,
-`~/.config/pns/config.toml`, `~/.config/lights/config.toml`, `~/.config/uu/config.toml`,
-`~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.config/pns/config.toml`, `~/.config/posture/config.toml`, `~/.config/lights/config.toml`,
+`~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
+`~/.hermes/config.yaml`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
@@ -205,8 +209,14 @@ block that drops `Library` and the macOS-only helpers on Linux. Read the file ra
 here; this paragraph used to transcribe it and drifted twice. Templates branch on
 `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content.
 
-One thing the file does not say: `.worktrees/` is deliberately NOT in it; it is gitignored and
-treefmt-excluded instead.
+**No worktree may live inside the source tree.** chezmoi reads every `.chezmoidata` directory at any
+depth of the source tree and merges them, and a nested copy wins over the root, so a worktree under
+`.worktrees/` feeds its own (often stale) data into every render and apply. `.chezmoiignore` does not
+help: it filters targets, not data (measured 2026-09-14, when the posture artifact ceiling stayed at its
+old value after the source file had moved). The same walk is why a template render in a checkout with
+nested worktrees took ~40 s. Worktrees go to `~/.herdr/worktrees/<repo>/<branch>`, which is where
+`herdr worktree create` and worktrunk both put them; `.worktrees/` stays gitignored and treefmt-excluded
+only so a stray one cannot be committed or formatted.
 
 ### The Rust monorepo
 
@@ -232,14 +242,23 @@ this touch pns" but "does this tool still build with pns absent from the filesys
 
 When two tools need the same thing, each gets its own copy, and the duplication is deliberate rather than
 a DRY violation to collapse later: they are not one program. `uu-adapters` carries its own signed-POST
-client where it once took `pns-hermes`, and `posture-pns-wire` is posture's own copy of the request and
-result envelopes pns defines. A copy of a WIRE CONTRACT is held honest by golden fixtures rather than by
-a shared type: both sides pin the same documents, so a change that moves the bytes fails a test instead
-of a delivery.
+client where it once took `pns-hermes`, `posture-adapters` carries a second copy of the same client, and
+`posture-producer-wire` is posture's own copy of the producer API's request and result envelopes. A copy
+of a WIRE CONTRACT is held honest by golden fixtures rather than by a shared type: both sides pin the
+same documents, so a change that moves the bytes fails a test instead of a delivery.
+
+**uu AND posture NAME NO ENGINE** (operator ruling 2026-09-14). They are products other people install,
+so neither may carry pns in its source, config keys, crate names, defaults or error text. Each can post
+to hermes directly with its own client and its own per-route keys, and each can hand an event to a
+producer command chosen in its own config. The producer API (a JSON request on standard input, a JSON
+result plus an exit code out) is the contract; pns is one implementation of it.
 
 Runtime integration is a different question and stays allowed. uu SPAWNS the deployed `pns` binary to
-raise alerts and posture pipes a request into `pns submit --json`, both the way either would spawn `git`,
-which couples nothing at build time.
+raise alerts, and posture can hand a page to a producer command its own config names, the way either
+would spawn `git`, which couples nothing at build time. posture does NOT use that path on dresden: pns
+commits its ledger before it tries a destination, so a critical page bound for `priority` would come back
+as an acceptance the gateway had refused. Until the producer reports the destination's own answer rather
+than its ledger, `~/.config/posture/config.toml` ships `mode = "hermes"` and posture posts its own pages.
 
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that
@@ -329,7 +348,7 @@ model, the plugin-state trade and the corrupt-file recovery path are in
 `private_dot_codex/modify_private_config.toml` is the same mechanism for `~/.codex/config.toml`, which
 Codex rewrites from its own model while it runs. Stable fields are overwritten on every apply (model and
 reasoning, sandbox and approval policy, `notify`, `[features]`, `[memories]`, `tui.vim_mode_default`, the
-two git marketplaces and the four MCP servers this repo declares), everything else drifts freely, and
+git marketplaces and the MCP servers this repo declares), everything else drifts freely, and
 `[projects.*]` is the third case: the roster of trusted roots is declared and every undeclared live entry
 is preserved.
 
@@ -343,7 +362,7 @@ file into `~/workspaces/backups` first, at the cost of every hook approval on th
 
 ### Agent skills (cross-harness store)
 
-`~/.agents/skills` is the single canonical skills store (37 roster skills), serving Claude Code (chezmoi
+`~/.agents/skills` is the single canonical skills store (81 roster skills), serving Claude Code (chezmoi
 symlink declarations under `private_dot_claude/skills/`), Codex (native store scan, no declarations) and
 hermes (declared symlinks into the default profile and four specialist profiles). Provenance, tiering and
 fan-out are recorded in `dot_agents/custom-skill-lock.json`. **Nothing enforces that those three agree
@@ -371,8 +390,11 @@ and proposes evidence-backed edits to that ruleset. Its own user-scope default w
 apply. `dot_config/backpass/config.json` (target `~/.config/backpass/config.json`) therefore overrides
 `user.memoryFiles` to the SOURCE partial in this checkout: one file, both harnesses, and the edit
 survives. Analysis never writes; `backpass apply --scope user` is the only writer and gates every edit
-interactively. Its skill extractions still default to `~/.agents/skills`, which is the managed store, so
-an accepted extraction lands an undeclared real directory there that only Codex's native scan picks up.
+interactively. Its skill extractions default to `~/.agents/skills`, the managed store, where an accepted
+one lands as an undeclared real directory that only Codex's native scan reaches. Promote it through the
+vendored lane in the same sitting: the copy into `dot_agents/skills/<name>/`, the lock rows and the
+Claude symlink. `docs/runbooks/agent-skills-store.md` carries that recipe and why nothing prunes an
+unpromoted one.
 
 ### Git hooks
 
@@ -418,7 +440,7 @@ but it is load-bearing for the sibling `espanso-match-render` formatter, whose v
 `{{ if (env "CI") }}`.
 
 Two more sibling formatters render before validating: `osquery-config-render` renders the JSON-bodied
-`.conf` files under `dot_local/libexec/osquery/osquery-converge/desired/` (two of the six are templates;
+`.conf` files under `dot_local/libexec/posture/converge/desired/` (two of the six are templates;
 `execute-template` on a file holding no template action renders it to itself, so one code path covers
 both kinds) and checks them with jq, and `espanso-match-render` renders the espanso `*.yml.tmpl` match
 files and checks them with yq.
@@ -504,13 +526,12 @@ Four rules decide the shape below `libexec`, in this order:
    because `reconcile-hosts-pin.sh` said nothing about Tailscale on its own; the Rust port retired both,
    since `tailnet-pin` carries its domain in its own name and installs beside the other Rust tools.
 1. **A tool with PRIVATE helpers gets a directory named after itself**, and its entrypoint keeps the
-   tool's name inside it (`osquery/results-alerter.sh` beside `osquery/results-alerter/`, and
-   `osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never `main.sh`: the basename is
-   what shows up in `ps`, in launchd output and in every log line, so five directories of `main.sh` would
-   be five indistinguishable processes. That directory holds a tool's private DATA as well as its private
-   code (`osquery-converge/desired/` is the state the tool installs; `osquery/posture-controls.json` is
-   the flat-file version of the same idea), because the alternative is data under `share/` that none of
-   the integrity coverage anchored on this tree reaches.
+   tool's name inside it (`osquery/osquery-converge.sh` beside `osquery/osquery-converge/`). Never
+   `main.sh`: the basename is what shows up in `ps`, in launchd output and in every log line, so five
+   directories of `main.sh` would be five indistinguishable processes. That directory holds a tool's
+   private DATA as well as its private code (`posture/converge/desired/` is the state the converge
+   installs; `posture/controls.json` is the flat-file version of the same idea), because the alternative
+   is data under `share/` that none of the integrity coverage anchored on this tree reaches.
 1. **`helpers/` holds code shared ACROSS a group**; a helper every caller of which sits in one
    subdirectory lives in that subdirectory instead. The same rule applies to `test/<suite>/helpers/`:
    keep a fixture with its only suite, and use `test/helpers/` only when callers span suites. The
@@ -560,7 +581,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.scalebar`                            | starts the Scalebar menu-bar app at login            |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                 |
 | `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications             |
-| `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                             |
 | `com.webdavis.osquery-digest`                      | periodic roll-up                                     |
 | `com.webdavis.osquery-firewall-gatekeeper-monitor` | watches firewall and Gatekeeper posture              |
 | `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                           |
@@ -568,7 +588,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 
 The root daemon's own side is CONVERGED, not written once. `~/.local/libexec/osquery/osquery-converge.sh`
 compares each of the six files we own in `/var/osquery` (plus the two directory modes) against the
-desired state deployed beside it under `osquery-converge/desired/`, installs whatever drifted with
+desired state deployed under `~/.local/libexec/posture/converge/desired/`, installs whatever drifted with
 `sudo /usr/bin/install -o root -g wheel -m 0644` out of a private 0700 copy of that staging tree, and
 restarts osqueryd only when something did, requiring the ppid-1 parent to be a DIFFERENT process from the
 one running before the stop and still up after a settle window. No drift means no privileged call, no
@@ -591,7 +611,12 @@ of them behave this way.
 verifies, reloads and rolls back a public-key-only sshd drop-in at
 `/etc/ssh/sshd_config.d/000-ssh-hardening.conf`. It is operator-invoked: no LaunchAgent, no chezmoiscript
 and no justfile recipe runs it. Installing is inert for the running service; only `--reload` restarts
-sshd, and it refuses to claim success without a real SSH banner exchange.
+sshd, and it refuses to claim success without a real SSH banner exchange. The drop-in also carries one
+`Match LocalAddress` block with `RefuseConnection yes` that refuses every connection which did not arrive
+on loopback or in the two address ranges Tailscale documents for every tailnet, and both verifiers
+resolve one `sshd -G -T -C` sample per negated term to prove it; the listener is untouched, so this
+narrows who can log in rather than what can connect (see
+`docs/runbooks/macos-fresh-machine-quickstart.md`).
 
 Every sshd call it makes runs under a watchdog (`SSH_HARDENING_VERIFY_DEADLINE`, default 120s), which
 polls in 0.25s ticks because bash has no wait-with-timeout and stock macOS ships no `timeout(1)`, then
@@ -656,6 +681,16 @@ aborting and warning rather than leaving a worktree half-rebased.
 `worktree-path` puts worktrees at `~/.herdr/worktrees/<repo>/<branch>`, which is herdr's own layout:
 herdr hardcodes `<directory>/<repo>/<branch-slug>` and worktrunk's path is templatable, so worktrunk
 bends to match and both tools create worktrees in one place rather than two.
+
+`just worktrees-prune` sweeps the other way, and it is the OPERATOR'S bulk sweep, read first with
+`--dry-run`: `~/.local/libexec/prune-merged-worktrees.sh` (source
+`dot_local/libexec/executable_prune-merged-worktrees.sh`) removes every linked worktree of this
+repository whose HEAD is an ancestor of `origin/main` and whose tree is clean apart from
+`graphify-out/graph.json`, through `herdr worktree remove` when the checkout still has a workspace row
+and `git worktree remove` when it does not, and it never deletes a branch. Merged and clean is all it
+tests and a running process is invisible to it, so a lane a sibling agent is still working in looks
+finished the moment its branch lands. An agent therefore removes its OWN lane through
+`herdr worktree remove` and leaves the sweep alone.
 
 ### Bashrc init ordering
 

@@ -3,11 +3,11 @@
 # The declaration home for verify-tier controls that are neither a `defaults`
 # key nor a `system_setup` command ("FileVault is on", "the Guest account is
 # disabled"). Records here are rendered to
-# ~/.local/libexec/osquery/posture-controls.json (by
-# dot_local/libexec/osquery/posture-controls.json.tmpl) and consumed at RUNTIME
-# by the security-posture poller (firewall-gatekeeper-monitor.sh), which reads
-# the rendered file on every 60s tick: adding a control is a data change here
-# plus a `chezmoi apply`, never a poller edit. Slices 9 and 10 add records.
+# ~/.local/libexec/posture/controls.json (by
+# dot_local/libexec/posture/controls.json.tmpl) and consumed at RUNTIME
+# by `posture poll`, whose LaunchAgent reads the rendered file on every 60s
+# tick. Adding a control is a data change here plus a `chezmoi apply`, never a
+# poller edit. Slices 9 and 10 add records.
 #
 # Every record is tier: verify BY DEFINITION: the poller only ever READS state
 # and pages CRIT on a deviation from the declared value; it never fixes
@@ -197,9 +197,9 @@ macos:
     - talker: "Hermes gateway"
       needs: "Outbound; the alerting channel real egress hop (Discord delivery)"
       control: lulu_rule_hermes_gateway
-    - talker: "the alerter curl"
-      needs: "Loopback only: alert-dispatch.sh POSTs to http://127.0.0.1:8644"
-      no_rule_reason: "The hop is loopback, kept unfiltered by the allowLocalHost PREFERENCE, so no rule is ever consulted; a rule on curl would allow every process on the machine to egress and would still not touch this path. Anyone writing a curl rule for the alerter has solved the wrong problem."
+    - talker: "the pns and posture loopback POST"
+      needs: "Loopback only: pns POSTs pages to http://127.0.0.1:8644 and posture probes the same URL"
+      no_rule_reason: "The hop is loopback, kept unfiltered by the allowLocalHost PREFERENCE, so no rule is ever consulted; a rule on either client would allow every process on the machine to egress and would still not touch this path. Anyone writing an egress rule for the alerting path has solved the wrong problem."
     - talker: "tailscaled"
       needs: "Outbound; slice 8 remote recovery path 2 (Screen Sharing over the tailnet)"
       control: lulu_rule_tailscaled

@@ -42,48 +42,7 @@ delivery = "herdr"
 
 [ui.sidebar.agents]
 row_gap = 1 # herdr-agent-quota
-rows = [
-  [
-    "state_icon",
-    "machine",
-    "workspace",
-    "tab",
-  ],
-  [
-    { token = "$quota_provider_model", bold = true, dim = false },
-  ],
-  [
-    { token = "$quota_cache", bold = false, dim = false },
-    { token = "$quota_cache_state", fg = "#e4b957", bold = false, dim = false },
-  ],
-  [
-    { token = "$quota_cache_ttl", bold = false, dim = false },
-  ],
-  [
-    { token = "$quota_error", fg = "#e4b957", bold = false, dim = false },
-  ],
-  [
-    { token = "$quota_context_normal", fg = "#98b17d", bold = false, dim = false },
-    { token = "$quota_context_warning", fg = "#dec27f", bold = false, dim = false },
-    { token = "$quota_context_danger", fg = "#df919b", bold = false, dim = false },
-  ],
-  [
-    { token = "$quota_5h_normal", fg = "#98b17d", bold = false, dim = false },
-    { token = "$quota_5h_warning", fg = "#dec27f", bold = false, dim = false },
-    { token = "$quota_5h_danger", fg = "#df919b", bold = false, dim = false },
-    { token = "$quota_5h_unknown", bold = false, dim = false },
-  ],
-  [
-    { token = "$quota_week_inline_normal", fg = "#98b17d", bold = false, dim = false },
-    { token = "$quota_week_inline_warning", fg = "#dec27f", bold = false, dim = false },
-    { token = "$quota_week_inline_danger", fg = "#df919b", bold = false, dim = false },
-    { token = "$quota_week_inline_unknown", bold = false, dim = false },
-    { token = "$quota_week_normal", fg = "#98b17d", bold = false, dim = false },
-    { token = "$quota_week_warning", fg = "#dec27f", bold = false, dim = false },
-    { token = "$quota_week_danger", fg = "#df919b", bold = false, dim = false },
-    { token = "$quota_week_unknown", bold = false, dim = false },
-  ],
-] # herdr-agent-quota-row
+rows = [["state_icon", "machine", "workspace", "tab"], [{ token = "$quota_provider_model", bold = true, dim = false }], [{ token = "$quota_cache", bold = false, dim = false }, { token = "$quota_cache_state", fg = "#e4b957", bold = false, dim = false }], [{ token = "$quota_cache_ttl", bold = false, dim = false }], [{ token = "$quota_error", fg = "#e4b957", bold = false, dim = false }], [{ token = "$quota_context_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_context_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_context_danger", fg = "#df919b", bold = false, dim = false }], [{ token = "$quota_5h_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_5h_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_5h_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_5h_unknown", bold = false, dim = false }], [{ token = "$quota_week_inline_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_week_inline_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_week_inline_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_week_inline_unknown", bold = false, dim = false }, { token = "$quota_week_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_week_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_week_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_week_unknown", bold = false, dim = false }]] # herdr-agent-quota-row
 
 # ╭────────────────╮
 # │  Experimental  │
@@ -375,3 +334,28 @@ key = "prefix+shift+t"
 type = "plugin_action"
 command = "tab-smart-rename.rename-all"
 description = "smart rename: every tab"
+
+# >>> furkankly.zoetrope keys (managed: `setup-keys` writes this block, `remove-keys` deletes it)
+[[keys.command]]
+key = "prefix+shift+z"
+type = "plugin_action"
+command = "furkankly.zoetrope.open"
+description = "zoetrope: session graph (overlay)"
+
+# The graph opens over the focused pane and gives the layout back when
+# it closes. The same key closes it. Two other placements, if you would
+# rather keep the graph on screen: uncomment one, or point the binding
+# above at its action. Then: herdr server reload-config
+# [[keys.command]]
+# key = "prefix+shift+v"
+# type = "plugin_action"
+# command = "furkankly.zoetrope.open-split"
+# description = "zoetrope: session graph (split)"
+
+# [[keys.command]]
+# key = "prefix+shift+c"
+# type = "plugin_action"
+# command = "furkankly.zoetrope.open-tab"
+# description = "zoetrope: session graph (tab)"
+
+# <<< furkankly.zoetrope keys

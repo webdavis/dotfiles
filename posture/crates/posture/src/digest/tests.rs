@@ -5,9 +5,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     cell::RefCell,
     ffi::{OsStr, OsString},
+    fs::Permissions,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     rc::Rc,
 };
+
+mod limits;
 
 #[derive(Default)]
 struct Effects {
@@ -113,18 +117,24 @@ impl Fixture {
         }
     }
 
+    /// The one owned command this fixture's pages are handed to.
+    fn engine(&self) -> std::path::PathBuf {
+        self.home.join("engine")
+    }
+
     fn config(&self) -> Configuration {
         Configuration {
             store: self.store.clone(),
-            pns: self.home.join("pns"),
+            delivery: crate::producer_delivery(&self.engine()),
             alarm: self.home.join("osascript"),
+            limits: Default::default(),
         }
     }
 
     fn run(&self, reply: Reply, stderr: &mut Vec<u8>) -> u8 {
         let config = self.config();
         let runner = Runner {
-            expected: config.pns.clone(),
+            expected: self.engine(),
             reply: Some(reply),
             effects: self.effects.clone(),
         };
@@ -177,7 +187,7 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
         // that did not earn one.
         "\"kind\":\"observation\"",
         "\"occurred_at\":10000",
-        "\"route\":\"posture\"",
+        "\"route\":\"posture-pages\"",
         "2026-09-08",
         "2 item(s)",
         "launchd",
@@ -188,6 +198,31 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
     assert!(stderr.is_empty());
     assert_eq!(fixture.spool_contents(), "");
     assert!(fixture.kept().unwrap().contains("com.example.other"));
+}
+
+#[test]
+fn a_torn_line_is_dropped_and_the_run_says_how_many_it_lost() {
+    // The alerter appends from another process, so a partial write can leave
+    // bytes that are not UTF-8. Failing on them wedged the digest; dropping
+    // them silently would lose findings nobody ever hears about, so the count
+    // goes to the log beside the run that made it.
+    let fixture = Fixture::new("");
+    let mut bytes = finding("launchd", "com.example.agent").into_bytes();
+    bytes.extend_from_slice(b"\xff\n");
+    bytes.extend_from_slice(finding("launchd", "com.example.other").as_bytes());
+    std::fs::write(&fixture.store, &bytes).unwrap();
+
+    let mut stderr = vec![];
+    assert_eq!(fixture.run(Reply::Committed, &mut stderr), 0);
+    assert_eq!(
+        String::from_utf8(stderr).unwrap(),
+        "posture digest: dropped 1 unreadable line(s) from the batch\n"
+    );
+    let effects = fixture.effects.borrow();
+    assert_eq!(effects.requests.len(), 1);
+    let request = &effects.requests[0];
+    assert!(request.contains("3 item(s)"), "{request}");
+    assert!(request.contains("com.example.other"), "{request}");
 }
 
 #[test]
@@ -216,13 +251,36 @@ fn a_refused_send_leaves_the_batch_in_the_spool_for_tomorrow_and_still_exits_zer
 }
 
 #[test]
+fn a_spool_that_cannot_be_read_says_so_and_exits_nonzero() {
+    // A READ FAILURE USED TO LOOK EXACTLY LIKE A QUIET DAY: exit 0, no output,
+    // nothing to tell the two apart. The batch is still on disk for the next
+    // run's sweep, but a run that could not take its own spool has not done its
+    // job. Nonzero is safe here: the LaunchAgent runs on a calendar interval
+    // with no KeepAlive, so nothing retries, and the uptime watchdog pages only
+    // after two failing runs in a row, which is the right threshold for a spool
+    // that stayed unreadable.
+    let fixture = Fixture::new(&finding("launchd", "com.example.agent"));
+    std::fs::set_permissions(&fixture.store, Permissions::from_mode(0o000)).unwrap();
+    let mut stderr = vec![];
+    assert_eq!(fixture.run(Reply::Committed, &mut stderr), 1);
+    let said = String::from_utf8(stderr).unwrap();
+    assert_eq!(said.lines().count(), 1, "{said}");
+    assert!(
+        said.contains(&fixture.store.display().to_string()),
+        "{said}"
+    );
+    assert!(fixture.effects.borrow().requests.is_empty());
+    assert!(fixture.kept().is_none());
+}
+
+#[test]
 fn a_clock_that_cannot_answer_leaves_the_batch_untouched_and_says_so() {
     // The clock names the day in the title and stamps the claim, so claiming a
     // batch this run cannot finish naming would only risk it.
     let fixture = Fixture::new(&finding("launchd", "com.example.agent"));
     let config = fixture.config();
     let runner = Runner {
-        expected: config.pns.clone(),
+        expected: fixture.engine(),
         reply: Some(Reply::Committed),
         effects: fixture.effects.clone(),
     };

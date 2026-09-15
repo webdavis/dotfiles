@@ -168,6 +168,23 @@ pub trait BlockedMarker {
     fn update(&self, session_id: &str, event_state: &str, lamps_live: bool, now: Option<u64>);
 }
 
+/// The same wait, recorded for the stale-block escalation rather than for a
+/// lamp.
+///
+/// ITS OWN PORT BESIDE `BlockedMarker` RATHER THAN A SECOND ARGUMENT ON IT,
+/// for `LightsTick`'s reason: this one writes a row and registers a leased
+/// job, which is not what a marker does, and the tail states the order of the
+/// two rather than hiding one inside the other.
+///
+/// NO `lamps_live`. A marker written with no lamp to read it is a wait nothing
+/// will ever clear, which is why that port takes the answer; this row is read
+/// by a page, so a machine with no lamps still records it. How long a block
+/// stands before it is escalated is the adapter's read of the config, as
+/// `LightsTick` reads the lamps'.
+pub trait SessionWait {
+    fn track(&self, session_id: &str, event_state: &str, now: Option<u64>);
+}
+
 /// The loop lease this pane holds, if it holds one.
 ///
 /// IT RENEWS AND NEVER CREATES. The renewal is the pane's own ordinary

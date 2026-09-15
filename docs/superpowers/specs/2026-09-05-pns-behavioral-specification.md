@@ -457,7 +457,9 @@ S048. A payload that is not UTF-8 fails the string read, and the hook returns 0 
            at tests/hooks.rs:966
 
 S049. Every payload field is optional and a document that will not parse is `HookPayload::default()`;
-      `in_subagent` records whether the `agent_id` KEY was present, whatever its value.
+      `in_subagent` records whether the `agent_id` KEY was present, whatever its value. `prompt` and
+      `session_title` ride on `UserPromptSubmit` and are read flattened, because both compose the
+      header's second line; Codex sends neither.
       Source: `src/hooks.rs:14-77 HookPayload`, `src/hooks.rs:80-129 parse_payload`.
       Pin: `a_payload_yields_every_field_the_hooks_read`
            at src/hooks.rs:390
@@ -465,6 +467,8 @@ S049. Every payload field is optional and a document that will not parse is `Hoo
            at src/hooks.rs:453
       also `a_present_agent_id_of_any_shape_marks_a_subagent_and_absence_does_not`
            at src/hooks.rs:411
+      also `a_user_prompt_yields_the_prompt_and_the_harnesss_own_session_title`
+           at crates/pns-adapters/src/harness/tests/payload.rs
 
 S050. The card's message is the first non-empty of `elicitation_request`, flattened `message`,
       flattened `detail`, `reported_error`, with `tool_request` as the fallback; three of those are cut
@@ -590,12 +594,22 @@ S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-g
       also `the_condensers_last_usable_line_wins`
            at src/hooks.rs:841
 
-S059. `stop`: `branch` comes from `git rev-parse --abbrev-ref HEAD` in the payload's `cwd` under a 5 s
-      bound, `project` is the last segment of `cwd`, `pane` is `HERDR_PANE_ID` verbatim, and the event
-      never reaches moshi.
-      Source: `src/main.rs:2299-2324 git_branch`, `src/main.rs:2092-2140 end_of_turn`.
+S059. `stop`: `project` and `branch` come from ONE bounded `git rev-parse --path-format=absolute
+      --git-common-dir --show-toplevel --abbrev-ref HEAD` in the payload's `cwd`, so a linked
+      worktree reports the REPOSITORY rather than its branch slug; `project` falls back to the last
+      segment of `cwd` outside a repository, the branch slot falls back to the worktree's own
+      directory name on a detached head, `pane` is `HERDR_PANE_ID` verbatim, and the event never
+      reaches moshi.
+      Source: `crates/pns-adapters/src/git.rs git_checkout`, `crates/pns/src/sender.rs attribution`,
+      `crates/pns/src/turn_lifecycle.rs end_of_turn`.
       Pin: `the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downstream`
            at tests/hooks.rs:235
+      also `the_repository_comes_off_the_common_directory_so_a_worktree_is_not_the_project`
+           at crates/pns-adapters/src/git/tests.rs
+      also `a_detached_head_takes_the_worktree_directory_name_for_its_branch_slot`
+           at crates/pns-adapters/src/git/tests.rs
+      also `a_real_repository_answers_its_own_name_and_branch`
+           at crates/pns-adapters/src/git/tests.rs
       also `an_ordinary_stop_never_reaches_moshi`
            at tests/hooks.rs:1606
 
@@ -858,7 +872,8 @@ S082. A forwarded gate preserves existing marker bytes and creates no state-dire
       Pin: `a_forwarded_gate_leaves_the_state_markers_untouched` in `tests/hooks/gate.rs`.
       UNPINNED: Codex's interpretation of the exit code, recorded in `docs/specs/blocking-approval.md`.
 
-S083. The blocked hook's card is state `blocked`, project from the payload's `cwd`, detail from the
+S083. The blocked hook's card is state `blocked`, project from the repository the payload's `cwd`
+      belongs to (S059), detail from the
       message chain (`Bash: command=rm -rf /tmp/x` for Claude Code, `shell: command=bash -lc rm -rf
       build` for Codex), pane from `HERDR_PANE_ID`.
       Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:2745 project_of`.
@@ -1386,10 +1401,11 @@ S125. The exact core-fallback sentence is not asserted on the event path.
       Source: `src/registry.rs:396-407 core_warning`.
       Pin: UNPINNED. Only the pulse-mode test covers an unreadable config end to end.
 
-S126. Every leg is handed one rendered `Event { agent, state, project, branch, detail, title, message,
-      preview, pane }`, serialized with `mode` as the tenth, per-leg field; the title is `agent ·
-      state · project`, the message falls back detail, state, `done`, and the branch prefix is
-      `branch: body`.
+S126. Every leg is handed one rendered `Event { agent, state, project, branch, detail, title,
+      session, session_title, message, preview, pane }`, serialized with `mode` as the tenth,
+      per-leg field (the two session fields are the sender header's, carried for the channels that
+      render one and left out of that serialization); the title is `agent · state · project`, the
+      message falls back detail, state, `done`, and the branch prefix is `branch: body`.
       Source: `src/main.rs:3532 rendered_event`, `src/channels/mod.rs:21-52 Event`,
       `crates/pns-domain/src/render.rs:15 title`, `crates/pns-domain/src/render.rs:42 message`.
       Pin: `a_channel_is_handed_the_rendered_event_not_the_raw_arguments`
@@ -1410,6 +1426,8 @@ S126. Every leg is handed one rendered `Event { agent, state, project, branch, d
            at crates/pns-domain/src/render/tests.rs:55
       also `message_falls_back_to_the_state_when_there_is_no_detail`
            at crates/pns-domain/src/render/tests.rs:60
+      also `the_card_title_stays_agent_state_project_while_the_sender_parts_ride_along`
+           at crates/pns/src/channel_dispatch/tests.rs
 
 S127. The preview is the message up to 260 characters, cut at the last sentence end that fits, else
       clipped to 259 plus an ellipsis; the reply cap is 8,000 characters keeping the tail; exactly
@@ -1576,14 +1594,26 @@ S140. A missing or empty token posts nothing and is `Failed("push SKIPPED -- no 
 
 ### 6.3 `hermes`
 
-S141. The hermes record is one POST of `{"agent", "state", "project", "detail": <full message>}` signed
-      HMAC-SHA256 over the exact body bytes under `[plugins.hermes] key`, sent as lowercase hex in
+S141. The hermes record is one POST of `{"agent", "state", "project", "detail": <full message>,
+      "header", "subheader", "body": <the bare detail>, "thread_id": ""}` signed HMAC-SHA256 over the
+      exact body bytes under `[plugins.hermes] key`, sent as lowercase hex in
       `X-Webhook-Signature`, following no redirect; the key never rides in the body, the URL or any
-      printed line.
+      printed line. `header` is `project · branch · state` and `subheader` is `agent · <four
+      characters of the session> · title`, each dropping an empty part with its separator, and every
+      key is present on every post because the gateway's renderer has no conditionals: `thread_id`
+      is posted empty until hermes can hand back a thread it created.
       Source: `src/channels/hermes.rs:48 hermes_body`, `src/channels/hermes.rs:60 sign`,
       `src/channels/hermes.rs:212-252 HermesChannel`, `src/channels/hermes.rs:253-286 UreqSignedPost`.
       Pin: `the_body_carries_the_full_message_because_discord_has_no_ceiling`
            at src/channels/hermes.rs:352
+      also `every_header_key_is_present_on_an_event_that_knows_no_session`
+           at crates/pns-adapters/src/destinations/hermes/tests/values.rs
+      also `the_two_composed_lines_ride_beside_the_bare_body`
+           at crates/pns-adapters/src/destinations/hermes/tests/values.rs
+      also `the_header_names_the_project_the_branch_and_the_state`
+           at crates/pns-domain/src/render/tests.rs
+      also `the_subheader_drops_an_empty_title_with_its_separator`
+           at crates/pns-domain/src/render/tests.rs
       also `the_signature_matches_the_published_hmac_sha256_vector`
            at src/channels/hermes.rs:365
       also `the_empty_and_unicode_bodies_match_openssls_own_hmac`
@@ -2675,6 +2705,105 @@ S241. The per-record claim has one owner independently of the fire lock; a prior
       also `a_record_claim_never_overwrites_a_batch_that_owner_already_holds`.
       The independent read-in-place fault is caught by the first test.
 
+### 11.1 The stale-block escalation
+
+The nag's sibling, added 2026-09-14: the nag says "this approval is still waiting" minutes later on
+the ordinary route, and this says "nobody is coming" an hour later on the route reserved for things
+that need a human, once per block.
+
+S286. `[nag] stale_after_secs` is the switch and the window: 60 to 86400 arms it, 0 is off, anything
+      else is refused by name; the DEFAULT IS 3600 rather than off, which is where it differs from
+      `after_secs` beside it, and a config nobody can parse reads as off.
+      Source: `crates/pns-adapters/src/config/nag.rs stale_window`,
+      `crates/pns-adapters/src/config/nag.rs DEFAULT_STALE_AFTER_SECS`,
+      `crates/pns/src/wait_runtime.rs stale_after_secs`.
+      Pin: `the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error`
+           at crates/pns-adapters/src/config/tests/nag.rs
+      also `an_escalation_window_that_is_not_a_count_of_seconds_is_refused_by_name`
+           at crates/pns-adapters/src/config/tests/nag.rs
+      also `test_the_binary_over_the_committed_values_file_writes_the_committed_template_exactly`
+           at test/unit/pns-config-template.test.sh (the shipped template carries the live line, so a
+           `Default` flipped to an `Example` fails the byte comparison; the render tests beside it read
+           the PARSED config, which cannot tell a live default from a commented one that matches)
+
+S287. Every state in `pulse::LAMP_BLOCKED` records `blocked_since` on the session's row and registers
+      one leased job `stale:<session>` with `due = now + window`, `until = due + window`, no
+      `unless_marker`, args `["stale"]`; it arms for EVERY harness, where the nag arms for claude
+      alone; any other state, and the `prompt` and `resolved` arms that end a wait directly, clear
+      `blocked_since` and `escalated_at`; a window of zero arms nothing and an unsafe session id
+      records nothing at all.
+      Source: `crates/pns-application/src/track_wait.rs track_wait`,
+      `crates/pns/src/wait_runtime.rs track_wait`,
+      `crates/pns/src/wait_runtime.rs end_blocked_wait`,
+      `crates/pns-application/src/submit_notification.rs record`.
+      Pin: `a_wait_starting_event_records_the_row_and_schedules_one_leased_job`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `every_waiting_state_arms_it_and_a_later_event_clears_the_row`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `a_blocked_approval_arms_one_leased_escalation_job_for_every_harness`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `an_escalation_window_of_zero_arms_nothing`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `a_session_id_that_cannot_be_a_filename_records_nothing_at_all`
+           at crates/pns-application/src/track_wait/tests.rs
+      also `the_records_are_written_in_the_order_the_event_path_states`
+           at crates/pns-application/src/submit_notification/tests/order.rs
+
+S288. The fire selects `blocked_since IS NOT NULL AND blocked_since <= now - window AND escalated_at
+      IS NULL`, oldest first: a block as old as the window is selected and one second short of it is
+      not. The claim is the stamp, taken under `escalated_at IS NULL` inside the write, so a second
+      claimant is refused and a later tick selects nothing; a new block clears the stamp, whether or
+      not any event ended the last one.
+      Source: `crates/pns-adapters/src/persistence/sqlite/sessions.rs stale_blocks`,
+      `crates/pns-adapters/src/persistence/sqlite/sessions.rs claim_escalation`,
+      `crates/pns-adapters/src/persistence/sqlite/sessions.rs begin_wait`.
+      Pin: `a_block_as_old_as_the_window_is_selected_and_one_second_short_of_it_is_not`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `the_escalation_is_claimed_once_so_a_later_tick_finds_nothing`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_wait_that_ended_is_selected_again_once_a_new_block_starts`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_new_block_is_selected_again_even_where_no_event_ended_the_last_one`
+           at crates/pns-adapters/src/persistence/sqlite/tests/sessions.rs
+      also `a_row_another_fire_already_claimed_is_never_paged_about`
+           at crates/pns-application/src/escalate_stale/tests.rs
+
+S289. The gate is read once, off one surface reading, BEFORE any claim: `Surface::Away` is silent,
+      `screen_locked == Some(true)` with a desk idle age at or past the window is silent, and
+      anything else pages, so a screen locked for PART of the window still pages. A suppressed fire
+      stamps nothing, leaves every row as it found it, and says how many it held back and why on
+      stderr.
+      Source: `crates/pns-domain/src/stale.rs gate`,
+      `crates/pns-application/src/escalate_stale.rs run`,
+      `crates/pns/src/command_stale.rs stale_mode`.
+      Pin: `an_away_operator_is_never_paged` at crates/pns-domain/src/stale/tests.rs
+      also `a_screen_locked_through_the_whole_window_is_not_paged`
+           at crates/pns-domain/src/stale/tests.rs
+      also `a_screen_locked_inside_the_window_is_still_paged`
+           at crates/pns-domain/src/stale/tests.rs
+      also `an_away_operator_is_not_paged_and_no_row_is_stamped`
+           at crates/pns-application/src/escalate_stale/tests.rs
+
+S290. The page is one ordinary event on the `priority` route (fixed, not configurable), state
+      `blocked`, detail `blocked <n> minutes, no answer`, carrying the row's project, branch, session
+      and title so the header and subheader compose exactly as every other event's do, and no pane.
+      It is an `Attempt::Nudge`, so it journals no miss, counts as no activity and pulses no lamp; a
+      page the gateway refuses is recorded in the delivery ledger and said on stderr. `pns stale`
+      takes no argument, and one is a refusal with exit 2.
+      Source: `crates/pns-domain/src/stale.rs page`, `crates/pns-domain/src/stale.rs waited`,
+      `crates/pns/src/command_stale.rs StaleNotification`.
+      Pin: `the_page_goes_to_the_priority_route` at crates/pns-domain/src/stale/tests.rs
+      also `the_page_says_how_long_the_block_has_stood` at crates/pns-domain/src/stale/tests.rs
+      also `a_stale_block_is_claimed_before_it_is_paged_about`
+           at crates/pns-application/src/escalate_stale/tests.rs
+      also `the_fire_refuses_a_session_argument_and_says_nothing_when_the_window_is_off`
+           at crates/pns/tests/hooks/stale_arming.rs
+      also `a_fire_with_nothing_stuck_says_so_and_delivers_nothing`
+           at crates/pns/tests/hooks/stale_arming.rs
+      UNPINNED: that a real daemon tick spawns `pns stale` an hour after a block, which needs a clock
+      this binary has no override for; the job's own registration and the fire are pinned separately
+      above.
+
 ## 12. Missed notifications and the replay
 
 S242. A returning event (surface not `Away`, plan raising a banner or a card, at least one decorative
@@ -3287,6 +3416,9 @@ clause counts as UNPINNED, so the review of the same day moved eight statements 
 | UNPINNED, whole (43) or by one clause (7)      | 50    |
 | Test references (a test may pin many statements) | 776   |
 | Distinct Rust tests referenced                 | 708   |
+
+Five statements (S286 to S290) were added on 2026-09-14 for the stale-block escalation and are not
+in the counts above, which stand as computed on 2026-09-05.
 
 The crate's own register, `pns/docs/specs/unpinned-behaviors.md`, lists 79 test-gap
 rows and 26 open-question rows harvested from the seventeen area specifications; the UNPINNED

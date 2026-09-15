@@ -27,7 +27,7 @@ pub(crate) fn parse_command_lane(
     for (name, setting) in table {
         admits_lane(table_label, "command", CommandLane::KEYS, &name)?;
         match name.as_str() {
-            "run" => run = Some(parse_run(table_label, &setting)?),
+            "run" => run = Some(parse_argv(table_label, "run", &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -46,27 +46,31 @@ pub(crate) fn parse_command_lane(
 /// `run`: a non-empty list of non-blank strings. `run[0]` is the program that
 /// gets executed and `run[1..]` its arguments, so a missing, wrongly-typed,
 /// empty or blank entry each names nothing runnable and is refused by name.
-fn parse_run(table_label: &str, setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+pub(super) fn parse_argv(
+    table_label: &str,
+    key: &str,
+    setting: &toml::Value,
+) -> Result<Vec<String>, ConfigError> {
     let Some(entries) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
-            "`{table_label}` key `run` has type `{}`, not a list",
+            "`{table_label}` key `{key}` has type `{}`, not a list",
             setting.type_str()
         )));
     };
     if entries.is_empty() {
         return Err(ConfigError::Invalid(format!(
-            "`{table_label}` key `run` is empty, so it names nothing to run"
+            "`{table_label}` key `{key}` is empty, so it names nothing to run"
         )));
     }
     entries
         .iter()
         .map(|entry| match entry.as_str() {
             Some(word) if word.trim().is_empty() => Err(ConfigError::Invalid(format!(
-                "`{table_label}` key `run` holds a blank entry, so it names nothing to run"
+                "`{table_label}` key `{key}` holds a blank entry, so it names nothing to run"
             ))),
             Some(word) => Ok(word.to_string()),
             None => Err(ConfigError::Invalid(format!(
-                "`{table_label}` key `run` holds a `{}`, not a string",
+                "`{table_label}` key `{key}` holds a `{}`, not a string",
                 entry.type_str()
             ))),
         })

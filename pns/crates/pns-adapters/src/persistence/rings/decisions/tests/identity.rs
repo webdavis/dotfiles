@@ -84,6 +84,8 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         detail: "SECRETDETAIL".to_string(),
         pane: "wW:pSECRETPANE".to_string(),
         channel: "SECRETCHANNEL".to_string(),
+        session: "SECRETSESSION".to_string(),
+        session_title: "SECRETTITLE".to_string(),
         scope: pns_domain::DeliveryScope::LocalOnly,
         long_running: true,
     };
@@ -108,6 +110,8 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         "SECRETPANE",
         "wW",
         "SECRETCHANNEL",
+        "SECRETSESSION",
+        "SECRETTITLE",
     ] {
         assert!(
             !recorded.contains(content),

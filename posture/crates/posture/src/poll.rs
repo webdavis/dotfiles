@@ -1,6 +1,6 @@
 use posture_adapters::{
-    CommandRunner, ControlProbes, LastResortBanner, PnsProducer, PollStateFiles, PostureQuery,
-    PostureTrio, SystemClock, SystemRunner, is_executable, read_controls,
+    CommandRunner, ControlProbes, Delivery, LastResortBanner, PollStateFiles, PostureQuery,
+    PostureTrio, SystemClock, SystemRunner, alert_sink, is_executable, read_controls,
 };
 use posture_application::{Clock, Poll, PollFailure, PollStateFailure};
 use posture_domain::{ControlObservation, ControlsRead, LuluProfile};
@@ -14,8 +14,19 @@ use std::{
 struct Configuration {
     state: PathBuf,
     controls: PathBuf,
-    pns: PathBuf,
+    delivery: Delivery,
     alarm: PathBuf,
+}
+
+impl Configuration {
+    fn from_home(home: &Path) -> Self {
+        Self {
+            state: home.join(".local/state/osquery-posture-state.json"),
+            controls: home.join(".local/libexec/posture/controls.json"),
+            delivery: Delivery::read(home),
+            alarm: "/usr/bin/osascript".into(),
+        }
+    }
 }
 
 pub(super) fn run(stderr: &mut impl Write) -> u8 {
@@ -25,12 +36,7 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
     };
     let query = query_path(std::env::var_os("PATH").as_deref());
     execute(
-        Configuration {
-            state: home.join(".local/state/osquery-posture-state.json"),
-            controls: home.join(".local/libexec/osquery/posture-controls.json"),
-            pns: home.join(".cargo/bin/pns"),
-            alarm: "/usr/bin/osascript".into(),
-        },
+        Configuration::from_home(&home),
         PostureQuery::new(query),
         ControlProbes::current_user(
             "/Library/Objective-See/LuLu/rules.plist".into(),
@@ -106,15 +112,11 @@ fn execute(
         })
         .unwrap_or_default();
     let prior = prior.as_ref().and_then(|state| state.baseline(&priors));
-    let mut sink = PnsProducer::new(
+    let mut sink = alert_sink(
+        config.delivery,
         producer,
-        config.pns,
-        Some(
-            String::from("posture")
-                .try_into()
-                .expect("the fixed posture route is valid"),
-        ),
         LastResortBanner::new(alarm, config.alarm),
+        &mut *stderr,
     );
     let result = Poll {
         markers: &state,

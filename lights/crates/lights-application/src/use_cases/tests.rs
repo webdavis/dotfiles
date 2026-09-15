@@ -199,3 +199,72 @@ fn status_scene_lookup_failure_is_not_absence() {
     );
     assert_eq!(*c.calls.borrow(), [Call::Room, Call::Scenes]);
 }
+fn preset(steps: &[(&str, PresetTarget)]) -> Vec<PresetStep> {
+    steps
+        .iter()
+        .map(|(room, target)| PresetStep {
+            room: RoomName::new(*room).unwrap(),
+            target: target.clone(),
+        })
+        .collect()
+}
+#[test]
+fn preset_applies_every_step_in_the_order_written() {
+    let c = RecordingLightController::new(true);
+    let steps = preset(&[
+        ("Studio", PresetTarget::Scene("Read".into())),
+        ("Bedroom", PresetTarget::Off),
+        ("Kitchen", PresetTarget::Scene("Read".into())),
+    ]);
+    assert_eq!(
+        ApplyPreset::run(&c, &steps),
+        vec![
+            Ok(Action::SceneSet {
+                room: RoomName::new("Studio").unwrap(),
+                scene: "Read".into()
+            }),
+            Ok(Action::PowerSet {
+                room: RoomName::new("Bedroom").unwrap(),
+                on: false
+            }),
+            Ok(Action::SceneSet {
+                room: RoomName::new("Kitchen").unwrap(),
+                scene: "Read".into()
+            }),
+        ]
+    );
+    assert_eq!(
+        *c.calls.borrow(),
+        [
+            Call::Room,
+            Call::Scenes,
+            Call::Scene(11),
+            Call::Room,
+            Call::Power(false),
+            Call::Room,
+            Call::Scenes,
+            Call::Scene(11),
+        ]
+    );
+}
+#[test]
+fn a_failed_step_does_not_stop_the_rest_of_the_preset() {
+    let c = RecordingLightController::new(true);
+    let steps = preset(&[
+        ("Studio", PresetTarget::Scene("Missing".into())),
+        ("Kitchen", PresetTarget::Scene("Read".into())),
+    ]);
+    assert_eq!(
+        ApplyPreset::run(&c, &steps),
+        vec![
+            Err(LightsError::UnknownScene {
+                name: "Missing".into(),
+                room: "Studio".into()
+            }),
+            Ok(Action::SceneSet {
+                room: RoomName::new("Kitchen").unwrap(),
+                scene: "Read".into()
+            }),
+        ]
+    );
+}

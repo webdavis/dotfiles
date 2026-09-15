@@ -83,6 +83,7 @@ fn execute(result: &mut TapResult) -> Result<(), TapFailure> {
         config_file: resolved.config_file.to_string_lossy().into_owned(),
         exists: None,
         mtime_epoch_secs: None,
+        touched_at: None,
         age_secs: None,
         fresh: None,
     });
@@ -99,6 +100,7 @@ fn execute(result: &mut TapResult) -> Result<(), TapFailure> {
     if let Some(marker) = result.marker.as_mut() {
         marker.exists = metadata.exists();
         marker.mtime_epoch_secs = metadata.mtime();
+        marker.touched_at = metadata.mtime().and_then(pns_adapters::utc_timestamp);
         marker.age_secs = now
             .zip(metadata.mtime())
             .map(|(now, time)| now.saturating_sub(time));

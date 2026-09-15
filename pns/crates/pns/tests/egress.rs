@@ -15,6 +15,7 @@ fn the_version_one_egress_body_is_byte_identical_to_the_executable_event() {
         message: "$(touch never); `echo inert`".into(),
         preview: "preview\r\n".into(),
         pane: "w1:p2".into(),
+        ..Event::default()
     };
     for event in [Event::default(), rich] {
         for (legacy_mode, mode) in [

@@ -22,6 +22,7 @@ use posture_domain::{
     LaunchdIdentity, PageFinding, Severity, Signing, Triage, allowlist_verdict, gate, render_page,
     severity,
 };
+use std::io::Write;
 
 /// External readings for the gate, and display facts requested after an integrity page decision.
 pub struct Collaborators<'a> {
@@ -30,8 +31,9 @@ pub struct Collaborators<'a> {
     pub vouches: &'a mut dyn FnMut(&str) -> bool,
     /// The signing verdict for an enrichment path, when one was resolved.
     pub inspect: &'a mut dyn FnMut(&str) -> Option<OwnedSigning>,
-    /// The recorded, on-disk and upgrade facts a file-integrity page carries.
-    pub triage: &'a mut dyn FnMut(&ResultsRow) -> Option<OwnedTriage>,
+    /// The recorded, on-disk and upgrade facts a file-integrity page carries,
+    /// written through the judge's own diagnostics sink.
+    pub triage: &'a mut dyn FnMut(&ResultsRow, &mut dyn Write) -> Option<OwnedTriage>,
 }
 
 /// A signing verdict, owned so it can outlive the call that produced it.
@@ -56,6 +58,8 @@ pub struct BatchJudge<'a> {
     pub spool: &'a DigestAppendFile,
     pub collaborators: Collaborators<'a>,
     pub now: &'a str,
+    /// The one sink every diagnostic raised while judging is written to.
+    pub diagnostics: &'a mut dyn Write,
 }
 
 impl JudgeFindings for BatchJudge<'_> {
@@ -73,7 +77,7 @@ impl JudgeFindings for BatchJudge<'_> {
             .map(|(row, signing)| {
                 let outcome = self.outcome(row, entries.as_deref(), signing.as_ref());
                 let triage = if matches!(outcome, GateOutcome::IntegrityPage { .. }) {
-                    (self.collaborators.triage)(row)
+                    (self.collaborators.triage)(row, self.diagnostics)
                 } else {
                     None
                 };
@@ -167,9 +171,9 @@ impl BatchJudge<'_> {
         verdict == posture_domain::AllowlistVerdict::Suppress
     }
 
-    fn spool_row(&self, row: &ResultsRow) {
+    fn spool_row(&mut self, row: &ResultsRow) {
         let detector = row.detector.query_name();
-        self.spool.append(&posture_protocol::DigestRecord {
+        let record = posture_protocol::DigestRecord {
             timestamp: Some(self.now.to_string()),
             detector: Some(detector.to_string()),
             category: Some(row.column("category").to_string()),
@@ -179,7 +183,8 @@ impl BatchJudge<'_> {
             // out of them spooled an empty action for every finding.
             action: Some(action(row).to_string()),
             summary: Some(format!("{detector} {}", named(row))),
-        });
+        };
+        self.spool.append(&record, self.diagnostics);
     }
 }
 

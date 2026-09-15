@@ -18,19 +18,22 @@ post-quantum identities (`AGE-SECRET-KEY-PQ-1…`); everything below applies to 
 ### Every managed encrypted target
 
 Each `encrypted_` source file below decrypts to the listed target on `chezmoi apply`. Rotation and
-recovery both cover all of them. There are five files.
+recovery both cover all of them. There are four files, all of them hermes PROFILE configs.
 
 | Source file (in this repo)                                                        | Decrypts to                                |
 | --------------------------------------------------------------------------------- | ------------------------------------------ |
-| `private_dot_hermes/encrypted_private_config.yaml.age`                            | `~/.hermes/config.yaml` (root, Bob)        |
 | `private_dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age`   | `~/.hermes/profiles/butters/config.yaml`   |
 | `private_dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age` | `~/.hermes/profiles/concerned/config.yaml` |
 | `private_dot_hermes/profiles/private_elaine/encrypted_private_config.yaml.age`    | `~/.hermes/profiles/elaine/config.yaml`    |
 | `private_dot_hermes/profiles/private_nicodemus/encrypted_private_config.yaml.age` | `~/.hermes/profiles/nicodemus/config.yaml` |
 
-The Codegraph Model Context Protocol enablement is a section inside the root `~/.hermes/config.yaml`, so
-it rides the root capture above rather than a separate encrypted file. There is no standalone Codegraph
-secret to track; when counting targets it is part of the root config, not a sixth file.
+The ROOT config, `~/.hermes/config.yaml`, left this list on 2026-09-14. It was
+`private_dot_hermes/encrypted_private_config.yaml.age` and it is now a chezmoi modify-template,
+`private_dot_hermes/modify_private_config.yaml`, which owns the six webhook routes and the ElevenLabs
+voice id and reads every secret from KeePassXC by entry name; hermes owns the rest of that file. So the
+age key no longer decrypts anything under `~/.hermes` except the four profiles, and the Codegraph Model
+Context Protocol enablement, which is a section inside the root config, is no longer carried by an
+encrypted capture at all. See the hermes section of `docs/runbooks/local-daemons.md`.
 
 ## Disaster recovery: restore the key on a fresh or wiped machine
 
@@ -46,8 +49,9 @@ no new manual step beyond that unlock.
 1. If you need to restore the key by hand (the script did not run, or a non-macOS host), copy the
    Password field of `chezmoi :: Private Key :: age` into `~/.config/chezmoi/key.txt`, then
    `chmod 600 ~/.config/chezmoi/key.txt`.
-1. Confirm recovery without printing any plaintext: `chezmoi cat ~/.hermes/config.yaml | shasum -a 256`.
-   A hash (not an error) means every encrypted target will decrypt.
+1. Confirm recovery without printing any plaintext:
+   `chezmoi cat ~/.hermes/profiles/butters/config.yaml | shasum -a 256`. A hash (not an error) means
+   every encrypted target will decrypt.
 
 The restore script self-heals: if `key.txt` is later deleted it is restored on the next apply; if the
 file present derives the wrong recipient, or is a symlink, the script warns loudly, points back here, and
@@ -90,11 +94,10 @@ runs 2.70.5, so it is available; confirm with `chezmoi --version` before startin
      the old rendered recipient.
 
 1. **Re-encrypt each managed target to the new recipient, listed explicitly by path.** Scope the command
-   to the five encrypted files so it cannot ingest an unrelated modified file:
+   to the four encrypted files so it cannot ingest an unrelated modified file:
 
    ```
    chezmoi re-add --re-encrypt \
-     ~/.hermes/config.yaml \
      ~/.hermes/profiles/butters/config.yaml \
      ~/.hermes/profiles/concerned/config.yaml \
      ~/.hermes/profiles/elaine/config.yaml \
@@ -109,9 +112,8 @@ runs 2.70.5, so it is available; confirm with `chezmoi --version` before startin
 
 1. **Verify every capture decrypts with the NEW identity alone.** Temporarily point the identity at a
    file holding ONLY the new `AGE-SECRET-KEY-1…` line and hash each target (no plaintext printed):
-   `for t in ~/.hermes/config.yaml ~/.hermes/profiles/*/config.yaml; do chezmoi cat "$t" | shasum -a 256; done`.
-   Each must produce a hash, not an error. `test/integration/hermes-age-captures.sh` also decrypts every
-   committed capture when the identity is present.
+   `for t in ~/.hermes/profiles/*/config.yaml; do chezmoi cat "$t" | shasum -a 256; done`. Each must
+   produce a hash, not an error.
 
    - Rollback: if any target fails to decrypt under the new-only identity, restore the old identity line
      in `key.txt` (both keys active again) and investigate before proceeding; do not remove the old key.
@@ -131,11 +133,13 @@ runs 2.70.5, so it is available; confirm with `chezmoi --version` before startin
 Rotating the key changes which identity decrypts FUTURE ciphertext. It does nothing for the past: every
 `encrypted_` blob ever committed sits in git history, and a leaked age private key decrypts all of it,
 forever, for anyone who has both the key and a clone. Treat a suspected key leak as a leak of every
-secret those five configs have ever held.
+secret those configs have ever held, the retired ROOT capture included: every route secret and channel id
+it carried up to 2026-09-14 is still readable in history by whoever holds the key, which is a reason to
+rotate those vault entries, not only the age key.
 
 1. Rotate the age key using the procedure above, so new captures are encrypted to a recipient the
    attacker does not hold.
-1. Rotate every underlying credential carried in the five configs AT ITS SOURCE: revoke and reissue each
+1. Rotate every underlying credential carried in the four configs AT ITS SOURCE: revoke and reissue each
    token, webhook secret, HMAC (hash-based message authentication code) key, and password, so the values
    the attacker can still read from history are dead.
 1. Re-encrypt the captures only AFTER those underlying values have changed, so the new ciphertext holds

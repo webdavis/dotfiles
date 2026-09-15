@@ -213,3 +213,32 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
         stderr(&fired)
     );
 }
+
+#[test]
+fn the_doctor_names_every_route_the_config_armed_no_key_for() {
+    // THE TEST SEND CANNOT FIND THESE. It posts on the default route alone, so
+    // two of the three keys are never exercised, and `priority` carries the
+    // stale-block escalation, which is raised asynchronously and records its
+    // refusal where nothing prints it. Without this census an unarmed route is
+    // silence in its own channel and a green doctor.
+    let sandbox = Sandbox::new("doctor-unarmed-routes");
+    sandbox.write_config(
+        "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"armed\"\n",
+    );
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+
+    let said = stderr(&output);
+    for route in ["posture-pages", "priority"] {
+        assert!(
+            said.contains(&format!(
+                "no hermes signing key for the {route} route, so every post to it is \
+                 refused; set [plugins.hermes.keys] {route}"
+            )),
+            "the {route} route is unarmed and unnamed: {said}"
+        );
+    }
+    assert!(
+        !said.contains("for the pns-events route"),
+        "the one route that IS armed is not named: {said}"
+    );
+}

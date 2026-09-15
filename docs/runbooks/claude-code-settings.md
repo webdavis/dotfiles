@@ -15,17 +15,37 @@ Fields fall into **three** categories, not two.
 Overwritten from the template on every apply, whatever the live file holds.
 
 - `permissions.allow` (read-only tools: Read, Grep, Glob, WebFetch, WebSearch, plus eight read-only
-  `Bash(...)` globs: `find`, `cat`, `ls`, `head`, `tail`, `wc`, `grep`, `tree`), `permissions.deny` (14
+  `Bash(...)` globs: `find`, `cat`, `ls`, `head`, `tail`, `wc`, `grep`, `tree`), `permissions.deny` (26
   rules, listed below), `permissions.defaultMode` = `bypassPermissions`.
-  - `Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`, `Read(credentials.json)`,
-    `Read(~/.aws/credentials)`, `Read(~/.ssh/id_*)`, `Read(~/.ssh/*_rsa)`, `Read(~/.ssh/*_ed25519)`,
-    `Read(~/.claude/.credentials.json)`, `Read(~/.codex/auth.json)`, `Read(~/.config/pns/config.toml)`,
-    `Read(~/.config/osquery/webhook-secret)`, `Read(~/.hermes/.env)`, `Read(~/**/*.kdbx)`.
+  - Credentials and keys, thirteen rules: `Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`,
+    `Read(credentials.json)`, `Read(~/.aws/credentials)`, `Read(~/.ssh/id_*)`, `Read(~/.ssh/*_rsa)`,
+    `Read(~/.ssh/*_ed25519)`, `Read(~/.claude/.credentials.json)`, `Read(~/.codex/auth.json)`,
+    `Read(~/.config/osquery/webhook-secret)`, `Read(~/.hermes/.env)` and `Read(~/**/*.kdbx)`.
+  - The rendered secret-bearing targets, thirteen rules, twelve of them added 2026-09-14:
+    `Read(~/.config/chezmoi/key.txt)` (the age identity that decrypts the four hermes profile configs),
+    `Read(~/.hermes/config.yaml)`, `Read(~/.hermes/profiles/*/config.yaml)`,
+    `Read(~/.config/pns/config.toml)`, `Read(~/.config/uu/config.toml)`,
+    `Read(~/.config/lights/config.toml)`, `Read(~/.config/atuin/config.toml)`,
+    `Read(~/.config/himalaya/config.toml)`, `Read(~/.config/openhue/config.yaml)`,
+    `Read(~/.config/gogcli/credentials.json)`, `Read(~/.composio/user_data.json)`,
+    `Read(~/Library/Application Support/Claude/claude_desktop_config.json)` and
+    `Read(~/Library/Application Support/espanso/match/identity.yml)`. The pns rule is the thirteenth: it
+    was already denied before this group existed and moved into it, which is how a list of fourteen rules
+    became one of twenty-six with none lost. Each is a target this repo renders a KeePassXC value into,
+    so the secret is in `$HOME` in plaintext while being nowhere in git, and the source template is the
+    copy an agent should be editing anyway. A Read deny rule also blocks Edit and Write on the same path,
+    which is the intent here: editing the deployed copy is drift the next apply reverses.
   - The `~/` prefixes are load-bearing and the first four rules lack one deliberately. A bare or
     `./`-prefixed pattern is CURRENT-DIRECTORY relative, which is exactly right for a project's own
     `.env`, `secrets/` and `credentials.json`, and was wrong for the home-anchored rules:
     `Read(.ssh/id_*)` in user settings matched a project's own `.ssh` directory and never `~/.ssh` (found
     2026-08-05).
+  - Two path facts behind the new rules, from the Claude Code permissions reference (read 2026-09-14).
+    Read and Edit rules use gitignore pattern syntax, in which a single `*` matches within one path
+    segment, so `Read(~/.hermes/profiles/*/config.yaml)` covers exactly the profile-directory level. And
+    a path holding literal spaces needs no quoting or escaping, which is what makes the two
+    `~/Library/Application Support/...` rules legal as written; only the gitignore metacharacters are
+    special, and that page states parentheses need no escaping either.
 - `hooks`, 12 event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
@@ -80,19 +100,27 @@ Overwritten from the template on every apply, whatever the live file holds.
   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = `75`.
 - `attribution.commit` and `attribution.pr`, both set to the empty string, which is the native switch for
   the co-author trailer and the generated-with footer the global rules already forbid by hand.
-- `extraKnownMarketplaces`, eight entries on darwin and six on Linux. The six GitHub ones each carry
+- `extraKnownMarketplaces`, nine entries on darwin and six on Linux. The six GitHub ones each carry
   `autoUpdate` = `true`: `ponytail`, `openai-codex`, `worktrunk`, `last30days-skill`, `plannotator`,
   `a5c.ai`. Claude Code refreshes a marketplace and its installed plugins at startup on its own, but only
   defaults that on for marketplaces Anthropic publishes (read out of the shipped 2.1.220 binary on
   2026-08-03), so without those six entries those plugins sit at their install version forever. `a5c.ai`
   is the one key written through the list path form, since its own name holds a dot that a dotted path
-  would split into a nested map. The seventh, `pns`, is darwin-only and deliberately carries NO
-  `autoUpdate`: it is this repo's own marketplace, a directory at `~/.claude/pns-marketplace` that
-  chezmoi converges on every apply, and `.chezmoiignore` drops that directory on Linux, where declaring
-  it would be a startup refresh that always fails. The write is per marketplace key, so a marketplace
-  added with `claude plugin marketplace add` keeps its own entry. What those silent startup updates
-  changed is recorded weekly by the `claude-plugins` lane in `uu`; see the plugin update record in
-  `docs/runbooks/agent-skills-store.md`.
+  would split into a nested map. The other three, `pns`, `strategy` and `clean-code`, are darwin-only and
+  deliberately carry NO `autoUpdate`: they are this repo's own marketplaces, directories under
+  `~/.claude/` that chezmoi converges on every apply, and `.chezmoiignore` drops all three on Linux,
+  where declaring one would be a startup refresh that always fails. The write is per marketplace key, so
+  a marketplace added with `claude plugin marketplace add` keeps its own entry. What those silent startup
+  updates changed is recorded weekly by the `claude-plugins` lane in `uu`; see the plugin update record
+  in `docs/runbooks/agent-skills-store.md`. One consequence for all three: Claude Code runs the INSTALLED
+  copy under `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, not the marketplace directory,
+  and `claude plugin update pns@pns` copies it again only when `plugin.json` declares a new version
+  (measured 2026-09-13: a skill added under the same 0.1.0 stayed invisible, "already at the latest
+  version"). Adding or changing a skill under one of those `plugins/<name>/` trees therefore bumps that
+  plugin's version in the same change; after the apply, run `claude plugin update <plugin>@<marketplace>`
+  and restart Claude Code. The `clean-code` and `pns` plugins ship skills that are thin wrappers reading
+  `~/.agents/skills` at run time, so a change to the STORE CONTENT ITSELF needs no bump; only a change to
+  a wrapper does.
 
 `plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That
 script writes a binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are
@@ -108,14 +136,14 @@ and any future setting `/config` adds.
 ## 3. `enabledPlugins`, which is neither
 
 The **roster** is chezmoi-controlled and the per-plugin **state** is not. The template declares fourteen
-plugin ids on every OS and appends `pns@pns` and `strategy@strategy` on darwin, so sixteen on this
-machine (keys are `<name>@<marketplace>`, which is the form Claude Code writes, not the bare name the CLI
-prints on success) and the write is whole-value, so a marketplace plugin enabled live but missing from
-the declaration is turned OFF by the next apply. Within that roster, both members of Claude Code's own
-union for this key are the machine's to set and are carried through unchanged: the JSON boolean `false`
-that `claude plugin disable` writes, and the JSON array of version constraints that its schema calls the
-extended format (a plugin held at a reviewed release). Every other shape renders `true`: an absent key, a
-JSON null, a string and a number.
+plugin ids on every OS and appends `pns@pns`, `strategy@strategy` and `clean-code@clean-code` on darwin,
+so seventeen on this machine (keys are `<name>@<marketplace>`, which is the form Claude Code writes, not
+the bare name the CLI prints on success) and the write is whole-value, so a marketplace plugin enabled
+live but missing from the declaration is turned OFF by the next apply. Within that roster, both members
+of Claude Code's own union for this key are the machine's to set and are carried through unchanged: the
+JSON boolean `false` that `claude plugin disable` writes, and the JSON array of version constraints that
+its schema calls the extended format (a plugin held at a reviewed release). Every other shape renders
+`true`: an absent key, a JSON null, a string and a number.
 
 So `claude plugin disable <id>` STICKS across applies for the declared ids, and applying is not the way
 to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a

@@ -46,7 +46,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "recap",
         &[
             "digest",
-            "digest_as_thread",
             "min_events",
             "replay_card",
             "repos",
@@ -67,7 +66,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("daemon", &["enabled"]),
     ("phone", &["marker_file"]),
-    ("nag", &["after_secs"]),
+    ("nag", &["after_secs", "stale_after_secs"]),
     ("failures", &["port", "serve"]),
     (
         "lights",
@@ -108,7 +107,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
-    ("plugins.hermes", &["enabled", "key"]),
+    ("plugins.hermes", &["enabled", "keys"]),
+    ("plugins.hermes.keys", pns_domain::routes::ROUTES),
     (
         "plugins.hue",
         &["bridge", "enabled", "key", "quiet_hours", "rooms"],
