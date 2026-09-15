@@ -130,16 +130,16 @@ fn a_hermes_key_named_for_a_route_no_code_posts_to_is_refused_listing_the_routes
     // renamed and those two names became GitHub repo channels no route serves,
     // so a key still written under either is a stale config line rather than a
     // route that quietly signs nothing.
-    for retired in ["general", "pns", "posture"] {
+    for unserved in ["general", "pns", "posture"] {
         let said = refusal(&format!(
-            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{retired} = \"secret\"\n"
+            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{unserved} = \"secret\"\n"
         ));
         assert!(
             said.contains("`plugins.hermes.keys`"),
             "the nested table is named: {said}"
         );
         assert!(
-            said.contains(&format!("`{retired}`")),
+            said.contains(&format!("`{unserved}`")),
             "and so is the route: {said}"
         );
         for route in pns_domain::routes::ROUTES {
