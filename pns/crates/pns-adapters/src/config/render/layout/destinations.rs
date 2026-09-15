@@ -43,6 +43,54 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
         },
     ],
 };
+pub(super) const PLUGINS_DISCORD: Table = Table {
+    name: "plugins.discord",
+    prose: "# The durable paper trail, posted straight to Discord by pns's own bot with\n\
+                 # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a\n\
+                 # companion: both enabled at once is refused at load, naming both tables,\n\
+                 # because two durable logs post every event twice. The cutover is two lines\n\
+                 # in one edit, and the rollback is the same two the other way. It waits for\n\
+                 # the per-route channel map: until then, flipping it routes every event,\n\
+                 # priority and posture-pages included, onto the catch-all channel below.\n",
+    opt_in: true,
+    children: &[PLUGINS_DISCORD_CHANNELS],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "type",
+            prose: "# Which compiled-in transport carries the post. \"bot\" is the only one\n\
+                         # today, and a table naming none, or naming one nothing answers, is\n\
+                         # refused out loud rather than read as this one.\n",
+            sample: Sample::Default("\"bot\""),
+        },
+        Key {
+            name: "token",
+            prose: "# The bot token, from the Discord application\u{27}s Bot page. Every call\n\
+                         # carries it as `Authorization: Bot <token>`, and a table with none\n\
+                         # posts nothing and says which key is missing.\n",
+            sample: Sample::Example("\"\""),
+        },
+    ],
+};
+/// The channels the bot posts to. ONE ENTRY TODAY: the catch-all every event
+/// lands on until the per-project map is written.
+const PLUGINS_DISCORD_CHANNELS: Table = Table {
+    name: "plugins.discord.channels",
+    prose: "# Where a post goes. `default` is the catch-all and the only entry read\n\
+                 # today; a channel id is the number Discord copies from a channel\u{27}s\n\
+                 # Copy Channel ID, and it is a secret like every other id here.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "default",
+        prose: "",
+        sample: Sample::Example("\"\""),
+    }],
+};
 pub(super) const PLUGINS_HERMES: Table = Table {
     name: "plugins.hermes",
     prose: "# The durable paper trail: every event posted to a hermes route, signed\n\

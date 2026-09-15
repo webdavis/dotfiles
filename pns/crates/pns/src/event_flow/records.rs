@@ -15,6 +15,7 @@ pub(super) struct EventRecords<'a> {
     pub(super) lights: Option<&'a pns_domain::lamps::config::Lights>,
     pub(super) mobile: &'a Mobile,
     pub(super) hermes_keys: HermesKeys,
+    pub(super) discord: DiscordSettings,
     pub(super) recap: pns_adapters::Recap,
     pub(super) durable_route: bool,
     pub(super) json: bool,
@@ -125,6 +126,7 @@ impl pns_application::MissedReplay for EventRecords<'_> {
                 home: self.home,
                 mobile: self.mobile,
                 hermes_keys: &self.hermes_keys,
+                discord: &self.discord,
                 json: self.json,
             },
         );

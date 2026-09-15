@@ -194,7 +194,14 @@ fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
         vec![
             decorative("mobile", ReportMode::Silent),
             decorative("macos-banner", ReportMode::Silent),
+            // BOTH DURABLE LOGS, because `all()` is the roster and the roster
+            // holds two. It is the only path that plans both: a config naming
+            // them both is refused at LOAD and falls back to the core, and this
+            // fallback is reached only when a loaded config misspells some
+            // other plugin's name, on a machine where both would also have to
+            // be credentialed for either post to land twice.
             logged("hermes", ReportMode::Silent),
+            logged("discord", ReportMode::Silent),
         ]
     );
 }

@@ -1,8 +1,8 @@
 use crate::{Mobile, executable_in_path};
 use pns_adapters::{
-    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, HermesChannel, HermesKeys, MoshiChannel,
-    SystemCommandRunner, UreqPost, channel_url, refused_backend_line, remote_deadline,
-    resolve_path,
+    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, DiscordChannel, DiscordSettings,
+    HermesChannel, HermesKeys, MoshiChannel, SystemCommandRunner, UreqDiscordPost, UreqPost,
+    channel_url, refused_backend_line, refused_discord_line, remote_deadline, resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
 use pns_domain::{Event, EventArgs, registry::Selection, render, routes::DEFAULT_ROUTE};
@@ -19,8 +19,9 @@ pub(crate) fn destinations(
     home: &str,
     mobile: &Mobile,
     hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
 ) -> Destinations<Box<dyn NotificationDestination>> {
-    destinations_with_output(selection, route, home, mobile, hermes_keys, false)
+    destinations_with_output(selection, route, home, mobile, hermes_keys, discord, false)
 }
 
 pub(crate) fn destinations_with_output(
@@ -29,6 +30,7 @@ pub(crate) fn destinations_with_output(
     home: &str,
     mobile: &Mobile,
     hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
     let override_dir = std::env::var("PNS_CHANNELS_DIR")
@@ -54,6 +56,12 @@ pub(crate) fn destinations_with_output(
             ),
             forced,
             None,
+            json,
+        ),
+        registration::choose(
+            discord_channel(discord),
+            forced,
+            discord.refusal().map(refused_discord_line),
             json,
         ),
     ];
@@ -137,6 +145,20 @@ fn hermes_channel(
         route,
         url,
         sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
+    }
+}
+/// The bot post, with the token and the channel the config already provided.
+///
+/// NO ENV OVERRIDE FOR THE ENDPOINT, unlike moshi and hermes beside it: those
+/// two point at a local gateway and a pairing service a test can stand up,
+/// while this one names discord.com, and a variable that could repoint an
+/// authenticated bot post is a credential-exfiltration lever for no gain. The
+/// seam is the test seam.
+fn discord_channel(settings: &DiscordSettings) -> DiscordChannel<UreqDiscordPost> {
+    DiscordChannel {
+        post: UreqDiscordPost,
+        token: settings.token().map(str::to_string),
+        channel_id: settings.channel().map(str::to_string),
     }
 }
 /// The route one event posts to and the endpoint that route answers at.
