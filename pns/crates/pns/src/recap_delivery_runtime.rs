@@ -13,6 +13,24 @@ use crate::*;
 /// THE SAME LINE `run_event` PRINTS, prefix and all, because a second spelling
 /// of one report is a second thing to keep in step. The detached child's
 /// stdout is `/dev/null`, so this costs the event path nothing.
+/// The project this recap is about: the repository the composing directory
+/// belongs to, by the same rule every session event's project is read by.
+///
+/// THE CWD, WHICH IS WHERE THE RECAP WAS WRITTEN. A recap covers a window of
+/// time rather than one repository, so there is no field on it to read a
+/// project off; what there is, is the checkout the operator or the skill ran
+/// it in, which is the repository the window was about in every case that has
+/// ever produced one. A recap composed outside a repository names no project
+/// and lands on the engine's own channel, which is where every recap goes
+/// today, so the ambiguous case degrades to the current behaviour rather than
+/// guessing.
+fn recap_project() -> String {
+    let cwd = std::env::current_dir()
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
+    crate::named_project(&pns_adapters::git_checkout(&cwd).repository, &cwd)
+}
+
 pub(crate) fn deliver_recap(
     body: &str,
     channel: &str,
@@ -38,6 +56,7 @@ pub(crate) fn deliver_recap(
         state: "recap".to_string(),
         detail: body.to_string(),
         channel: channel.to_string(),
+        project: recap_project(),
         ..Default::default()
     };
     let identity = delivery_runtime::fresh_identity()

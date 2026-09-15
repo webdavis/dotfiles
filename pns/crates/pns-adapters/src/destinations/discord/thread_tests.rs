@@ -150,6 +150,37 @@ fn a_recap_posts_to_the_channel_and_stores_no_row() {
     ));
     assert_eq!(channel.post.seen.lock().unwrap().len(), 1, "no thread call");
     assert!(threads.rows().is_empty());
+    assert_eq!(
+        addressed(&channel, 0),
+        "dotfiles-dev",
+        "a recap carrying a project resolves that project's own channel"
+    );
+}
+
+#[test]
+fn a_recap_with_no_project_reaches_the_engine_channel() {
+    // THE MUTANT THIS PINS: the recap's project dropped on the way out, which
+    // sends every recap to the engine channel whatever repository it was
+    // written in. The no-project recap is the case that must NOT move: it goes
+    // where every recap goes today.
+    let mut recap = session_event();
+    recap.state = "recap".to_string();
+    recap.project = String::new();
+    let channel = holding(
+        Recorder::answering(DeliveryOutcome::Status(200)),
+        "",
+        channels(&[
+            ("default", "catch-all"),
+            ("pns-events", "engine"),
+            ("dotfiles", "dotfiles-dev"),
+        ]),
+        Remembered::default(),
+    );
+    assert!(matches!(
+        delivered_about(&channel, &recap),
+        Delivery::Delivered(_)
+    ));
+    assert_eq!(posted_to(&channel), "engine");
 }
 
 #[test]
