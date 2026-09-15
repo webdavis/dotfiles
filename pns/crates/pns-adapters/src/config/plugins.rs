@@ -175,9 +175,38 @@ pub(super) fn refuse_two_durable_logs(config: &Config) -> Result<(), ConfigError
     )))
 }
 
+/// Refuses an ARMED discord table whose map states no catch-all.
+///
+/// `default` IS REQUIRED because every lookup ends there: a map without one
+/// silently swallows the first event from every project nobody mapped, which
+/// is the one failure a paper trail cannot afford. It is refused AT LOAD, with
+/// the two-durable-logs refusal beside it, so the file is unusable until the
+/// line is written rather than each event failing one at a time.
+///
+/// A TABLE THAT IS OFF, OR NAMES NO BACKEND, IS NOT THIS REFUSAL'S BUSINESS:
+/// the first is the operator's own switch and the second already has a
+/// sentence of its own, which this one would only double.
+pub(super) fn refuse_a_map_without_a_catch_all(config: &Config) -> Result<(), ConfigError> {
+    let Ok(Some(settings)) = armed_discord(config) else {
+        return Ok(());
+    };
+    if super::states_default_channel(settings) {
+        return Ok(());
+    }
+    Err(ConfigError::Invalid(
+        "`[plugins.discord.channels]` states no `default`: it is the catch-all every lookup \
+         ends at, and a map without one swallows the first event from every project nobody \
+         mapped. Write a `default` entry."
+            .to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod durable_tests {
     use super::super::{ConfigError, parse_config};
+
+    /// The one entry an armed map cannot load without.
+    const CATCH_ALL: &str = "[plugins.discord.channels]\ndefault = \"9001\"\n";
 
     /// THE MUTANT THIS PINS: the refusal dropped, which is a config that loads
     /// happily and posts every event to Discord twice while the recap follows
@@ -204,9 +233,46 @@ mod durable_tests {
         // would pass the test above and take the paper trail away entirely.
         for text in [
             "[plugins.hermes]\nenabled = true\n",
-            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+            &format!("[plugins.discord]\nenabled = true\ntype = \"bot\"\n{CATCH_ALL}"),
             "[plugins.hermes]\nenabled = true\n[plugins.discord]\nenabled = false\ntype = \"bot\"\n",
-            "[plugins.hermes]\nenabled = false\n[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+            &format!(
+                "[plugins.hermes]\nenabled = false\n[plugins.discord]\nenabled = true\ntype = \"bot\"\n{CATCH_ALL}"
+            ),
+        ] {
+            assert!(parse_config(text).is_ok(), "case: {text:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod catch_all_tests {
+    use super::super::{ConfigError, parse_config};
+
+    /// THE MUTANT THIS PINS: the requirement dropped, which loads a map whose
+    /// unmapped projects post nowhere and say nothing.
+    #[test]
+    fn an_armed_map_with_no_default_is_refused_naming_the_table() {
+        for text in [
+            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n",
+            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n[plugins.discord.channels]\ndotfiles = \"9001\"\n",
+            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n[plugins.discord.channels]\ndefault = \"\"\n",
+        ] {
+            let Err(ConfigError::Invalid(said)) = parse_config(text) else {
+                panic!("case: {text:?}");
+            };
+            assert!(said.contains("[plugins.discord.channels]"), "{said}");
+            assert!(said.contains("default"), "{said}");
+        }
+    }
+
+    #[test]
+    fn a_map_with_a_default_loads_and_a_switched_off_table_is_never_asked() {
+        // The positive control: a refusal that fired on a table the operator
+        // switched off would take the whole config down over a channel nobody
+        // posts to.
+        for text in [
+            "[plugins.discord]\nenabled = true\ntype = \"bot\"\n[plugins.discord.channels]\ndefault = \"9001\"\ndotfiles = \"9002\"\n",
+            "[plugins.discord]\nenabled = false\ntype = \"bot\"\n",
         ] {
             assert!(parse_config(text).is_ok(), "case: {text:?}");
         }
