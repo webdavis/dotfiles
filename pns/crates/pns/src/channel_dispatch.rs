@@ -208,9 +208,10 @@ fn discord_channel(
 /// The env override wins for the URL (an explicit URL, the tests' escape
 /// hatch); the route is the `--channel` name, and the DEFAULT ROUTE THE CONFIG
 /// NAMED when nothing named one. The URL's final segment is swapped for that
-/// route, so renaming the default route moves the path and not the gateway. The gateway has no route named "alert"; the default is
-/// where an event with no route named goes. An unusable name is said out loud
-/// and falls back LOUD-WARD to the default route, key and all: a misrouted
+/// route, so renaming the default route moves the path and not the gateway.
+/// The gateway has no route named "alert"; the default is where an event
+/// with no route named goes. An unusable name is said out loud and falls
+/// back LOUD-WARD to the default route, key and all: a misrouted
 /// notification on the default route beats a silently dropped one.
 fn hermes_target(channel: &str, env_override: Option<&str>, routes: &Routes) -> (String, String) {
     let route = if channel.is_empty() {
