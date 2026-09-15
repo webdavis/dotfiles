@@ -276,6 +276,12 @@ and forget, so a key that does nothing prints nothing anywhere.
 | F7                      | whole-house preset `night`     | all three rooms activate `Nightlight`                                           |
 | F6 or F5 after F4 or F7 | cycle off a preset scene       | the room lands on `Read`, the fallback                                          |
 
+**The pause.** The bridge stops reporting any scene as active once a room has sat untouched, which is why
+a press after a long pause used to restart the cycle at `Read`. With `remember_position = true` under
+`[scenes]` the press continues from the last rotation scene `lights` set in that room; with the setting
+off it lands on `Read`. Leave ten minutes or so between the F6 rows to observe it, and read
+`~/.local/state/lights/position.toml` to see what was remembered.
+
 **Held keys.** The deployed step is back to 15 points, so from 50 percent there are only about three
 steps before the lamp clips. Set a known level with `lights brightness 50`, hold F8 for about two
 seconds, let go, and read `lights status`. Repeat with F10. Record how many discrete steps were visible,
