@@ -69,8 +69,9 @@ fn a_stored_observation_retries_silently_with_full_multiline_detail_and_original
             terminal_id: "com.term".into(),
             herdr_path: None,
         };
-        let mut hermes = channel_with_settings(
-            "key = \"key\"",
+        let mut hermes = super::channel_for_route(
+            "priority",
+            "[keys]\npriority = \"key\"\n",
             if answers {
                 PostOutcome::Status(200)
             } else {

@@ -1,4 +1,5 @@
 use pns_domain::Delivery;
+use pns_domain::routes::RECAP_ROUTE;
 
 /// The recap posted, with the one fallback the locked spec names.
 ///
@@ -61,11 +62,6 @@ fn refused(outcomes: &[Delivery]) -> bool {
         )
     })
 }
-
-/// The hermes route a threaded recap posts to. ONE CONST rather than a key: a
-/// second machine wanting another name can have the key the day it exists, and
-/// the operator prepares this route in hermes either way.
-const RECAP_ROUTE: &str = "pns-recap";
 
 /// The line the fallback adds, so a recap in the wrong place says why it is
 /// there rather than looking like the design.

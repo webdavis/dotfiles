@@ -63,8 +63,8 @@ fn agent_recap() -> i32 {
         return 2;
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_key, recap) = recap_settings(&home);
-    post(&body, &recap, &home, hermes_key)
+    let (hermes_keys, recap) = recap_settings(&home);
+    post(&body, &recap, &home, &hermes_keys)
 }
 
 /// The Git block, the stack graph and the file list, printed.
@@ -94,7 +94,7 @@ fn recap() -> i32 {
         return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_key, recap) = recap_settings(&home);
+    let (hermes_keys, recap) = recap_settings(&home);
     let body = pns_application::BuildReturnRecap {
         activity: &pns_adapters::SqliteStore::for_records(state_dir()),
         merges: &pns_adapters::GitHubMerges,
@@ -111,7 +111,7 @@ fn recap() -> i32 {
             move || end.saturating_duration_since(std::time::Instant::now())
         },
     );
-    post(&body, &recap, &home, hermes_key)
+    post(&body, &recap, &home, &hermes_keys)
 }
 
 /// The hermes key and the recap's own settings, or the fail-closed reading.
@@ -120,14 +120,16 @@ fn recap() -> i32 {
 /// which is `pulse_mode`'s split: a config nobody can read named no route and
 /// no command, so the recap goes to the default route, plainly, rather than to
 /// a route the operator never asked for or through a program they never named.
-fn recap_settings(home: &str) -> (Option<String>, pns_adapters::Recap) {
+fn recap_settings(home: &str) -> (HermesKeys, pns_adapters::Recap) {
     match load_config(&config_path(home)) {
         Ok(LoadOutcome::Loaded(config)) => (
-            plugin_settings(&config, "hermes").and_then(hermes_secret),
+            plugin_settings(&config, "hermes")
+                .map(hermes_keys)
+                .unwrap_or_default(),
             config.recap,
         ),
         _ => (
-            None,
+            HermesKeys::default(),
             pns_adapters::Recap {
                 digest_as_thread: false,
                 ..Default::default()
@@ -140,9 +142,9 @@ fn recap_settings(home: &str) -> (Option<String>, pns_adapters::Recap) {
 /// names. ONE POSTER FOR BOTH RECAPS, so `[recap] digest_as_thread` answers
 /// the same question for each: whether a recap takes the `pns-recap` route or
 /// the default one.
-fn post(body: &str, recap: &pns_adapters::Recap, home: &str, hermes_key: Option<String>) -> i32 {
+fn post(body: &str, recap: &pns_adapters::Recap, home: &str, hermes_keys: &HermesKeys) -> i32 {
     pns_application::post_return_recap(body, recap.digest_as_thread, |body, route| {
-        crate::recap_delivery_runtime::deliver_recap(body, route, home, hermes_key.clone())
+        crate::recap_delivery_runtime::deliver_recap(body, route, home, hermes_keys)
             .into_iter()
             .map(|(_, outcome)| outcome)
             .collect()

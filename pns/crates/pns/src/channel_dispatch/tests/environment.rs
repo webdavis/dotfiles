@@ -82,7 +82,7 @@ fn check_factory(scenario: &str) {
         "priority",
         directory.to_str().unwrap(),
         &mobile,
-        None,
+        &pns_adapters::HermesKeys::default(),
     );
     let outcome = selected.deliver("mobile", &request(&Event::default()));
     match scenario {

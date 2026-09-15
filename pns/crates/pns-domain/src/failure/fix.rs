@@ -7,7 +7,7 @@
 //! as an instruction they cannot follow.
 
 use super::Failure;
-use super::meaning::{DESTINATION_HERMES, HERMES_KEY, MOBILE_TOKEN};
+use super::meaning::{DESTINATION_HERMES, MOBILE_TOKEN, hermes_key_named};
 use crate::retry::DeliveryOutcome;
 
 /// Where the reader is standing when they read this.
@@ -117,10 +117,16 @@ fn repair(failure: &Failure) -> String {
             "report this: pns built a body hermes will not take, which is a pns bug".to_string()
         }
         DeliveryOutcome::Status(401) => {
-            format!("put the gateway's current key in {HERMES_KEY}")
+            format!(
+                "put the {route} route's current key in {}",
+                hermes_key_named(route)
+            )
         }
         DeliveryOutcome::Status(403) => {
-            format!("grant the {HERMES_KEY} access to {route} in ~/.hermes/config.yaml")
+            format!(
+                "grant the {} access to {route} in ~/.hermes/config.yaml",
+                hermes_key_named(route)
+            )
         }
         DeliveryOutcome::Status(404 | 410) => format!(
             "run `pns doctor` to see which routes the gateway accepts, \

@@ -9,9 +9,9 @@ fn render_walks_every_layout_table_and_writes_no_heading_outside_it() {
     // this without any test noticing.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     let layout_names: std::collections::HashSet<&str> =
-        super::LAYOUT.iter().map(|table| table.name).collect();
+        every_table().iter().map(|table| table.name).collect();
 
-    for table in super::LAYOUT {
+    for table in every_table() {
         if table.name.starts_with("lights.") {
             continue; // governed by the single [lights] presence flag
         }
@@ -53,12 +53,21 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
     // declaration branch. So `lights`'s effective key set is its own
     // `refresh_secs` plus the leaf name of every `lights.<x>` table this
     // layout declares, plus the three declaration levels.
-    for table in super::LAYOUT {
+    for table in every_table() {
         let (_, roster_keys) = crate::config::TABLE_KEYS
             .iter()
             .find(|(name, _)| *name == table.name)
             .unwrap_or_else(|| panic!("`{}` is not a table the roster serves", table.name));
         let mut layout_keys: Vec<&str> = table.keys.iter().map(|key| key.name).collect();
+        // A NESTED TABLE IS A KEY OF ITS PARENT as far as the roster is
+        // concerned: `[plugins.hermes.keys]` is the `keys` the
+        // `plugins.hermes` row serves.
+        layout_keys.extend(
+            table
+                .children
+                .iter()
+                .map(|child| child.name.rsplit('.').next().unwrap_or(child.name)),
+        );
         if table.name == "lights" {
             layout_keys.extend(["lamp", "room", "zone"]);
             layout_keys.extend(
@@ -88,7 +97,7 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
             continue;
         }
         assert!(
-            super::LAYOUT.iter().any(|entry| entry.name == table),
+            every_table().iter().any(|entry| entry.name == table),
             "the roster serves `{table}` and the layout never writes it"
         );
     }

@@ -7,10 +7,12 @@ fn a_note_renders_above_its_heading_as_a_commented_line() {
         "note".to_string(),
         toml::Value::String("armed for the pns-recap route".to_string()),
     );
-    hermes.insert(
-        "key".to_string(),
+    let mut keys = toml::Table::new();
+    keys.insert(
+        "pns".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
+    hermes.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
     plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
     let mut values = toml::Table::new();
@@ -40,10 +42,12 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
             "line one\n[plugins.hue]\nenabled = true\nbridge = \"hostile\"".to_string(),
         ),
     );
-    hermes.insert(
-        "key".to_string(),
+    let mut keys = toml::Table::new();
+    keys.insert(
+        "pns".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
+    hermes.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
     plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
     let mut values = toml::Table::new();
@@ -184,10 +188,12 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
     ] {
         let mut hermes = toml::Table::new();
         hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
-        hermes.insert(
-            "key".to_string(),
+        let mut keys = toml::Table::new();
+        keys.insert(
+            "pns".to_string(),
             toml::Value::String("hermes-secret".to_string()),
         );
+        hermes.insert("keys".to_string(), toml::Value::Table(keys));
         let mut plugins = toml::Table::new();
         plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
         let mut values = toml::Table::new();

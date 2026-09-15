@@ -1,5 +1,9 @@
 use super::super::{DEFAULT_HERMES_URL, channel_url};
+use crate::destinations::Delivery;
+use pns_application::NotificationDestination;
+use pns_domain::routing::ReportMode;
 use pns_domain::safety::route_name_is_usable;
+use pns_hermes::{PostOutcome, sign, skipped_line};
 
 #[test]
 fn one_rule_judges_a_route_name_wherever_it_is_read() {
@@ -49,4 +53,53 @@ fn a_name_that_could_not_be_a_path_segment_is_refused_not_glued() {
 #[test]
 fn a_base_without_a_path_yields_nothing_rather_than_a_bogus_url() {
     assert_eq!(channel_url("no-slashes-here", "log"), None);
+}
+
+// --- one key per route ---------------------------------------------------
+
+/// THE WHOLE POINT, positively: the signature a route posts under is computed
+/// from that route's own key and no other.
+///
+/// TWO ROUTES OFF ONE SETTINGS TABLE, because a channel that read the first
+/// key in the table, or the only key in it, would pass a single-route case.
+#[test]
+fn each_route_signs_with_its_own_key_off_one_settings_table() {
+    const SETTINGS: &str = "[keys]\npns = \"for-pns\"\npriority = \"for-priority\"\n";
+    for (route, key) in [("pns", "for-pns"), ("priority", "for-priority")] {
+        let channel = super::channel_for_route(route, SETTINGS, PostOutcome::Status(200));
+        let event = super::event();
+        let request = super::delivery_request(&event, ReportMode::ReportOutcome);
+        assert_eq!(
+            channel.deliver(&request),
+            Delivery::Delivered("posted HTTP 200".into())
+        );
+        let posts = channel.post.posts.lock().unwrap();
+        let (_, body, signature, _, _) = &posts[0];
+        assert_eq!(
+            signature.as_str(),
+            sign(key, body).expect("a non-empty key signs").as_str(),
+            "the {route} route did not sign with its own key"
+        );
+    }
+}
+
+/// AND THE FAIL-CLOSED HALF: a route the config named no key for sends
+/// nothing and says which key is missing, rather than borrowing one of the
+/// keys it does have.
+#[test]
+fn a_route_with_no_key_of_its_own_posts_nothing_and_names_the_missing_key() {
+    let channel = super::channel_for_route(
+        "posture",
+        "[keys]\npns = \"for-pns\"\npriority = \"for-priority\"\n",
+        PostOutcome::Status(200),
+    );
+    let event = super::event();
+    assert_eq!(
+        channel.deliver(&super::delivery_request(&event, ReportMode::ReportOutcome)),
+        Delivery::Failed(skipped_line("posture"))
+    );
+    assert!(
+        channel.post.posts.lock().unwrap().is_empty(),
+        "a route with no key must put nothing on the wire"
+    );
 }

@@ -40,7 +40,7 @@ pub use config::{
 };
 
 pub use config::banner_click;
-pub use config::hermes_secret;
+pub use config::{HermesKeys, hermes_keys};
 
 pub use config::select_plugins;
 

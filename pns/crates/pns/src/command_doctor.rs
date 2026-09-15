@@ -46,7 +46,7 @@ pub(crate) fn doctor_mode() -> i32 {
     let (
         hue_table,
         mobile,
-        hermes_key,
+        hermes_keys,
         replay_card,
         focus_silence,
         daemon_enabled,
@@ -57,7 +57,9 @@ pub(crate) fn doctor_mode() -> i32 {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
             read_mobile(config),
-            plugin_settings(config, "hermes").and_then(hermes_secret),
+            plugin_settings(config, "hermes")
+                .map(hermes_keys)
+                .unwrap_or_default(),
             config.recap.replay_card,
             config.focus_silence.clone(),
             config.daemon_enabled,
@@ -79,7 +81,7 @@ pub(crate) fn doctor_mode() -> i32 {
         _ => (
             None,
             Mobile::default(),
-            None,
+            HermesKeys::default(),
             true,
             Vec::new(),
             true,
@@ -93,6 +95,20 @@ pub(crate) fn doctor_mode() -> i32 {
     if let Ok(LoadOutcome::Loaded(config)) = &loaded {
         for warning in disabled_backend_warnings(config) {
             eprintln!("{warning}");
+        }
+    }
+    // EVERY ROUTE WITH NO KEY, because the test send below cannot find them.
+    // It posts on the DEFAULT route alone, so it exercises one key of four,
+    // and a route whose posts are raised asynchronously (the stale-block
+    // escalation on `priority`) records its refusal where nothing prints it.
+    // An unarmed route is silence in the channel it was created for, which is
+    // the one failure a doctor exists to turn into a line.
+    for route in pns_domain::routes::ROUTES {
+        if hermes_keys.key_for(route).is_none() {
+            eprintln!(
+                "pns: no hermes signing key for the {route} route, so every post to it is refused; set {}",
+                pns_domain::failure::hermes_key_named(route)
+            );
         }
     }
     // THE ROOM SENSOR'S OWN SETTINGS, read here because the census below has
@@ -141,7 +157,7 @@ pub(crate) fn doctor_mode() -> i32 {
         pns_application::DoctorActions {
             deliver: |legs: &[pns_domain::routing::Leg], event: &pns_domain::EventArgs| {
                 let destinations =
-                    channel_dispatch::destinations(&selection, "", &home, &mobile, hermes_key);
+                    channel_dispatch::destinations(&selection, "", &home, &mobile, &hermes_keys);
                 let identity = match delivery_runtime::fresh_identity() {
                     Ok(identity) => identity,
                     Err(_) => {

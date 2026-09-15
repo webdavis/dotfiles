@@ -104,9 +104,11 @@ posture picks its route from the finding's tier in one place (`severity_route`,
 `posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture`,
 critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
 gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`); pns's
-recap route is `RECAP_ROUTE` (`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the
-SHAPE of a route name (`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so
-adding a route to the gateway is the only registration a new route needs.
+recap route is `RECAP_ROUTE` (`pns/crates/pns-domain/src/routes.rs`). pns keeps a ROSTER of the routes it
+posts to, `pns_domain::routes::ROUTES`, because each one is signed with its own key and a route with no
+key is a post pns refuses rather than signs with somebody else's. So adding a route pns posts to is two
+registrations, the gateway and that roster, and a route only uu or posture posts to needs the gateway
+alone.
 
 ### Where they live, and what a route carries
 
@@ -160,14 +162,24 @@ id, and the deployed copy is denied to Claude Code's file tools by a `Read(~/.he
 in `private_dot_claude/modify_settings.json` (see `docs/runbooks/claude-code-settings.md`). Rotating a
 secret or moving a channel is a KeePassXC edit plus an apply.
 
-### IN FLIGHT: the senders and the gateway disagree until both changes land
+### Which sender reads which secret
 
-The six per-route secrets replace ONE shared key. pns still signs every route with its single
-`[plugins.hermes] key`, so until the parallel change that gives pns one key per route has merged and one
-apply has landed, five of the six routes answer 401 and drop the message. pns commits the request to its
-ledger and reports the submission accepted whatever the destination did with it, so a producer advances
-its cursor and the page is gone with nothing in either channel to show for it. Apply once, after BOTH
-changes are on main.
+The gateway and the senders read the SAME entries, so one apply lands both sides together and nothing is
+left signing with a key the gateway no longer holds:
+
+| Route       | Sender and the key it reads                                                    |
+| ----------- | ------------------------------------------------------------------------------ |
+| `pns`       | `[plugins.hermes.keys] pns` in `dot_config/pns/config-values.toml`             |
+| `pns-recap` | `[plugins.hermes.keys] pns-recap`                                              |
+| `posture`   | `[plugins.hermes.keys] posture` (posture pipes its pages through `pns submit`) |
+| `priority`  | `[plugins.hermes.keys] priority`                                               |
+| `uu`        | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                    |
+| `general`   | no sender in this repository; an ad-hoc signed POST                            |
+
+pns refuses to post to a route its table names no key for, and records the refusal the way every other
+refused hermes post is recorded; `pns doctor` names every route left without a key. Until the apply that
+carries both sides has run, the senders still sign with the retired shared key and the gateway answers
+401 on five of the six routes, so apply once, with KeePassXC unlocked, then `hermes gateway restart`.
 
 ### Three gotchas
 

@@ -45,7 +45,19 @@ submit_deadline_secs = 5
 # with the key that route verifies.
 [plugins.hermes]
 enabled = true
-key = {{ (keepassxc "Hermes :: Webhook Secret :: #pns").Password | toToml }}
+
+# One signing key per route, each prepared in ~/.hermes/config.yaml under
+# the same name. A route with no key here posts nothing and says which
+# key is missing.
+[plugins.hermes.keys]
+# Every event with no route of its own.
+pns = {{ (keepassxc "Hermes :: Webhook Secret (#pns)").Password | toToml }}
+# The threaded recap.
+pns-recap = {{ (keepassxc "Hermes :: Webhook Secret (#pns-recap)").Password | toToml }}
+# Pages the posture pipeline submits.
+posture = {{ (keepassxc "Hermes :: Webhook Secret (#posture)").Password | toToml }}
+# Machine health and security, and the stale-block escalation.
+priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]

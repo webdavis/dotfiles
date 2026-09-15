@@ -234,10 +234,11 @@ fn the_same_code_from_two_destinations_names_two_different_secrets() {
         address: "http://127.0.0.1:8646".to_string(),
         ..hermes.clone()
     };
-    assert!(full(&hermes).contains(HERMES_KEY));
+    let hermes_key = hermes_key_named(&hermes.route);
+    assert!(full(&hermes).contains(&hermes_key));
     assert!(full(&mobile).contains(MOBILE_TOKEN));
     assert!(!full(&hermes).contains(MOBILE_TOKEN));
-    assert!(!full(&mobile).contains(HERMES_KEY));
+    assert!(!full(&mobile).contains(&hermes_key));
 }
 
 /// A meaning never says "the route" or "the key" in the abstract, because a
@@ -258,7 +259,7 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
             .to_string();
         assert!(
             meaning.contains("uniquename")
-                || meaning.contains(HERMES_KEY)
+                || meaning.contains(&hermes_key_named("uniquename"))
                 || meaning.contains("127.0.0.1:8644"),
             "HTTP {code} named nothing concrete: {meaning}"
         );

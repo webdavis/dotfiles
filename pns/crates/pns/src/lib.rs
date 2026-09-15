@@ -30,9 +30,9 @@ pub(crate) use std::collections::BTreeMap;
 pub(crate) use std::path::Path;
 pub(crate) use std::time::Duration;
 
-pub(crate) use pns_adapters::hermes_secret;
 pub(crate) use pns_adapters::select_plugins;
 pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, hue_settings, quiet_window};
+pub(crate) use pns_adapters::{HermesKeys, hermes_keys};
 pub(crate) use pns_adapters::{
     HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
 };

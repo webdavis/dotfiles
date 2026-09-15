@@ -15,6 +15,10 @@ pub struct Answers {
     /// The moshi webhook secret the phone card is submitted with. Skipped
     /// leaves mobile on and uncarded until a pairing supplies one.
     pub mobile_token: String,
+    /// The signing key for the DEFAULT hermes route. The walk asks for one,
+    /// because one route is what a fresh machine has prepared; the other
+    /// routes' keys are added to `[plugins.hermes.keys]` as their routes are
+    /// prepared.
     pub hermes_key: String,
     pub hue_bridge: String,
     pub hue_key: String,

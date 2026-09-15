@@ -157,9 +157,9 @@ Then the hermes key is `None`, `digest_as_thread` is forced `false`, and every o
   from the default.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: the config is read once per recap process.
-- Privacy: the `[plugins.hermes] key` is read here and used only to sign the POST
+- Privacy: the `[plugins.hermes.keys] <route>` is read here and used only to sign the POST
   (`src/channels/hermes.rs:sign`). It is never placed in a prompt, never passed to `gh`, and never
-  printed: `hermes_secret` returns it and `deliver_recap` hands it to `dispatch_legs` alone
+  printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
 - Process ownership and cleanup: none.
 - Compatibility contract: `repos` unset and `review_notes` unset are the WORKING settings, not degraded
@@ -841,8 +841,8 @@ Then `digest_as_thread = false` posts once to the DEFAULT route; `true` posts to
   it, so the post still lands as one message (`src/main.rs:post_recap`).
 - Required side effects: ONE FALLBACK AND NO LOOP. "A default route that refuses too is a gateway
   problem, and a recap is not worth a retry storm against one." The POST is HMAC-SHA256 signed with the
-  `[plugins.hermes] key`; with no key, `deliver` returns
-  `Delivery::Failed("post SKIPPED -- no hermes key in the config ([plugins.hermes] key); nothing was sent")`
+  `[plugins.hermes.keys] <route>`; with no key, `deliver` returns
+  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent")`
   before any network call (`src/channels/hermes.rs:deliver`, `src/channels/hermes.rs:skipped_line`).
   Pinned on the wire by
   `tests/native.rs:a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so`, which

@@ -7,8 +7,10 @@ fn a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure() {
     // next line, and a `#` could start a comment; escaped, all of it is
     // one line inside one basic string and parses back as itself.
     let hostile = "\"\n[evil]\nenabled = true\n# not a comment";
+    let mut keys = toml::Table::new();
+    keys.insert("pns".to_string(), toml::Value::String(hostile.to_string()));
     let mut hermes = toml::Table::new();
-    hermes.insert("key".to_string(), toml::Value::String(hostile.to_string()));
+    hermes.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
     plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
     let mut values = toml::Table::new();
@@ -21,7 +23,7 @@ fn a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure() {
     );
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert_eq!(
-        config.plugins["hermes"].settings["key"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns"].as_str(),
         Some(hostile)
     );
 }
@@ -33,8 +35,10 @@ fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up(
     // an eventual S2-generated `.tmpl` file inert wherever a value sits, so
     // `{{` and `}}` must never survive a quoted string as an adjacent pair.
     let hostile = "before{{ printf \"pwned\" }}after";
+    let mut keys = toml::Table::new();
+    keys.insert("pns".to_string(), toml::Value::String(hostile.to_string()));
     let mut hermes = toml::Table::new();
-    hermes.insert("key".to_string(), toml::Value::String(hostile.to_string()));
+    hermes.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
     plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
     let mut values = toml::Table::new();
@@ -48,7 +52,7 @@ fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up(
     assert!(!text.contains("}}"), "a live action close survived: {text}");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert_eq!(
-        config.plugins["hermes"].settings["key"].as_str(),
+        config.plugins["hermes"].settings["keys"]["pns"].as_str(),
         Some(hostile)
     );
 }

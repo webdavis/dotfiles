@@ -3,6 +3,7 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
     name: "plugins.mobile",
     prose: "",
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "enabled",
@@ -47,15 +48,47 @@ pub(super) const PLUGINS_HERMES: Table = Table {
     prose: "# The durable paper trail: every event posted to a hermes route, signed\n\
                  # with the key that route verifies.\n",
     opt_in: true,
+    children: &[PLUGINS_HERMES_KEYS],
+    keys: &[Key {
+        name: "enabled",
+        prose: "",
+        sample: Sample::Default("true"),
+    }],
+};
+/// One signing key per route, because one key for all of them means a key
+/// leaked from any route can post to every route.
+///
+/// A ROUTE WITH NO KEY POSTS NOTHING and says so on the spot, so a key left
+/// commented below is that route switched off rather than a route signing with
+/// somebody else's secret. The ROSTER is `pns_domain::routes::ROUTES` and the
+/// keys below are that list written out; a route in one and not the other is a
+/// red test.
+const PLUGINS_HERMES_KEYS: Table = Table {
+    name: "plugins.hermes.keys",
+    prose: "# One signing key per route, each prepared in ~/.hermes/config.yaml under\n\
+                 # the same name. A route with no key here posts nothing and says which\n\
+                 # key is missing.\n",
+    opt_in: true,
+    children: &[],
     keys: &[
         Key {
-            name: "enabled",
-            prose: "",
-            sample: Sample::Default("true"),
+            name: "pns",
+            prose: "# Every event with no route of its own.\n",
+            sample: Sample::Example("\"\""),
         },
         Key {
-            name: "key",
-            prose: "",
+            name: "pns-recap",
+            prose: "# The threaded recap.\n",
+            sample: Sample::Example("\"\""),
+        },
+        Key {
+            name: "posture",
+            prose: "# Pages the posture pipeline submits.\n",
+            sample: Sample::Example("\"\""),
+        },
+        Key {
+            name: "priority",
+            prose: "# Machine health and security, and the stale-block escalation.\n",
             sample: Sample::Example("\"\""),
         },
     ],
@@ -64,6 +97,7 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
     name: "plugins.macos-banner",
     prose: "# The macOS banner, which is what a machine you are sitting at says.\n",
     opt_in: false,
+    children: &[],
     keys: &[
         Key {
             name: "enabled",
@@ -95,6 +129,7 @@ pub(super) const PLUGINS_HUE: Table = Table {
                  # when it dies. Needs the bridge's address, a key it issued, and the rooms\n\
                  # spelled the way the bridge spells them.\n",
     opt_in: true,
+    children: &[],
     keys: &[
         Key {
             name: "enabled",

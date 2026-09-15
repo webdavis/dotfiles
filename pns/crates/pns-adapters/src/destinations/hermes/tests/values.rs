@@ -79,7 +79,8 @@ fn an_absurd_deadline_clamps_to_a_day_instead_of_panicking_the_edge() {
 
 #[test]
 fn the_key_never_rides_in_the_body_the_url_or_the_signature() {
-    let channel = channel_with_settings("key = \"sekrit-key-9\"\n", PostOutcome::Status(200));
+    let channel =
+        channel_with_settings("[keys]\npns = \"sekrit-key-9\"\n", PostOutcome::Status(200));
     channel.deliver(&delivery_request(&event(), ReportMode::Silent));
     let posts = channel.post.posts.lock().unwrap();
     assert!(!posts[0].0.contains("sekrit-key-9"));

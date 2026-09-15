@@ -36,6 +36,7 @@ pub mod quiet;
 pub mod recap;
 pub mod registry;
 pub mod render;
+pub mod routes;
 pub mod routing;
 pub mod safety;
 pub mod stale;

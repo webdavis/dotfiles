@@ -92,7 +92,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
                 selection: &selection,
                 home: root.to_str().unwrap(),
                 mobile: &Mobile::default(),
-                hermes_key: None,
+                hermes_keys: &pns_adapters::HermesKeys::default(),
                 json: false,
             };
             let event = EventArgs {

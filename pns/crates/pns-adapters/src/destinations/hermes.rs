@@ -18,6 +18,11 @@ use std::time::Duration;
 
 /// The gateway when `PNS_HERMES_URL` says nothing: the local hermes
 /// webhook route.
+///
+/// ITS FINAL SEGMENT IS `routes::DEFAULT_ROUTE`, which a test in this module
+/// pins: the route name is what selects the signing key, so a default URL
+/// pointing at one route while the key came from another would sign every
+/// unrouted post with the wrong secret.
 pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns";
 
 /// The gateway body carries the original request id, agent, state, project
@@ -111,8 +116,13 @@ pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
 /// The native hermes plugin.
 pub struct HermesChannel<P: SignedPost> {
     pub post: P,
-    /// The signing key, read from the config at the composition root. None
-    /// is the not-set-up case.
+    /// The route this channel posts to, resolved at the composition root and
+    /// never empty: it is what `url` was built from and what `key` was looked
+    /// up by, so the two cannot name different routes.
+    pub route: String,
+    /// The signing key FOR THAT ROUTE, looked up in `[plugins.hermes.keys]`
+    /// at the composition root. None is the not-set-up case, which for a
+    /// route is now its own state rather than the whole channel's.
     pub key: Option<String>,
     /// `PNS_HERMES_URL` override, else the default.
     pub url: String,
@@ -143,7 +153,11 @@ impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
             // of view it reads the same as a refusal: the entry is not there.
             // The sentence still says which of the two it was, and an empty
             // Discord channel otherwise looks like the jobs stopped.
-            return Delivery::Failed(skipped_line());
+            //
+            // AND IT IS THE FAIL-CLOSED HALF OF PER-ROUTE KEYS. A route the
+            // config names no key for posts nothing and says so, rather than
+            // borrowing another route's key to get the page out.
+            return Delivery::Failed(skipped_line(&self.route));
         };
 
         let deadline = match request.mode {
@@ -184,6 +198,24 @@ impl<P: SignedPost + Send + Sync> NotificationDestination for HermesChannel<P> {
 
 mod probe;
 pub use probe::{probe_route, probe_routes};
+
+#[cfg(test)]
+mod default_route_tests {
+    use super::DEFAULT_HERMES_URL;
+    use pns_domain::routes::DEFAULT_ROUTE;
+
+    /// THE MUTANT THIS PINS: either constant moved without the other. The
+    /// unrouted post takes `DEFAULT_HERMES_URL` and is signed with
+    /// `DEFAULT_ROUTE`'s key, so a disagreement signs it with a key the
+    /// gateway will not verify and the whole durable log goes quiet at 401.
+    #[test]
+    fn the_default_url_ends_at_the_default_route() {
+        assert!(
+            DEFAULT_HERMES_URL.ends_with(&format!("/{DEFAULT_ROUTE}")),
+            "{DEFAULT_HERMES_URL} does not end at the {DEFAULT_ROUTE} route"
+        );
+    }
+}
 
 #[cfg(test)]
 #[path = "hermes/tests/mod.rs"]
