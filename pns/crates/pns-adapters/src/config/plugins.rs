@@ -194,7 +194,9 @@ pub(super) fn refuse_a_map_without_a_catch_all(config: &Config) -> Result<(), Co
         return Ok(());
     }
     Err(ConfigError::Invalid(
-        "`[plugins.discord.channels]` states no `default`: it is the catch-all every lookup          ends at, and a map without one swallows the first event from every project nobody          mapped. Write a `default` entry."
+        "`[plugins.discord.channels]` states no `default`: it is the catch-all every lookup \
+         ends at, and a map without one swallows the first event from every project nobody \
+         mapped. Write a `default` entry."
             .to_string(),
     ))
 }
