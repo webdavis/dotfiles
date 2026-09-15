@@ -254,8 +254,12 @@ producer command chosen in its own config. The producer API (a JSON request on s
 result plus an exit code out) is the contract; pns is one implementation of it.
 
 Runtime integration is a different question and stays allowed. uu SPAWNS the deployed `pns` binary to
-raise alerts and posture hands pages to a configured producer command, which on this machine is pns, both
-the way either would spawn `git`, which couples nothing at build time.
+raise alerts, and posture can hand a page to a producer command its own config names, the way either
+would spawn `git`, which couples nothing at build time. posture does NOT use that path on dresden: pns
+holds one hermes key rather than one per route and commits its ledger before it tries a destination, so a
+critical page bound for `priority` would come back as an acceptance the gateway had refused. Until the
+producer signs each route with that route's own key, `~/.config/posture/config.toml` ships
+`mode = "hermes"` and posture posts its own pages.
 
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that
