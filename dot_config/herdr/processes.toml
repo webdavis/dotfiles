@@ -13,8 +13,13 @@
 #   [windows.notes]
 #   program = "nvim"
 #   args = ["/Users/stephen/notes"]
-#   cwd = "~/notes"      # absolute, or ~/-relative
+#   cwd = "~/notes"      # absolute, or ~/-relative; "~/" alone resolves to home ("~" bare does not)
 #   width = "80%"        # 1-100, integer or percentage string
 #   height = "80%"
 #   ctrl_c = "hide"      # hide | quit
-[windows]
+[windows.tuicr]
+program = "tuicr"
+cwd = "~/"
+width = "85%"
+height = "85%"
+ctrl_c = "hide"
