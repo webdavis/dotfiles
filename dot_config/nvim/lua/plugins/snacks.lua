@@ -1,3 +1,10 @@
+-- The dashboard's geometry. Every terminal section runs in a pty as wide as
+-- the dashboard less that section's indent, so a row wider than `pane_width`
+-- wraps mid-word inside the pane.
+local dashboard_width = 60
+local pane_indent = 3
+local pane_width = dashboard_width - pane_indent
+
 return {
   {
     "folke/snacks.nvim",
@@ -8,6 +15,7 @@ return {
       bigfile = { enabled = true },
       dashboard = {
         enabled = true,
+        width = dashboard_width,
         sections = {
           { section = "header" },
           { section = "keys", gap = 1, padding = 2 },
@@ -38,11 +46,11 @@ return {
           function()
             local in_git = Snacks.git.get_root() ~= nil
 
-            -- Every command below runs in a pty `dashboard.width` (60) minus
-            -- `indent` (3) columns wide, so any line over 57 columns wraps
-            -- mid-word inside the pane. Each one bounds its own output to 57
-            -- columns and prints a placeholder rather than nothing, because an
-            -- empty pane renders as Neovim's `[Process exited 0]` line.
+            -- Every command below runs in a pty `pane_width` columns wide, so
+            -- any wider line wraps mid-word inside the pane. Each one bounds
+            -- its own output to that width and prints a placeholder rather
+            -- than nothing, because an empty pane renders as Neovim's
+            -- `[Process exited 0]` line.
             --
             -- The jq programs live in long-bracket strings, so their \u001b
             -- escapes and double quotes reach jq exactly as written, and the
@@ -51,40 +59,44 @@ return {
             -- control character first, which is what makes jq's codepoint
             -- slicing below agree with the pane's display columns.
 
-            -- `--stat=57` bounds the file rows but not the trailing
+            -- `--stat` bounds the file rows but not the trailing
             -- "N files changed, X insertions(+), Y deletions(-)" line, which
-            -- passes 57 columns on a large diff, so sed shortens it to
+            -- passes the pane on a large diff, so sed shortens it to
             -- "X+, Y-" (that line is the one part of the stat git never
             -- colors, so the substitution cannot land inside an escape).
 
             -- One row per notification: unread marker, the repository name
             -- without its owner in grey, then as much of the title as fits.
-            -- 1 marker + 1 space + repo + 1 space + title, so title <= 54 - repo.
+            -- 1 marker + 1 space + repo + 1 space + title, so the title gets
+            -- the pane less those three columns and the repository name.
+            local notifications_title_budget = pane_width - 3
             local notifications_jq = [[
 if length == 0 then "inbox zero" else
   .[]
   | (if .unread then "*" else " " end) as $mark
   | (.repository.name | gsub("[^ -~]"; "") | .[0:20]) as $repo
-  | (.subject.title | gsub("[^ -~]"; "") | .[0:(54 - ($repo | length))]) as $title
+  | (.subject.title | gsub("[^ -~]"; "") | .[0:(]] .. notifications_title_budget .. [[ - ($repo | length))]) as $title
   | $mark + " \u001b[90m" + $repo + "\u001b[0m " + $title
 end
 ]]
 
             -- One row per issue or pull request: `#<number> <title>`, shared by
-            -- both sections. 1 space between them, so title <= 56 - #number.
+            -- both sections. 1 space between them, so the title gets the pane
+            -- less that space and the number.
+            local number_title_budget = pane_width - 1
             local number_title_jq = [[
 if length == 0 then "none" else
   .[]
   | ("#" + (.number | tostring)) as $id
   | (.title | gsub("[^ -~]"; "")) as $title
-  | $id + " " + $title[0:(56 - ($id | length))]
+  | $id + " " + $title[0:(]] .. number_title_budget .. [[ - ($id | length))]
 end
 ]]
 
             -- stylua: ignore start
             local cmds = {
-                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=57 -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "no unstaged changes"]], height = 10 },
-                { icon = " ", title = "Git Log", cmd = [[git log -n 10 --no-decorate --color=always --format='%C(yellow)%h%C(reset) %<|(57,trunc)%s' 2>/dev/null | grep . || echo "no commits yet"]], height = 10 },
+                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=]] .. pane_width .. [[ -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "no unstaged changes"]], height = 10 },
+                { icon = " ", title = "Git Log", cmd = [[git log -n 10 --no-decorate --color=always --format='%C(yellow)%h%C(reset) %<|(]] .. pane_width .. [[,trunc)%s' 2>/dev/null | grep . || echo "no commits yet"]], height = 10 },
                 {
                   title = "Notifications",
                   cmd = "GH_PAGER=cat gh api 'notifications?all=true&per_page=5' --jq '" .. notifications_jq .. "'",
@@ -121,7 +133,7 @@ end
                 enabled = in_git,
                 padding = 1,
                 ttl = 5 * 60,
-                indent = 3,
+                indent = pane_indent,
               }, cmd)
             end, cmds)
           end,

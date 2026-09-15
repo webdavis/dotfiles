@@ -1,7 +1,7 @@
 -- The jq programs the dashboard's GitHub panes hand `gh`.
 --
--- Those panes are pty terminals `dashboard.width` (60) minus `indent` (3)
--- columns wide, so a row over 57 columns wraps mid-word and a pane that prints
+-- Those panes are pty terminals `dashboard.width` minus the section's
+-- `indent` columns wide, so a wider row wraps mid-word and a pane that prints
 -- nothing at all renders as Neovim's `[Process exited 0]` line. Both are
 -- properties of the jq programs, not of snacks, so they are pinned here: each
 -- program is pulled out of the command the spec actually declares and run over
@@ -13,8 +13,8 @@
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- No pane row may be wider: a 60-column dashboard, indented 3.
-local pane_width = 57
+---@type number|nil
+local dashboard_width
 
 ---The dashboard's terminal sections, keyed by title, with `Snacks` faked: the
 ---section generator asks it whether the cwd is a repository.
@@ -30,6 +30,7 @@ local function terminal_sections()
     local spec = dofile(config_root .. "/lua/plugins/snacks.lua")
     for _, plugin in ipairs(spec) do
       if plugin[1] == "folke/snacks.nvim" then
+        dashboard_width = plugin.opts.dashboard.width
         for _, section in ipairs(plugin.opts.dashboard.sections) do
           if type(section) == "function" then
             return section()
@@ -49,6 +50,11 @@ local function terminal_sections()
 end
 
 local sections = terminal_sections()
+
+-- No pane row may be wider: the dashboard's own width, less a pane's indent,
+-- both read off the config rather than pinned here a second time.
+local pane_width = assert(dashboard_width, "the dashboard declares no width")
+  - assert(sections["Notifications"], "the dashboard declares no Notifications pane").indent
 
 ---The jq program the named pane hands `gh`.
 ---@param title string
