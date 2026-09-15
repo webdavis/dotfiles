@@ -86,7 +86,7 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 
 ### The routes
 
-Six routes, and the template that owns them declares exactly these. A live route it does not name is
+Five routes, and the template that owns them declares exactly these. A live route it does not name is
 REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu-runs`), `osquery`
 (superseded by `posture-pages`) and `pns-recap` (retired with its channel on 2026-09-15) leave.
 
