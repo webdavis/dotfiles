@@ -699,14 +699,15 @@ Then `PNS_HERMES_URL` wins outright if set non-empty; else an empty route posts 
 `channel_url` swaps the default URL's final path segment for the route name; else the engine warns and
 posts to the default.
 
-A producer that names no route may still say what its event IS: `--kind health` resolves to the
-`priority` route and `--kind agent` (the default) to the default route, a fixed mapping in
-`pns_domain::routes::Kind::route` that an explicit `--channel` still beats.
-
 - **Success:** `src/main.rs:hermes_url_for`, `src/channels/hermes.rs:channel_url`. Pinned on the wire by
   `tests/native.rs:the_stale_alert_posts_to_the_hermes_route_the_config_named`, which asserts both
   `POST /webhooks/priority HTTP/1.1` AND that the `Host` header is still `127.0.0.1:8644`, so a swap that
-  took the base with it would be a different defect passing the test.
+  took the base with it would be a different defect passing the test. A producer that names no route may
+  still say what its event IS: `--kind health` resolves to the `priority` route and `--kind agent` (the
+  default) to the default route, a fixed mapping in `pns_domain::routes::Kind::route`
+  (`src/legacy/argv/tests.rs:a_health_kind_pages_and_an_agent_kind_keeps_the_default_route`) that an
+  explicit `--channel` still beats in either order
+  (`:a_named_channel_beats_the_kind_in_either_order`).
 - **Failure sources:** A route name that could not safely become a path segment. A base URL with no `/`
   at all (`:a_base_without_a_path_yields_nothing_rather_than_a_bogus_url`).
 - **Fail direction:** LOUD-WARD. An unusable name prints
