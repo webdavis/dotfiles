@@ -42,7 +42,8 @@ fn room_option_works_before_and_after_command() {
                 command: Command::Toggle,
                 room: Some("Custom Room".into()),
                 all: false,
-                notify: false
+                notify: false,
+                over: None
             }
         );
     }
@@ -148,4 +149,36 @@ fn all_is_refused_on_commands_that_do_not_take_it() {
     ] {
         assert!(decode(&args).is_err(), "{args:?}");
     }
+}
+#[test]
+fn over_accepts_ms_s_and_m_up_to_the_ceiling() {
+    for (spelling, millis) in [
+        ("0ms", 0),
+        ("750ms", 750),
+        ("2s", 2000),
+        ("5m", 300_000),
+        ("60m", MAX_OVER_MILLIS),
+        ("3600000ms", MAX_OVER_MILLIS),
+    ] {
+        assert_eq!(
+            decode(&["--over", spelling, "brightness", "40"])
+                .unwrap()
+                .over,
+            Some(millis),
+            "{spelling}"
+        );
+    }
+}
+#[test]
+fn over_refuses_a_missing_unit_a_bad_unit_and_a_value_past_the_ceiling() {
+    for spelling in ["2", "1h", "2sec", "1.5s", "ms", "3600001ms", "4294967296ms"] {
+        assert!(
+            decode(&["--over", spelling, "brightness", "40"]).is_err(),
+            "{spelling}"
+        );
+    }
+}
+#[test]
+fn duplicate_over_is_a_usage_error() {
+    assert!(decode(&["--over", "2s", "--over", "3s", "brightness", "40"]).is_err());
 }
