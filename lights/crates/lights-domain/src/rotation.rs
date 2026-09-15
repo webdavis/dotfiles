@@ -33,6 +33,10 @@ impl Rotation {
             None => &self.fallback,
         }
     }
+    /// Membership is what makes a scene a place worth coming back to.
+    pub fn contains(&self, scene: &str) -> bool {
+        self.scenes.iter().any(|name| name == scene)
+    }
     fn position(&self, current: Option<&str>) -> Option<usize> {
         current.and_then(|name| self.scenes.iter().position(|scene| scene == name))
     }
