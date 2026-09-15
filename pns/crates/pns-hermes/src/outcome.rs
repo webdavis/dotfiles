@@ -30,7 +30,7 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
 ///
 /// THE ROUTE IS IN THE SENTENCE TWICE, and that is the point: every route has
 /// its own key now, so a line naming only "the hermes key" would leave an
-/// operator with a set-up gateway guessing which of four keys is the missing
+/// operator with a set-up gateway guessing which of three keys is the missing
 /// one. `pns-adapters` holds the sentence's config path against the live
 /// schema, so the spelling below cannot drift away from the table it names.
 pub fn skipped_line(route: &str) -> String {
