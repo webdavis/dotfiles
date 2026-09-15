@@ -341,83 +341,28 @@ return {
     },
   },
   {
+    -- none-ls is here for its CODE ACTIONS and nothing else. Formatting moved to
+    -- conform.nvim (plugins/conform.lua) and diagnostics to nvim-lint
+    -- (plugins/nvim-lint.lua); neither of those replaces a code-action source, so
+    -- the plugin stays, narrowed to the two sources that provide one.
+    --
+    -- Do not add a formatter or a diagnostic back here. A none-ls source is a
+    -- language server as far as Neovim is concerned, so a formatter registered
+    -- here would compete with conform for the buffer and a diagnostic would
+    -- publish into the shared LSP namespace instead of nvim-lint's own.
     "nvimtools/none-ls.nvim",
     event = { "BufReadPre", "BufNewFile" },
     dependencies = {
       "nvim-lua/plenary.nvim",
-      "nvimtools/none-ls-extras.nvim",
     },
     config = function()
       local null_ls = require("null-ls")
-      local diagnostics = null_ls.builtins.diagnostics
-      local formatting = null_ls.builtins.formatting
       local code_actions = null_ls.builtins.code_actions
-      local completion = null_ls.builtins.completion
 
-      -- For configuring sources by filetype, see:
-      -- https://github.com/nvimtools/null-ls.nvim/blob/main/doc/BUILTIN_CONFIG.md#filetypes
       null_ls.setup({
         sources = {
-          diagnostics.actionlint.with({
-            disabled_filetypes = { "yaml.ansible" },
-          }),
-          diagnostics.ansiblelint,
-          -- diagnostics.codespell,
-          diagnostics.dotenv_linter.with({
-            disabled_filetypes = { "sh", "bash" },
-          }),
-          diagnostics.hadolint, -- Filetypes: Dockerfile.
-
-          formatting.shfmt.with({
-            extra_args = { "-i", "2", "-ci", "-s" },
-          }),
-          formatting.mdformat.with({
-            extra_args = { "--number", "--wrap", "105" },
-          }),
-          -- nixfmt and rubocop come from a project's toolchain, not Mason. A source whose
-          -- binary is missing is still reported by `:checkhealth` as an ERROR, so register each
-          -- only where its command exists.
-          formatting.nixfmt.with({ -- Filetypes: .nix config files, specifically.
-            condition = function()
-              return vim.fn.executable("nixfmt") == 1
-            end,
-          }),
-          formatting.nix_flake_fmt.with({ -- Filetypes: flake.nix files, specifically.
-            filetypes = { "nix" },
-          }),
-          formatting.prettierd.with({
-            disabled_filetypes = { "markdown", "yaml.ansible" },
-          }),
-          formatting.rubocop.with({ -- Filetypes: Ruby (supports linting & formatting).
-            extra_args = { "--display-time", "--extra-details", "--autocorrect", "--fail-level autocorrect" },
-            condition = function()
-              return vim.fn.executable("rubocop") == 1
-            end,
-          }),
-          formatting.stylua,
-          formatting.swiftformat,
-          formatting.swiftlint,
-          formatting.terraform_fmt,
-          formatting.treefmt, -- A polyglot formatter/linter orchestration tool.
-          formatting.yamlfmt.with({
-            disabled_filetypes = { "yaml.ansible" },
-          }),
-
-          completion.spell,
-
           code_actions.gitsigns,
           code_actions.refactoring, -- Filetypes: go, javascript, lua, python, typescript.
-
-          -- The following require none-ls-extras.nvim:
-          require("none-ls.formatting.ansiblelint"),
-          -- Project-local eslint only, and NOT gated on a global one: a `condition` runs
-          -- once at setup, so gating would drop the source for the whole session on every
-          -- machine that keeps eslint in `node_modules/.bin` rather than on PATH. The
-          -- source's own `from_node_modules()` resolver falls back to a literal `eslint`,
-          -- whose failed spawn in a project without one warns and sets `_failed`, which
-          -- disables the shared source for the rest of the session; `only_local` drops that
-          -- fallback, so a project with no eslint is a quiet no-op instead.
-          require("none-ls.diagnostics.eslint").with({ only_local = "node_modules/.bin" }),
         },
       })
     end,
