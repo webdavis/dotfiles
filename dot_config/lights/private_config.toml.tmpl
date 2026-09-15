@@ -29,11 +29,13 @@ fallback = "Read"
 # written, a room that fails does not stop the rest, and the command exits
 # non-zero when any room failed. Add a preset by adding a key here.
 #
-# These three mirror the 07:00, 10:00 and 17:00 slots of the time-based dimmer
-# automations already on the bridge for the Studio and the bedroom. The kitchen
-# follows the same scene names: its own automation drives the `Kitchen` zone,
-# which `--room` cannot address, and none of that automation's scene names
-# exists in the `2F - Kitchen` room.
+# One preset per time of day, bound to F1 through F4 and F7 in
+# `~/.aerospace.toml`. Morning and afternoon mirror the 07:00 and 10:00 slots of
+# the time-based dimmer automations already on the bridge for the Studio and the
+# bedroom; evening, dusk and night were picked at the lamps. The kitchen follows
+# the same scene names: its own automation drives the `Kitchen` zone, which
+# `--room` cannot address, and none of that automation's scene names exists in
+# the `2F - Kitchen` room.
 [presets]
 morning = [
   { room = "studio", scene = "Energize" },
@@ -46,7 +48,17 @@ afternoon = [
   { room = "kitchen", scene = "Concentrate" },
 ]
 evening = [
-  { room = "studio", scene = "Read" },
-  { room = "bedroom", scene = "Read" },
-  { room = "kitchen", scene = "Read" },
+  { room = "studio", scene = "Relax" },
+  { room = "bedroom", scene = "Relax" },
+  { room = "kitchen", scene = "Relax" },
+]
+dusk = [
+  { room = "studio", scene = "Rest" },
+  { room = "bedroom", scene = "Rest" },
+  { room = "kitchen", scene = "Rest" },
+]
+night = [
+  { room = "studio", scene = "Nightlight" },
+  { room = "bedroom", scene = "Nightlight" },
+  { room = "kitchen", scene = "Nightlight" },
 ]

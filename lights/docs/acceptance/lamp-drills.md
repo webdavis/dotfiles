@@ -79,36 +79,33 @@ Run these in order. `lights --room kitchen status` prints
 `2F - Kitchen: ON | brightness: 42% | scene: Read`, and that is the reading to record in every row that
 asks for one. In the Master Bedroom, pass `--room bedroom` in every row.
 
-| #   | Key it stands for   | Command                                       | What to see on the lamp                               |
-| --- | ------------------- | --------------------------------------------- | ----------------------------------------------------- |
-| 1   | baseline            | `lights --room kitchen status`                | nothing changes; note power, brightness and scene     |
-| 2   | F9                  | `lights --room kitchen toggle`                | the room goes dark (or lights, if it started off)     |
-| 3   | F9                  | `lights --room kitchen toggle`                | the room returns to the state row 1 recorded          |
-| 4   | F10                 | `lights --room kitchen brightness up`         | one visible step brighter; prints `brightness up`     |
-| 5   | F8                  | `lights --room kitchen brightness down`       | one visible step dimmer; back to the row 1 level      |
-| 6   | F6                  | `lights --room kitchen scene next`            | the rotation scene after the one row 1 recorded       |
-| 7   | setup for the wraps | `lights --room kitchen scene Energize`        | the last scene of the rotation activates              |
-| 8   | F6 at the wrap      | `lights --room kitchen scene next`            | wraps forward to `Nightlight`, the first of the seven |
-| 9   | F5 at the wrap      | `lights --room kitchen scene previous`        | wraps backward to `Energize`                          |
-| 10  | F5                  | `lights --room kitchen scene previous`        | steps backward to `Read`                              |
-| 11  | F4 and F7           | `lights --room kitchen scene "<other scene>"` | that scene activates, as a one-shot key would         |
-| 12  | F6 off the rotation | `lights --room kitchen scene next`            | the room lands on `Read`, the fallback                |
-| 13  | F4 and F7 again     | `lights --room kitchen scene "<other scene>"` | the same scene, to set up row 14                      |
-| 14  | F5 off the rotation | `lights --room kitchen scene previous`        | the room lands on `Read` again                        |
+| #   | Key it stands for    | Command                                       | What to see on the lamp                               |
+| --- | -------------------- | --------------------------------------------- | ----------------------------------------------------- |
+| 1   | baseline             | `lights --room kitchen status`                | nothing changes; note power, brightness and scene     |
+| 2   | F9                   | `lights --room kitchen toggle`                | the room goes dark (or lights, if it started off)     |
+| 3   | F9                   | `lights --room kitchen toggle`                | the room returns to the state row 1 recorded          |
+| 4   | F10                  | `lights --room kitchen brightness up`         | one visible step brighter; prints `brightness up`     |
+| 5   | F8                   | `lights --room kitchen brightness down`       | one visible step dimmer; back to the row 1 level      |
+| 6   | F6                   | `lights --room kitchen scene next`            | the rotation scene after the one row 1 recorded       |
+| 7   | setup for the wraps  | `lights --room kitchen scene Energize`        | the last scene of the rotation activates              |
+| 8   | F6 at the wrap       | `lights --room kitchen scene next`            | wraps forward to `Nightlight`, the first of the seven |
+| 9   | F5 at the wrap       | `lights --room kitchen scene previous`        | wraps backward to `Energize`                          |
+| 10  | F5                   | `lights --room kitchen scene previous`        | steps backward to `Read`                              |
+| 11  | one-shot scene       | `lights --room kitchen scene "<other scene>"` | that scene activates, as a preset key would           |
+| 12  | F6 off the rotation  | `lights --room kitchen scene next`            | the room lands on `Read`, the fallback                |
+| 13  | one-shot scene again | `lights --room kitchen scene "<other scene>"` | the same scene, to set up row 14                      |
+| 14  | F5 off the rotation  | `lights --room kitchen scene previous`        | the room lands on `Read` again                        |
 
-Rows 11 through 14 stand in for F4 and F7, the two one-shot Halo keys. Their scenes, `CC Halo Daylight`
-and `CC Halo Amber`, belong to the Studio: a scene matches on its name **and** its room, so either name
-exits 3 anywhere else. Pick a scene the drill room has that is outside the rotation (`Nightlight`,
-`Dimmed`, `Rest`, `Soho`, `Relax`, `Read`, `Energize`), use it as `<other scene>`, and record the name.
-List them with:
+Rows 11 through 14 stand in for a key that activates one named scene outside the rotation. Pick a scene
+the drill room has that is outside the rotation (`Nightlight`, `Dimmed`, `Rest`, `Soho`, `Relax`, `Read`,
+`Energize`), use it as `<other scene>`, and record the name. List them with:
 
 ```bash
 openhue get scene --room "2F - Kitchen"
 ```
 
-The behavior those rows pin is the behavior the two keys need: a named scene activates, and cycling from
-a scene the rotation does not contain lands on the configured fallback, `Read`. The Halo names themselves
-are exercised at the real keys in the after-apply check.
+The behavior those rows pin is the behavior a named-scene key needs: a named scene activates, and cycling
+from a scene the rotation does not contain lands on the configured fallback, `Read`.
 
 **Values to record.** For each row: the printed line, the exit code, and the scene or brightness the lamp
 actually shows (read it off the lamp, then confirm with `status`).
@@ -268,16 +265,16 @@ pns lights quiet "3F - Studio - HCL3" off
 Press each key once, in this order, and watch the lamps rather than the terminal. The bindings are fire
 and forget, so a key that does nothing prints nothing anywhere.
 
-| Key                     | What it does                      | What to observe                                                                 |
-| ----------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
-| F9                      | toggle power                      | the room goes dark, and a second press brings it back                           |
-| F10                     | one brightness step up            | one visible step brighter, the size the old key gave                            |
-| F8                      | one brightness step down          | one visible step dimmer                                                         |
-| F6                      | next scene in the rotation        | the next of `Nightlight`, `Dimmed`, `Rest`, `Soho`, `Relax`, `Read`, `Energize` |
-| F5                      | previous scene in the rotation    | the rotation steps backward, and wraps at `Nightlight`                          |
-| F4                      | one-shot scene `CC Halo Daylight` | the Halo scene activates whatever was active                                    |
-| F7                      | one-shot scene `CC Halo Amber`    | the other Halo scene activates                                                  |
-| F6 or F5 after F4 or F7 | cycle off a Halo scene            | the room lands on `Read`, the fallback                                          |
+| Key                     | What it does                   | What to observe                                                                 |
+| ----------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
+| F9                      | toggle power                   | the room goes dark, and a second press brings it back                           |
+| F10                     | one brightness step up         | one visible step brighter, the size the old key gave                            |
+| F8                      | one brightness step down       | one visible step dimmer                                                         |
+| F6                      | next scene in the rotation     | the next of `Nightlight`, `Dimmed`, `Rest`, `Soho`, `Relax`, `Read`, `Energize` |
+| F5                      | previous scene in the rotation | the rotation steps backward, and wraps at `Nightlight`                          |
+| F4                      | whole-house preset `dusk`      | all three rooms activate `Rest`                                                 |
+| F7                      | whole-house preset `night`     | all three rooms activate `Nightlight`                                           |
+| F6 or F5 after F4 or F7 | cycle off a preset scene       | the room lands on `Read`, the fallback                                          |
 
 **Held keys.** The deployed step is back to 15 points, so from 50 percent there are only about three
 steps before the lamp clips. Set a known level with `lights brightness 50`, hold F8 for about two
@@ -286,7 +283,7 @@ where the lamp ended, and whether the room ever switched off. macOS key repeat i
 held key fires the binding more than once, so "no repeat at all" is a legitimate observation rather than
 a failure.
 
-**Pass condition.** Every key performs the action its row names; both wraps behave; a Halo key is a
+**Pass condition.** Every key performs the action its row names; both wraps behave; a preset key is a
 one-shot whose only effect on the rotation is that the next cycle lands on `Read`; and a held key either
 does nothing extra or moves the room in whole steps, clipping at the floor without ever powering it off.
 
