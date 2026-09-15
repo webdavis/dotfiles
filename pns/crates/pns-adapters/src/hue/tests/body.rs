@@ -11,14 +11,16 @@ fn the_pulse_body_carries_the_locked_colour_duration_and_brightness() {
     // itself. Change any locked figure and this line changes with it.
     let shipped = lights("[lights]\n");
     let (color, pulse, brightness) =
-        pulse_render(Behaviour::Done, &shipped, Showing::Full).expect("done is a pulse");
+        pulse_render(Flash::Word(Behaviour::Done), &shipped, Showing::Full)
+            .expect("done is a pulse");
     assert_eq!(
         pulse_body(&pulse, color, brightness),
         r#"{"dimming":{"brightness":100.0},"signaling":{"colors":[{"xy":{"x":0.17,"y":0.7}}],"duration":4000,"signal":"on_off_color"}}"#,
         "deep green, four seconds, full brightness"
     );
     let (color, pulse, brightness) =
-        pulse_render(Behaviour::Failed, &shipped, Showing::Full).expect("failed is a pulse");
+        pulse_render(Flash::Word(Behaviour::Failed), &shipped, Showing::Full)
+            .expect("failed is a pulse");
     assert_eq!(
         pulse_body(&pulse, color, brightness),
         r#"{"dimming":{"brightness":100.0},"signaling":{"colors":[{"xy":{"x":0.675,"y":0.322}}],"duration":4000,"signal":"on_off_color"}}"#,
@@ -29,23 +31,30 @@ fn the_pulse_body_carries_the_locked_colour_duration_and_brightness() {
 #[test]
 fn a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire() {
     let shipped = lights("[lights]\n");
-    let (_, _, brightness) =
-        pulse_render(Behaviour::Done, &shipped, Showing::Dimmed).expect("dimmed still fires");
+    let (_, _, brightness) = pulse_render(Flash::Word(Behaviour::Done), &shipped, Showing::Dimmed)
+        .expect("dimmed still fires");
     assert_eq!(
         brightness, shipped.dim.low,
         "the same blink at the faintest level the hardware has; a blink has no low \
          end to fade to, so the floor is the whole of what dim means for it"
     );
     assert!(
-        pulse_render(Behaviour::Done, &shipped, Showing::Dark).is_none(),
+        pulse_render(Flash::Word(Behaviour::Done), &shipped, Showing::Dark).is_none(),
         "and a suppressed pulse writes nothing at all"
     );
     for held in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
         assert!(
-            pulse_render(held, &shipped, Showing::Full).is_none(),
+            pulse_render(Flash::Word(held), &shipped, Showing::Full).is_none(),
             "{held:?} is a held state and has no pulse shape to fall back to"
         );
     }
+    // AND THE `github` WORD ON ITS OWN RENDERS NOTHING EITHER, which is the
+    // fail-dark direction on the one behaviour whose colour the event states:
+    // a pulse that reached here without an outcome has no colour to run at.
+    assert!(
+        pulse_render(Flash::Word(Behaviour::Github), &shipped, Showing::Full).is_none(),
+        "the pass and the failure are the two flavours; the bare word is neither"
+    );
 }
 
 #[test]

@@ -69,6 +69,9 @@ pub struct Lights {
     pub failed: Pulse,
     pub blocked: Blocked,
     pub unread: Unread,
+    /// `[lights.github]`, the one behaviour whose COLOURS are config rather
+    /// than locked constants.
+    pub github: Github,
     /// `[lights.loop]`. NOT SPELLED `r#loop` AT THE FIELD, because every reader
     /// would then carry the raw identifier through; the TOML key is `loop` and
     /// the mapping is stated once, in `parse_lights`.
@@ -89,6 +92,20 @@ pub struct Lights {
 pub struct Pulse {
     pub duration_ms: u64,
     pub brightness: u8,
+}
+/// The github lamp: one blink, and the two colours that blink runs at.
+///
+/// THE ONLY CONFIGURABLE COLOUR IN THE VOCABULARY. The other five behaviours'
+/// colours were each locked by eye on a real lamp; this pair has only ever
+/// been measured on paper, which is why it is a knob here and they are not.
+///
+/// ONE BRIGHTNESS FOR BOTH COLOURS, on `Unread`'s precedent: a brightness per
+/// colour would be a knob no other pulse behaviour has.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Github {
+    pub pulse: Pulse,
+    pub pass: crate::pulse::PulseColor,
+    pub fail: crate::pulse::PulseColor,
 }
 /// The blocked lamp: its breath, plus how long an unanswered wait may hold it
 /// before the daemon gives up on an abandoned session.
@@ -143,6 +160,7 @@ impl Default for Lights {
                 breath: DEFAULT_UNREAD_BREATH,
                 after_secs: DEFAULT_UNREAD_AFTER_SECS,
             },
+            github: DEFAULT_GITHUB,
             looping: Looping {
                 breathe_then_flare: DEFAULT_LOOP_MOTION,
                 threshold_secs: DEFAULT_LOOP_THRESHOLD_SECS,
@@ -177,6 +195,17 @@ pub const DEFAULT_DONE: Pulse = Pulse {
 pub const DEFAULT_FAILED: Pulse = Pulse {
     duration_ms: 4000,
     brightness: 100,
+};
+/// The github blink, at `done`'s own locked shape, in the May pair. Neither
+/// colour has passed the one test a colour can pass, which is why both are
+/// knobs.
+pub const DEFAULT_GITHUB: Github = Github {
+    pulse: Pulse {
+        duration_ms: 4000,
+        brightness: 100,
+    },
+    pass: crate::pulse::GITHUB_PASS_COLOR,
+    fail: crate::pulse::GITHUB_FAIL_COLOR,
 };
 pub const DEFAULT_BLOCKED: Breath = Breath {
     duration_ms: 2000,

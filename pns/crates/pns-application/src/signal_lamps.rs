@@ -22,7 +22,7 @@ impl<B: LampBridge, P: PresenceDecisions> SignalLamps<'_, B, P> {
     pub fn run(
         &self,
         lights: &pns_domain::lamps::config::Lights,
-        behaviour: pns_domain::lamps::config::Behaviour,
+        flash: pns_domain::lights::flash::Flash,
         reading: &pns_domain::lamps::Reading<'_>,
         held: Option<&[String]>,
         presence: Option<&pns_domain::Snapshot>,
@@ -53,14 +53,21 @@ impl<B: LampBridge, P: PresenceDecisions> SignalLamps<'_, B, P> {
             ));
             let lamp_is_held = held.is_none_or(|held| held.contains(&path));
             if pns_domain::lamps::muted_now(&routed.lamp, reading.muted)
-                || !pns_domain::lights::held::pulse_fires(&routed.shows, behaviour, lamp_is_held)
+                || !pns_domain::lights::held::pulse_fires(
+                    &routed.shows,
+                    flash.behaviour(),
+                    lamp_is_held,
+                )
             {
                 return None;
             }
-            let showing =
-                pns_domain::lamps::dim_showing(routed.dim.as_ref(), behaviour, reading.minutes_now);
+            let showing = pns_domain::lamps::dim_showing(
+                routed.dim.as_ref(),
+                flash.behaviour(),
+                reading.minutes_now,
+            );
             let (color, pulse, brightness) =
-                pns_domain::lamps::pulse_render(behaviour, lights, showing)?;
+                pns_domain::lamps::pulse_render(flash, lights, showing)?;
             Some((
                 path,
                 LampWrite::Pulse {

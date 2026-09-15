@@ -49,9 +49,14 @@ pub fn news_after(
             failed_at: forward(held.failed_at),
             ..held
         }),
+        // `Github` IS NOT NEWS OF ITS OWN. A GitHub event's state word is
+        // `done` or `failed` like any other, so its news is already recorded
+        // through one of the two arms above; the `github` word names a COLOUR
+        // the event states, not a second record.
         crate::lamps::config::Behaviour::Blocked
         | crate::lamps::config::Behaviour::Unread
-        | crate::lamps::config::Behaviour::Looping => None,
+        | crate::lamps::config::Behaviour::Looping
+        | crate::lamps::config::Behaviour::Github => None,
     }
 }
 /// Which of the unread lamp's two colours is showing.

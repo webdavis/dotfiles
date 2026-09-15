@@ -11,7 +11,7 @@ use crate::*;
 pub(crate) fn fire_pulse_unless_quiet(
     hue_table: Option<toml::Table>,
     lights: Option<&pns_domain::lamps::config::Lights>,
-    behaviour: pns_domain::lamps::config::Behaviour,
+    flash: pns_domain::lights::flash::Flash,
     presence: Option<&pns_domain::Snapshot>,
 ) {
     // No table is nothing to quiet: an operator who never enabled the lights
@@ -25,14 +25,14 @@ pub(crate) fn fire_pulse_unless_quiet(
         lights,
         || quiet_window(&settings),
         || {
-            fire_pulse(Some(settings.clone()), behaviour);
+            fire_pulse(Some(settings.clone()), flash.behaviour());
         },
         |lights, now, minutes| {
             pns_application::signal_mapped(
                 &pns_adapters::SqliteStore::for_records(state_dir()),
                 now,
                 minutes,
-                |reading, held| fire_lights(&settings, lights, behaviour, reading, held, presence),
+                |reading, held| fire_lights(&settings, lights, flash, reading, held, presence),
                 |line| eprintln!("{line}"),
             )
         },
@@ -80,7 +80,7 @@ pub(crate) fn fire_pulse(
 fn fire_lights(
     settings: &toml::Table,
     lights: &pns_domain::lamps::config::Lights,
-    behaviour: pns_domain::lamps::config::Behaviour,
+    flash: pns_domain::lights::flash::Flash,
     reading: &pns_domain::lamps::Reading<'_>,
     held: Option<&[String]>,
     presence: Option<&pns_domain::Snapshot>,
@@ -97,14 +97,14 @@ fn fire_lights(
         bridge: &pns_adapters::TypedLampBridge(&bridge),
         presence: &pns_adapters::SqliteStore::for_records(state_dir()),
     }
-    .run(lights, behaviour, reading, held, presence)
+    .run(lights, flash, reading, held, presence)
 }
 #[cfg(test)]
 fn run_pulse_writes<B: pns_adapters::Bridge>(
     bridge: &B,
     state: &Path,
     lights: &pns_domain::lamps::config::Lights,
-    behaviour: pns_domain::lamps::config::Behaviour,
+    flash: pns_domain::lights::flash::Flash,
     reading: &pns_domain::lamps::Reading<'_>,
     held: Option<&[String]>,
     presence: Option<&pns_domain::Snapshot>,
@@ -113,7 +113,7 @@ fn run_pulse_writes<B: pns_adapters::Bridge>(
         bridge: &pns_adapters::TypedLampBridge(bridge),
         presence: &pns_adapters::SqliteStore::for_records(state.to_path_buf()),
     }
-    .run(lights, behaviour, reading, held, presence)
+    .run(lights, flash, reading, held, presence)
 }
 #[cfg(test)]
 #[path = "lamp_pulse/tests.rs"]

@@ -3,6 +3,12 @@ mod tests {
     use crate::runtime_test_support::*;
     use std::cell::RefCell;
 
+    /// A pulse at a word whose colour is fixed. Every row below asks for one;
+    /// the two `github` flavours are the exception and spell themselves.
+    fn flash(behaviour: pns_domain::lamps::config::Behaviour) -> pns_domain::lights::flash::Flash {
+        pns_domain::lights::flash::Flash::Word(behaviour)
+    }
+
     #[test]
     fn a_pulse_reaches_only_a_routed_lamp_that_is_neither_muted_nor_held() {
         // THE EVENT PATH'S TWO PER-LAMP GATES, at the seam. The TCP spy the
@@ -20,7 +26,7 @@ mod tests {
             &free,
             &scratch("pulse-writes-free"),
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             Some(&[]),
             None,
@@ -43,7 +49,7 @@ mod tests {
             &muted,
             &scratch("pulse-writes-muted"),
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&quieted("3F - Studio")),
             Some(&[]),
             None,
@@ -61,7 +67,7 @@ mod tests {
             &dark,
             &scratch("pulse-writes-dark"),
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&pns_domain::lamps::Muting::Everything),
             Some(&[]),
             None,
@@ -78,7 +84,7 @@ mod tests {
             &held,
             &scratch("pulse-writes-held"),
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             Some(&[LAMP_PATH.to_string()]),
             None,
@@ -103,7 +109,7 @@ mod tests {
             &phased,
             &state,
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             held_lamps(&state).as_deref(),
             None,
@@ -121,7 +127,7 @@ mod tests {
             &unreadable,
             &scratch("pulse-writes-unreadable"),
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             None,
             None,
@@ -155,7 +161,7 @@ mod tests {
             &bridge,
             &state,
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             Some(&[]),
             Some(&in_the_kitchen()),
@@ -197,7 +203,7 @@ mod tests {
             &bridge,
             &state,
             &lights,
-            pns_domain::lamps::config::Behaviour::Done,
+            flash(pns_domain::lamps::config::Behaviour::Done),
             &noon(&nothing_muted()),
             Some(&[]),
             Some(&in_the_kitchen()),
@@ -239,12 +245,79 @@ mod tests {
                 &scripted(true),
                 &scratch("pulse-writes-complaints"),
                 &lights,
-                pns_domain::lamps::config::Behaviour::Done,
+                flash(pns_domain::lamps::config::Behaviour::Done),
                 &noon(&nothing_muted()),
                 Some(&[]),
                 None,
             ),
             vec!["pns lights: `3F - Nowhere` (lamp) is not on the bridge".to_string()],
+        );
+    }
+
+    /// The one behaviour whose colour the EVENT states. Both halves of the
+    /// routing are here because they are one question: a lamp that names
+    /// `github` lights in the configured colour, and a lamp that names
+    /// anything else stays dark while a GitHub event goes past it.
+    #[test]
+    fn a_github_pulse_reaches_a_lamp_that_names_github_and_no_other_lamp() {
+        let routed = *pns_adapters::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"github\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        for (flash, xy) in [
+            (
+                pns_domain::lights::flash::Flash::GithubPass,
+                r#"{"xy":{"x":0.2725,"y":0.1283}}"#,
+            ),
+            (
+                pns_domain::lights::flash::Flash::GithubFail,
+                r#"{"xy":{"x":0.5562,"y":0.4084}}"#,
+            ),
+        ] {
+            let bridge = scripted(true);
+            run_pulse_writes(
+                &bridge,
+                &scratch("pulse-writes-github"),
+                &routed,
+                flash,
+                &noon(&nothing_muted()),
+                Some(&[]),
+                None,
+            );
+            let puts = bridge.puts.borrow();
+            assert_eq!(puts.len(), 1, "{puts:?}");
+            assert_eq!(puts[0].0, LAMP_PATH);
+            assert!(
+                puts[0].1.contains(xy),
+                "{flash:?} runs at the shipped default pair, which is what an \
+                 absent `[lights.github]` table falls back to: {}",
+                puts[0].1
+            );
+        }
+        // AND A LAMP THAT NAMES SOMETHING ELSE STAYS DARK. `github` is a word
+        // like any other: nothing routes an event to a lamp that did not ask.
+        let elsewhere = *pns_adapters::parse_config(
+            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n",
+        )
+        .expect("the test's own config parses")
+        .lights
+        .expect("and carries a lights table");
+        let dark = scripted(true);
+        run_pulse_writes(
+            &dark,
+            &scratch("pulse-writes-github-unrouted"),
+            &elsewhere,
+            pns_domain::lights::flash::Flash::GithubFail,
+            &noon(&nothing_muted()),
+            Some(&[]),
+            None,
+        );
+        assert!(
+            dark.puts.borrow().is_empty(),
+            "a lamp that does not name `github` is left alone: {:?}",
+            dark.puts.borrow()
         );
     }
 }

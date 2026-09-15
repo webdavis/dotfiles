@@ -277,6 +277,7 @@ pub(super) fn execute(
         }),
         lights_declared: lights.is_some(),
         presence: presence_at_decision.as_ref(),
+        github: None,
     });
     Ok(submitted)
 }

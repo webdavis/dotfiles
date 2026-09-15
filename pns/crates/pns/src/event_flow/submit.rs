@@ -34,8 +34,8 @@ pub(crate) fn submit_mode(args: &[String]) -> i32 {
                     &system_probes(),
                     &payload,
                     attempt,
-                    &|table, lights, behaviour, presence| {
-                        fire_pulse_unless_quiet(table, lights, behaviour, presence)
+                    &|table, lights, flash, presence| {
+                        fire_pulse_unless_quiet(table, lights, flash, presence)
                     },
                     Some(producer),
                 )

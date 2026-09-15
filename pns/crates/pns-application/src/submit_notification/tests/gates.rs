@@ -48,7 +48,10 @@ fn a_blocked_event_pulses_even_where_the_plan_did_not_ask_for_one() {
         ..event()
     };
     let steps = run(submission(&event, &decision, &overrides));
-    assert!(steps.contains(&"pulse(Blocked)".to_string()), "{steps:?}");
+    assert!(
+        steps.contains(&"pulse(Word(Blocked))".to_string()),
+        "{steps:?}"
+    );
 }
 
 #[test]
