@@ -117,7 +117,7 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
     (!key.is_empty()).then(|| key.to_string())
 }
 /// The hermes route the stale alert posts to, plus the complaint a value that
-/// could not be one earns. EMPTY IS THE DEFAULT ROUTE (`/webhooks/pns`), the
+/// could not be one earns. EMPTY IS THE DEFAULT ROUTE (`/webhooks/pns-events`), the
 /// same spelling `--channel` and `hermes_target` already use, so one
 /// vocabulary covers all three.
 ///
