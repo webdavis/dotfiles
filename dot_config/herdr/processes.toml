@@ -1,0 +1,20 @@
+# Profiles for the herdr-process plugin: one entry per long-lived process that
+# gets a herdr-owned window. The plugin GENERATES its herdr-plugin.toml from
+# this file at apply time (four actions per profile: split-right, split-below,
+# toggle-float, kill), so the table has to exist even while it holds nothing;
+# the plugin cannot be linked without a manifest and cannot render a manifest
+# without this file.
+#
+# An entry becomes reachable only once a `prefix+` chord in config.toml names
+# `herdr-process.<profile>:<action>` with type = "plugin_action"; the plugin
+# rejects a chord for a profile that is not declared here.
+#
+# Shape of an entry:
+#   [windows.notes]
+#   program = "nvim"
+#   args = ["/Users/stephen/notes"]
+#   cwd = "~/notes"      # absolute, or ~/-relative
+#   width = "80%"        # 1-100, integer or percentage string
+#   height = "80%"
+#   ctrl_c = "hide"      # hide | quit
+[windows]
