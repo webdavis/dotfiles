@@ -1,4 +1,5 @@
 use super::{Submission, delivered_decision, event, missed_decision, run, submission};
+use pns_domain::github::GithubOutcome;
 use pns_domain::surface::Surface;
 use pns_domain::{EventArgs, Overrides};
 
@@ -66,6 +67,51 @@ fn a_silenced_blocked_event_pulses_nothing() {
         ..Overrides::default()
     };
     let steps = run(submission(&event, &decision, &overrides));
+    assert!(
+        !steps.iter().any(|step| step.starts_with("pulse")),
+        "{steps:?}"
+    );
+}
+
+/// THE GITHUB GATE, and all three of its answers. A pass and a failure earn
+/// the pulse on their own, in the colour the event states rather than the one
+/// its state word would pick; a neutral outcome has no colour and reaches no
+/// lamp; and silence suppresses it, because a GitHub event carries no class
+/// and never bypasses a mute.
+#[test]
+fn a_github_event_pulses_its_own_colour_unless_it_is_neutral_or_silenced() {
+    let (event, decision) = (event(), missed_decision());
+    assert!(
+        !decision.plan.pulse,
+        "the plan must not be asking for a pulse, or this proves nothing"
+    );
+    for (outcome, expected) in [
+        (GithubOutcome::Passed, Some("pulse(GithubPass)")),
+        (GithubOutcome::Failed, Some("pulse(GithubFail)")),
+        (GithubOutcome::Neutral, None),
+    ] {
+        let overrides = Overrides::default();
+        let steps = run(Submission {
+            github: Some(outcome),
+            ..submission(&event, &decision, &overrides)
+        });
+        let pulsed: Vec<&String> = steps
+            .iter()
+            .filter(|step| step.starts_with("pulse"))
+            .collect();
+        match expected {
+            Some(expected) => assert_eq!(pulsed, vec![&expected.to_string()], "{steps:?}"),
+            None => assert!(pulsed.is_empty(), "{steps:?}"),
+        }
+    }
+    let muted = Overrides {
+        muted: true,
+        ..Overrides::default()
+    };
+    let steps = run(Submission {
+        github: Some(GithubOutcome::Failed),
+        ..submission(&event, &decision, &muted)
+    });
     assert!(
         !steps.iter().any(|step| step.starts_with("pulse")),
         "{steps:?}"

@@ -277,7 +277,9 @@ pub(super) fn execute(
         }),
         lights_declared: lights.is_some(),
         presence: presence_at_decision.as_ref(),
-        github: None,
+        github: producer
+            .and_then(|request| request.github.as_ref())
+            .map(|event| event.outcome),
     });
     Ok(submitted)
 }

@@ -199,6 +199,60 @@ pub(super) fn lamp_run(
     )
 }
 
+/// One PRODUCER SUBMISSION against a spy bridge: whether the bridge was
+/// dialled, and the exit code.
+///
+/// IT EXISTS FOR THE COMPOSITION ROOT. `lamp_run` covers the argv paths, whose
+/// lamp behaviour is decided from the event's state word; a `github` event's
+/// colour comes off an extension on the JSON envelope instead, and every step
+/// between that extension and the bridge (the decode, the flash, the pulse
+/// gate) is wired at the root where no unit test reaches.
+pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Option<i32>) {
+    let (listener, port) = bridge_spy();
+    let sandbox = Sandbox::new(name);
+    sandbox.write_config(&format!(
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+         rooms = [\"3F - Studio\"]\n{config}"
+    ));
+    let mut command = sandbox.pns();
+    command.env("TZ", "UTC");
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    let mut child = command
+        .args(["submit", "--json"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the engine starts");
+    {
+        let mut stdin = child.stdin.take().expect("the child took a pipe");
+        std::io::Write::write_all(&mut stdin, request.as_bytes()).expect("the request is written");
+    }
+    // ACCEPTED WHILE THE CHILD IS STILL RUNNING, for `lamp_run`'s reason: the
+    // spy hangs up on accept, so the engine's TLS handshake fails at once
+    // instead of waiting out the ten-second bridge deadline.
+    let started = std::time::Instant::now();
+    let dialled = loop {
+        if listener.accept().is_ok() {
+            break true;
+        }
+        if child.try_wait().expect("the child is waitable").is_some() {
+            break dialled_within(&listener, std::time::Duration::ZERO);
+        }
+        if started.elapsed() >= LAMP_DEADLINE {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{name}: the engine neither dialled nor exited within {LAMP_DEADLINE:?}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let status = child
+        .wait_with_output()
+        .expect("the child is waitable")
+        .status;
+    (dialled, status.code())
+}
+
 /// The ceiling on one lamp case, and it is a SUITE SAFETY NET rather than a
 /// measurement: these cases finish in well under a second, so a child anywhere
 /// near this has stopped making progress.
