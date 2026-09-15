@@ -86,28 +86,40 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 
 ### The routes
 
-| Route       | Who posts                 | What                                                                                                          |
-| ----------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `pns`       | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                          |
-| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture cannot reach it; see the third gotcha. |
-| `uu`        | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`.                                    |
-| `posture`   | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.     |
-| `pns-recap` | pns                       | The return recap.                                                                                             |
+Six routes, and the template that owns them declares exactly these. A live route it does not name is
+REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu`) and `osquery`
+(superseded by `posture`) leave.
+
+| Route       | Who posts                 | What                                                                                                       |
+| ----------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `general`   | nothing in this repo yet  | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one. |
+| `pns`       | pns hook and daemon paths | Every routine agent event. The default route when nothing names one.                                       |
+| `priority`  | the alert drainer         | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`. |
+| `uu`        | uu                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`.                                 |
+| `posture`   | posture                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.  |
+| `pns-recap` | pns                       | The return recap.                                                                                          |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks its route from the finding's tier in one place (`severity_route`,
-`posture/crates/posture-domain/src/severity.rs`), and that one place holds every tier on `posture` while
-`priority` cannot deliver a pns body (third gotcha); uu's default is `DEFAULT_RECORD_URL`
-(`uu/crates/uu-adapters/src/config/records.rs`); pns's recap route is `RECAP_ROUTE`
-(`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the SHAPE of a route name
-(`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so adding a route to the
-gateway is the only registration a new route needs.
+`posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture`,
+critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
+gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`); pns's
+recap route is `RECAP_ROUTE` (`pns/crates/pns-application/src/post_return_recap.rs`). pns validates the
+SHAPE of a route name (`pns_domain::safety::route_name_is_usable`) rather than keeping a roster, so
+adding a route to the gateway is the only registration a new route needs.
 
 ### Where they live, and what a route carries
 
-The table is `platforms.webhook.extra.routes` inside the age-encrypted
-`private_dot_hermes/encrypted_private_config.yaml.age`, which an apply decrypts to
-`~/.hermes/config.yaml` (see `docs/runbooks/age-key.md`). Read it without changing anything:
+`~/.hermes/config.yaml` is a chezmoi **modify-template**,
+`private_dot_hermes/modify_private_config.yaml.tmpl`, and it owns exactly two things:
+`platforms.webhook.extra.routes` (the whole map) and `tts.elevenlabs.voice_id` (one key). **Hermes owns
+every other line of that file.** It rewrites the config from its own model at runtime, so the age capture
+that used to hold this target turned every runtime write into source drift and pushed a snapshot back
+over whatever hermes had just decided; the modify-template reads the live file, overlays those two
+things, and hands the rest back untouched. When the overlays change nothing the live file is emitted back
+byte for byte, so a no-op apply prints nothing.
+
+Read the routes without changing anything:
 
 ```bash
 yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
@@ -115,52 +127,72 @@ yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 
 Every route carries four things: a `secret`, `deliver: discord`, `deliver_only: true` so the body is
 posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its channel.
-`run_after_68-hermes-log-route-status.sh.tmpl` checks all four on every apply and says so when one is
-missing.
+`general`, `pns` and `priority` share the three-line prompt (`**{header}**`, `-# {subheader}`, `{body}`);
+`posture`, `pns-recap` and `uu` keep the event-shaped prompt they already had.
 
-Four of the five carry the same secret, `Hermes :: Webhook Secret :: #pns`, which is the key
-`[plugins.hermes] key` hands pns. `priority` is the exception, and it is the one that matters (see the
-third gotcha).
+**Every secret and every channel id comes from KeePassXC by entry name, two entries per route.** Twelve
+entries, named off the route:
 
-`posture` and `pns-recap` ship with an EMPTY `chat_id`. An empty id is not inert: the gateway falls back
-to the home channel, so until they are set, every posture page, the daily digest and the return recap
-land in **#general**. `run_after_68` names both routes on every apply while that is true. Setting them
-takes one command:
+| Route       | Secret entry                            | Channel entry                                |
+| ----------- | --------------------------------------- | -------------------------------------------- |
+| `general`   | `Hermes :: Webhook Secret (#general)`   | `Discord (Uriel) :: Channel ID (#general)`   |
+| `pns`       | `Hermes :: Webhook Secret (#pns)`       | `Discord (Uriel) :: Channel ID (#pns)`       |
+| `pns-recap` | `Hermes :: Webhook Secret (#pns-recap)` | `Discord (Uriel) :: Channel ID (#pns-recap)` |
+| `posture`   | `Hermes :: Webhook Secret (#posture)`   | `Discord (Uriel) :: Channel ID (#posture)`   |
+| `priority`  | `Hermes :: Webhook Secret (#priority)`  | `Discord (Uriel) :: Channel ID (#priority)`  |
+| `uu`        | `Hermes :: Webhook Secret (#uu)`        | `Discord (Uriel) :: Channel ID (#uu)`        |
 
-```bash
-chezmoi edit ~/.hermes/config.yaml   # decrypts to a private temp dir, re-encrypts on exit
-```
+The parentheses in the secret titles are load-bearing: the retired single shared key lived at
+`Hermes :: Webhook Secret :: #pns`, which is a different entry. The ElevenLabs voice is one more lookup,
+`ElevenLabs :: Voice ID`, whose Password field holds the voice id.
 
-Put the `#posture` and `#pns-recap` ids in each route's `deliver_extra.chat_id`, then a full
-`chezmoi apply` writes the file and `hermes gateway restart` loads it. Renaming the source to
-`encrypted_private_config.yaml.tmpl.age` would render the ids from KeePassXC instead, since chezmoi
-decrypts before it renders, at the cost of making every apply of this file need the vault unlocked and
-abort on a missing entry. The ids are literals today.
+**A missing KeePassXC entry aborts the whole apply. An empty one does not.** keepassxc-cli exits non-zero
+on a title it cannot find, chezmoi fails the template on that, and a failed modify-template takes every
+later target and every `run_after_` script with it, which is the safe direction to fail. An entry that
+EXISTS with an empty Password field is the case that gets through: keepassxc-cli prints the empty field
+and exits 0, and chezmoi renders an empty string (measured 2026-09-14 against a throwaway database). A
+route rendered with an empty secret takes the entire webhook platform down at the next gateway start,
+while looking healthy in the file, and `run_after_68` is what reports it, on the same apply, by presence
+and never by value. Create both entries, populated, before naming a route in the template.
+
+**Agents edit route NAMES and prompts, never values.** Nothing in this repo holds a secret or a channel
+id, and the deployed copy is denied to Claude Code's file tools by a `Read(~/.hermes/config.yaml)` rule
+in `private_dot_claude/modify_settings.json` (see `docs/runbooks/claude-code-settings.md`). Rotating a
+secret or moving a channel is a KeePassXC edit plus an apply.
+
+### IN FLIGHT: the senders and the gateway disagree until both changes land
+
+The six per-route secrets replace ONE shared key. pns still signs every route with its single
+`[plugins.hermes] key`, so until the parallel change that gives pns one key per route has merged and one
+apply has landed, five of the six routes answer 401 and drop the message. pns commits the request to its
+ledger and reports the submission accepted whatever the destination did with it, so a producer advances
+its cursor and the page is gone with nothing in either channel to show for it. Apply once, after BOTH
+changes are on main.
 
 ### Three gotchas
 
 **The gateway does not expand `${VAR}` in its platform config.** `gateway/config.py` loads `config.yaml`
 with a bare `yaml.safe_load` and merges `platforms` straight through, so a `chat_id` written as
-`${DISCORD_HOME_CHANNEL}` reaches Discord as that literal string. A route's channel id is a literal in
-the encrypted file and cannot be reached from the `.env`, so a new route gets no `.env` line of its own.
-`DISCORD_HOME_CHANNEL` is there because hermes itself reads it for the fallback channel.
+`${DISCORD_HOME_CHANNEL}` reaches Discord as that literal string. A route's secret and channel id have to
+be literals in the rendered file and cannot be reached from the `.env`, which is why they come from
+KeePassXC through the modify-template and why a new route gets no `.env` line of its own.
+`DISCORD_HOME_CHANNEL` is still in the `.env` because hermes itself reads it for the fallback channel;
+`DISCORD_OSQUERY_CHANNEL` was removed on 2026-09-14 after a grep of the installed hermes source and of
+this repo found no reader for it at all.
 
 **A prompt template renders an unknown placeholder as itself.** `_render_prompt` substitutes a missing
 key with `{the.key}` rather than failing, so a route whose template does not match its producers' body
 shape delivers literal placeholders and no content. pns-shaped bodies carry `agent`, `state`, `project`
 and `detail`, plus the composed `header`, `subheader` and `body`; the bash osquery alerter's carried
-`alert.title` and `alert.detail`. Every route is templated for the pns shape now, `priority` included, so
-its old producer is the one that would deliver placeholders.
+`alert.title` and `alert.detail`. Every route is templated for the pns shape now, `priority` and
+`general` included, so its old producer is the one that would deliver placeholders.
 
-**`priority` used to be signed with a different key, and the stale-block escalation settled it.** Its
-`secret` was the Bash alerter's own key, the value in `~/.config/osquery/webhook-secret`, while every
-other route carried the pns one. Everything in this repository submits through pns, which signs with
-`[plugins.hermes] key`, so a page routed to `priority` answered 401. Worse, pns commits the request to
-its ledger and reports the submission accepted whatever a destination did with it, so a producer advances
-its cursor and the page is gone with nothing in either channel to show for it. The key and the prompt had
-to move in one sitting (a reconciled route on the old template delivers two literal placeholders), which
-is what the escalation did: the encrypted config now carries the pns key on all five routes, and
-`run_after_68` compares every one of them against it on every apply.
+**Route keys are now per route, and the comparison that used to police them is gone.** Every route once
+had to carry the ONE secret pns signs with, and `run_after_68` compared the others against the `pns`
+route's value. Six separate vault entries leave nothing to compare a route against: agreement is now
+between the entry a route renders from and the key its sender holds, and neither of those is in
+`config.yaml`. What the check still sees is PRESENCE, by shape and never by value, which is why it
+reports a route with no secret and a `chat_id` that is not a 17-to-20-digit Discord snowflake.
 
 What that leaves. `drain-undelivered-alerts.sh` on the alert-drainer LaunchAgent is the one signer still
 holding the old key, draining a store that is empty (`select count(*) from pending_alerts` is 0), and
@@ -177,6 +209,20 @@ deliberate.
 An apply writes the new `~/.hermes/config.yaml`, but the running gateway loaded the old one, so a new or
 renamed route answers 404 until `hermes gateway restart`. That restart drains in-flight runs for up to
 180 seconds, so it is deliberate rather than automatic, and `run_after_68` nudges rather than restarts.
+
+Two operator commands after an apply, in this order:
+
+```bash
+hermes gateway restart
+yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
+```
+
+The first loads the new table. The second is the read-only confirmation, and it should list exactly
+`general`, `pns`, `pns-recap`, `posture`, `priority`, `uu`. What to expect from the apply itself:
+`run_after_68` prints NOTHING when all six routes are present with a secret, a snowflake `chat_id` and
+`deliver_only: true`, no undeclared route is left, `tts.elevenlabs.voice_id` is set, and the gateway
+already answers each route. Every line it does print names the route, the condition, and the KeePassXC
+entry or command that fixes it, and never a value.
 
 ## Tailscale (headless daemon)
 
