@@ -17,7 +17,9 @@ use crate::ports::records::{
 };
 use pns_domain::EventArgs;
 use pns_domain::Snapshot;
+use pns_domain::github::GithubOutcome;
 use pns_domain::lamps::config::Behaviour;
+use pns_domain::lights::flash::Flash;
 use pns_domain::missed;
 use pns_domain::pulse;
 use pns_domain::{Decision, Overrides};
@@ -60,6 +62,9 @@ pub struct Submission<'a> {
     /// question than `lamps_live` and the one the behaviour is read against.
     pub lights_declared: bool,
     pub presence: Option<&'a Snapshot>,
+    /// How a GITHUB event turned out, for the one behaviour whose colour the
+    /// event states rather than the config. `None` on every other event.
+    pub github: Option<GithubOutcome>,
 }
 
 /// The ports the tail writes through.
@@ -146,8 +151,19 @@ where
         // all: the lights are not a leg.
         let behaviour = pulse::state_behaviour(&submission.event.state, submission.lights_declared);
         let blocked_lamp = behaviour == Behaviour::Blocked && !overrides.silenced();
-        if decision.plan.pulse || blocked_lamp {
-            LampSignal::pulse(self.ports, behaviour, submission.presence);
+        // A GITHUB EVENT SAYS ITS OWN COLOUR AND EARNS ITS OWN PULSE. The
+        // plan's `pulse` is the >=300s tier, which a finished workflow run has
+        // no elapsed time to reach, so the lamp this feature exists for would
+        // never light off it. The silence check is the blocked lamp's: a
+        // GitHub event carries no class, so it never bypasses a mute or a
+        // Focus.
+        let github_flash = submission
+            .github
+            .and_then(|outcome| outcome.flash())
+            .filter(|_| !overrides.silenced());
+        let flash = github_flash.unwrap_or(Flash::Word(behaviour));
+        if decision.plan.pulse || blocked_lamp || github_flash.is_some() {
+            LampSignal::pulse(self.ports, flash, submission.presence);
         }
         if submission.lamps_live && missed::is_present(decision) {
             LampRecords::clear_held(self.ports);

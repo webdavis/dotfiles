@@ -12,6 +12,7 @@ pub use pns_domain::lamps::{
     DimWindow, Inventory, Missing, Muting, Routing, Showing, Unresolved, dim_showing,
     mutable_names, muted_now, parse_window, quiet_now, resolve,
 };
+pub use pns_domain::lights::flash::Flash;
 pub use std::cell::RefCell;
 
 pub const ROOMS_JSON: &str = r#"{"data":[

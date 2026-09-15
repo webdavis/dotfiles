@@ -144,6 +144,56 @@ pub(super) fn behaviour_table<'setting>(
     })
 }
 
+/// The two ends of a colour coordinate. CIE xy, which is what the bridge
+/// takes and what every colour in `pulse.rs` is spelled in.
+pub(super) const MIN_COORDINATE: f64 = 0.0;
+pub(super) const MAX_COORDINATE: f64 = 1.0;
+
+/// One colour, as the `[x, y]` pair a config states it with.
+///
+/// TWO NUMBERS AND NOTHING ELSE. A longer array, a shorter one, a string or a
+/// bare number is refused by name rather than read for whatever it holds: the
+/// operator wrote something that is not a coordinate, and guessing which half
+/// they meant is how a lamp ends up a colour nobody picked.
+pub(super) fn coordinate(
+    where_it_is: &str,
+    key: &str,
+    stated: &toml::Value,
+) -> Result<pns_domain::pulse::PulseColor, ConfigError> {
+    let refused = |detail: &str| {
+        ConfigError::Invalid(format!(
+            "`{where_it_is}` key `{key}` {detail}; a colour is an `[x, y]` pair of \
+             numbers, each in the range {MIN_COORDINATE} to {MAX_COORDINATE}"
+        ))
+    };
+    let Some([x, y]) = stated.as_array().map(Vec::as_slice) else {
+        return Err(refused(&format!(
+            "has type `{}`, not a pair",
+            stated.type_str()
+        )));
+    };
+    let mut pair = [0.0; 2];
+    for (slot, stated) in pair.iter_mut().zip([x, y]) {
+        let Some(number) = stated
+            .as_float()
+            .or_else(|| stated.as_integer().map(|whole| whole as f64))
+        else {
+            return Err(refused(&format!(
+                "holds a `{}`, not a number",
+                stated.type_str()
+            )));
+        };
+        if !(MIN_COORDINATE..=MAX_COORDINATE).contains(&number) {
+            return Err(refused(&format!("holds {number}, which is out of range")));
+        }
+        *slot = number;
+    }
+    Ok(pns_domain::pulse::PulseColor {
+        x: pair[0],
+        y: pair[1],
+    })
+}
+
 /// One brightness, in percent, refused by name outside the range.
 pub(super) fn percent(
     where_it_is: &str,
