@@ -1,4 +1,7 @@
+mod scenes;
+
 use super::*;
+use crate::memory::tests::{RecordingPositionStore, StoreCall};
 use crate::{LightControlError, RoomRef, RoomState, SceneRef, SceneState};
 use lights_domain::{Brightness, Direction, ReportedBrightness};
 use std::cell::RefCell;
@@ -15,14 +18,29 @@ struct RecordingLightController {
     on: bool,
     calls: RefCell<Vec<Call>>,
     scene_error: bool,
+    scenes: Vec<SceneState>,
 }
 impl RecordingLightController {
     fn new(on: bool) -> Self {
         Self {
             on,
+            ..Self::with_scenes(vec![scene(11, "Read", true)])
+        }
+    }
+    fn with_scenes(scenes: Vec<SceneState>) -> Self {
+        Self {
+            on: true,
             calls: RefCell::new(vec![]),
             scene_error: false,
+            scenes,
         }
+    }
+}
+fn scene(index: usize, name: &str, active: bool) -> SceneState {
+    SceneState {
+        scene: SceneRef::from_index(index),
+        name: name.into(),
+        active,
     }
 }
 impl LightController for RecordingLightController {
@@ -42,11 +60,7 @@ impl LightController for RecordingLightController {
                 detail: "scenes".into(),
             });
         }
-        Ok(vec![SceneState {
-            scene: SceneRef::from_index(11),
-            name: "Read".into(),
-            active: true,
-        }])
+        Ok(self.scenes.clone())
     }
     fn set_power(&self, room: &RoomRef, on: bool) -> Result<(), LightControlError> {
         assert_eq!(room.index(), 7);
@@ -69,6 +83,19 @@ impl LightController for RecordingLightController {
 }
 fn room() -> RoomName {
     RoomName::new("Studio").unwrap()
+}
+fn rotation() -> Rotation {
+    Rotation::new(
+        ["Rest", "Relax", "Read"].map(str::to_owned).to_vec(),
+        "Read".into(),
+    )
+    .unwrap()
+}
+fn store(held: Option<&str>) -> RecordingPositionStore {
+    RecordingPositionStore {
+        held: held.map(str::to_owned),
+        ..Default::default()
+    }
 }
 #[test]
 fn toggle_writes_opposite_aggregated_power() {
@@ -147,33 +174,6 @@ fn relative_write_has_no_readback_or_power_off() {
     relative_step_ignores_snapshot_level();
 }
 #[test]
-fn named_scene_returns_typed_action_after_write() {
-    let c = RecordingLightController::new(true);
-    assert_eq!(
-        SetScene::run(&c, &room(), SceneSelection::Named("Read")),
-        Ok(Action::SceneSet {
-            room: room(),
-            scene: "Read".into()
-        })
-    );
-    assert_eq!(
-        *c.calls.borrow(),
-        [Call::Room, Call::Scenes, Call::Scene(11)]
-    );
-}
-#[test]
-fn unknown_scene_has_no_write() {
-    let c = RecordingLightController::new(true);
-    assert_eq!(
-        SetScene::run(&c, &room(), SceneSelection::Named("Missing")),
-        Err(LightsError::UnknownScene {
-            name: "Missing".into(),
-            room: "Studio".into()
-        })
-    );
-    assert_eq!(*c.calls.borrow(), [Call::Room, Call::Scenes]);
-}
-#[test]
 fn status_has_no_write_or_notification() {
     let c = RecordingLightController::new(true);
     assert_eq!(
@@ -211,13 +211,14 @@ fn preset(steps: &[(&str, PresetTarget)]) -> Vec<PresetStep> {
 #[test]
 fn preset_applies_every_step_in_the_order_written() {
     let c = RecordingLightController::new(true);
+    let store = store(None);
     let steps = preset(&[
         ("Studio", PresetTarget::Scene("Read".into())),
         ("Bedroom", PresetTarget::Off),
         ("Kitchen", PresetTarget::Scene("Read".into())),
     ]);
     assert_eq!(
-        ApplyPreset::run(&c, &steps),
+        ApplyPreset::run(&c, &steps, &rotation(), &SceneMemory::new(&store, false)),
         vec![
             Ok(Action::SceneSet {
                 room: RoomName::new("Studio").unwrap(),
@@ -250,12 +251,13 @@ fn preset_applies_every_step_in_the_order_written() {
 #[test]
 fn a_failed_step_does_not_stop_the_rest_of_the_preset() {
     let c = RecordingLightController::new(true);
+    let store = store(None);
     let steps = preset(&[
         ("Studio", PresetTarget::Scene("Missing".into())),
         ("Kitchen", PresetTarget::Scene("Read".into())),
     ]);
     assert_eq!(
-        ApplyPreset::run(&c, &steps),
+        ApplyPreset::run(&c, &steps, &rotation(), &SceneMemory::new(&store, false)),
         vec![
             Err(LightsError::UnknownScene {
                 name: "Missing".into(),
