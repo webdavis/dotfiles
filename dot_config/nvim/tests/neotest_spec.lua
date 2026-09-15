@@ -351,6 +351,9 @@ local function route()
     ["neotest-bashunit"] = { name = "neotest-bashunit", root = bashunit_root },
     ["neotest-busted"] = { name = "neotest-busted", root = busted_root },
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
+    -- rustaceanvim ships its adapter under its own name, not "neotest-rust"; matched here so the
+    -- routing extends the same module real rustaceanvim would hand back.
+    ["rustaceanvim.neotest"] = { name = "rustaceanvim", root = no_root },
   }
   -- Left in place rather than restored: the configured predicates are called after this returns,
   -- and none of these names is a real module under the headless runner.

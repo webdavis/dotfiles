@@ -206,7 +206,13 @@ return {
         "tflint",
         "zls",
       },
-      automatic_enable = true,
+      -- rustaceanvim manages rust-analyzer itself, attaching a client named `rust-analyzer`
+      -- rather than mason-lspconfig's `rust_analyzer`, and its README warns against also
+      -- calling lspconfig's own setup for it: doing so starts a second server on the same
+      -- buffer, which is what dot_config/nvim's own probe reproduced (see
+      -- docs/research/2026-09-rust-neotest-disposition.md, finding 5). Mason still installs
+      -- the `rust_analyzer` binary above; only the automatic client start is excluded.
+      automatic_enable = { exclude = { "rust_analyzer" } },
     },
   },
   {

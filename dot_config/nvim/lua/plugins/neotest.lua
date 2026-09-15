@@ -606,6 +606,41 @@ return {
         end,
       })
 
+      -- rustaceanvim's own neotest adapter, proven against a scratch two-test crate
+      -- (docs/research/2026-09-rust-neotest-disposition.md, finding 2): the tree it discovers is
+      -- correct once rust-analyzer has loaded the workspace. Getting there is the problem the
+      -- wrapper below solves. rustaceanvim discovers and runs tests through the LSP rather than
+      -- tree-sitter, so it needs no filetype-lazy parser wait of its own.
+      --
+      -- Readiness gate (Option 1 of that document): the adapter has none, so a discovery asked
+      -- before rust-analyzer has produced test runnables comes back as either a file-only tree
+      -- (finding 3, phase A) or a raised assertion from neotest's own empty-tree path (phase B),
+      -- and both are treated as final, since rustaceanvim retries on nothing but a buffer write.
+      -- This wraps `discover_positions` in a bounded retry instead: up to 10s, polled every
+      -- 400ms, comfortably past the ~3s a scratch crate needed to become ready and well short of
+      -- the point an operator would give up and press the key again. A tree still empty at the
+      -- deadline is returned as-is, matching what a manual retry after a save would produce
+      -- anyway, rather than raising. This configures the table rustaceanvim's own module
+      -- returns; it does not patch, fork or modify rustaceanvim itself. WHEN THE PIN MOVES,
+      -- re-check whether upstream has grown a readiness gate of its own (open question 3 in the
+      -- research document); if so, this wrapper becomes dead code and should be deleted.
+      local rustaceanvim_neotest = require("rustaceanvim.neotest")
+      local rust = vim.tbl_extend("force", rustaceanvim_neotest, {
+        discover_positions = function(file_path)
+          local deadline = vim.uv.hrtime() + 10e9
+          while true do
+            local ok, tree = pcall(rustaceanvim_neotest.discover_positions, file_path)
+            if ok and tree and #tree:children() > 0 then
+              return tree
+            end
+            if vim.uv.hrtime() >= deadline then
+              return ok and tree or nil
+            end
+            require("nio").sleep(400)
+          end
+        end,
+      })
+
       -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
       -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
       -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
@@ -614,6 +649,9 @@ return {
       -- `__call` override only what the caller supplies, busted's config module starts at its
       -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
       -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
+      -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
+      -- `discover_positions` needs overriding and the readiness gate above already built the
+      -- replacement.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -622,6 +660,7 @@ return {
           vitest,
           jest,
           node,
+          rust,
           require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
@@ -639,4 +678,5 @@ return {
     commit = "5b2d7efea43cb0d66d97de65b9ebc7b1db4659fd",
     ft = "swift",
   },
+  { "mrcjkb/rustaceanvim", commit = "a968f5133b8b24f481de12f08cd79420d1ace559", ft = "rust" },
 }
