@@ -67,10 +67,7 @@ return {
   ["none-ls registers no formatter and no diagnostic"] = function()
     local asked = registered()
     for _, reference in ipairs(asked) do
-      assert(
-        reference:match("^code_actions%."),
-        "the none-ls config still reaches for " .. reference
-      )
+      assert(reference:match("^code_actions%."), "the none-ls config still reaches for " .. reference)
     end
   end,
 }

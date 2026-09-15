@@ -34,7 +34,6 @@
   "lazydev.nvim": { "branch": "main", "commit": "01bc2aacd51cf9021eb19d048e70ce3dd09f7f93" },
   "lazydocker.nvim": { "branch": "main", "commit": "e971ef5d5bba424583c7b8c844e075cdae09f4ad" },
   "live-rename.nvim": { "branch": "main", "commit": "205bddec4bf1276c81a03777f8335d4ad034ae03" },
-  "lsp-format.nvim": { "branch": "master", "commit": "e2b4ae87545c1aadebcf1dfc1b5dffe28dcf2ffb" },
   "markdown-plus.nvim": { "branch": "main", "commit": "52f6af120a6409a5b8860cb0db01e835483d00d6" },
   "markdown-preview.nvim": { "branch": "master", "commit": "a923f5fc5ba36a3b17e289dc35dc17f66d0548ee" },
   "markview.nvim": { "branch": "main", "commit": "18fc148c83925919d94f3fc8e5c74f2d108b9b44" },

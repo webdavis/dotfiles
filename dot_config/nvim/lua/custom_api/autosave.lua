@@ -1,4 +1,4 @@
--- Whether auto-save.nvim may write a buffer, and the flag that tells lsp-format
+-- Whether auto-save.nvim may write a buffer, and the flag that tells conform
 -- an automatic write is under way (spec 5.3, item 42).
 --
 -- claudecode.nvim opens a proposed edit in a scratch buffer and treats a write
@@ -21,7 +21,7 @@ function M.should_save(bufnr)
   return vim.b[bufnr].claudecode_diff_tab_name == nil
 end
 
---- Raise the flag lsp-format's `BufWritePre` reads, for one automatic write.
+--- Raise the flag conform's format-on-save hook reads, for one automatic write.
 ---@param bufnr integer
 function M.mark_write(bufnr)
   vim.b[bufnr].autosave_write = true
