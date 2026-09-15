@@ -180,12 +180,12 @@ scripts under `~/.local/bin` and `~/.local/libexec`, and the osquery LaunchAgent
 state. The by-name form existed to dodge the vault, which is no longer a goal now that the operator
 applies with it unlocked.
 
-Sixteen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
+Seventeen targets pull secrets through `keepassxc` and need KeePassXC unlocked: `~/.gitconfig`,
 `~/.aws/credentials`, `~/.claude.json`, `~/.codex/config.toml`, `~/.composio/user_data.json`,
 `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`, `~/.config/openhue/config.yaml`,
 `~/.config/pns/config.toml`, `~/.config/posture/config.toml`, `~/.config/lights/config.toml`,
 `~/.config/uu/config.toml`, `~/.config/gogcli/credentials.json`, `~/.hermes/.env`,
-`~/Library/Application Support/Claude/claude_desktop_config.json`, and
+`~/.hermes/config.yaml`, `~/Library/Application Support/Claude/claude_desktop_config.json`, and
 `~/Library/Application Support/espanso/match/identity.yml`. Non-KeePassXC targets (for example
 `~/.bashrc` and `~/.claude/settings.json`) are safe to apply from automation.
 
