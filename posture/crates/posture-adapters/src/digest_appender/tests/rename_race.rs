@@ -181,7 +181,12 @@ fn a_digest_that_keeps_claiming_loses_no_line_without_saying_so() {
             let stop = Arc::clone(&stop);
             std::thread::spawn(move || {
                 let mut round = 0u64;
-                while !stop.load(Ordering::Relaxed) {
+                // Bounded the same way `one_race`'s spin wait is: a panic in
+                // the main thread's append loop below would otherwise never
+                // set `stop`, and this thread would rename in a tight loop
+                // for the rest of the test binary's life.
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                while !stop.load(Ordering::Relaxed) && std::time::Instant::now() < deadline {
                     let claim = store.with_extension(format!("claim-{digest}-{round}"));
                     if std::fs::rename(&store, &claim).is_ok() {
                         round += 1;
