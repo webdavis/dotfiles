@@ -19,7 +19,7 @@
 #   ctrl_c = "hide"      # hide | quit
 [windows.tuicr]
 program = "tuicr"
-cwd = "~/"
+cwd = "~/workspaces/Ivy/webdavis/dotfiles"
 width = "85%"
 height = "85%"
 ctrl_c = "hide"
