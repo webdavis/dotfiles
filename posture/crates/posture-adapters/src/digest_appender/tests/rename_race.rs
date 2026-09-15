@@ -67,7 +67,10 @@ fn finding(identity: &str) -> posture_protocol::DigestRecord {
 /// Rounds of the race below. ONE CLAIM EACH, because a second rename inside
 /// one append would beat the single re-append by design; what needs many
 /// tries is the narrow window itself, and a fresh round is how it gets them.
-const ROUNDS: usize = 40;
+/// Measured against a retry-disabled build: 10 rounds caught the loss on 70
+/// of 70 runs here, so it stays the floor rather than a smaller count that
+/// only usually catches it.
+const ROUNDS: usize = 10;
 const WRITERS: usize = 8;
 const APPENDS: usize = 20;
 /// Lines the claim waits for, so it lands in the middle of the writing rather
