@@ -166,9 +166,7 @@ pub(super) fn coordinate(
              numbers, each in the range {MIN_COORDINATE} to {MAX_COORDINATE}"
         ))
     };
-    let Some([x, y]) = stated.as_array().map(Vec::as_slice).and_then(|items| {
-        <[&toml::Value; 2]>::try_from(items.iter().collect::<Vec<_>>().as_slice()).ok()
-    }) else {
+    let Some([x, y]) = stated.as_array().map(Vec::as_slice) else {
         return Err(refused(&format!(
             "has type `{}`, not a pair",
             stated.type_str()
