@@ -131,7 +131,7 @@ pub(crate) use runtime_environment::{
     env_deadline, executable_in_path, now_secs, overrides_from_env, state_dir,
 };
 pub(crate) use sender::{attribution, name_session};
-pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, project_of, start_of_turn};
+pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, named_project, start_of_turn};
 pub(crate) use turn_text::turn_reply;
 pub(crate) use wait_runtime::{end_blocked_wait, stale_after_secs, track_wait};
 
