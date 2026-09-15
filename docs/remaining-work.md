@@ -3502,6 +3502,15 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `uu` run, and `general` has no producer in this repository, so it stays unproven until something posts
   to it.
 
+- [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
+  2026-09-15, alongside the answers recorded in
+  `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`. Task 84's per-finding cap cannot
+  solve spam by itself: any number low enough to avoid spam is low enough to hide findings, and twenty
+  distinct failures already means the machine is in trouble. The useful message at that point is one that
+  says so and lists them, not twenty separate explanations. posture's own pages already arrive uncapped
+  today, so a storm already reaches the operator on that leg, and a combined message would improve it
+  too. Not yet started.
+
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
   untrusted evidence handling. The old plan includes unverified flags and prompt-based output checks;
