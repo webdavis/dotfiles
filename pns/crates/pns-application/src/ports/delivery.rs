@@ -2,7 +2,7 @@
 
 use crate::{DeliveryRequest, DestinationId};
 use pns_domain::EventArgs;
-use pns_domain::lamps::config::Behaviour;
+use pns_domain::lights::flash::Flash;
 use pns_domain::registry::Routing;
 use pns_domain::routing::{Delivery, Leg};
 use pns_domain::{Decision, Snapshot};
@@ -72,7 +72,7 @@ pub trait MissedReplay {
 /// should queue behind decoration. It still fires for a plan that reached no
 /// channel at all: the lights are not a leg. Statements: S218.
 pub trait LampSignal {
-    fn pulse(&self, behaviour: Behaviour, presence: Option<&Snapshot>);
+    fn pulse(&self, flash: Flash, presence: Option<&Snapshot>);
 }
 
 /// Start the return recap in a separate process.

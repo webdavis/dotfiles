@@ -61,7 +61,7 @@ fn a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named(
             said,
             format!(
                 "`lights.room.3F - Studio` key `{key}` names `breathing`, which is \
-                     no behaviour; the lamps say done, failed, blocked, unread, loop"
+                     no behaviour; the lamps say done, failed, blocked, unread, loop, github"
             ),
         );
     }

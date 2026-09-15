@@ -16,7 +16,7 @@ fn the_records_are_written_in_the_order_the_event_path_states() {
             "activity",
             "replay",
             "edge",
-            "pulse(Done)",
+            "pulse(Word(Done))",
             "clear",
             "tick",
         ]
