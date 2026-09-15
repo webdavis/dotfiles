@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# private_dot_hermes/modify_private_config.yaml.tmpl owns two things inside
+# private_dot_hermes/modify_private_config.yaml owns two things inside
 # ~/.hermes/config.yaml and hands every other line back to hermes, so the two
 # behaviors worth pinning are the ones a reader cannot see by inspection: that a
 # no-op render reproduces its stdin BYTE FOR BYTE (which is what keeps a quiet
@@ -25,9 +25,44 @@ function hermes_config_render() {
     -e 's|(keepassxc (printf "Hermes :: Webhook Secret (#%s)" $name)).Password|(printf "stub-secret-%s" $name)|' \
     -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $name)).Password|"12345678901234567"|' \
     -e 's|(keepassxc "ElevenLabs :: Voice ID").Password|"stub-voice-id"|' \
-    "$repo/private_dot_hermes/modify_private_config.yaml.tmpl" >"$stub"
+    "$repo/private_dot_hermes/modify_private_config.yaml" >"$stub"
   HOME="$fixture" CI=1 chezmoi --config /dev/null --config-format toml --source "$fixture/source" \
     execute-template --no-tty --with-stdin --file "$stub"
+}
+
+# The same stubbed copy, but placed in a scratch SOURCE STATE under the real
+# file's own basename, so chezmoi itself decides how to run it. That is the
+# check `execute-template` cannot make: a modify template must NOT carry the
+# .tmpl suffix (chezmoi renders a .tmpl first and then executes the YAML it
+# produced as a script, which fails with "exec format error" on every apply).
+function hermes_config_diff_through_chezmoi() {
+  local repo fixture name
+  repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  name="$(basename "$(ls "$repo"/private_dot_hermes/modify_private_config.yaml*)")"
+  fixture="$(mktemp -d)"
+  mkdir -p "$fixture/source/private_dot_hermes" "$fixture/home/.hermes"
+  # shellcheck disable=SC2016
+  sed \
+    -e 's|(keepassxc (printf "Hermes :: Webhook Secret (#%s)" $name)).Password|(printf "stub-secret-%s" $name)|' \
+    -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $name)).Password|"12345678901234567"|' \
+    -e 's|(keepassxc "ElevenLabs :: Voice ID").Password|"stub-voice-id"|' \
+    "$repo"/private_dot_hermes/modify_private_config.yaml* >"$fixture/source/private_dot_hermes/$name"
+  cat >"$fixture/home/.hermes/config.yaml"
+  HOME="$fixture/home" CI=1 chezmoi --config /dev/null --config-format toml \
+    --source "$fixture/source" --destination "$fixture/home" --no-tty \
+    diff "$fixture/home/.hermes/config.yaml" 2>&1
+}
+
+function test_chezmoi_runs_the_file_as_a_modify_template_not_as_a_script() {
+  local out status=0
+  out="$(hermes_config_diff_through_chezmoi <<'LIVE'
+hermes_own_key: 42
+LIVE
+  )" || status=$?
+  assert_same 0 "$status"
+  assert_not_contains 'exec format error' "$out"
+  assert_contains '+        priority:' "$out"
+  assert_contains ' hermes_own_key: 42' "$out"
 }
 
 function test_a_no_op_render_emits_its_stdin_byte_for_byte() {
