@@ -63,8 +63,9 @@ enabled = true
 # ~/.hermes/config.yaml under that same name. These keys are the whole
 # roster: a route named here is a route this machine will post to, and
 # one with no key posts nothing and says which key is missing.
-# pns-events and priority are the two routes [routes] above names; posture-pages
-# is named by the producer that submits pages under it and nowhere in pns.
+# pns-events and priority are the two names the [routes] table above carries;
+# posture-pages is named by the producer that submits pages under it and
+# nowhere in pns.
 [plugins.hermes.keys]
 pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
 posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
