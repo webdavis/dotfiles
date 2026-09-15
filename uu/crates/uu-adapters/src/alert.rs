@@ -6,9 +6,11 @@
 //! it never decides presence, escalation or which destination fires, because
 //! that is the engine's whole job.
 //!
-//! NO `--channel`, deliberately. pns's default route IS the alert route, and
-//! the record path is where the quiet weekly entry goes. An alert that landed
-//! on the record channel would be a failure nobody is paged about.
+//! NO `--channel`, deliberately, and none is coming: uu says what the event IS
+//! with `--kind health`, and pns maps that kind to the route it pages on
+//! (operator ruling, 2026-09-15). A tool that named a route would be a tool
+//! that had to know which Discord channels exist, and the record path is
+//! already where the quiet weekly entry goes.
 //!
 //! FAIL OPEN. An absent or refusing engine is reported on stderr and the run
 //! stays clean, because a notification must never fail the work it reports on.
@@ -21,6 +23,8 @@ pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
         uu_protocol::AGENT,
         "--state",
         "failed",
+        "--kind",
+        "health",
         "--project",
         host,
         "--detail",
@@ -50,6 +54,8 @@ mod tests {
                 "uu",
                 "--state",
                 "failed",
+                "--kind",
+                "health",
                 "--project",
                 "dresden",
                 "--detail",
@@ -65,6 +71,20 @@ mod tests {
                 .iter()
                 .any(|a| a == "--channel"),
             "an alert on the record route is a failure nobody is paged about"
+        );
+    }
+
+    #[test]
+    fn a_failed_lane_is_a_health_event_because_a_failed_upgrade_pages() {
+        let argv = alert_argv("dresden", "herdr", "x");
+        let kind = argv
+            .iter()
+            .position(|a| a == "--kind")
+            .map(|at| &argv[at + 1]);
+        assert_eq!(
+            kind.map(String::as_str),
+            Some("health"),
+            "an alert with no kind lands on the routine route nobody watches"
         );
     }
 

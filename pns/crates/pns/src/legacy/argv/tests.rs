@@ -47,6 +47,35 @@ fn the_channel_flag_names_a_route_and_is_protected_like_every_value_flag() {
 }
 
 #[test]
+fn a_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
+    // uu names what its event IS; the route it lands on is pns's to decide.
+    let (parsed, warnings) = args(&["--kind", "health", "--agent", "uu"]);
+    assert_eq!(parsed.channel, pns_domain::stale::PRIORITY_ROUTE);
+    assert!(warnings.is_empty());
+
+    // The default kind is the behavior every producer already had: an empty
+    // route, which the hermes target reads as the default one.
+    for argv in [vec!["--agent", "claude"], vec!["--kind", "agent"]] {
+        let (parsed, _) = args(&argv);
+        assert_eq!(parsed.channel, "", "{argv:?} must keep the default route");
+    }
+}
+
+#[test]
+fn a_named_channel_beats_the_kind_in_either_order() {
+    for argv in [
+        vec!["--kind", "health", "--channel", "log"],
+        vec!["--channel", "log", "--kind", "health"],
+    ] {
+        let (parsed, _) = args(&argv);
+        assert_eq!(
+            parsed.channel, "log",
+            "{argv:?}: a producer that said where already answered the question"
+        );
+    }
+}
+
+#[test]
 fn a_recognized_flag_is_never_consumed_as_a_value() {
     // `--pane --local-only`: eating the narrowing flag as the pane value
     // would deliver an event the caller asked to keep local.
