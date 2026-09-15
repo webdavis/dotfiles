@@ -35,7 +35,12 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
         );
     }
     let scenes = optional_table(root, "scenes")?;
-    keys(&scenes, &["rotation", "fallback"])?;
+    keys(&scenes, &["rotation", "fallback", "remember_position"])?;
+    let remember_position = match scenes.get("remember_position") {
+        None => false,
+        Some(toml::Value::Boolean(value)) => *value,
+        Some(_) => return Err(error("invalid remember_position")),
+    };
     let names = match scenes.get("rotation") {
         None => ["Dimmed", "Read", "Energize", "Concentrate"]
             .map(str::to_owned)
@@ -63,6 +68,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
         default_room,
         aliases,
         rotation,
+        remember_position,
         presets,
         step: step as u8,
     })
