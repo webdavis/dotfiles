@@ -52,8 +52,8 @@ pub(crate) fn run_event(
         probes,
         payload,
         attempt,
-        &|table, lights, behaviour, presence| {
-            fire_pulse_unless_quiet(table, lights, behaviour, presence);
+        &|table, lights, flash, presence| {
+            fire_pulse_unless_quiet(table, lights, flash, presence);
         },
     )
 }
@@ -68,7 +68,7 @@ pub(crate) fn run_event(
 type PulseSink<'a> = &'a dyn Fn(
     Option<toml::Table>,
     Option<&pns_domain::lamps::config::Lights>,
-    pns_domain::lamps::config::Behaviour,
+    pns_domain::lights::flash::Flash,
     Option<&pns_domain::Snapshot>,
 );
 mod execution;

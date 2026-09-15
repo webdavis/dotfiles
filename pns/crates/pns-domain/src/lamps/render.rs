@@ -47,18 +47,32 @@ pub fn held_render(
 }
 
 /// The colour and brightness one pulse fires at.
+///
+/// THE FLASH AND NOT ITS ROUTABLE WORD, which is what lets `github` carry two
+/// colours under one config word: the pass and the failure route identically
+/// and render differently, exactly as the two unread flavours do above.
 pub fn pulse_render(
-    behaviour: crate::lamps::config::Behaviour,
+    flash: crate::lights::flash::Flash,
     lights: &crate::lamps::config::Lights,
     showing: Showing,
 ) -> Option<(crate::pulse::PulseColor, crate::lamps::config::Pulse, u8)> {
-    let (color, pulse) = match behaviour {
-        crate::lamps::config::Behaviour::Done => (crate::pulse::SUCCESS_COLOR, lights.done),
-        crate::lamps::config::Behaviour::Failed => (crate::pulse::FAILURE_COLOR, lights.failed),
+    use crate::lights::flash::Flash;
+    let (color, pulse) = match flash {
+        Flash::Word(crate::lamps::config::Behaviour::Done) => {
+            (crate::pulse::SUCCESS_COLOR, lights.done)
+        }
+        Flash::Word(crate::lamps::config::Behaviour::Failed) => {
+            (crate::pulse::FAILURE_COLOR, lights.failed)
+        }
+        // THE ONE PAIR THAT COMES OFF THE CONFIG. Both flavours share the
+        // blink, because a brightness per colour is a knob nothing else has.
+        Flash::GithubPass => (lights.github.pass, lights.github.pulse),
+        Flash::GithubFail => (lights.github.fail, lights.github.pulse),
         // A HELD STATE IS NOT A PULSE, and there is no nearest shape to fall
         // back to: a lamp asked to flash a state it holds would be armed with
-        // something nobody measured.
-        _ => return None,
+        // something nobody measured. `github` spelled as a bare word lands
+        // here too, since its colour is the event's to say.
+        Flash::Word(_) => return None,
     };
     // A DIMMED PULSE IS THE SAME BLINK AT THE DIM FLOOR, which is the faintest
     // the hardware goes; there is no low end for a blink to fade to.

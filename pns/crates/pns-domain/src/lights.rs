@@ -6,6 +6,7 @@
 //! move without it; the rest of the lighting policy follows.
 
 pub mod breath;
+pub mod flash;
 pub mod held;
 pub mod looping;
 pub mod mute;

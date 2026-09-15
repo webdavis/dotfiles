@@ -9,6 +9,7 @@ use pns_domain::EventArgs;
 use pns_domain::Record;
 use pns_domain::Snapshot;
 use pns_domain::lamps::config::Behaviour;
+use pns_domain::lights::flash::Flash;
 use pns_domain::routing::{Delivery, Leg, ReportMode};
 use pns_domain::surface::{DeliveryPlan, Surface, Visibility};
 use pns_domain::{Decision, GateInputs, Overrides};
@@ -113,8 +114,8 @@ impl ReturnMoment for Recorder {
     }
 }
 impl LampSignal for Recorder {
-    fn pulse(&self, behaviour: Behaviour, _presence: Option<&Snapshot>) {
-        self.note(&format!("pulse({behaviour:?})"));
+    fn pulse(&self, flash: Flash, _presence: Option<&Snapshot>) {
+        self.note(&format!("pulse({flash:?})"));
     }
 }
 impl LightsTick for Recorder {
@@ -212,6 +213,7 @@ fn submission<'a>(
         loop_live: false,
         lights_declared: true,
         presence: None,
+        github: None,
     }
 }
 

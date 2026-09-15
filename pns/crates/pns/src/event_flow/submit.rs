@@ -12,6 +12,11 @@ pub(super) struct ProducerRequest {
     pub(super) identity: SubmissionIdentity,
     pub(super) encoded: String,
     pub(super) class: Option<pns_protocol::Name>,
+    /// The `github` extension this request carried, if any. A MALFORMED one
+    /// is none of them: the refusal is printed and the event takes the
+    /// ordinary path, because a colour nobody could read must not cost the
+    /// delivery the rest of the envelope still earns.
+    pub(super) github: Option<pns_domain::github::GithubEvent>,
 }
 
 pub(crate) fn submit_mode(args: &[String]) -> i32 {
@@ -34,8 +39,8 @@ pub(crate) fn submit_mode(args: &[String]) -> i32 {
                     &system_probes(),
                     &payload,
                     attempt,
-                    &|table, lights, behaviour, presence| {
-                        fire_pulse_unless_quiet(table, lights, behaviour, presence)
+                    &|table, lights, flash, presence| {
+                        fire_pulse_unless_quiet(table, lights, flash, presence)
                     },
                     Some(producer),
                 )
@@ -59,6 +64,13 @@ fn accept(
             return ResultEnvelope::rejected(&refusal);
         }
     };
+    let github = match pns_adapters::github_event(&request.extensions) {
+        Ok(github) => github,
+        Err(refusal) => {
+            eprintln!("pns: {refusal}");
+            None
+        }
+    };
     let producer = ProducerRequest {
         identity: SubmissionIdentity {
             producer: request.producer.as_str().into(),
@@ -66,6 +78,7 @@ fn accept(
         },
         encoded,
         class: request.class.clone(),
+        github,
     };
     let mut result = receipt::result(submit(&request, &producer));
     result.request_id = Some(request.request_id);

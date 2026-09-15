@@ -16,6 +16,7 @@
 //! Configuration parsing, backend settings and rendering live here.
 
 mod config;
+mod github;
 mod phone_marker;
 mod tap_install;
 pub use config::DaemonConfig;
@@ -26,6 +27,7 @@ pub use config::{
     mobile_backend, moshi_secret, parse_config, parse_presence, render, strip_chezmoi_actions,
     submit_deadline,
 };
+pub use github::{GITHUB_EXTENSION, github_event};
 pub use phone_marker::{
     MarkerReading, PhoneMarkerPath, TapFailure, phone_marker_path, read_phone_marker,
     record_phone_tap,
