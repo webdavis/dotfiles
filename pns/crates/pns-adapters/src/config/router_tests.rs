@@ -93,7 +93,7 @@ fn a_usable_stale_alert_channel_is_read_back_as_the_route_verbatim() {
 fn no_stale_alert_channel_at_all_asks_for_the_default_route_in_silence() {
     // ABSENT IS NOT AN ERROR: the key is optional, and an empty route is
     // how every caller of `hermes_target` spells the default route
-    // (`/webhooks/pns`). Complaining here would put a config error in
+    // (`/webhooks/pns-events`). Complaining here would put a config error in
     // front of every operator who never asked to route the alert anywhere.
     assert_eq!(
         stale_alert_channel(&table("type = \"unifi\"\n")),

@@ -89,7 +89,7 @@ fn destinations(status: u16) -> pns_application::Destinations<crate::HermesChann
     destinations
         .register(crate::HermesChannel {
             post: Reply(status),
-            route: "pns".into(),
+            route: "pns-events".into(),
             key: Some("fixture-key".into()),
             url: "http://127.0.0.1:9/owned-fixture".into(),
             sync_deadline: None,

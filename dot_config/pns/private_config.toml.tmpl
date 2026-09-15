@@ -51,11 +51,11 @@ enabled = true
 # key is missing.
 [plugins.hermes.keys]
 # Every event with no route of its own.
-pns = {{ (keepassxc "Hermes :: Webhook Secret (#pns)").Password | toToml }}
+pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
 # The threaded recap.
 pns-recap = {{ (keepassxc "Hermes :: Webhook Secret (#pns-recap)").Password | toToml }}
 # Pages the posture pipeline submits.
-posture = {{ (keepassxc "Hermes :: Webhook Secret (#posture)").Password | toToml }}
+posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
 # Machine health and security, and the stale-block escalation.
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
 

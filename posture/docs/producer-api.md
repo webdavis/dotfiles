@@ -59,19 +59,19 @@ broken delivery path is itself something the operator has to know.
 
 The severity of a finding names its route, and the route rides in the request for both delivery paths:
 
-| Tier           | Route      |
-| -------------- | ---------- |
-| critical       | `priority` |
-| notice, info   | `posture`  |
-| no tier at all | `posture`  |
+| Tier           | Route           |
+| -------------- | --------------- |
+| critical       | `priority`      |
+| notice, info   | `posture-pages` |
+| no tier at all | `posture-pages` |
 
 "No tier at all" is the heartbeat, the daily digest and the cursor-reset warning, which keep whatever
 route the command built its sink with.
 
-On the direct path the route also selects the signing key and the final URL path segment: a `posture`
-page is signed with the `posture` key and posted to `<url>/posture`. A route this machine holds no key
-for refuses the page and raises the local banner, rather than posting something the gateway will answer
-401 to and calling it delivered.
+On the direct path the route also selects the signing key and the final URL path segment: a
+`posture-pages` page is signed with the `posture-pages` key and posted to `<url>/posture-pages`. A route
+this machine holds no key for refuses the page and raises the local banner, rather than posting something
+the gateway will answer 401 to and calling it delivered.
 
 ## Choosing a path
 
@@ -87,7 +87,7 @@ arguments = ["submit", "--json"]
 url = "http://127.0.0.1:8644/webhooks"
 
 [delivery.hermes.keys]
-posture = "..."
+posture-pages = "..."
 priority = "..."
 ```
 

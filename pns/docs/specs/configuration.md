@@ -101,7 +101,7 @@ assert_eq!(
         ),
         (
             "plugins.hermes.keys".to_string(),
-            r#"pns = {{ (keepassxc "Hermes :: Webhook Secret (#pns)").Password | toToml }}"#
+            r#"pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}"#
         ),
         (
             "plugins.hue".to_string(),

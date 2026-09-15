@@ -18,8 +18,8 @@
 
   THE ROUTES MAP IS WRITTEN WHOLE, SO AN UNDECLARED ROUTE IS REMOVED. A live
   route this file does not name is gone after the next apply: that is how
-  `unattended-upgrades` (superseded by `uu`) and `osquery` (superseded by
-  `posture`) leave, and it is what keeps the set of channels a webhook can post
+  `unattended-upgrades` (superseded by `uu-runs`) and `osquery` (superseded by
+  `posture-pages`) leave, and it is what keeps the set of channels a webhook can post
   to exactly the set declared here. Adding a route means adding it below AND
   creating its two KeePassXC entries.
 
@@ -77,11 +77,11 @@
   hermes writes this file through an atomic replace, so a truncated write is
   not a shape it produces.
 
-  IN FLIGHT: until the parallel change that moves pns to one key per route has
-  merged and one apply has landed, the senders and this gateway disagree. pns
-  signs every route with a single `[plugins.hermes] key`, so the five routes
-  whose secret is not that one key answer 401 and the message is dropped. See
-  the hermes section of docs/runbooks/local-daemons.md.
+  IN FLIGHT: until one apply has landed, the senders and this gateway disagree.
+  The deployed pns still signs every route with one `[plugins.hermes] key`,
+  so the five routes whose secret is not that one key answer 401 and the
+  message is dropped. This change adds the three route renames to that same
+  apply. See the hermes section of docs/runbooks/local-daemons.md.
 */ -}}
 {{- /* Kept BOTH trimmed and raw. The trimmed copy is what gets parsed, and the
        raw copy is what a no-op apply emits back byte for byte, trailing
@@ -101,20 +101,27 @@
 {{- /* The six routes, name -> prompt. Every other field is the same for all
        six, so only the prompt varies.
 
-       general and priority carry the same three-line layout the pns route
-       does: a bold header, a Discord subtext line, then the body. posture,
-       pns-recap and uu keep the prompts they already had. A prompt is a
-       hermes template over the JSON the sender POSTs, so a field a sender does
-       not send renders empty rather than failing. */ -}}
+       A ROUTE IS NAMED FOR ITS DISCORD CHANNEL, and both KeePassXC titles
+       below are built from that one name, so route name == channel name ==
+       entry name. The channels were renamed on 2026-09-14 and the routes
+       followed: `pns` became `pns-events`, `uu` became `uu-runs` and `posture`
+       became `posture-pages`, because the bare tool names are now GitHub repo
+       channels no webhook route may take.
+
+       general and priority carry the same three-line layout the pns-events
+       route does: a bold header, a Discord subtext line, then the body.
+       posture-pages, pns-recap and uu-runs keep the prompts they already had.
+       A prompt is a hermes template over the JSON the sender POSTs, so a field
+       a sender does not send renders empty rather than failing. */ -}}
 {{- $headerLayout := "**{header}**\n-# {subheader}\n{body}" -}}
 {{- $eventLayout := "{agent} · {state} · {project}\n\n{detail}" -}}
 {{- $prompts := dict
-    "general"   $headerLayout
-    "pns"       $headerLayout
-    "priority"  $headerLayout
-    "pns-recap" $eventLayout
-    "posture"   $eventLayout
-    "uu"        (printf "unattended · %s" $eventLayout) -}}
+    "general"       $headerLayout
+    "pns-events"    $headerLayout
+    "priority"      $headerLayout
+    "pns-recap"     $eventLayout
+    "posture-pages" $eventLayout
+    "uu-runs"       (printf "unattended · %s" $eventLayout) -}}
 
 {{- /* deliver_only is what makes a route post its body VERBATIM instead of
        handing it to an agent, and `deliver: discord` is what it needs to be a

@@ -200,7 +200,13 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
     // THE ROUTE SURVIVES THE OVERRIDE, which the URL alone cannot say: the
     // route names the signing key, so an override that also reset the route
     // would sign every captured post with the default route's key.
-    for (route, resolved) in [("", "pns"), ("priority", "priority"), ("bad/route", "pns")] {
+    // The default route is read from the roster rather than spelled here: it
+    // is named for its Discord channel, so a channel rename moves it.
+    for (route, resolved) in [
+        ("", DEFAULT_ROUTE),
+        ("priority", "priority"),
+        ("bad/route", DEFAULT_ROUTE),
+    ] {
         assert_eq!(
             hermes_target(route, Some("http://example.invalid/explicit")),
             (
@@ -212,7 +218,7 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
     for override_url in [None, Some("")] {
         assert_eq!(
             hermes_target("", override_url),
-            ("pns".to_string(), DEFAULT_HERMES_URL.to_string())
+            (DEFAULT_ROUTE.to_string(), DEFAULT_HERMES_URL.to_string())
         );
         assert_eq!(
             hermes_target("priority", override_url),
@@ -226,7 +232,7 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
         // refused for want of a key named `bad/route`.
         assert_eq!(
             hermes_target("bad/route", override_url),
-            ("pns".to_string(), DEFAULT_HERMES_URL.to_string())
+            (DEFAULT_ROUTE.to_string(), DEFAULT_HERMES_URL.to_string())
         );
     }
 }

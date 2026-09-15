@@ -18,14 +18,17 @@
 # SIX routes are checked, because they fail differently and most of them fail quietly:
 #   general               the catch-all channel. No producer in this repository posts to it today; it is
 #                         declared so an ad-hoc POST has a signed route rather than borrowing another.
-#   pns                   agent events. One that never arrives is usually noticed anyway, because
+#   pns-events            agent events. One that never arrives is usually noticed anyway, because
 #                         whatever it was about is still open.
 #   priority              machine health and security, plus the stale-block escalation.
-#   posture               every page the osquery pipeline raises, plus its daily digest and heartbeat.
-#   uu                    the weekly RECORD from the unattended jobs. A record that never arrives looks
+#   posture-pages         every page the osquery pipeline raises, plus its daily digest and heartbeat.
+#   uu-runs               the weekly RECORD from the unattended jobs. A record that never arrives looks
 #                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
 #                         to look.
 #   pns-recap             the return recap.
+# Each route is named for the Discord channel it posts to, which is also the name both of its
+# KeePassXC entries are built from (renamed 2026-09-14: `pns` -> `pns-events`, `uu` -> `uu-runs`,
+# `posture` -> `posture-pages`, because the bare tool names became GitHub repo channels).
 # For the quiet ones this check is the only thing standing between a mistyped or unapplied route and a
 # channel that stays empty forever.
 # Keep this list in step with the route names the producers spell: DEFAULT_RECORD_URL in
@@ -34,7 +37,7 @@
 # pns/crates/pns-application/src/post_return_recap.rs.
 #
 # THE PER-ROUTE KEY COMPARISON IS GONE. Every route used to be required to carry the ONE secret pns
-# signs with, and this script compared the other four against the pns route's value. The routes now
+# signs with, and this script compared the other four against the default route's value. The routes now
 # carry six DIFFERENT secrets, one KeePassXC entry each, so there is nothing left to compare a route
 # against: agreement is between the vault entry a route renders from and the key its senders hold, and
 # neither of those is in this file. What is checkable here is that a secret and a channel are PRESENT,
@@ -46,7 +49,7 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-expected_routes=(general pns pns-recap posture priority uu)
+expected_routes=(general pns-events pns-recap posture-pages priority uu-runs)
 for route in "${expected_routes[@]}"; do
   # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
   # so a config that had lost a route was indistinguishable from a machine with no hermes at all.

@@ -9,7 +9,7 @@ fn every_table_armed() -> toml::Table {
         token = "moshi-secret"
 
         [plugins.hermes.keys]
-        pns = "hermes-secret"
+        pns-events = "hermes-secret"
 
         [plugins.hue]
         bridge = "192.168.1.9"

@@ -2,7 +2,7 @@
 day = "sunday"
 time = "12:00"
 [records]
-url = "http://127.0.0.1:8644/webhooks/uu"
+url = "http://127.0.0.1:8644/webhooks/uu-runs"
 key = "/stand-in"
 [alerts]
 binary = "/stand-in/.cargo/bin/pns"
