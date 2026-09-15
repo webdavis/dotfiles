@@ -256,7 +256,22 @@ end
 --- Run the plugin spec's `config` against stubbed adapters and return each JavaScript adapter's
 --- configured `is_test_file`, the adapter list neotest was handed, and a way to press `<leader>ta`
 --- or any of `GATED_KEYS`.
-local function route()
+--- @param rust_discover_positions (fun(file_path: string): table)? Stubs
+---   `rustaceanvim.neotest.discover_positions`, the one field the readiness wrapper in
+---   `plugins/neotest.lua` calls through rather than reading off the stub table directly. Only
+---   the retry-wrapper case passes this; every other case leaves it nil, which is fine because
+---   nothing else calls the field.
+local function route(rust_discover_positions)
+  -- Real `nio.sleep` raises "Cannot call sleep from non-async context" outside a coroutine nio
+  -- itself started, which this synchronous spec never is. Stubbed to a no-op counter so the
+  -- retry-wrapper case can assert it waited without actually waiting.
+  local nio_sleep_calls = 0
+  package.loaded["nio"] = {
+    sleep = function()
+      nio_sleep_calls = nio_sleep_calls + 1
+    end,
+  }
+
   local vitest = { name = "neotest-vitest", root = package_root }
 
   local jest = { name = "neotest-jest", root = package_root }
@@ -353,7 +368,11 @@ local function route()
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
     -- rustaceanvim ships its adapter under its own name, not "neotest-rust"; matched here so the
     -- routing extends the same module real rustaceanvim would hand back.
-    ["rustaceanvim.neotest"] = { name = "rustaceanvim", root = no_root },
+    ["rustaceanvim.neotest"] = {
+      name = "rustaceanvim",
+      root = no_root,
+      discover_positions = rust_discover_positions,
+    },
     ["neotest-java"] = setmetatable({}, {
       __call = function()
         return { name = "neotest-java", root = no_root, constructed = true }
@@ -462,6 +481,9 @@ local function route()
     by_name = by_name,
     press_run_all = press_run_all,
     press_gated = press_gated,
+    nio_sleep_calls = function()
+      return nio_sleep_calls
+    end,
   }
 end
 
@@ -953,6 +975,43 @@ cases["a test request waits for the parser its discovery needs"] = function()
     "<leader>ta did not wait for its parser: " .. vim.inspect(directory_run.installs)
   )
   assert(directory_run.ran, "<leader>ta never reached neotest")
+end
+
+cases["the rust readiness wrapper retries once for the load-window race, then stops retrying"] = function()
+  -- rustaceanvim's own module is a plain table with no discover_positions of its own; the retry
+  -- wrapper is the one piece of logic this PR adds, and nothing else in this spec calls through
+  -- it. Call 1 simulates rust-analyzer not answering yet; call 3 simulates a second, test-less
+  -- file whose own request also fails, to prove a warmed wrapper does not retry it.
+  local call_count = 0
+  local good_tree = {
+    children = function()
+      return { {}, {} }
+    end,
+  }
+  local routed = route(function()
+    call_count = call_count + 1
+    if call_count == 1 or call_count == 3 then
+      error("rust-analyzer not ready")
+    end
+    return good_tree
+  end)
+
+  local rust = routed.by_name["rustaceanvim"]
+  assert(rust, "rustaceanvim is not in the adapter list")
+  assert(rust.discover_positions, "the retry wrapper was not installed")
+
+  local tree = rust.discover_positions("/tmp/first.rs")
+  assert(tree == good_tree, "the wrapper did not return the tree rust-analyzer produced once ready")
+  assert(call_count == 2, "the wrapper did not retry exactly once before succeeding: got " .. call_count)
+  assert(routed.nio_sleep_calls() == 1, "the wrapper did not wait between its retries")
+
+  -- Warmed by the first call's eventual success: a second, test-less file whose own call raises
+  -- is NOT retried to the 10s deadline, which is the SEV-2 fix (a test-less file used to spin
+  -- ~25 requests every time).
+  local no_tree = rust.discover_positions("/tmp/second-no-tests.rs")
+  assert(no_tree == nil, "a warmed call that raised was retried instead of returning nil once")
+  assert(call_count == 3, "a warmed call retried the underlying adapter: got " .. call_count)
+  assert(routed.nio_sleep_calls() == 1, "a warmed call slept, defeating the point of warming up")
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
