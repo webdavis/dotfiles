@@ -30,9 +30,31 @@
 -- nothing types a `ClaudeCode*` command or presses a `<leader>C` key first. The
 -- `cmd` and `keys` lists stay so the commands and the maps are declared, and so
 -- the plugin still loads for a session that reaches one before `VeryLazy` fires.
+--
+-- `cond` keeps the plugin out of headless Neovim entirely (a `nvim --headless`
+-- launch or a `-l` script run, both used by this repo's own test suites and
+-- tooling), rather than merely quieting its logger the way `opts.log_level`
+-- below does. It scans `vim.v.argv` for the literal flags `--headless` and
+-- `-l`, not `#vim.api.nvim_list_uis() == 0`: lazy.nvim evaluates a spec's
+-- `cond` during its early spec-parse/resolve pass (`lazy/core/meta.lua`,
+-- `fix_cond`), well before the `VeryLazy` event this plugin loads on and
+-- before an interactive session's own UI is guaranteed to have attached, so a
+-- UI-count check is unreliable at that point. The `opts.log_level` check below
+-- runs at a different, later evaluation point (actual plugin load), where a UI
+-- count is reliable, which is why it keeps using it.
+local function is_headless()
+  for _, arg in ipairs(vim.v.argv) do
+    if arg == "--headless" or arg == "-l" then
+      return true
+    end
+  end
+  return false
+end
+
 return {
   "coder/claudecode.nvim",
   commit = "2390c6e45c4789072c293ac69de051d169668b29",
+  cond = not is_headless(),
   dependencies = {
     "folke/snacks.nvim",
   },
