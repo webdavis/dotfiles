@@ -39,6 +39,9 @@ Config {
                         "posture": String(
                             "from-the-vault:Discord (Uriel) :: Channel ID (#posture-dev):Password",
                         ),
+                        "posture-pages": String(
+                            "from-the-vault:Discord (Uriel) :: Channel ID (#posture-pages):Password",
+                        ),
                         "priority": String(
                             "from-the-vault:Discord (Uriel) :: Channel ID (#priority):Password",
                         ),

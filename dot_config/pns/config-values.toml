@@ -43,6 +43,7 @@ token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
 default = { keepassxc = "Discord (Uriel) :: Channel ID (#github-notifications)", field = "Password" }
 pns-events = { keepassxc = "Discord (Uriel) :: Channel ID (#pns-events)", field = "Password" }
 priority = { keepassxc = "Discord (Uriel) :: Channel ID (#priority)", field = "Password" }
+posture-pages = { keepassxc = "Discord (Uriel) :: Channel ID (#posture-pages)", field = "Password" }
 casually-concerned = { keepassxc = "Discord (Uriel) :: Channel ID (#casually-concerned-dev)", field = "Password" }
 dotfiles = { keepassxc = "Discord (Uriel) :: Channel ID (#dotfiles-dev)", field = "Password" }
 essential-feed-case-study = { keepassxc = "Discord (Uriel) :: Channel ID (#essential-feed-case-study-dev)", field = "Password" }
