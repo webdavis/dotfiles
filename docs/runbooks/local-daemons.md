@@ -194,15 +194,14 @@ between the entry a route renders from and the key its sender holds, and neither
 `config.yaml`. What the check still sees is PRESENCE, by shape and never by value, which is why it
 reports a route with no secret and a `chat_id` that is not a 17-to-20-digit Discord snowflake.
 
-What that leaves. `drain-undelivered-alerts.sh` on the alert-drainer LaunchAgent is the one signer still
-holding the old key, draining a store that is empty (`select count(*) from pending_alerts` is 0), and
-every other osquery agent now runs a `posture` subcommand, so nothing writes to that store any more;
-anything it somehow queues answers 401 rather than arriving. `~/.config/osquery/webhook-secret` is dead
-weight once that drainer retires, and it is watched by the agent-attack-surface pack, so trash it in the
-same change that removes the LaunchAgent rather than on its own. `severity_route` still holds EVERY
-posture tier on `posture`, critical included; flipping its critical arm back to `priority` is now a
-one-line change in posture's own workspace, and the test named for the hold is what makes that flip
-deliberate.
+What that leaves. Nothing signs with the old key any more. The alert-drainer LaunchAgent and
+`drain-undelivered-alerts.sh` retired once their queue read empty (`select count(*) from pending_alerts`
+was 0) and every osquery agent ran a `posture` subcommand, so nothing writes that store and nothing reads
+that key. `~/.config/osquery/webhook-secret` is dead weight, and it is watched by the
+agent-attack-surface pack, so trash it alongside the LaunchAgent and the queue rather than on its own.
+`severity_route` still holds EVERY posture tier on `posture`, critical included; flipping its critical
+arm back to `priority` is now a one-line change in posture's own workspace, and the test named for the
+hold is what makes that flip deliberate.
 
 ### When a route changes
 

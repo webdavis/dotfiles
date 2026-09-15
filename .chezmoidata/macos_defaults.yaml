@@ -145,8 +145,8 @@ macos:
     #
     # allowLocalHost is the single most safety-critical preference on this
     # machine, because
-    # alert-dispatch.sh POSTs every page to a Hermes gateway on 127.0.0.1:8644
-    # and the uptime watchdog route probe hits the same loopback URL.
+    # pns POSTs every page to a Hermes gateway on 127.0.0.1:8644 and the
+    # posture watchdog route probe hits the same loopback URL.
     # allowLocalHost is true, which is why that hop is unfiltered and why
     # paging works at all.
     # Flipping it to false would put LuLu in front of the alerting path itself:

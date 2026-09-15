@@ -2,16 +2,14 @@
 pub enum Agent {
     ResultsAlerter,
     FirewallGatekeeperMonitor,
-    AlertDrainer,
     Digest,
     Heartbeat,
     TailscaleMonitor,
 }
 impl Agent {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::ResultsAlerter,
         Self::FirewallGatekeeperMonitor,
-        Self::AlertDrainer,
         Self::Digest,
         Self::Heartbeat,
         Self::TailscaleMonitor,
@@ -20,7 +18,6 @@ impl Agent {
         match self {
             Self::ResultsAlerter => "com.webdavis.osquery-results-alerter",
             Self::FirewallGatekeeperMonitor => "com.webdavis.osquery-firewall-gatekeeper-monitor",
-            Self::AlertDrainer => "com.webdavis.osquery-alert-drainer",
             Self::Digest => "com.webdavis.osquery-digest",
             Self::Heartbeat => "com.webdavis.osquery-heartbeat",
             Self::TailscaleMonitor => "com.webdavis.osquery-tailscale-monitor",

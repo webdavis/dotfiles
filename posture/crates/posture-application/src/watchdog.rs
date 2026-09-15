@@ -7,7 +7,7 @@ use posture_domain::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WatchdogState {
-    pub agents: [Option<AgentState>; 6],
+    pub agents: [Option<AgentState>; 5],
     pub legacy_pending: QueueMemory,
     pub pns_pending: QueueMemory,
     pub pipeline_audit: AuditMemory,

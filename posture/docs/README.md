@@ -164,7 +164,7 @@ wc -c < ~/.cargo/bin/posture
 | ------------------------------------------------------------------- | ----- | -------------------------------------------- | ---------------------------- |
 | `executable_ssh-hardening.sh`                                       | 2826  | `posture ssh`                                | tracked, operator-typed Bash |
 | `executable_results-alerter.sh` plus its seven sourced stages       | 1945  | `posture alert`                              | tracked, Bash caller         |
-| `executable_alert-dispatch.sh`                                      | 1263  | none, delivery moves to pns (spec section 5) | tracked, Bash caller         |
+| `executable_alert-dispatch.sh`                                      | 1263  | none, delivery moves to pns (spec section 5) | retired at `f645f50d`        |
 | `executable_firewall-gatekeeper-monitor.sh`                         | 998   | `posture poll`                               | tracked, Bash caller         |
 | `executable_osquery-converge.sh` plus `drift-verdict.sh`            | 986   | `posture converge`                           | tracked, caller cut over     |
 | `executable_uptime-watchdog.sh` plus `executable_pipeline-audit.sh` | 826   | `posture watchdog`                           | tracked, Bash caller         |
@@ -172,10 +172,10 @@ wc -c < ~/.cargo/bin/posture
 | `executable_tailscale-monitor.sh`                                   | 287   | `posture funnel`                             | tracked, Bash caller         |
 | `executable_digest.sh`                                              | 238   | `posture digest`                             | retired at `d2a88b4c`        |
 | `executable_enrich-finding.sh`                                      | 139   | `posture enrich`                             | retired at `8f211044`        |
-| `executable_drain-undelivered-alerts.sh`                            | 114   | none (spec section 6, D1)                    | tracked, Bash caller         |
+| `executable_drain-undelivered-alerts.sh`                            | 114   | none (spec section 6, D1)                    | retired at `f645f50d`        |
 | `executable_heartbeat.sh`                                           | 109   | `posture heartbeat`                          | retired at `45e18321`        |
 | `executable_canary-freshness.sh`                                    | 47    | inside `posture heartbeat` and `watchdog`    | tracked, Bash caller         |
-| Bash in the port's scope                                            | 10137 |                                              | 845 retired, 9292 tracked    |
+| Bash in the port's scope                                            | 10137 |                                              | 2222 retired, 7915 tracked   |
 
 | Crate                 | Files | Implementation lines | Total lines |
 | --------------------- | ----- | -------------------- | ----------- |

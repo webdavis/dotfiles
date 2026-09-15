@@ -6,13 +6,12 @@ fn loaded(runs: Option<u64>, exit: Option<&str>) -> AgentReading<'_> {
     }
 }
 #[test]
-fn the_six_watched_agents_keep_their_labels_and_unloaded_state_is_not_retained() {
+fn the_five_watched_agents_keep_their_labels_and_unloaded_state_is_not_retained() {
     assert_eq!(
         Agent::ALL.map(Agent::label),
         [
             "com.webdavis.osquery-results-alerter",
             "com.webdavis.osquery-firewall-gatekeeper-monitor",
-            "com.webdavis.osquery-alert-drainer",
             "com.webdavis.osquery-digest",
             "com.webdavis.osquery-heartbeat",
             "com.webdavis.osquery-tailscale-monitor"

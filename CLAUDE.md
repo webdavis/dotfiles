@@ -572,7 +572,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | `com.webdavis.scalebar`                            | starts the Scalebar menu-bar app at login            |
 | `com.webdavis.osquery-heartbeat`                   | proves the osquery pipeline is alive                 |
 | `com.webdavis.osquery-results-alerter`             | turns osquery results into notifications             |
-| `com.webdavis.osquery-alert-drainer`               | drains the queued alerts                             |
 | `com.webdavis.osquery-digest`                      | periodic roll-up                                     |
 | `com.webdavis.osquery-firewall-gatekeeper-monitor` | watches firewall and Gatekeeper posture              |
 | `com.webdavis.osquery-tailscale-monitor`           | watches tailscaled posture                           |
