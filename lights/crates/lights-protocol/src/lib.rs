@@ -3,7 +3,7 @@ mod output;
 pub use command::{BrightnessRequest, Command, Request, parse};
 pub use output::Output;
 
-pub const HELP: &str = "Usage: lights [--room <alias|name>] [--notify] <command>\n\
+pub const HELP: &str = "Usage: lights [--room <alias|name> | --all] [--notify] <command>\n\
   toggle                  toggle power (default command)\n\
   on | off                request power on or off\n\
   brightness up | down    request one configured step\n\
@@ -14,5 +14,6 @@ pub const HELP: &str = "Usage: lights [--room <alias|name>] [--notify] <command>
   preset <name>           apply a configured whole-house preset\n\
   preset now              apply the preset the current window names\n\
   preset                  list the configured presets\n\
+  --all                   apply a scene or brightness to every configured room\n\
   --notify                notify after an accepted write\n\
   --help                  print this help\n";

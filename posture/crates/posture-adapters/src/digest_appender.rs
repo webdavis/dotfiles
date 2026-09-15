@@ -12,6 +12,14 @@
 //! interleave whole lines rather than halves of two. It is not a guarantee, and
 //! the reader drops an unparseable line for the times it is not.
 //!
+//! A CLAIM CAN RENAME THE FILE OUT FROM UNDER AN OPEN HANDLE. The digest takes
+//! a batch by rename, and a descriptor opened before that rename keeps writing
+//! into the renamed claim, where the line lands after the digest has read it
+//! and is lost. So a write that finds a different file at the spool path when
+//! it finishes is written once more, into whatever file is there now. That can
+//! leave one line in two digests. Repeating a finding is cheaper than dropping
+//! one, which is the whole reason for the trade.
+//!
 //! A SPOOL FAILURE IS NOT A PAGE FAILURE. A finding that reaches here has
 //! already been judged not worth waking anyone for, so a spool that cannot be
 //! written costs tomorrow's summary line and must never cost this run's page or
@@ -19,7 +27,7 @@
 
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// Appends one encoded record per non-paging finding.
@@ -58,6 +66,20 @@ impl DigestAppendFile {
 
     fn write_record(&self, record: &posture_protocol::DigestRecord) -> std::io::Result<()> {
         super::prepare_spool_directory(&self.store)?;
+        let line = format!("{}\n", posture_protocol::encode(record));
+        if self.append_line(line.as_bytes())? {
+            // EXACTLY ONE RETRY, never a loop. A second claim landing in the
+            // same window is the next digest's batch either way, and a loop
+            // that kept chasing renames could spin for as long as claims keep
+            // arriving while the finding it holds is already written down.
+            self.append_line(line.as_bytes())?;
+        }
+        Ok(())
+    }
+
+    /// Append the line, answering whether the file it landed in had been
+    /// renamed away from the spool path by the time the write finished.
+    fn append_line(&self, line: &[u8]) -> std::io::Result<bool> {
         // 0600 AT CREATION, not after. A file holding full filesystem paths must
         // never exist world-readable, not even for the moment between the two
         // calls, because that moment is when another process gets to open it.
@@ -69,9 +91,21 @@ impl DigestAppendFile {
         // AND 0600 AGAIN FOR A FILE THAT ALREADY EXISTED, where `mode` said
         // nothing. This is cheap and it repairs a spool something else loosened.
         let _ = tighten(&self.store);
-        let line = format!("{}\n", posture_protocol::encode(record));
-        file.write_all(line.as_bytes())
+        let written = identity(&file.metadata()?);
+        file.write_all(line)?;
+        // THE HANDLE IS ASKED, NOT THE PATH, for what was written to: the two
+        // are the same file only while nobody renamed it.
+        Ok(match std::fs::metadata(&self.store) {
+            Ok(current) => identity(&current) != written,
+            // A spool that is not there at all was certainly renamed away.
+            Err(_) => true,
+        })
     }
+}
+
+/// Which file this is, across a rename: the pair the kernel identifies it by.
+fn identity(metadata: &std::fs::Metadata) -> (u64, u64) {
+    (metadata.dev(), metadata.ino())
 }
 
 fn tighten(path: &Path) -> std::io::Result<()> {

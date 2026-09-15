@@ -22,11 +22,14 @@ pub enum BrightnessRequest {
 pub struct Request {
     pub command: Command,
     pub room: Option<String>,
+    /// Act on every room the alias table names rather than on one.
+    pub all: bool,
     pub notify: bool,
 }
 
 pub fn parse(args: &[String]) -> Result<Request, String> {
     let mut room = None;
+    let mut all = false;
     let mut notify = false;
     let mut words = Vec::new();
     let mut args = args.iter();
@@ -39,6 +42,11 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
             if room.replace(value.clone()).is_some() {
                 return Err("duplicate --room".into());
             }
+        } else if arg == "--all" {
+            if all {
+                return Err("duplicate --all".into());
+            }
+            all = true;
         } else if arg == "--notify" {
             if notify {
                 return Err("duplicate --notify".into());
@@ -81,9 +89,18 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
     if room.is_some() && matches!(command, Command::Preset(_) | Command::PresetNow) {
         return Err("--room does not apply to a preset".into());
     }
+    // ONE OF THEM HAS TO LOSE, so neither does: a pair that names one room and
+    // every room is a mistake to report rather than a preference to guess at.
+    if all && room.is_some() {
+        return Err("--all and --room cannot be combined".into());
+    }
+    if all && !matches!(command, Command::Scene(_) | Command::Brightness(_)) {
+        return Err("--all applies to scene and brightness only".into());
+    }
     Ok(Request {
         command,
         room,
+        all,
         notify,
     })
 }
