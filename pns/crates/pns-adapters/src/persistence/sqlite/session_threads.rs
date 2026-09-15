@@ -7,9 +7,12 @@
 //! single column on `sessions` would have posted the second repository's
 //! events into the first repository's channel.
 //!
-//! A ROW IS REPLACED IN PLACE AND NEVER SWEPT, for `sessions`'s own recorded
-//! reason: every marker family under the state directory carries a sweeper,
-//! and a row overwritten in place needs none.
+//! ONE ROW PER PAIR FOREVER IS THE ACCEPTED COST, same reasoning as
+//! `sessions`: the key is the (session, channel) pair, a session id is
+//! unique per session, so a new session never overwrites an old row and
+//! rows accumulate one per pair for good. A row is a few dozen bytes, so the
+//! accumulation costs single-digit megabytes a year even at heavy use, and a
+//! sweeper would cost more to build and run than the bytes it saves.
 //!
 //! A STORE FAILURE IS NOT A DELIVERY FAILURE. Every method here answers in
 //! the shape the destination can act on and swallows the error: the worst a
