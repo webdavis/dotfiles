@@ -13,6 +13,20 @@ pub(super) fn quiet_command(sandbox: &Sandbox) -> std::process::Command {
     command
 }
 
+/// A `quiet` run this test EXPECTS to be refused, by a writer the test is
+/// holding itself, with its own bound on the wait for it.
+///
+/// THE STAGED LOCK IS NEVER GIVEN BACK, so the run would otherwise spend the
+/// product's whole busy timeout waiting for it: that number exists to survive
+/// contention between short transactions, and a test staging a wedged writer
+/// is not that. The refusal is what is being pinned, and it is the same
+/// refusal at either bound.
+pub(super) fn refused_quiet_command(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = quiet_command(sandbox);
+    command.env("PNS_DB_BUSY_TIMEOUT_MS", "50");
+    command
+}
+
 /// The state file the mute is published to.
 pub(super) fn quiet_state(sandbox: &Sandbox) -> std::path::PathBuf {
     sandbox.path("state/quiet-until")
