@@ -31,6 +31,7 @@
 -- the operator sees in the pane, is the one the agent reaches.
 
 local M = {}
+local bit = require("bit")
 
 -- The longest socket path a unix socket accepts: sun_path is 104 bytes on macOS
 -- and 108 on Linux, NUL included, and the smaller bound applies everywhere so
@@ -59,15 +60,64 @@ function M.root()
   return vim.fs.dirname(run)
 end
 
--- True when `dir` is a directory this user owns at mode 0700, the only shape
--- the run root may have. Neovim itself falls back to `<temp>/nvim.<random>`
--- when `nvim.<user>` is mis-owned or too open (measured on 0.12.5), and that
--- directory's parent is `<temp>` itself, which can be a shared /tmp where any
--- account may pre-create a pane socket. A supplied XDG_RUNTIME_DIR gets the
--- same check.
+-- Check parents before following a link. Both its spelling and every target's
+-- parents must be protected; realpath alone hides intermediate link targets.
+-- Sticky directories protect children owned by this user or root. Keep safe
+-- aliases such as /var intact because expanding them can exceed sun_path.
+local function protected_ancestors(path, uid)
+  path = path:gsub("/+$", "")
+  path = path ~= "" and path or "/"
+  local parent = vim.fs.dirname(path)
+  if parent ~= path then
+    local protected, fault = protected_ancestors(parent, uid)
+    if not protected then
+      return false, fault
+    end
+  end
+  local stat = vim.uv.fs_lstat(path)
+  if not stat then
+    return false, ("%s cannot be read"):format(path)
+  end
+  if stat.uid ~= uid and stat.uid ~= 0 then
+    return false, ("%s is owned by uid %d, neither this user nor root"):format(path, stat.uid)
+  end
+  if stat.type == "link" then
+    local target = vim.uv.fs_readlink(path)
+    if not target then
+      return false, ("%s is a link that cannot be read"):format(path)
+    end
+    return protected_ancestors(target:sub(1, 1) == "/" and target or parent .. "/" .. target, uid)
+  end
+  if stat.type ~= "directory" then
+    return false, ("%s is a %s, not a directory"):format(path, stat.type)
+  end
+  if bit.band(stat.mode, 18) ~= 0 and bit.band(stat.mode, 512) == 0 then -- 0022, 01000
+    return false, ("%s is group- or world-writable and not sticky"):format(path)
+  end
+  return true
+end
+
+-- Shared by the listener and the resolver's clean Neovim query. A private leaf
+-- cannot be trusted when another account can replace one of its ancestors.
 function M.private(dir)
+  if dir:sub(1, 1) ~= "/" then
+    return false, ("%s is not an absolute path"):format(dir)
+  end
+  if dir:find("\n", 1, true) then
+    return false, "it contains a newline"
+  end
   local stat = vim.uv.fs_stat(dir)
-  return stat ~= nil and stat.type == "directory" and stat.uid == vim.uv.getuid() and stat.mode % 512 == 448
+  local uid = vim.uv.getuid()
+  if not stat or stat.type ~= "directory" then
+    return false, ("%s is not a directory"):format(dir)
+  end
+  if stat.uid ~= uid then
+    return false, ("%s is owned by uid %d, not by this user at uid %d"):format(dir, stat.uid, uid)
+  end
+  if stat.mode % 4096 ~= 448 then -- 0700 exactly, setuid, setgid and sticky included
+    return false, ("%s is at mode %04o, not 0700"):format(dir, stat.mode % 4096)
+  end
+  return protected_ancestors(dir, uid)
 end
 
 -- The session half of the name. nvim-mcp-connect.sh spells the same rule
@@ -125,11 +175,13 @@ function M.listen()
     return
   end
   local root = M.root()
-  if not root or not M.private(root) then
+  local private, fault = false, "Neovim reports no run dir"
+  if root then
+    private, fault = M.private(root)
+  end
+  if not private then
     vim.notify(
-      ("nvim-mcp: not listening for this pane, the run root %s is not a directory this user owns at mode 0700"):format(
-        tostring(root)
-      ),
+      ("nvim-mcp: not listening for this pane, the run root is unusable: %s"):format(fault),
       vim.log.levels.WARN
     )
     return

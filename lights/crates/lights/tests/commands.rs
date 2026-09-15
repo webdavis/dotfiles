@@ -250,3 +250,41 @@ fn bare_preset_lists_the_configured_presets_without_a_read() {
 
 #[path = "commands/notifications.rs"]
 mod notifications;
+
+const ALL_DAY_WINDOWS: &str = "[[preset_windows]]\n\
+     start = '00:00'\n\
+     end = '12:00'\n\
+     preset = 'evening'\n\
+     [[preset_windows]]\n\
+     start = '12:00'\n\
+     end = '00:00'\n\
+     preset = 'evening'\n";
+
+/// Two windows that between them cover every minute, so the assertion holds at
+/// whatever time the suite runs.
+#[test]
+fn preset_now_applies_the_preset_the_current_window_names() {
+    let mut responses = vec![(200, fixture())];
+    responses.extend((0..3).map(|_| (200, json!({"errors":[],"data":[]}))));
+    let (r, w) = command(
+        &["preset", "now"],
+        Some(&format!("{}{PRESETS}{ALL_DAY_WINDOWS}", config())),
+        responses,
+    );
+    assert_eq!(r.exit, 0);
+    assert_eq!(r.stderr, "");
+    assert_eq!(
+        r.stdout,
+        "Room: 3F - Studio | Scene: Energize\n\
+         Room: 3F - MBedroom | Scene: Read\n\
+         2F - Kitchen: off\n"
+    );
+    assert_eq!(w.len(), 4);
+}
+
+#[test]
+fn preset_now_without_windows_names_what_to_add_without_a_read() {
+    let (r, w) = preset(&["preset", "now"], 0);
+    failure(&r, 1, "preset_windows");
+    assert!(w.is_empty());
+}

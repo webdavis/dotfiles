@@ -1,5 +1,5 @@
 use crate::Response;
-use lights_application::LightsError;
+use lights_application::{LightsError, NoPresetNow};
 use lights_domain::{Action, Presets};
 
 pub(super) fn error(error: LightsError) -> (u8, String) {
@@ -12,6 +12,23 @@ pub(super) fn error(error: LightsError) -> (u8, String) {
         | LightsError::Refused { detail }
         | LightsError::Malformed { detail } => (4, detail),
         LightsError::InvalidReference => (4, "invalid controller reference".into()),
+    }
+}
+
+const NO_WINDOWS: &str = "no preset windows configured; add a [[preset_windows]] entry \
+                          with start, end and preset";
+
+/// Every arm names what the operator has to add or fix, because a bare
+/// "nothing happened" from a key press is indistinguishable from a dead key.
+pub(super) fn no_preset_now(refusal: NoPresetNow) -> String {
+    match refusal {
+        NoPresetNow::NoWindows => NO_WINDOWS.into(),
+        NoPresetNow::ClockUnavailable => "cannot read the local clock".into(),
+        NoPresetNow::Uncovered(minute) => format!(
+            "no preset window covers {:02}:{:02}",
+            minute / 60,
+            minute % 60
+        ),
     }
 }
 

@@ -1,4 +1,6 @@
-use super::{ConfigError, HueSettings, Settings, error, integer, keys, presets, required_string};
+use super::{
+    ConfigError, HueSettings, Settings, error, integer, keys, presets, required_string, windows,
+};
 use lights_domain::{Aliases, RoomName, Rotation};
 use std::collections::BTreeMap;
 
@@ -62,6 +64,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
     // has to be complete before the plans that read it are resolved.
     let aliases = Aliases::new(aliases);
     let presets = presets::parse(root, &aliases)?;
+    let preset_windows = windows::parse(root, &presets)?;
     Ok(Settings {
         controller,
         notify,
@@ -70,6 +73,7 @@ pub(super) fn parse(root: &toml::Table, controller: HueSettings) -> Result<Setti
         rotation,
         remember_position,
         presets,
+        preset_windows,
         step: step as u8,
     })
 }

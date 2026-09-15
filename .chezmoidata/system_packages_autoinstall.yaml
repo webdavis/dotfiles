@@ -179,6 +179,7 @@ packages:
         - xz
         - yakitrak/yakitrak/notesmd-cli
         - yq
+        - zig
         - zizmor
         - zoxide
       casks:
