@@ -22,6 +22,17 @@ impl Aliases {
     pub fn new(values: BTreeMap<String, RoomName>) -> Self {
         Self(values)
     }
+    /// Every room the table names, in alias order and without repeating a room
+    /// two aliases share.
+    pub fn rooms(&self) -> Vec<RoomName> {
+        let mut rooms: Vec<RoomName> = Vec::new();
+        for room in self.0.values() {
+            if !rooms.contains(room) {
+                rooms.push(room.clone());
+            }
+        }
+        rooms
+    }
     pub fn resolve(&self, value: &str) -> Result<RoomName, ValueError> {
         self.0
             .get(value)
@@ -47,5 +58,22 @@ mod tests {
         );
         assert!(aliases.resolve("").is_err());
         assert!(aliases.resolve("bad\nroom").is_err());
+    }
+    #[test]
+    fn rooms_are_listed_once_each_however_many_aliases_reach_them() {
+        let studio = RoomName::new("3F - Studio").unwrap();
+        let aliases = Aliases::new(BTreeMap::from([
+            ("studio".into(), studio.clone()),
+            ("desk".into(), studio),
+            ("kitchen".into(), RoomName::new("2F - Kitchen").unwrap()),
+        ]));
+        assert_eq!(
+            aliases
+                .rooms()
+                .iter()
+                .map(RoomName::as_str)
+                .collect::<Vec<_>>(),
+            ["3F - Studio", "2F - Kitchen"]
+        );
     }
 }

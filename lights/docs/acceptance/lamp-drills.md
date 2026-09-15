@@ -329,6 +329,23 @@ append two windows covering the hour on either side of now, and run
 A window whose end is earlier than its start wraps past midnight, two windows that overlap resolve to the
 one written first, and a minute no window covers exits 1 naming that minute.
 
+## Checking `--all`
+
+`--all` sends a scene or a brightness to every room the alias table names, which on dresden is the
+Studio, the Master Bedroom and the Kitchen. It reads the bridge once and then writes each room on its
+own, so `lights --all scene next` leaves each room one step past the scene that room was actually on
+rather than all three on one scene. A room that refuses does not stop the rest, and the exit code is the
+first refusal's. `--all` and `--room` together are refused by name, and `--all` on anything but `scene`
+or `brightness` is refused too, so the drill rooms above stay reachable one at a time. Nothing binds it
+to a key yet: quiet all three rooms the way drill 1 quiets one before running it, or the pns routes will
+move a lamp mid-reading.
+
+| What to run                      | What to see                                                      |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `lights --all brightness up`     | one visible step in all three rooms; one printed line per room   |
+| `lights --all scene next`        | each room lands on the scene after its own, not on a shared one  |
+| `lights --all --room kitchen on` | exit 1, one line naming both `--all` and `--room`, no lamp moves |
+
 ## When all four are filled
 
 The cutover is complete only with drills 1 through 3 and the key-press check all recorded as passing. A
