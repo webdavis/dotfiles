@@ -17,6 +17,14 @@
 #
 # The caller sets nothing first and cleans up nothing after: this installs its
 # own work directory and EXIT trap in the sourcing shell.
+#
+# bashunit sources several `<name>.test.sh` files into ONE shell, so this guard
+# keeps the second and later sourcings from minting a work directory the EXIT
+# trap below will no longer remove. The executable lane sources it once per
+# process, where the guard never fires.
+[[ -z ${NMC_FIXTURE_LOADED:-} ]] || return 0
+NMC_FIXTURE_LOADED=1
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/libexec/nvim-mcp/executable_nvim-mcp-connect.sh"
 
@@ -151,6 +159,22 @@ setup_case() {
   : >"$CASE/live"
   : >"$CASE/hang"
   printf '%s/a1b2c3' "$RUN" >"$CASE/rundir"
+}
+
+# connected_socket -- the socket nvim-mcp was execed against, empty when the
+# resolver connected to nothing. probes and herdr_calls read the other two logs
+# the same way: a missing log is an empty answer, not an error, so a case can
+# assert what happened without first asking whether anything did.
+connected_socket() {
+  [[ -f $CASE/exec ]] && sed -n 's/^--connect //p' "$CASE/exec"
+}
+
+probes() {
+  [[ -f $CASE/probed ]] && cat "$CASE/probed"
+}
+
+herdr_calls() {
+  [[ -f $CASE/herdr-argv ]] && cat "$CASE/herdr-argv"
 }
 
 # live <path>... -- real sockets the probe answers on.
