@@ -111,6 +111,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
         }
     }
     plugins::refuse_two_durable_logs(&config)?;
+    plugins::refuse_a_map_without_a_catch_all(&config)?;
     backstop_outlasts_the_nag(&config)?;
     Ok(config)
 }

@@ -101,7 +101,9 @@ mod hermes;
 pub use hermes::{HermesKeys, hermes_keys};
 
 mod discord;
-pub use discord::{BOT_TYPE, DiscordSettings, discord_backend, discord_settings};
+pub use discord::{
+    BOT_TYPE, DiscordSettings, discord_backend, discord_settings, states_default_channel,
+};
 
 mod selection;
 pub use selection::select_plugins;
