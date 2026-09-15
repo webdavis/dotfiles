@@ -668,6 +668,11 @@ return {
       -- dependency, unlike Java.
       local elixir = require("neotest-elixir")
 
+      -- Ours, proven against a scratch two-test project: both declarations discovered, both run,
+      -- and the deliberately failing one reported failed rather than green. A plain table with no
+      -- `__call` and nothing to configure, like neotest-bashunit.
+      local zig = require("neotest-zig")
+
       -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
       -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
       -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
@@ -679,7 +684,7 @@ return {
       -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
       -- `discover_positions` needs overriding and the readiness gate above already built the
       -- replacement; `java` IS constructed at load, like neotest-python, and `elixir` takes the
-      -- bare module, like busted.
+      -- bare module, like busted, as does `zig`, which is ours and has no `__call` either.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -691,6 +696,7 @@ return {
           rust,
           java,
           elixir,
+          zig,
           require("neotest-bashunit"),
           require("neotest-busted"),
           require("neotest-swift-testing"),
@@ -714,12 +720,12 @@ return {
   -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
   -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
   { "jfpedroza/neotest-elixir", commit = "a242aebeaa6997c1c149138ff77f6cacbe33b6fc", ft = "elixir" },
-  -- Zig: withheld. lawrence-laz/neotest-zig discovers positions correctly, but its bundled
-  -- Zig-side test runner (zig/neotest_runner.zig) is written against std.io, std.heap's old
-  -- GeneralPurposeAllocator name and std.debug.getStderrMutex, all removed or renamed by the
-  -- time of Zig 0.16.0, which is both this machine's toolchain and the version zls was pinned
-  -- to. `zig test` fails to compile that runner, so no test can actually be run. Discovery-only
-  -- is not a usable adapter, so this stays unpinned; see
-  -- docs/research/2026-09-15-neotest-language-coverage.md for the exact compiler errors and a
-  -- starting point for a from-scratch adapter.
+  -- Ours, in its own repository, because lawrence-laz/neotest-zig ships a Zig-side test runner
+  -- written against a std shape 0.15 and 0.16 removed (upstream issue 41 is open on a repository
+  -- with no commit since 2025-03-16; the exact compiler errors are in
+  -- docs/research/2026-09-15-neotest-language-coverage.md). neotest-zig owns no Zig code at all:
+  -- it reads the output of the runner Zig itself ships, so a standard-library rename is not its
+  -- problem. Filetype-lazy like the three rows above rather than a neotest dependency, since
+  -- `config` reaches it through lazy.nvim's require hook the same way it reaches rustaceanvim.
+  { "webdavis/neotest-zig", commit = "0deabad8bc9d08c7e70a6a3b7c0153ad76a52006", ft = "zig" },
 }

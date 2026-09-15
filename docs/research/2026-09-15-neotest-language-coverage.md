@@ -62,6 +62,10 @@ operator's 2026-09-15 ruling on repositories, a `webdavis/` fork or rewrite is a
 approves separately, not part of this PR: rebuilding the runner against current `std` is a small,
 well-scoped starting point for it, and the three failing calls above are exactly the ones to fix.
 
+**Update, same day:** the follow-up was taken this session as `webdavis/neotest-zig`, pinned in
+`neotest.lua` at `0deabad8bc9d08c7e70a6a3b7c0153ad76a52006`. It is not the runner-rewrite starting point
+recorded above: the adapter owns no Zig code at all, so there was no `neotest_runner.zig` to fix.
+
 ## What changed on the machine, for the record
 
 - `openjdk`, `maven` and `elixir` installed via Homebrew (elixir pulls `erlang`, `unixodbc` and

@@ -110,10 +110,10 @@ impl pns_application::LightsTick for EventRecords<'_> {
 impl pns_application::LampSignal for EventRecords<'_> {
     fn pulse(
         &self,
-        behaviour: pns_domain::lamps::config::Behaviour,
+        flash: pns_domain::lights::flash::Flash,
         presence: Option<&pns_domain::Snapshot>,
     ) {
-        (self.pulse)(self.hue_table.cloned(), self.lights, behaviour, presence);
+        (self.pulse)(self.hue_table.cloned(), self.lights, flash, presence);
     }
 }
 

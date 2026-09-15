@@ -1,6 +1,6 @@
 use super::*;
 
-/// The `[lights]` cluster: one presence flag governs seven headings, because
+/// The `[lights]` cluster: one presence flag governs eight headings, because
 /// `Config.lights` is one `Option` for the whole table, never seven.
 ///
 /// EVERY CLUSTER AND DECLARATION MAP IS PULLED OUT OF `lights` FIRST, before
@@ -19,7 +19,9 @@ pub(super) fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Re
         }
     }
     let mut clusters = Vec::new();
-    for cluster in ["done", "failed", "blocked", "unread", "loop", "dim"] {
+    for cluster in [
+        "done", "failed", "blocked", "unread", "github", "loop", "dim",
+    ] {
         clusters.push((cluster, take_table(&mut lights, cluster)?));
     }
     let mut declarations = Vec::new();

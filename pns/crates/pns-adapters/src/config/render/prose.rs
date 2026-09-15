@@ -30,16 +30,17 @@ pub(super) const RECAP_PROSE: &str = "# The return recap: what you missed while 
 pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration names a place at one\n\
      # of three levels, `[lights.lamp.\"<name>\"]`, `[lights.room.\"<name>\"]` or\n\
      # `[lights.zone.\"<name>\"]`, spelled as the bridge spells it, and says\n\
-     # which of the five behaviours it carries: `done` and `failed` blink, and\n\
-     # `blocked`, `unread` and `loop` breathe while their condition lasts. The\n\
-     # most specific declaration naming a lamp wins, lamp over room over zone,\n\
-     # and levels never merge; each question resolves on its own, so a lamp\n\
-     # can state its behaviours and still inherit its room's dim window. On\n\
-     # one lamp the held states rank blocked, loop, then unread, and a held\n\
-     # state preempts a blink on the lamp holding it. `unread` is one word\n\
-     # carrying two colours, one for a run that finished and red for one that\n\
-     # died; a lamp carries both or neither. An unknown key at any level, and\n\
-     # a behaviour word outside the five, are refused by name.\n\
+     # which of the six behaviours it carries: `done`, `failed` and `github`\n\
+     # blink, and `blocked`, `unread` and `loop` breathe while their condition\n\
+     # lasts. The most specific declaration naming a lamp wins, lamp over room\n\
+     # over zone, and levels never merge; each question resolves on its own,\n\
+     # so a lamp can state its behaviours and still inherit its room's dim\n\
+     # window. On one lamp the held states rank blocked, loop, then unread,\n\
+     # and a held state preempts a blink on the lamp holding it. `unread` is\n\
+     # one word carrying two colours, one for a run that finished and red for\n\
+     # one that died; a lamp carries both or neither, and `github` is the\n\
+     # second such word (see `[lights.github]` below). An unknown key at any\n\
+     # level, and a behaviour word outside the six, are refused by name.\n\
      #\n\
      # `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the\n\
      # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the\n\

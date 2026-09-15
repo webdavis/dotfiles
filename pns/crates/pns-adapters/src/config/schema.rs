@@ -77,6 +77,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "dim",
             "done",
             "failed",
+            "github",
             "lamp",
             "loop",
             "refresh_secs",
@@ -92,6 +93,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &["duration_ms", "give_up_after_secs", "high", "low"],
     ),
     ("lights.dim", &["duration_ms", "high", "low"]),
+    (
+        "lights.github",
+        &["brightness", "duration_ms", "fail", "pass"],
+    ),
     (
         "lights.unread",
         &["after_secs", "duration_ms", "high", "low"],

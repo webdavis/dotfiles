@@ -65,6 +65,35 @@ pub const LOOP_COLOR: PulseColor = PulseColor {
     y: 0.0475,
 };
 
+/// The `github` lamp's PASS colour: the purple the 2026-05-18 research chose
+/// and the operator carried forward.
+///
+/// IT IS THE ONLY COLOUR IN THIS FILE THAT IS CONFIGURABLE, and the asymmetry
+/// is deliberate: every other constant here was locked by observation on a
+/// real lamp, and this pair has never been on one. `[lights.github] pass`
+/// overrides it.
+///
+/// AND IT SITS 0.068 FROM `BLOCKED_COLOR`, which is the distance the
+/// vocabulary already rejected once as "reads as one" in daylight. That is
+/// survivable only on a lamp of its own: `github` belongs on a lamp whose
+/// `shows` list names nothing else, where the only two colours it ever shows
+/// are this and the orange below, 0.399 apart.
+pub const GITHUB_PASS_COLOR: PulseColor = PulseColor {
+    x: 0.2725,
+    y: 0.1283,
+};
+
+/// The `github` lamp's FAIL colour: orange, from the same research.
+///
+/// NO ORANGE FIXES THE SEPARATION. A grid search over the warm region inside
+/// gamut C clears at best 0.117 from the shipped set, because red and daylight
+/// already bracket that corner. The dedicated lamp is the answer, not a
+/// different orange.
+pub const GITHUB_FAIL_COLOR: PulseColor = PulseColor {
+    x: 0.5562,
+    y: 0.4084,
+};
+
 /// True when a session ran long enough to be worth a light pulse.
 ///
 /// An unreadable elapsed time or threshold is NOT long: unlike a dropped phone

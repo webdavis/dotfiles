@@ -19,7 +19,7 @@
 //! so `[plugin.hue]` cannot silently disable what `[plugins.hue]` enables.
 
 use pns_domain::lamps::config::{
-    Behaviour, Blocked, Breath, BreatheThenFlare, Lights, Looping, Pulse, Target, Unread,
+    Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -65,7 +65,8 @@ use lights_tables::parse_lights;
 mod lights_bounds;
 use lights_bounds::{
     MAX_FADE_MS, MAX_GIVE_UP_AFTER_SECS, MAX_THRESHOLD_SECS, MIN_FADE_MS, MIN_LEASE_TIMEOUT_SECS,
-    MIN_THRESHOLD_SECS, accent_agrees, behaviour_table, breath_key, ends_agree, percent,
+    MIN_THRESHOLD_SECS, accent_agrees, behaviour_table, breath_key, coordinate, ends_agree,
+    percent,
 };
 pub use lights_bounds::{MAX_REFRESH_SECS, MIN_REFRESH_SECS};
 mod lights_targets;

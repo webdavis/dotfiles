@@ -232,6 +232,20 @@ Config {
                 },
                 after_secs: 300,
             },
+            github: Github {
+                pulse: Pulse {
+                    duration_ms: 4000,
+                    brightness: 100,
+                },
+                pass: PulseColor {
+                    x: 0.2725,
+                    y: 0.1283,
+                },
+                fail: PulseColor {
+                    x: 0.5562,
+                    y: 0.4084,
+                },
+            },
             looping: Looping {
                 breathe_then_flare: BreatheThenFlare {
                     breath: Breath {

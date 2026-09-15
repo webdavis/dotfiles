@@ -5,7 +5,9 @@
 ///
 /// `Unread` IS ONE WORD AND CARRIES TWO COLOURS. Its success and failure
 /// flavours always ride the same lamp, so a config cannot route one without the
-/// other and there is no spelling for trying.
+/// other and there is no spelling for trying. `Github` is the second such
+/// word: its pass and its failure are `Flash`'s two arms, and its pair is the
+/// one pair `[lights.github]` states in the config rather than locking here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Behaviour {
     Done,
@@ -13,14 +15,16 @@ pub enum Behaviour {
     Blocked,
     Unread,
     Looping,
+    Github,
 }
 
-/// The five words, in the spelling a config uses, and the order the refusal
+/// The six words, in the spelling a config uses, and the order the refusal
 /// lists them in.
-pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 5] = [
+pub const BEHAVIOUR_WORDS: [(&str, Behaviour); 6] = [
     ("done", Behaviour::Done),
     ("failed", Behaviour::Failed),
     ("blocked", Behaviour::Blocked),
     ("unread", Behaviour::Unread),
     ("loop", Behaviour::Looping),
+    ("github", Behaviour::Github),
 ];

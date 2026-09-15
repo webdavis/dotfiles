@@ -153,6 +153,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("lights", "dim", "{ duration_ms = 3000 }"),
     ("lights", "done", "{ duration_ms = 4000 }"),
     ("lights", "failed", "{ duration_ms = 4000 }"),
+    ("lights", "github", "{ duration_ms = 4000 }"),
     ("lights", "lamp", "{ HCL1 = { shows = [\"done\"] } }"),
     ("lights", "loop", "{ threshold_secs = 300 }"),
     ("lights", "refresh_secs", "12"),
@@ -170,6 +171,10 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("lights.done", "duration_ms", "4000"),
     ("lights.failed", "brightness", "100"),
     ("lights.failed", "duration_ms", "4000"),
+    ("lights.github", "brightness", "100"),
+    ("lights.github", "duration_ms", "4000"),
+    ("lights.github", "fail", "[0.5562, 0.4084]"),
+    ("lights.github", "pass", "[0.2725, 0.1283]"),
     ("lights.loop", "duration_ms", "4000"),
     ("lights.loop", "flare", "100"),
     ("lights.loop", "flare_ms", "200"),
@@ -232,6 +237,7 @@ mod failure_wording;
 mod focus;
 mod lights_bounds;
 mod lights_defaults;
+mod lights_github;
 mod lights_motion;
 mod lights_targets;
 mod loading;

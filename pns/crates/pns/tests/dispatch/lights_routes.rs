@@ -230,3 +230,37 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
          about the dial"
     );
 }
+
+/// A `github` extension on a producer submission reaches the lamp that names
+/// `github`, and a `neutral` outcome reaches no lamp at all.
+///
+/// THE WHOLE FEATURE, END TO END, WITH NO TRANSPORT: this is what "testable by
+/// hand the day it merges" means, and the two rows are the two halves of the
+/// gate. A pass and a failure earn the pulse on their own, without the
+/// long-running tier the plan's own `pulse` is; a review request or a release
+/// has no colour and must not light anything.
+#[test]
+fn a_submitted_github_event_lights_the_github_lamp_unless_its_outcome_is_neutral() {
+    const GITHUB_MAP: &str = "[lights]\nrefresh_secs = 20\n\
+         [lights.lamp.\"3F - Studio - HCL1\"]\nshows = [\"github\"]\n";
+    for (outcome, signal, dials) in [
+        ("failed", "failed", true),
+        ("passed", "succeeded", true),
+        ("neutral", "succeeded", false),
+    ] {
+        let request = format!(
+            r#"{{"schema":"pns.request/1","request_id":"gh-{outcome}","producer":"github",
+                "event":"workflow_run","signal":{{"kind":"{signal}"}},
+                "extensions":{{"github":{{"repo":"webdavis/dotfiles","kind":"workflow_run",
+                  "outcome":"{outcome}","title":"lint",
+                  "url":"https://github.com/webdavis/dotfiles/actions/runs/1",
+                  "identity":"webdavis/dotfiles:workflow_run:1","occurred_at":1757000000}}}}}}"#
+        );
+        assert_eq!(
+            lamp_submit(&format!("lamps-github-{outcome}"), GITHUB_MAP, &request),
+            (dials, Some(0)),
+            "a `{outcome}` GitHub event must{} reach the bridge",
+            if dials { "" } else { " not" }
+        );
+    }
+}

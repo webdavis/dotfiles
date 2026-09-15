@@ -100,6 +100,42 @@ pub(super) const LIGHTS_UNREAD: Table = Table {
         },
     ],
 };
+pub(super) const LIGHTS_GITHUB: Table = Table {
+    name: "lights.github",
+    prose: "# The one behaviour that carries its own COLOURS: a GitHub event, purple\n\
+                 # for a pass and orange for a failure, as CIE xy `[x, y]` pairs (which is\n\
+                 # what the bridge takes; a hex colour would be clamped into its gamut and\n\
+                 # desaturated). One brightness for both, as `unread` has.\n\
+                 #\n\
+                 # THE PAIR IS CHOSEN FOR A LAMP OF ITS OWN. Give `github` a lamp whose\n\
+                 # `shows` names nothing else: the purple sits close enough to the blocked\n\
+                 # magenta, and the orange close enough to the unread daylight, that a lamp\n\
+                 # carrying either alongside it cannot be told apart across a room.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[
+        Key {
+            name: "duration_ms",
+            prose: "",
+            sample: Sample::Default("4000"),
+        },
+        Key {
+            name: "brightness",
+            prose: "",
+            sample: Sample::Default("100"),
+        },
+        Key {
+            name: "pass",
+            prose: "",
+            sample: Sample::Default("[0.2725, 0.1283]"),
+        },
+        Key {
+            name: "fail",
+            prose: "",
+            sample: Sample::Default("[0.5562, 0.4084]"),
+        },
+    ],
+};
 pub(super) const LIGHTS_LOOP: Table = Table {
     name: "lights.loop",
     prose: "# A live pane lease keeps condenser `asking` guesses from arming blocked;\n\
