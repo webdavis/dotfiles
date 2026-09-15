@@ -2435,7 +2435,7 @@ is missing.
   off by default. What the operator declined is an image on their own recap card specifically, a setting
   in their own config, not a limit on the capability; the trade is a real one, since a Moshi card's
   `data` carries one `type`, so turning images on for a card type gives up the deep link that focuses the
-  originating herdr pane when that card is tapped. See task 78 (the decision) and task 88 (the build).
+  originating herdr pane when that card is tapped. See task 78 (the decision) and task 90 (the build).
   Also noticed while checking: moshi-hook is six releases behind (0.3.16 installed, 0.3.22 in the tap).
   Full document: `docs/research/2026-09-moshi-image-cards.md`. Operator steps: (1) Read
   docs/research/2026-09-moshi-image-cards.md, specifically the Verdict and the seven assumptions in
@@ -2464,7 +2464,7 @@ is missing.
   2026-09-15: whether a documented web API endpoint satisfies "an upstream upload interface" with no
   `upload` subcommand on moshi-hook itself (yes, this is the surface pns actually calls), and whether the
   capability is worth building (yes, approved as a per-card-type opt-in). Superseded by task 78 (the
-  decision) and task 88 (the build).
+  decision) and task 90 (the build).
 - [ ] 78. Decide whether a recap card on the phone carries an image, and build it only if the answer is
   yes (operator ruling 2026-09-15, low priority). Decided 2026-09-15: approved. The capability covers
   every card type, the recap included; what the operator declined is an image on their own recap card
@@ -2475,9 +2475,9 @@ is missing.
   on for a card type gives up the deep link that focuses the originating herdr pane when that card is
   tapped. The operator's own configuration keeps the recap card's images off and keeps its deep link. The
   build itself, the per-card-type opt-in, the deep-link tradeoff stated at the toggle, and the
-  card-ownership refactor `replay_missed` still needs, is filed separately as task 88, approved and not
+  card-ownership refactor `replay_missed` still needs, is filed separately as task 90, approved and not
   yet started. Full record: `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-- [ ] 88. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
+- [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
   recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and into the detached
