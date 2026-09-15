@@ -103,6 +103,12 @@ bounded() {
   { sleep "$deadline" && kill -TERM "$job"; } </dev/null >/dev/null 2>&1 &
   watchdog=$!
   wait "$job" 2>/dev/null || true
+  # The sleep is a CHILD of the watchdog subshell and outlives it, holding every
+  # descriptor this script was handed until the deadline runs out: a caller that
+  # reads our output through a pipe then waits on that sleep long after the
+  # answer arrived. Kill the sleep first, so the subshell's `&&` never reaches
+  # the job, then the subshell itself.
+  pkill -TERM -P "$watchdog" 2>/dev/null || true
   kill -TERM "$watchdog" 2>/dev/null || true
 }
 
