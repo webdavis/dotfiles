@@ -213,3 +213,23 @@ fn shipped_presets_name_three_times_of_day_over_the_three_aliased_rooms() {
         );
     }
 }
+#[test]
+fn rotation_memory_is_off_unless_the_config_asks_for_it() {
+    for text in [VALID, include_str!("../../tests/fixtures/defaults.toml")] {
+        assert!(!parse(text).unwrap().remember_position);
+    }
+    assert!(
+        parse(&format!("{VALID}[scenes]\nremember_position = true"))
+            .unwrap()
+            .remember_position
+    );
+}
+#[test]
+fn a_remember_position_that_is_not_a_boolean_is_named_and_rejected() {
+    for value in ["'true'", "1", "[]"] {
+        let error = parse(&format!("{VALID}[scenes]\nremember_position = {value}"))
+            .err()
+            .unwrap();
+        assert!(error.0.contains("remember_position"), "accepted {value}");
+    }
+}

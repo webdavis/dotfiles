@@ -1,9 +1,10 @@
 mod render;
 
+use lights_adapters::FilePositionStore;
 use lights_adapters::settings::{self, HueSettings, Settings};
 use lights_application::{
     AdjustBrightness, ApplyPreset, BrightnessChange, LightController, LightsError, Notifier,
-    ReportStatus, SceneSelection, SetPower, SetScene, TogglePower,
+    ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene, TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
 use lights_protocol::{BrightnessRequest, Command, Request};
@@ -19,6 +20,7 @@ pub struct Response {
 pub fn run<C: LightController>(
     args: &[String],
     config: &Path,
+    state: &Path,
     notifier: &impl Notifier,
     controller: impl FnOnce(&HueSettings) -> C,
 ) -> Response {
@@ -34,6 +36,8 @@ pub fn run<C: LightController>(
         Err(error) => return failure(5, &error.0),
     };
     let notify = request.notify || settings.notify;
+    let store = FilePositionStore::new(state);
+    let memory = SceneMemory::new(&store, settings.remember_position);
     if let Command::Preset(name) = &request.command {
         let Some(name) = name else {
             let names = render::preset_names(&settings.presets);
@@ -48,7 +52,12 @@ pub fn run<C: LightController>(
         let Some(plan) = settings.presets.plan(name) else {
             return failure(1, &format!("unknown preset {name:?}"));
         };
-        let results = ApplyPreset::run(&controller(&settings.controller), plan);
+        let results = ApplyPreset::run(
+            &controller(&settings.controller),
+            plan,
+            &settings.rotation,
+            &memory,
+        );
         if notify {
             for action in results.iter().flatten() {
                 notifier.announce(action);
@@ -63,7 +72,13 @@ pub fn run<C: LightController>(
         },
         None => settings.default_room.clone(),
     };
-    match execute(&controller(&settings.controller), &settings, &room, request) {
+    match execute(
+        &controller(&settings.controller),
+        &settings,
+        &memory,
+        &room,
+        request,
+    ) {
         Ok(action) => {
             if notify && !matches!(action, Action::Reported { .. }) {
                 notifier.announce(&action);
@@ -80,6 +95,7 @@ pub fn run<C: LightController>(
 fn execute<C: LightController>(
     controller: &C,
     settings: &Settings,
+    memory: &SceneMemory<'_>,
     room: &lights_domain::RoomName,
     request: Request,
 ) -> Result<Action, LightsError> {
@@ -104,9 +120,11 @@ fn execute<C: LightController>(
         Command::Scene(name) => SetScene::run(
             controller,
             room,
+            &settings.rotation,
+            memory,
             match name.as_str() {
-                "next" => SceneSelection::Next(&settings.rotation),
-                "previous" => SceneSelection::Previous(&settings.rotation),
+                "next" => SceneSelection::Next,
+                "previous" => SceneSelection::Previous,
                 name => SceneSelection::Named(name),
             },
         ),

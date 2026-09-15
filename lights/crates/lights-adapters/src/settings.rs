@@ -8,6 +8,7 @@ pub struct Settings {
     pub default_room: RoomName,
     pub aliases: Aliases,
     pub rotation: Rotation,
+    pub remember_position: bool,
     pub presets: Presets,
     pub step: u8,
     pub notify: bool,
