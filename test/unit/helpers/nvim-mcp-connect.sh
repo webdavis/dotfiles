@@ -94,7 +94,7 @@ if [[ $# -eq 4 && $1 == --server && $3 == --remote-expr && $4 == 'getpid()' ]]; 
   printf 4242
   exit 0
 fi
-query='lua local sockets = dofile(vim.fn.stdpath("config") .. "/lua/custom_api/pane_socket.lua"); local root = sockets.root(); io.write(vim.json.encode({ root = root, private = root ~= nil and sockets.private(root), session = sockets.session() }))'
+query='lua local sockets = dofile(vim.fn.stdpath("config") .. "/lua/custom_api/pane_socket.lua"); local root = sockets.root(); local private, fault; if root then private, fault = sockets.private(root) end; io.write(vim.json.encode({ root = root, private = private == true, fault = fault, session = sockets.session() }))'
 if [[ $# -eq 6 && $1 == --headless && $2 == --clean && $3 == -c && $4 == "$query" && $5 == -c && $6 == 'qa!' ]]; then
   printf '%s\n' "$*" >>"$NMC_CASE/queried"
   exec "$NMC_REAL_NVIM" --headless --clean \

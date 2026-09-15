@@ -68,33 +68,56 @@ local function protected_ancestors(path, uid)
   path = path:gsub("/+$", "")
   path = path ~= "" and path or "/"
   local parent = vim.fs.dirname(path)
-  if parent ~= path and not protected_ancestors(parent, uid) then
-    return false
+  if parent ~= path then
+    local protected, fault = protected_ancestors(parent, uid)
+    if not protected then
+      return false, fault
+    end
   end
   local stat = vim.uv.fs_lstat(path)
-  if not stat or (stat.uid ~= uid and stat.uid ~= 0) then
-    return false
+  if not stat then
+    return false, ("%s cannot be read"):format(path)
+  end
+  if stat.uid ~= uid and stat.uid ~= 0 then
+    return false, ("%s is owned by uid %d, neither this user nor root"):format(path, stat.uid)
   end
   if stat.type == "link" then
     local target = vim.uv.fs_readlink(path)
-    return target ~= nil and protected_ancestors(target:sub(1, 1) == "/" and target or parent .. "/" .. target, uid)
+    if not target then
+      return false, ("%s is a link that cannot be read"):format(path)
+    end
+    return protected_ancestors(target:sub(1, 1) == "/" and target or parent .. "/" .. target, uid)
   end
-  return stat.type == "directory" and (bit.band(stat.mode, 18) == 0 or bit.band(stat.mode, 512) ~= 0) -- 0022, 01000
+  if stat.type ~= "directory" then
+    return false, ("%s is a %s, not a directory"):format(path, stat.type)
+  end
+  if bit.band(stat.mode, 18) ~= 0 and bit.band(stat.mode, 512) == 0 then -- 0022, 01000
+    return false, ("%s is group- or world-writable and not sticky"):format(path)
+  end
+  return true
 end
 
 -- Shared by the listener and the resolver's clean Neovim query. A private leaf
 -- cannot be trusted when another account can replace one of its ancestors.
 function M.private(dir)
-  if dir:sub(1, 1) ~= "/" or dir:find("\n", 1, true) then
-    return false
+  if dir:sub(1, 1) ~= "/" then
+    return false, ("%s is not an absolute path"):format(dir)
+  end
+  if dir:find("\n", 1, true) then
+    return false, "it contains a newline"
   end
   local stat = vim.uv.fs_stat(dir)
   local uid = vim.uv.getuid()
-  return stat ~= nil
-    and stat.type == "directory"
-    and stat.uid == uid
-    and stat.mode % 4096 == 448 -- 0700 exactly, setuid, setgid and sticky included
-    and protected_ancestors(dir, uid)
+  if not stat or stat.type ~= "directory" then
+    return false, ("%s is not a directory"):format(dir)
+  end
+  if stat.uid ~= uid then
+    return false, ("%s is owned by uid %d, not by this user at uid %d"):format(dir, stat.uid, uid)
+  end
+  if stat.mode % 4096 ~= 448 then -- 0700 exactly, setuid, setgid and sticky included
+    return false, ("%s is at mode %04o, not 0700"):format(dir, stat.mode % 4096)
+  end
+  return protected_ancestors(dir, uid)
 end
 
 -- The session half of the name. nvim-mcp-connect.sh spells the same rule
@@ -152,11 +175,13 @@ function M.listen()
     return
   end
   local root = M.root()
-  if not root or not M.private(root) then
+  local private, fault = false, "Neovim reports no run dir"
+  if root then
+    private, fault = M.private(root)
+  end
+  if not private then
     vim.notify(
-      ("nvim-mcp: not listening for this pane, the run root %s must be absolute, owned at 0700, protected by its ancestors, and contain no newline"):format(
-        tostring(root)
-      ),
+      ("nvim-mcp: not listening for this pane, the run root is unusable: %s"):format(fault),
       vim.log.levels.WARN
     )
     return
