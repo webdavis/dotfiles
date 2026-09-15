@@ -29,7 +29,7 @@ recovery both cover all of them. There are four files, all of them hermes PROFIL
 
 The ROOT config, `~/.hermes/config.yaml`, left this list on 2026-09-14. It was
 `private_dot_hermes/encrypted_private_config.yaml.age` and it is now a chezmoi modify-template,
-`private_dot_hermes/modify_private_config.yaml.tmpl`, which owns the six webhook routes and the
+`private_dot_hermes/modify_private_config.yaml`, which owns the six webhook routes and the
 ElevenLabs voice id and reads every secret from KeePassXC by entry name; hermes owns the rest of that
 file. So the age key no longer decrypts anything under `~/.hermes` except the four profiles, and the
 Codegraph Model Context Protocol enablement, which is a section inside the root config, is no longer

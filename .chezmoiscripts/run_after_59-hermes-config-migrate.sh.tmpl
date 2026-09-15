@@ -1,7 +1,7 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # Reconcile the just-applied config.yaml to the installed hermes version's schema. chezmoi renders
-# private_dot_hermes/modify_private_config.yaml.tmpl over the live file, overlaying the routes map and
+# private_dot_hermes/modify_private_config.yaml over the live file, overlaying the routes map and
 # the voice id and handing every other line back untouched; this migrates the result forward. No-op once
 # the live file is already at the installed version's schema. EOF-safe: migrate's prompts default to
 # skip on EOF (verified in hermes source); API keys come from .env, not the prompts.
