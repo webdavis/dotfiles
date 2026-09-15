@@ -173,21 +173,25 @@ reporting an empty webhook toolset and one signed hand POST to `/webhooks/explai
 
 **PR 2, posture's copy leg.** `delivery/schema.rs` gains the optional key, `delivery.rs` carries it
 into `DeliveryPath::Hermes` and the sink, `hermes.rs` posts the copy after a delivered critical
-post, a new `hermes/window.rs` holds the rolling-hour decision over a timestamp file under
-`~/.local/state/`, `signed_post.rs` gains the `X-Request-ID` header, and
+post, a new `hermes/window.rs` holds the rolling-hour decision, keyed per distinct finding, over a
+timestamp file under `~/.local/state/`, `signed_post.rs` gains the `X-Request-ID` header, and
 `dot_config/posture/private_config.toml.tmpl` gains the `explain` key and the
 `critical_copy_route` line. The request id reuses the derivation already in
 `producer/request.rs`, lifted into a pure function both paths call, and **the copy carries a
 DISTINCT id derived from the page's**, because the gateway's duplicate cache is keyed on the id
-alone across routes and would otherwise swallow the copy for an hour. Behaviors worth a test, each
-one behavior of a tool we wrote:
+alone across routes and would otherwise swallow the copy for an hour. The cap constant is twenty,
+and it carries a code comment recording that it bounds cost, not noise, per Decision 6, so lowering
+it later to quiet Discord is a change someone has to argue past that comment first. Behaviors worth
+a test, each one behavior of a tool we wrote:
 
 1. a delivered critical page produces exactly one copy, to the copy route, signed with that route's
    key;
 1. a Notice page produces no copy;
 1. a critical page whose own post failed produces no copy, and its failure is unchanged;
 1. a copy route holding no key produces no copy and does not turn a delivered page into a failure;
-1. the seventh critical page inside one rolling hour produces no copy and says so;
+1. the 21st distinct critical finding inside one rolling hour produces no copy and says so;
+1. six repeats of one already-counted finding inside the hour spend no budget beyond the one copy
+   its first occurrence produced, so they cannot crowd out a different finding's copy;
 1. an absent `critical_copy_route` produces exactly one post;
 1. every post carries `X-Request-ID`, and a page and its copy carry different ones.
 
@@ -205,10 +209,6 @@ rendering of an absent placeholder.
    report the destination's answer so pns can own the leg again, which defers this indefinitely.
 1. **The copy is posted after the page's own post reports delivered**, which is the ordering the
    parent said the build should enforce and this one can, because both posts are in one process.
-1. **The cap is six per hour PER SENDER**, so two senders can produce twelve in the worst hour.
-   *Alternative:* a shared budget, which needs a store both senders write and buys little while the
-   two page types are this rare. hermes's own per-route limit is not usable as a budget: it is one
-   gateway-wide `rate_limit` value applied to all five delivery routes.
 1. **`critical_copy_route` ships uncommented naming `explain`**, per the defaults-visible ruling,
    with its absence as the off state for anyone else who installs posture.
 1. **The rolling-hour window is a timestamp file under `~/.local/state/`**, matching where posture
@@ -216,12 +216,45 @@ rendering of an absent placeholder.
 1. **PR 2 changes posture only.** pns gains the same leg when uu triage is built, which is what the
    shared route makes additive.
 
-## Open questions
+## Decision 5: `platform_toolsets.webhook: ["no_mcp"]` is accepted
 
-1. Is `platform_toolsets.webhook: ["no_mcp"]` acceptable knowing every future webhook agent route
-   on this gateway shares it, and that the only way to differ is `gateway.multiplex_profiles` plus
-   the unwinding of two gateway LaunchAgents?
-1. Six per hour per sender, or a shared budget across posture and pns?
-1. Does `explain` keep its own channel entry pointing at the priority channel, or does the modify
-   template learn a per-route channel-entry name? The second avoids a second copy of one snowflake
-   in the vault and is the recommendation, but it changes a template the operator applies.
+**Decided 2026-09-15: accepted**, on grounds stronger than the convenience the question implied.
+The explainer's input is a posture finding, which describes files on the machine the operator did
+not write, so that input is untrusted. Handing a tool-equipped agent untrusted text is the setup
+for prompt injection; `no_mcp` means the agent reads and writes prose and has nothing to abuse.
+Every future webhook agent route on this gateway inherits the same setting until
+`gateway.multiplex_profiles` is built and the two gateway LaunchAgents are unwound, which the
+operator accepts alongside the reasoning above. It does not touch the operator's five hermes
+agents: this setting governs webhook-invoked agents only, and `explain` is the only one.
+
+## Decision 6: the cap counts distinct findings, and the number rises to twenty
+
+**Decided 2026-09-15.** The parent's cap counted pages, so the seventh critical page inside one
+rolling hour produced no copy even when it was a repeat of the same finding six times over, and a
+different finding arriving seventh got no explanation at all. That is the shape the digest fix
+merged as PR #642 on 2026-09-15 corrected, where 110 repeats of one path drowned out everything
+else; counting distinct findings here fixes the same problem the same way.
+
+With distinctness handling repeats, the only thing left for the cap to bound is cost, because each
+copy invokes an agent. Twenty is chosen against a measured ceiling:
+`.chezmoidata/macos_posture_controls.yaml` declares eight controls, and the osquery detectors add
+more on top, so the distinct things posture can page about number under twenty. Twenty therefore
+means every single thing posture watches failed at once and still produced an explanation for each;
+anything past it is a loop, not a report. The constant carries a code comment recording that it
+bounds cost, not noise, so a later attempt to lower it for quieter Discord has to argue past that
+comment first.
+
+The question this replaces asked whether the cap should be a budget shared between posture and
+another sender. That framing is rejected outright, not merely answered: sizing one tool's cap
+against another tool's traffic is exactly the coupling this repository's rules forbid. The cap is a
+property of the route, applied per sender; posture is one sender, and who else sends to the route
+is not this design's business.
+
+## Decision 7: `explain` gets its own channel-entry name, not the priority channel's
+
+**Decided 2026-09-15: option B.** The modify template learns a per-route channel-entry name,
+defaulting to the route's own name, so `explain` names the `priority` channel's entry explicitly
+instead of duplicating its id. One channel id lives in one vault entry; two entries holding the
+same id drift, and then nothing says which one the gateway actually reads. The accepted cost is
+unchanged from the parent's own framing: this restructures a template the operator applies, so the
+operator's next apply touches the hermes config.
