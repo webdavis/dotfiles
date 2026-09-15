@@ -97,10 +97,42 @@ pub(crate) fn project_of(cwd: &str) -> String {
         .unwrap_or_default()
         .to_string()
 }
+/// The project a checkout is about: the repository git answered, or the
+/// directory's own name when git answered none.
+///
+/// ONE RULE, TWO CALLERS. Session attribution and the recap both ask which
+/// project a working directory is about, and two spellings of the answer would
+/// let a recap land in a channel named for a worktree's branch slug while the
+/// session events from that same directory land in the repository's.
+pub(crate) fn named_project(repository: &str, cwd: &str) -> String {
+    match repository.is_empty() {
+        true => project_of(cwd),
+        false => repository.to_string(),
+    }
+}
+
 /// How long a turn must run to earn the lights.
 fn pulse_threshold_secs() -> u64 {
     std::env::var("PNS_PULSE_THRESHOLD_SECS")
         .ok()
         .and_then(|raw| raw.parse().ok())
         .unwrap_or(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// THE MUTANT THIS PINS: the repository ignored in favour of the
+    /// directory, which names a linked worktree after its branch slug and
+    /// sends its recap to a channel nobody mapped.
+    #[test]
+    fn the_repository_names_the_project_and_the_directory_only_answers_without_one() {
+        assert_eq!(
+            named_project("dotfiles", "/Users/x/.herdr/worktrees/dotfiles/feat-y"),
+            "dotfiles"
+        );
+        assert_eq!(named_project("", "/Users/x/workspaces/homelab/"), "homelab");
+        assert_eq!(named_project("", ""), "");
+    }
 }

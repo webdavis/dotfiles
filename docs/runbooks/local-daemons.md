@@ -1,10 +1,13 @@
-# Local daemons: atuin, happy, tailscaled, the hermes gateway
+# Local daemons: atuin, happy, tailscaled, the hermes gateway, the pns Discord bot
 
 Four long-running services on dresden, each with its own failure mode and diagnostic ladder. The first
 three are chezmoi-tracked LaunchAgents: the plists live under `Library/LaunchAgents/` and the loaders
 that bootstrap them are `.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so
 a loader re-runs when its plist changes rather than on every apply. The hermes gateway is not a
-LaunchAgent; `hermes gateway` owns its lifecycle and this repository owns only its configuration.
+LaunchAgent; `hermes gateway` owns its lifecycle and this repository owns only its configuration. The pns
+Discord bot at the end is a fifth thing again, neither a service nor a daemon: it is pns's own HTTP
+client, and it is here because it delivers the same notifications the gateway does and is configured the
+same way.
 
 ## Shell history (atuin)
 
@@ -240,6 +243,71 @@ The first loads the new table. The second is the read-only confirmation, and it 
 `deliver_only: true`, no undeclared route is left, `tts.elevenlabs.voice_id` is set, and the gateway
 already answers each route. Every line it does print names the route, the condition, and the KeePassXC
 entry or command that fixes it, and never a value.
+
+## The pns Discord bot (project channels)
+
+The bot is pns's OWN durable destination, `[plugins.discord]`, the alternative to the hermes gateway
+above and never a companion to it: both declare the same routing, so a config enabling both is refused at
+load naming both tables, because two durable logs post every event twice. It holds no gateway intent and
+opens no websocket. It is an HTTP client that posts to `discord.com/api/v10` and reads nothing back
+except its own responses, which is why nothing restarts and nothing listens.
+
+**It ships disabled.** `[plugins.hermes]` is the live durable log today, and the cutover is a two-line
+edit in one apply, `enabled = false` there and `true` here, with the rollback the same two lines the
+other way.
+
+**The bot's own three vault entries**, created once and never per project:
+
+| Entry                                          | What reads it                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------------- |
+| `Discord (Uriel) :: Bot Token (pns)`           | `[plugins.discord] token`, in the `Authorization` header            |
+| `Discord (Uriel) :: Application/User ID (pns)` | guild-scoped command registration, when slash commands are built    |
+| `Discord (Uriel) :: Public Key (pns)`          | Ed25519 verification of interactions, when slash commands are built |
+
+The last two are held for the deliberately-unbuilt `/pns` slash commands
+(`docs/superpowers/specs/2026-09-15-pns-discord-destination-design.md`, "Deliberately out"). Only the
+token is read today.
+
+### Where a message lands
+
+ONE MAP, `[plugins.discord.channels]` in `dot_config/pns/config-values.toml`, shared by every producer:
+the GitHub source and an agent session about the same repository resolve the same channel, because the
+lookup tries the event's route, then `owner/name`, then the bare project name, then `pns-events` when
+there is no project at all, then `default`. That is why the GitHub source design's own
+`[plugins.github.channels]` map is cancelled rather than built: one repository, one channel, whichever
+producer named it. A config that still holds `[plugins.github]` is refused out loud, naming `github` as a
+plugin nothing registered.
+
+Two of those keys are the fallbacks and are never per project. `default` is `#github-notifications`, the
+catch-all for a repository nobody mapped; `pns-events` is where an event with no repository at all lands,
+which is every engine event and every recap composed outside a checkout. A recap composed INSIDE one
+carries that repository's project and lands in its channel, and it opens no thread: it is a window of
+time rather than a session, and the one message a day the operator most wants belongs at channel level.
+
+### When a project is created
+
+Three edits, in this order, and none of them writes an id into this repository:
+
+1. Create `#<project>-dev` in the guild, the one channel that project gets. It carries that repository's
+   CI, pull requests, GitHub notifications and agent session threads.
+1. Create `Discord (Uriel) :: Channel ID (#<project>-dev)` in KeePassXC, holding the channel id in its
+   Password field.
+1. Add one line to `[plugins.discord.channels]` keyed on the repository's bare name, naming that entry
+   and field, exactly as every line already there does. A repository whose bare name will collide after a
+   `git subtree split` takes a second line keyed `owner/name`, which the lookup tries first.
+
+A channel id is a secret like every other id in that file, so the map holds ENTRY NAMES and never a
+value: rotation is a vault edit plus an apply rather than a commit, and a committed file never records a
+private guild's layout. Then apply with KeePassXC unlocked. Nothing restarts.
+
+### What a failure says
+
+Every line names the status and the config key to fix, never the token and never a channel id. A missing
+or empty token posts nothing and says `[plugins.discord] token`; a map that answered nothing says
+`[plugins.discord.channels] default`, because every lookup ends at the catch-all. A 401, a 403 or a 404
+dead-letters on its first attempt and shows up in `pns failures`; a 429 or any 5xx is retried on the
+ledger's own linear backoff, and the `Retry-After` header is logged rather than obeyed so a second
+schedule cannot disagree with the ledger about when a leg is due.
 
 ## Tailscale (headless daemon)
 

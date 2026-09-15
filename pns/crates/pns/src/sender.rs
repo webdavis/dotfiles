@@ -37,10 +37,7 @@ fn sessions() -> SqliteStore {
 
 fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_domain::EventArgs {
     let checkout = git_checkout(&payload.cwd);
-    let project = match checkout.repository.is_empty() {
-        true => project_of(&payload.cwd),
-        false => checkout.repository,
-    };
+    let project = named_project(&checkout.repository, &payload.cwd);
     let session = tracked(&payload.session_id).unwrap_or_default();
     let title = noted(
         store,
