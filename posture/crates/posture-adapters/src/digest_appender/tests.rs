@@ -107,8 +107,18 @@ fn a_spool_that_cannot_be_written_is_reported_rather_than_claimed() {
     let blocked = std::env::temp_dir().join(format!("posture-append-file-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&blocked);
     std::fs::write(&blocked, b"not a directory\n").unwrap();
-    let appender = DigestAppendFile::new(blocked.join("digest.ndjson"));
-    assert!(!appender.append(&record("a"), &mut std::io::sink()));
+    let store = blocked.join("digest.ndjson");
+    let appender = DigestAppendFile::new(store.clone());
+    let mut said = Vec::new();
+    assert!(!appender.append(&record("a"), &mut said));
+    // THE CAUSE TRAVELS WITH THE PATH. A diagnostic naming only the spool
+    // leaves the operator with nothing to act on, and the ceiling's own
+    // failure says how many appends it took in exactly this field.
+    let said = String::from_utf8(said).unwrap();
+    assert!(
+        said.contains(&format!("{}: ", store.display())),
+        "no cause after the path: {said}"
+    );
     let _ = std::fs::remove_file(&blocked);
 }
 
