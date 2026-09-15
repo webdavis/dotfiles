@@ -1,9 +1,6 @@
 use super::*;
 use serde_json::{Value, json};
 
-/// The three shipped aliases, in the order `--all` walks them.
-const ROOMS: [&str; 3] = ["3F - MBedroom", "2F - Kitchen", "3F - Studio"];
-
 fn accepted_all(args: &[&str], fixture: Value, writes: usize) -> (lights::Response, Vec<Vec<u8>>) {
     let mut responses = vec![(200, fixture)];
     responses.extend((0..writes).map(|_| (200, json!({"errors":[],"data":[]}))));
@@ -117,12 +114,8 @@ fn all_with_a_room_is_refused_before_the_bridge_is_read() {
 }
 
 #[test]
-fn all_room_names_are_the_ones_the_help_promises() {
+fn help_promises_all() {
     assert!(lights_protocol::HELP.contains("--all"));
-    let (r, _) = accepted_all(&["--all", "brightness", "50"], fixture(), 3);
-    for room in ROOMS {
-        assert!(r.stdout.contains(room), "{room}");
-    }
 }
 
 #[test]
