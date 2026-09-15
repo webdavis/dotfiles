@@ -108,7 +108,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
     ("plugins.discord", &["channels", "enabled", "token", "type"]),
-    ("plugins.discord.channels", &["default"]),
+    // AN OPEN TABLE: the row states the one key the SCHEMA requires, and the
+    // rest of its vocabulary is the operator's own project names, which no
+    // roster can enumerate. See `OPEN_TABLES`.
+    (DISCORD_CHANNELS, &["default"]),
     ("plugins.hermes", &["enabled", "keys"]),
     ("plugins.hermes.keys", pns_domain::routes::ROUTES),
     (
@@ -171,6 +174,24 @@ pub const TOP_LEVEL: &str = "";
 /// two others, which is the drift this roster exists to prevent.
 pub(super) const TARGET_KEYS: &str = "lights.<level>";
 
+/// The channel map, whose keys are PROJECT NAMES.
+pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
+
+/// Tables whose vocabulary is the OPERATOR'S rather than this schema's.
+///
+/// A KEY HERE CANNOT BE REFUSED BY NAME, and that is the trade: a project
+/// roster nobody can enumerate is a project roster nobody can spell-check, so
+/// `dotfiels = ...` is a channel that never resolves rather than a refusal at
+/// load. What the roster still states is the one key the schema itself
+/// requires, `default`, and an armed map missing THAT is refused by
+/// `plugins::refuse_a_map_without_a_catch_all`.
+pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS];
+
+/// Whether a table takes keys this schema never declared.
+pub(super) fn is_open(table: &str) -> bool {
+    OPEN_TABLES.contains(&table)
+}
+
 /// What one table serves, or `None` for a table this schema has no vocabulary
 /// for (a plugin nothing registered; see `TABLE_KEYS`).
 pub(super) fn keys_of(table: &str) -> Option<&'static [&'static str]> {
@@ -188,6 +209,9 @@ pub(super) fn keys_of(table: &str) -> Option<&'static [&'static str]> {
 /// operator told `lights.<level>` has no `dim_windows` would go looking for a
 /// table they never typed.
 pub(super) fn admits(roster_table: &str, shown_table: &str, key: &str) -> Result<(), ConfigError> {
+    if is_open(roster_table) {
+        return Ok(());
+    }
     match keys_of(roster_table) {
         Some(serves) if !serves.contains(&key) => Err(unknown_key(roster_table, shown_table, key)),
         _ => Ok(()),

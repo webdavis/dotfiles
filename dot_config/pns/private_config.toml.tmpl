@@ -61,9 +61,7 @@ priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toTo
 # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a
 # companion: both enabled at once is refused at load, naming both tables,
 # because two durable logs post every event twice. The cutover is two lines
-# in one edit, and the rollback is the same two the other way. It waits for
-# the per-route channel map: until then, flipping it routes every event,
-# priority and posture-pages included, onto the catch-all channel below.
+# in one edit, and the rollback is the same two the other way.
 [plugins.discord]
 enabled = false
 # Which compiled-in transport carries the post. "bot" is the only one
@@ -75,11 +73,31 @@ type = "bot"
 # posts nothing and says which key is missing.
 token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
 
-# Where a post goes. `default` is the catch-all and the only entry read
-# today; a channel id is the number Discord copies from a channel's
+# Where a post goes, looked up in this order, first hit wins: the route the
+# event named (`priority` carries anything critical, whatever the
+# project), then its repository as `owner/name`, then the bare project
+# name, then `pns-events` for an event with no project at all, then
+# `default`. The last two are deliberately different channels: an
+# unmapped project and no project are two failures, in two places to
+# look. `default` is REQUIRED and an armed table without it is refused at
+# load. A channel id is the number Discord copies from a channel's
 # Copy Channel ID, and it is a secret like every other id here.
 [plugins.discord.channels]
 default = {{ (keepassxc "Discord (Uriel) :: Channel ID (#github-notifications)").Password | toToml }}
+casually-concerned = {{ (keepassxc "Discord (Uriel) :: Channel ID (#casually-concerned-dev)").Password | toToml }}
+dotfiles = {{ (keepassxc "Discord (Uriel) :: Channel ID (#dotfiles-dev)").Password | toToml }}
+essential-feed-case-study = {{ (keepassxc "Discord (Uriel) :: Channel ID (#essential-feed-case-study-dev)").Password | toToml }}
+homelab = {{ (keepassxc "Discord (Uriel) :: Channel ID (#homelab-dev)").Password | toToml }}
+justdavis-ansible = {{ (keepassxc "Discord (Uriel) :: Channel ID (#justdavis-ansible-dev)").Password | toToml }}
+netpulse = {{ (keepassxc "Discord (Uriel) :: Channel ID (#netpulse-dev)").Password | toToml }}
+plantpulse = {{ (keepassxc "Discord (Uriel) :: Channel ID (#plantpulse-dev)").Password | toToml }}
+pns = {{ (keepassxc "Discord (Uriel) :: Channel ID (#pns-dev)").Password | toToml }}
+pns-events = {{ (keepassxc "Discord (Uriel) :: Channel ID (#pns-events)").Password | toToml }}
+posture = {{ (keepassxc "Discord (Uriel) :: Channel ID (#posture-dev)").Password | toToml }}
+posture-pages = {{ (keepassxc "Discord (Uriel) :: Channel ID (#posture-pages)").Password | toToml }}
+priority = {{ (keepassxc "Discord (Uriel) :: Channel ID (#priority)").Password | toToml }}
+scalebar = {{ (keepassxc "Discord (Uriel) :: Channel ID (#scalebar-dev)").Password | toToml }}
+uu = {{ (keepassxc "Discord (Uriel) :: Channel ID (#uu-dev)").Password | toToml }}
 
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]

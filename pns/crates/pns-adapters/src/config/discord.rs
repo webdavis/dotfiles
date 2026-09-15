@@ -1,3 +1,5 @@
+use pns_domain::channel_map::{ChannelMap, DEFAULT_KEY};
+
 /// The one `[plugins.discord] type` a compiled-in backend answers. VALIDATED
 /// AND THEN DISCARDED, the way `[plugins.mobile]`'s is: the enum that
 /// dispatches between two backends is worth writing the day there are two.
@@ -26,8 +28,8 @@ pub fn discord_backend(settings: &toml::Table) -> Result<(), String> {
     Ok(())
 }
 
-/// What `[plugins.discord]` provides the bot: its token and the channel it
-/// posts to.
+/// What `[plugins.discord]` provides the bot: its token and the map of
+/// channels it posts to.
 ///
 /// NO `Debug`, and it stays that way, for `HermesKeys`'s stated reason: the
 /// token never enters a type that derives one, so it cannot ride a formatted
@@ -41,7 +43,7 @@ pub fn discord_backend(settings: &toml::Table) -> Result<(), String> {
 #[derive(Default, Clone)]
 pub struct DiscordSettings {
     token: Option<String>,
-    channel: Option<String>,
+    channels: ChannelMap,
     /// Why no post can be made: the table is switched on and names a transport
     /// nothing compiled in answers. It travels WITH the reading rather than
     /// collapsing into an absent token, for `Mobile`'s own reason: a backend
@@ -56,11 +58,11 @@ impl DiscordSettings {
         self.token.as_deref()
     }
 
-    /// The channel id every post goes to. ONE ENTRY TODAY, `channels.default`:
-    /// the per-project lookup over the rest of that table is its own slice, and
-    /// the catch-all is what a destination with no map needs to post at all.
-    pub fn channel(&self) -> Option<&str> {
-        self.channel.as_deref()
+    /// Every channel the table states, keyed as the operator wrote it. The
+    /// ORDER a lookup consults them in is `pns_domain::channel_map`'s, never
+    /// this reader's.
+    pub fn channels(&self) -> &ChannelMap {
+        &self.channels
     }
 
     /// Why the leg is refused before either seam, or None.
@@ -83,14 +85,32 @@ impl DiscordSettings {
 pub fn discord_settings(settings: &toml::Table) -> DiscordSettings {
     DiscordSettings {
         token: stated(settings.get("token")),
-        channel: stated(
-            settings
-                .get("channels")
-                .and_then(toml::Value::as_table)
-                .and_then(|channels| channels.get("default")),
-        ),
+        channels: channel_map(settings),
         refusal: None,
     }
+}
+
+/// `[plugins.discord.channels]` as the map the lookup reads: every entry that
+/// STATES a channel, and nothing else.
+///
+/// AN ENTRY THAT STATES NOTHING IS AN ENTRY THAT IS NOT THERE (absent, the
+/// wrong type, an empty string), which is `stated`'s reading one level down.
+/// A key left blank therefore falls through to the next step of the lookup
+/// rather than posting to `""` and earning a 404 per event.
+fn channel_map(settings: &toml::Table) -> ChannelMap {
+    let Some(channels) = settings.get("channels").and_then(toml::Value::as_table) else {
+        return ChannelMap::new();
+    };
+    channels
+        .iter()
+        .filter_map(|(key, value)| Some((key.clone(), stated(Some(value))?)))
+        .collect()
+}
+
+/// Whether an armed table states the catch-all, which is the one key the
+/// lookup cannot end without.
+pub fn states_default_channel(settings: &toml::Table) -> bool {
+    channel_map(settings).contains_key(DEFAULT_KEY)
 }
 
 /// A non-empty string setting, or None for every way it can fail to be one.
@@ -135,23 +155,40 @@ mod tests {
             "channels = \"c\"\n",
             "[channels]\n",
             "[channels]\ndefault = \"\"\n",
+            "[channels]\ndefault = 42\n",
         ] {
             let read = discord_settings(&settings.parse().unwrap());
-            assert!(read.token().is_none() || read.channel().is_none());
+            assert!(read.token().is_none() || read.channels().is_empty());
+            assert!(
+                !states_default_channel(&settings.parse().unwrap()),
+                "case: {settings:?}"
+            );
         }
         let nothing = discord_settings(&"".parse().unwrap());
         assert_eq!(nothing.token(), None);
-        assert_eq!(nothing.channel(), None);
+        assert!(nothing.channels().is_empty());
     }
 
     #[test]
-    fn an_armed_table_states_both_the_token_and_the_catch_all_channel() {
+    fn an_armed_table_states_both_the_token_and_every_channel_it_maps() {
         let read = discord_settings(
-            &"type = \"bot\"\ntoken = \"tok\"\n[channels]\ndefault = \"1234\"\n"
+            &"type = \"bot\"\ntoken = \"tok\"\n[channels]\ndefault = \"1234\"\ndotfiles = \"9001\"\nblank = \"\"\n"
                 .parse()
                 .unwrap(),
         );
         assert_eq!(read.token(), Some("tok"));
-        assert_eq!(read.channel(), Some("1234"));
+        assert_eq!(
+            read.channels().get("default").map(String::as_str),
+            Some("1234")
+        );
+        assert_eq!(
+            read.channels().get("dotfiles").map(String::as_str),
+            Some("9001")
+        );
+        assert_eq!(
+            read.channels().get("blank"),
+            None,
+            "an entry stating nothing is an entry that is not there"
+        );
     }
 }

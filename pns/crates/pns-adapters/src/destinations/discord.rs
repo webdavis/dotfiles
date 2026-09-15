@@ -20,6 +20,7 @@
 
 use super::{Delivery, Event};
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
+use pns_domain::channel_map::{ChannelMap, channel_for};
 use pns_domain::registry::Routing;
 use pns_domain::retry::DeliveryOutcome;
 
@@ -105,10 +106,15 @@ pub struct DiscordChannel<P: DiscordPost> {
     /// The bot token, read from `[plugins.discord]` at the composition root.
     /// None is the not-set-up case, which posts nothing and says so.
     pub token: Option<String>,
-    /// The channel id every post goes to, read from
-    /// `[plugins.discord.channels] default`. None is the same not-set-up case
-    /// by a different missing key, and the sentence says which.
-    pub channel_id: Option<String>,
+    /// `[plugins.discord.channels]` whole, because the channel is decided per
+    /// EVENT rather than per process: one map, one lookup, and no branch here.
+    pub channels: ChannelMap,
+    /// The route this leg was submitted on, taken at construction the way
+    /// `HermesChannel`'s is and for the same reason: the submission and the
+    /// retry both build their destinations from the leg's own route, while a
+    /// `DeliveryRequest` carries an empty one on the paths that never reached
+    /// the ledger.
+    pub route: String,
 }
 
 impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P> {
@@ -131,9 +137,15 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
         // the record's point of view it reads the same as a refusal, and an
         // empty Discord channel otherwise looks like the jobs stopped. The
         // sentence names the KEY to write, never the value that is missing.
-        let (Some(token), Some(channel_id)) = (self.token.as_deref(), self.channel_id.as_deref())
+        let Some(token) = self.token.as_deref() else {
+            return Delivery::Failed(skipped_line(true));
+        };
+        // THE SUBJECT PICKS THE CHANNEL, and the route the severity already
+        // chose picks it first: the order is the domain's, so this destination
+        // holds no policy of its own.
+        let Some(channel_id) = channel_for(&self.channels, &self.route, &request.event.project)
         else {
-            return Delivery::Failed(skipped_line(self.token.is_none()));
+            return Delivery::Failed(skipped_line(false));
         };
         let outcome = self
             .post
@@ -175,6 +187,10 @@ fn outcome_line(outcome: DeliveryOutcome) -> String {
 
 /// The line for a channel that was selected and never set up, naming the one
 /// key to write.
+///
+/// THE MAP'S FAILURE IS THE CATCH-ALL'S, always: every lookup ends at
+/// `default`, so a map that answered nothing is a map missing that one key
+/// rather than a project nobody mapped.
 fn skipped_line(no_token: bool) -> String {
     let key = if no_token {
         "[plugins.discord] token"
