@@ -2431,8 +2431,12 @@ is missing.
   calling process a few instructions later. The recorded data-URL probe is superseded: the app's own
   notification-settings image test action settles display with no code and no token handling. The
   verdict, the evidence with file and line references, seven explicitly recorded assumptions and an
-  operator-run upload probe live in `docs/research/2026-09-moshi-image-cards.md`. Recommendation: do not
-  build, rewrite this entry as transport-available and unbuilt on value, and answer the value question.
+  operator-run upload probe live in `docs/research/2026-09-moshi-image-cards.md`. Decided 2026-09-15: the
+  capability is approved, covering every card type including the recap, as a per-card-type opt-in shipped
+  off by default. What the operator declined is an image on their own recap card specifically, a setting
+  in their own config, not a limit on the capability; the trade is a real one, since a Moshi card's
+  `data` carries one `type`, so turning images on for a card type gives up the deep link that focuses the
+  originating herdr pane when that card is tapped. See task 78 (the decision) and task 88 (the build).
   Also noticed while checking: moshi-hook is six releases behind (0.3.16 installed, 0.3.22 in the tap).
   Full document: `docs/research/2026-09-moshi-image-cards.md`. Operator steps: (1) Read
   docs/research/2026-09-moshi-image-cards.md, specifically the Verdict and the seven assumptions in
@@ -2440,87 +2444,105 @@ is missing.
   "an upstream upload interface", when moshi-hook still has no upload subcommand) is the one that decides
   whether this entry reopens at all. (2) Tap the image test action in the Moshi app's notification
   settings on `mister`. Zero code, no token, one tap. It answers whether a rich image notification
-  displays on that device at all, and everything else is moot if it fails. (3) Decide the value question:
-  is one saved tap into Discord worth two pull requests plus moving recap card ownership from the hook
-  process into the detached `pns recap` child? The technical answer is now yes-it-can-be-built; the
-  2026-09-01 value answer was no and this pass did not overturn it. (4) Rule on the token's path: may the
-  Moshi token ride an `Authorization: Bearer` header on the upload leg?
+  displays on that device at all, and everything else is moot if it fails. (3) Decided 2026-09-15: the
+  capability is approved as a per-card-type opt-in covering every card type, the recap included; the
+  operator's own recap keeps images off. (4) The token's path is left for the build to answer with
+  evidence: may the Moshi token ride an `Authorization: Bearer` header on the upload leg?
   `pns/crates/pns-adapters/src/destinations/moshi.rs` currently states the rule as the request body "and
-  nowhere else". A no here leaves the task blocked and needs nothing further. (5) If you want the real
-  round trip proved, run the two-command probe at the end of the research document while awake. It spends
-  one of ten hourly uploads and sends one real card to your phone. (6) Rewrite the ledger entry either
-  way. "Blocked on transport" is now false and the two honest replacements are "transport available,
-  unbuilt because it duplicates the Discord recap" and "closed, will not build". (7) Separately from this
-  task, consider `brew upgrade moshi-hook`: 0.3.16 is installed and 0.3.22 is in the tap, and 0.3.20
-  through 0.3.22 carry Pi agent detection, Codex named-session reset fixes and Herdr sidebar controls
-  that touch this machine's daily path. Open questions: (1) Does the Moshi app's own image test action
-  actually display a rich image notification on `mister`? Everything below is moot if it does not. (2) Is
-  one saved tap into Discord worth two pull requests and moving recap card ownership into the detached
-  recap child? This is the whole remaining decision, and it is a value call rather than a technical one.
-  (3) May the Moshi token ride an `Authorization: Bearer` header on the upload leg, amending moshi.rs's
-  "request body and nowhere else" rule to "body or Authorization header"? A no keeps the task blocked.
-  (4) Do you want the real upload-then-webhook round trip proved with your token, and if so may it happen
-  while you are awake rather than overnight? (5) Does this ledger entry get rewritten as
-  transport-available-and-unbuilt-on-value, or closed outright as will-not-build? (6) Does a documented
-  web API endpoint satisfy the recorded condition "an upstream upload interface", given that moshi-hook
-  itself still has no `upload` subcommand? Read narrowly, condition 2 fails and the entry stands exactly
-  as written. (7) Should the multipart body be hand-built through the existing `send()` (about twenty
-  lines, no feature change), or should ureq's `multipart` feature be enabled despite living in its
-  `unversioned` module, whose stated policy is that breaking changes there will not produce a major
-  version bump? (8) Unrelated to the verdict: upgrade moshi-hook from 0.3.16 to the tap's 0.3.22 now, or
-  leave it pinned?
+  nowhere else", and the documented upload interface requires the header form, so the build settles
+  whether that rule is amended. (5) If you want the real round trip proved, run the two-command probe at
+  the end of the research document while awake. It spends one of ten hourly uploads and sends one real
+  card to your phone. (6) Separately from this task, consider `brew upgrade moshi-hook`: 0.3.16 is
+  installed and 0.3.22 is in the tap, and 0.3.20 through 0.3.22 carry Pi agent detection, Codex
+  named-session reset fixes and Herdr sidebar controls that touch this machine's daily path. Open
+  questions: (1) Does the Moshi app's own image test action actually display a rich image notification on
+  `mister`? Everything below is moot if it does not. (2) Do you want the real upload-then-webhook round
+  trip proved with your token, and if so may it happen while you are awake rather than overnight? (3)
+  Should the multipart body be hand-built through the existing `send()` (about twenty lines, no feature
+  change), or should ureq's `multipart` feature be enabled despite living in its `unversioned` module,
+  whose stated policy is that breaking changes there will not produce a major version bump? (4) Unrelated
+  to the verdict: upgrade moshi-hook from 0.3.16 to the tap's 0.3.22 now, or leave it pinned? Resolved on
+  2026-09-15: whether a documented web API endpoint satisfies "an upstream upload interface" with no
+  `upload` subcommand on moshi-hook itself (yes, this is the surface pns actually calls), and whether the
+  capability is worth building (yes, approved as a per-card-type opt-in). Superseded by task 78 (the
+  decision) and task 88 (the build).
 - [ ] 78. Decide whether a recap card on the phone carries an image, and build it only if the answer is
-  yes (operator ruling 2026-09-15, low priority). The research above settled the technical half: the
-  upload interface exists and the app's own image test action proves display, so what is left is the
-  value call and the card-ownership refactor an image card would need. Nothing starts until that decision
-  is recorded here.
+  yes (operator ruling 2026-09-15, low priority). Decided 2026-09-15: approved. The capability covers
+  every card type, the recap included; what the operator declined is an image on their own recap card
+  specifically, a setting in their own config, not a limit on the capability, since another user might
+  want exactly that for their own recap. The pattern is the one this repository already uses everywhere:
+  build the capability, ship it off, and leave it off in the operator's own configuration. It is opt-in
+  per card type because of a real tradeoff: a Moshi card's `data` carries one `type`, so turning images
+  on for a card type gives up the deep link that focuses the originating herdr pane when that card is
+  tapped. The operator's own configuration keeps the recap card's images off and keeps its deep link. The
+  build itself, the per-card-type opt-in, the deep-link tradeoff stated at the toggle, and the
+  card-ownership refactor `replay_missed` still needs, is filed separately as task 88, approved and not
+  yet started. Full record: `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+- [ ] 88. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
+  every card type, the recap included; the operator's own configuration keeps the recap card's images
+  off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
+  recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and into the detached
+  `pns recap` child, since the card is dispatched today before any render could exist; and the opt-in
+  itself, a per-card-type toggle plus the render, upload and image body, shipped off by default. State
+  the tradeoff at the toggle, not only in a design document: a Moshi card's `data` carries one `type`, so
+  turning images on for a card type gives up the deep link that focuses the originating herdr pane when
+  that card is tapped. The token-placement question (`Authorization: Bearer` header versus the request
+  body `moshi.rs` currently requires) is left for this build to answer with evidence. Source: task 78 and
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
   before changing that behavior. Designed on 2026-09-14 in
-  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`, unapproved and unbuilt;
-  verification behavior is unchanged. The live bridge was measured: its certificate is
-  `CN=<bridge id>, O=Philips Hue, OU=BSB003`, issued by `CN=root-bridge`, valid to 2038, with NO
-  subjectAltName, and the unauthenticated `/api/config` reports the same bridge id, so chain verification
-  against the published Hue root succeeds (verified locally with `openssl verify`) while name
-  verification is impossible on any modern stack. ureq 3.4.x exposes no custom-verifier hook and couples
-  native-tls's two danger flags to one, so verification requires a custom rustls verifier behind a
-  connector supplied through `Agent::with_parts`; a scratch prototype built only from ureq's public
-  `unversioned::transport` items accepted the matching pin (HTTP 200) and refused a one-bit-flipped pin
-  with our own message intact, over a loopback fixture (the agent sandbox blocked the live LAN handshake,
-  and the stock-ureq control failed the same way, so a live handshake remains an acceptance gate). The
-  recommendation is to pin the bridge's own certificate fingerprint rather than the Hue root plus
-  identity: one `[plugins.hue] certificate = "sha256:..."` key that is a config refusal when hue is
-  enabled without it, one `UreqBridge::new` constructor replacing seven struct literals, a print-only
-  `pns lights enroll` that refuses when the certificate common name and the reported bridge id disagree,
-  and a single permanent mismatch report through the 2026-09-08 delivery-failure path with `pns doctor`
-  showing the pin state. lights (`lights/crates/lights-adapters/src/hue.rs`) and the UniFi client
-  (`pns/crates/pns-adapters/src/unifi/client.rs`) also disable verification and are out of this design's
-  scope, filed as follow-ups. Ten assumptions and seven open questions are listed for the operator; the
-  design waits on their read. Full document:
-  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`. Operator steps: (1) Read
-  docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md and answer the seven open
-  questions, starting with approach A versus B versus C. (2) Decide whether a missing pin refuses at
-  config parse (recommended) or warns for one release, since that choice is what the first pull request
-  encodes. (3) Decide whether the pin is committed in dot_config/pns/config-values.toml (recommended) or
-  stored as a KeePassXC attribute on the "OpenHue :: API Key (hue-bridge-pro)" entry. (4) Decide whether
-  lights gets the same change in this wave and whether the UniFi router client's unverified TLS becomes
-  its own design task; its credential is a router API key. (5) After approval and after pull requests one
+  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`, approved 2026-09-15
+  (approach A) and ready to build, not yet built; verification behavior is unchanged. The live bridge was
+  measured: its certificate is `CN=<bridge id>, O=Philips Hue, OU=BSB003`, issued by `CN=root-bridge`,
+  valid to 2038, with NO subjectAltName, and the unauthenticated `/api/config` reports the same bridge
+  id, so chain verification against the published Hue root succeeds (verified locally with
+  `openssl verify`) while name verification is impossible on any modern stack. ureq 3.4.x exposes no
+  custom-verifier hook and couples native-tls's two danger flags to one, so verification requires a
+  custom rustls verifier behind a connector supplied through `Agent::with_parts`; a scratch prototype
+  built only from ureq's public `unversioned::transport` items accepted the matching pin (HTTP 200) and
+  refused a one-bit-flipped pin with our own message intact, over a loopback fixture (the agent sandbox
+  blocked the live LAN handshake, and the stock-ureq control failed the same way, so a live handshake
+  remains an acceptance gate). The operator approved pinning the bridge's own certificate fingerprint
+  rather than the Hue root plus identity: one `[plugins.hue] certificate = "sha256:..."` key that is a
+  config refusal when hue is enabled without it, one `UreqBridge::new` constructor replacing seven struct
+  literals, a print-only `pns lights enroll` that refuses when the certificate common name and the
+  reported bridge id disagree, and a single permanent mismatch report through the 2026-09-08
+  delivery-failure path with `pns doctor` showing the pin state. lights
+  (`lights/crates/lights-adapters/src/hue.rs`) gets the identical change in this wave; the UniFi client
+  (`pns/crates/pns-adapters/src/unifi/client.rs`) also disables verification and is filed as its own
+  design task, task 89. All seven open questions were answered by the operator on 2026-09-15; the ten
+  assumptions stand unopposed. Full document:
+  `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md` and
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. Operator steps: (1) After pull requests one
   and two land, run `pns lights enroll` on dresden with the bridge reachable, check that the printed
-  certificate common name equals the bridge id, and paste the `certificate = "sha256:..."` line into
-  dot_config/pns/config-values.toml before pull request three turns pinning on. (6) Run the full
-  `chezmoi apply` yourself once the config carries the pin; agents do not apply, and the shipped template
-  is regenerated with `just pns-config-render`. Open questions: (1) Approve approach A (pin the bridge's
-  own certificate fingerprint) over B (Hue root CA plus bridge identity) and C (keep the current behavior
-  and record the risk)? (2) Fail closed on a missing pin at config parse, or one release of
-  warn-then-refuse? (3) Does the pin live in the committed dot_config/pns/config-values.toml, or as a
-  KeePassXC attribute beside the bridge address and key? (4) Should `pns lights enroll` accept the bridge
-  id out of band, read off the device's own label, so an impostor present at enrollment time is refused
-  rather than merely made harder? (5) Does lights get the same pinning change in this wave, and is the
-  UniFi router client's unverified TLS worth its own design task now? (6) Is `pns lights enroll` the
-  right command name, or should the bridge's identity live under `pns doctor` and a flag? (7) If approach
-  B is chosen after all: is a Philips Hue root certificate copied from a third-party mirror acceptable as
-  a trust anchor, given that this bridge's real certificate verifies against it?
+  certificate common name equals the bridge id, and paste the `certificate = "sha256:..."` line as a
+  custom attribute on the "OpenHue :: API Key (hue-bridge-pro)" KeePassXC entry, beside the bridge
+  address and key. (2) Run the full `chezmoi apply` yourself once the vault carries the pin; agents do
+  not apply, and the shipped template is regenerated with `just pns-config-render`. Open questions, all
+  answered 2026-09-15: (1) Approach A (pin the bridge's own certificate fingerprint), over B (Hue root CA
+  plus bridge identity) and C (keep the current behavior, record the risk). The bridge certificate
+  carries no subjectAltName, so B could only prove "some Hue bridge" rather than "this Hue bridge", and B
+  would also require trusting a Philips root certificate copied from a third-party mirror. (2) Fail
+  closed at config parse on a missing pin, no warn-then-refuse release. (3) The pin lives in the vault,
+  as an attribute on the OpenHue entry, reversing the design's own recommendation: this repository is
+  public, and its own convention already treats an id as a vault reference rather than a committed
+  literal, which `dot_config/pns/config-values.toml` states in its own words about channel ids. (4) The
+  bridge id check at `pns lights enroll` is optional with a warning when skipped, not required; without
+  it, enrollment trusts whatever answers first, so an impostor present at enrollment time gets pinned and
+  everything afterward looks correct. (5) lights gets the same pinning change in this wave; the UniFi
+  router client's unverified TLS becomes its own design task, task 89. (6) `pns lights enroll` stays the
+  command name; doctor reports state, enrolling performs an action and hands back a value to save. (7)
+  Moot: approach B was not chosen, so its third-party trust anchor question does not arise.
+- [ ] 89. Design certificate pinning for the UniFi router client, filed 2026-09-15. Out of scope for the
+  Hue bridge pinning design: `pns/crates/pns-adapters/src/unifi/client.rs` disables verification against
+  `https://192.168.1.1` while sending a router API key, a more valuable credential than the lamp key, and
+  it is a different device with a different certificate story that needs its own measurement and design.
+  Follows the same shape as the Hue design once written: measure the live certificate, choose a pinning
+  approach, decide where the pin lives (the vault convention that decided the Hue pin applies here too).
+  Not started. Source: `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`
+  (out-of-scope section) and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 - [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
@@ -2541,46 +2563,30 @@ is missing.
   to the existing `pns hook resolved`, deleting the `plan-ready` arm and state word, plus an End that
   refuses to remove a marker armed after its own moment, claimed by rename per
   `pns/docs/decisions/0001-ownership-by-rename-not-by-unlink.md`. No new state file, no new arm. Ten
-  behaviors are listed to pin test-first. B39 is designed and deliberately not built: sandbox network
+  behaviors are listed to pin test-first. B39 is designed and approved to build now: sandbox network
   dialogs reach the dialog host directly with no `PermissionRequest`, their only hook-visible trace is a
   `Notification` whose type defaults to `permission_prompt` so no matcher can separate it from a tool
   approval, its payload cannot name the host, and no `sandbox` block exists in the managed template or
   the live settings, so exposure on dresden is currently zero (though flag and policy settings can open
-  it without a local change). The interim wiring is written out in full. The design waits on the
-  operator's read: five open questions, including whether `denied` should keep arming a wait, whether
-  `SubagentStop` should end a subagent's, whether to build B39 now, and whether to ask upstream for a
-  distinct notification type. Full document:
-  `docs/superpowers/specs/2026-09-14-hook-wait-events-design.md`. Operator steps: (1) Read
-  /private/tmp/claude-501/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/1bf0ef19-e242-4ea5-8746-60cb679ebafc/scratchpad/docs-wave/hook-wait-design.md
-  and confirm it lands at docs/superpowers/specs/2026-09-14-hook-wait-events-design.md. (2) Confirm or
-  reject the six assumptions in 'Assumptions made in the operator's place', especially assumption 1 (a
-  post-answer event clears a wait instead of carding you) and assumption 5 (B39 designed, not built). (3)
-  Answer open question 1: should `denied` stay in LAMP_BLOCKED, or be routed as an observation so a
-  classifier refusal stops colouring a lamp that claims someone is waiting? (4) Answer open question 2:
-  add a fifth declaration routing `SubagentStop` to `pns hook resolved`, so a subagent's approval stops
-  holding the parent session's lamp until the parent's Stop? (5) Answer open question 3: build the B39
-  interim wiring now (about an hour, text-allowlisted), or wait for the sandbox to be switched on or for
-  a distinct notification type upstream? (6) Decide whether to file one upstream request asking that the
-  sandbox_network_access dialog get its own notification_type, which is what would make the B39 alert
-  robust rather than text-matched. (7) If the design is approved, schedule it as one small PR: three
-  declaration edits in private_dot_claude/modify_settings.json, the plan-ready deletion, the marker End
-  change, and the ten pinned behaviors. Note that the declaration change only takes effect after a full
-  `chezmoi apply`. Open questions: (1) Does `denied` belong in LAMP_BLOCKED? PermissionDenied fires after
-  the auto-mode classifier refused a call on its own, so nobody is waiting on an answer, yet the word
-  arms a wait only the session's next event ends. Recommendation: route it as an observation, keeping the
-  card and dropping the lamp. One live `denied` event exists, so this is nearly theoretical, and it was
-  not in the three filed rows. (2) Should `SubagentStop` end a subagent's wait? Today a subagent's
-  approval arms the parent session's marker and `resolved` deliberately skips subagent batches, so it
-  holds until the parent's own Stop. Recommendation: yes, as a fifth declaration routed to `resolved`,
-  which shortens the wait without making a subagent approval invisible. (3) B39: build the
-  text-allowlisted Notification arm now, or wait? Recommendation is to wait, with the trigger being
-  either switching the sandbox on locally or Claude Code giving the dialog its own notification type. The
-  full interim wiring is written out if you would rather have the alert standing. (4) Should the
-  sandbox-network gap be reported upstream? A distinct `notification_type` for `sandbox_network_access`
-  would make every option robust instead of text-matched. Worth one issue, and it is your call whether to
-  file it. (5) Is the `[lights]` gate on arming a wait marker still right? It is the only reason the
-  state-based discriminator for B39 cannot be the recommendation, because on a machine with no lamps
-  configured the dedup read always finds nothing. Nothing needs changing today.
+  it without a local change). The interim wiring, written out in full in the design, is the build.
+  Approved and ready to build 2026-09-15: `denied` no longer arms a wait, `SubagentStop` is added as a
+  fifth declaration, and B39 is built now; the upstream report was declined. Full document:
+  `docs/superpowers/specs/2026-09-14-hook-wait-events-design.md` and
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. Operator steps: (1) Confirm or reject the
+  six assumptions in 'Assumptions made in the operator's place'. (2) Once built, run the full
+  `chezmoi apply` yourself; the declaration change only takes effect after a full apply. Open questions,
+  four of five answered 2026-09-15: (1) Does `denied` belong in LAMP_BLOCKED? **Answered: no.** `denied`
+  stops arming the waiting lamp and becomes an observation. `pns/crates/pns/src/hook_dispatch.rs` already
+  treats a denial as a decision the harness has taken on its own, which is why it never forwards to the
+  phone; the lamp had not caught up to that. (2) Should `SubagentStop` end a subagent's wait? **Answered:
+  yes**, as a fifth declaration routed to `resolved`. (3) B39: build the text-allowlisted Notification
+  arm now, or wait? **Answered: build now**, so it is ready if sandboxing is ever turned on. The alert
+  stays approximate rather than specific, a property of the platform rather than a defect in the build,
+  and exposure on this machine is currently zero. (4) Should the sandbox-network gap be reported
+  upstream? **Answered: no.** The operator's words: the lack of distinction is fine. (5) Is the
+  `[lights]` gate on arming a wait marker still right? Not answered, not one of the four filed rows. It
+  is the only reason the state-based discriminator for B39 cannot be the recommendation, because on a
+  machine with no lamps configured the dedup read always finds nothing. Nothing needs changing today.
 - [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect

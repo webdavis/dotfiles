@@ -503,19 +503,38 @@ was.
 
 ## Open questions
 
+All seven answered by the operator on 2026-09-15; recorded again in
+`docs/decisions/2026-09-15-pns-behavior-backlog-brief.md` so the two documents agree.
+
 1. Approve approach A (pin the bridge's certificate) over B (Hue root plus bridge identity) and C (keep
-   the current behavior, record the risk)?
-2. Fail closed on a missing pin, or one release of warn-then-refuse?
+   the current behavior, record the risk)? **Answered: A.** The bridge certificate carries no
+   subjectAltName, so B could only answer "is this some Hue bridge" rather than "is this my bridge", and
+   B would also require trusting a Philips root certificate copied from a third-party mirror. A pins one
+   specific device and is the more secure choice, not merely the simpler one.
+2. Fail closed on a missing pin, or one release of warn-then-refuse? **Answered: fail closed, at config
+   parse.** No warn-then-refuse release.
 3. The pin in the committed `config-values.toml`, or as a KeePassXC attribute beside the bridge address
-   and key?
+   and key? **Answered: the vault**, reversing this design's own recommendation. This repository is
+   public (verified 2026-09-15 through the GitHub API), and its own convention already treats an id as a
+   vault reference rather than a committed literal, stated in `dot_config/pns/config-values.toml`'s own
+   words about channel ids. The cost is nothing, since the OpenHue entry already exists and the pin
+   becomes one more attribute on it; the fingerprint is a hash and publishing it would be low harm
+   regardless, but consistency with the repository's own rule and the public repository are what decided
+   it.
 4. Should `pns lights enroll` accept the bridge id out of band, off the device label, so an
-   enrollment-time impostor is refused rather than merely made harder?
+   enrollment-time impostor is refused rather than merely made harder? **Answered: optional, with a
+   warning when skipped, not required.** Without it, enrollment trusts whatever answers first, so an
+   impostor present at enrollment time gets pinned and everything afterward looks correct.
 5. Does lights get the same change in this wave, and is the UniFi router client's unverified TLS worth
-   its own design task now (its credential is a router API key)?
+   its own design task now (its credential is a router API key)? **Answered: yes to both.** `lights` gets
+   the identical pinning change in this wave; the UniFi router client becomes its own design task.
 6. Is the command name `pns lights enroll` right, or should the bridge's identity live under
-   `pns doctor` and a flag?
+   `pns doctor` and a flag? **Answered: stays `pns lights enroll`.** Doctor reports state, enrolling
+   performs an action and hands back a value to save, and a diagnostic that sometimes changes things
+   becomes one nobody runs.
 7. If approach B is chosen after all: is a Hue root certificate copied from a third-party mirror
    acceptable as a trust anchor, given that this bridge's real certificate verifies against it?
+   **Moot.** Approach A was chosen, so B's trust-anchor question does not arise.
 
 ## Verification, when it is built
 
