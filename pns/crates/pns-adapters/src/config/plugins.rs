@@ -257,8 +257,8 @@ mod catch_all_tests {
             "[plugins.discord]\nenabled = true\ntype = \"bot\"\n[plugins.discord.channels]\ndotfiles = \"9001\"\n",
             "[plugins.discord]\nenabled = true\ntype = \"bot\"\n[plugins.discord.channels]\ndefault = \"\"\n",
         ] {
-            let ConfigError::Invalid(said) = parse_config(text).expect_err("case: {text:?}") else {
-                panic!("a schema refusal, not a parse failure");
+            let Err(ConfigError::Invalid(said)) = parse_config(text) else {
+                panic!("case: {text:?}");
             };
             assert!(said.contains("[plugins.discord.channels]"), "{said}");
             assert!(said.contains("default"), "{said}");
