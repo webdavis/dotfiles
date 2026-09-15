@@ -978,26 +978,36 @@ value either way.
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows F1-F6) for the reasoning.
+
 1. **Which output layout, and is vpp's audio copy the backup?** Step 1 and step 2 above. Everything in
-   this design is a configuration value once they are answered.
+   this design is a configuration value once they are answered. **Layout: closed**, outside the vault,
+   symlinked in, matching the existing `minutes` precedent. **Is it the backup: still open**, the
+   operator's own risk call; see `docs/decisions/2026-09-15-vpp-question-triage.md`, escalated item 2.
 1. **New tags: held, or accepted?** The design holds them, because the vault's vocabulary is small and
    deliberate and git makes a mistake permanent. Accepting them removes a confirmation step per recording
-   and doubles the vocabulary faster than any human would.
+   and doubles the vocabulary faster than any human would. **Closed: held.**
 1. **kebab-case or camelCase for a new tag?** No majority exists in the corpus to derive it from.
+   **Closed: kebab-case**, the wider repository's own convention breaks the corpus's own tie.
 1. **May vpp write into notes it did not create?** The `mentions` relation links out to the operator's
    existing contact and project notes. The design writes that link on the transcript's side only and adds
    nothing to the target note. The alternative, a backlink written into the contact note, is more useful
-   inside Obsidian and is vpp editing the operator's own writing.
+   inside Obsidian and is vpp editing the operator's own writing. **Closed: no, transcript side only.**
 1. **Which mobile sync actually carries the vault?** Obsidian's core Sync plugin is enabled and
    `obsidian-git` is configured to push every 15 minutes. They send the same transcripts to different
    third parties, and the transcription design's open question about committing transcripts at all cannot
-   really be answered without knowing which.
+   really be answered without knowing which. **Closed: both.** Both channels are active; moot under the
+   transcription design's own default of keeping transcripts outside the vault.
 1. **Should `vpp path` be the contract for the later note generator, or should vpp write the analysis
    note itself?** The design exposes the rules as a command so any generator can file correctly. If vpp
    ends up owning generation too, the command is still the right seam, but it stops being load-bearing.
+   **Closed: vpp writes the note itself**, calling `vpp path` internally; there is no other generator
+   once `minutes` is out.
 1. **Does `minutes` stay?** If it does, its notes are input that vpp files, and the two schemas sit side
    by side in one vault with no key in common. That is workable and slightly ugly, and the alternative,
    adopting its schema, was rejected above for reasons that would need revisiting if `minutes` becomes
-   the note generator rather than a candidate.
+   the note generator rather than a candidate. **Closed: no.** `minutes` is out entirely.
 1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
-   design, because the chain should not stay in disagreement with itself.
+   design, because the chain should not stay in disagreement with itself. **Code home: closed**, own
+   repository. **Name: still open**, see the boundaries design's own open questions.

@@ -180,11 +180,13 @@ default invocation of the fastest local engine is also the one that reports no c
 
 - **Apple's SpeechAnalyzer is available and ready.** `minutes apple-speech capabilities` reports macOS
   26.2 build 25C56, runtime supported, `SpeechTranscriber available: true`, asset status `supported`, and
-  nine installed English locales including `en_US`. It is a different model family from Whisper, it is
-  free, and it runs on device. Reaching it needs a small Swift helper, because the framework has no
-  command-line interface; `minutes` builds exactly such a helper and keeps it at
-  `~/.minutes/bin/apple-speech-helper` beside its source. That is `minutes`' private helper and R3 means
-  vpp never calls it; it does establish that the approach works here.
+  nine installed English locales including `en_US`. (Stale, corrected 2026-09-15: this machine is now on
+  macOS 27.0, `sw_vers` checked today; the finding itself does not depend on the build number and stands
+  unchanged.) It is a different model family from Whisper, it is free, and it runs on device. Reaching it
+  needs a small Swift helper, because the framework has no command-line interface; `minutes` builds
+  exactly such a helper and keeps it at `~/.minutes/bin/apple-speech-helper` beside its source. That is
+  `minutes`' private helper and R3 means vpp never calls it; it does establish that the approach works
+  here.
 - **Local model weights are already cached**, so no local engine needs a download: 794 MB under
   `~/.cache/whisper` (`base.pt`, `large-v3-turbo.pt`) and Systran faster-whisper plus MLX community
   Whisper repositories under `~/.cache/huggingface`.
@@ -870,27 +872,40 @@ sends its first notification rather than after.
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows T1-T7) for the full reasoning; the short form is
+in the per-item notes that follow.
+
 1. **Which engine pairing, from the priced table above?** This is Open Question 8 and everything else in
-   the design is a configuration value once it is answered.
+   the design is a configuration value once it is answered. **Closed:** no single pair. Primary plus
+   optional fallback, both named in config; Apple Speech and whisply ship as the two starting first-class
+   adapters, the wider priced menu stays reachable through the generic command adapter.
 1. **Is the Apple SpeechAnalyzer route worth a Swift helper inside a Rust project?** It is the only free
    different-family option on this Mac, it is confirmed available here, and it is the one choice that
    would need a second language in the build. Its confidence reporting is unknown and would need a probe.
+   **Closed: yes, approved.** The confidence reporting is no longer unknown; see the corrected note above
+   this section and `docs/decisions/2026-09-15-vpp-question-triage.md`.
 1. **May a transcript be committed to the vault, and therefore synced to a phone?** The audio is
    gitignored and the transcript would not be. Everything in this design assumes yes, because that is
    what the vault's `transcripts/` directory is for, but it is the decision that puts searchable text of
-   every voice memo into a git history.
+   every voice memo into a git history. **Closed:** configurable destination, default outside any
+   git-tracked tree; vault sync is the operator's deliberate opt-in.
 1. **Should a confirmed correction rewrite future transcripts?** Recording that "Muthakrishnan" should be
    "Muthukrishnan" is cheap. Applying it automatically changes the transcript of record without a human
    reading the result. The design records and does not apply; the alternative is worth a sentence.
 1. **How loud should `agreed-unverified` be?** It is the class that catches the error both engines
    shared, and it is also the largest class. The design ranks it last and aggregates it. Should it appear
-   in the pns notification at all, or only in the file?
+   in the pns notification at all, or only in the file? **Closed:** counts only in the `[notify]` event;
+   the flagged text stays in the file and the `vpp review` queue.
 1. **One notification per recording, or one per run?** The default is per recording with aggregation past
-   three. A weekly reviewer might prefer one summary always.
+   three. A weekly reviewer might prefer one summary always. **Closed:** per recording, aggregating past
+   three, as designed; a config default, not a rule.
 1. **Does `verify-note` belong in vpp, or in whatever writes the note?** It is designed here as a
    separate command precisely because the writer is undecided. If the writer turns out to be `minutes`,
    the check still works, but it would then be checking a third-party tool's output against a convention
-   that tool does not follow, which needs the convention to be enforced somewhere else.
+   that tool does not follow, which needs the convention to be enforced somewhere else. **Closed: in
+   vpp.** There is no other note writer; `minutes` is out entirely.
 1. **Where does vpp's code live?** The boundaries design recommends its own repository; the discovery
    design assumed a fifth workspace here. Nothing in this document depends on the answer, but the two
-   sibling designs should not stay in disagreement.
+   sibling designs should not stay in disagreement. **Closed: own repository.** See
+   `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`'s own open questions, below.

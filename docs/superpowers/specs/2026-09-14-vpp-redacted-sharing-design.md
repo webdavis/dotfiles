@@ -779,6 +779,9 @@ folder note to the three the tagging design named and the fourth the brief desig
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows S1-S7) for the reasoning.
+
 1. **What is a shared draft made of: an extract, or written prose?** This is the ledger's "summary
    format" question. The design supports both, and the difference is not cosmetic: for an extract the
    residue scan is a real check, and for prose the human read is the only protection, because a
