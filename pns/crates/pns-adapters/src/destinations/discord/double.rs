@@ -187,12 +187,19 @@ pub(super) fn posted_to(channel: &DiscordChannel<Recorder>) -> String {
 }
 
 /// The channel or thread the nth post was addressed to.
+///
+/// A MESSAGE ENDPOINT ONLY: the id is the first path segment, but the whole
+/// remainder must be `{id}/messages`, so a thread-creation URL (whose id is
+/// followed by `/messages/{message_id}/threads`) panics here instead of
+/// silently answering the right-looking id off the wrong endpoint.
 pub(super) fn addressed(channel: &DiscordChannel<Recorder>, nth: usize) -> String {
     let seen = channel.post.seen.lock().unwrap();
     let sent = seen.get(nth).expect("a post went out");
-    sent.url
+    let rest = sent
+        .url
         .strip_prefix(&format!("{}/channels/", super::request::API_BASE))
-        .and_then(|rest| rest.split('/').next())
-        .expect("a channel URL")
-        .to_string()
+        .expect("a channel URL");
+    let id = rest.split('/').next().expect("a channel URL");
+    assert_eq!(rest, format!("{id}/messages"), "a message endpoint");
+    id.to_string()
 }
