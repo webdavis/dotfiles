@@ -29,26 +29,8 @@
 
 local log_info = vim.log.levels.INFO
 local log_warning = vim.log.levels.WARN
-local log_error = vim.log.levels.ERROR
 
 local notify_format_title = { title = "Format" }
-
--- Shared by the `keys` rows and by the format-on-save hook. The rows are the
--- mappings themselves, so they have to reach this from outside `config`.
-local function safe_format()
-  if not vim.g.autoformat_on_save then
-    return true
-  end
-
-  local ok, err = pcall(function()
-    require("conform").format({ async = false })
-  end)
-
-  if not ok then
-    vim.notify("Autoformat failed: " .. err, log_error, notify_format_title)
-  end
-  return ok
-end
 
 return {
   {
@@ -64,7 +46,9 @@ return {
       {
         "ZZ",
         function()
-          safe_format() -- runs formatting and logs errors
+          if vim.g.autoformat_on_save then
+            require("conform").format({ async = false })
+          end
           if vim.bo.modified then
             vim.cmd("update")
           end
