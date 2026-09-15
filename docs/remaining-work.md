@@ -3490,8 +3490,10 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel as
   the page it explains and directly under it, moving into the page's own thread once the pns Discord bot
   of task 82 exists. The accepted defaults are that the explainer runs with zero tools
-  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after six explanations in an hour, never puts a
-  command in its text, and that pns sends a request id on every hermes post.
+  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after twenty explanations in a rolling hour counted
+  by distinct finding rather than by page (raised from six and changed to count distinct findings by the
+  2026-09-15 amendment, `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`, Decision 6),
+  never puts a command in its text, and that pns sends a request id on every hermes post.
 
 - [ ] 85. Build the pns GitHub source, four pull requests, on the design merged in
   [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
