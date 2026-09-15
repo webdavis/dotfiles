@@ -366,7 +366,8 @@ rejected and what it would cost to switch.
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows B1-B6) for the reasoning.
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows B1-B6) and
+`docs/decisions/2026-09-15-vpp-architecture-decisions.md` for the reasoning.
 
 1. **Own repository, or a fifth workspace in dotfiles?** Recommendation: own repository
    (`webdavis/vpp`). This is the one answer everything else in the document hangs from. **Closed: own
@@ -387,7 +388,9 @@ rejected and what it would cost to switch.
    already handles voice memos. If it is in, vpp's scope shrinks; if it is out, its ledger evaluation
    should record that vpp supersedes it. Recommendation: answer this before vpp's ingestion design is
    approved, because it can remove a whole layer. **Closed: out.** vpp does not use or depend on
-   `minutes` in any form.
+   `minutes` in any form. The operator's reasoning: `minutes` is poorly designed, though it has good
+   features worth learning from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`,
+   decision 1.
 1. **Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
    maintains the folder note for a directory a tool writes into?** This is a vault-governance
    question that vpp's output format depends on. **Closed: yes, with no carve-out**; the vault

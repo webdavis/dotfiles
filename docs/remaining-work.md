@@ -1500,7 +1500,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   Closed 2026-09-15: `.worktrees/` holds only a `.DS_Store`, and `git worktree list` shows every
   remaining worktree under `~/.herdr/worktrees/dotfiles/`.
 
-- [ ] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
+- [x] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
   [PR #605](https://github.com/webdavis/dotfiles/pull/605)
   (`feat(worktrees): sweep merged, clean worktrees through herdr`, merged), not a numbered task.
   `dot_local/libexec/executable_prune-merged-worktrees.sh`, deployed to
@@ -1753,12 +1753,20 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `/private/tmp/dotfiles-modernization/task60-mapping/HANDOFF.md`. Unrelated to posture:
   [PR #557](https://github.com/webdavis/dotfiles/pull/557) (`fix/pns-private-process-budget`, the pns
   fixture process budget) merged into `main`, reviewed NO_ISSUE, after continuous integration passed.
-- [ ] 79. Stop the posture digest repeating the same file. The 2026-09-14 digest carried 110
+- [x] 79. Stop the posture digest repeating the same file. The 2026-09-14 digest carried 110
   `agent_authfile_changed` findings for `~/.codex/config.toml`, which Codex rewrites from its own model
   while it runs, so every rewrite arrives as a fresh finding rather than as news. Decide between an
   allowlist entry for that path and a debounce that collapses repeats of one path inside a digest window,
   then build the one chosen. Record the reasoning either way, because an allowlist entry stops watching
-  an agent credential file while a debounce keeps watching it.
+  an agent credential file while a debounce keeps watching it. DONE 2026-09-15 in
+  [PR #642](https://github.com/webdavis/dotfiles/pull/642)
+  (`feat(posture): collapse repeats of one path inside a digest window`, merged): the debounce was chosen
+  over the allowlist entry, because `~/.codex/config.toml` records Codex's hook trust and MCP servers, so
+  it is exactly the file worth watching for a change nobody made. The digest renderer now folds two
+  findings that share both identity and summary inside an already-grouped detector into one bullet
+  carrying a count, and the bullet and group caps apply to collapsed lines rather than raw findings.
+  Measured against a synthetic 112-line spool: 11 bullet lines and 924 characters before, 3 and 323
+  after, with `~/.claude.json` (previously evicted) now rendering.
 
 ### STOP POINT G
 
@@ -2543,6 +2551,15 @@ is missing.
   approach, decide where the pin lives (the vault convention that decided the Hue pin applies here too).
   Not started. Source: `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`
   (out-of-scope section) and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+- [ ] 91. Drop `posture/crates/posture-producer-wire/` and converge posture on the same three-mode
+  `[notify]` command shape (`desktop`, `command`, `off`) vpp uses, so posture stops carrying its own copy
+  of pns's JSON envelopes. Approved by the operator 2026-09-15, not started. Surfaced while writing vpp's
+  notification design: `posture/crates/posture-adapters/src/producer.rs`'s own header comment already
+  states the target shape, "a JSON request goes in on standard input, a JSON result plus an exit code
+  comes back, and the command and its arguments are both config", but posture still ships a dedicated
+  `posture-producer-wire` crate for the envelope rather than the plain argv-and-stdin contract vpp's
+  `[notify]` table covers with no crate at all. Source:
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 13.
 - [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
@@ -3484,8 +3501,10 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel as
   the page it explains and directly under it, moving into the page's own thread once the pns Discord bot
   of task 82 exists. The accepted defaults are that the explainer runs with zero tools
-  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after six explanations in an hour, never puts a
-  command in its text, and that pns sends a request id on every hermes post.
+  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after twenty explanations in a rolling hour counted
+  by distinct finding rather than by page (raised from six and changed to count distinct findings by the
+  2026-09-15 amendment, `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`, Decision 6),
+  never puts a command in its text, and that pns sends a request id on every hermes post.
 
 - [ ] 85. Build the pns GitHub source, four pull requests, on the design merged in
   [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
@@ -4000,7 +4019,7 @@ force.
 - [ ] Finish the recorded pi harness setup/evaluation and its configuration, skills and hook integration.
   Reconcile babysitter's evaluation with its existing declaration and holds, and Understand-Anything with
   its current adoption decision. OpenSpec and credential-access work have explicit entries below.
-- [ ] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and
+- [x] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and
   version `1.12.0` is installed. The live global configuration exists with profile `core` and delivery
   `both`, but no OpenSpec configuration or generated integrations are tracked here, and this checkout has
   no `openspec/` root. Choose the intended global settings and project scope, then configure the
@@ -4024,7 +4043,13 @@ force.
   `docs/remaining-work.md` and `.chezmoidata/macos_posture_controls.yaml`, outside the pre-approved
   conflict scope, so no further merge was attempted. Gated on GitHub Actions/Blacksmith CI recovering
   (verify with `gh-axi pr checks 586`), then merging `origin/main` again, rerunning `just ship`, pushing,
-  and resuming.
+  and resuming. [PR #586](https://github.com/webdavis/dotfiles/pull/586) merged 2026-09-14 (`cdaa33fb`):
+  `dot_config/openspec/config.json` deploys `~/.config/openspec/config.json` with `profile: core`,
+  `delivery: both`, `telemetry.enabled: false` and `completionTipSeen: true`, and
+  `docs/runbooks/agent-tooling.md` documents the tracked config, the per-project `openspec init` flow,
+  and the separate upgrade-versus-refresh jobs. Deliberately out of scope, per the task's own "project
+  specifications in their owning repositories" line: no `openspec/` root, no `openspec init` and no
+  generated harness integrations in this checkout, since it gets no OpenSpec project of its own.
 - [ ] Configure [YNAB (You Need a Budget)](https://github.com/oliverames/ynab-mcp-server) through its MCP
   (Model Context Protocol) server, added by the operator on 2026-09-12. Track the upstream npm package
   `@oliverames/mcp-server-for-ynab` in the existing fnm package declaration and use its local stdio
@@ -4996,13 +5021,21 @@ transcription was started during this audit.
   needs-attention notification. **Verdict: defer the vpp ingestion design.** vpp's scope is blocked on
   the still-open `minutes` disposition (task `6hPV483GJgGHX95M`), which decides between an adapter around
   `minutes` and a full replacement; `PLAN-v12` L6 already forbids a second automatic Voice Memos workflow
-  for Open Notebook and nobody has applied that rule here. Measured inputs for the next task, not
-  decisions: recordings are ALAC 48 kHz stereo in `.m4a` (not AAC), about 1 GB for 28 files with single
-  files at 188 MB; titles, durations and stable identifiers live only in `CloudRecordings.db`, a Core
-  Data store whose write-ahead log must be copied with it or a reader sees a nine-day-stale snapshot;
-  `ZEVICTIONDATE` does not mean the audio is gone (both evicted rows still have local files); and
-  `minutes storage` already classes 30-day-old originals as delete-candidates, which collides with vpp's
-  preserve-originals rule. Separate live drift: the vault `CLAUDE.md` claims the
+  for Open Notebook and nobody has applied that rule here. **Decided 2026-09-15: the blocking question is
+  answered.** vpp does not use or depend on `minutes`, in any form: no calling `minutes transcribe`, no
+  `minutes watch` front end, no runtime spawn. The operator's own words: `minutes` is poorly designed,
+  though it has good features worth learning from. Two of its own dependent questions are therefore MOOT
+  rather than answered, because the premise each depended on no longer holds: whether vpp calls `minutes`
+  or runs beside it, and whether the `PLAN-v12` L6 rule binds `minutes` against vpp. The vault `minutes`
+  symlink repair and the false vault `CLAUDE.md` claim remain their own small item, unchanged, since they
+  are about `minutes` rather than about vpp. Full record:
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. Measured inputs for the next
+  task, not decisions: recordings are ALAC 48 kHz stereo in `.m4a` (not AAC), about 1 GB for 28 files
+  with single files at 188 MB; titles, durations and stable identifiers live only in
+  `CloudRecordings.db`, a Core Data store whose write-ahead log must be copied with it or a reader sees a
+  nine-day-stale snapshot; `ZEVICTIONDATE` does not mean the audio is gone (both evicted rows still have
+  local files); and `minutes storage` already classes 30-day-old originals as delete-candidates, which
+  collides with vpp's preserve-originals rule. Separate live drift: the vault `CLAUDE.md` claims the
   `agent-processing-pipeline/minutes` symlink is managed by `minutes vault setup --subdir`, but no
   `minutes` config file exists and `minutes vault status` reports `Vault: not configured`, so the
   committed link is an orphan. Full document: `docs/research/2026-09-vpp-source-reconciliation.md`.
@@ -5030,28 +5063,42 @@ transcription was started during this audit.
   (pns/crates/pns/src/invocation.rs:119) but is absent from `pns --help`. Whoever implements a producer
   against it will not find it from the CLI. Open questions: (1) Is `minutes` kept or replaced? This is
   the blocking question; vpp's whole scope follows from it, and the ledger has carried it as an open
-  evaluation since before vpp existed. (2) If `minutes` is kept, does vpp call it or run beside it?
-  Calling `minutes transcribe --json` makes it one of vpp's two engines and reuses its summarization,
-  vault sync and speaker work. Running beside it means two tools writing notes about recordings, which is
-  what PLAN-v12 L6 forbids for Open Notebook. (3) Does the PLAN-v12 L6 rule ("must not create a second
-  automatic Voice Memos capture/transcription workflow") bind `minutes` against vpp, or was it only ever
-  about Open Notebook? (4) Which two engines are the redundant pair? Phase 6 already chose ElevenLabs
-  Scribe v2 with whisply on faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the
-  minutes on-device pipeline are all present here. Cloud-plus-local and two-local differ in cost, in what
-  audio leaves the machine, and in whether a disagreement means anything. (5) Do Voice Memos originals
-  leave the machine at all? L-R5 inherits Phase 6's "local processing for sensitive audio", but everyday
-  personal voice memos may all qualify, which would remove the metered cost line and one candidate engine
-  together. (6) Repair the vault `minutes` symlink now or fold it into the vpp work? Folding it in leaves
-  the vault CLAUDE.md claim false until vpp ships. (7) Should the four unwired transcription installs
-  stay declared? whisply, openai-whisper, @elevenlabs/cli and the minutes cask are all in
+  evaluation since before vpp existed. **Decided 2026-09-15: replaced.** vpp is a standalone tool with no
+  dependency on `minutes` at all; see decision 1 in
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`. (2) If `minutes` is kept, does vpp call it
+  or run beside it? Calling `minutes transcribe --json` makes it one of vpp's two engines and reuses its
+  summarization, vault sync and speaker work. Running beside it means two tools writing notes about
+  recordings, which is what PLAN-v12 L6 forbids for Open Notebook. **Moot, 2026-09-15:** `minutes` is not
+  kept, so neither branch applies. (3) Does the PLAN-v12 L6 rule ("must not create a second automatic
+  Voice Memos capture/transcription workflow") bind `minutes` against vpp, or was it only ever about Open
+  Notebook? **Moot, 2026-09-15:** vpp does not touch `minutes` for L6 to bind against. (4) Which two
+  engines are the redundant pair? Phase 6 already chose ElevenLabs Scribe v2 with whisply on
+  faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the minutes on-device pipeline
+  are all present here. Cloud-plus-local and two-local differ in cost, in what audio leaves the machine,
+  and in whether a disagreement means anything. Still open: the pairing itself stays a configuration
+  value rather than one fixed pair (decision 3), with Apple Speech and whisply as the two starting
+  first-class adapters (decision 10). (5) Do Voice Memos originals leave the machine at all? L-R5
+  inherits Phase 6's "local processing for sensitive audio", but everyday personal voice memos may all
+  qualify, which would remove the metered cost line and one candidate engine together. **Decided
+  2026-09-15:** this is the user's choice, not a product rule; local is the default, `vpp setup`
+  preselects it, and the operator's own configuration stays local. See decision 2. (6) Repair the vault
+  `minutes` symlink now or fold it into the vpp work? Folding it in leaves the vault CLAUDE.md claim
+  false until vpp ships. **Decided 2026-09-15:** neither folded nor changed by this decision; the symlink
+  repair and the false CLAUDE.md claim remain their own small item, unchanged, since they are about
+  `minutes` rather than about vpp. (7) Should the four unwired transcription installs stay declared?
+  whisply, openai-whisper, @elevenlabs/cli and the minutes cask are all in
   .chezmoidata/system_packages_autoinstall.yaml and no script, recipe or LaunchAgent reaches any of them.
-  They are either vpp's future inputs or removable weight, and which depends on the engine decision. (8)
-  Does `minutes` get upgraded to 0.26.2 before the disposition decision, given that its feature set is
-  the input to that decision? (9) Deferred to the next ledger task, not answered here: whether a
-  launchd-run service can read ~/Library/Group Containers/group.com.apple.VoiceMemos.shared at all under
-  its own macOS privacy-permission identity (every read in this record ran from a terminal that already
-  holds broad disk access), and whether reading Apple's private CloudRecordings.db Core Data schema is
-  acceptable at all. A no to either changes what vpp is, from a watcher to an export-path integration.
+  They are either vpp's future inputs or removable weight, and which depends on the engine decision.
+  **Decided 2026-09-15:** whisply, openai-whisper and @elevenlabs/cli stay declared as candidates for
+  vpp's engine adapters; the minutes cask has no remaining use under decision 1. The data file is
+  unchanged by this pull request; dropping a declaration is an edit the operator makes deliberately, per
+  this repository's no-removal-mechanisms rule. See decision 12. (8) Does `minutes` get upgraded to
+  0.26.2 before the disposition decision, given that its feature set is the input to that decision? (9)
+  Deferred to the next ledger task, not answered here: whether a launchd-run service can read
+  ~/Library/Group Containers/group.com.apple.VoiceMemos.shared at all under its own macOS
+  privacy-permission identity (every read in this record ran from a terminal that already holds broad
+  disk access), and whether reading Apple's private CloudRecordings.db Core Data schema is acceptable at
+  all. A no to either changes what vpp is, from a watcher to an export-path integration.
 - [ ] Design automatic discovery of fully synced recordings, preserving original audio and capture
   metadata without modifying Apple's source recordings. Verify the supported macOS access/export path and
   actual audio format before choosing an ingestion mechanism. Handle interrupted sync, retries and
@@ -5154,25 +5201,44 @@ transcription was started during this audit.
   route to the hermes gateway, or accept that vpp posts on the existing `pns` route. The gateway declares
   exactly `priority`, `pns` and `unattended-upgrades`; posture names a `posture` route that does not
   exist and eight of its Discord legs are dead-lettered with HTTP 404 right now. Settle this before vpp
-  sends its first notification rather than after. Open questions: (1) Which engine pairing, from the
-  priced table? This is Open Question 8 and everything else in the design is a configuration value once
-  it is answered. (2) Is the Apple SpeechAnalyzer route worth a Swift helper inside a Rust project? It is
-  the only free different-family option on this Mac and it is confirmed available here (macOS 26.2,
-  SpeechTranscriber asset supported, en_US installed), but its confidence reporting is unknown and it
-  would put a second language in the build. (3) May a transcript be committed to the vault, and therefore
-  synced to a phone? The audio is gitignored and the transcript would not be. The design assumes yes
-  because that is what the vault's `transcripts/` directory is for, but it is the decision that puts
-  searchable text of every voice memo into a git history. (4) Should a confirmed correction rewrite
-  future transcripts? Recording that "Muthakrishnan" should be "Muthukrishnan" is cheap; applying it
+  sends its first notification rather than after. **Decided 2026-09-15,** full record in
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`: the architecture is broader than this
+  design's own single-pair recommendation. Two engine slots, primary and optional fallback, both named in
+  config, neither hardcoded; whether the fallback runs on failure only or on every recording is also
+  configurable (decision 3). Reconciliation picks a winner and flags uncertainty exactly two ways, inline
+  markers plus a `vpp review <id>` queue that feeds `vpp confirm --term`; the summary-block and
+  separate-document shapes were considered and rejected, not merely left unbuilt (decision 4). Three more
+  engine-pair behaviors are approved to build (transcript-wins rule, both-engines-fail defaulting to
+  keep-and-flag, engine per language), and a disagreement threshold and a cloud spend ceiling are
+  explicitly not built, both for lack of a defensible default (decision 5). Engines are named in config
+  with two starting first-class adapters, Apple Speech and whisply, plus a generic command escape hatch
+  with no uncertainty flagging (decision 10). Notification gains a `[notify]` table with three modes,
+  `desktop`, `command`, `off`, superseding this design's pns-only assumption; command mode substitutes
+  placeholders into argv and writes vpp's own JSON on stdin simultaneously, vpp needs no copy of pns's
+  wire contract, and a translator's exit code is load bearing (decisions 6, 7, 9). `minutes` is out
+  entirely (decision 1). Open questions: (1) Which engine pairing, from the priced table? This is Open
+  Question 8 and everything else in the design is a configuration value once it is answered. **Narrowed,
+  not answered with one pair:** stays a configuration value; Apple Speech and whisply are the two
+  starting adapters (decision 10). (2) Is the Apple SpeechAnalyzer route worth a Swift helper inside a
+  Rust project? It is the only free different-family option on this Mac and it is confirmed available
+  here (macOS 26.2, SpeechTranscriber asset supported, en_US installed), but its confidence reporting is
+  unknown and it would put a second language in the build. **Decided 2026-09-15: yes**, it is one of the
+  two starting first-class adapters. (3) May a transcript be committed to the vault, and therefore synced
+  to a phone? The audio is gitignored and the transcript would not be. The design assumes yes because
+  that is what the vault's `transcripts/` directory is for, but it is the decision that puts searchable
+  text of every voice memo into a git history. (4) Should a confirmed correction rewrite future
+  transcripts? Recording that "Muthakrishnan" should be "Muthukrishnan" is cheap; applying it
   automatically changes the transcript of record with no human reading the result. The design records and
-  does not apply. (5) How loud should the `agreed-unverified` class be? It is the class that catches the
-  error every engine shared and also the largest class. The design ranks it last and aggregates it by
-  surface form. Should it appear in the pns notification at all, or only in the file? (6) One
-  notification per recording with aggregation past three, or one summary per run always? A weekly
-  reviewer might prefer the latter. (7) Does `verify-note` belong in vpp or in whatever writes the note?
-  It is a separate command precisely because the writer is undecided. If the writer turns out to be
+  does not apply. **Confirmed 2026-09-15:** record only, feeding `vpp confirm --term` forward rather than
+  rewriting the transcript of record. (5) How loud should the `agreed-unverified` class be? It is the
+  class that catches the error every engine shared and also the largest class. The design ranks it last
+  and aggregates it by surface form. Should it appear in the pns notification at all, or only in the
+  file? (6) One notification per recording with aggregation past three, or one summary per run always? A
+  weekly reviewer might prefer the latter. (7) Does `verify-note` belong in vpp or in whatever writes the
+  note? It is a separate command precisely because the writer is undecided. If the writer turns out to be
   `minutes`, the check still works but would be checking a third-party tool's output against a timecode
-  convention that tool does not follow, which needs the convention enforced somewhere else. (8) Where
+  convention that tool does not follow, which needs the convention enforced somewhere else. **Decided
+  2026-09-15: in vpp**, since `minutes` is out and vpp is the only thing that writes the note. (8) Where
   does vpp's code live? The sibling boundaries design recommends its own repository; the sibling
   discovery design assumed a fifth cargo workspace in dotfiles. Nothing in this document depends on the
   answer, but the two designs should not stay in disagreement.
@@ -5233,9 +5299,11 @@ transcription was started during this audit.
   (6) Should `vpp path` stay the contract for the later note generator, or should vpp write the analysis
   note itself? (7) Does minutes stay? If it does, its notes are input that vpp files, and the two schemas
   sit side by side in one vault with no key in common; adopting its schema was rejected for reasons that
-  would need revisiting if minutes becomes the note generator rather than a candidate. (8) Where does
-  vpp's code live, and what is it called? Carried forward unresolved from the boundaries design so the
-  chain does not stay in disagreement with itself.
+  would need revisiting if minutes becomes the note generator rather than a candidate. **Decided
+  2026-09-15: no**, minutes is out entirely; there is only vpp's own schema. See
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (8) Where does vpp's code live,
+  and what is it called? Carried forward unresolved from the boundaries design so the chain does not stay
+  in disagreement with itself.
 - [ ] Plan meeting briefs using relevant notes, with optional read-only calendar and Todoist inputs.
   Record Bob, the future Hermes executive assistant, as a consumer of vpp's notes and briefs. The exact
   trigger, scheduling owner, access scopes and provider choices remain under discussion. Keep source
@@ -5314,12 +5382,14 @@ transcription was started during this audit.
   one consumed by Bob, is a name collision waiting to confuse a future session. (7) If `minutes` stays,
   should its `research` and `person` output be a context source for a brief? It is the one installed tool
   that already ranks material about a person or topic, over its own corpus. This is downstream of the
-  keep-or-replace ruling and does not need answering before it. (8) Is the local Apple Calendar store
-  representative of the operator's calendars? The measurement came from that store (16 calendars), and
-  recommending the Google interface assumes the meetings that matter are in Google. A calendar existing
-  only in Calendar.app would be invisible to this design. (9) Where does vpp's code live, and what is it
-  called? Carried forward unresolved from the boundaries design, because the chain should not stay in
-  disagreement with itself.
+  keep-or-replace ruling and does not need answering before it. **Moot, decided 2026-09-15:** minutes is
+  out entirely; there is no `research` or `person` output to draw from. See
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (8) Is the local Apple Calendar
+  store representative of the operator's calendars? The measurement came from that store (16 calendars),
+  and recommending the Google interface assumes the meetings that matter are in Google. A calendar
+  existing only in Calendar.app would be invisible to this design. (9) Where does vpp's code live, and
+  what is it called? Carried forward unresolved from the boundaries design, because the chain should not
+  stay in disagreement with itself.
 - [ ] Support a separate redacted draft for sharing, reviewed before release, preserving private
   originals. Choose the summary format, retention, transcription engines and local/cloud processing
   before implementation. Speaker labels and dated digests remain unapproved candidates. 2026-09-14:
@@ -5374,8 +5444,10 @@ transcription was started during this audit.
   in scope later? The vault already has a PDF export recipe, and a PDF carries producer, timestamp and
   sometimes path metadata that a Markdown file does not. (8) If `minutes` stays, should its `vocabulary`
   feed terms alongside known-terms.txt? Two lists that disagree would mask a name in one pipeline and not
-  the other. Downstream of the minutes keep-or-replace ruling. (9) Where does vpp's code live, and what
-  is it called? Carried forward unresolved from the boundaries design.
+  the other. Downstream of the minutes keep-or-replace ruling. **Moot, decided 2026-09-15:** minutes is
+  out entirely; there is only known-terms.txt. See
+  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (9) Where does vpp's code live,
+  and what is it called? Carried forward unresolved from the boundaries design.
 - [ ] Keep vpp application code in its own project, Mac installation and service configuration in
   dotfiles, output content in the configured directory (Ivy for this operator), and homelab deployments
   in homelab. Reuse existing transcription tasks. vpp must work without Bob, Forzare or the full homelab;
@@ -5422,10 +5494,13 @@ transcription was started during this audit.
   `agent-processing-pipeline/vpp/` subtree beside the `minutes` symlink? (5) Is `minutes` in or out? It
   already lists and searches voice memos and already owns a directory inside the vault; if it is in,
   vpp's scope shrinks, and if it is out, its open tool evaluation should record that vpp supersedes it.
-  (6) Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
-  maintains the folder note for a directory a tool writes into? (7) Should vpp's binary, configuration
-  and LaunchAgent join posture's user-configured watch list? They sit outside the osquery known-good
-  manifests by default (verified), so this is an opt-in rather than a consequence.
+  **Decided 2026-09-15: out.** vpp does not use or depend on `minutes`, in any form; the operator's own
+  words are that `minutes` is poorly designed, though it has good features worth learning from. vpp
+  supersedes it. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (6) Do the
+  vault's folder-note and frontmatter conventions apply to machine-written notes, and who maintains the
+  folder note for a directory a tool writes into? (7) Should vpp's binary, configuration and LaunchAgent
+  join posture's user-configured watch list? They sit outside the osquery known-good manifests by default
+  (verified), so this is an opt-in rather than a consequence.
 
 ## SP8, macOS agent workflow manager
 

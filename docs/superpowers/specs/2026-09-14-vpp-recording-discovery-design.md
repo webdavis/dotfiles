@@ -607,7 +607,10 @@ Resources folder. The vault's `CLAUDE.md` claim that the link is "managed by
 1. **Does the `minutes` ruling change this boundary?** The design assumes discovery is a producer and
    transcription is a consumer. If the operator intends vpp to be a thin front end on `minutes watch`
    instead, the clone destination changes to a directory `minutes` watches and most of this design is
-   replaced by configuring a third-party tool.
+   replaced by configuring a third-party tool. **Decided 2026-09-15: no.** `minutes` is out entirely, so
+   the boundary in this design is unchanged: discovery stays a producer, transcription stays vpp's own
+   consumer, and there is no third-party tool to configure instead. See
+   `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
 1. **Clones, or references?** Assumption 5 chose clones on measured cost. Worth a sentence of
    confirmation, because it is the decision that puts a second copy of every personal recording inside
    the vault directory, gitignored but present.

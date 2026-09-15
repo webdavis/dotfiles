@@ -1007,7 +1007,9 @@ value either way.
 1. **Does `minutes` stay?** If it does, its notes are input that vpp files, and the two schemas sit side
    by side in one vault with no key in common. That is workable and slightly ugly, and the alternative,
    adopting its schema, was rejected above for reasons that would need revisiting if `minutes` becomes
-   the note generator rather than a candidate. **Closed: no.** `minutes` is out entirely.
+   the note generator rather than a candidate. **Closed: no.** `minutes` is out entirely; there is only
+   vpp's own schema. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1, and
+   `docs/decisions/2026-09-15-vpp-question-triage.md`.
 1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
    design, because the chain should not stay in disagreement with itself. **Code home: closed**, own
    repository. **Name: still open**, see the boundaries design's own open questions.

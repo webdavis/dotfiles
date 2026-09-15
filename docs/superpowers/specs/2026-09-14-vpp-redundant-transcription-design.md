@@ -873,18 +873,28 @@ sends its first notification rather than after.
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows T1-T7) for the full reasoning; the short form is
-in the per-item notes that follow.
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows T1-T7) and
+`docs/decisions/2026-09-15-vpp-architecture-decisions.md` for the full reasoning; the short form is in the
+per-item notes that follow. The architecture is broader than this design's own single-pair
+recommendation: two engine slots, primary and optional fallback, both named in config, with the
+fallback's trigger (on failure, or every recording) also configurable (decision 3). Reconciliation picks
+a winner and flags uncertainty two ways only, inline markers plus `vpp review <id>`; a summary block and a
+separate document were both considered and rejected (decision 4). Three further engine-pair behaviors are
+approved for building (transcript-wins rule, both-engines-fail handling defaulting to keep-and-flag,
+engine per language), and two adjacent ones are explicitly not built, a disagreement threshold and a
+cloud spend ceiling, both because no defensible default exists yet (decision 5).
 
 1. **Which engine pairing, from the priced table above?** This is Open Question 8 and everything else in
    the design is a configuration value once it is answered. **Closed:** no single pair. Primary plus
    optional fallback, both named in config; Apple Speech and whisply ship as the two starting first-class
-   adapters, the wider priced menu stays reachable through the generic command adapter.
+   adapters, and the wider priced table above stays recorded as candidates reachable through the generic
+   command adapter rather than a shipped pair.
 1. **Is the Apple SpeechAnalyzer route worth a Swift helper inside a Rust project?** It is the only free
    different-family option on this Mac, it is confirmed available here, and it is the one choice that
    would need a second language in the build. Its confidence reporting is unknown and would need a probe.
-   **Closed: yes, approved.** The confidence reporting is no longer unknown; see the corrected note above
-   this section and `docs/decisions/2026-09-15-vpp-question-triage.md`.
+   **Closed: yes, approved.** Apple Speech is one of the two starting first-class adapters (decision 10),
+   and the confidence reporting is no longer unknown; see the corrected note above this section and
+   `docs/decisions/2026-09-15-vpp-question-triage.md`.
 1. **May a transcript be committed to the vault, and therefore synced to a phone?** The audio is
    gitignored and the transcript would not be. Everything in this design assumes yes, because that is
    what the vault's `transcripts/` directory is for, but it is the decision that puts searchable text of
@@ -893,6 +903,9 @@ in the per-item notes that follow.
 1. **Should a confirmed correction rewrite future transcripts?** Recording that "Muthakrishnan" should be
    "Muthukrishnan" is cheap. Applying it automatically changes the transcript of record without a human
    reading the result. The design records and does not apply; the alternative is worth a sentence.
+   **Confirmed 2026-09-15:** the design's own recommendation stands. Record only; a correction made
+   through `vpp review` feeds forward into `vpp confirm --term` and improves future transcripts, never
+   rewrites a shipped one (decision 4).
 1. **How loud should `agreed-unverified` be?** It is the class that catches the error both engines
    shared, and it is also the largest class. The design ranks it last and aggregates it. Should it appear
    in the pns notification at all, or only in the file? **Closed:** counts only in the `[notify]` event;
@@ -904,7 +917,8 @@ in the per-item notes that follow.
    separate command precisely because the writer is undecided. If the writer turns out to be `minutes`,
    the check still works, but it would then be checking a third-party tool's output against a convention
    that tool does not follow, which needs the convention to be enforced somewhere else. **Closed: in
-   vpp.** There is no other note writer; `minutes` is out entirely.
+   vpp.** `minutes` is out entirely (decision 1), so vpp is the only thing that writes the note; the
+   undecided writer this question depended on is now settled.
 1. **Where does vpp's code live?** The boundaries design recommends its own repository; the discovery
    design assumed a fifth workspace here. Nothing in this document depends on the answer, but the two
    sibling designs should not stay in disagreement. **Closed: own repository.** See
