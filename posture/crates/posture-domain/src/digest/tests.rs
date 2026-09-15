@@ -76,19 +76,27 @@ fn a_group_keeps_the_order_its_findings_were_spooled_in() {
 fn a_group_header_counts_every_finding_even_the_ones_the_bullet_cap_left_out() {
     // THE COUNT IS THE POINT: capping the lines a noisy detector spends must
     // never cap what the operator is told happened.
-    let many: Vec<DigestEntry<'_>> = (0..13).map(|_| entry("one", "i", "s")).collect();
+    let identities: Vec<String> = (0..13).map(|n| format!("i{n:02}")).collect();
+    let many: Vec<DigestEntry<'_>> = identities
+        .iter()
+        .map(|identity| entry("one", identity, "s"))
+        .collect();
     let rendered = render_digest(&many);
     assert!(rendered.starts_with("**one** (13)\n"), "{rendered}");
-    assert_eq!(rendered.matches("- `i` - `s`").count(), BULLETS_PER_GROUP);
+    assert_eq!(rendered.matches("- `i").count(), BULLETS_PER_GROUP);
     assert!(rendered.contains("\n… +3 more\n"), "{rendered}");
 }
 
 #[test]
 fn a_group_at_the_bullet_cap_exactly_rolls_nothing_up() {
-    let exactly = vec![entry("one", "i", "s"); BULLETS_PER_GROUP];
+    let identities: Vec<String> = (0..BULLETS_PER_GROUP).map(|n| format!("i{n:02}")).collect();
+    let exactly: Vec<DigestEntry<'_>> = identities
+        .iter()
+        .map(|identity| entry("one", identity, "s"))
+        .collect();
     let rendered = render_digest(&exactly);
     assert!(!rendered.contains("more"), "{rendered}");
-    assert_eq!(rendered.matches("- `i` - `s`").count(), BULLETS_PER_GROUP);
+    assert_eq!(rendered.matches("- `i").count(), BULLETS_PER_GROUP);
 }
 
 #[test]
@@ -175,8 +183,10 @@ fn a_field_longer_than_its_cap_is_cut_inside_its_own_span() {
 fn a_body_over_its_cap_is_cut_with_a_marker_and_nothing_else() {
     // Twelve bullets of two 200-character fields overruns 1800; the marker adds
     // its own fourteen characters on top, which is the measured 1814.
-    let long = "x".repeat(200);
-    let many: Vec<DigestEntry<'_>> = (0..12).map(|_| entry("one", &long, &long)).collect();
+    let longs: Vec<String> = (0..12)
+        .map(|n| format!("{}{n:02}", "x".repeat(198)))
+        .collect();
+    let many: Vec<DigestEntry<'_>> = longs.iter().map(|long| entry("one", long, long)).collect();
     let rendered = render_digest(&many);
     assert_eq!(rendered.chars().count(), 1814);
     assert!(rendered.ends_with("\n… (truncated)"), "{rendered}");
@@ -187,8 +197,10 @@ fn the_body_is_cut_by_characters_so_a_multi_byte_value_never_splits() {
     // A byte cut here would render a replacement glyph where the operator
     // expects a path, so the cut lands at the same COUNT whatever the encoding
     // costs.
-    let wide = "é".repeat(200);
-    let many: Vec<DigestEntry<'_>> = (0..12).map(|_| entry("one", &wide, &wide)).collect();
+    let wides: Vec<String> = (0..12)
+        .map(|n| format!("{}{n:02}", "é".repeat(198)))
+        .collect();
+    let many: Vec<DigestEntry<'_>> = wides.iter().map(|wide| entry("one", wide, wide)).collect();
     let rendered = render_digest(&many);
     assert_eq!(rendered.chars().count(), 1814);
     assert!(rendered.chars().count() < rendered.len(), "{rendered}");
@@ -205,4 +217,59 @@ fn a_body_exactly_at_its_cap_carries_no_truncation_marker() {
         capped(over, BODY_LIMIT),
         format!("{exact}{BODY_TRUNCATION}")
     );
+}
+
+#[test]
+fn a_hundred_repeats_of_one_path_collapse_to_one_line_naming_the_count() {
+    // The 2026-09-14 digest spent 110 lines on one rewritten agent config. The
+    // header still counts every arrival; the body spends one line on them.
+    let many: Vec<DigestEntry<'_>> = (0..100)
+        .map(|_| {
+            entry(
+                "agent_authfile_changed",
+                "~/.codex/config.toml",
+                "agent_authfile_changed ~/.codex/config.toml",
+            )
+        })
+        .collect();
+    assert_eq!(
+        render_digest(&many),
+        "**agent_authfile_changed** (100)\n\
+         - `~/.codex/config.toml` - `agent_authfile_changed ~/.codex/config.toml` (×100)\n"
+    );
+}
+
+#[test]
+fn two_paths_under_one_detector_stay_two_lines() {
+    let rendered = render_digest(&[
+        entry("one", "/first", "s1"),
+        entry("one", "/second", "s2"),
+        entry("one", "/first", "s1"),
+    ]);
+    assert_eq!(
+        rendered,
+        "**one** (3)\n- `/first` - `s1` (×2)\n- `/second` - `s2`\n"
+    );
+}
+
+#[test]
+fn two_different_things_said_about_one_path_stay_two_lines() {
+    // What makes two findings the same finding is identity AND summary. A page
+    // never reaches the spool at all (see the judge's own test), and within the
+    // digest a differing summary is never folded away into another line's count.
+    let rendered = render_digest(&[
+        entry("one", "/etc/hosts", "one changed"),
+        entry("one", "/etc/hosts", "one removed"),
+    ]);
+    assert_eq!(
+        rendered,
+        "**one** (2)\n- `/etc/hosts` - `one changed`\n- `/etc/hosts` - `one removed`\n"
+    );
+}
+
+#[test]
+fn a_finding_that_arrived_once_carries_no_count_suffix() {
+    let rendered = render_digest(&[entry("one", "/etc/hosts", "s")]);
+    assert_eq!(rendered, "**one** (1)\n- `/etc/hosts` - `s`\n");
+    assert!(!rendered.contains('×'), "{rendered}");
 }
