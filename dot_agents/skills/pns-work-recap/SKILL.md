@@ -6,7 +6,8 @@ description: Produce the structured work recap of the current branch, worktree, 
 # Work recap
 
 The layout, the readability rules and the delivery rule all live in the
-**Work recaps** section of `~/.claude/CLAUDE.md`. Read that section and follow
+**Work recaps** section of your harness's global rules (`~/.claude/CLAUDE.md`
+for Claude Code, `~/.codex/AGENTS.md` for Codex). Read that section and follow
 it there; it is the single source for the shape of a recap. This skill only
 covers how to fill it in.
 
