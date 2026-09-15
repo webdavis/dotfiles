@@ -60,7 +60,7 @@ fn a_recap_with_unreadable_local_time_posts_the_same_placeholder_in_header_and_t
     let body = world.build(&Recap::default());
     let sent = std::cell::RefCell::new(Vec::new());
     assert_eq!(
-        crate::post_return_recap(&body, false, |body, route| {
+        crate::post_return_recap(&body, |body, route| {
             sent.borrow_mut()
                 .push((body.to_string(), route.to_string()));
             vec![pns_domain::Delivery::Silent]

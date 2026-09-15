@@ -111,11 +111,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
-    for expected in [
-        "\nreplay_card = true\n",
-        "\ndigest = true\n",
-        "\ndigest_as_thread = true\n",
-    ] {
+    for expected in ["\nreplay_card = true\n", "\ndigest = true\n"] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
     // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.

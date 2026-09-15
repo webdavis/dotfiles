@@ -4,13 +4,12 @@ use super::*;
 
 #[test]
 fn a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone() {
-    // ONE KEY STATED, THE OTHER TWO UNTOUCHED. The three deliveries are
+    // ONE KEY STATED, THE OTHER UNTOUCHED. The two deliveries are
     // independent, so an operator who silenced the recap must not find
     // they also silenced the catch-up card, or the other way round.
     let config = parse_config("[recap]\ndigest = false\n").unwrap();
     assert!(!config.recap.digest, "the stated switch was read");
     assert!(config.recap.replay_card, "the card kept its default");
-    assert!(config.recap.digest_as_thread, "the thread kept its default");
 }
 
 #[test]
@@ -23,7 +22,6 @@ fn a_config_with_no_recap_table_leaves_every_switch_on() {
     let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
     assert!(config.recap.replay_card, "the catch-up card");
     assert!(config.recap.digest, "the recap");
-    assert!(config.recap.digest_as_thread, "the recap's own thread");
 }
 
 #[test]

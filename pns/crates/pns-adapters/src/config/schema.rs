@@ -46,7 +46,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "recap",
         &[
             "digest",
-            "digest_as_thread",
             "min_events",
             "replay_card",
             "repos",

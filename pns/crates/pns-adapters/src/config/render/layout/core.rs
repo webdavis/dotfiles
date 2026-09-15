@@ -45,15 +45,6 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("true"),
         },
         Key {
-            name: "digest_as_thread",
-            prose: "# Whether that recap posts to the `pns-recap` route rather than the\n\
-                         # default one. The route has to exist in hermes first, prepared with\n\
-                         # the pns signing secret and a prompt of bare `{detail}`; a route that\n\
-                         # refuses the post is not silent, the recap goes to the default route\n\
-                         # instead, carrying one line saying why it landed there.\n",
-            sample: Sample::Default("true"),
-        },
-        Key {
             name: "min_events",
             prose: "# How many events a window needs before it is worth a recap rather than\n\
                          # the catch-up card alone. Every recap's header prints the window's real\n\

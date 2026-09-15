@@ -8,11 +8,10 @@
 //! key the config refuses, or one nothing ever reads.
 
 /// The route an event that named none takes: the gateway's own `pns-events`
-/// webhook, which is also the final segment of `DEFAULT_HERMES_URL`.
+/// webhook, which is also the final segment of `DEFAULT_HERMES_URL`. THE
+/// RETURN RECAP TAKES IT TOO. The `pns-recap` route and its Discord channel
+/// retired on 2026-09-15, and a recap is a session event like any other.
 pub const DEFAULT_ROUTE: &str = "pns-events";
-
-/// The route a threaded recap posts to, read by `post_return_recap`.
-pub const RECAP_ROUTE: &str = "pns-recap";
 
 /// The route a page submitted by the posture pipeline posts to. NOTHING IN
 /// PNS SELECTS IT: posture is the producer that names it, and this is the wire
@@ -28,12 +27,7 @@ pub const POSTURE_ROUTE: &str = "posture-pages";
 /// A ROUTE NOT IN THIS LIST HAS NO KEY, and a post to one is refused rather
 /// than signed with somebody else's: `--channel` takes any usable name, so
 /// falling back to a shared key would sign for a route nobody granted.
-pub const ROUTES: &[&str] = &[
-    DEFAULT_ROUTE,
-    RECAP_ROUTE,
-    POSTURE_ROUTE,
-    crate::stale::PRIORITY_ROUTE,
-];
+pub const ROUTES: &[&str] = &[DEFAULT_ROUTE, POSTURE_ROUTE, crate::stale::PRIORITY_ROUTE];
 
 #[cfg(test)]
 mod tests {

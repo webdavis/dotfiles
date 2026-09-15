@@ -7,8 +7,8 @@ use crate::*;
 /// prints nothing, so the mode only ever moved the deadline. MEASURED against
 /// a dead endpoint, `pns recap --since ... --until ...` printed nothing and
 /// exited 0, which is exactly the drill an operator runs by hand to check a
-/// `pns-recap` route they have just prepared, against exactly the failure it
-/// is most likely to meet.
+/// route they have just prepared, against exactly the failure it is most
+/// likely to meet.
 ///
 /// THE SAME LINE `run_event` PRINTS, prefix and all, because a second spelling
 /// of one report is a second thing to keep in step. The detached child's

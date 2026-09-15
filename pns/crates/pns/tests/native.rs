@@ -248,8 +248,8 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
 #[test]
 fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     // THE HAND-RUN DRILL IS THE WHOLE REASON THIS MODE PRINTS. An operator who
-    // has just prepared a `pns-recap` route runs exactly this by hand to check
-    // it, and MEASURED against an endpoint nothing is listening on, the mode
+    // has just prepared the gateway runs exactly this by hand to check it, and
+    // MEASURED against an endpoint nothing is listening on, the mode
     // printed nothing and exited 0: indistinguishable from a recap that
     // arrived. `ReportMode::ReportOutcome` was already on the leg; nothing was
     // reading what it returned.
@@ -287,7 +287,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     );
 }
 
-/// THE ROUTE A RECAP TAKES, ON THE WIRE, and the fallback behind it.
+/// THE ROUTE A RECAP TAKES, ON THE WIRE, and there is only the one.
 ///
 /// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE, for the reason the stale
 /// alert's own route test states: `PNS_CHANNELS_DIR` leaves the native hermes
@@ -296,16 +296,16 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
 /// PROXIED rather than moved, exactly as that test does it, and the capture
 /// answers 404 the way hermes answers for a route nobody prepared.
 ///
-/// TWO REQUESTS TO ONE HOST AND PORT is what a fallback IS, which is why the
-/// capture serves two: the route swap changes the path alone.
+/// ONE REQUEST IS THE WHOLE DELIVERY. The recap used to try `pns-recap` and
+/// fall back here; that route retired with its channel on 2026-09-15, so a
+/// refusal is reported and nothing is posted twice.
 #[test]
-fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so() {
-    let sandbox = Sandbox::new("recap-thread-fallback");
+fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
+    let sandbox = Sandbox::new("recap-route");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\n\
-         keys = { pns-events = \"gate-signing-key\", pns-recap = \"recap-signing-key\" }\n",
+        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("2"));
+    let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("1"));
 
     let mut command = plugin_command(&sandbox);
     command
@@ -325,23 +325,12 @@ fn a_recap_the_thread_route_will_not_take_falls_back_to_the_default_and_says_so(
         .collect();
     assert_eq!(
         posted,
-        [
-            "POST /webhooks/pns-recap HTTP/1.1",
-            "POST /webhooks/pns-events HTTP/1.1"
-        ],
-        "the thread route was tried first and the default caught it: {raw}"
+        ["POST /webhooks/pns-events HTTP/1.1"],
+        "the recap took a route of its own: {raw}"
     );
-    // AND THE SECOND BODY SAYS WHY IT IS THERE. A recap that quietly landed on
-    // the default route looks exactly like a recap that was never configured
-    // for a thread at all.
-    let bodies: Vec<&str> = raw.split("\r\n\r\n").skip(1).collect();
-    let fallback = bodies.last().expect("a second body");
+    let body = raw.split("\r\n\r\n").last().expect("a posted body");
     assert!(
-        fallback.contains("did not take this"),
-        "the fallback said nothing about why it landed here: {fallback}"
-    );
-    assert!(
-        fallback.contains("While you were away"),
-        "the fallback carried a different body from the one it retried: {fallback}"
+        body.contains("While you were away"),
+        "the posted body is not the composed recap: {body}"
     );
 }

@@ -217,7 +217,7 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
 #[test]
 fn the_doctor_names_every_route_the_config_armed_no_key_for() {
     // THE TEST SEND CANNOT FIND THESE. It posts on the default route alone, so
-    // three of the four keys are never exercised, and `priority` carries the
+    // two of the three keys are never exercised, and `priority` carries the
     // stale-block escalation, which is raised asynchronously and records its
     // refusal where nothing prints it. Without this census an unarmed route is
     // silence in its own channel and a green doctor.
@@ -228,7 +228,7 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let said = stderr(&output);
-    for route in ["pns-recap", "posture-pages", "priority"] {
+    for route in ["posture-pages", "priority"] {
         assert!(
             said.contains(&format!(
                 "no hermes signing key for the {route} route, so every post to it is \
