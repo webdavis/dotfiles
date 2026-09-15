@@ -1,10 +1,10 @@
 mod render;
 
-use lights_adapters::FilePositionStore;
 use lights_adapters::settings::{self, HueSettings, Settings};
+use lights_adapters::{FilePositionStore, SystemClock};
 use lights_application::{
-    AdjustBrightness, ApplyPreset, BrightnessChange, LightController, LightsError, Notifier,
-    ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene, TogglePower,
+    AdjustBrightness, ApplyPreset, BrightnessChange, ChoosePreset, LightController, LightsError,
+    Notifier, ReportStatus, SceneMemory, SceneSelection, SetPower, SetScene, TogglePower,
 };
 use lights_domain::{Action, Brightness, Direction};
 use lights_protocol::{BrightnessRequest, Command, Request};
@@ -38,18 +38,28 @@ pub fn run<C: LightController>(
     let notify = request.notify || settings.notify;
     let store = FilePositionStore::new(state);
     let memory = SceneMemory::new(&store, settings.remember_position);
-    if let Command::Preset(name) = &request.command {
-        let Some(name) = name else {
-            let names = render::preset_names(&settings.presets);
-            // Listing nothing is not an error, but silence on a fresh config is
-            // indistinguishable from a broken binary, so say which it is.
-            return if names.is_empty() {
-                failure(0, "no presets configured")
-            } else {
-                success(names)
-            };
+    if matches!(request.command, Command::Preset(_) | Command::PresetNow) {
+        let name = match &request.command {
+            Command::Preset(None) => {
+                let names = render::preset_names(&settings.presets);
+                // Listing nothing is not an error, but silence on a fresh
+                // config is indistinguishable from a broken binary, so say
+                // which it is.
+                return if names.is_empty() {
+                    failure(0, "no presets configured")
+                } else {
+                    success(names)
+                };
+            }
+            Command::Preset(Some(name)) => name.clone(),
+            // THE CLOCK CHOOSES, and a clock that names nothing is a refusal:
+            // one key that quietly does nothing is worse than one that says why.
+            _ => match ChoosePreset::run(&SystemClock, &settings.preset_windows) {
+                Ok(name) => name.to_owned(),
+                Err(refusal) => return failure(1, &render::no_preset_now(refusal)),
+            },
         };
-        let Some(plan) = settings.presets.plan(name) else {
+        let Some(plan) = settings.presets.plan(&name) else {
             return failure(1, &format!("unknown preset {name:?}"));
         };
         let results = ApplyPreset::run(
@@ -129,7 +139,7 @@ fn execute<C: LightController>(
             },
         ),
         Command::Status => ReportStatus::run(controller, room),
-        Command::Help | Command::Preset(_) => {
+        Command::Help | Command::Preset(_) | Command::PresetNow => {
             unreachable!("help and presets return before single-room composition")
         }
     }
