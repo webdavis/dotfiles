@@ -117,6 +117,14 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "[plugins.hue]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
         ),
         (
+            "plugins.discord.token",
+            "[plugins.discord]\ntoken = \"a-literal-token\"\n",
+        ),
+        (
+            "plugins.discord.channels.default",
+            "[plugins.discord.channels]\ndefault = \"9001\"\n",
+        ),
+        (
             "plugins.router.api_key",
             "[plugins.router]\napi_key = \"a-literal-key\"\n",
         ),

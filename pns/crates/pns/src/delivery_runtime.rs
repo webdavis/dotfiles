@@ -1,5 +1,5 @@
 use crate::{Mobile, channel_dispatch, failure_notice, now_secs, state_dir};
-use pns_adapters::{HermesKeys, SqliteStore};
+use pns_adapters::{DiscordSettings, HermesKeys, SqliteStore};
 use pns_application::{
     Clock, DeliveryRequest, LeaseWindow, LedgerFailure, LedgerLeg, LedgerSubmission,
     SubmissionDelivery, SubmissionIdentity, Submitted,
@@ -20,6 +20,7 @@ pub(crate) struct DeliveryRuntime<'a> {
     pub(crate) home: &'a str,
     pub(crate) mobile: &'a Mobile,
     pub(crate) hermes_keys: &'a HermesKeys,
+    pub(crate) discord: &'a DiscordSettings,
     pub(crate) json: bool,
 }
 
@@ -65,6 +66,7 @@ impl DeliveryRuntime<'_> {
             self.home,
             self.mobile,
             self.hermes_keys,
+            self.discord,
             self.json,
         );
         self.attempt(input, clock, &destinations)

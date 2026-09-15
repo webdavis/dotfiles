@@ -23,7 +23,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     let lines = report_rows(&printed);
     let summary = lines
         .iter()
-        .position(|line| *line == "3 sent, 0 failed, 3 skipped")
+        .position(|line| *line == "3 sent, 0 failed, 4 skipped")
         .unwrap_or_else(|| panic!("no summary line in {printed}"));
     assert_eq!(lines[summary + 1], PAIRED_LINE, "{printed}");
     assert_eq!(lines[summary + 2], MOSHI_SAYS_LINE, "{printed}");
@@ -171,7 +171,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         "a call that never answered relays nothing: {printed}"
     );
     assert!(
-        printed.contains("3 sent, 0 failed, 3 skipped"),
+        printed.contains("3 sent, 0 failed, 4 skipped"),
         "and the sections printed before it survived: {printed}"
     );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
@@ -237,7 +237,7 @@ fn an_unpaired_host_exits_one_while_the_summary_still_reads_zero_failed() {
 
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
-    assert!(printed.contains("3 sent, 0 failed, 3 skipped"), "{printed}");
+    assert!(printed.contains("3 sent, 0 failed, 4 skipped"), "{printed}");
     assert!(
         printed.contains(
             "moshi pairing: this host is NOT paired, so every \
