@@ -31,7 +31,7 @@ pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 /// The route a page takes when its own tier names none: the heartbeat, the
 /// digest and the cursor-reset warning. A tiered finding overrides it; see
 /// `posture_domain::severity_route`.
-const UNTIERED_ROUTE: &str = "posture";
+const UNTIERED_ROUTE: &str = "posture-pages";
 
 /// Where posture's delivery choice lives for a given home directory. Pure, so
 /// the path rule is testable without an environment.

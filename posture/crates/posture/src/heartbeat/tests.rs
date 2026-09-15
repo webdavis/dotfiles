@@ -152,7 +152,7 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
         "\"event\":\"heartbeat\"",
         "\"kind\":\"observation\"",
         "\"occurred_at\":10000",
-        "\"route\":\"posture\"",
+        "\"route\":\"posture-pages\"",
         "canary 17s ago",
     ] {
         assert!(request.contains(field), "{field}: {request}");

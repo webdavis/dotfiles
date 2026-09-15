@@ -20,14 +20,12 @@
 # page with the key for the route that page is going to, and posts it itself.
 #
 # The producer path below is the other option, and it is NOT what this machine
-# uses. pns holds one hermes key rather than one per route, so it would sign a
-# critical page bound for `priority` with the `#pns` key, the gateway would
-# answer 401, and pns commits its ledger before it tries any destination. The
-# refusal would come back to posture as an acceptance, the cursor would
-# advance, and the finding would be gone from both channels. Posting the page
-# here is what makes posture read the gateway's own answer. Switch to
-# `mode = "producer"` once the engine named below signs each route with that
-# route's own key.
+# uses. pns commits its ledger before it tries any destination, so a critical
+# page bound for `priority` that the gateway refuses comes back to posture as
+# an acceptance: the cursor advances and the finding is gone from both
+# channels. Posting the page here is what makes posture read the gateway's own
+# answer. Switch to `mode = "producer"` once the engine named below reports the
+# destination's answer rather than its own ledger.
 mode = "hermes"
 
 # The command a page is handed to, and its arguments, passed verbatim. The
@@ -38,8 +36,8 @@ command = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 arguments = ["submit", "--json"]
 
 # The path selected above. `url` is the gateway's webhook base, one path
-# segment above the route: a page for the `posture` route is posted to
-# `<url>/posture`. A route the gateway does not serve answers 404, which is a
+# segment above the route: a page for the `posture-pages` route is posted to
+# `<url>/posture-pages`. A route the gateway does not serve answers 404, which is a
 # failed delivery and a local banner, never a page reported as delivered.
 [delivery.hermes]
 url = "http://127.0.0.1:8644/webhooks"
@@ -49,9 +47,9 @@ url = "http://127.0.0.1:8644/webhooks"
 # file holds no key for refuses the page and raises the local banner rather
 # than reporting a delivery that never happened.
 #
-# `posture` carries every page below critical; `priority` carries a critical
-# security finding, which is what the operator reserved that channel for
-# (machine health and security only, 2026-09-14).
+# `posture-pages` carries every page below critical; `priority` carries a
+# critical security finding, which is what the operator reserved that channel
+# for (machine health and security only, 2026-09-14).
 [delivery.hermes.keys]
-posture = {{ (keepassxc "Hermes :: Webhook Secret (#posture)").Password | toToml }}
+posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}

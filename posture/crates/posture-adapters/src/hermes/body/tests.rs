@@ -37,7 +37,7 @@ fn the_body_serves_the_header_subheader_and_body_placeholders_too() {
 #[test]
 fn no_placeholder_any_gateway_route_names_is_left_out_of_the_body() {
     let parsed: serde_json::Value =
-        serde_json::from_str(&encode(&alert(), &Name::new("posture").unwrap())).unwrap();
+        serde_json::from_str(&encode(&alert(), &Name::new("posture-pages").unwrap())).unwrap();
     for key in [
         "agent",
         "state",
@@ -65,7 +65,7 @@ fn an_untiered_page_states_what_its_submission_is_rather_than_a_tier() {
             ..alert()
         };
         let parsed: serde_json::Value =
-            serde_json::from_str(&encode(&alert, &Name::new("posture").unwrap())).unwrap();
+            serde_json::from_str(&encode(&alert, &Name::new("posture-pages").unwrap())).unwrap();
         assert_eq!(parsed["state"], word);
     }
 }
@@ -77,6 +77,6 @@ fn a_detail_holding_json_syntax_is_encoded_rather_than_glued_into_the_body() {
         ..alert()
     };
     let parsed: serde_json::Value =
-        serde_json::from_str(&encode(&alert, &Name::new("posture").unwrap())).unwrap();
+        serde_json::from_str(&encode(&alert, &Name::new("posture-pages").unwrap())).unwrap();
     assert_eq!(parsed["alert"]["detail"], "plugin \"a\": {broken}\nnext");
 }
