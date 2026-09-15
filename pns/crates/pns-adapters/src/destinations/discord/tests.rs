@@ -1,5 +1,6 @@
 use super::request::API_BASE;
 use super::*;
+use pns_domain::channel_map::ChannelMap;
 use pns_domain::retry::{DeadletterReason, FailureClass, RetryLimits};
 use std::sync::Mutex;
 
@@ -51,23 +52,53 @@ fn event() -> Event {
 }
 
 fn delivered_by(channel: &DiscordChannel<Recorder>) -> Delivery {
-    let event = event();
+    delivered_about(channel, &event())
+}
+
+fn delivered_about(channel: &DiscordChannel<Recorder>, event: &Event) -> Delivery {
     channel.deliver(&DeliveryRequest {
         producer: "pns",
         request_id: Some("req-1"),
         producer_request: None,
-        event: &event,
+        event,
         route: "",
         mode: pns_domain::routing::ReportMode::ReportOutcome,
     })
 }
 
+fn channels(entries: &[(&str, &str)]) -> ChannelMap {
+    entries
+        .iter()
+        .map(|(key, channel)| ((*key).to_string(), (*channel).to_string()))
+        .collect()
+}
+
 fn armed(answer: DeliveryOutcome) -> DiscordChannel<Recorder> {
+    armed_on("", channels(&[("default", "9001")]), answer)
+}
+
+fn armed_on(
+    route: &str,
+    channels: ChannelMap,
+    answer: DeliveryOutcome,
+) -> DiscordChannel<Recorder> {
     DiscordChannel {
         post: Recorder::answering(answer),
         token: Some(TOKEN.to_string()),
-        channel_id: Some("9001".to_string()),
+        channels,
+        route: route.to_string(),
     }
+}
+
+/// The channel one post was addressed to, read off the URL the seam recorded.
+fn posted_to(channel: &DiscordChannel<Recorder>) -> String {
+    let seen = channel.post.seen.lock().unwrap();
+    let sent = seen.first().expect("one post went out");
+    sent.url
+        .strip_prefix(&format!("{API_BASE}/channels/"))
+        .and_then(|rest| rest.strip_suffix("/messages"))
+        .expect("a channel URL")
+        .to_string()
 }
 
 #[test]
@@ -80,16 +111,13 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
             DiscordChannel {
                 post: Recorder::answering(DeliveryOutcome::Status(200)),
                 token: None,
-                channel_id: Some("9001".to_string()),
+                channels: channels(&[("default", "9001")]),
+                route: String::new(),
             },
             "[plugins.discord] token",
         ),
         (
-            DiscordChannel {
-                post: Recorder::answering(DeliveryOutcome::Status(200)),
-                token: Some(TOKEN.to_string()),
-                channel_id: None,
-            },
+            armed_on("", ChannelMap::new(), DeliveryOutcome::Status(200)),
             "[plugins.discord.channels] default",
         ),
     ] {
@@ -226,4 +254,34 @@ fn a_single_oversized_line_is_clipped_to_its_start_and_the_note_is_singular() {
         "the paste's start survives: {content}"
     );
     assert!(content.contains("(1 more line dropped)"), "{content}");
+}
+
+#[test]
+fn the_event_picks_its_channel_and_the_route_picks_it_first() {
+    // THE MUTANT THIS PINS: one channel for every event, which is the whole
+    // map ignored, and a critical page posted to whichever channel the
+    // catch-all names.
+    let map = channels(&[
+        ("default", "catch-all"),
+        ("pns-events", "engine"),
+        ("priority", "pages"),
+        ("dotfiles", "dotfiles-dev"),
+    ]);
+    let mut nothing_mapped = event();
+    nothing_mapped.project = "netpulse".to_string();
+    let mut no_project = event();
+    no_project.project = String::new();
+    for (route, event, expected) in [
+        ("", event(), "dotfiles-dev"),
+        ("priority", event(), "pages"),
+        ("", nothing_mapped, "catch-all"),
+        ("", no_project, "engine"),
+    ] {
+        let channel = armed_on(route, map.clone(), DeliveryOutcome::Status(200));
+        assert!(
+            matches!(delivered_about(&channel, &event), Delivery::Delivered(_)),
+            "route {route:?} delivered"
+        );
+        assert_eq!(posted_to(&channel), expected, "route {route:?}");
+    }
 }
