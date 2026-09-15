@@ -43,7 +43,7 @@ return {
                 { icon = " ", title = "Git Log", cmd = "git log --oneline", height = 10 },
                 {
                   title = "Notifications",
-                  cmd = "gh notify -s -a -n5",
+                  cmd = "gh api 'notifications?all=true&per_page=5' --jq '.[] | \"\\(.repository.full_name)  \\(.subject.title)\"'",
                   action = function() vim.ui.open( "https://github.com/notifications") end,
                   key = "n",
                   icon = " ",
