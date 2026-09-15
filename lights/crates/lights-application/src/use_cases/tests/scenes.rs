@@ -144,11 +144,9 @@ fn a_preset_step_records_the_place_it_set() {
             scene: "Rest".into()
         })]
     );
+    // A named scene never consults the rotation, so it never asks the memory.
     assert_eq!(
         *store.calls.borrow(),
-        [
-            StoreCall::Remembered("Studio".into()),
-            StoreCall::Remember("Studio".into(), "Rest".into()),
-        ]
+        [StoreCall::Remember("Studio".into(), "Rest".into())]
     );
 }

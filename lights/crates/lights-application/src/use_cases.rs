@@ -68,11 +68,12 @@ impl SetScene {
         let active = scenes.iter().find(|s| s.active).map(|s| s.name.as_str());
         // A scene the bridge reports is the room's real place, in the rotation
         // or out of it. Memory only answers the question the bridge stopped
-        // answering, which is what a pause between presses produces.
-        let remembered = match active {
-            Some(_) => None,
-            None => memory.recall(room),
-        };
+        // answering, which is what a pause between presses produces, and only
+        // for a selection that reads the room's place at all.
+        let rotating = matches!(selection, SceneSelection::Next | SceneSelection::Previous);
+        let remembered = (rotating && active.is_none())
+            .then(|| memory.recall(room))
+            .flatten();
         let current = active.or(remembered.as_deref());
         let name = match selection {
             SceneSelection::Named(name) => name,
