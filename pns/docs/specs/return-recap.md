@@ -820,7 +820,7 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   (`Leg { name: "hermes", mode: ReportMode::ReportOutcome, decorative: false }`) and one
   `EventArgs { agent: "pns", state: "recap", detail: body, channel }`, submits it, and PRINTS what came
   back as `pns: {line}`. An empty route name posts to the default URL
-  (`pns/src/home.rs:hermes_url_for`).
+  (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`).
 - Failure sources: no hermes key; the gateway refusing (404 for a route it does not know, 502 when the
   target rejects); no response at all; a transport-level failure.
 - Fail direction: LOUD AND REPORTING, and still exit 0. "SYNCHRONOUS INSIDE THIS PROCESS, and REPORTING,
@@ -871,7 +871,7 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
 - Compatibility contract: the route is `DEFAULT_ROUTE` (`pns-domain/src/routes.rs`), the same const every
   routeless event takes, so a machine wanting a recap channel of its own gets it by pointing
   `#pns-events` somewhere else rather than by a key. `PNS_HERMES_URL` OUTRANKS the route name
-  (`pns/src/home.rs:hermes_url_for`), which is why the wire test proxies the gateway rather than moving
+  (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`), which is why the wire test proxies the gateway rather than moving
   it.
 
 ### 16. The event path starts the recap detached, in a process group of its own
