@@ -233,3 +233,43 @@ fn a_remember_position_that_is_not_a_boolean_is_named_and_rejected() {
         assert!(error.0.contains("remember_position"), "accepted {value}");
     }
 }
+const WINDOW_PRESETS: &str = "[presets]\nbed = [{ room = 'studio', off = true }]\n";
+
+#[test]
+fn preset_windows_are_read_as_minutes_of_the_local_day() {
+    let settings = parse(&format!(
+        "{VALID}{WINDOW_PRESETS}\
+         [[preset_windows]]\nstart = '22:00'\nend = '06:30'\npreset = 'bed'\n"
+    ))
+    .unwrap();
+    assert_eq!(settings.preset_windows.preset_at(23 * 60), Some("bed"));
+    assert_eq!(settings.preset_windows.preset_at(6 * 60 + 30), None);
+}
+#[test]
+fn a_window_naming_an_unknown_preset_is_refused_at_load() {
+    let error = parse(&format!(
+        "{VALID}{WINDOW_PRESETS}\
+         [[preset_windows]]\nstart = '22:00'\nend = '06:00'\npreset = 'absent'\n"
+    ))
+    .err()
+    .unwrap();
+    assert!(error.0.contains("absent"), "{}", error.0);
+}
+#[test]
+fn a_window_time_that_is_not_hh_colon_mm_is_refused() {
+    for time in [
+        "'6:00'", "'24:00'", "'22:60'", "'2200'", "'noon'", "'+3:00'", "6", "[]",
+    ] {
+        let input = format!(
+            "{VALID}{WINDOW_PRESETS}\
+             [[preset_windows]]\nstart = {time}\nend = '06:00'\npreset = 'bed'\n"
+        );
+        assert!(parse(&input).is_err(), "accepted {time}");
+    }
+}
+#[test]
+fn preset_windows_that_are_not_a_list_of_tables_are_refused() {
+    for table in ["preset_windows = 1", "preset_windows = []"] {
+        assert!(parse(&format!("{VALID}{WINDOW_PRESETS}{table}\n")).is_err());
+    }
+}
