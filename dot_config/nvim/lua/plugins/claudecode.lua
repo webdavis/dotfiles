@@ -25,11 +25,30 @@
 -- 8. Local-install PATH: `claude` is on PATH in every herdr pane through the
 --    bashrc; nothing to do.
 --
--- `event = "VeryLazy"` is the load trigger (spec 9). `cmd` alone would be wrong:
--- the lock file has to exist before the CLI connects (question 4 above), and
--- nothing types a `ClaudeCode*` command or presses a `<leader>C` key first. The
--- `cmd` and `keys` lists stay so the commands and the maps are declared, and so
--- the plugin still loads for a session that reaches one before `VeryLazy` fires.
+-- `cmd` and `keys` are the only load triggers. `event = "VeryLazy"` was the
+-- trigger until 2026-09-15, on the reasoning that the lock file has to exist
+-- before the CLI connects (question 4 above) and nothing presses a key first.
+-- It cost two warnings and a stack trace on every interactive start: something
+-- local makes a PLAIN HTTP request to the plugin's port within a second of the
+-- server coming up, the plugin logs `Bad WebSocket upgrade request`, and its
+-- own unguarded `tcp_handle:close()` in `server/client.lua` then raises through
+-- `vim.schedule`. The prober was not identified; it is not lock-file discovery
+-- (two decoy servers advertising a lock, one of them naming this repository as
+-- its workspace, were never connected to) and it is not the plugin itself,
+-- whose `find_available_port` only binds. No server on an ordinary start means
+-- no prober, no warning and no crash. The crash is third-party code and is not
+-- patched here.
+--
+-- The accepted cost is question 4's ordering: the operator presses `<leader>Cc`
+-- in Neovim first, which is the key they already use, rather than starting
+-- `claude --ide` against a lock file a startup event had already written. The
+-- ordering inside that keypress is guaranteed rather than raced. lazy.nvim's
+-- `keys` handler (`lazy/core/handler/keys.lua`) deletes its placeholder, calls
+-- `Loader.load` synchronously, and only then feeds the lhs back with
+-- `nvim_feedkeys(..., "i", false)`, so `config` has run and `claudecode.setup`
+-- (upstream default `auto_start = true`) has started the server and written the
+-- lock with a synchronous `writefile` before the mapping's own right-hand side
+-- is ever executed.
 --
 -- `cond` keeps the plugin out of headless Neovim entirely (a `nvim --headless`
 -- launch or a `-l` script run, both used by this repo's own test suites and
@@ -37,8 +56,8 @@
 -- below does. It scans `vim.v.argv` for the literal flags `--headless` and
 -- `-l`, not `#vim.api.nvim_list_uis() == 0`: lazy.nvim evaluates a spec's
 -- `cond` during its early spec-parse/resolve pass (`lazy/core/meta.lua`,
--- `fix_cond`), well before the `VeryLazy` event this plugin loads on and
--- before an interactive session's own UI is guaranteed to have attached, so a
+-- `fix_cond`), well before the `cmd` or `keys` trigger this plugin loads on
+-- and before an interactive session's own UI is guaranteed to have attached, so a
 -- UI-count check is unreliable at that point. The `opts.log_level` check below
 -- runs at a different, later evaluation point (actual plugin load), where a UI
 -- count is reliable, which is why it keeps using it.
@@ -58,7 +77,6 @@ return {
   dependencies = {
     "folke/snacks.nvim",
   },
-  event = "VeryLazy",
   cmd = {
     "ClaudeCodeAdd",
     "ClaudeCodeDiffAccept",
@@ -77,10 +95,11 @@ return {
     -- spec because `<leader>C` is the Claude group, and every key of that group
     -- is declared in one place.
     --
-    -- The seam needs no WebSocket server, and since `VeryLazy` this spec starts
-    -- one before the key is ever pressed. That is the direction this config
-    -- wants anyway (question 4 above), and moving the key out would split one
-    -- Claude group across two files to avoid a server it no longer causes.
+    -- The seam needs no WebSocket server, and pressing this key does start one
+    -- as a side effect of loading the spec it lives on. That is the direction
+    -- this config wants anyway (question 4 above), and moving the key out would
+    -- split one Claude group across two files to save a server on the one key
+    -- of the group that does not need it.
     {
       "<leader>Cp",
       function()
@@ -107,18 +126,19 @@ return {
   -- `init.lua:597` at the pinned commit) and failed the zero-stderr startup gate.
   -- A global `warn` is too wide: `:ClaudeCodeStatus` answers at INFO as well
   -- (`init.lua:619-621`), and would go silent. A headless session is the one
-  -- kind with no UI attached, and `opts` is evaluated when the plugin loads
-  -- (`VeryLazy`), after the UI has attached in an interactive session, so this
+  -- kind with no UI attached, and `opts` is evaluated when the plugin loads (a
+  -- `cmd` or one of the `keys`), after the UI has attached in an interactive
+  -- session, so this
   -- quiets exactly the sessions whose INFO was noise and nothing else. The one
   -- gap is a UI that attaches AFTER the plugin loaded (an `--embed` client that
   -- ran commands before attaching): `init` closes it by raising the level back
   -- to the plugin's default through the logger's own `setup` on the first
   -- `UIEnter`, and only when the logger has already been loaded, so a normal
-  -- interactive start (UI first, plugin at `VeryLazy`) is untouched.
+  -- interactive start (UI first, plugin on a command or a key) is untouched.
   init = function()
     -- Not `once`: a UI can attach and detach before the plugin loads (an
-    -- `--embed` client attaching, detaching, and letting `VeryLazy` load the
-    -- plugin with no UI), and a one-shot hook consumed then would leave a later
+    -- `--embed` client attaching, detaching, and then running a `ClaudeCode*`
+    -- command with no UI), and a one-shot hook consumed then would leave a later
     -- attach unable to restore INFO. The hook stays until it has something to
     -- restore, and removes itself only after it has done so.
     local group = vim.api.nvim_create_augroup("claudecode_restore_info", { clear = true })
