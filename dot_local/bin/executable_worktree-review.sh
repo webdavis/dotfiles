@@ -74,6 +74,14 @@ die() {
   exit 2
 }
 
+# fail : a runtime refusal (nothing selected, a recorded target gone bad).
+# The arguments were fine, so this skips the usage block die() always prints;
+# a cancelled fzf should not dump the whole usage text into the review pane.
+fail() {
+  printf 'worktree-review.sh: %s\n' "$1" >&2
+  exit 1
+}
+
 now_epoch() {
   printf '%s' "${WORKTREE_REVIEW_NOW:-$(date +%s)}"
 }
@@ -340,7 +348,7 @@ main() {
     pick)
       ensure_cache "$cache" "$common"
       local chosen
-      chosen="$(choose "$cache")" || die 'nothing selected'
+      chosen="$(choose "$cache")" || fail 'nothing selected'
       record_selection "$chosen" "$selection"
       printf '%s\n' "$chosen"
       refresh_in_background "$cache"
@@ -355,10 +363,10 @@ main() {
       fi
       if [[ -z $target ]]; then
         ensure_cache "$cache" "$common"
-        target="$(choose "$cache")" || die 'nothing selected'
+        target="$(choose "$cache")" || fail 'nothing selected'
         record_selection "$target" "$selection"
       fi
-      cd "$target" || die "cannot enter $target"
+      cd "$target" || fail "cannot enter $target"
       export WORKTREE_REVIEW_TARGET="$target"
       refresh_in_background "$cache"
       exec "${review[@]}"
