@@ -36,13 +36,19 @@ fn own_plists_are_home_anchored_and_allowlist_is_one_exact_file() {
     let known = manifests(Manifest::Missing, Manifest::Trusted(&[]));
     for path in [
         "/fixture/Library/LaunchAgents/com.webdavis.osquery-.plist",
+        // Every own agent, not only the osquery-prefixed ones: the manifest
+        // covers all twelve, and a manifested file nothing tracks is never
+        // checked.
+        "/fixture/Library/LaunchAgents/com.webdavis.scalebar.plist",
         "/fixture/.config/osquery/page-launchd-allowlist.txt",
     ] {
         assert!(known.is_tracked(path));
     }
     for path in [
         "/Library/LaunchAgents/com.webdavis.osquery-a.plist",
+        "/Library/LaunchAgents/com.webdavis.scalebar.plist",
         "/fixture/Library/LaunchAgents/other.plist",
+        "/fixture/Library/LaunchAgents/com.webdavis.scalebar.plist.bak",
         "/fixture/.config/osquery/page-launchd-allowlist.txt.lock",
         "/fixture/.config/osquery/webhook-secret",
     ] {

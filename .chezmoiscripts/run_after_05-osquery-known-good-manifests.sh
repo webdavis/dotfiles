@@ -206,7 +206,14 @@ managed_bin_paths=()
 while IFS= read -r target; do
   case "$target" in
     "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) pipeline_paths+=("$target") ;;
-    "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
+    # EVERY LaunchAgent this repository owns, not only the osquery-prefixed ones.
+    # The page-launchd allowlist below refuses to suppress a persistence finding
+    # the pipeline manifest cannot vouch for, so an own agent left out of here
+    # pages instead of digesting however it is allowlisted (com.webdavis.scalebar
+    # did, from #564 until this arm widened). The label prefix is what "ours"
+    # means, and the listing this loop reads is chezmoi's managed intent, so an
+    # unmanaged neighbour under another vendor's label cannot enter the manifest.
+    "$home"/Library/LaunchAgents/com.webdavis.*.plist) pipeline_paths+=("$target") ;;
     # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
     # rather than by its directory. It decides whether an unknown user LaunchAgent
     # pages, so it is infrastructure the alerter judges, and the verdict routes any
