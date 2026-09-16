@@ -350,6 +350,7 @@ main() {
       fi
       cd "$target" || die "cannot enter $target"
       export WORKTREE_REVIEW_TARGET="$target"
+      refresh_in_background "$cache"
       exec "${review[@]}"
       ;;
   esac
