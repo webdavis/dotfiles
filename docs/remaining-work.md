@@ -1089,13 +1089,14 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   Bash `firewall-gatekeeper-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the follow-up pull request under task 46, after this acceptance; nothing was trashed by #575.
   The full `chezmoi apply` ran and passed on 2026-09-15 and `osqueryi` reads
-  `com.webdavis.osquery-firewall-gatekeeper-monitor` as `/Users/stephen/.cargo/bin/posture poll`. Measured
-  2026-09-15 via `launchctl print`: 736 runs, last exit code 0, far beyond the two live ticks this task's
-  acceptance asked for, which closes the "verify exposure and recovery across two live ticks" half of the
-  sentence. Stays open: the Bash `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh`
-  producer (998 lines) is still present in source and referenced by nothing (no plist, no justfile recipe,
-  no `.chezmoiignore` entry), so the "before removing the Bash producer" half of this task's acceptance
-  is not yet closed; it retires from source in the same follow-up pull request as task 46.
+  `com.webdavis.osquery-firewall-gatekeeper-monitor` as `/Users/stephen/.cargo/bin/posture poll`.
+  Measured 2026-09-15 via `launchctl print`: 736 runs, last exit code 0, far beyond the two live ticks
+  this task's acceptance asked for, which closes the "verify exposure and recovery across two live ticks"
+  half of the sentence. Stays open: the Bash
+  `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh` producer (998 lines) is still
+  present in source and referenced by nothing (no plist, no justfile recipe, no `.chezmoiignore` entry),
+  so the "before removing the Bash producer" half of this task's acceptance is not yet closed; it retires
+  from source in the same follow-up pull request as task 46.
 - [x] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -1104,31 +1105,30 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `just ship` (exit 0, 3m44s) and [PR #551](https://github.com/webdavis/dotfiles/pull/551) was opened
   with base `feat/posture-watchdog-health`, so it shows only the funnel commits and retargets to `main`
   when #547 merges; it was reviewed and, as recorded below, merged into `main` at `0efb2119` on
-  2026-09-14. Independent review returned five findings; the fix is
-  on the branch and its own fix review is in progress. SEV-1: exposure pages with 37 or more keys
-  exceeded the 8,000-character wire cap and were refused forever, bounded at `FUNNEL_EXPOSURE_KEY_LIMIT`
-  (32 keys plus a summary line, commit `0037bc33`). SEV-3: stderr named retired tools, fixed at
-  `b1a8b777`. SEV-3: the inline executable check was replaced by the shared `is_executable`, fixed at
-  `4ea6e8b9`. Two findings are deferred to a follow-up: SEV-3, the duration parser maps `0`, `inf` and
-  `1e100` to `Status(125)` and pages a false gap; SEV-3, the 44-line unsafe FFI hex-float parser could be
-  `trim` plus `parse::<f64>`. Two more fix commits, `4cb11f21` and `c50f95d6`, are not yet pushed: a
-  sorted-before-cut test, fixture cleanup, a root skip, and doc numbers now measured by test at 7,160;
-  the timeout parser's `0`/`inf`/oversize inputs now saturate to a 24-hour ceiling; `strtod` is kept
-  because the capture `timeout_hex` passes `0x1p-1`. `just ship` on `c50f95d6` failed only on the
-  `gateway_health` flake that #547 fixes; re-ship once #547 merges into it. Preserve the baseline and
-  verify real-input behavior before retiring Bash. On 2026-09-14, after merging main in, fix commits
-  `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and `c50f95d6` were pushed, the PR body was re-posted,
-  continuous integration passed and [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at
-  `0efb2119`. Also on 2026-09-14 the plist cutover itself landed in
-  [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged `7bdecf6b`, branch
-  `feat/posture-plist-cutovers`), commit `8754b3df`: the tailscale-monitor LaunchAgent now runs
-  `posture funnel`, pinning `EnvironmentVariables` to `OSQUERY_TAILSCALE_BIN=/opt/homebrew/bin/tailscale`
-  and dropping the `PATH` dict, because that dict is what made the shell resolve the headless brew
-  formula and pinning takes PATH ordering out of a detector whose own blind window already pages CRIT; a
-  missing or wedged binary still pages a gap naming the path. Review's only finding was the same
-  80-character subject line fixed under task 47, carried forward unchanged as `8754b3df` (tree hash
-  verified). Operator steps: the same full `chezmoi apply` shared with tasks 46 and 47; confirm the swap
-  with
+  2026-09-14. Independent review returned five findings; the fix is on the branch and its own fix review
+  is in progress. SEV-1: exposure pages with 37 or more keys exceeded the 8,000-character wire cap and
+  were refused forever, bounded at `FUNNEL_EXPOSURE_KEY_LIMIT` (32 keys plus a summary line, commit
+  `0037bc33`). SEV-3: stderr named retired tools, fixed at `b1a8b777`. SEV-3: the inline executable check
+  was replaced by the shared `is_executable`, fixed at `4ea6e8b9`. Two findings are deferred to a
+  follow-up: SEV-3, the duration parser maps `0`, `inf` and `1e100` to `Status(125)` and pages a false
+  gap; SEV-3, the 44-line unsafe FFI hex-float parser could be `trim` plus `parse::<f64>`. Two more fix
+  commits, `4cb11f21` and `c50f95d6`, are not yet pushed: a sorted-before-cut test, fixture cleanup, a
+  root skip, and doc numbers now measured by test at 7,160; the timeout parser's `0`/`inf`/oversize
+  inputs now saturate to a 24-hour ceiling; `strtod` is kept because the capture `timeout_hex` passes
+  `0x1p-1`. `just ship` on `c50f95d6` failed only on the `gateway_health` flake that #547 fixes; re-ship
+  once #547 merges into it. Preserve the baseline and verify real-input behavior before retiring Bash. On
+  2026-09-14, after merging main in, fix commits `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and
+  `c50f95d6` were pushed, the PR body was re-posted, continuous integration passed and
+  [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at `0efb2119`. Also on 2026-09-14 the
+  plist cutover itself landed in [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged
+  `7bdecf6b`, branch `feat/posture-plist-cutovers`), commit `8754b3df`: the tailscale-monitor LaunchAgent
+  now runs `posture funnel`, pinning `EnvironmentVariables` to
+  `OSQUERY_TAILSCALE_BIN=/opt/homebrew/bin/tailscale` and dropping the `PATH` dict, because that dict is
+  what made the shell resolve the headless brew formula and pinning takes PATH ordering out of a detector
+  whose own blind window already pages CRIT; a missing or wedged binary still pages a gap naming the
+  path. Review's only finding was the same 80-character subject line fixed under task 47, carried forward
+  unchanged as `8754b3df` (tree hash verified). Operator steps: the same full `chezmoi apply` shared with
+  tasks 46 and 47; confirm the swap with
   `osqueryi --json "SELECT label, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label='com.webdavis.osquery-tailscale-monitor'"`
   reads `/Users/stephen/.cargo/bin/posture funnel`; one tick after `sleep 70`, confirm exit 0 via
   `launchctl print gui/$(id -u)/com.webdavis.osquery-tailscale-monitor | grep -E 'runs|last exit code'`;
