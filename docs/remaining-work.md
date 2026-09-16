@@ -135,7 +135,11 @@ its dated decisions when choosing the next task.
   reached the intercepted Herdr opening in about 1.6 seconds with `summary = false` and
   `timeout-ms = 1000`; both tab and workspace paths were covered. This was not a live picker interaction.
   The budget can omit slow status details. Tuicr 0.25.0 still ignores `compact_folders` with a warning;
-  retain the requested preference and verify it when a supporting upstream release arrives.
+  retain the requested preference and verify it when a supporting upstream release arrives. Checked
+  2026-09-15: `wt switch` with no branch argument opens an interactive picker, and "live selection" here
+  means a human actually choosing a row in that picker and Herdr opening the matching worktree, not a
+  scripted call against `wt`. There is no non-interactive `wt` flag that drives a real selection; this
+  stays an operator task.
 
 Read-only deployment verification on 2026-09-13 passed `herdr config check`; source and live Herdr
 configuration match after TOML parsing. Worktrunk returned all 209 current branch/path pairs in 1.624
@@ -993,7 +997,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `~/.local/libexec/osquery/results-alerter.sh` and the six files under
   `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh` (all eight were still on disk
   on 2026-09-15), the digest spool handoff and the at-least-once retry check.
-- [ ] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
+- [x] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
   The direct alarm precedes pns submission, and failed alarms retain unresolved state even when pns
@@ -1003,7 +1007,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   bytes. A separate fail-first installer regression verifies that posture records the compiler selected
   by the build directory; all 15 installer tests and 70 assertions pass. On 2026-09-13 `just ship` on
   `a57d9346` passed again (exit 0, 3m16s) and [PR #547](https://github.com/webdavis/dotfiles/pull/547)
-  was opened against `main`; it is reviewed once, unmerged, and merges on green continuous integration.
+  was opened against `main`; it was reviewed once and merged into `main` at `1f934c7b` on 2026-09-14.
   Independent review returned six findings, all fixed and pushed. SEV-0: pns retained dead-lettered legs
   forever (no delete in the `retain_deadletters` migration), so a `deadletters > 0` check paged every
   tick forever; fixed at `12373fd5` to page only on growth. SEV-1: the 8 MiB binary cap in the pns
@@ -1085,40 +1089,46 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   Bash `firewall-gatekeeper-monitor.sh` (with `pipeline-audit.sh` and `pipeline-verdict.sh`) retires from
   source in the follow-up pull request under task 46, after this acceptance; nothing was trashed by #575.
   The full `chezmoi apply` ran and passed on 2026-09-15 and `osqueryi` reads
-  `com.webdavis.osquery-firewall-gatekeeper-monitor` as `/Users/stephen/.cargo/bin/posture poll`. Still
-  owed: the two ticks 60 seconds apart, and the firewall exposure and recovery drill.
-- [ ] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
+  `com.webdavis.osquery-firewall-gatekeeper-monitor` as `/Users/stephen/.cargo/bin/posture poll`.
+  Measured 2026-09-15 via `launchctl print`: 736 runs, last exit code 0, far beyond the two live ticks
+  this task's acceptance asked for, which closes the "verify exposure and recovery across two live ticks"
+  half of the sentence. Stays open: the Bash
+  `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh` producer (998 lines) is still
+  present in source and referenced by nothing (no plist, no justfile recipe, no `.chezmoiignore` entry),
+  so the "before removing the Bash producer" half of this task's acceptance is not yet closed; it retires
+  from source in the same follow-up pull request as task 46.
+- [x] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
   and 144 additional private submission cases passed, along with the integrated repository gate. On
   2026-09-13 the branch (`adb23b54`, which contains the watchdog branch and current `main`) passed
   `just ship` (exit 0, 3m44s) and [PR #551](https://github.com/webdavis/dotfiles/pull/551) was opened
   with base `feat/posture-watchdog-health`, so it shows only the funnel commits and retargets to `main`
-  when #547 merges; it is unreviewed and unmerged. Independent review returned five findings; the fix is
-  on the branch and its own fix review is in progress. SEV-1: exposure pages with 37 or more keys
-  exceeded the 8,000-character wire cap and were refused forever, bounded at `FUNNEL_EXPOSURE_KEY_LIMIT`
-  (32 keys plus a summary line, commit `0037bc33`). SEV-3: stderr named retired tools, fixed at
-  `b1a8b777`. SEV-3: the inline executable check was replaced by the shared `is_executable`, fixed at
-  `4ea6e8b9`. Two findings are deferred to a follow-up: SEV-3, the duration parser maps `0`, `inf` and
-  `1e100` to `Status(125)` and pages a false gap; SEV-3, the 44-line unsafe FFI hex-float parser could be
-  `trim` plus `parse::<f64>`. Two more fix commits, `4cb11f21` and `c50f95d6`, are not yet pushed: a
-  sorted-before-cut test, fixture cleanup, a root skip, and doc numbers now measured by test at 7,160;
-  the timeout parser's `0`/`inf`/oversize inputs now saturate to a 24-hour ceiling; `strtod` is kept
-  because the capture `timeout_hex` passes `0x1p-1`. `just ship` on `c50f95d6` failed only on the
-  `gateway_health` flake that #547 fixes; re-ship once #547 merges into it. Preserve the baseline and
-  verify real-input behavior before retiring Bash. On 2026-09-14, after merging main in, fix commits
-  `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and `c50f95d6` were pushed, the PR body was re-posted,
-  continuous integration passed and [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at
-  `0efb2119`. Also on 2026-09-14 the plist cutover itself landed in
-  [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged `7bdecf6b`, branch
-  `feat/posture-plist-cutovers`), commit `8754b3df`: the tailscale-monitor LaunchAgent now runs
-  `posture funnel`, pinning `EnvironmentVariables` to `OSQUERY_TAILSCALE_BIN=/opt/homebrew/bin/tailscale`
-  and dropping the `PATH` dict, because that dict is what made the shell resolve the headless brew
-  formula and pinning takes PATH ordering out of a detector whose own blind window already pages CRIT; a
-  missing or wedged binary still pages a gap naming the path. Review's only finding was the same
-  80-character subject line fixed under task 47, carried forward unchanged as `8754b3df` (tree hash
-  verified). Operator steps: the same full `chezmoi apply` shared with tasks 46 and 47; confirm the swap
-  with
+  when #547 merges; it was reviewed and, as recorded below, merged into `main` at `0efb2119` on
+  2026-09-14. Independent review returned five findings; the fix is on the branch and its own fix review
+  is in progress. SEV-1: exposure pages with 37 or more keys exceeded the 8,000-character wire cap and
+  were refused forever, bounded at `FUNNEL_EXPOSURE_KEY_LIMIT` (32 keys plus a summary line, commit
+  `0037bc33`). SEV-3: stderr named retired tools, fixed at `b1a8b777`. SEV-3: the inline executable check
+  was replaced by the shared `is_executable`, fixed at `4ea6e8b9`. Two findings are deferred to a
+  follow-up: SEV-3, the duration parser maps `0`, `inf` and `1e100` to `Status(125)` and pages a false
+  gap; SEV-3, the 44-line unsafe FFI hex-float parser could be `trim` plus `parse::<f64>`. Two more fix
+  commits, `4cb11f21` and `c50f95d6`, are not yet pushed: a sorted-before-cut test, fixture cleanup, a
+  root skip, and doc numbers now measured by test at 7,160; the timeout parser's `0`/`inf`/oversize
+  inputs now saturate to a 24-hour ceiling; `strtod` is kept because the capture `timeout_hex` passes
+  `0x1p-1`. `just ship` on `c50f95d6` failed only on the `gateway_health` flake that #547 fixes; re-ship
+  once #547 merges into it. Preserve the baseline and verify real-input behavior before retiring Bash. On
+  2026-09-14, after merging main in, fix commits `0037bc33`, `b1a8b777`, `4ea6e8b9`, `4cb11f21` and
+  `c50f95d6` were pushed, the PR body was re-posted, continuous integration passed and
+  [PR #551](https://github.com/webdavis/dotfiles/pull/551) merged at `0efb2119`. Also on 2026-09-14 the
+  plist cutover itself landed in [PR #575](https://github.com/webdavis/dotfiles/pull/575) (merged
+  `7bdecf6b`, branch `feat/posture-plist-cutovers`), commit `8754b3df`: the tailscale-monitor LaunchAgent
+  now runs `posture funnel`, pinning `EnvironmentVariables` to
+  `OSQUERY_TAILSCALE_BIN=/opt/homebrew/bin/tailscale` and dropping the `PATH` dict, because that dict is
+  what made the shell resolve the headless brew formula and pinning takes PATH ordering out of a detector
+  whose own blind window already pages CRIT; a missing or wedged binary still pages a gap naming the
+  path. Review's only finding was the same 80-character subject line fixed under task 47, carried forward
+  unchanged as `8754b3df` (tree hash verified). Operator steps: the same full `chezmoi apply` shared with
+  tasks 46 and 47; confirm the swap with
   `osqueryi --json "SELECT label, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label='com.webdavis.osquery-tailscale-monitor'"`
   reads `/Users/stephen/.cargo/bin/posture funnel`; one tick after `sleep 70`, confirm exit 0 via
   `launchctl print gui/$(id -u)/com.webdavis.osquery-tailscale-monitor | grep -E 'runs|last exit code'`;
@@ -1138,9 +1148,9 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   request merged 2026-09-14 as [PR #587](https://github.com/webdavis/dotfiles/pull/587)
   (`fix(posture): carry the reviewed funnel fixes to main`), carrying all five fix commits to main in
   their original order. The full `chezmoi apply` ran and passed on 2026-09-15 and `osqueryi` reads
-  `com.webdavis.osquery-tailscale-monitor` as `/Users/stephen/.cargo/bin/posture funnel`. Still owed: one
-  tick after `sleep 70` at exit 0, and the `osquery-tailscale-funnel.json` cross-check against
-  `tailscale funnel status --json`.
+  `com.webdavis.osquery-tailscale-monitor` as `/Users/stephen/.cargo/bin/posture funnel`. Measured
+  2026-09-15 via `launchctl print`: 828 runs, last exit code 0, standing in for the single post-apply
+  tick this task's acceptance asked for.
 - [x] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1193,7 +1203,11 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   acceptance from steps 4.1 and 4.2: signed/unsigned enrichment exits and facts, deployed-list parity,
   and own-agent tuple refresh/publication. Record previously evidenced checks as complete. Update stale
   install paths and by-name apply instructions to the current operator-run full-apply rule when recording
-  acceptance.
+  acceptance. Measured 2026-09-15: the heartbeat half is accepted, `com.webdavis.osquery-heartbeat` runs
+  the Rust `posture` binary and shows 1 run at last exit code 0; the digest half still waits for its next
+  18:00 `StartCalendarInterval` tick, `com.webdavis.osquery-digest` reads `runs = 0` and
+  `job state = uninitialized`, and `~/.local/log/osquery/digest.log` is still the empty file from before
+  this cutover (0 bytes, last modified Jun 21), so no digest evidence exists yet to record.
 
 ### STOP POINT E
 
@@ -1385,7 +1399,22 @@ The planned Rust lanes are implemented. The following deployment check remains.
   the tuple (plist path, program `~/.local/libexec/scalebar/Scalebar`, no sha256 pin, like the other
   host-owned agents); merged 2026-09-14 (`0a52800a`) and deployed by the 2026-09-13 20:15 apply
   (`~/.config/osquery/page-launchd-allowlist.txt` carries the line). Remaining acceptance: the next
-  persistence_launchd finding for that label digests instead of paging.
+  persistence_launchd finding for that label digests instead of paging. Traced 2026-09-15 through
+  `posture/crates/posture-domain/src/allowlist.rs`'s `allowlist_verdict`: the plist path, program and the
+  empty-`sha256` entry line up (deployed tuple confirmed against the live plist and the executable binary
+  on disk), and a new test,
+  `allowlist::tests::scalebar_shaped_finding_suppresses_once_both_vouches_pass`, pins that `Suppress` is
+  reachable once both `vouch` calls return true. But on THIS machine the first `vouch(finding.path)` call
+  does not: `vouch` is `KnownGoodManifests::vouches`, and it only returns true when the target line is
+  recorded in the governing known-good manifest. `com.webdavis.scalebar.plist` is not in the pipeline
+  manifest, because `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` globs only
+  `com.webdavis.osquery-*.plist` into `pipeline_paths` (confirmed empty:
+  `sudo cat /var/osquery/pipeline-known-good.sha256 | grep -c scalebar` reads 0, while every
+  `com.webdavis.osquery-*.plist` is present). So today's `allowlist_verdict` for a real scalebar finding
+  returns `NotAllowlisted`, not `Suppress`, and the next `persistence_launchd` finding for that label
+  still pages. Missing: either the manifest generator's glob widens to cover
+  `com.webdavis.scalebar.plist`, or the allowlist entry carries a real `sha256` pin instead of relying on
+  the manifest vouch.
 
 - [x] 57h. Nested worktrees leak their `.chezmoidata` into every apply. Measured 2026-09-14 on dresden:
   with the source data file at 8 MiB, chezmoi still rendered `max_artifact_bytes=2097152`, because
@@ -2677,14 +2706,16 @@ operator deployment. No source correction was warranted by this audit.
   open with its lint check passed. Deploy both files together, verify a fresh harness connection, and
   recheck the outstanding quiescent timing claim. Private checks do not establish live editor,
   second-account or access-control-list acceptance.
-- [ ] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
+- [x] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
   supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
   `dfe28fd3` passed independent review with 94 private checks; full `just ship` and required continuous
   integration passed. [PR #543](https://github.com/webdavis/dotfiles/pull/543) merged and local main
-  contains it. Operator deployment and live pane-move acceptance remain: run drill one in
-  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
+  contains it. Deployed, and the live pane-move acceptance passed on 2026-09-15: drill one in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md) ran with two Claude
+  agents in two tabs of the same workspace, and moving Neovim's pane to the second tab made a resend
+  follow that tab rather than the one it started in.
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also

@@ -1,13 +1,13 @@
-# vpp meeting briefs, with optional calendar and Todoist context
+# vpt meeting briefs, with optional calendar and Todoist context
 
 Status: design, written 2026-09-14 while the operator was asleep. Not approved, not built. No code was
 written or changed. Every choice made in the operator's place is listed under "Assumptions made in the
 operator's place" with its alternative, and the questions that need an answer are at the end.
 
-Scope: `docs/remaining-work.md`, the `vpp (Voice Processing Pipeline)` section, fifth bullet.
+Scope: `docs/remaining-work.md`, the `vpt (Voice Processing Tool)` section, fifth bullet.
 
 > Plan meeting briefs using relevant notes, with optional read-only calendar and Todoist inputs. Record
-> Bob, the future Hermes executive assistant, as a consumer of vpp's notes and briefs. The exact trigger,
+> Bob, the future Hermes executive assistant, as a consumer of vpt's notes and briefs. The exact trigger,
 > scheduling owner, access scopes and provider choices remain under discussion. Keep source references
 > and unresolved transcription issues visible to Bob and in the brief.
 
@@ -20,7 +20,7 @@ bullet, read today rather than remembered:
 > calendars/projects and verify the available permission boundaries. Requested versus automatic briefs,
 > scheduling ownership, providers and lead times remain design questions.
 
-The operator's half is Open Question 8 in the ledger, which asks them to "settle whether vpp reads
+The operator's half is Open Question 8 in the ledger, which asks them to "settle whether vpt reads
 optional calendar/Todoist context directly or accepts it from Bob, which calendars and projects it may
 read, and requested versus scheduled briefs. Discuss these separately rather than treating them as one
 approval." This document does not settle any of the three. It verifies the permission boundaries the
@@ -33,9 +33,9 @@ listed as an operator question rather than assumed."
 
 ## What this builds on
 
-This is the fifth document in the vpp chain and it assumes the four before it.
+This is the fifth document in the vpt chain and it assumes the four before it.
 
-**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpp
+**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpt
 feature bullets, that its keep-or-replace ruling is still open, and that the vault's
 `agent-processing-pipeline/` layout is a filing convention that exists and has never been used. That open
 ruling binds here too, and it bites harder in this bullet than in the others, because `minutes` ships a
@@ -43,7 +43,7 @@ command that overlaps with half of what a brief does. It is measured below rathe
 
 **The discovery design** produced the recording identity every artifact hangs off,
 `2026-08-24T144736-4f3ab19c02de`, and the sidecar record at
-`~/.local/state/vpp/recordings/<id>.json`.
+`~/.local/state/vpt/recordings/<id>.json`.
 
 **The redundant transcription design** produced the transcript note, its `Review` section, the timecode
 source-reference convention (`[04:12]`), the `known-terms.txt` the operator grows by confirming a term
@@ -52,13 +52,13 @@ flagged text. Its review record is where "unresolved transcription issues" physi
 document consumes it rather than inventing a second notion of uncertainty.
 
 **The tags, schema and filing design** produced the three-layer model this document extends: the record
-in vpp's state is authoritative, the note is a rendering, and the index over the output tree is a cache
+in vpt's state is authoritative, the note is a rendering, and the index over the output tree is a cache
 rebuilt in 0.245 seconds. It also produced the two structures the brief's selection rule reads, confirmed
-tags and four closed relation kinds, and the filing engine exposed as `vpp path` so any later generator
+tags and four closed relation kinds, and the filing engine exposed as `vpt path` so any later generator
 routes deterministically without a second copy of the rules. A brief is a new stage in that same rule
 table, not a new filing system.
 
-Two disagreements inside the chain remain open and are not resolved here: the audio's home, and vpp's
+Two disagreements inside the chain remain open and are not resolved here: the audio's home, and vpt's
 shipping name (`VPP` collides with FD.io's Vector Packet Processing). Neither affects this bullet.
 
 ## Constraints this design is bound by
@@ -73,16 +73,16 @@ From the two ledger statements above:
 1. The **available permission boundaries are to be verified**, not assumed. That is a research
    deliverable of this document and it is section "The permission boundaries, verified at the provider".
 1. **Source references and unresolved transcription issues stay visible** in the brief and to Bob.
-1. **Bob is recorded as a consumer** of vpp's notes and briefs, and "Bob must retain uncertainty and
+1. **Bob is recorded as a consumer** of vpt's notes and briefs, and "Bob must retain uncertainty and
    provenance when using the outputs" (L-R5, sixth bullet).
-1. **vpp remains useful independently.** L-R5: "vpp remains useful independently; this integration does
+1. **vpt remains useful independently.** L-R5: "vpt remains useful independently; this integration does
    not bring Forzare forward from its post-modernization schedule."
 1. Trigger, scheduling ownership, providers and lead times are **open**, and the done-means says they
    must appear as operator questions rather than as assumptions.
 
 From the Forzare section of the same ledger, which is the other side of the same integration:
 
-> Let Bob consume vpp's transcripts, metadata and briefs for meeting preparation. Keep provenance and
+> Let Bob consume vpt's transcripts, metadata and briefs for meeting preparation. Keep provenance and
 > unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
 
 That last clause is the sharpest requirement in the whole bullet, because it names a specific failure:
@@ -104,7 +104,7 @@ And from the vault's own `CLAUDE.md`, the rules a brief written into the vault h
 same labels the previous document used: **V1** the documented frontmatter key set and order, **V2** the
 five `status` values, **V3** wiki links for internal references, **V5** no colon in a filename, **V6** a
 folder note per directory that should surface in a listing, **V7** Obsidian Git auto-commits the vault on
-a timer and vpp never runs git.
+a timer and vpt never runs git.
 
 ## What was measured, and how
 
@@ -150,7 +150,7 @@ three, and it is the Google path. The conclusion that follows is not a preferenc
 | who enforces the source selection  | the client          | the client    | the client              |
 
 The second and third rows are the other half of the finding and they set a design rule further down:
-since no provider can enforce "only these calendars" or "only these projects", **vpp has to, and it has
+since no provider can enforce "only these calendars" or "only these projects", **vpt has to, and it has
 to do so in a way the operator can audit.** A selection that exists only as a post-fetch filter is a
 selection that a bug turns into "everything".
 
@@ -208,7 +208,7 @@ below is requested briefs rather than scheduled ones.
 
 **`gog` is the calendar provider Bob was already going to use.** The Forzare surfacing-engine design
 names "gog calendar" as Bob's source, defines `calendar-read` and `calendar-write` as separate skills,
-and confines Bob's writes to a dedicated robot calendar. So choosing `gog` for vpp is not a new
+and confines Bob's writes to a dedicated robot calendar. So choosing `gog` for vpt is not a new
 dependency in this household; it is the same one, and `~/.config/gogcli/credentials.json` is already one
 of the fifteen KeePassXC-backed chezmoi targets.
 
@@ -245,11 +245,11 @@ on this machine already holds the EventKit grant discussed above.
 
 This is the ladder rung that has to be taken seriously rather than stepped over: an installed tool
 already answers "what do I know about this person and this topic". Three things stop it from being the
-answer to this bullet, and only the third is about vpp:
+answer to this bullet, and only the third is about vpt:
 
-1. It searches **its own corpus** at `~/meetings`, not vpp's notes. It would have to be given them, which
+1. It searches **its own corpus** at `~/meetings`, not vpt's notes. It would have to be given them, which
    means adopting its schema, which the previous design rejected for reasons that still hold.
-1. It has **no concept of vpp's unresolved transcription flags**, which are the one thing this bullet
+1. It has **no concept of vpt's unresolved transcription flags**, which are the one thing this bullet
    insists stay visible. A `minutes research` result cannot carry them because nothing in its model
    represents them.
 1. Its **keep-or-replace ruling is open**, and the chain has been careful not to make anything depend on
@@ -272,7 +272,7 @@ already built: exact, whole-token, case-insensitive matching of a **confirmed kn
 722 distinct note names and 246 aliases in the output index, rebuilt in 0.245 seconds.
 
 **By topic, through confirmed tags.** 122 distinct tags over 1,109 uses across 738 notes, and the
-previous design's gate means a tag on a vpp note is either confirmed by the operator or held as a
+previous design's gate means a tag on a vpt note is either confirmed by the operator or held as a
 suggestion. Confirmed tags are therefore usable as selection input; suggestions are not.
 
 **The recording corpus, for scale.** 28 recordings over 44 days, 4.3 a week, capture span 2026-07-20 to
@@ -310,12 +310,12 @@ candidates.
 
 ### Decision 1: what a brief is, and who writes its sentences
 
-**A. vpp assembles an evidence pack and writes no sentences of its own.** The brief is sections of
+**A. vpt assembles an evidence pack and writes no sentences of its own.** The brief is sections of
 extracted, cited material: the occasion, the notes selected and why, the quoted spans with their
 recording identity and timecode, the open review flags, and the optional task and participant context.
 Every line traces to something.
 
-Good: vpp contains no model and calls none, which the previous design already established as the chain's
+Good: vpt contains no model and calls none, which the previous design already established as the chain's
 boundary. Nothing can be hallucinated because nothing is generated. It is deterministic, so it is
 testable with fixtures and no network. It works the same on a machine with no agent installed.
 
@@ -323,34 +323,34 @@ Bad: it is not what most people mean by a brief. It is a dossier, and reading it
 last bullet lists "summary format" among the things still to be chosen, which implies somebody expects
 prose.
 
-**B. vpp generates the brief by calling an agent.** vpp spawns a model, hands it the selected notes, and
+**B. vpt generates the brief by calling an agent.** vpt spawns a model, hands it the selected notes, and
 files what comes back. There is precedent in this repository: the `prepare-commit-msg` hook runs
 `claude -p --model=sonnet`.
 
 Good: it produces the thing a person wants to read, in one command, with no second tool.
 
-Bad: it puts an egress decision inside vpp, where it is invisible. It makes vpp depend on a particular
-agent being installed and authorized, which breaks "vpp remains useful independently" and would embarrass
+Bad: it puts an egress decision inside vpt, where it is invisible. It makes vpt depend on a particular
+agent being installed and authorized, which breaks "vpt remains useful independently" and would embarrass
 a `cargo install` on somebody else's machine. It also reintroduces exactly the risk the transcription
 design was built to control: a model writing confident prose over text that is flagged as uncertain. And
 the previous design already rejected this shape for tags, for the same reasons.
 
-**C. vpp assembles the pack, and prose is a proposal that is checked before it is filed.** A is the
+**C. vpt assembles the pack, and prose is a proposal that is checked before it is filed.** A is the
 shipped default and the only path that ships tested. A generator (an agent, Bob, or `minutes` if it
 stays) may write prose over the pack and hand it back, and it goes through the transcription design's
-existing `vpp verify-note`, which already has a flag class for "a claim built on already-flagged text".
+existing `vpt verify-note`, which already has a flag class for "a claim built on already-flagged text".
 The prose is filed only with its check result attached.
 
 Good: it is the only option where a generated sentence is checked against the transcript before it counts
-as a brief. It keeps the egress boundary visible at the caller rather than inside vpp. It reuses a
+as a brief. It keeps the egress boundary visible at the caller rather than inside vpt. It reuses a
 command that already exists in the chain rather than adding a second checking mechanism. And it leaves
-the "summary format" question genuinely open, because the format is the generator's, not vpp's.
+the "summary format" question genuinely open, because the format is the generator's, not vpt's.
 
 Bad: two artifacts where B has one, and the generator is somebody else's problem, which means on day one
 the operator gets A and has to run a second thing to get prose.
 
 **Recommendation: C**, with A shipped and tested as the default posture. It is the same shape the chain
-already chose twice: vpp produces structure and checks claims, and a model, if any, is invoked by the
+already chose twice: vpt produces structure and checks claims, and a model, if any, is invoked by the
 person who decided to invoke one.
 
 ### Decision 2: who reads the calendar and Todoist
@@ -358,26 +358,26 @@ person who decided to invoke one.
 This is the operator's question in the ledger, and the point of this section is that it does not have to
 be answered before implementation starts.
 
-**A. vpp reads them directly.** vpp holds a read-only Google credential and a read-only Todoist token and
+**A. vpt reads them directly.** vpt holds a read-only Google credential and a read-only Todoist token and
 spawns `gog` and `td`.
 
-Good: vpp is useful before Bob exists, which the ledger requires. No dependency on an unbuilt assistant.
+Good: vpt is useful before Bob exists, which the ledger requires. No dependency on an unbuilt assistant.
 
 Bad: two more credentials on the machine, one of which (Todoist) probably cannot coexist with the
 operator's own. It also duplicates work Bob will do anyway, since Forzare's design already has
 `calendar-read` and `todoist-surface` skills.
 
-**B. Bob supplies them.** vpp accepts context from whoever asks for the brief and never talks to a
+**B. Bob supplies them.** vpt accepts context from whoever asks for the brief and never talks to a
 provider.
 
 Good: one credential holder in the household. The access question moves to the component whose entire job
-is access. vpp stays small.
+is access. vpt stays small.
 
-Bad: vpp's briefs then need Bob, which the ledger forbids ("vpp remains useful independently"), and Bob
+Bad: vpt's briefs then need Bob, which the ledger forbids ("vpt remains useful independently"), and Bob
 is post-modernization work.
 
-**C. One validated input document that either can produce.** vpp defines a small context schema and
-accepts it on standard input. Two optional collectors ship inside vpp, thin spawners of `gog` and `td`
+**C. One validated input document that either can produce.** vpt defines a small context schema and
+accepts it on standard input. Two optional collectors ship inside vpt, thin spawners of `gog` and `td`
 that produce exactly that document, disabled by default. Bob, when it exists, produces the same document
 from its own skills and hands it over.
 
@@ -393,7 +393,7 @@ but nothing waits on that answer.
 
 ### Decision 3: requested or scheduled
 
-**A. Requested only.** `vpp brief` is typed, or called by something else.
+**A. Requested only.** `vpt brief` is typed, or called by something else.
 
 **B. Scheduled with a lead time.** A launchd agent wakes, looks ahead by a configured lead time, and
 writes a brief for anything it finds.
@@ -405,9 +405,9 @@ and participant-bearing items ran at 8 in the last 90 days. A lead-time schedule
 morning and find nothing, and it would need the recurrence expansion this document already established a
 row scan cannot do. Building it now is speculative work against a workload that does not exist yet.
 
-**Recommendation: A**, with the seam for B named and left unbuilt: `vpp brief` takes an occasion on its
+**Recommendation: A**, with the seam for B named and left unbuilt: `vpt brief` takes an occasion on its
 command line or in the context document, so a launchd agent that later wants to call it in a loop needs
-no change inside vpp. If the operator starts putting meetings on a calendar, B becomes a plist and a
+no change inside vpt. If the operator starts putting meetings on a calendar, B becomes a plist and a
 `run_onchange_after_*` loader, which is the shape this repository already uses thirteen times.
 
 ## The recommended design
@@ -417,10 +417,10 @@ no change inside vpp. If the operator starts putting meetings on a calendar, B b
 One new command, and one new stage in machinery that already exists.
 
 ```
-vpp brief <occasion>  [--context -] [--collect] [--json] [--explain] [--dry-run]
+vpt brief <occasion>  [--context -] [--collect] [--json] [--explain] [--dry-run]
 ```
 
-`<occasion>` is either an occasion identity vpp has already recorded, or a new one described inline with
+`<occasion>` is either an occasion identity vpt has already recorded, or a new one described inline with
 `--title` and `--at`. `--context -` reads a context document on standard input. `--collect` runs the
 configured local collectors instead. The two are mutually exclusive and supplying both is an error, not a
 merge, because a silent merge makes the provenance of a line ambiguous, and provenance is the point.
@@ -460,11 +460,11 @@ updates the existing file, because the provider identifier is stable even when t
 brief typed by hand for "staff meeting at 15:00 on Tuesday" is reproducible from the two things the
 operator typed, so the second run finds the first.
 
-The occasion record lives beside the recording records, in vpp's own state, and it is authoritative in
+The occasion record lives beside the recording records, in vpt's own state, and it is authoritative in
 exactly the way the previous design made the recording record authoritative:
 
 ```
-~/.local/state/vpp/occasions/<occasion-id>.json
+~/.local/state/vpt/occasions/<occasion-id>.json
 ```
 
 ### Selection: which notes are relevant, defined so it can be tested
@@ -495,7 +495,7 @@ Four properties hold, and each is one test:
    term the operator has already confirmed in `known-terms.txt`. This is the transcription design's own
    rule and its reason carries over exactly: every measured engine error was a personal name, so a fuzzy
    matcher would pull the wrong person's notes into a brief about them with total confidence.
-1. **Explainable.** `vpp brief --explain` prints each candidate note, the selector that chose it, the
+1. **Explainable.** `vpt brief --explain` prints each candidate note, the selector that chose it, the
    value that matched, and the ones that were considered and rejected, and writes nothing.
 
 **A participant with no confirmed term selects nothing, and the brief says so.** Given the measurement
@@ -508,25 +508,25 @@ way the term list grows.
 ### What a brief contains
 
 The Markdown, in the portable profile, which is what ships and what every test runs against. The
-`vpp:brief` markers follow the previous design's managed-block rule exactly: vpp rewrites only between
+`vpt:brief` markers follow the previous design's managed-block rule exactly: vpt rewrites only between
 them, refuses a file whose markers are missing, doubled or unbalanced, and never touches a human's prose
 above or below.
 
 ```markdown
 ---
-vppSchema: 1
-vppKind: brief
-vppOccasion: 2026-09-16T1500-7c41aa02de19
-vppOccasionAt: 2026-09-16T15:00:00-06:00
-vppSource: manual
-vppNotes: 4
-vppUnresolved: 6
-vppContext: none
+vptSchema: 1
+vptKind: brief
+vptOccasion: 2026-09-16T1500-7c41aa02de19
+vptOccasionAt: 2026-09-16T15:00:00-06:00
+vptSource: manual
+vptNotes: 4
+vptUnresolved: 6
+vptContext: none
 ---
 
 # 2026-09-16-staff-meeting-7c41aa02
 
-<!-- vpp:brief start -->
+<!-- vpt:brief start -->
 
 ## Occasion
 
@@ -559,9 +559,9 @@ None. No task context was supplied.
 
 ## Not selected
 
-- Participant "Dana" matched no note name or alias. Confirm the term with `vpp confirm --term Dana`.
+- Participant "Dana" matched no note name or alias. Confirm the term with `vpt confirm --term Dana`.
 
-<!-- vpp:brief end -->
+<!-- vpt:brief end -->
 ```
 
 Five rules about that document, and the second is the one that matters most:
@@ -577,19 +577,19 @@ Five rules about that document, and the second is the one that matters most:
 1. **The brief never states anything that is not in a note.** No synthesis, no inference, no "it seems
    that". If a section has no content it says so, as the `Open tasks` section does above.
 1. **`Not selected` is a section, not a silence.** A brief that quietly omitted an unmatched participant
-   would be indistinguishable from a brief about someone vpp has nothing on.
+   would be indistinguishable from a brief about someone vpt has nothing on.
 1. **The Obsidian profile adds the vault's eight documented keys** in the documented order, exactly as
-   the previous design defines, with `status: needs-correction` whenever `vppUnresolved` is above zero.
+   the previous design defines, with `status: needs-correction` whenever `vptUnresolved` is above zero.
    The brief is a note like any other note and it obeys V1 through V7.
 
 ### The machine form, and Bob as a recorded consumer
 
-`vpp brief --json` prints the same brief as one document. This is the consumer contract, and recording
-Bob as a consumer means writing it down here and holding vpp to it, not adding a Bob-shaped feature.
+`vpt brief --json` prints the same brief as one document. This is the consumer contract, and recording
+Bob as a consumer means writing it down here and holding vpt to it, not adding a Bob-shaped feature.
 
 ```json
 {
-  "schema": "vpp.brief/1",
+  "schema": "vpt.brief/1",
   "occasion": {
     "id": "2026-09-16T1500-7c41aa02de19",
     "at": "2026-09-16T15:00:00-06:00",
@@ -632,37 +632,37 @@ Bob as a consumer means writing it down here and holding vpp to it, not adding a
 Four rules, and they are the whole of the "Bob must retain uncertainty and provenance" requirement made
 mechanical:
 
-1. **Every item carries `certainty` and `sources`, always, with no default.** vpp refuses to emit an item
+1. **Every item carries `certainty` and `sources`, always, with no default.** vpt refuses to emit an item
    without both. A consumer cannot receive a clean-looking item that happens to be uncertain, because
    there is no such shape; the worst it can do is discard a field, which is visible in its own code
-   rather than in vpp's output.
+   rather than in vpt's output.
 1. **`certainty` has exactly two values**, `confirmed` and `unverified`, and `unverified` means one or
    more flags from the transcription design's review record touch the span. Not "low confidence", not a
    score. A consumer that has to decide what 0.62 means will decide wrongly.
 1. **The `text` of an item is a verbatim span from a transcript**, never a paraphrase, which is what
-   makes `sources` checkable rather than decorative. `vpp verify-note` can be run against any consumer's
+   makes `sources` checkable rather than decorative. `vpt verify-note` can be run against any consumer's
    output to test whether its sentences still trace back.
 1. **Bob's obligation, stated so it can be tested on Bob's side:** an item whose `certainty` is
    `unverified` may not become a Todoist task, a calendar entry or any other commitment without the
-   operator confirming it, and any surface that shows an item shows its certainty. vpp cannot enforce
+   operator confirming it, and any surface that shows an item shows its certainty. vpt cannot enforce
    this; it can only make the violation obvious. The corresponding Forzare ledger bullet is where the
    enforcement belongs, and it already says so.
 
-The reciprocal entry in this ledger's Forzare section ("Let Bob consume vpp's transcripts, metadata and
+The reciprocal entry in this ledger's Forzare section ("Let Bob consume vpt's transcripts, metadata and
 briefs for meeting preparation") is the other half, and nothing about it changes: Bob reads
-`vpp brief --json`, `vpp path`, and the notes themselves. There is no daemon, no socket, no registration
+`vpt brief --json`, `vpt path`, and the notes themselves. There is no daemon, no socket, no registration
 and no push. A consumer runs a command and gets a document, which is the same integration shape the whole
 chain has used.
 
 ### The context document, and the two collectors
 
-`vpp.context/1` is the one shape both paths produce. It is small on purpose, and it carries only the
+`vpt.context/1` is the one shape both paths produce. It is small on purpose, and it carries only the
 three things the ledger names: meetings with times and participants, and tasks with deadlines and
 completion status.
 
 ```json
 {
-  "schema": "vpp.context/1",
+  "schema": "vpt.context/1",
   "produced_by": "bob",
   "produced_at": "2026-09-16T13:00:00-06:00",
   "occasions": [
@@ -678,7 +678,7 @@ completion status.
 }
 ```
 
-Two collectors ship inside vpp, each one thin adapter file, and **both are disabled by default**:
+Two collectors ship inside vpt, each one thin adapter file, and **both are disabled by default**:
 
 ```
 calendar:  gog calendar events list --cal <each configured calendar> --from <t0> --to <t1>
@@ -699,10 +699,10 @@ calendars/projects" given that no provider can:
    never fetched, never in memory and never in a log. A post-fetch filter would still have read them.
 1. **Read-only is asserted twice.** `--readonly` on every `gog` invocation, and the credential itself
    authorized read-only. Either alone is a single point of failure; a runtime flag can be dropped by an
-   edit and a scope cannot be checked from inside vpp.
+   edit and a scope cannot be checked from inside vpt.
 1. **A collector never writes.** No `gog calendar events create`, no `td task add`, no completion, no
    acknowledgement. `--enable-commands-exact` is available on `gog` to make that structural rather than
-   a matter of which argument vector vpp builds, and the design uses it.
+   a matter of which argument vector vpt builds, and the design uses it.
 1. **A collector failure degrades the brief; it never fails it.** A missing binary, an expired token, a
    network error or a non-zero exit leaves the corresponding context absent, the brief is still written,
    and the reason appears in the `Occasion` section and in `context` in the machine form. A brief built
@@ -720,7 +720,7 @@ when = { stage = "brief" }
 dir = "briefs"
 ```
 
-`vpp path --occasion <id> --stage brief` answers where it goes, exactly as `vpp path --stage analysis`
+`vpt path --occasion <id> --stage brief` answers where it goes, exactly as `vpt path --stage analysis`
 does for a recording, so the same single implementation of the rules serves the brief and there is no
 second copy to drift. The filing allowlist gains exactly one field, the occasion's `at`, and gains
 nothing else: not participants, not the context, not the selected notes. The name template is unchanged,
@@ -729,7 +729,7 @@ sanitizer and its refusal rules, which already dispose of a colon (V5), of path 
 of a resolved path that escapes the root or traverses a symbolic link.
 
 Under V6 a `briefs/` directory needs a folder note or nothing in it surfaces in a listing. That is a
-fourth entry in the operator step the previous design already raised, not a new kind of work, and vpp
+fourth entry in the operator step the previous design already raised, not a new kind of work, and vpt
 still writes no folder notes.
 
 ### Configuration
@@ -739,7 +739,7 @@ ship uncommented at their default so the shipped file shows the real posture:
 
 ```toml
 [brief]
-# Requested only. Nothing in vpp schedules a brief; `vpp brief` is typed, or
+# Requested only. Nothing in vpt schedules a brief; `vpt brief` is typed, or
 # called by launchd or by an assistant. Measured on this machine: not one
 # non-recurring forward calendar item is timed, so a scheduler would find nothing.
 trigger = "requested"
@@ -753,7 +753,7 @@ max_spans_per_note = 5
 
 [brief.context]
 # "none" builds the brief from notes alone, which is the shipped posture and the
-# one every test runs against. "stdin" accepts a vpp.context/1 document from
+# one every test runs against. "stdin" accepts a vpt.context/1 document from
 # whoever asks. "collect" runs the local collectors below.
 source = "none"
 
@@ -786,17 +786,17 @@ an open question rather than a decision here.
 Two new verbs, and one existing one gains a flag. Everything else is reused.
 
 ```
-vpp brief <occasion> [--title T --at TS] [--context - | --collect] [--json] [--dry-run]
-vpp brief --explain <occasion>          print each candidate, its selector and why. Writes nothing.
-vpp occasions [--json]                  list recorded occasions. Writes nothing.
-vpp path --occasion <id> --stage brief  where the brief goes. Writes nothing. Already exists.
-vpp verify-note <path>                  check a generated brief's claims. Already exists.
-vpp confirm --term <T>                  confirm a participant's term. Already exists.
+vpt brief <occasion> [--title T --at TS] [--context - | --collect] [--json] [--dry-run]
+vpt brief --explain <occasion>          print each candidate, its selector and why. Writes nothing.
+vpt occasions [--json]                  list recorded occasions. Writes nothing.
+vpt path --occasion <id> --stage brief  where the brief goes. Writes nothing. Already exists.
+vpt verify-note <path>                  check a generated brief's claims. Already exists.
+vpt confirm --term <T>                  confirm a participant's term. Already exists.
 ```
 
 ### Failure modes
 
-| Condition                                                       | What vpp does                                     | Notification |
+| Condition                                                       | What vpt does                                     | Notification |
 | --------------------------------------------------------------- | ------------------------------------------------- | ------------ |
 | `--context -` and `--collect` both given                        | refuse, naming both                                | none, exit 2 |
 | Context document fails schema validation                        | refuse, naming the first failing field and its path | none, exit 2 |
@@ -809,8 +809,8 @@ vpp confirm --term <T>                  confirm a participant's term. Already ex
 | A selected note's review record is missing                      | treat every span from it as `unverified`, say so   | none, log    |
 | `max_notes` exceeded                                            | keep the ordered prefix, report the remainder count | none, log   |
 | Managed brief markers missing, doubled or unbalanced            | refuse to touch the file, name the path            | page         |
-| Target path exists carrying a different `vppOccasion`           | refuse, name both identities                       | page         |
-| `vppSchema` higher than this build understands                  | read, never rewrite, report                        | page once    |
+| Target path exists carrying a different `vptOccasion`           | refuse, name both identities                       | page         |
+| `vptSchema` higher than this build understands                  | read, never rewrite, report                        | page once    |
 
 The split is the chain's: a configuration mistake or an ambiguity that could destroy work refuses loudly,
 a routine absence is a log line. **A requested brief sends no pns notification at all**, because the
@@ -837,7 +837,7 @@ controls, placed into a document a model will read as context. Four defences, al
 
 1. `gog --wrap-untrusted` wraps fetched text fields in the tool's own external-untrusted-content markers.
    It exists for exactly this and costs one flag.
-1. **vpp never sends context text to a model**, because vpp never calls a model. Whatever reads the brief
+1. **vpt never sends context text to a model**, because vpt never calls a model. Whatever reads the brief
    made its own decision to do so, which keeps the boundary visible rather than buried in a subcommand.
 1. **Fetched text is rendered as quoted data with its source named in place**, so a reader and a consumer
    can both tell an operator-authored line from a line that arrived from a calendar.
@@ -845,15 +845,15 @@ controls, placed into a document a model will read as context. Four defences, al
    design's slug sanitizer and its refusals, which reject a resolved path that escapes the output root or
    traverses a symbolic link, rather than sanitizing it into something that looks safe.
 
-**vpp holds no credential.** It spawns `gog` and `td`, each of which owns its own credential store
-(`gog`'s keyring directory under `~/.config/gogcli/`, `td`'s system credential store). vpp therefore adds
-nothing to the fifteen KeePassXC-backed targets, and an agent that can run vpp has exactly the access
-those two tools already grant it, which is a boundary the operator can inspect without reading vpp's
+**vpt holds no credential.** It spawns `gog` and `td`, each of which owns its own credential store
+(`gog`'s keyring directory under `~/.config/gogcli/`, `td`'s system credential store). vpt therefore adds
+nothing to the fifteen KeePassXC-backed targets, and an agent that can run vpt has exactly the access
+those two tools already grant it, which is a boundary the operator can inspect without reading vpt's
 code. If the Todoist single-slot problem forces a separate token, that changes and it becomes a sixteenth
 KeePassXC target, which is one of the open questions.
 
 **Writes are refused structurally, not by convention.** Read-only credential, `--readonly` at every call,
-and `--enable-commands-exact` restricting the spawned binary to the one command vpp needs.
+and `--enable-commands-exact` restricting the spawned binary to the one command vpt needs.
 
 **Nothing about a brief rides a pns request.** Not a title, not a participant, not a quoted span, not a
 task. The transcription design set that rule for flagged text and it holds here with more force, since a
@@ -907,12 +907,12 @@ takes a record structure, a context fixture and a temporary directory.
    writes no file.
 1. Rewriting a brief preserves every byte outside the managed markers, including prose a human added, and
    a file whose markers are missing, doubled or unbalanced is refused rather than repaired.
-1. A brief whose target path exists carrying a different `vppOccasion` is refused, naming both.
+1. A brief whose target path exists carrying a different `vptOccasion` is refused, naming both.
 1. A provider-supplied title containing `../`, a colon and a slash produces a slug with none of them and
    a path inside the output root.
 1. In the portable profile a brief's frontmatter contains none of the vault's eight keys, and a full run
    against an output root with no `.obsidian` directory produces a brief with no vault-specific syntax.
-1. With `vppUnresolved` above zero the Obsidian profile renders `status: needs-correction`, and with none
+1. With `vptUnresolved` above zero the Obsidian profile renders `status: needs-correction`, and with none
    it renders `active`.
 1. A brief with no calendar and no task context is written successfully, with `context: none` and the two
    empty sections stating their absence.
@@ -925,10 +925,10 @@ through 17 pin the uncertainty requirement that the Forzare bullet turns on, and
 
 Deliberately not designed here, and not to be smuggled in during implementation.
 
-- **Writing the brief's prose.** vpp assembles and cites. A generated summary is a proposal from
-  something else and goes through `vpp verify-note`.
+- **Writing the brief's prose.** vpt assembles and cites. A generated summary is a proposal from
+  something else and goes through `vpt verify-note`.
 - **The summary format.** The ledger's last bullet lists it as undecided, and under this design it
-  belongs to whatever generates prose, not to vpp.
+  belongs to whatever generates prose, not to vpt.
 - **Scheduled briefs, lead times and a LaunchAgent.** Named as the seam, left unbuilt, on the
   measurement.
 - **Writing to a calendar or to Todoist.** Every path here is read-only. Bob's calendar writes are
@@ -942,7 +942,7 @@ Deliberately not designed here, and not to be smuggled in during implementation.
 - **The `minutes` disposition.** Its `research` and `person` commands were measured and are named as a
   possible context source, and nothing here depends on the ruling.
 - **A per-participant profile, a relationship graph or a search index.** `minutes people` and
-  `minutes person` already occupy that space and vpp has no reason to compete for it.
+  `minutes person` already occupy that space and vpt has no reason to compete for it.
 - **Email, Slack or any other context source.** The ledger names two, both optional. A third would need a
   reason before it needed a collector.
 
@@ -952,9 +952,9 @@ Each of these was a choice this document had to make to be written at all. None 
 its alternative, and reversing any of them changes a configuration value or one section rather than
 invalidating the measurements.
 
-1. **A brief is assembled and cited, and vpp writes no sentences of its own.** Alternative: vpp spawns an
+1. **A brief is assembled and cited, and vpt writes no sentences of its own.** Alternative: vpt spawns an
    agent and files the prose, for which this repository has precedent in the `prepare-commit-msg` hook.
-   Taken because it keeps the egress decision at the caller, keeps vpp installable and useful with no
+   Taken because it keeps the egress decision at the caller, keeps vpt installable and useful with no
    agent present, and is the only shape where a generated sentence is checked against the transcript
    before it counts.
 1. **Briefs are requested, not scheduled.** Alternative: a LaunchAgent with a lead time, which is what
@@ -962,7 +962,7 @@ invalidating the measurements.
    on this machine is timed and participant-bearing items ran at 8 in the last 90 days, so a scheduler
    would wake daily and find nothing. Reversing this is a plist and a loader, and the command itself
    does not change.
-1. **Calendar and Todoist context arrives through one validated document that either vpp's own collectors
+1. **Calendar and Todoist context arrives through one validated document that either vpt's own collectors
    or Bob can produce.** Alternative: pick one now. Taken because the operator's open question is exactly
    which, and one input contract makes both answers work without a second implementation to drift.
 1. **The collectors ship disabled.** Alternative: enable them once credentials exist, since this operator
@@ -974,7 +974,7 @@ invalidating the measurements.
    there, and a local-file read would have to reimplement recurrence expansion that the Google API
    already performs. The cost is real and is named: a calendar that is only in Calendar.app and not in
    Google is invisible to this design.
-1. **Todoist through `td`.** Alternative: vpp holds its own token and calls the interface directly.
+1. **Todoist through `td`.** Alternative: vpt holds its own token and calls the interface directly.
    Taken because `td` is installed, is on the managed fnm lane, and already has `--read-only`. The
    unresolved part is whether a read-only credential can coexist with the operator's read-write one,
    which is an open question, and if it cannot then the alternative becomes the answer.
@@ -1013,10 +1013,10 @@ invalidating the measurements.
 Five. The first three are the three answers this design is waiting on, and they are deliberately separate
 approvals, as the ledger asks.
 
-**1. Decide who holds the calendar and Todoist credentials: vpp, or Bob.** This is the ledger's own
-question. Either answer works without changing vpp, and the design's default (`source = "none"`) is the
-answer to "neither, yet". If it is vpp, steps 4 and 5 follow. If it is Bob, this bullet's calendar and
-Todoist half waits for Forzare and vpp ships useful without it, which is what L-R5 requires.
+**1. Decide who holds the calendar and Todoist credentials: vpt, or Bob.** This is the ledger's own
+question. Either answer works without changing vpt, and the design's default (`source = "none"`) is the
+answer to "neither, yet". If it is vpt, steps 4 and 5 follow. If it is Bob, this bullet's calendar and
+Todoist half waits for Forzare and vpt ships useful without it, which is what L-R5 requires.
 
 **2. Decide whether briefs are requested or scheduled, and say whether meetings are going to start
 appearing on a calendar.** The measurement says a scheduler would find nothing today, but the measurement
@@ -1027,7 +1027,7 @@ the lead time becomes a real question rather than a hypothetical one.
 is a configuration value and it is the only scope that exists. An empty list refuses by design, so this
 answer is required before the collectors can be turned on at all.
 
-**4. If vpp is to read the calendar, authorize a read-only Google credential and confirm it does not
+**4. If vpt is to read the calendar, authorize a read-only Google credential and confirm it does not
 disturb the existing one.** The command is of the form
 `gog auth add <email> --services=calendar --readonly`, and `gog auth services` shows the calendar
 service's default scope is the full `https://www.googleapis.com/auth/calendar`, so this is a distinct
@@ -1036,7 +1036,7 @@ whether `--client` lets a second read-only token bucket sit beside the existing 
 account: `gog auth list` did not return inside a 20 second timeout in this session, so it was not
 verified.
 
-**5. If vpp is to read Todoist, settle the single-slot problem.** `td accounts list` shows one stored
+**5. If vpt is to read Todoist, settle the single-slot problem.** `td accounts list` shows one stored
 account keyed by its numeric id and `td auth status` reports it as read-write. Running
 `td auth login --read-only` would re-authorize that same account and most likely replace the operator's
 own read-write credential, which would break their daily `td` usage. Three ways out, in increasing cost:
@@ -1046,14 +1046,14 @@ task context, which is step 1's other answer.
 
 **Also, when the vault layout is adopted:** `briefs/` needs a folder note carrying the reference
 DataviewJS query, making four in total alongside the three the previous design named. Small, once, and
-vpp still writes no folder notes.
+vpt still writes no folder notes.
 
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows R1-R7) for the reasoning.
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows R1-R7) for the reasoning.
 
-1. **Does vpp read the calendar and Todoist, or does Bob supply them?** The ledger's own question. The
+1. **Does vpt read the calendar and Todoist, or does Bob supply them?** The ledger's own question. The
    design makes both work through one input document, so this sets a configuration value, but it decides
    who holds two credentials and therefore what an agent with shell access can reach.
 1. **Requested or scheduled, and at what lead time?** The recommendation is requested only, on the
@@ -1074,17 +1074,17 @@ vpp still writes no folder notes.
 1. **Is "brief" the right word, given that Forzare already has a morning brief?** Bob's morning brief is
    a day plan delivered on a schedule; this is a per-occasion evidence pack produced on request. Two
    things called a brief, one of which Bob composes and the other of which Bob consumes, is a name
-   collision waiting to confuse a future session. `vpp prep` or `vpp dossier` would avoid it at the cost
+   collision waiting to confuse a future session. `vpt prep` or `vpt dossier` would avoid it at the cost
    of not matching the ledger's own word.
 1. **If `minutes` stays, should its `research` and `person` output be a context source for a brief?** It
    is the one installed tool that already ranks material about a person or a topic, over its own corpus.
-   Feeding it in is one more collector; leaving it out keeps vpp's brief entirely its own. This question
+   Feeding it in is one more collector; leaving it out keeps vpt's brief entirely its own. This question
    is downstream of the `minutes` keep-or-replace ruling and does not need answering before it. **Moot,
    decided 2026-09-15:** `minutes` is out entirely, so there is no `research` or `person` output to draw
-   from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
+   from. See `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1.
 1. **Is the local Apple Calendar store representative of the operator's calendars?** The measurement came
    from that store, 16 calendars, and the recommendation to use the Google interface assumes the meetings
    that matter are in Google. A calendar that exists only in Calendar.app would be invisible to this
    design, and that is a consequence worth confirming rather than discovering later.
-1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
+1. **Where does vpt's code live, and what is it called?** Carried forward unresolved from the boundaries
    design, because the chain should not stay in disagreement with itself.

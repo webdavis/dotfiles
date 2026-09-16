@@ -1,17 +1,17 @@
-# vpp metadata schema, tags, relationships and filing rules
+# vpt metadata schema, tags, relationships and filing rules
 
 Status: design, written 2026-09-14 while the operator was asleep. Not approved, not built. No code was
 written or changed. Every choice made in the operator's place is listed under "Assumptions made in the
 operator's place" with its alternative, and the questions that need an answer are at the end.
 
-Scope: `docs/remaining-work.md`, the `vpp (Voice Processing Pipeline)` section, fourth bullet, line 2193.
+Scope: `docs/remaining-work.md`, the `vpt (Voice Processing Tool)` section, fourth bullet, line 2193.
 
 > Support agent-suggested tags and relationships between recordings, with a defined metadata schema and
 > configurable output paths. Use explicit links and deterministic filing rules for automatic routing.
 > Markdown output can live in an Obsidian vault and use its existing mobile sync, but Obsidian is
 > optional.
 
-The section intro, added 2026-09-12, sets the frame: "Build vpp in Rust to collect everyday Apple Voice
+The section intro, added 2026-09-12, sets the frame: "Build vpt in Rust to collect everyday Apple Voice
 Memos synced to the Mac, preserve their original audio format, transcribe them, and produce agent notes
 and summaries."
 
@@ -26,9 +26,9 @@ constraint in this document, never a question.
 
 ## What this builds on
 
-This is the fourth document in the vpp chain and it assumes the first three.
+This is the fourth document in the vpt chain and it assumes the first three.
 
-**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpp
+**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpt
 feature bullets, including "tags and relationships across recordings", that the `minutes` keep-or-replace
 ruling is still open, and that the vault's `agent-processing-pipeline/` layout is a filing convention
 that exists and has never been used. This bullet is therefore the one place in the chain where a
@@ -37,7 +37,7 @@ third-party tool's existing answer has to be examined rather than assumed away.
 **The discovery design** produced the identity every artifact hangs off:
 `2026-08-24T144736-4f3ab19c02de`, a local capture timestamp from the audio file's own `mvhd` box plus
 twelve hexadecimal characters of the file's SHA-256 (secure hash algorithm 256-bit) digest. It writes a
-clone into `raw/audio/` and a sidecar into `~/.local/state/vpp/recordings/<id>.json`, and it stops there.
+clone into `raw/audio/` and a sidecar into `~/.local/state/vpt/recordings/<id>.json`, and it stops there.
 
 **The redundant transcription design** added the transcript note, its `Review` section, the timecode
 source-reference convention (`[04:12]`), a `known-terms.txt` the operator grows by confirming a term
@@ -46,14 +46,14 @@ Its confirm-once-and-suppress-forever mechanism is reused below for tags rather 
 
 **The boundaries design** ruled on where things live, and one of its rulings is load-bearing here:
 "Frontmatter key names come from configuration, not from code, so the vault's schema (`hub`, `status`,
-`startDate`, `description`) is this operator's configuration rather than vpp's contract." This document
-is the detailed form of that sentence. It also recommends that vpp be its own repository rather than a
+`startDate`, `description`) is this operator's configuration rather than vpt's contract." This document
+is the detailed form of that sentence. It also recommends that vpt be its own repository rather than a
 fifth cargo workspace in dotfiles, which is still the operator's to settle and which nothing below
 depends on.
 
 Two disagreements inside the chain are still open and are flagged rather than resolved here: the audio's
 home (the discovery design clones into the vault's `raw/audio/`, the boundaries design prefers an archive
-directory outside the vault with an optional symlink), and vpp's shipping name (`VPP` collides with
+directory outside the vault with an optional symlink), and vpt's shipping name (`VPP` collides with
 FD.io's Vector Packet Processing). The filing design below works with either audio home, because the
 audio path is one configured value.
 
@@ -63,7 +63,7 @@ From the ledger bullet and from `PLAN-v12-experiments-backlog.md` L-R5, which is
 the same feature:
 
 1. Tags are **agent-suggested**, so they are proposals rather than facts.
-1. Relationships hold **between recordings**, so this is a graph over vpp's own artifacts, not only a
+1. Relationships hold **between recordings**, so this is a graph over vpt's own artifacts, not only a
    link from a note to its audio.
 1. There is a **defined metadata schema**, written down, not implied by whatever the writer emitted.
 1. Output paths are **configurable**.
@@ -73,7 +73,7 @@ the same feature:
    deterministically and work with Obsidian absent."
 
 From the vault's own `CLAUDE.md`, which governs every note in `~/workspaces/Ivy` and therefore governs
-anything vpp writes there:
+anything vpt writes there:
 
 - **V1.** Frontmatter uses the documented property set in the documented order: `aliases`, `reference`,
   `hub`, `tags`, `status`, `description`, `startDate`, `endDate`.
@@ -135,7 +135,7 @@ held rather than written.
 
 **Unregistered property names are normal in this vault.** `status`, `hub` and `description` are used by
 738, 417 and 324 notes respectively and appear in none of the 87 entries of `.obsidian/types.json`. So
-vpp adding its own keys needs no edit to Obsidian's type registry, and a proposal to edit that registry
+vpt adding its own keys needs no edit to Obsidian's type registry, and a proposal to edit that registry
 would be adding a dependency the vault does not itself have.
 
 ### The pipeline directory, as it stands
@@ -158,14 +158,14 @@ Obsidian's core `sync` plugin is enabled (`"sync": true` in `.obsidian/core-plug
 `pullBeforePush: true`. The plugin's own settings label reads "Auto push interval (minutes)", so those
 numbers are minutes.
 
-Two consequences, both design inputs rather than opinions. First, **a file vpp writes into the vault
+Two consequences, both design inputs rather than opinions. First, **a file vpt writes into the vault
 reaches GitHub without the operator doing anything**, within minutes, and reaches the phone by whichever
 sync path is actually live. Second, **which sync path is live is unresolved**: the core Sync plugin being
 enabled is not proof of an active subscription, and the two paths have different third parties
 (Obsidian's servers against GitHub). The transcription design already asked whether transcripts may be
 committed at all; this measurement sharpens that question rather than answering it.
 
-Under V7, vpp never runs `git` against the vault. It writes files and lets the plugin commit them.
+Under V7, vpt never runs `git` against the vault. It writes files and lets the plugin commit them.
 
 ### What `minutes` already defines, read rather than remembered
 
@@ -262,17 +262,17 @@ The interesting row is the last one, and it is not what it looks like. The disco
 `clonefile(2)`, and a copy-on-write clone consumes metadata only while the source still exists: the
 187.9 MB recording cloned in 0.00 seconds and consumed 16 KB. **The clone only starts costing real bytes
 when Apple's original goes away**, which is exactly when the clone becomes the archive and is worth
-paying for. So retention on audio is not a storage decision, it is a decision about whether vpp's copy is
+paying for. So retention on audio is not a storage decision, it is a decision about whether vpt's copy is
 the backup. Everything else in the table is small enough that a retention mechanism would cost more to
 build and audit than the bytes it saves.
 
 ## Approaches
 
-The decision is which schema vpp writes and how notes are routed. Three candidates.
+The decision is which schema vpt writes and how notes are routed. Three candidates.
 
-### A. vpp adopts the vault's note schema as its own
+### A. vpt adopts the vault's note schema as its own
 
-vpp emits `aliases`, `reference`, `hub`, `tags`, `status`, `description`, `startDate`, `endDate` in the
+vpt emits `aliases`, `reference`, `hub`, `tags`, `status`, `description`, `startDate`, `endDate` in the
 documented order and nothing else, with `status` carrying the pipeline state and `reference` carrying the
 link to the audio.
 
@@ -285,10 +285,10 @@ they go in the body where nothing can query them or the schema grows keys that a
 which is approach C wearing a disguise. And `status` cannot carry the pipeline state honestly, because V2
 fixes its five values.
 
-### B. vpp adopts the `minutes` frontmatter schema
+### B. vpt adopts the `minutes` frontmatter schema
 
 Take `minutes schema` as the contract: `type`, `date`, `duration`, `tags`, `entities`, `status`,
-`sensitivity`, `visibility`. vpp's notes then join the same corpus, and `minutes ingest`, `minutes
+`sensitivity`, `visibility`. vpt's notes then join the same corpus, and `minutes ingest`, `minutes
 people` and `minutes search` can read them.
 
 Good: it is the reuse answer, it is already a published JSON Schema with an `api_version`, it already has
@@ -304,8 +304,8 @@ satisfied.
 
 ### C. A versioned record, a flat key block in the note, and the vault's keys from an output profile
 
-The sidecar that already exists is the authority. The note is a rendering of it. vpp writes a small fixed
-set of flat, prefixed keys (`vppSchema`, `vppRecording`, `vppStage`, and so on) plus whatever the
+The sidecar that already exists is the authority. The note is a rendering of it. vpt writes a small fixed
+set of flat, prefixed keys (`vptSchema`, `vptRecording`, `vptStage`, and so on) plus whatever the
 configured output profile adds: nothing at all in the portable profile, the vault's eight documented keys
 in the Obsidian profile. Links live in a marked, managed block in the body, rendered as wiki links or
 Markdown links by one configuration value. Filing is a rule table over an allowlist of recorded fields,
@@ -314,8 +314,8 @@ and the resolved path is pinned in the sidecar at first write.
 Good: the done-means falls out of the structure. "Works with Obsidian absent" is the portable profile,
 which is the shipped default and therefore the tested one. The vault's rules are satisfied by
 configuration, which is what the boundaries design already ruled. A human edit to the note survives,
-because vpp only ever rewrites inside its own markers. And nothing here is hostage to the `minutes`
-ruling: if `minutes` wins, its notes are an input that vpp files, and the sidecar still holds the record.
+because vpt only ever rewrites inside its own markers. And nothing here is hostage to the `minutes`
+ruling: if `minutes` wins, its notes are an input that vpt files, and the sidecar still holds the record.
 
 Bad: two representations, the record and the note, which must not drift. The answer to drift is that only
 one direction is authoritative and the other is regenerable, but that is a rule someone has to keep. It
@@ -323,7 +323,7 @@ is also more machinery than A, by roughly one profile table and one marker-aware
 
 ### Recommendation
 
-**C**, with one deliberate borrowing from B: where `minutes` has already named a concept, vpp uses its
+**C**, with one deliberate borrowing from B: where `minutes` has already named a concept, vpt uses its
 name rather than inventing a synonym. `tags` is a list of strings. A relationship target carries a
 `slug`, a `label` and `aliases`, because `EntityRef` already chose those three words and a second
 vocabulary for the same idea helps nobody.
@@ -338,8 +338,8 @@ file format that outlives everything else here.
 
 | Layer          | Where                                       | Authority                    | Survives                        |
 | -------------- | ------------------------------------------- | ---------------------------- | ------------------------------- |
-| The record     | `~/.local/state/vpp/recordings/<id>.json`   | **yes**, the source of truth | vault deleted, Obsidian absent  |
-| The note       | the configured output directory, Markdown   | no, a rendering              | vpp uninstalled                 |
+| The record     | `~/.local/state/vpt/recordings/<id>.json`   | **yes**, the source of truth | vault deleted, Obsidian absent  |
+| The note       | the configured output directory, Markdown   | no, a rendering              | vpt uninstalled                 |
 | The index      | derived at run time from the output tree    | no, a cache                  | nothing, it is rebuilt in 0.245 s |
 
 The record is the one the design defends. The note is regenerable from it, and the index (note names,
@@ -394,35 +394,35 @@ rather than replacing it:
 
 ```markdown
 ---
-vppSchema: 1
-vppRecording: 2026-08-24T144736-4f3ab19c02de
-vppStage: transcript
-vppCapturedAt: 2026-08-24T14:47:36-06:00
-vppDurationSecs: 612
-vppOpenFlags: 6
-vppEngines:
+vptSchema: 1
+vptRecording: 2026-08-24T144736-4f3ab19c02de
+vptStage: transcript
+vptCapturedAt: 2026-08-24T14:47:36-06:00
+vptDurationSecs: 612
+vptOpenFlags: 6
+vptEngines:
   - whisply:large-v3-turbo
   - elevenlabs:scribe_v2
 tags:
   - invoice
-vppSuggestedTags:
+vptSuggestedTags:
   - billing/quarterly
 ---
 
 # 2026-08-24-invoice-call-4f3ab19c
 
-<!-- vpp:links start -->
+<!-- vpt:links start -->
 - Audio: `raw/audio/2026-08-24T144736-4f3ab19c02de.m4a`
 - Continues: [2026-08-24-invoice-prep-91b2c740](2026-08-24-invoice-prep-91b2c740.md)
 - Mentions: [Rajesh Muthukrishnan](../../areas/contacts/Rajesh%20Muthukrishnan.md)
-<!-- vpp:links end -->
+<!-- vpt:links end -->
 
 ## Transcript
 ...
 ```
 
 **The note**, Obsidian profile, which is what this operator's machine renders. The eight vault keys come
-first in the documented order, the `vpp` keys follow, and every wiki link is quoted:
+first in the documented order, the `vpt` keys follow, and every wiki link is quoted:
 
 ```markdown
 ---
@@ -436,52 +436,52 @@ tags:
 status: needs-correction
 description: Voice memo recorded 2026-08-24, 6 spans awaiting review
 startDate: 2026-08-24
-vppSchema: 1
-vppRecording: 2026-08-24T144736-4f3ab19c02de
-vppStage: transcript
-vppDurationSecs: 612
-vppOpenFlags: 6
-vppSuggestedTags:
+vptSchema: 1
+vptRecording: 2026-08-24T144736-4f3ab19c02de
+vptStage: transcript
+vptDurationSecs: 612
+vptOpenFlags: 6
+vptSuggestedTags:
   - billing/quarterly
 ---
 ```
 
 Four rules govern the schema and they are the whole contract:
 
-1. **`vppSchema` is an integer and it is the only compatibility signal.** A note whose `vppSchema` is
-   higher than the running vpp knows is read but never rewritten, and the mismatch is reported. This is
+1. **`vptSchema` is an integer and it is the only compatibility signal.** A note whose `vptSchema` is
+   higher than the running vpt knows is read but never rewritten, and the mismatch is reported. This is
    the cheapest possible version story and it is the one `minutes` uses (`api_version: 1`).
-1. **`vppRecording` is the join key.** Every artifact of one recording carries the same value, in every
-   profile. It is what lets a renamed note be found again, and it is the only key vpp searches on.
-1. **vpp's own keys are prefixed `vpp` and are never keys the vault already uses.** Measured: `status`,
+1. **`vptRecording` is the join key.** Every artifact of one recording carries the same value, in every
+   profile. It is what lets a renamed note be found again, and it is the only key vpt searches on.
+1. **vpt's own keys are prefixed `vpt` and are never keys the vault already uses.** Measured: `status`,
    `hub` and `description` are used by 738, 417 and 324 vault notes, so a bare `duration` or `source`
    would be a collision waiting for a Dataview query to trip over. The prefix is camelCase because the
    vault's own keys are (`startDate`, `payPeriodStart`, `relationshipDescription`), and Dataview reads
-   `p.vppRecording` the same way it reads `p.status`.
-1. **The profile adds keys, never renames vpp's.** A profile is a small table of literals and derived
+   `p.vptRecording` the same way it reads `p.status`.
+1. **The profile adds keys, never renames vpt's.** A profile is a small table of literals and derived
    values, not a general renaming layer. Two profiles ship, `portable` and `obsidian`, and a third would
    need a reason.
 
 The `status` mapping in the Obsidian profile is the one place where the vault's vocabulary happens to fit
-vpp's state exactly, and using it is better than adding a parallel key:
+vpt's state exactly, and using it is better than adding a parallel key:
 
-| vpp state                         | vault `status`     |
+| vpt state                         | vault `status`     |
 | --------------------------------- | ------------------ |
 | open review flags exist           | `needs-correction` |
 | no open flags                     | `active`           |
-| operator marked the note finished | `complete`, by hand, and vpp never overwrites it |
+| operator marked the note finished | `complete`, by hand, and vpt never overwrites it |
 
 ### Explicit links, and the managed block
 
-Links live in the body between `<!-- vpp:links start -->` and `<!-- vpp:links end -->`. The mechanism is
+Links live in the body between `<!-- vpt:links start -->` and `<!-- vpt:links end -->`. The mechanism is
 the one this repository already uses for the shared agent-rules partial, where a generated block sits
 between markers inside a file a human also edits.
 
 Five rules:
 
-1. **vpp rewrites only between the markers.** Prose above or below them is never touched. This is what
-   makes the note safe for a human to edit and still safe for vpp to regenerate.
-1. **If the markers are missing, unbalanced, or appear more than once, vpp refuses to touch the file**
+1. **vpt rewrites only between the markers.** Prose above or below them is never touched. This is what
+   makes the note safe for a human to edit and still safe for vpt to regenerate.
+1. **If the markers are missing, unbalanced, or appear more than once, vpt refuses to touch the file**
    and reports the path. A generator that mangles its own markers gets a failure, not a second block.
 1. **Both directions are written.** When the analysis note appears, the transcript note's block gains a
    link to it and the analysis note's block gains a link back. Obsidian's backlinks pane makes one
@@ -495,16 +495,16 @@ Five rules:
    sequence in YAML, not a string.
 
 Generated filenames carry no spaces, so the two link forms differ only in their punctuation and the
-URL-encoding rule never bites on vpp's own targets. It still applies to a `mentions` link into the
+URL-encoding rule never bites on vpt's own targets. It still applies to a `mentions` link into the
 operator's existing notes, whose names do contain spaces.
 
 ### Tags: the agent proposes, the gate decides, the operator confirms
 
-vpp does not contain a language model and does not call one. A proposal arrives from whatever wrote or
+vpt does not contain a language model and does not call one. A proposal arrives from whatever wrote or
 read the note, as one JSON document on standard input:
 
 ```
-vpp tag propose <recording-id> --json -
+vpt tag propose <recording-id> --json -
 {"tags": [{"tag": "billing/quarterly", "reason": "three mentions of the quarterly invoice"}],
  "by": "claude-sonnet"}
 ```
@@ -514,12 +514,12 @@ order. A tag that fails any of them is rejected with the rule that rejected it, 
 line, never a page.
 
 1. **Syntax.** Letters, digits, `_`, `-` and `/` only, at least one non-numeric character, no leading
-   `#`, no whitespace. Taken from Obsidian's documented tag rules so that a tag vpp writes is always a
+   `#`, no whitespace. Taken from Obsidian's documented tag rules so that a tag vpt writes is always a
    valid Obsidian tag, whether or not Obsidian is installed.
 1. **Length and count.** At most `max_per_note` confirmed tags on a note, default 5, and at most
    `max_suggested` held suggestions, default 10. Excess is dropped in proposal order and recorded.
 1. **Vocabulary.** A tag already present in the vault's own vocabulary, or in `known-tags.txt`, is
-   accepted as `confirmed`. Anything else is recorded as `suggested` and written to `vppSuggestedTags`,
+   accepted as `confirmed`. Anything else is recorded as `suggested` and written to `vptSuggestedTags`,
    not to `tags`. The vocabulary is the index described above, rebuilt in 0.245 s, so it is always the
    live vault rather than a copy that drifts.
 1. **Shape.** A new multi-word tag is normalized to the configured `new_tag_style`, default `kebab`.
@@ -531,8 +531,8 @@ line, never a page.
 Confirmation reuses the transcription design's mechanism rather than inventing a second one:
 
 ```
-vpp confirm <recording-id> --tag billing/quarterly      promote to tags, append to known-tags.txt
-vpp confirm <recording-id> --reject-tag billing/quarterly
+vpt confirm <recording-id> --tag billing/quarterly      promote to tags, append to known-tags.txt
+vpt confirm <recording-id> --reject-tag billing/quarterly
 ```
 
 So the suggestion list shrinks as the operator uses it and converges on the operator's actual vocabulary,
@@ -556,14 +556,14 @@ schema and a fifth kind is a schema change, not a configuration value.
 | `continues`| the previous recording of the same sitting       | derived    | previous capture ends within `session_gap_minutes`, default 60 |
 | `mentions` | a note in the output tree this recording names   | derived    | exact match of a confirmed known term against a note name or alias |
 | `related`  | another recording an agent thinks is connected   | agent      | held as `suggested` until confirmed                            |
-| `supersedes`| this recording replaces an earlier one          | operator   | recorded only by `vpp confirm`                                 |
+| `supersedes`| this recording replaces an earlier one          | operator   | recorded only by `vpt confirm`                                 |
 
 `continues` has measured support: 8 of 26 adjacent gaps in the existing corpus fall under 60 minutes and
 4 under 10, so the relation fires on real clusters rather than on an imagined workflow. The threshold is
 one configuration value and the default is deliberately generous, since a false `continues` link is a
 link a human can see and remove, while a missing one is invisible.
 
-`mentions` is the one relation that reaches outside vpp's own artifacts, and it is deliberately the
+`mentions` is the one relation that reaches outside vpt's own artifacts, and it is deliberately the
 dumbest possible matcher: a term the operator has already confirmed in `known-terms.txt`, matched as a
 whole token, case-insensitively, against the 722 note names and 246 aliases in the index. No fuzzy
 matching, no embedding, no model. The transcription design's measurement is the reason: the engines'
@@ -578,19 +578,19 @@ block prefixed with its provenance, so a reader can see that a machine proposed 
 "Deterministic" is the done-means, so it gets a definition rather than an adjective. Five properties, all
 testable:
 
-1. **Total.** The rule list ends in a catch-all, and vpp refuses to start if it does not. Every note
+1. **Total.** The rule list ends in a catch-all, and vpt refuses to start if it does not. Every note
    matches exactly one rule, so there is no unrouted case and no default hidden in the code.
 1. **Pure.** A path is a function of an allowlisted set of recorded fields, and of nothing else. The
    allowlist is `stage`, `captured_at`, `duration_secs`, `title_source`, and **confirmed** tags. Not
    suggested tags, not the transcript text, not the note body, not the clock, not the contents of the
    destination directory.
 1. **Stable.** The resolved path is written into the record at first write and reused thereafter. A rule
-   edit moves nothing until `vpp file --replan --apply` is run, which prints every move first and
+   edit moves nothing until `vpt file --replan --apply` is run, which prints every move first and
    rewrites the managed link blocks that point at the moved files.
-1. **Explainable.** `vpp file --explain <recording-id>` prints the matching rule's index, the field
+1. **Explainable.** `vpt file --explain <recording-id>` prints the matching rule's index, the field
    values that matched it, and the resolved path, without writing anything.
 1. **Collision-free.** The name carries eight hexadecimal characters of the identity, and if the target
-   path exists while carrying a different `vppRecording`, vpp refuses and names both.
+   path exists while carrying a different `vptRecording`, vpt refuses and names both.
 
 The rule table:
 
@@ -616,12 +616,12 @@ recorded in the note's own record as `filed_by_rule`, so a note can always say w
 deterministically without embedding a copy of the rules:
 
 ```
-vpp path <recording-id> --stage analysis
+vpt path <recording-id> --stage analysis
 ~/workspaces/Ivy/agent-processing-pipeline/analysis/2026-08-24-invoice-call-4f3ab19c.md
 ```
 
 That is the whole integration contract for "automatic routing". An agent, a `minutes` wrapper or the
-operator asks vpp where a note goes and writes it there. Nothing registers, nothing subscribes, and there
+operator asks vpt where a note goes and writes it there. Nothing registers, nothing subscribes, and there
 is no second implementation of the rules to drift.
 
 ### Names
@@ -658,10 +658,10 @@ warns about, and rule 4 is what stops a title of `../../.ssh/authorized_keys` fr
 ### When the operator renames the note in Obsidian
 
 This will happen. Obsidian renames files and rewrites the links pointing at them, and it knows nothing
-about vpp's pinned path. The design handles it with the index rather than by forbidding it:
+about vpt's pinned path. The design handles it with the index rather than by forbidding it:
 
-1. vpp resolves the pinned path and finds nothing there.
-1. It scans the output root for a note whose `vppRecording` equals the identity. Measured cost: 0.245 s.
+1. vpt resolves the pinned path and finds nothing there.
+1. It scans the output root for a note whose `vptRecording` equals the identity. Measured cost: 0.245 s.
 1. Exactly one match: re-pin to the new path, log one line, continue.
 1. No match: treat the note as absent and rewrite it at the pinned path, which is the same behavior as a
    deleted note.
@@ -677,10 +677,10 @@ writes furniture for them.
 
 So the default rule table is flat: everything of one stage lands in one directory. At the measured 4.3
 recordings a week, `transcripts/` gains about 224 notes a year, which Obsidian handles without complaint
-and which Dataview groups on demand by any property vpp writes. Bucketing is available by editing the
+and which Dataview groups on demand by any property vpt writes. Bucketing is available by editing the
 rule table, and the cost is one folder note per directory created, which is the operator's to pay.
 
-vpp does not write folder notes. It is content, not furniture, and V8's DataviewJS pattern is the vault's
+vpt does not write folder notes. It is content, not furniture, and V8's DataviewJS pattern is the vault's
 own. The three that are missing are named as an operator step below.
 
 ### Configuration
@@ -693,7 +693,7 @@ keys ship uncommented at their default, so the shipped file shows the real postu
 # Where notes are written. The audio's home is [destination] in the discovery
 # design and is deliberately a separate value: audio may live outside the vault.
 root = "~/workspaces/Ivy/agent-processing-pipeline"
-# "portable" writes only vpp's own keys. "obsidian" also writes the eight vault
+# "portable" writes only vpt's own keys. "obsidian" also writes the eight vault
 # keys, in the vault's documented order.
 profile = "portable"
 # "markdown" links work everywhere. "wiki" is Obsidian's form.
@@ -710,9 +710,9 @@ when = {}
 dir = "analysis"
 
 [tags]
-known_tags_path = "~/.config/vpp/known-tags.txt"
+known_tags_path = "~/.config/vpt/known-tags.txt"
 # A proposed tag that is not already in the vault vocabulary or the known list is
-# held in vppSuggestedTags until confirmed. Confirming appends it to that file.
+# held in vptSuggestedTags until confirmed. Confirming appends it to that file.
 accept_new = false
 max_per_note = 5
 max_suggested = 10
@@ -738,27 +738,27 @@ fifteen KeePassXC-backed targets.
 Five verbs, all of them small, three of them pure functions with no side effect:
 
 ```
-vpp path <recording-id> --stage <stage>            print where a note goes. Writes nothing.
-vpp file --explain <recording-id>                  print the matching rule and why. Writes nothing.
-vpp file --replan [--apply]                        re-resolve pinned paths after a rule edit.
-vpp tag propose <recording-id> --json -            validate and record a proposal.
-vpp confirm <recording-id> --tag T | --reject-tag T | --relation kind:target
-vpp note write <recording-id>                      re-render the managed regions from the record.
-vpp storage                                        print what each artifact class costs. Deletes nothing.
+vpt path <recording-id> --stage <stage>            print where a note goes. Writes nothing.
+vpt file --explain <recording-id>                  print the matching rule and why. Writes nothing.
+vpt file --replan [--apply]                        re-resolve pinned paths after a rule edit.
+vpt tag propose <recording-id> --json -            validate and record a proposal.
+vpt confirm <recording-id> --tag T | --reject-tag T | --relation kind:target
+vpt note write <recording-id>                      re-render the managed regions from the record.
+vpt storage                                        print what each artifact class costs. Deletes nothing.
 ```
 
 ### Failure modes
 
-| Condition                                                | What vpp does                                            | Notification |
+| Condition                                                | What vpt does                                            | Notification |
 | -------------------------------------------------------- | -------------------------------------------------------- | ------------ |
 | Last rule is not a catch-all                             | refuse at startup, naming the rule index                  | page once    |
 | A rule's `dir` is absolute, escapes the root, or is a symlink | refuse at startup, naming the rule and the resolved path | page once    |
 | Output root missing                                      | refuse; create a directory only when its parent exists    | page         |
-| Target path exists with a different `vppRecording`        | refuse to write, name both identities                     | page         |
+| Target path exists with a different `vptRecording`        | refuse to write, name both identities                     | page         |
 | Pinned path missing, exactly one note claims the identity | re-pin, continue                                          | none, log    |
 | Pinned path missing, several notes claim the identity     | refuse, name every claimant                               | page         |
 | Managed markers missing, doubled or unbalanced            | refuse to touch the file, name the path                   | page         |
-| `vppSchema` higher than this build understands            | read, never rewrite, report                               | page once    |
+| `vptSchema` higher than this build understands            | read, never rewrite, report                               | page once    |
 | A proposed tag fails the syntax gate                      | drop it, record the rule that rejected it                 | none, log    |
 | A proposed tag is new and `accept_new = false`            | hold as suggested                                         | none         |
 | More than `max_per_note` confirmed tags                   | keep the first by proposal order, record the remainder    | none, log    |
@@ -780,27 +780,27 @@ per recording that matters.
 - **No tag, no title, no relation and no reason string ever rides in a pns request.** The transcription
   design set that rule for flagged spans; a tag is the same class of data and sometimes worse, because it
   is a compact statement of what a private recording is about. The notification carries counts and paths.
-- **vpp sends nothing to a model.** It accepts a proposal on standard input. If an agent produced that
+- **vpt sends nothing to a model.** It accepts a proposal on standard input. If an agent produced that
   proposal, the agent read the transcript, and that egress decision belongs to whoever ran the agent, not
-  to vpp. The design deliberately keeps vpp out of it so the boundary stays visible.
+  to vpt. The design deliberately keeps vpt out of it so the boundary stays visible.
 - **The slug is sanitized before it is a path**, and a resolved path that escapes the output root or
   traverses a symbolic link is refused rather than repaired. The refusal-not-repair rule is the one the
   osquery converge already uses for the same reason.
 - **The record is mode 0600 in a 0700 directory**, as the earlier designs set. The note inherits the
   vault's protections and is committed, unlike the audio, which `.gitignore` excludes by extension.
-- **vpp never runs git**, per V7. It writes files and lets Obsidian Git commit them, which also means vpp
+- **vpt never runs git**, per V7. It writes files and lets Obsidian Git commit them, which also means vpt
   cannot accidentally commit something the operator was about to delete.
 
 ### Retention, which is the operator's half
 
-vpp deletes nothing, and no deletion mechanism is designed. R6 and L-R5 both say so, and the measurement
+vpt deletes nothing, and no deletion mechanism is designed. R6 and L-R5 both say so, and the measurement
 says it would not be worth building anyway: the entire back catalogue's transcripts are about 187 KB and
-both engines' raw outputs together are about 13 MB. `vpp storage` reports the four classes with their
+both engines' raw outputs together are about 13 MB. `vpt storage` reports the four classes with their
 current sizes and the growth rate, and any pruning is the operator's own command.
 
 The one real retention question is the audio, and it is not about bytes. A clone costs metadata while
 Apple's original exists and starts costing its full size only when the original is deleted, which is the
-moment it becomes the only copy. So the decision the operator is actually making is **whether vpp's copy
+moment it becomes the only copy. So the decision the operator is actually making is **whether vpt's copy
 is the backup**, and the answer changes where it should live: inside the vault directory (the discovery
 design, gitignored, synced nowhere) or outside it in an archive directory with a symlink (the boundaries
 design, which is what `minutes` already does with `~/meetings`). This design works with either, which is
@@ -808,7 +808,7 @@ why `[output].root` and the audio destination are two separate configuration val
 
 One hazard to carry forward: if audio is ever routed through the `minutes` tree, `minutes storage`
 already classifies recordings older than 30 days as `delete-candidate`. Nothing deletes unattended today,
-because `cleanup` previews by default, but the classification is there and vpp's requirement is to
+because `cleanup` previews by default, but the classification is there and vpt's requirement is to
 preserve originals.
 
 ### The behaviors to drive the implementation, test-first
@@ -820,16 +820,16 @@ structure and a temporary directory.
 1. A rule table whose last rule is not a catch-all is refused at startup, naming the rule index, and no
    note is written.
 1. A record matching two rules is filed by the earlier one, and `filed_by_rule` records that index.
-1. `vpp path` is a pure function: two calls with the same record and rules return the same path, and
+1. `vpt path` is a pure function: two calls with the same record and rules return the same path, and
    neither creates a file.
 1. A rule edit does not move an already-filed note; `--replan` reports the move and `--replan --apply`
    performs it and rewrites the link blocks that pointed at the old path.
 1. A title containing `../`, a colon and a slash produces a slug with none of them, and the resolved path
    is inside the output root.
 1. A title that sanitizes to an empty string files as `untitled`, and the note is still written.
-1. A target path that exists carrying a different `vppRecording` is refused, and both identities appear
+1. A target path that exists carrying a different `vptRecording` is refused, and both identities appear
    in the message.
-1. A note moved to a new path inside the output root is found by its `vppRecording` and re-pinned; two
+1. A note moved to a new path inside the output root is found by its `vptRecording` and re-pinned; two
    notes carrying that identity cause a refusal naming both.
 1. Rewriting a note preserves every byte outside the managed markers, including prose a human added above
    and below them.
@@ -842,14 +842,14 @@ structure and a temporary directory.
 1. In the `portable` profile the frontmatter contains none of `aliases`, `reference`, `hub`, `status`,
    `description`, `startDate` or `endDate`, and the note parses as plain Markdown with no vault-specific
    syntax.
-1. In the `obsidian` profile the eight vault keys appear first and in the documented order, and the `vpp`
+1. In the `obsidian` profile the eight vault keys appear first and in the documented order, and the `vpt`
    keys follow.
 1. A record with open flags renders `status: needs-correction`; the same record with none renders
    `status: active`; a note already carrying `status: complete` keeps it across a rewrite.
 1. A proposed tag of `#1984` is rejected by the syntax gate, and `y1984` is accepted.
 1. A proposed tag containing a space, or beginning with `#`, is rejected with the rule that rejected it.
-1. A proposed tag not in the vocabulary is written to `vppSuggestedTags` and not to `tags`;
-   `vpp confirm --tag` moves it and appends it to `known-tags.txt`.
+1. A proposed tag not in the vocabulary is written to `vptSuggestedTags` and not to `tags`;
+   `vpt confirm --tag` moves it and appends it to `known-tags.txt`.
 1. A proposal of `Invoice` where the vocabulary holds `invoice` is folded onto the existing spelling, and
    a proposal of `ironman-training` where the vocabulary holds `ironmanTraining` is folded onto the
    existing spelling rather than reshaping it.
@@ -874,15 +874,15 @@ worth writing first.
 
 Deliberately not designed here, and not to be smuggled in during implementation.
 
-- **Generating tags.** vpp accepts a proposal. Which agent produces one, with what prompt, is a later
+- **Generating tags.** vpt accepts a proposal. Which agent produces one, with what prompt, is a later
   bullet and an egress decision.
-- **Writing the analysis note.** vpp says where it goes and links it once it exists. The note generator
-  is a later bullet and may be `minutes`, an agent, or vpp itself.
+- **Writing the analysis note.** vpt says where it goes and links it once it exists. The note generator
+  is a later bullet and may be `minutes`, an agent, or vpt itself.
 - **Summaries, meeting briefs, redacted drafts, speaker labels.** Later bullets, and two of them are
   listed in the ledger as unapproved candidates.
-- **A retention or deletion mechanism.** R6 and L-R5. `vpp storage` reports; nothing prunes.
+- **A retention or deletion mechanism.** R6 and L-R5. `vpt storage` reports; nothing prunes.
 - **Folder notes and DataviewJS queries in the vault.** Vault furniture, written once by the operator,
-  not content vpp owns.
+  not content vpt owns.
 - **Migrating the vault's existing tag vocabulary.** V4 forbids altering tag naming conventions, and the
   measured 122-tag vocabulary is the operator's, not a mess to normalize.
 - **A second output profile beyond `portable` and `obsidian`.** Logseq, a static site or a database would
@@ -898,11 +898,11 @@ Deliberately not designed here, and not to be smuggled in during implementation.
 Each of these was a choice this document had to make to be written at all. None is a decision, each names
 its alternative, and reversing any of them changes the design without invalidating the measurements.
 
-1. **The record in vpp's state is authoritative and the note is a rendering.** Alternative: the note is
-   the record, which is what `minutes` does, and vpp reads frontmatter back. Taken because the done-means
+1. **The record in vpt's state is authoritative and the note is a rendering.** Alternative: the note is
+   the record, which is what `minutes` does, and vpt reads frontmatter back. Taken because the done-means
    requires working with Obsidian absent, and a design whose only durable copy lives in a vault that may
    not exist has nowhere to stand. The cost is two representations that must not drift.
-1. **vpp's own keys are flat and prefixed `vppSomething`.** Alternative: a nested `vpp:` object, which is
+1. **vpt's own keys are flat and prefixed `vptSomething`.** Alternative: a nested `vpt:` object, which is
    tidier in the file. Rejected on the vendor's own documentation: nested properties are viewable only in
    source mode, so a nested block is invisible in the editor the operator uses.
 1. **The shipped defaults are `portable` and `markdown`, and this machine configures `obsidian` and
@@ -910,7 +910,7 @@ its alternative, and reversing any of them changes the design without invalidati
    Taken because the tested default should be the one the done-means names, and because the boundaries
    design already ruled that key names are configuration.
 1. **The Obsidian profile maps open flags to the vault's `needs-correction` status.** Alternative: a
-   separate `vppState` key and `status: active` always. Taken because the vault's own vocabulary already
+   separate `vptState` key and `status: active` always. Taken because the vault's own vocabulary already
    has a value meaning exactly this, and inventing a parallel state where one exists is the kind of
    duplication V4 exists to prevent.
 1. **New tags are held as suggestions by default (`accept_new = false`).** Alternative: accept them, on
@@ -921,7 +921,7 @@ its alternative, and reversing any of them changes the design without invalidati
    (`ironmanTraining`, `workoutBro`), or no normalization at all. Genuinely arbitrary: the corpus has 23
    camelCase and 10 kebab tags, so there is no majority to follow. This is the weakest assumption in the
    document and it is one configuration value.
-1. **Tags come from a proposal on standard input, not from vpp calling a model.** Alternative: vpp spawns
+1. **Tags come from a proposal on standard input, not from vpt calling a model.** Alternative: vpt spawns
    an agent itself, for which this repository has precedent (the `prepare-commit-msg` hook runs
    `claude -p --model=sonnet`). Taken because the note generator is undecided, because a tool that ships
    to other people should not require a particular agent, and because it keeps the egress boundary
@@ -942,7 +942,7 @@ its alternative, and reversing any of them changes the design without invalidati
 1. **`mentions` is exact matching of confirmed terms only.** Alternative: fuzzy matching, which would
    catch more. Rejected on the transcription design's measurement: every engine error was a personal
    name, so a fuzzy matcher would confidently link the wrong contact.
-1. **vpp writes no folder notes and runs no git.** Alternative: have vpp create the three missing folder
+1. **vpt writes no folder notes and runs no git.** Alternative: have vpt create the three missing folder
    notes on first run. Rejected because V7 and V8 make vault furniture the operator's, and a tool that
    writes Dataview queries into someone's vault has stopped being optional.
 1. **No note was written into the vault while measuring.** Alternative: write one example note and look
@@ -965,11 +965,11 @@ is where the audio lives, not where the notes do:
 **2. Answer the retention half, which is smaller than it looks.** Transcripts are about 187 KB for the
 whole back catalogue and about 1.5 MB a year; both engines' raw outputs together are about 13 MB. The
 audio is 983.6 MiB logically and nearly free physically until Apple's original is deleted. The real
-question is whether vpp's copy is the backup, and no machine backup exists yet.
+question is whether vpt's copy is the backup, and no machine backup exists yet.
 
 **3. Write the three missing folder notes, if the vault layout is adopted.**
 `agent-processing-pipeline/`, `transcripts/` and `analysis/` each need a folder note carrying the
-reference DataviewJS query from the vault's `CLAUDE.md`, or nothing vpp writes will appear in a listing.
+reference DataviewJS query from the vault's `CLAUDE.md`, or nothing vpt writes will appear in a listing.
 Three small files, once.
 
 **4. Decide the new-tag shape.** kebab-case or camelCase for a tag that does not exist yet. The corpus
@@ -979,37 +979,37 @@ value either way.
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows F1-F6) for the reasoning.
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows F1-F6) for the reasoning.
 
-1. **Which output layout, and is vpp's audio copy the backup?** Step 1 and step 2 above. Everything in
+1. **Which output layout, and is vpt's audio copy the backup?** Step 1 and step 2 above. Everything in
    this design is a configuration value once they are answered. **Layout: closed**, outside the vault,
    symlinked in, matching the existing `minutes` precedent. **Is it the backup: still open**, the
-   operator's own risk call; see `docs/decisions/2026-09-15-vpp-question-triage.md`, escalated item 2.
+   operator's own risk call; see `docs/decisions/2026-09-15-vpt-question-triage.md`, escalated item 2.
 1. **New tags: held, or accepted?** The design holds them, because the vault's vocabulary is small and
    deliberate and git makes a mistake permanent. Accepting them removes a confirmation step per recording
    and doubles the vocabulary faster than any human would. **Closed: held.**
 1. **kebab-case or camelCase for a new tag?** No majority exists in the corpus to derive it from.
    **Closed: kebab-case**, the wider repository's own convention breaks the corpus's own tie.
-1. **May vpp write into notes it did not create?** The `mentions` relation links out to the operator's
+1. **May vpt write into notes it did not create?** The `mentions` relation links out to the operator's
    existing contact and project notes. The design writes that link on the transcript's side only and adds
    nothing to the target note. The alternative, a backlink written into the contact note, is more useful
-   inside Obsidian and is vpp editing the operator's own writing. **Closed: no, transcript side only.**
+   inside Obsidian and is vpt editing the operator's own writing. **Closed: no, transcript side only.**
 1. **Which mobile sync actually carries the vault?** Obsidian's core Sync plugin is enabled and
    `obsidian-git` is configured to push every 15 minutes. They send the same transcripts to different
    third parties, and the transcription design's open question about committing transcripts at all cannot
    really be answered without knowing which. **Closed: both.** Both channels are active; moot under the
    transcription design's own default of keeping transcripts outside the vault.
-1. **Should `vpp path` be the contract for the later note generator, or should vpp write the analysis
-   note itself?** The design exposes the rules as a command so any generator can file correctly. If vpp
+1. **Should `vpt path` be the contract for the later note generator, or should vpt write the analysis
+   note itself?** The design exposes the rules as a command so any generator can file correctly. If vpt
    ends up owning generation too, the command is still the right seam, but it stops being load-bearing.
-   **Closed: vpp writes the note itself**, calling `vpp path` internally; there is no other generator
+   **Closed: vpt writes the note itself**, calling `vpt path` internally; there is no other generator
    once `minutes` is out.
-1. **Does `minutes` stay?** If it does, its notes are input that vpp files, and the two schemas sit side
+1. **Does `minutes` stay?** If it does, its notes are input that vpt files, and the two schemas sit side
    by side in one vault with no key in common. That is workable and slightly ugly, and the alternative,
    adopting its schema, was rejected above for reasons that would need revisiting if `minutes` becomes
    the note generator rather than a candidate. **Closed: no.** `minutes` is out entirely; there is only
-   vpp's own schema. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1, and
-   `docs/decisions/2026-09-15-vpp-question-triage.md`.
-1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
+   vpt's own schema. See `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1, and
+   `docs/decisions/2026-09-15-vpt-question-triage.md`.
+1. **Where does vpt's code live, and what is it called?** Carried forward unresolved from the boundaries
    design, because the chain should not stay in disagreement with itself. **Code home: closed**, own
    repository. **Name: still open**, see the boundaries design's own open questions.
