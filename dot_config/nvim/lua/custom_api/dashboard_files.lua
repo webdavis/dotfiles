@@ -34,8 +34,37 @@ local RESUME_LABEL = "⏎"
 ---same way: nothing to show.
 ---@param command string[] The argv words, no shell.
 ---@return string[] lines
+---Git's own environment variables, scrubbed before every call.
+---
+---GIT_DIR OVERRIDES `-C`, and git exports GIT_DIR, GIT_WORK_TREE and
+---GIT_INDEX_FILE into every hook it runs. A Neovim started from a hook would
+---therefore list the HOOK's repository rather than the one the editor is in.
+---The same leak is what made this module's own spec reconfigure the real
+---repository while it ran (measured 2026-09-15): `git init` in a temporary
+---directory wrote `core.bare = true` and a temporary `core.worktree` into the
+---inherited GIT_DIR instead.
+local GIT_ENVIRONMENT_TO_SCRUB = {
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_COMMON_DIR",
+}
+
+---`command` wrapped in `env -u ...`, so no inherited git variable reaches it.
+---@param command string[] The argv words, no shell.
+---@return string[] wrapped
+local function without_git_environment(command)
+  local wrapped = { "env" }
+  for _, name in ipairs(GIT_ENVIRONMENT_TO_SCRUB) do
+    table.insert(wrapped, "-u")
+    table.insert(wrapped, name)
+  end
+  return vim.list_extend(wrapped, command)
+end
+
 local function lines_from(command)
-  local result = vim.system(command, { text = true }):wait()
+  local result = vim.system(without_git_environment(command), { text = true }):wait()
   if result.code ~= 0 or not result.stdout then
     return {}
   end
