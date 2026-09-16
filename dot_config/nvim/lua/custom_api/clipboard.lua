@@ -63,6 +63,10 @@ end
 ---copies what is selected and `Y` copies the lines it covers. Before this, `Y`
 ---in Visual mode reached neither the clipboard nor the selection: it fell
 ---through to the built-in linewise yank into the unnamed register.
+---
+---NO CURSOR RESTORE, unlike `yank_selection` above: a linewise yank follows
+---Vim's own built-in post-yank position (the first yanked line), which is
+---what the operator's hand already expects from a bare `Y`.
 ---@return nil
 function M.yank_selected_lines()
   vim.cmd('normal! "' .. REGISTER .. "Y")

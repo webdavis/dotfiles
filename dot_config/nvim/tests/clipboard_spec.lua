@@ -70,6 +70,9 @@ return {
     from_visual({ "alpha beta gamma", "second line here" }, { 1, 6 }, "vee", clipboard.yank_selection)
     assert(clipboard_text() == "beta gamma", ("clipboard held %q"):format(clipboard_text()))
     assert(stored.regtype == "v", ("register type was %q"):format(stored.regtype))
+    -- The cursor is put back exactly where the selection left it (the end of
+    -- "gamma"), not moved to the start of the yank the way a plain `y` would.
+    assert(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 1, 15 }), vim.inspect(vim.api.nvim_win_get_cursor(0)))
   end,
 
   ["a linewise selection yanks the whole selected lines"] = function()
