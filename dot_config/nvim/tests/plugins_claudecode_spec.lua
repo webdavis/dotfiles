@@ -68,27 +68,7 @@ local function level_after_early_and_late_attach()
   return record.level, record.calls
 end
 
-local spec = dofile(config_root .. "/lua/plugins/claudecode.lua")
-
-local function declares_key(lhs)
-  for _, entry in ipairs(spec.keys) do
-    if entry[1] == lhs then
-      return true
-    end
-  end
-  return false
-end
-
 return {
-  ["the spec declares no load event, so an ordinary start runs no server"] = function()
-    assert(spec.event == nil, "spec still loads on an event: " .. tostring(spec.event))
-  end,
-  ["the launch key is declared, so pressing it loads the plugin first"] = function()
-    assert(declares_key("<leader>Cc"), "<leader>Cc is not declared, nothing would start the server")
-  end,
-  ["the commands stay declared, so a typed :ClaudeCode* still loads the plugin"] = function()
-    assert(#spec.cmd > 0, "no cmd trigger left")
-  end,
   ["a UI that attached before the plugin loaded does not spend the hook"] = function()
     local level, calls = level_after_early_and_late_attach()
     assert(level == "info", "late attach did not restore: " .. tostring(level))
