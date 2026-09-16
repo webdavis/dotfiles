@@ -188,6 +188,7 @@ return {
       "html_tags",
       "http",
       "ini",
+      "java",
       "javascript",
       "jq",
       "json",
