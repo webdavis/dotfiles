@@ -441,13 +441,23 @@ return {
       template_timeout_ms = 3000,
       template_cache_threshold_ms = 200,
       -- Every vim.system and jobstart call becomes a task, so a plugin's
-      -- background job is inspectable instead of invisible. Safe to leave on:
-      -- list_tasks excludes wrapped tasks unless asked for them, so they stay out
-      -- of the task list until `g.` reveals them.
+      -- background job is inspectable instead of invisible. list_tasks excludes
+      -- wrapped tasks unless asked for them, so they stay out of the task list
+      -- until `g.` reveals them.
+      --
+      -- The condition declines a command whose binary is not there. Overseer's
+      -- wrapper returns the task's process handle, which stays nil when the
+      -- spawn failed, and it swallows the ENOENT that `vim.system` documents as
+      -- a raise. A caller written against that contract, `vim.system(cmd):wait()`,
+      -- then indexes nil: rustaceanvim's health check crashed on exactly that
+      -- while probing for the absent optional `lspmux` binary. Declining the
+      -- unspawnable case hands it back to the builtin, which raises as
+      -- documented, and leaves every command that can actually run wrapped.
       experimental_wrap_builtins = {
         enabled = true,
-        condition = function()
-          return true
+        condition = function(cmd)
+          local binary = type(cmd) == "table" and cmd[1] or nil
+          return type(binary) == "string" and vim.fn.executable(binary) == 1
         end,
       },
     })

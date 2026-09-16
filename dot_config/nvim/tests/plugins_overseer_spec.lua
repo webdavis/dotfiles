@@ -145,7 +145,42 @@ local function parse(line)
   return vim.fn.bufname(item.bufnr), item.lnum, (item.text or ""):gsub("^%s+", "")
 end
 
+---The `experimental_wrap_builtins.condition` the config ships.
+---@return fun(cmd: string[], caller: table?, opts: table?): boolean
+local function wrap_condition()
+  local wrap = assert(captured_setup_opts().experimental_wrap_builtins, "no experimental_wrap_builtins")
+  return assert(wrap.condition, "experimental_wrap_builtins ships no condition")
+end
+
 return {
+  ["a command whose binary is missing is not wrapped"] = function()
+    -- Overseer's wrapper replaces `vim.system` and returns the task's process
+    -- handle, which stays nil when the spawn failed, and it swallows the ENOENT
+    -- that `vim.system` documents as a raise. A caller that does
+    -- `vim.system(cmd):wait()` then indexes nil: rustaceanvim's health check
+    -- crashed exactly there while probing for the absent optional `lspmux`.
+    assert(
+      wrap_condition()({ "kulala-no-such-binary-xyz", "--version" }) == false,
+      "a missing binary is still wrapped, so vim.system returns nil instead of raising"
+    )
+  end,
+
+  ["a command whose binary exists is still wrapped"] = function()
+    -- The feature is wanted: a plugin's background job stays inspectable. Only
+    -- the spawn-failure case is declined.
+    assert(
+      wrap_condition()({ vim.v.progpath, "--version" }) == true,
+      "an existing binary is no longer wrapped, so the feature is off"
+    )
+  end,
+
+  ["a command that is not a list of strings is not wrapped"] = function()
+    -- `vim.system` documents `cmd` as string[]. Anything else is the builtin's
+    -- to reject, with its own error message.
+    assert(wrap_condition()("echo hi") == false, "a string command was wrapped")
+    assert(wrap_condition()({}) == false, "an empty command was wrapped")
+  end,
+
   ["the alias leaves a template's own errorformat alone"] = function()
     -- `on_output_quickfix.errorformat` has `default_from_task`, which only fills
     -- in when the component does NOT set it. Setting it in the alias overrode
