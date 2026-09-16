@@ -1,10 +1,10 @@
-# vpp recording discovery
+# vpt recording discovery
 
 Status: design, written 2026-09-14 while the operator was asleep. Not approved, not built. Every choice
 made in the operator's place is listed under "Assumptions made in the operator's place", and the open
 questions are at the end.
 
-Scope: `docs/remaining-work.md`, the `vpp (Voice Processing Pipeline)` section, second bullet. "Design
+Scope: `docs/remaining-work.md`, the `vpt (Voice Processing Tool)` section, second bullet. "Design
 automatic discovery of fully synced recordings, preserving original audio and capture metadata without
 modifying Apple's source recordings. Verify the supported macOS access/export path and actual audio
 format before choosing an ingestion mechanism. Handle interrupted sync, retries and repeated discovery
@@ -17,10 +17,10 @@ session scratchpad. The Apple Voice Memos store was opened read-only and never w
 
 ## Why this can be designed now, when the previous document said to defer
 
-The predecessor in this chain, the source reconciliation of 2026-09-14, ended by deferring the vpp
+The predecessor in this chain, the source reconciliation of 2026-09-14, ended by deferring the vpt
 ingestion design. Its reason was scope: the installed `minutes` 0.26.1 cask already covers six of the
-seven vpp feature bullets, the operator has not ruled on whether `minutes` is kept or replaced, and the
-two candidate vpp scopes differ by roughly an order of magnitude.
+seven vpt feature bullets, the operator has not ruled on whether `minutes` is kept or replaced, and the
+two candidate vpt scopes differ by roughly an order of magnitude.
 
 That reasoning holds, and this document does not reopen it. It designs the one piece the reconciliation
 named as absent from all four sources under **both** candidate scopes:
@@ -30,36 +30,36 @@ named as absent from all four sources under **both** candidate scopes:
 > repeated discovery without duplicates or loss. Absent from all four sources.
 
 Discovery is scope-independent because its output is an ingested recording, not a note. Whether the audio
-is then handed to vpp's own engines, to `minutes transcribe --json`, or to nothing at all is a decision
+is then handed to vpt's own engines, to `minutes transcribe --json`, or to nothing at all is a decision
 downstream of the boundary this design draws. The `minutes` ruling changes the consumer, never the
 producer. That is the framing that makes this task safe to do before the ruling lands, and it is the one
 constraint the design is built to satisfy.
 
-If the operator disagrees and wants the whole vpp ingestion path settled at once, this document is still
+If the operator disagrees and wants the whole vpt ingestion path settled at once, this document is still
 the input for its first stage rather than wasted work.
 
 ## Constraints this design is bound by
 
 From the ledger bullet and its section intro:
 
-1. vpp is written in Rust.
+1. vpt is written in Rust.
 1. Original audio format is preserved.
 1. Apple's source recordings are never modified.
 1. Interrupted sync, retries and repeated discovery produce neither duplicate notes nor lost audio.
 1. Originals, transcripts and agent analysis are separately linked using the existing vault layout.
-1. vpp application code lives in its own project; Mac installation and service configuration live in
+1. vpt application code lives in its own project; Mac installation and service configuration live in
    dotfiles; output content lives in the configured directory, which is the Ivy vault for this operator.
-1. vpp works without Bob, Forzare or the full homelab.
+1. vpt works without Bob, Forzare or the full homelab.
 
 From the homelab backlog entry `PLAN-v12-experiments-backlog.md` L-R5, which is the fuller statement of
-the same feature set: notification goes through `pns submit --json` with `producer: "vpp"` and
-`signal.kind: "needs_attention"`, review state is kept in vpp, and the evaluation aid is explicitly "not
+the same feature set: notification goes through `pns submit --json` with `producer: "vpt"` and
+`signal.kind: "needs_attention"`, review state is kept in vpt, and the evaluation aid is explicitly "not
 permission to delete recordings or notes".
 
 From the repository's own standing rules, in `CLAUDE.md` and the operator's global rules, labelled R1 to
 R5 so the numbering above stays readable:
 
-- **R1.** No workspace may depend on another. vpp is a fifth independent cargo workspace, and it must
+- **R1.** No workspace may depend on another. vpt is a fifth independent cargo workspace, and it must
   still build with pns, uu, posture and lights absent from the filesystem. Runtime integration by
   spawning a deployed binary stays allowed, which is how posture already reaches pns.
 - **R2.** Rust files target 300 lines and never exceed 500, unit tests included.
@@ -185,7 +185,7 @@ relies on exactly that property and says so in a comment.
 
 ### A. Long-running daemon with a filesystem event stream
 
-A `vpp daemon run` process, supervised by a LaunchAgent the way `com.webdavis.pns-daemon` is, holding a
+A `vpt daemon run` process, supervised by a LaunchAgent the way `com.webdavis.pns-daemon` is, holding a
 filesystem event subscription over the Recordings directory and reacting to each event.
 
 Good: lowest latency, and state can live in memory.
@@ -198,13 +198,13 @@ fires while a download is still running.
 
 ### B. Idempotent sweep on a calendar schedule
 
-One short-lived command, `vpp ingest`, started by launchd on a `StartCalendarInterval` array. It lists
+One short-lived command, `vpt ingest`, started by launchd on a `StartCalendarInterval` array. It lists
 the directory, decides what is new and whole, ingests it, and exits. No supervised process, no resident
 state, and no event subscription. Correctness comes from the sweep being complete rather than from any
 event being caught: whatever was missed last time is found this time.
 
 Good: the shortest thing that works. A missed wakeup, a crash mid-sweep, a machine asleep through a sync,
-and a manual `vpp ingest` from a terminal all converge to the same state. It matches the repository's
+and a manual `vpt ingest` from a terminal all converge to the same state. It matches the repository's
 existing weekly-job idiom, and `StartCalendarInterval` fires once on wake after any number of missed
 slots.
 
@@ -235,13 +235,13 @@ same latency C buys for one plist key.
 One command that runs to completion and exits:
 
 ```
-vpp ingest [--dry-run] [--once <path>]
+vpt ingest [--dry-run] [--once <path>]
 ```
 
 It answers exactly one question, "which recordings on this Mac are whole and not yet taken, and take
 them", and it emits a record per newly ingested recording. It does not transcribe, summarize, tag, or
 write a note. That boundary is what keeps this design independent of the `minutes` ruling: a transcriber
-is a consumer of ingested recordings, and it can be vpp's own engines, `minutes transcribe --json`, or
+is a consumer of ingested recordings, and it can be vpt's own engines, `minutes transcribe --json`, or
 nothing yet.
 
 The library beneath it splits along the same seam the other four tools use: a domain crate that knows the
@@ -298,7 +298,7 @@ none of them needs Apple's schema.
    exactly on all four. It works here specifically because Voice Memos writes `moov` **last**, after
    `mdat`: the observed order is `ftyp`, `mdat`, `moov`, with an optional trailing `free`. A truncated
    download therefore loses the very box the check requires. This is about forty lines of parsing and it
-   needs no audio library and no `ffmpeg` on the target machine, which matters because vpp is a tool
+   needs no audio library and no `ffmpeg` on the target machine, which matters because vpt is a tool
    other people install.
 1. **The file is at rest.** Its mtime is at least `quiet_period_secs` in the past, default 30 seconds.
    One `stat` call, no sleeping inside the sweep. This works because mtime on these files is the moment
@@ -370,7 +370,7 @@ of: the vault holds a real, independent original that survives Apple evicting or
 destination is ever moved to another volume, `clonefile(2)` fails with `EXDEV` and the implementation
 falls back to a byte copy with a warning rather than silently doing something slower and larger.
 
-Per-recording state lives in `~/.local/state/vpp/recordings/<id>.json`, one sidecar each, holding the
+Per-recording state lives in `~/.local/state/vpt/recordings/<id>.json`, one sidecar each, holding the
 source path, the hash, the capture instant in coordinated universal time, the duration, the title and its
 source, the ingest time, and the stage. A sidecar per recording rather than a database, because the
 workload is hundreds of rows, the file is readable with `cat` when something goes wrong, and nothing here
@@ -393,21 +393,21 @@ anything, indistinguishable from a week with no recordings. The preflight exists
 | `clonefile(2)` returns `ENOSPC`              | abort the sweep                       | page                                                                        |
 | Vault destination missing                    | abort the sweep                       | page                                                                        |
 
-Paging is `pns submit --json` on stdin with `producer: "vpp"` and `signal.kind: "needs_attention"`, which
+Paging is `pns submit --json` on stdin with `producer: "vpt"` and `signal.kind: "needs_attention"`, which
 is the contract L-R5 names and which was verified in source: `pns/crates/pns-protocol/src/request.rs`
 pins `pns.request` at major 1 with a `producer` field and a `NeedsAttention` variant on the signal enum,
-and unknown top-level keys are ignored and named rather than refused. vpp spawns the deployed `pns`
+and unknown top-level keys are ignored and named rather than refused. vpt spawns the deployed `pns`
 binary the way posture already does, which couples nothing at build time and keeps R1 intact. If `pns` is
-absent, vpp writes the same record to its log and exits non-zero; it must not fail to ingest because a
+absent, vpt writes the same record to its log and exits non-zero; it must not fail to ingest because a
 notifier is missing.
 
 One documentation gap worth knowing before implementing: **`submit` is absent from `pns --help`**. The
 subcommand works and is routed in `invocation.rs`, it is simply undiscoverable from the command-line
-interface. That is a pns defect, not a vpp blocker.
+interface. That is a pns defect, not a vpt blocker.
 
 ### Configuration
 
-One file, `~/.config/vpp/config.toml`, following the repository's ruling that defaulted keys ship
+One file, `~/.config/vpt/config.toml`, following the repository's ruling that defaulted keys ship
 uncommented at their default so the shipped file shows the real posture:
 
 ```toml
@@ -426,7 +426,7 @@ read_titles = true
 pipeline_dir = "~/workspaces/Ivy/agent-processing-pipeline"
 
 [ingest]
-# Consecutive deferrals of one recording before vpp raises a page.
+# Consecutive deferrals of one recording before vpt raises a page.
 deferral_page_threshold = 4
 ```
 
@@ -498,12 +498,12 @@ Deliberately not designed here, and not to be smuggled in during implementation:
 - **Note authoring, summaries, tags, relationships, meeting briefs, redacted drafts, speaker labels.**
   Later bullets, and several of them overlap `minutes` directly.
 - **The `minutes` disposition.** Untouched. This design's boundary is drawn so that either ruling works.
-- **Repairing the orphaned `minutes` vault link.** An operator step carried forward, not vpp's job.
+- **Repairing the orphaned `minutes` vault link.** An operator step carried forward, not vpt's job.
 - **A retention policy for the clones.** L-R5 is explicit that nothing here is permission to delete
   recordings or notes. Clones accumulate; at the measured rate and with copy-on-write sharing, the cost
   is metadata until the source is deleted. A policy is a later decision.
-- **Anything on the iPhone side.** vpp reads what iCloud has already put on this Mac.
-- **Open Notebook and Bob.** Consumers, later, and vpp must work without either.
+- **Anything on the iPhone side.** vpt reads what iCloud has already put on this Mac.
+- **Open Notebook and Bob.** Consumers, later, and vpt must work without either.
 - **Any modification to Voice Memos, including enabling or configuring it.**
 
 ## Assumptions made in the operator's place
@@ -512,13 +512,13 @@ Each of these was a choice this document had to make to be written at all. None 
 its alternative, and reversing any of them changes the design without invalidating the measurements.
 
 1. **Discovery can be designed before the `minutes` ruling, because its output boundary is
-   engine-agnostic.** Alternative: hold the whole vpp design until the ruling lands, as the
+   engine-agnostic.** Alternative: hold the whole vpt design until the ruling lands, as the
    reconciliation recommended for ingestion overall. Rejected because the reconciliation itself
    identified Voice Memos discovery as absent under both candidate scopes, which makes it the one piece
    the ruling cannot invalidate.
 1. **Reading Apple's undocumented group container is acceptable, read-only, as the primary path.**
    Alternative: treat the private store as off limits and require a human export through the share sheet
-   or a Shortcut, which would make vpp a manual filing tool rather than a watcher. Taken because the
+   or a Shortcut, which would make vpt a manual filing tool rather than a watcher. Taken because the
    supported paths were measured to yield no audio at all, and because the design confines the
    undocumented dependency to the title lookup, which degrades cleanly.
 1. **The title is optional and the audio is not.** Alternative: refuse to ingest a recording whose title
@@ -551,14 +551,14 @@ its alternative, and reversing any of them changes the design without invalidati
    silent, on the grounds that an alert for a permission problem is noise. Rejected because a silent
    watcher that sees nothing is the failure this component is most likely to have and least likely to
    notice.
-1. **vpp becomes a fifth independent cargo workspace in this repository, following the existing four.**
+1. **vpt becomes a fifth independent cargo workspace in this repository, following the existing four.**
    Alternative: its own repository from day one, given that it is a product other people might install.
    Taken because the four existing tools all started here and the layout exists precisely so that lifting
    one out later is a `git subtree split`.
 1. **No live `pns submit` was run to prove the notification end to end.** Alternative: send a real
-   request with `producer: "vpp"` and watch it arrive. Not done because it would have raised a banner, a
+   request with `producer: "vpt"` and watch it arrive. Not done because it would have raised a banner, a
    Discord message and possibly a phone notification while the operator was asleep. The contract is
-   verified in source at the level of field names and enum spelling, not at the level of "a vpp-shaped
+   verified in source at the level of field names and enum spelling, not at the level of "a vpt-shaped
    request is accepted and routed".
 
 ## Operator steps
@@ -572,7 +572,7 @@ back in so that launchd starts it with no submitting session in the picture, and
 
 ```bash
 # after logging back in
-cat ~/.local/state/vpp-permission-probe.txt
+cat ~/.local/state/vpt-permission-probe.txt
 ```
 
 The logout is the load-bearing part. A job submitted from a terminal may inherit that terminal's
@@ -595,33 +595,33 @@ Resources folder. The vault's `CLAUDE.md` claim that the link is "managed by
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows D1-D6) for the reasoning.
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows D1-D6) for the reasoning.
 
 1. **Is reading Apple's undocumented Voice Memos store acceptable at all?** This is the gating one. The
-   measurements say there is no supported programmatic path to the audio, so a "no" turns vpp from a
+   measurements say there is no supported programmatic path to the audio, so a "no" turns vpt from a
    watcher into a manual filing tool driven by the share sheet, and the design above becomes the wrong
    shape rather than a design needing edits.
 1. **Can a LaunchAgent read the group container?** Unresolved, and the single test that settles it is
    step 1 under operator steps above. If the answer is no, the sweep still works from a login-shell
    context or on demand, but the "automatic" in "automatic discovery" gets an asterisk.
 1. **Does the `minutes` ruling change this boundary?** The design assumes discovery is a producer and
-   transcription is a consumer. If the operator intends vpp to be a thin front end on `minutes watch`
+   transcription is a consumer. If the operator intends vpt to be a thin front end on `minutes watch`
    instead, the clone destination changes to a directory `minutes` watches and most of this design is
    replaced by configuring a third-party tool. **Decided 2026-09-15: no.** `minutes` is out entirely, so
-   the boundary in this design is unchanged: discovery stays a producer, transcription stays vpp's own
+   the boundary in this design is unchanged: discovery stays a producer, transcription stays vpt's own
    consumer, and there is no third-party tool to configure instead. See
-   `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
+   `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1.
 1. **Clones, or references?** Assumption 5 chose clones on measured cost. Worth a sentence of
    confirmation, because it is the decision that puts a second copy of every personal recording inside
    the vault directory, gitignored but present.
 1. **Fifteen minutes, or something else?** And is near-immediate discovery worth taking `WatchPaths`
    despite its manual page?
-1. **What happens to a recording deleted in Voice Memos after vpp has cloned it?** The clone survives,
-   which is the point of cloning. Is that correct, or should vpp notice the disappearance and mark the
+1. **What happens to a recording deleted in Voice Memos after vpt has cloned it?** The clone survives,
+   which is the point of cloning. Is that correct, or should vpt notice the disappearance and mark the
    sidecar? L-R5 says the evaluation is "not permission to delete recordings or notes", which argues for
    keeping the clone silently, but noticing costs nothing.
 1. **Do the eight `.waveform` sidecars matter?** They belong to 2022-era recordings only, they are
    Apple's rendering cache, and this design ignores them. Confirm that nothing wants them preserved.
-1. **Should `vpp ingest` emit its per-recording record on stdout as JSON (JavaScript Object Notation) for
+1. **Should `vpt ingest` emit its per-recording record on stdout as JSON (JavaScript Object Notation) for
    a caller to pipe, or only write sidecars?** The design does both, on the assumption that the next
    stage will want a stream. If nothing will consume it, the stdout record is unneeded surface.
