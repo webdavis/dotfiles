@@ -200,7 +200,7 @@ pub(super) const ROUTES: &str = "routes";
 /// `dotfiels = ...` is a channel that never resolves rather than a refusal at
 /// load. What the roster still states is the one key the schema itself
 /// requires, `default`, and an armed map missing THAT is refused by
-/// `plugins::refuse_a_map_without_a_catch_all`.
+/// `refusals::refuse_a_map_without_a_catch_all`.
 ///
 /// THE ROUTE KEYS ARE HERE FOR THE SAME REASON AND ONE MORE (operator ruling,
 /// 2026-09-15): a route name belongs to the gateway the operator runs, and a
