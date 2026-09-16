@@ -33,7 +33,7 @@ pub(crate) fn counted_channels(sandbox: &Sandbox) {
         sandbox.stub_channel(
             channel,
             &format!(
-                "printf '%s\\n' \"$PNS_REQUEST_ID\" >>\"{s}/{channel}.count\"; \
+                "printf '%s\\n' \"${{PNS_REQUEST_ID:?}}\" >>\"{s}/{channel}.count\"; \
                  cat >\"{s}/{channel}.event\"",
                 s = sandbox.display()
             ),
