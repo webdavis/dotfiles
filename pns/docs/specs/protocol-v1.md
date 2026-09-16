@@ -171,9 +171,9 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer, event and signal are required and
 must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
-optional session, times, route and class become None; detail is empty, context fields are None, scope is
-automatic, interaction is none, and extensions is an empty object. Request::new supplies those same
-defaults.
+optional session, times, route, kind and class become None; detail is empty, context fields are None,
+scope is automatic, interaction is none, and extensions is an empty object. Request::new supplies those
+same defaults.
 
 `class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
 controls. A wrong type or invalid name is refused before effects, retaining the correlated request
@@ -185,6 +185,18 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L147),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
+
+## protocol-v1/S011b: Kind words
+
+Given a request kind, when encoded or decoded, then it is exactly `agent` or `health`. Any other word,
+including an empty string or a differently cased one, is refused as field_invalid with the correlated
+request identifier, because a kind guessed from a typo is a misrouted page. An absent or null kind stays
+None and is omitted when encoding, preserving the exact canonical bytes of a version 1 request written
+before the field existed. What a kind means for delivery is not this codec's business: it states what the
+event IS, and pns maps that to one of its own routes.
+
+Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L75),
+[`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L154).
 
 ## protocol-v1/S012: Signal words
 
