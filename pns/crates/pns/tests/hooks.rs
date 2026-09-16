@@ -211,7 +211,30 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
 
 /// Every bound below is proved the same way: run the thing against input that
 /// would block forever, with a tight injected deadline, and require an answer.
-const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+///
+/// IT IS A LIVENESS BOUND, NEVER AN ASSERTION. No caller reads the elapsed
+/// time; each one asserts an exit code, a stderr line, an event or a
+/// submission count, and the wait ends when the work does, so a generous
+/// bound costs a passing run nothing and costs a genuine hang one wait.
+///
+/// WHAT FIXES THE NUMBER FROM BOTH SIDES, measured 2026-09-14 on this machine
+/// with the suite running against 24 busy loops and a second workspace's
+/// tests (load average ~240 to ~400 on eight cores):
+///
+/// - FROM BELOW, five seconds was not enough. Seven hooks rows failed that
+///   run with "pipe stayed open" or a `None` exit on builds that pass alone,
+///   the megabyte-payload row among them. The operator always has several
+///   agent lanes compiling, so a bound calibrated on an idle machine is
+///   calibrated for a machine this suite never runs on.
+/// - FROM ABOVE, every stub that stands in for something blocking forever
+///   sleeps thirty seconds, and in the two rows that spawn a silent moshi
+///   this bound is what catches a kill that was reverted: a hook that stopped
+///   killing its child waits out the stub instead. So the bound has to stay
+///   clear of thirty seconds by a margin as wide as the one it gives load.
+///
+/// Fifteen seconds is the midpoint: three times the worst legitimate reading
+/// measured under that load, half the shortest stub sleep.
+const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
 
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
