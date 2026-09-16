@@ -1076,7 +1076,9 @@ vpp still writes no folder notes.
 1. **If `minutes` stays, should its `research` and `person` output be a context source for a brief?** It
    is the one installed tool that already ranks material about a person or a topic, over its own corpus.
    Feeding it in is one more collector; leaving it out keeps vpp's brief entirely its own. This question
-   is downstream of the `minutes` keep-or-replace ruling and does not need answering before it.
+   is downstream of the `minutes` keep-or-replace ruling and does not need answering before it. **Moot,
+   decided 2026-09-15:** `minutes` is out entirely, so there is no `research` or `person` output to draw
+   from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
 1. **Is the local Apple Calendar store representative of the operator's calendars?** The measurement came
    from that store, 16 calendars, and the recommendation to use the Google interface assumes the meetings
    that matter are in Google. A calendar that exists only in Calendar.app would be invisible to this

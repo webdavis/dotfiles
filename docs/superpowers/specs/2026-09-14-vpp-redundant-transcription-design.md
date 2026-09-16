@@ -870,11 +870,28 @@ sends its first notification rather than after.
 
 ## Open questions for the operator
 
+**Decided 2026-09-15,** full reasoning in `docs/decisions/2026-09-15-vpp-architecture-decisions.md`:
+questions 1, 2 and 7 below are settled or superseded; questions 3, 5, 6 and 8 are untouched. The
+architecture is now broader than this design's own recommendation: two engine slots, primary and optional
+fallback, both named in config rather than fixed at one pair, with the fallback's trigger (on failure, or
+every recording) also configurable (decision 3). Reconciliation picks a winner and flags uncertainty two
+ways only, inline markers plus `vpp review <id>`; the summary-block and separate-document shapes this
+design did not propose are explicitly rejected, not merely left unbuilt (decision 4). Three further
+engine-pair behaviors are approved for building (transcript-wins rule, both-engines-fail handling
+defaulting to keep-and-flag, engine per language), and two adjacent ones are explicitly not built, a
+disagreement threshold and a cloud spend ceiling, both because no defensible default exists yet
+(decision 5). `minutes` is out entirely (decision 1), which resolves question 7 below in vpp's favor.
+
 1. **Which engine pairing, from the priced table above?** This is Open Question 8 and everything else in
-   the design is a configuration value once it is answered.
+   the design is a configuration value once it is answered. **Narrowed, not answered with one pair:** the
+   pairing itself stays a configuration value (decision 3); the two engines vpp ships first-class adapters
+   for on day one are Apple Speech and whisply (decision 10), with the wider table above recorded as
+   candidates rather than a shipped pair.
 1. **Is the Apple SpeechAnalyzer route worth a Swift helper inside a Rust project?** It is the only free
    different-family option on this Mac, it is confirmed available here, and it is the one choice that
    would need a second language in the build. Its confidence reporting is unknown and would need a probe.
+   **Decided 2026-09-15: yes.** Apple Speech is one of the two starting first-class adapters
+   (decision 10).
 1. **May a transcript be committed to the vault, and therefore synced to a phone?** The audio is
    gitignored and the transcript would not be. Everything in this design assumes yes, because that is
    what the vault's `transcripts/` directory is for, but it is the decision that puts searchable text of
@@ -882,6 +899,9 @@ sends its first notification rather than after.
 1. **Should a confirmed correction rewrite future transcripts?** Recording that "Muthakrishnan" should be
    "Muthukrishnan" is cheap. Applying it automatically changes the transcript of record without a human
    reading the result. The design records and does not apply; the alternative is worth a sentence.
+   **Confirmed 2026-09-15:** the design's own recommendation stands. Record only; a correction made
+   through `vpp review` feeds forward into `vpp confirm --term` and improves future transcripts, never
+   rewrites a shipped one (decision 4).
 1. **How loud should `agreed-unverified` be?** It is the class that catches the error both engines
    shared, and it is also the largest class. The design ranks it last and aggregates it. Should it appear
    in the pns notification at all, or only in the file?
@@ -890,7 +910,9 @@ sends its first notification rather than after.
 1. **Does `verify-note` belong in vpp, or in whatever writes the note?** It is designed here as a
    separate command precisely because the writer is undecided. If the writer turns out to be `minutes`,
    the check still works, but it would then be checking a third-party tool's output against a convention
-   that tool does not follow, which needs the convention to be enforced somewhere else.
+   that tool does not follow, which needs the convention to be enforced somewhere else. **Decided
+   2026-09-15: in vpp.** `minutes` is out (decision 1), so vpp is the only thing that writes the note;
+   the undecided writer this question depended on is now settled.
 1. **Where does vpp's code live?** The boundaries design recommends its own repository; the discovery
    design assumed a fifth workspace here. Nothing in this document depends on the answer, but the two
    sibling designs should not stay in disagreement.
