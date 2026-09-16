@@ -46,10 +46,13 @@ set -euo pipefail
 while [[ $# -gt 0 ]]; do
   case "$1" in
     managed)
-      printf '%s\n' "$HOME/.local/libexec/osquery/example.sh" "$HOME/.local/bin/example"
+      printf '%s\n' "$HOME/.local/libexec/osquery/example.sh" "$HOME/.local/bin/example" \
+        "$HOME/Library/LaunchAgents/com.webdavis.osquery-example.plist" \
+        "$HOME/Library/LaunchAgents/com.webdavis.example.plist" \
+        "$HOME/Library/LaunchAgents/com.other.example.plist"
       exit 0 ;;
     dump)
-      printf '{".local/libexec/osquery/example.sh":{"perm":493},".local/bin/example":{"perm":493}}'
+      printf '{".local/libexec/osquery/example.sh":{"perm":493},".local/bin/example":{"perm":493},"Library/LaunchAgents/com.webdavis.osquery-example.plist":{"perm":384},"Library/LaunchAgents/com.webdavis.example.plist":{"perm":384},"Library/LaunchAgents/com.other.example.plist":{"perm":384}}'
       exit 0 ;;
     cat)
       shift
@@ -114,6 +117,22 @@ function test_the_default_refresh_still_updates_both_manifests() {
   assert_same 0 "$status"
   assert_contains '0755' "$(cat "$pipeline_manifest")"
   assert_contains '0755' "$(cat "$bin_manifest")"
+}
+
+# Every LaunchAgent this repository manages is the pipeline arm's plist set, not
+# only the osquery-prefixed ones: the page-launchd allowlist refuses to suppress a
+# persistence finding the pipeline manifest cannot vouch for, so an unmanifested
+# own agent (com.webdavis.scalebar, merged unpinned in #564) paged instead of
+# digesting. A plist under another vendor's label is still excluded, because the
+# manifest only ever covers what this repository owns.
+function test_every_own_launch_agent_is_manifested_and_a_foreign_label_is_not() {
+  run_refresh --pipeline-only
+  assert_successful_code
+  local manifested
+  manifested="$(cut -d ' ' -f 4- <"$pipeline_manifest")"
+  assert_contains "$sandbox_home/Library/LaunchAgents/com.webdavis.osquery-example.plist" "$manifested"
+  assert_contains "$sandbox_home/Library/LaunchAgents/com.webdavis.example.plist" "$manifested"
+  assert_not_contains "$sandbox_home/Library/LaunchAgents/com.other.example.plist" "$manifested"
 }
 
 function test_an_unknown_refresh_scope_refuses_to_publish() {
@@ -250,6 +269,19 @@ run_consumer() {
     bash -c 'set -euo pipefail; source "$1/results-alerter/pipeline-verdict.sh";
       source "$1/executable_pipeline-audit.sh"; shift; "$@"' _ \
     "$root/dot_local/libexec/osquery" "$@"
+}
+
+# The audit's tracked set is the third copy of the same "our own LaunchAgents"
+# rule, after this runner's pipeline arm and posture's own is_tracked. All three
+# have to name the identical file set: a tracked file the manifest cannot contain
+# pages forever, and a manifested file nothing tracks is never checked.
+function test_the_consumer_tracks_every_own_launch_agent_under_home() {
+  run_consumer _pipeline_is_tracked "$sandbox_home/Library/LaunchAgents/com.webdavis.scalebar.plist"
+  assert_successful_code
+  run_consumer _pipeline_is_tracked "/Library/LaunchAgents/com.webdavis.scalebar.plist"
+  assert_general_error
+  run_consumer _pipeline_is_tracked "$sandbox_home/Library/LaunchAgents/com.other.agent.plist"
+  assert_general_error
 }
 
 write_unbuilt_tuple() {
