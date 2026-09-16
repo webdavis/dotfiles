@@ -181,6 +181,7 @@ packages:
         - yq
         - zig
         - zizmor
+        - zls
         - zoxide
       casks:
         - affinity
