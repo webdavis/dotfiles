@@ -1,10 +1,10 @@
 # vpt source reconciliation, 2026-09-14
 
-`docs/remaining-work.md` line 2094 asks for one thing before any vpt (Voice Processing Tool) design
-work starts: reconcile the transcription plans that already exist, name each one's scope, and name the
-gap vpt fills. The task names three sources (homelab `PLAN-v12-experiments-backlog.md` L-R5, the Ivy
-vault's `agent-processing-pipeline/` layout, and homelab `PLAN-v11.md` Phase 6) and asserts that none of
-them specifies a watcher for Apple Voice Memos synced to macOS.
+`docs/remaining-work.md` line 2094 asks for one thing before any vpt (Voice Processing Tool) design work
+starts: reconcile the transcription plans that already exist, name each one's scope, and name the gap vpt
+fills. The task names three sources (homelab `PLAN-v12-experiments-backlog.md` L-R5, the Ivy vault's
+`agent-processing-pipeline/` layout, and homelab `PLAN-v11.md` Phase 6) and asserts that none of them
+specifies a watcher for Apple Voice Memos synced to macOS.
 
 This record answers that question, and it reports one thing the task did not ask for because the
 reconciliation turned it up: there is a **fourth** source, it is installed and working on this machine

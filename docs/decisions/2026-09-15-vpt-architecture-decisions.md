@@ -24,6 +24,7 @@ the brief already asked, that document is marked in place and points back here.
 | 11  | Two design ideas adopted from FluidVoice, credited: local-by-default with cloud strictly opt in; post-processing as its own layer, separate from transcription                      | new, no prior open-question number                                                                  |
 | 12  | `whisply`, `openai-whisper` and `@elevenlabs/cli` stay declared; the `minutes` cask has no remaining use                                                                            | reconciliation open question 7 (partial: minutes half)                                              |
 | 13  | File a new ledger task: drop `posture-producer-wire`, converge posture on the same three-mode `[notify]` shape                                                                      | new ledger task 91                                                                                  |
+| 14  | Rename the tool from `vpp` to `vpt` (Voice Processing Tool); configuration path `~/.config/vpt/config.toml`, commands `vpt setup`, `vpt ingest`, `vpt review <id>`, and so on       | decision brief B2; project boundaries open question 2; question triage 1                            |
 
 ## 1. The `minutes` disposition
 
@@ -287,3 +288,47 @@ with a plain argv-and-stdin contract and no dedicated crate. Dropping `posture-p
 converging posture on the same three-mode `[notify]` shape removes posture's own wire-contract crate in
 favor of the same pattern decision 6 and decision 7 establish for vpt. Not started; filed as its own task
 so it does not block anything in this pull request.
+
+## 14. Rename `vpp` to `vpt` (Voice Processing Tool)
+
+Decided 2026-09-15, closing decision brief B2, project boundaries design open question 2, and question
+triage item 1. The tool named `vpp` is renamed `vpt`, standing for Voice Processing Tool. Its
+configuration path becomes `~/.config/vpt/config.toml` and its commands become `vpt setup`, `vpt ingest`,
+`vpt review <id>`, `vpt confirm --term`, and so on for every subcommand the chain names.
+
+Two collisions drove the rename. `vpp` collides with FD.io's Vector Packet Processing, an active,
+well-known networking project that owns those letters in technical conversation; this repository's own
+naming rule already discourages a user-hostile or colliding name, and the design chain's own question
+triage raised this before the operator ruled. `vpp` is also taken on crates.io: `vpp` 0.0.1, "Valkyie
+Package Portal", 3071 total downloads, last updated 2024-03-08 (verified 2026-09-15,
+`https://crates.io/api/v1/crates/vpp` returns HTTP 200). `cargo install --git` would still work under the
+old name, because the package name comes from the repository's own manifest, but `cargo install vpp`
+would fetch the wrong crate, and `cargo publish` under that name is refused permanently. This
+repository's own rule for the four Rust tools names each command crate for its tool precisely so that
+`cargo install --git <url> <name>` names the package a person would guess; a name already taken on
+crates.io breaks that.
+
+Every two-letter option was checked and taken: `vp` (4698 downloads), `vn`, `vo`, `vm`, `vx`, `vq`.
+Three-letter alternatives were checked next and rejected for real clashes: `vtp` is Cisco's VLAN Trunking
+Protocol, `vrp` is the Vehicle Routing Problem in operations research, and `vnp` is one keystroke from
+`vpn`. `vpe` (Voice Processing Engine) was free on crates.io (verified 2026-09-15, HTTP 404) and was
+rejected on a concrete ground: vpt's own configuration names a primary engine and a fallback engine (the
+transcription models, decision 3), so a tool called an engine that calls engines forces the documentation
+into phrases like "the engine's engine", and puts `vpe review` beside `engine = "apple-speech"` in one
+file.
+
+`vpt` was measured free on crates.io (verified 2026-09-15, HTTP 404) and absent from this machine's PATH,
+with no competing well-known meaning found.
+
+The honest cost, raised by the operator and kept rather than waved away: `vpt` is still a less-common
+three-letter acronym, and this repository's own acronym rule says such an acronym should be spelled out
+every time rather than abbreviated. The operator chose to keep the acronym shape deliberately, for the
+command name. In prose, write "Voice Processing Tool" on first use in each document and use `vpt`
+thereafter only as the command name, which is what the rule permits.
+
+No code exists yet, so this is a document-only rename: every design and decision document in the chain,
+the `vppRecording` frontmatter-key family (now `vptRecording`, and so on), and the `vpp.handoff/1` and
+`vpp.brief/1` wire contract strings (now `vpt.handoff/1` and `vpt.brief/1`, with no compatibility
+question since nothing has ever implemented them). Text quoting FD.io's Vector Packet Processing, or
+quoting `vpp` as the option under discussion before this decision, keeps the old spelling, since that
+history is the reason for the rename.
