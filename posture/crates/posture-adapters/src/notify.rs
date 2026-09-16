@@ -1,23 +1,28 @@
-//! Which way a page leaves this machine, read from posture's own config file.
+//! How one security page reaches the operator, read from posture's own config
+//! file.
 //!
-//! TWO PATHS, ONE CHOICE, and posture names no engine. Either it signs the page
-//! itself and posts it to a hermes webhook route, or it hands the page to a
-//! command the operator configured and reads that command's answer back. The
-//! second path is the producer API: a JSON request on standard input, a JSON
-//! result plus an exit code out. Any program may implement it, and which
-//! program does is a per-machine choice rather than a property of this tool.
+//! THREE MODES, ONE CHOICE, and posture names no engine. Either it signs the
+//! page itself and posts it to a hermes webhook route, or it hands the page to
+//! a command the operator configured and reads that command's answer back, or
+//! nothing leaves the machine at all. The second mode is the producer API: a
+//! JSON request on standard input, a JSON result plus an exit code out. Any
+//! program may implement it, and which program does is a per-machine choice
+//! rather than a property of this tool.
 //!
 //! FAIL CLOSED, NEVER SILENT. With no config file, and with one this build
 //! cannot use, the choice is a hermes path holding no key at all, and a keyless
 //! route refuses the page and raises the local banner. A malformed file
 //! therefore costs a loud refusal per page rather than a pipeline that quietly
-//! stops paging, which is the failure a security tool cannot afford.
+//! stops paging, which is the failure a security tool cannot afford. `off` is
+//! the same discipline stated deliberately: it turns off DELIVERY, not the
+//! page, so the finding still reaches the local banner.
 
+use crate::banner_only::BannerOnly;
 use crate::hermes::HermesWebhook;
 use crate::producer::ProducerCommand;
+use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
 use posture_application::{AlertSink, IndependentAlarm};
-use posture_producer_wire::Name;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -33,19 +38,19 @@ pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 /// `posture_domain::severity_route`.
 const UNTIERED_ROUTE: &str = "posture-pages";
 
-/// Where posture's delivery choice lives for a given home directory. Pure, so
+/// Where posture's notify choice lives for a given home directory. Pure, so
 /// the path rule is testable without an environment.
 pub fn config_path(home: &Path) -> PathBuf {
     home.join(".config/posture/config.toml")
 }
 
-/// The two ways one page can leave.
+/// The three ways one page can be raised.
 #[derive(Clone, PartialEq, Eq)]
-pub enum DeliveryPath {
-    /// The page is written as JSON to the standard input of `command`, run with
+pub enum NotifyMode {
+    /// The page is written as JSON to the standard input of `path`, run with
     /// `arguments` verbatim, and the result envelope read back off its output.
-    Producer {
-        command: PathBuf,
+    Command {
+        path: PathBuf,
         arguments: Vec<String>,
     },
     /// The page is signed with the route's key and posted to
@@ -54,35 +59,39 @@ pub enum DeliveryPath {
         base_url: String,
         keys: BTreeMap<String, String>,
     },
+    /// Nothing leaves this machine. The page is raised on the local banner,
+    /// which is the one channel that needs no delivery at all.
+    Off,
 }
 
 /// WRITTEN BY HAND SO NO SIGNING KEY IS EVER FORMATTED. `keys` holds one
 /// webhook signing key per route and this type is public, so a derived `Debug`
-/// would put every secret into whatever line formats a delivery: a diagnostic
+/// would put every secret into whatever line formats a choice: a diagnostic
 /// in a launchd-run security tool, or the message a failed `assert_eq!` prints
 /// in CI. The route NAMES are the part a reader needs, and they are what this
 /// prints.
-impl std::fmt::Debug for DeliveryPath {
+impl std::fmt::Debug for NotifyMode {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeliveryPath::Producer { command, arguments } => formatter
-                .debug_struct("Producer")
-                .field("command", command)
+            NotifyMode::Command { path, arguments } => formatter
+                .debug_struct("Command")
+                .field("path", path)
                 .field("arguments", arguments)
                 .finish(),
-            DeliveryPath::Hermes { base_url, keys } => formatter
+            NotifyMode::Hermes { base_url, keys } => formatter
                 .debug_struct("Hermes")
                 .field("base_url", base_url)
                 .field("keys", &keys.keys().collect::<Vec<_>>())
                 .finish(),
+            NotifyMode::Off => formatter.write_str("Off"),
         }
     }
 }
 
-/// The delivery choice, and whatever went wrong reading it.
+/// The notify choice, and whatever went wrong reading it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Delivery {
-    pub path: DeliveryPath,
+pub struct Notify {
+    pub mode: NotifyMode,
     /// Why the config file could not be used, when it could not. The
     /// fail-closed default stands and every page then refuses loudly, so this
     /// is a line for the operator's log rather than a second outcome to branch
@@ -90,12 +99,12 @@ pub struct Delivery {
     pub refusal: Option<String>,
 }
 
-impl Default for Delivery {
+impl Default for Notify {
     /// The fail-closed choice: the local gateway and no key for any route, so
     /// nothing is delivered quietly and every attempt says so.
     fn default() -> Self {
-        Delivery {
-            path: DeliveryPath::Hermes {
+        Notify {
+            mode: NotifyMode::Hermes {
                 base_url: DEFAULT_WEBHOOK_BASE.to_string(),
                 keys: BTreeMap::new(),
             },
@@ -104,7 +113,7 @@ impl Default for Delivery {
     }
 }
 
-impl Delivery {
+impl Notify {
     /// Read the choice for this home directory. A file that is not there is the
     /// default and no refusal; every other failure keeps the default and names
     /// itself.
@@ -124,70 +133,71 @@ impl Delivery {
                 if error.kind() == std::io::ErrorKind::NotFound
                     && std::fs::symlink_metadata(&path).is_err() =>
             {
-                return Delivery::default();
+                return Notify::default();
             }
-            Err(error) => return Delivery::refused(format!("{}: {error}", path.display())),
+            Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
         match Self::parse(&text) {
-            Ok(path) => Delivery {
-                path,
+            Ok(mode) => Notify {
+                mode,
                 refusal: None,
             },
-            Err(refusal) => Delivery::refused(refusal),
+            Err(refusal) => Notify::refused(refusal),
         }
     }
 
     fn refused(reason: String) -> Self {
-        Delivery {
+        Notify {
             refusal: Some(reason),
-            ..Delivery::default()
+            ..Notify::default()
         }
     }
 
-    /// The pure half: text in, one delivery path or a named refusal out.
-    fn parse(text: &str) -> Result<DeliveryPath, String> {
+    /// The pure half: text in, one notify mode or a named refusal out.
+    fn parse(text: &str) -> Result<NotifyMode, String> {
         let file: schema::File =
             toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
-        file.delivery.into_path()
+        file.notify.into_mode()
     }
 }
 
-/// The sink the configured path calls for, with the route an untiered page
+/// The sink the configured mode calls for, with the route an untiered page
 /// takes baked in, and the refusal reported once at construction.
 ///
-/// The concrete sink is boxed because the two paths are different types and
+/// The concrete sink is boxed because the three modes are different types and
 /// every caller wants one word for "wherever a page goes". A page costs a
 /// process or an HTTPS round trip, so one virtual call is free by comparison.
 /// The box borrows for as long as the runner and alarm handed in do, so a
 /// caller composing from borrowed collaborators needs no `'static` of its own.
 pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
-    delivery: Delivery,
+    notify: Notify,
     runner: R,
     alarm: A,
     diagnostics: &mut impl Write,
 ) -> Box<dyn AlertSink + 'a> {
-    if let Some(refusal) = &delivery.refusal {
+    if let Some(refusal) = &notify.refusal {
         let _ = writeln!(
             diagnostics,
-            "posture: the delivery config could not be used, so no page can be delivered: {refusal}"
+            "posture: the notify config could not be used, so no page can be delivered: {refusal}"
         );
     }
     let route = Name::new(UNTIERED_ROUTE).expect("the fixed untiered route is valid");
-    match delivery.path {
-        DeliveryPath::Producer { command, arguments } => Box::new(ProducerCommand::new(
+    match notify.mode {
+        NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(
             runner,
-            command,
+            path,
             arguments,
             Some(route),
             alarm,
         )),
-        DeliveryPath::Hermes { base_url, keys } => Box::new(HermesWebhook::new(
+        NotifyMode::Hermes { base_url, keys } => Box::new(HermesWebhook::new(
             UreqSignedPost,
             base_url,
             keys,
             route,
             alarm,
         )),
+        NotifyMode::Off => Box::new(BannerOnly::new(alarm)),
     }
 }
 

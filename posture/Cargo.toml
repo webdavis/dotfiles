@@ -7,16 +7,17 @@
 #   posture-application -> posture-domain
 #   posture-protocol    -> no dependencies until its codec lands in PR 2.4
 #   posture-adapters    -> posture-application, posture-domain,
-#                          posture-protocol, posture-producer-wire
+#                          posture-protocol
 #   posture         -> posture-adapters, posture-application, posture-domain
 #
 # posture-protocol owns the existing digest record shared by the alert and
 # digest processes. PR 2.4 implements its unchanged six-field wire codec;
-# this foundation declares the boundary only. posture-producer-wire is posture's
-# OWN copy of the producer API's notification envelopes, consumed only by
-# posture-adapters. It is a copy rather than a dependency because posture and
-# every engine implementing the contract ship as separate projects, and neither
-# may compile against the other.
+# this foundation declares the boundary only. The producer API's own request
+# and result documents are plain serde structs in posture-adapters, beside the
+# golden fixtures that hold posture's reading of them to the engine's. They are
+# posture's OWN copy rather than a dependency because posture and every engine
+# implementing the contract ship as separate projects, and neither may compile
+# against the other.
 #
 # WHAT THIS BINARY IS ALLOWED TO SPAWN is a closed roster, stated in the plan's
 # section 2.6 and enforced adapter by adapter as each one lands. Today the
@@ -34,7 +35,6 @@ members = [
   "crates/posture-application",
   "crates/posture",
   "crates/posture-domain",
-  "crates/posture-producer-wire",
   "crates/posture-protocol",
 ]
 default-members = ["crates/posture"]

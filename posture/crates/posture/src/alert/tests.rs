@@ -43,7 +43,7 @@ fn an_integrity_page_carries_the_actual_hashes_and_upgrade_record() {
     config.managed_bin_manifest = root.join("managed-manifest");
     config.alarm = "/usr/bin/false".into();
     let engine = root.join(".local/libexec/engine");
-    config.delivery = crate::producer_delivery(&engine);
+    config.notify = crate::command_notify(&engine);
     for path in [&engine, &config.log, &config.cursor] {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     }

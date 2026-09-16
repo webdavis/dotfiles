@@ -8,12 +8,12 @@
 //! per-machine choice.
 
 use crate::sink::{delivery_failed, tier_route};
+use crate::wire::{Name, RequestId, Status, decode_result};
 use crate::{CommandIo, CommandRunner};
 use posture_application::{
     Alert, AlertSignal, AlertSink, IndependentAlarm, InspectionFailure, Submission,
     SubmissionFailure,
 };
-use posture_producer_wire::{Name, RequestId, Status, decode_result};
 use std::{ffi::OsStr, ffi::OsString, path::PathBuf};
 mod request;
 

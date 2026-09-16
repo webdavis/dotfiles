@@ -10,9 +10,9 @@
 //! nested `alert.title` and `alert.detail` pair, and the
 //! `header`/`subheader`/`body` triple. Each costs one key.
 
+use crate::wire::Name;
 use posture_application::{Alert, AlertSignal};
 use posture_domain::Severity;
-use posture_producer_wire::Name;
 
 /// The name this tool answers to wherever a body names its sender.
 const AGENT: &str = "posture";

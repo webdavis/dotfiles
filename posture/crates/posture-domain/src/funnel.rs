@@ -128,7 +128,7 @@ pub fn plan_funnel(
 /// The most exposed keys a page renders in full before it summarizes the rest.
 ///
 /// The wire caps one text field at 8,000 characters (`MAX_TEXT_CHARS` in
-/// posture-producer-wire, refused by posture-adapters/src/producer/request.rs).
+/// posture-adapters/src/wire, refused by posture-adapters/src/producer/request.rs).
 /// At 32 keys the worst case is 7,160 of them, 840 under the cap, and the unit
 /// test measures that figure rather than trusting the sum below:
 ///

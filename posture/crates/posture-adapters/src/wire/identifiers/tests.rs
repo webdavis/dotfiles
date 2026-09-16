@@ -1,4 +1,4 @@
-use super::{InvalidIdentifier, Name, RequestId, SchemaId};
+use super::{InvalidIdentifier, Name, RequestId};
 
 #[test]
 fn a_request_id_at_the_cap_is_accepted_and_one_character_over_is_refused() {
@@ -75,39 +75,4 @@ fn identifiers_are_plain_strings_on_the_wire_and_refuse_on_the_way_in() {
     let name: Name = serde_json::from_str("\"nvim\"").unwrap();
     assert_eq!(serde_json::to_string(&name).unwrap(), "\"nvim\"");
     assert!(serde_json::from_str::<Name>("\"\"").is_err());
-}
-
-#[test]
-fn a_schema_id_is_a_name_and_a_major_version_and_nothing_else_parses() {
-    assert_eq!(
-        SchemaId::parse("pns.request/1"),
-        Some(SchemaId {
-            name: "pns.request".to_string(),
-            major: 1,
-        })
-    );
-    assert_eq!(
-        SchemaId::parse("pns.result/12"),
-        Some(SchemaId {
-            name: "pns.result".to_string(),
-            major: 12,
-        })
-    );
-    for bad in [
-        "pns.request",
-        "pns.request/",
-        "/1",
-        "pns.request/one",
-        "pns.request/1.2",
-        "pns.request/-1",
-        "pns.request/+1",
-        "",
-        "pns.request/1/2",
-    ] {
-        assert_eq!(SchemaId::parse(bad), None, "{bad:?}");
-    }
-    assert_eq!(
-        SchemaId::parse("pns.request/1").unwrap().to_string(),
-        "pns.request/1"
-    );
 }

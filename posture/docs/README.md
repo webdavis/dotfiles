@@ -4,21 +4,22 @@
 cutover and operator acceptance are tracked separately below. The original test inventory is an audit of
 preserved behavior, with open gaps and retirement decisions retained explicitly.
 
-| Crate                   | Responsibility                                                        |
-| ----------------------- | --------------------------------------------------------------------- |
-| `posture-domain`        | Pure policy                                                           |
-| `posture-application`   | Use cases and their ports                                             |
-| `posture-protocol`      | Existing cross-process digest record codec                            |
-| `posture-producer-wire` | This workspace's copy of the producer API request and result contract |
-| `posture-adapters`      | Files, processes, probes and protocol consumers                       |
-| `posture`               | Command decoding, composition and exit codes                          |
+| Crate                 | Responsibility                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `posture-domain`      | Pure policy                                                                                           |
+| `posture-application` | Use cases and their ports                                                                             |
+| `posture-protocol`    | Existing cross-process digest record codec                                                            |
+| `posture-adapters`    | Files, processes, probes and protocol consumers, and this workspace's own reading of the producer API |
+| `posture`             | Command decoding, composition and exit codes                                                          |
 
-The member manifests enforce inward dependencies. Domain and application depend on neither protocol
-crate. Adapters consume both local protocol crates; the command crate composes the tool. No build-time
-dependency reaches another workspace. The six-field digest format remains unversioned. Notification
-submission takes one of two delivery paths, chosen in `~/.config/posture/config.toml`: a signed POST
-straight to a hermes webhook route, or a page handed to a configured producer command on its standard
-input. Both carry this workspace's versioned wire contract; see [the producer API](producer-api.md).
+The member manifests enforce inward dependencies. Domain and application depend on no protocol crate.
+Adapters consume the one there is; the command crate composes the tool. No build-time dependency reaches
+another workspace. The six-field digest format remains unversioned. Notification takes one of three
+modes, chosen in `~/.config/posture/config.toml`: a signed POST straight to a hermes webhook route, a
+page handed to a configured command on its standard input, or nothing leaving the machine and the local
+banner alone. The two delivering modes carry this workspace's own reading of the versioned producer
+documents, which lives in `crates/posture-adapters/src/wire/` beside the golden fixtures that pin it; see
+[the producer API](producer-api.md).
 
 Rust work follows both `/Users/stephen/.agents/skills/clean-code/SKILL.md` and
 `/Users/stephen/.agents/skills/clean-code-rust/SKILL.md`; the Rust binding wins all numbers and
@@ -179,15 +180,17 @@ wc -c < ~/.cargo/bin/posture
 | `executable_canary-freshness.sh`                                    | 47    | inside `posture heartbeat` and `watchdog`    | tracked, Bash caller         |
 | Bash in the port's scope                                            | 10137 |                                              | 2222 retired, 7915 tracked   |
 
-| Crate                   | Files | Implementation lines | Total lines |
-| ----------------------- | ----- | -------------------- | ----------- |
-| `posture-adapters`      | 145   | 6351                 | 14975       |
-| `posture-domain`        | 95    | 4420                 | 10578       |
-| `posture`               | 51    | 1888                 | 5863        |
-| `posture-application`   | 49    | 2364                 | 7088        |
-| `posture-producer-wire` | 16    | 883                  | 2051        |
-| `posture-protocol`      | 2     | 111                  | 269         |
-| Workspace               | 358   | 16017                | 40824       |
+The figures below were measured on 2026-09-13 and have not been re-measured since; the
+`posture-producer-wire` row is gone with the crate, whose 16 files became 6 inside `posture-adapters`.
+
+| Crate                 | Files | Implementation lines | Total lines |
+| --------------------- | ----- | -------------------- | ----------- |
+| `posture-adapters`    | 145   | 6351                 | 14975       |
+| `posture-domain`      | 95    | 4420                 | 10578       |
+| `posture`             | 51    | 1888                 | 5863        |
+| `posture-application` | 49    | 2364                 | 7088        |
+| `posture-protocol`    | 2     | 111                  | 269         |
+| Workspace             | 358   | 16017                | 40824       |
 
 The installed binary is 3,792,416 bytes (3.6 MiB) at `~/.cargo/bin/posture`, written by the apply of
 2026-09-13 20:50 and well under the builder's 8 MiB refusal bound. Its usage text matches main's `USAGE`

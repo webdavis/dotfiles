@@ -1,18 +1,17 @@
 # posture-adapters: everything concrete, organized by the capability it provides.
 #
 # Depends inward only: on the ports in posture-application, the policy types in
-# posture-domain, the digest record codec in posture-protocol, and posture's
-# own copy of the producer API's wire contract in posture-producer-wire. Only
-# this crate consumes
-# any protocol; it maps wire records to typed domain values. posture composes
-# the adapters.
+# posture-domain, and the digest record codec in posture-protocol. Only this
+# crate consumes any protocol; it maps wire records to typed domain values, and
+# `src/wire/` holds posture's own reading of the producer API's two documents.
+# posture composes the adapters.
 #
-# EVERY DEPENDENCY HERE STAYS INSIDE THIS WORKSPACE. posture-producer-wire replaced
-# a path that climbed out of this member and into a sibling engine's workspace,
-# which made posture buildable only inside the repository the two happen to
-# share. They ship as separate projects, so neither may compile against the
-# other; speaking a protocol to an engine at runtime is a different thing and is
-# unchanged.
+# EVERY DEPENDENCY HERE STAYS INSIDE THIS WORKSPACE. The producer API is spoken
+# rather than imported: a path climbing out of this member and into a sibling
+# engine's workspace would make posture buildable only inside the repository the
+# two happen to share. They ship as separate projects, so neither may compile
+# against the other; speaking a protocol to an engine at runtime is a different
+# thing and is unchanged.
 
 [package]
 name = "posture-adapters"
@@ -22,7 +21,6 @@ edition = "2024"
 [dependencies]
 posture-application = { path = "../posture-application" }
 posture-domain = { path = "../posture-domain" }
-posture-producer-wire = { path = "../posture-producer-wire" }
 posture-protocol = { path = "../posture-protocol" }
 libc = "0.2.189"
 serde_json = { version = "1.0.151", features = ["raw_value"] }

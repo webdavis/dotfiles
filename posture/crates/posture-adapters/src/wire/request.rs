@@ -3,51 +3,21 @@
 //!
 //! The source's own event name (`event`) is carried as metadata; the
 //! normalized [`Signal`] is what engine policy reads. Delivery scope is one
-//! typed word, so the legacy pair of independent flags cannot be spelled
-//! here (decision 0007). A producer states `elapsed_secs` and the engine
-//! decides the tier from it; there is no field for a caller-decided tier.
+//! typed word, so a pair of independent flags cannot be spelled here. A
+//! producer states `elapsed_secs` and the engine decides the tier from it;
+//! there is no field for a caller-decided tier.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::envelope::{Opened, Rejected, Rejection, encode, open};
-use crate::identifiers::{Name, RequestId, SchemaId};
+use super::identifiers::{Name, RequestId};
+use super::{MAX_TEXT_CHARS, Oversized, encoded};
 
-/// The envelope's name on the wire.
-const SCHEMA_NAME: &str = "pns.request";
-/// The one major this crate speaks.
-const SCHEMA_MAJOR: u32 = 1;
+/// The envelope's name and the one major this build speaks.
+const SCHEMA: &str = "pns.request/1";
 
-/// Every top-level field version 1 defines, `schema` included. A key not in
-/// this list is ignored and named, never refused: additive fields from a
-/// newer producer must not break an older engine.
-const KNOWN_FIELDS: [&str; 15] = [
-    "schema",
-    "request_id",
-    "producer",
-    "session",
-    "event",
-    "signal",
-    "occurred_at",
-    "elapsed_secs",
-    "detail",
-    "context",
-    "scope",
-    "route",
-    "class",
-    "interaction",
-    "extensions",
-];
-
-fn schema() -> SchemaId {
-    SchemaId {
-        name: SCHEMA_NAME.to_string(),
-        major: SCHEMA_MAJOR,
-    }
-}
-
-/// What happened, in the contract's own terms. A producer's event name never controls
-/// routing, state or lighting directly; this does.
+/// What happened, in the contract's own terms. A producer's event name never
+/// controls routing, state or lighting directly; this does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Signal {
@@ -139,10 +109,21 @@ pub struct Request {
 /// The request under its schema field, which lives on the wire and not on
 /// the struct: the version is the envelope's, not the producer's to set.
 #[derive(Serialize)]
-struct Wire<'a> {
-    schema: String,
+struct Outgoing<'a> {
+    schema: &'static str,
     #[serde(flatten)]
     request: &'a Request,
+}
+
+/// The same pairing on the way in. `flatten` buffers the object, so a field
+/// version 1 does not define is ignored rather than refused: an older reader
+/// keeps working against a newer producer.
+#[cfg(test)]
+#[derive(Deserialize)]
+struct Incoming {
+    schema: String,
+    #[serde(flatten)]
+    request: Request,
 }
 
 impl Request {
@@ -167,49 +148,33 @@ impl Request {
         }
     }
 
-    /// The request as one bounded JSON object, schema first. Oversized
-    /// constructed values return the same refusal as oversized input.
-    pub fn encode(&self) -> Result<String, Rejected> {
-        let wire = Wire {
-            schema: schema().to_string(),
+    /// The request as one JSON object, schema first.
+    ///
+    /// THE TEXT CAP IS CHECKED ON `detail` BY NAME. Every other string a
+    /// posture request carries is a [`Name`] or a [`RequestId`], already held
+    /// to its own shorter cap when it was constructed, so `detail` is the one
+    /// field a caller can pass an unbounded value into and the byte cap in
+    /// [`encoded`] catches the rest. A generic walk over every string at every
+    /// depth is the ENGINE'S check on input it did not build.
+    pub fn encode(&self) -> Result<String, Oversized> {
+        if self.detail.chars().count() > MAX_TEXT_CHARS {
+            return Err(Oversized);
+        }
+        encoded(&Outgoing {
+            schema: SCHEMA,
             request: self,
-        };
-        encode(&wire, &schema())
+        })
+    }
+
+    /// Decode one request from its bytes. posture WRITES requests and never
+    /// reads one, so this is the test-only half of the pairing: it is what
+    /// holds [`Request::encode`] and the golden document to the same reading.
+    #[cfg(test)]
+    pub(crate) fn decode(bytes: &[u8]) -> Result<Request, super::Malformed> {
+        let incoming: Incoming = super::decoded(bytes)?;
+        if incoming.schema != SCHEMA {
+            return Err(super::Malformed);
+        }
+        Ok(incoming.request)
     }
 }
-
-/// A decoded request plus the top-level fields version 1 does not define,
-/// so the result can name them as diagnostics.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Decoded {
-    pub request: Request,
-    pub ignored: Vec<String>,
-}
-
-/// Decode one request from its bytes, applying every shared envelope check
-/// first.
-pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
-    let Opened { value, request_id } = open(bytes, &schema())?;
-    let ignored = ignored_fields(&value);
-    let request = serde_json::from_value(value).map_err(|error| Rejected {
-        request_id,
-        reason: Rejection::Invalid(error.to_string()),
-    })?;
-    Ok(Decoded { request, ignored })
-}
-
-fn ignored_fields(value: &Value) -> Vec<String> {
-    value
-        .as_object()
-        .map(|object| {
-            object
-                .keys()
-                .filter(|key| !KNOWN_FIELDS.contains(&key.as_str()))
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-#[cfg(test)]
-mod tests;

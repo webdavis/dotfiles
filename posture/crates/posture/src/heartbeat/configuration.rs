@@ -1,9 +1,9 @@
-use posture_adapters::Delivery;
+use posture_adapters::Notify;
 use posture_domain::HeartbeatWindow;
 use std::{ffi::OsString, path::PathBuf};
 pub(super) struct Configuration {
     pub snapshots: PathBuf,
-    pub delivery: Delivery,
+    pub notify: Notify,
     pub alarm: PathBuf,
     pub maximum_age: HeartbeatWindow,
 }
@@ -12,11 +12,11 @@ impl Configuration {
         let home = variable("HOME")?;
         let mut default_snapshots = home.clone();
         default_snapshots.push("/.local/log/osquery/osqueryd.snapshots.log");
-        let delivery = Delivery::read(std::path::Path::new(&home));
+        let notify = Notify::read(std::path::Path::new(&home));
         let bound = variable("OSQUERY_CANARY_MAX_AGE");
         Some(Self {
             snapshots: default_snapshots.into(),
-            delivery,
+            notify,
             alarm: "/usr/bin/osascript".into(),
             maximum_age: HeartbeatWindow::from_override(
                 bound.as_deref().and_then(|value| value.to_str()),
