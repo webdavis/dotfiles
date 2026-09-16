@@ -1397,8 +1397,18 @@ The planned Rust lanes are implemented. The following deployment check remains.
   builds. (An acceptance check that ran while the apply was still writing files read stale copies of two
   targets; re-run after the state file was written, both were current.)
 
-- [ ] 57g. Allowlist the scalebar LaunchAgent. `com.webdavis.scalebar` is loaded by
-  `run_onchange_after_*` on every apply but had no tuple in
+- [x] 57g. THE AGENT WORK IS DONE; only the operator's apply and one acceptance reading remain.
+  Re-checked on 2026-09-15: this bullet's "Missing" clause, that the manifest generator's glob covers
+  only `com.webdavis.osquery-*.plist`, was already closed by
+  [PR #681](https://github.com/webdavis/dotfiles/pull/681), merged. That arm of
+  `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` now reads
+  `"$home"/Library/LaunchAgents/com.webdavis.*.plist`, EVERY LaunchAgent this repository owns rather than
+  the osquery-prefixed ones, and its comment names the scalebar case as the reason. So the first
+  `vouch(finding.path)` call has a manifest line to find and no `sha256` pin is needed. What is left is
+  not code: a full `chezmoi apply` has to run `run_after_05` so the pipeline manifest records the new
+  line, and then the next `persistence_launchd` finding for `com.webdavis.scalebar` must digest rather
+  than page, which is a reading the operator takes. Original entry: allowlist the scalebar LaunchAgent.
+  `com.webdavis.scalebar` is loaded by `run_onchange_after_*` on every apply but had no tuple in
   `dot_config/osquery/private_page-launchd-allowlist.txt`, so its persistence row pages as an unknown
   agent. [PR #564](https://github.com/webdavis/dotfiles/pull/564) (`fix/scalebar-launchd-allowlist`) adds
   the tuple (plist path, program `~/.local/libexec/scalebar/Scalebar`, no sha256 pin, like the other
