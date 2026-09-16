@@ -1,11 +1,11 @@
-# Local daemons: atuin, happy, tailscaled, the hermes gateway, the pns Discord bot
+# Local daemons: atuin, tailscaled, the hermes gateway, the pns Discord bot
 
-Four long-running services on dresden, each with its own failure mode and diagnostic ladder. The first
-three are chezmoi-tracked LaunchAgents: the plists live under `Library/LaunchAgents/` and the loaders
-that bootstrap them are `.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so
-a loader re-runs when its plist changes rather than on every apply. The hermes gateway is not a
+Three long-running services on dresden, each with its own failure mode and diagnostic ladder. The first
+two are chezmoi-tracked LaunchAgents: the plists live under `Library/LaunchAgents/` and the loaders that
+bootstrap them are `.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so a
+loader re-runs when its plist changes rather than on every apply. The hermes gateway is not a
 LaunchAgent; `hermes gateway` owns its lifecycle and this repository owns only its configuration. The pns
-Discord bot at the end is a fifth thing again, neither a service nor a daemon: it is pns's own HTTP
+Discord bot at the end is a fourth thing again, neither a service nor a daemon: it is pns's own HTTP
 client, and it is here because it delivers the same notifications the gateway does and is configured the
 same way.
 
@@ -51,34 +51,6 @@ working" check; use `atuin daemon status` (reports `Version`, `Protocol`, `Healt
   `~/.local/share/atuin/atuin-daemon.pid` against `atuin --version`, and `dot_bashrc.tmpl` compares the
   binary's mtime against that same pid file right after `atuin init`. Either one triggers
   `launchctl kickstart -k gui/$(id -u)/com.webdavis.atuin-daemon`.
-
-## Happy daemon (remote agent control)
-
-[happy](https://happy.engineering/) bridges Claude Code sessions to the Happy mobile and web apps for
-remote control; the local daemon is that bridge. Its lifecycle is managed by
-`~/Library/LaunchAgents/com.webdavis.happy-daemon.plist` (`KeepAlive=true`, `RunAtLoad=true`), loaded by
-`.chezmoiscripts/run_onchange_after_62-load-happy-daemon-launchagent.sh.tmpl` (`bootout` plus `bootstrap`
-with a 3-try retry loop, mirroring the atuin loader). `happy` itself is an npm global tracked under
-`npm:` in `.chezmoidata/system_packages_autoinstall.yaml`, and logs go to
-`~/.local/log/happy-daemon.log`.
-
-**The one gotcha: use `start-sync`, not `start`.** The plist runs `happy daemon start-sync`, which keeps
-the daemon in the foreground. The documented command, `happy daemon start`, detaches (forks, then
-returns), which under `KeepAlive` looks like an instant exit and restart-loops, orphaning a daemon each
-cycle. `start-sync` is the foreground entry point that `start` spawns internally, and happy ships no
-documented `--foreground` flag, so the plist comment is where the reason is recorded. launchd then
-supervises a two-process tree: the `start-sync` process it keeps alive, which in turn manages the real
-daemon.
-
-**Diagnostic ladder** when remote control stops connecting:
-
-```bash
-happy daemon status                        # 'Daemon is running' + PID, port, version
-launchctl list | grep happy                # col 1 = live PID, col 2 = last exit status
-ps aux | grep '[h]appy daemon'             # supervised start-sync process + the daemon it spawns
-tail ~/.local/log/happy-daemon.log         # crash messages
-happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
-```
 
 ## Hermes gateway (webhook routes)
 
