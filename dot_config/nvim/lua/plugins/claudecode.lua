@@ -25,30 +25,34 @@
 -- 8. Local-install PATH: `claude` is on PATH in every herdr pane through the
 --    bashrc; nothing to do.
 --
--- `cmd` and `keys` are the only load triggers. `event = "VeryLazy"` was the
--- trigger until 2026-09-15, on the reasoning that the lock file has to exist
--- before the CLI connects (question 4 above) and nothing presses a key first.
--- It cost two warnings and a stack trace on every interactive start: something
--- local makes a PLAIN HTTP request to the plugin's port within a second of the
--- server coming up, the plugin logs `Bad WebSocket upgrade request`, and its
--- own unguarded `tcp_handle:close()` in `server/client.lua` then raises through
--- `vim.schedule`. The prober was not identified; it is not lock-file discovery
--- (two decoy servers advertising a lock, one of them naming this repository as
--- its workspace, were never connected to) and it is not the plugin itself,
--- whose `find_available_port` only binds. No server on an ordinary start means
--- no prober, no warning and no crash. The crash is third-party code and is not
--- patched here.
+-- `event = "VeryLazy"` is the load trigger, because question 4 above wants the
+-- lock file written before the CLI connects and nothing presses a key first.
 --
--- The accepted cost is question 4's ordering: the operator presses `<leader>Cc`
--- in Neovim first, which is the key they already use, rather than starting
--- `claude --ide` against a lock file a startup event had already written. The
--- ordering inside that keypress is guaranteed rather than raced. lazy.nvim's
--- `keys` handler (`lazy/core/handler/keys.lua`) deletes its placeholder, calls
--- `Loader.load` synchronously, and only then feeds the lhs back with
--- `nvim_feedkeys(..., "i", false)`, so `config` has run and `claudecode.setup`
--- (upstream default `auto_start = true`) has started the server and written the
--- lock with a synchronous `writefile` before the mapping's own right-hand side
--- is ever executed.
+-- That trigger cost two warnings and a stack trace on every interactive start
+-- between 2026-09-12 and 2026-09-15: something local made a PLAIN HTTP request
+-- to the plugin's port within a second of the server coming up, the plugin
+-- answered `Bad WebSocket upgrade request`, the prober hung up, and the
+-- plugin's own unguarded `tcp_handle:close()` in `server/client.lua` raised
+-- through `vim.schedule`. It was briefly fixed by dropping this trigger, at the
+-- cost of that ordering.
+--
+-- THE PROBER IS `moshi-hook`, identified on 2026-09-15 with a decoy server that
+-- logged its peer: `GET / HTTP/1.1`, `User-Agent: Go-http-client/1.1`, from the
+-- `moshi-hook serve` daemon. `moshi-hook servers` is documented as "Probe local
+-- TCP listeners and print HTTP servers for SSH preflight", and the daemon runs
+-- it continuously, so it reaches any listener it considers eligible.
+--
+-- `port_range` below is what stops it, and the number is measured rather than
+-- guessed. Decoy servers were probed at 20000, 30000, 40000 and 49151, and left
+-- alone at 49152, 50000 and 55000. 49152 is where macOS starts allocating
+-- ephemeral ports (`sysctl net.inet.ip.portrange.first`), which is the range a
+-- listener-discovery pass has no reason to fingerprint. Pinning the server into
+-- it keeps every start silent AND keeps the eager trigger, so neither half of
+-- the trade is paid. The crash itself is third-party code and is not patched.
+--
+-- The operator's `moshi-hook set scan-ports` list is the belt to this braces and
+-- lives outside this repository, in `~/.config/moshi/config.toml`, which chezmoi
+-- does not manage. Either alone is sufficient; both cost nothing.
 --
 -- `cond` keeps the plugin out of headless Neovim entirely (a `nvim --headless`
 -- launch or a `-l` script run, both used by this repo's own test suites and
@@ -61,6 +65,11 @@
 -- unreliable at that point. The `opts.log_level` check below runs at a different,
 -- later evaluation point (actual plugin load), where a UI count is reliable,
 -- which is why it keeps using it.
+---The first port macOS allocates as ephemeral, read once from the measurement
+---rather than left as a bare number: `moshi-hook`'s discovery probed every port
+---below it and none at or above it.
+local EPHEMERAL_PORT_FLOOR = 49152
+
 local function is_headless()
   for _, arg in ipairs(vim.v.argv) do
     if arg == "--headless" or arg == "-l" then
@@ -77,6 +86,7 @@ return {
   dependencies = {
     "folke/snacks.nvim",
   },
+  event = "VeryLazy",
   cmd = {
     "ClaudeCodeAdd",
     "ClaudeCodeDiffAccept",
@@ -157,6 +167,10 @@ return {
   opts = function()
     return {
       log_level = #vim.api.nvim_list_uis() == 0 and "warn" or "info",
+      -- The upstream default is 10000 to 65535, which put the server where
+      -- `moshi-hook`'s listener discovery reaches it. See the measurement in
+      -- the comment block above: 49152 is the first port it left alone.
+      port_range = { min = EPHEMERAL_PORT_FLOOR, max = 65535 },
       terminal = {
         provider = "none",
       },
