@@ -340,7 +340,7 @@ main() {
         workspace="${HERDR_WORKSPACE_ID:-}"
         pane="${HERDR_PANE_ID:-}"
       fi
-      cd "$target"
+      cd "$target" || die "cannot enter $target"
       export WORKTREE_REVIEW_ORIGIN_WORKSPACE="$workspace"
       export WORKTREE_REVIEW_ORIGIN_PANE="$pane"
       export WORKTREE_REVIEW_TARGET="$target"

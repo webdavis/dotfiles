@@ -110,7 +110,11 @@ set -euo pipefail
 } >"${REVIEW_RECORD:-/dev/null}"
 STUB
 
-chmod +x "$fixture/bin/picker" "$fixture/bin/review"
+# The default review command, reachable only through PATH, so a case can prove
+# the launcher runs tuicr when nothing names a command.
+cp "$fixture/bin/review" "$fixture/bin/tuicr"
+
+chmod +x "$fixture/bin/picker" "$fixture/bin/review" "$fixture/bin/tuicr"
 
 # run_subject <args...> : runs the launcher from the repository root with this
 # case's sandbox state directory. STDOUT lands in $OUT, stderr in $ERR and the
@@ -157,6 +161,10 @@ age_column() {
 # generation file sits one slug deep inside the sandbox state directory.
 cache_file() {
   find "$STATE" -name activity.tsv -print -quit
+}
+
+selection_file() {
+  find "$STATE" -name selection -print -quit
 }
 
 row_for() {
@@ -271,12 +279,34 @@ function test_a_second_resume_starts_the_review_without_repeating_discovery() {
   assert_same "cwd:$fixture/wt/zulu" "$(sed -n 2p "$RECORD")"
 }
 
+function test_a_resume_with_no_command_runs_tuicr() {
+  export REVIEW_RECORD="$RECORD" PATH="$fixture/bin:$PATH"
+  run_subject resume
+  assert_same 0 "$RC"
+  assert_same "argv:" "$(sed -n 1p "$RECORD")"
+  assert_same "cwd:$fixture/wt/zulu" "$(sed -n 2p "$RECORD")"
+}
+
 function test_the_review_command_inherits_the_originating_workspace() {
   export REVIEW_RECORD="$RECORD" HERDR_WORKSPACE_ID=w7 HERDR_PANE_ID=w7:p3 PICKER_LINE=2
   run_subject resume -- "$fixture/bin/review"
   assert_same "workspace:w7" "$(sed -n 3p "$RECORD")"
   assert_same "pane:w7:p3" "$(sed -n 4p "$RECORD")"
   assert_same "cwd:$fixture/wt/mike" "$(sed -n 2p "$RECORD")"
+}
+
+function test_a_target_that_cannot_be_entered_is_refused() {
+  # Fail closed: a recorded target that is still a directory but no longer
+  # enterable must stop the launcher, never start the review somewhere else.
+  local locked="$fixture/locked"
+  mkdir -p "$locked"
+  run_subject pick
+  printf '%s\t\t\n' "$locked" >"$(selection_file)"
+  chmod 000 "$locked"
+  run_subject resume -- "$fixture/bin/review"
+  chmod 755 "$locked"
+  assert_not_same 0 "$RC"
+  assert_contains 'cannot enter' "$(cat "$ERR")"
 }
 
 function test_a_refresh_publishes_a_whole_new_generation() {
