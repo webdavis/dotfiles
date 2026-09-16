@@ -25,7 +25,7 @@ checked pns/lights, posture/uu and Neovim/Scalebar. No new runtime acceptance, h
 or applies ran during this audit. Historical test results below retain their original dates.
 
 The final sweep also checked the consolidated review backlog, all 48 open tasks across the two dotfiles
-projects and pns, the four open pull requests and 14 open issues, and the new homelab/vpp decisions.
+projects and pns, the four open pull requests and 14 open issues, and the new homelab/vpt decisions.
 Recovered follow-ups are recorded below with their source and disposition. This did not run runtime
 acceptance or authorize the deferred builds.
 
@@ -2581,14 +2581,14 @@ is missing.
   Not started. Source: `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`
   (out-of-scope section) and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 - [ ] 91. Drop `posture/crates/posture-producer-wire/` and converge posture on the same three-mode
-  `[notify]` command shape (`desktop`, `command`, `off`) vpp uses, so posture stops carrying its own copy
-  of pns's JSON envelopes. Approved by the operator 2026-09-15, not started. Surfaced while writing vpp's
+  `[notify]` command shape (`desktop`, `command`, `off`) vpt uses, so posture stops carrying its own copy
+  of pns's JSON envelopes. Approved by the operator 2026-09-15, not started. Surfaced while writing vpt's
   notification design: `posture/crates/posture-adapters/src/producer.rs`'s own header comment already
   states the target shape, "a JSON request goes in on standard input, a JSON result plus an exit code
   comes back, and the command and its arguments are both config", but posture still ships a dedicated
-  `posture-producer-wire` crate for the envelope rather than the plain argv-and-stdin contract vpp's
+  `posture-producer-wire` crate for the envelope rather than the plain argv-and-stdin contract vpt's
   `[notify]` table covers with no crate at all. Source:
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 13.
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 13.
 - [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
@@ -4927,7 +4927,7 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   own nothing on the laptop at all: `brew search dozzle` reports no formula or cask and
   `brew search open-notebook` matches nothing, because both are authenticated web interfaces reached over
   the tailnet, so their only laptop-side dependency is the private name resolution F4 may later move.
-  L6's one real cross-project dependency is the optional vpp handoff, which stays in the item below and
+  L6's one real cross-project dependency is the optional vpt handoff, which stays in the item below and
   keeps canonical originals in the vault layout that already exists on disk
   (`agent-processing-pipeline/raw/`, `transcripts/` and `analysis/`). The boundary was written back as
   Todoist comments on the four homelab tasks and the dotfiles credential task, comment 6hW4Mc2w4Mf9PcrV
@@ -4937,32 +4937,32 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   [L6](https://app.todoist.com/app/task/6hVpfWrX8W4jrQcV) and 6hW4MmF39R6mpj5M on the laptop task. No
   homelab backlog item was imported, no task was completed because all four remain planning-stage behind
   F1 and F2, and no file in this repository was changed.
-- [ ] Coordinate vpp's optional Open Notebook handoff with L6. Preserve one capture/transcription
-  pipeline and canonical originals; decide the handoff format during integration design. vpp and Bob must
+- [ ] Coordinate vpt's optional Open Notebook handoff with L6. Preserve one capture/transcription
+  pipeline and canonical originals; decide the handoff format during integration design. vpt and Bob must
   not require Open Notebook merely to read or produce ordinary notes. Designed 2026-09-14 as
-  `docs/superpowers/specs/2026-09-14-vpp-open-notebook-handoff-design.md`, the seventh document in the
-  vpp chain, built on the boundaries design's four-homes table. The finding that decides it is in Open
+  `docs/superpowers/specs/2026-09-14-vpt-open-notebook-handoff-design.md`, the seventh document in the
+  vpt chain, built on the boundaries design's four-homes table. The finding that decides it is in Open
   Notebook's own user guide, read today rather than remembered: "Audio/video is transcribed to text
   automatically", over MP3, WAV, M4A, OGG and FLAC, where M4A is what Apple Voice Memos writes. So
   handing it a recording starts a second transcription on a second engine with no flags, no alternatives
   and no `known-terms.txt`, which is exactly what L6's own bullet forbids and is one drag onto a web
   page. The recommendation makes the refusal structural instead of advisory: one pure command,
-  `vpp handoff <id> [--stage transcript|analysis|brief|draft]`, prints one `vpp.handoff/1` document on
+  `vpt handoff <id> [--stage transcript|analysis|brief|draft]`, prints one `vpt.handoff/1` document on
   standard output and does nothing else, and that document has no field that can hold audio or a path to
-  it, so the supported path cannot produce the forbidden outcome. vpp performs no request, holds no
-  credential and knows no address, which preserves the redacted-draft design's rule that vpp never
+  it, so the supported path cannot produce the forbidden outcome. vpt performs no request, holds no
+  credential and knows no address, which preserves the redacted-draft design's rule that vpt never
   transmits; the Open Notebook vocabulary lives in a mapping table in the document (`content`, `title`
-  from vpp, `type: "text"`, `notebook_id` and `embed` from the pusher, everything else carried inside
+  from vpt, `type: "text"`, `notebook_id` and `embed` from the pusher, everything else carried inside
   `content` because the source model has no metadata field) and in a four-line `jq` plus `curl` recipe
   owned by whoever runs it. That recipe was verified end to end against a throwaway local listener with
   an invented password: `curl -H @file` on the installed 8.22.0 delivered `Authorization: Bearer` with
   the password in no process argument list, the body arrived with `type: "text"`, and `shellcheck` passes
   clean; nothing left the machine, and no instance exists to send to since L6 is queued behind F1 and F2.
   Canonical originals hold because the emitted document is a pure function of the record and the note, so
-  a lost notebook is regenerated by re-running one command, and because vpp has no importer and never
+  a lost notebook is regenerated by re-running one command, and because vpt has no importer and never
   reads anything back. The done-means is written as four absence checks (service absent, configuration
-  absent, a grep over vpp's tree for `open.notebook`, `notebook_id`, `5055`, `8502` and `surreal` finding
-  nothing, and `vpp.brief/1` unchanged for Bob), the third of which is the cheapest guard against a
+  absent, a grep over vpt's tree for `open.notebook`, `notebook_id`, `5055`, `8502` and `surreal` finding
+  nothing, and `vpt.brief/1` unchanged for Bob), the third of which is the cheapest guard against a
   convenience push creeping in later. The header inside `content` carries the identity, the
   unresolved-flag count and a derived-copy sentence, keeps `[unverified]` markers in place because a
   model summarizing a source drops a footer and keeps the sentence, drops the note's frontmatter
@@ -4972,29 +4972,29 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   rather than solved here, both in upstream's own words: one shared password sent in plain text with no
   rate limiting or audit log, so encrypted transport is mandatory, and an unrestricted `CORS_ORIGINS`
   means "any website the user visits can issue authenticated cross-origin requests to your API". Named
-  ceiling: vpp never learns the remote source identifier, so a corrected note handed off twice makes two
+  ceiling: vpt never learns the remote source identifier, so a corrected note handed off twice makes two
   sources rather than replacing one; the upgrade path is written in the source instead of built. Waiting
   on the operator: whether a private note may cross or only a released redacted draft, whether the
   no-push rule survives costing three lines at every handoff, which artifacts may be handed off at all
   (the brief names the people who will be in a room), who holds the shared password when L6 exists and
   whether an agent gets write access through the `uvx open-notebook-mcp` server, who owns the return path
   for a note authored in Open Notebook, and where the transport recipe eventually lives. No code written.
-  Full document: `docs/superpowers/specs/2026-09-14-vpp-open-notebook-handoff-design.md`. Operator steps:
+  Full document: `docs/superpowers/specs/2026-09-14-vpt-open-notebook-handoff-design.md`. Operator steps:
   (1) Answer the private-versus-redacted question, because it decides what the feature is for: the
   proposal lets a private note cross with the document recording that it did, and the alternative is that
   only a released redacted draft may cross, which makes the notebook safe and much less useful. (2)
   Confirm the no-push rule: three lines of jq and curl at every handoff, forever, versus one
-  `vpp handoff --push`. If three lines are too heavy for how this will actually be used, say so before
+  `vpt handoff --push`. If three lines are too heavy for how this will actually be used, say so before
   the rule is written into tests rather than after a convenience flag is added around it. (3) Decide who
   holds Open Notebook's shared password when L6 exists: the laptop through KeePassXC, an agent through
   `uvx open-notebook-mcp` (uvx is already installed), or nobody, with the handoff done by hand in the web
   interface. This is the smallest concrete instance of the A6 credential question already in the ledger.
-  (4) Hand L6 the two upstream configuration findings, which are not vpp's to fix: encrypted transport is
+  (4) Hand L6 the two upstream configuration findings, which are not vpt's to fix: encrypted transport is
   mandatory because the shared password is sent in plain text with no rate limiting or audit log, and
   `CORS_ORIGINS` must be restricted or any site the operator's browser visits can reach the interface
   with the operator's session. (5) Decide who owns the return path for a note authored in Open Notebook
   that should become durable. L6's bullet says canonical locations including Obsidian; this design says
-  vpp has no importer, which leaves the act unassigned until it is assigned deliberately. (6) This ledger
+  vpt has no importer, which leaves the act unassigned until it is assigned deliberately. (6) This ledger
   bullet's own line number is stale in the earlier triage: the bullet is at docs/remaining-work.md under
   "### Homelab plan coordination". Nothing needs an apply, a package, a grant or a deployment for this
   item. Open questions: (1) May a private note cross into Open Notebook, or only a released redacted
@@ -5009,26 +5009,26 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   the flag count and the in-line markers; a refusal would be stricter and would probably be routed around
   by hand. (5) Who holds the shared password, and does an agent get write access to the notebook? The
   `uvx open-notebook-mcp` server makes agent-driven filing available today with nothing new to install.
-  (6) Does the handoff need to say it came from vpp? The proposed header names vpp and the record
+  (6) Does the handoff need to say it came from vpt? The proposed header names vpt and the record
   identity, which is good provenance and also tells anyone with notebook access that a recording exists.
   (7) What happens to a copy in the notebook when the note it came from is corrected? Today nothing: a
-  second handoff makes a second source, because vpp never learns the remote identifier. The upgrade path
+  second handoff makes a second source, because vpt never learns the remote identifier. The upgrade path
   is named; whether it is needed depends on how often a transcript is corrected after filing. (8) Where
   does the transport recipe eventually live? Nowhere today. A dotfiles `libexec` script, a `just` recipe,
   a homelab-side ingester and "the operator types it" are four answers with four different maintenance
   costs, and a scheduled one would need a separate argument against "no second automatic workflow". (9)
-  Where does vpp's code live, and what is it called? Carried forward unresolved from the boundaries
+  Where does vpt's code live, and what is it called? Carried forward unresolved from the boundaries
   design, because the chain should not stay in disagreement with itself.
 
-### vpp (Voice Processing Pipeline)
+### vpt (Voice Processing Tool)
 
-Planning addition, 2026-09-12. Build vpp in Rust to collect everyday Apple Voice Memos synced to the Mac,
+Planning addition, 2026-09-12. Build vpt in Rust to collect everyday Apple Voice Memos synced to the Mac,
 preserve their original audio format, transcribe them, and produce agent notes and summaries. Track the
 Mac workflow in [6hVpPJC2cjJW3V9M](https://app.todoist.com/app/task/6hVpPJC2cjJW3V9M). No ingestion or
 transcription was started during this audit.
 
 - [ ] Reconcile the existing sources before designing a second transcription system:
-  `~/workspaces/Ivy/webdavis/homelab/docs/plans/PLAN-v12-experiments-backlog.md`, L-R5, records the vpp
+  `~/workspaces/Ivy/webdavis/homelab/docs/plans/PLAN-v12-experiments-backlog.md`, L-R5, records the vpt
   feature decisions and carries forward the earlier local transcription experiment. The vault's
   `CLAUDE.md` already defines `agent-processing-pipeline/raw/audio/`, `transcripts/` and `analysis/`,
   with audio excluded from Git. Homelab `PLAN-v11.md`, Phase 6, and
@@ -5036,8 +5036,8 @@ transcription was started during this audit.
   Scribe/whisply pipeline, Markdown transcripts, subtitle and word-timing exports, and local processing
   for sensitive audio or service outages. These are related plans; none explicitly specifies a watcher
   for Apple Voice Memos synced to macOS. Reconciled 2026-09-14 in
-  `docs/research/2026-09-vpp-source-reconciliation.md`. The three named sources reconcile and the claim
-  holds: L-R5 is the vpp specification itself (its `pns submit --json` contract reverified against
+  `docs/research/2026-09-vpt-source-reconciliation.md`. The three named sources reconcile and the claim
+  holds: L-R5 is the vpt specification itself (its `pns submit --json` contract reverified against
   `pns-protocol` source, `producer` and `signal.kind: needs_attention` both correct, though `submit` is
   missing from `pns --help`); the vault's `agent-processing-pipeline/` tree is a filing convention that
   has never run (all three directories empty since 2026-07-22); and `PLAN-v11` Phase 6 is a homelab
@@ -5045,38 +5045,38 @@ transcription was started during this audit.
   only its engine decision (ElevenLabs Scribe v2 with whisply fallback) and its three output formats.
   None specifies a Voice Memos watcher. The reconciliation also found a FOURTH source the task does not
   name: the `minutes` 0.26.1 cask, declared and installed 2026-09-08, whose 60 subcommands already cover
-  six of the seven vpp feature bullets (folder watcher plus launchd service, first-class `memo` type,
+  six of the seven vpt feature bullets (folder watcher plus launchd service, first-class `memo` type,
   `transcribe --json --diarize`, vault sync by symlink, voiceprints, retention policy, templates,
-  insights, commitments, draft-only delivery). Only three vpp items are absent from all four sources:
+  insights, commitments, draft-only delivery). Only three vpt items are absent from all four sources:
   Voice Memos discovery, redundant transcription with disagreement comparison, and the pns
-  needs-attention notification. **Verdict: defer the vpp ingestion design.** vpp's scope is blocked on
+  needs-attention notification. **Verdict: defer the vpt ingestion design.** vpt's scope is blocked on
   the still-open `minutes` disposition (task `6hPV483GJgGHX95M`), which decides between an adapter around
   `minutes` and a full replacement; `PLAN-v12` L6 already forbids a second automatic Voice Memos workflow
   for Open Notebook and nobody has applied that rule here. **Decided 2026-09-15: the blocking question is
-  answered.** vpp does not use or depend on `minutes`, in any form: no calling `minutes transcribe`, no
+  answered.** vpt does not use or depend on `minutes`, in any form: no calling `minutes transcribe`, no
   `minutes watch` front end, no runtime spawn. The operator's own words: `minutes` is poorly designed,
   though it has good features worth learning from. Two of its own dependent questions are therefore MOOT
-  rather than answered, because the premise each depended on no longer holds: whether vpp calls `minutes`
-  or runs beside it, and whether the `PLAN-v12` L6 rule binds `minutes` against vpp. The vault `minutes`
+  rather than answered, because the premise each depended on no longer holds: whether vpt calls `minutes`
+  or runs beside it, and whether the `PLAN-v12` L6 rule binds `minutes` against vpt. The vault `minutes`
   symlink repair and the false vault `CLAUDE.md` claim remain their own small item, unchanged, since they
-  are about `minutes` rather than about vpp. Full record:
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. Measured inputs for the next
+  are about `minutes` rather than about vpt. Full record:
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. Measured inputs for the next
   task, not decisions: recordings are ALAC 48 kHz stereo in `.m4a` (not AAC), about 1 GB for 28 files
   with single files at 188 MB; titles, durations and stable identifiers live only in
   `CloudRecordings.db`, a Core Data store whose write-ahead log must be copied with it or a reader sees a
   nine-day-stale snapshot; `ZEVICTIONDATE` does not mean the audio is gone (both evicted rows still have
   local files); and `minutes storage` already classes 30-day-old originals as delete-candidates, which
-  collides with vpp's preserve-originals rule. Separate live drift: the vault `CLAUDE.md` claims the
+  collides with vpt's preserve-originals rule. Separate live drift: the vault `CLAUDE.md` claims the
   `agent-processing-pipeline/minutes` symlink is managed by `minutes vault setup --subdir`, but no
   `minutes` config file exists and `minutes vault status` reports `Vault: not configured`, so the
-  committed link is an orphan. Full document: `docs/research/2026-09-vpp-source-reconciliation.md`.
-  Operator steps: (1) Read docs/research/2026-09-vpp-source-reconciliation.md. It is already
+  committed link is an orphan. Full document: `docs/research/2026-09-vpt-source-reconciliation.md`.
+  Operator steps: (1) Read docs/research/2026-09-vpt-source-reconciliation.md. It is already
   mdformat-clean against the repo .mdformat.toml, so no reformat is needed. (2) Rule on the `minutes`
-  disposition: keep it, or replace it. This is the blocking decision. Everything about vpp's scope
-  follows from it, and it is still open in Todoist task 6hPV483GJgGHX95M. Do not let the next vpp ledger
+  disposition: keep it, or replace it. This is the blocking decision. Everything about vpt's scope
+  follows from it, and it is still open in Todoist task 6hPV483GJgGHX95M. Do not let the next vpt ledger
   task (the ingestion design) start before this ruling lands. (3) Rule on whether PLAN-v12 L6's existing
   constraint ("must not create a second automatic Voice Memos capture/transcription workflow", written
-  for Open Notebook) binds `minutes` against vpp. If it is a general rule rather than a per-service one,
+  for Open Notebook) binds `minutes` against vpt. If it is a general rule rather than a per-service one,
   it settles the adapter-versus-replacement question on its own. (4) Decide the redundant engine pair and
   whether Voice Memos audio may leave the machine. All the candidates are already installed here:
   ElevenLabs CLI 1.2.0 (fnm node 24), whisply 0.14.2 (uv), openai-whisper (Homebrew), plus the `minutes`
@@ -5090,19 +5090,19 @@ transcription was started during this audit.
   (6) Decide whether to upgrade `minutes` 0.26.1 to 0.26.2 before ruling on its disposition, since its
   feature set is the input to that ruling. It is a declared cask, so the weekly uu Homebrew lane would
   take it; an unattended upgrade before the decision is fine, but the decision should be made against
-  whatever version is then installed. (7) Optional pns follow-up, independent of vpp: `pns submit` works
+  whatever version is then installed. (7) Optional pns follow-up, independent of vpt: `pns submit` works
   (pns/crates/pns/src/invocation.rs:119) but is absent from `pns --help`. Whoever implements a producer
   against it will not find it from the CLI. Open questions: (1) Is `minutes` kept or replaced? This is
-  the blocking question; vpp's whole scope follows from it, and the ledger has carried it as an open
-  evaluation since before vpp existed. **Decided 2026-09-15: replaced.** vpp is a standalone tool with no
+  the blocking question; vpt's whole scope follows from it, and the ledger has carried it as an open
+  evaluation since before vpt existed. **Decided 2026-09-15: replaced.** vpt is a standalone tool with no
   dependency on `minutes` at all; see decision 1 in
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`. (2) If `minutes` is kept, does vpp call it
-  or run beside it? Calling `minutes transcribe --json` makes it one of vpp's two engines and reuses its
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`. (2) If `minutes` is kept, does vpt call it
+  or run beside it? Calling `minutes transcribe --json` makes it one of vpt's two engines and reuses its
   summarization, vault sync and speaker work. Running beside it means two tools writing notes about
   recordings, which is what PLAN-v12 L6 forbids for Open Notebook. **Moot, 2026-09-15:** `minutes` is not
   kept, so neither branch applies. (3) Does the PLAN-v12 L6 rule ("must not create a second automatic
-  Voice Memos capture/transcription workflow") bind `minutes` against vpp, or was it only ever about Open
-  Notebook? **Moot, 2026-09-15:** vpp does not touch `minutes` for L6 to bind against. (4) Which two
+  Voice Memos capture/transcription workflow") bind `minutes` against vpt, or was it only ever about Open
+  Notebook? **Moot, 2026-09-15:** vpt does not touch `minutes` for L6 to bind against. (4) Which two
   engines are the redundant pair? Phase 6 already chose ElevenLabs Scribe v2 with whisply on
   faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the minutes on-device pipeline
   are all present here. Cloud-plus-local and two-local differ in cost, in what audio leaves the machine,
@@ -5111,17 +5111,17 @@ transcription was started during this audit.
   first-class adapters (decision 10). (5) Do Voice Memos originals leave the machine at all? L-R5
   inherits Phase 6's "local processing for sensitive audio", but everyday personal voice memos may all
   qualify, which would remove the metered cost line and one candidate engine together. **Decided
-  2026-09-15:** this is the user's choice, not a product rule; local is the default, `vpp setup`
+  2026-09-15:** this is the user's choice, not a product rule; local is the default, `vpt setup`
   preselects it, and the operator's own configuration stays local. See decision 2. (6) Repair the vault
-  `minutes` symlink now or fold it into the vpp work? Folding it in leaves the vault CLAUDE.md claim
-  false until vpp ships. **Decided 2026-09-15:** neither folded nor changed by this decision; the symlink
+  `minutes` symlink now or fold it into the vpt work? Folding it in leaves the vault CLAUDE.md claim
+  false until vpt ships. **Decided 2026-09-15:** neither folded nor changed by this decision; the symlink
   repair and the false CLAUDE.md claim remain their own small item, unchanged, since they are about
-  `minutes` rather than about vpp. (7) Should the four unwired transcription installs stay declared?
+  `minutes` rather than about vpt. (7) Should the four unwired transcription installs stay declared?
   whisply, openai-whisper, @elevenlabs/cli and the minutes cask are all in
   .chezmoidata/system_packages_autoinstall.yaml and no script, recipe or LaunchAgent reaches any of them.
-  They are either vpp's future inputs or removable weight, and which depends on the engine decision.
+  They are either vpt's future inputs or removable weight, and which depends on the engine decision.
   **Decided 2026-09-15:** whisply, openai-whisper and @elevenlabs/cli stay declared as candidates for
-  vpp's engine adapters; the minutes cask has no remaining use under decision 1. The data file is
+  vpt's engine adapters; the minutes cask has no remaining use under decision 1. The data file is
   unchanged by this pull request; dropping a declaration is an edit the operator makes deliberately, per
   this repository's no-removal-mechanisms rule. See decision 12. (8) Does `minutes` get upgraded to
   0.26.2 before the disposition decision, given that its feature set is the input to that decision? (9)
@@ -5129,13 +5129,13 @@ transcription was started during this audit.
   ~/Library/Group Containers/group.com.apple.VoiceMemos.shared at all under its own macOS
   privacy-permission identity (every read in this record ran from a terminal that already holds broad
   disk access), and whether reading Apple's private CloudRecordings.db Core Data schema is acceptable at
-  all. A no to either changes what vpp is, from a watcher to an export-path integration.
+  all. A no to either changes what vpt is, from a watcher to an export-path integration.
 - [ ] Design automatic discovery of fully synced recordings, preserving original audio and capture
   metadata without modifying Apple's source recordings. Verify the supported macOS access/export path and
   actual audio format before choosing an ingestion mechanism. Handle interrupted sync, retries and
   repeated discovery without duplicate notes or lost audio. Keep original recordings, transcripts and
   agent analysis separately linked using the existing vault layout. Designed 2026-09-14 in
-  `docs/superpowers/specs/2026-09-14-vpp-recording-discovery-design.md`, written against the second
+  `docs/superpowers/specs/2026-09-14-vpt-recording-discovery-design.md`, written against the second
   bullet only and scoped so the still-open `minutes` disposition changes the consumer rather than this
   producer. The access-path verification is the finding: Voice Memos ships no scripting dictionary, its
   App Intents expose only title, creation date and duration with no action that outputs a file, and
@@ -5144,7 +5144,7 @@ transcription was started during this audit.
   sheet. The format is Apple Lossless Audio Codec at 48000 Hz in an `.m4a` container, 988 MB across 28
   recordings. The capture timestamp was measured inside the audio file, matching the database to the
   second, so the private schema is needed only for the human title and its loss degrades to untitled
-  rather than broken. Recommended: an idempotent `vpp ingest` sweep on a `StartCalendarInterval` rather
+  rather than broken. Recommended: an idempotent `vpt ingest` sweep on a `StartCalendarInterval` rather
   than a watcher or a daemon; a wholeness gate of MPEG-4 top-level box lengths summing to file size with
   `moov` present, plus an mtime quiet period; content-derived identity; and `clonefile(2)` into
   `agent-processing-pipeline/raw/audio/`, whose `EEXIST` is the duplicate guard and whose copy-on-write
@@ -5152,9 +5152,9 @@ transcription was started during this audit.
   assumptions and eight open questions, and one measurement is unresolved, whether a LaunchAgent that
   launchd starts at login can read the group container, since every read in the session inherited
   Ghostty's Full Disk Access grant. Full document:
-  `docs/superpowers/specs/2026-09-14-vpp-recording-discovery-design.md`. Operator steps: (1) Read the
+  `docs/superpowers/specs/2026-09-14-vpt-recording-discovery-design.md`. Operator steps: (1) Read the
   design and answer open question 1 first: is reading Apple's undocumented Voice Memos group container
-  acceptable at all? The measurements closed every supported programmatic path, so a "no" turns vpp from
+  acceptable at all? The measurements closed every supported programmatic path, so a "no" turns vpt from
   a watcher into a manual filing tool and the design needs replacing rather than editing. (2) Settle the
   LaunchAgent permission question: install a plist whose program reads one byte of ~/Library/Application
   Support/com.apple.TCC/TCC.db and one byte of a recording, load it, LOG OUT AND BACK IN so launchd
@@ -5172,27 +5172,27 @@ transcription was started during this audit.
   --subdir lands in areas/meetings and creates a second meetings location), and correct the vault
   CLAUDE.md claim that the link is already managed. Open questions: (1) Is reading Apple's undocumented
   Voice Memos store acceptable at all? This is the gating question: no supported programmatic path yields
-  the audio, so a "no" makes vpp a manual filing tool driven by the share sheet. (2) Can a LaunchAgent
+  the audio, so a "no" makes vpt a manual filing tool driven by the share sheet. (2) Can a LaunchAgent
   that launchd starts at login read the group container? Unresolved. Every read in this session inherited
   Ghostty's Full Disk Access grant, a launchctl-submitted job may inherit the same attribution, and
   launchctl procinfo needs root. (3) Does the minutes ruling change this boundary? The design assumes
-  discovery is a producer and transcription a consumer. If vpp is meant to be a thin front end on
+  discovery is a producer and transcription a consumer. If vpt is meant to be a thin front end on
   `minutes watch`, the clone destination changes and most of the design is replaced by configuring a
   third-party tool. (4) Clones, or references in place? The design chose clonefile(2) on measured cost,
   which puts a second copy of every personal recording inside the vault directory, gitignored but
   present. (5) Fifteen minutes as the sweep interval, or something else? And is near-immediate discovery
   worth taking WatchPaths despite launchd.plist(5) discouraging it in its own words? (6) What happens to
-  a recording deleted in Voice Memos after vpp has cloned it? The clone survives, which is the point of
-  cloning. Should vpp notice the disappearance and mark the sidecar, or keep the clone silently? (7) Do
+  a recording deleted in Voice Memos after vpt has cloned it? The clone survives, which is the point of
+  cloning. Should vpt notice the disappearance and mark the sidecar, or keep the clone silently? (7) Do
   the eight .waveform sidecars matter? They belong to 2022-era recordings only and are Apple's rendering
-  cache; the design ignores them. (8) Should `vpp ingest` emit its per-recording record on stdout as JSON
+  cache; the design ignores them. (8) Should `vpt ingest` emit its per-recording record on stdout as JSON
   for a caller to pipe, or only write sidecars? The design does both on the assumption the next stage
   wants a stream; if nothing will consume it, that is unneeded surface.
 - [ ] Use redundant transcription and compare disagreements; flag uncertain text and unsupported notes
   for review, notifying through pns's producer application programming interface (API). Preserve the
   alternatives and source references. Multiple engines agreeing does not prove correctness. The proposed
   feature for playing audio from a summary sentence was rejected; original audio preservation remains.
-  Designed 2026-09-14 as `docs/superpowers/specs/2026-09-14-vpp-redundant-transcription-design.md`. Three
+  Designed 2026-09-14 as `docs/superpowers/specs/2026-09-14-vpt-redundant-transcription-design.md`. Three
   engine runs against a synthesized clip with known ground truth settled the shape. whisply on Apple's
   MLX framework and `openai-whisper` with `turbo` produced normalized transcripts that were identical,
   because they are the same `large-v3-turbo` weights on two runtimes, so that pairing is not redundancy
@@ -5202,7 +5202,7 @@ transcription was started during this audit.
   confidence. So the recommendation is three signals rather than two: disagreement between different
   model families, low confidence where an engine reports any, and a risk-class flag on agreed names,
   numbers and dates, aggregated by surface form and suppressed by a `known-terms.txt` the operator grows.
-  Note checking is a separate `vpp verify-note` over a timecode source-reference convention, with four
+  Note checking is a separate `vpt verify-note` over a timecode source-reference convention, with four
   flag classes, the strongest being a claim built on already-flagged text; it annotates and never gates.
   Notification is one `pns submit --json` per recording carrying identity, counts and paths and never any
   flagged text, on a route the hermes gateway actually declares, with an aggregate form so a 28-recording
@@ -5216,7 +5216,7 @@ transcription was started during this audit.
   names a second engine. Waiting on the operator: the engine pairing, whether transcripts may be
   committed to the vault and synced to a phone, and whether a confirmed correction may rewrite later
   transcripts. No code written. Full document:
-  `docs/superpowers/specs/2026-09-14-vpp-redundant-transcription-design.md`. Operator steps: (1) Answer
+  `docs/superpowers/specs/2026-09-14-vpt-redundant-transcription-design.md`. Operator steps: (1) Answer
   Open Question 8 now that it is priced. The four pairings and their measured costs per 10-minute
   recording: whisply on MLX with large-v3-turbo alone, about 5 minutes of laptop compute, no auditor, no
   confidence; whisply MLX plus openai-whisper base on the central processing unit, about 15 minutes of
@@ -5228,16 +5228,16 @@ transcription was started during this audit.
   adapter, and if so run its setup. It fails today in 0.04 s with "Transcription model not found.
   Expected model file "ggml-small.bin" in /Users/stephen/.minutes/models". The fix is
   `minutes setup --model small`, which is a download and therefore an operator step. Note it is a local
-  Whisper, so it is the same model family as whisply and cannot be that engine's auditor. (3) Add a `vpp`
-  route to the hermes gateway, or accept that vpp posts on the existing `pns` route. The gateway declares
+  Whisper, so it is the same model family as whisply and cannot be that engine's auditor. (3) Add a `vpt`
+  route to the hermes gateway, or accept that vpt posts on the existing `pns` route. The gateway declares
   exactly `priority`, `pns` and `unattended-upgrades`; posture names a `posture` route that does not
-  exist and eight of its Discord legs are dead-lettered with HTTP 404 right now. Settle this before vpp
+  exist and eight of its Discord legs are dead-lettered with HTTP 404 right now. Settle this before vpt
   sends its first notification rather than after. **Decided 2026-09-15,** full record in
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`: the architecture is broader than this
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`: the architecture is broader than this
   design's own single-pair recommendation. Two engine slots, primary and optional fallback, both named in
   config, neither hardcoded; whether the fallback runs on failure only or on every recording is also
   configurable (decision 3). Reconciliation picks a winner and flags uncertainty exactly two ways, inline
-  markers plus a `vpp review <id>` queue that feeds `vpp confirm --term`; the summary-block and
+  markers plus a `vpt review <id>` queue that feeds `vpt confirm --term`; the summary-block and
   separate-document shapes were considered and rejected, not merely left unbuilt (decision 4). Three more
   engine-pair behaviors are approved to build (transcript-wins rule, both-engines-fail defaulting to
   keep-and-flag, engine per language), and a disagreement threshold and a cloud spend ceiling are
@@ -5245,7 +5245,7 @@ transcription was started during this audit.
   with two starting first-class adapters, Apple Speech and whisply, plus a generic command escape hatch
   with no uncertainty flagging (decision 10). Notification gains a `[notify]` table with three modes,
   `desktop`, `command`, `off`, superseding this design's pns-only assumption; command mode substitutes
-  placeholders into argv and writes vpp's own JSON on stdin simultaneously, vpp needs no copy of pns's
+  placeholders into argv and writes vpt's own JSON on stdin simultaneously, vpt needs no copy of pns's
   wire contract, and a translator's exit code is load bearing (decisions 6, 7, 9). `minutes` is out
   entirely (decision 1). Open questions: (1) Which engine pairing, from the priced table? This is Open
   Question 8 and everything else in the design is a configuration value once it is answered. **Narrowed,
@@ -5260,49 +5260,49 @@ transcription was started during this audit.
   text of every voice memo into a git history. (4) Should a confirmed correction rewrite future
   transcripts? Recording that "Muthakrishnan" should be "Muthukrishnan" is cheap; applying it
   automatically changes the transcript of record with no human reading the result. The design records and
-  does not apply. **Confirmed 2026-09-15:** record only, feeding `vpp confirm --term` forward rather than
+  does not apply. **Confirmed 2026-09-15:** record only, feeding `vpt confirm --term` forward rather than
   rewriting the transcript of record. (5) How loud should the `agreed-unverified` class be? It is the
   class that catches the error every engine shared and also the largest class. The design ranks it last
   and aggregates it by surface form. Should it appear in the pns notification at all, or only in the
   file? (6) One notification per recording with aggregation past three, or one summary per run always? A
-  weekly reviewer might prefer the latter. (7) Does `verify-note` belong in vpp or in whatever writes the
+  weekly reviewer might prefer the latter. (7) Does `verify-note` belong in vpt or in whatever writes the
   note? It is a separate command precisely because the writer is undecided. If the writer turns out to be
   `minutes`, the check still works but would be checking a third-party tool's output against a timecode
   convention that tool does not follow, which needs the convention enforced somewhere else. **Decided
-  2026-09-15: in vpp**, since `minutes` is out and vpp is the only thing that writes the note. (8) Where
-  does vpp's code live? The sibling boundaries design recommends its own repository; the sibling
+  2026-09-15: in vpt**, since `minutes` is out and vpt is the only thing that writes the note. (8) Where
+  does vpt's code live? The sibling boundaries design recommends its own repository; the sibling
   discovery design assumed a fifth cargo workspace in dotfiles. Nothing in this document depends on the
   answer, but the two designs should not stay in disagreement.
 - [ ] Support agent-suggested tags and relationships between recordings, with a defined metadata schema
   and configurable output paths. Use explicit links and deterministic filing rules for automatic routing.
   Markdown output can live in an Obsidian vault and use its existing mobile sync, but Obsidian is
   optional. Designed 2026-09-14 as
-  `docs/superpowers/specs/2026-09-14-vpp-metadata-schema-and-filing-design.md`. Three schema homes were
+  `docs/superpowers/specs/2026-09-14-vpt-metadata-schema-and-filing-design.md`. Three schema homes were
   compared (adopt the vault's own eight-key note schema, adopt `minutes`' published frontmatter JSON
-  Schema, or keep a versioned record in vpp's state and render the note from it) and the third is
+  Schema, or keep a versioned record in vpt's state and render the note from it) and the third is
   recommended, with `minutes`' vocabulary borrowed where it already named a concept. Measured in the
   vault while writing: 753 Markdown files, 738 with frontmatter, 722 note names and 246 aliases,
   scannable in 0.245 s, so the link and vocabulary index is rebuilt every run rather than cached; 122
   distinct tags over 1,109 uses, serialized three different ways and named three different ways (23
   camelCase, 10 kebab, the rest single words), which is why a new tag has no derivable shape and is held
   rather than written; `status`, `hub` and `description` appear in none of the 87 entries of
-  `.obsidian/types.json`, so vpp's own keys need no registry edit. Obsidian's documentation settles the
+  `.obsidian/types.json`, so vpt's own keys need no registry edit. Obsidian's documentation settles the
   tag character set, the two link formats and the URL encoding rule, and says a nested property is
-  source-mode only, which is why every vpp key is flat and prefixed and why `minutes`' nested `entities`
+  source-mode only, which is why every vpt key is flat and prefixed and why `minutes`' nested `entities`
   was not copied. `yq` confirms an unquoted `[[Note Name]]` in YAML parses as a nested sequence, so wiki
   links in frontmatter are always quoted. Filing is defined as five testable properties (total, pure,
   stable, explainable, collision-free), keyed only on confirmed metadata, pinned at first write, and
-  exposed as `vpp path <id> --stage <stage>` so the later note generator files correctly without
+  exposed as `vpt path <id> --stage <stage>` so the later note generator files correctly without
   embedding the rules; names are `{date}-{slug}-{hash8}` with the slug sanitized as a trust boundary.
-  Links live in a marked managed block that vpp rewrites and never touches prose outside, and a note the
+  Links live in a marked managed block that vpt rewrites and never touches prose outside, and a note the
   operator renames in Obsidian is found again by its `vppRecording` key. Retention is a report and not a
   reaper: the whole back catalogue's transcripts are about 187 KB and both engines' raw outputs about 13
   MB, while the audio is nearly free until Apple deletes the original, so the real question is whether
-  vpp's copy is the backup. Also corrected while measuring: `relationship_map` is a `minutes` capability
+  vpt's copy is the backup. Also corrected while measuring: `relationship_map` is a `minutes` capability
   flag for feature detection, not a subcommand, and the command-line surface is `minutes people`. Waiting
   on the operator: the output layout, the retention answer, whether new tags are held or accepted, and
   the shape of a new tag. No code written. Full document:
-  `docs/superpowers/specs/2026-09-14-vpp-metadata-schema-and-filing-design.md`. Operator steps: (1)
+  `docs/superpowers/specs/2026-09-14-vpt-metadata-schema-and-filing-design.md`. Operator steps: (1)
   Answer the output-layout half of Open Question 8: audio cloned into the vault's raw/audio/ (the
   discovery design), an archive directory outside the vault with an optional symlink (the boundaries
   design, matching what minutes already does with ~/meetings), or a folder per recording (not
@@ -5310,36 +5310,36 @@ transcription was started during this audit.
   retention half, which is smaller than it looks: transcripts are about 187 KB for the whole back
   catalogue and about 1.5 MB a year, both engines' raw outputs together about 13 MB, and the audio is
   983.6 MiB logically but nearly free physically until Apple's original is deleted. The real decision is
-  whether vpp's copy is the backup, and no machine backup exists yet. (3) If the vault layout is adopted,
+  whether vpt's copy is the backup, and no machine backup exists yet. (3) If the vault layout is adopted,
   write the three missing folder notes for agent-processing-pipeline/, transcripts/ and analysis/
-  carrying the reference DataviewJS query from the vault's CLAUDE.md. None exists today, so nothing vpp
+  carrying the reference DataviewJS query from the vault's CLAUDE.md. None exists today, so nothing vpt
   writes would appear in any listing. (4) Decide the shape of a tag that does not exist yet: kebab-case
   (the document's default) or camelCase. The vault corpus splits 10 to 23 the other way, so there is no
   majority to derive it from. One configuration value either way. Open questions: (1) Which output
-  layout, and is vpp's audio copy the backup? Everything else in the design is a configuration value once
+  layout, and is vpt's audio copy the backup? Everything else in the design is a configuration value once
   that is answered. (2) New tags: held as suggestions (the design's default, because the vault's 122-tag
   vocabulary is small and deliberate and git makes a mistake permanent) or accepted automatically (which
   removes a confirmation step per recording and grows the vocabulary faster than any human would)? (3)
   kebab-case or camelCase for a newly invented tag? The corpus has 10 kebab and 23 camelCase tags, so no
-  majority exists. (4) May vpp write into notes it did not create? The mentions relation links out to
+  majority exists. (4) May vpt write into notes it did not create? The mentions relation links out to
   existing contact and project notes; the design writes that link only on the transcript's side and adds
-  nothing to the target, and the alternative is vpp editing the operator's own writing. (5) Which mobile
+  nothing to the target, and the alternative is vpt editing the operator's own writing. (5) Which mobile
   sync actually carries the vault? Obsidian's core Sync plugin is enabled and obsidian-git is configured
   to push every 15 minutes; they send the same transcripts to different third parties, which the
   transcription design's open question about committing transcripts cannot really be answered without.
-  (6) Should `vpp path` stay the contract for the later note generator, or should vpp write the analysis
-  note itself? (7) Does minutes stay? If it does, its notes are input that vpp files, and the two schemas
+  (6) Should `vpt path` stay the contract for the later note generator, or should vpt write the analysis
+  note itself? (7) Does minutes stay? If it does, its notes are input that vpt files, and the two schemas
   sit side by side in one vault with no key in common; adopting its schema was rejected for reasons that
   would need revisiting if minutes becomes the note generator rather than a candidate. **Decided
-  2026-09-15: no**, minutes is out entirely; there is only vpp's own schema. See
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (8) Where does vpp's code live,
+  2026-09-15: no**, minutes is out entirely; there is only vpt's own schema. See
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. (8) Where does vpt's code live,
   and what is it called? Carried forward unresolved from the boundaries design so the chain does not stay
   in disagreement with itself.
 - [ ] Plan meeting briefs using relevant notes, with optional read-only calendar and Todoist inputs.
-  Record Bob, the future Hermes executive assistant, as a consumer of vpp's notes and briefs. The exact
+  Record Bob, the future Hermes executive assistant, as a consumer of vpt's notes and briefs. The exact
   trigger, scheduling owner, access scopes and provider choices remain under discussion. Keep source
   references and unresolved transcription issues visible to Bob and in the brief. Designed 2026-09-14 as
-  `docs/superpowers/specs/2026-09-14-vpp-meeting-briefs-design.md`, the fifth document in the vpp chain,
+  `docs/superpowers/specs/2026-09-14-vpt-meeting-briefs-design.md`, the fifth document in the vpt chain,
   built on the metadata and filing design. The permission verification this bullet asks for is the
   finding, and the three providers disagree: the Google Calendar interface defines eight read-only scopes
   and Todoist defines `data:read`, but neither offers a per-calendar or per-project scope, and Apple's
@@ -5354,47 +5354,47 @@ transcription was started during this audit.
   items, 8 items in the last 90 days carrying any participant, and not one non-recurring forward item
   timed, so a scheduled brief would wake and find nothing; the recommendation is requested briefs only,
   with the launchd seam named and left unbuilt (the pns daemon schedules pns events, not commands, so it
-  can remind but cannot produce one). vpp assembles and cites rather than writing prose, and prose
-  arrives as a proposal checked by the existing `vpp verify-note`. Calendar and Todoist context arrives
-  through one `vpp.context/1` document that either vpp's own disabled-by-default collectors or Bob can
-  produce, so the question of whether vpp reads the two services or takes them from Bob sets a
+  can remind but cannot produce one). vpt assembles and cites rather than writing prose, and prose
+  arrives as a proposal checked by the existing `vpt verify-note`. Calendar and Todoist context arrives
+  through one `vpt.context/1` document that either vpt's own disabled-by-default collectors or Bob can
+  produce, so the question of whether vpt reads the two services or takes them from Bob sets a
   configuration value instead of gating implementation. Bob is recorded as a consumer through
-  `vpp.brief/1`: every item carries `certainty` (two values, never a score) and `sources` (recording
+  `vpt.brief/1`: every item carries `certainty` (two values, never a score) and `sources` (recording
   identity, offset, note) with no default, and uncertainty is marked in place inside the line as well as
   counted in a section, because a consumer that quotes one bullet drops a footer and keeps the sentence.
   Selection is four exact selectors over confirmed terms and confirmed tags, capped at 12 and
   explainable; the obvious participant join is nearly empty here, 78 of the 103 notes carrying an
   `email:` key hold `email: []`, so an unmatched participant is a visible line with its confirm command
   rather than a silent omission. A brief is a fourth stage in the existing filing rule table, routed by
-  `vpp path`, so there is no second copy of the rules. Waiting on the operator: who holds the two
+  `vpt path`, so there is no second copy of the rules. Waiting on the operator: who holds the two
   credentials, requested against scheduled, which calendars and projects, the Todoist single-slot problem
   (`td` stores one credential per account and it is read-write today, so a read-only login would probably
   replace it), whether a brief may be auto-committed into the vault when it names the people who will be
   in the room, and whether "brief" collides with Forzare's own morning brief. No code written. Full
-  document: `docs/superpowers/specs/2026-09-14-vpp-meeting-briefs-design.md`. Operator steps: (1) Decide
-  who holds the calendar and Todoist credentials: vpp, or Bob. Either answer works without changing vpp,
+  document: `docs/superpowers/specs/2026-09-14-vpt-meeting-briefs-design.md`. Operator steps: (1) Decide
+  who holds the calendar and Todoist credentials: vpt, or Bob. Either answer works without changing vpt,
   and the shipped default (brief.context.source = "none") is the answer to "neither, yet". If it is Bob,
-  this bullet's context half waits for Forzare and vpp still ships useful, which is what L-R5 requires.
+  this bullet's context half waits for Forzare and vpt still ships useful, which is what L-R5 requires.
   (2) Decide requested against scheduled briefs, and say whether meetings are going to start appearing on
   a calendar. The measurement (not one non-recurring forward item on this machine is timed; 8
   participant-bearing items in the last 90 days) says a scheduler would find nothing today, but that is a
   measurement of the past, not of the intent. (3) Name the calendars and the Todoist projects a brief may
   read. No provider can enforce this, so the configured list is the only scope that exists; an empty list
   refuses by design, so this answer is required before either collector can be turned on at all. (4) If
-  vpp is to read the calendar, authorize a read-only Google credential with a command of the form
+  vpt is to read the calendar, authorize a read-only Google credential with a command of the form
   `gog auth add <email> --services=calendar --readonly`, and confirm it does not disturb the existing
   one. `gog auth services` shows the calendar service's default scope is the full
   `https://www.googleapis.com/auth/calendar`, so this is a distinct authorization; whether `--client`
   lets a second read-only token bucket sit beside the existing credential was NOT verified, because
-  `gog auth list` did not return inside a 20 second timeout. (5) If vpp is to read Todoist, settle the
+  `gog auth list` did not return inside a 20 second timeout. (5) If vpt is to read Todoist, settle the
   single-slot problem. `td accounts list` shows one stored account keyed by numeric id and
   `td auth status` reports it read-write, so `td auth login --read-only` would re-authorize that same
   account and most likely replace the operator's daily credential. Three ways out, in increasing cost: a
   second Todoist account sharing the relevant projects; a dedicated read-only token in KeePassXC used
   directly, making a sixteenth secret-bearing target; or Bob supplying the task context. (6) When the
   vault layout is adopted, write a folder note for `briefs/` carrying the reference DataviewJS query,
-  making four in total alongside the three the metadata design already named. vpp writes no folder notes.
-  Open questions: (1) Does vpp read the calendar and Todoist, or does Bob supply them? The design makes
+  making four in total alongside the three the metadata design already named. vpt writes no folder notes.
+  Open questions: (1) Does vpt read the calendar and Todoist, or does Bob supply them? The design makes
   both work through one input document, so this sets a configuration value, but it decides who holds two
   credentials and therefore what an agent with shell access can reach. (2) Requested or scheduled, and at
   what lead time? The recommendation is requested only, on the measurement that this machine's forward
@@ -5415,35 +5415,35 @@ transcription was started during this audit.
   that already ranks material about a person or topic, over its own corpus. This is downstream of the
   keep-or-replace ruling and does not need answering before it. **Moot, decided 2026-09-15:** minutes is
   out entirely; there is no `research` or `person` output to draw from. See
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (8) Is the local Apple Calendar
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. (8) Is the local Apple Calendar
   store representative of the operator's calendars? The measurement came from that store (16 calendars),
   and recommending the Google interface assumes the meetings that matter are in Google. A calendar
-  existing only in Calendar.app would be invisible to this design. (9) Where does vpp's code live, and
+  existing only in Calendar.app would be invisible to this design. (9) Where does vpt's code live, and
   what is it called? Carried forward unresolved from the boundaries design, because the chain should not
   stay in disagreement with itself.
 - [ ] Support a separate redacted draft for sharing, reviewed before release, preserving private
   originals. Choose the summary format, retention, transcription engines and local/cloud processing
   before implementation. Speaker labels and dated digests remain unapproved candidates. 2026-09-14:
-  design written at `docs/superpowers/specs/2026-09-14-vpp-redacted-sharing-design.md` (sixth in the vpp
+  design written at `docs/superpowers/specs/2026-09-14-vpt-redacted-sharing-design.md` (sixth in the vpt
   chain, building on the meeting-briefs design). Recommendation: four verbs
-  (`vpp share draft|review|approve|release`), with the draft assembled by allowlist into
-  `~/.local/state/vpp/share/<draft-id>/` at mode 0700, outside the vault and outside any git working
+  (`vpt share draft|review|approve|release`), with the draft assembled by allowlist into
+  `~/.local/state/vpt/share/<draft-id>/` at mode 0700, outside the vault and outside any git working
   tree, because the vault's Obsidian Git settings were measured at a 10-minute commit and a 15-minute
   push, so a draft built in the vault is published before anyone reviews it. Release refuses without an
   approval record whose SHA-256 digest matches the current draft bytes and policy, re-runs the residue
   scan rather than trusting the draft-time pass, and refuses a destination inside a git working tree, a
-  cloud-sync root, the output root, the audio destination or vpp's state tree; approval refuses when
+  cloud-sync root, the output root, the audio destination or vpt's state tree; approval refuses when
   standard input is not an interactive terminal and requires the operator to type the draft's short
   digest, measured against an agent shell on this machine that has no terminal and sets `CLAUDECODE=1`.
   Redaction is deterministic over confirmed `known-terms.txt` entries plus six closed pattern classes,
   with flagged spans omitted by default and a capitalized-token candidate report for what no pattern can
   find: measured on one real 639-word vault note, 33 unique capitalized tokens of which 13 were personal
-  names, which is why the heuristic is a review prompt and never an automatic mask. vpp transmits
+  names, which is why the heuristic is a review prompt and never an automatic mask. vpt transmits
   nothing; release writes a file. Speaker labels, dated digests, sending, watermarking, model-based
   detection and audio redaction are out of scope. Not approved and not built; 14 assumptions and 9 open
   questions are recorded, and the ledger's own four choices (summary format, retention, engines, local or
   cloud processing) gate implementation. Full document:
-  `docs/superpowers/specs/2026-09-14-vpp-redacted-sharing-design.md`. Operator steps: (1) Answer the four
+  `docs/superpowers/specs/2026-09-14-vpt-redacted-sharing-design.md`. Operator steps: (1) Answer the four
   choices this ledger bullet names, as four separate decisions rather than one: summary format (extract
   or generated prose, noting that for prose the human read is the only real protection), retention of
   drafts and released copies (a draft directory holds the placeholder-to-real-value map, so it is more
@@ -5451,25 +5451,25 @@ transcription was started during this audit.
   matters here for a reason the transcription design did not raise: a recording transcribed by a cloud
   engine already left the machine once, before any redaction existed, and this gate only protects the
   second egress. (2) Choose the release directory and confirm it is not synced anywhere. The proposed
-  default is ~/Documents/vpp-shared; measured, ~/Documents on this machine is local and not redirected
+  default is ~/Documents/vpt-shared; measured, ~/Documents on this machine is local and not redirected
   into iCloud, but an iCloud Drive container is active (brctl reports 98 containers, CloudDocs last
   synced 2026-09-08). (3) Say which source kinds may be drafted from: transcript, analysis note, brief,
   or all three. The brief is the one worth a moment's thought, because it names the people who will be in
   a room. (4) Confirm the approval ritual: an interactive terminal plus typing eight digest characters,
   with no bypass flag. If that is too heavy for how you actually share things, change the ritual now
   rather than adding a bypass later. (5) Nothing to install or seed beyond the existing review flow:
-  every `vpp confirm --term` during transcript review improves every future draft, so expect the first
+  every `vpt confirm --term` during transcript review improves every future draft, so expect the first
   few candidate reports to be long. Open questions: (1) What is a shared draft made of: an extract, or
   written prose? For an extract the residue scan is a real mechanical check; for prose a paraphrase can
   reintroduce a redacted fact in words the pass never saw, and the human read is the only protection. (2)
   What is the retention of drafts and of released copies? A draft directory holds the map from each
   placeholder to the real value it replaced, which makes the draft tree the most sensitive directory in
-  the chain, and vpp deletes nothing. (3) Should pseudonyms be stable across drafts? Stable numbering is
+  the chain, and vpt deletes nothing. (3) Should pseudonyms be stable across drafts? Stable numbering is
   friendlier for a recipient reading several and lets two drafts be correlated by anyone holding both;
   per-draft numbering is the proposed default. (4) May a brief be drafted from at all? It concentrates
   participants and context, which is what makes it useful and what makes it the most exposing source in
   the chain. (5) Should an approval expire? An approval taken today and released in three weeks reviewed
-  the same bytes but not the same situation. (6) Does the released file say it came from vpp? The
+  the same bytes but not the same situation. (6) Does the released file say it came from vpt? The
   proposed source line says only that the file is a redacted extract and not a verbatim record; naming
   the tool is more honest about provenance and tells a recipient a recording exists. (7) Is the PDF path
   in scope later? The vault already has a PDF export recipe, and a PDF carries producer, timestamp and
@@ -5477,23 +5477,23 @@ transcription was started during this audit.
   feed terms alongside known-terms.txt? Two lists that disagree would mask a name in one pipeline and not
   the other. Downstream of the minutes keep-or-replace ruling. **Moot, decided 2026-09-15:** minutes is
   out entirely; there is only known-terms.txt. See
-  `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (9) Where does vpp's code live,
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. (9) Where does vpt's code live,
   and what is it called? Carried forward unresolved from the boundaries design.
-- [ ] Keep vpp application code in its own project, Mac installation and service configuration in
+- [ ] Keep vpt application code in its own project, Mac installation and service configuration in
   dotfiles, output content in the configured directory (Ivy for this operator), and homelab deployments
-  in homelab. Reuse existing transcription tasks. vpp must work without Bob, Forzare or the full homelab;
+  in homelab. Reuse existing transcription tasks. vpt must work without Bob, Forzare or the full homelab;
   Forzare integration follows the existing post-modernization ordering. Designed 2026-09-14 as
-  `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`. It compares three code homes (a
+  `docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md`. It compares three code homes (a
   fifth cargo workspace in dotfiles, its own repository built from a local clone, its own repository
-  installed by `cargo install --git`) and recommends the second: `webdavis/vpp` from day one, built in
+  installed by `cargo install --git`) and recommends the second: `webdavis/vpt` from day one, built in
   the scalebar shape, which is already the proven precedent on this machine (`.chezmoidata/scalebar.yaml`
   plus a deferral-guarded builder plus one LaunchAgent). dotfiles' share is named file by file and stops
   at installation and service configuration; the configured output directory holds notes and links under
   the existing `agent-processing-pipeline/` layout; homelab keeps Open Notebook (L6) and any remote
-  engine, all optional. Apple's container stays the canonical original and is read-only to vpp, including
+  engine, all optional. Apple's container stays the canonical original and is read-only to vpt, including
   a `mode=ro&immutable=1` SQLite open, with one archive copy outside git because the vault ignores audio
-  and no machine backup exists yet. Measured while writing: a `com.webdavis.vpp.plist` and a
-  `~/.cargo/bin/vpp` fall outside the osquery known-good manifests, so vpp adds no CRIT coupling; pns
+  and no machine backup exists yet. Measured while writing: a `com.webdavis.vpt.plist` and a
+  `~/.cargo/bin/vpt` fall outside the osquery known-good manifests, so vpt adds no CRIT coupling; pns
   needs no producer registration and `needs_attention` is real
   (`pns/crates/pns-protocol/src/request.rs:56`); `minutes` is already installed, already documents voice
   memos, and already owns the vault's `agent-processing-pipeline/minutes` symlink. The independence
@@ -5501,35 +5501,40 @@ transcription was started during this audit.
   Obsidian absent) rather than mocks of Bob and Forzare, which do not exist yet. Waiting on the operator:
   own repository versus fifth workspace, and the shipping name, since `VPP` is FD.io's Vector Packet
   Processing and the repository's rules discourage new acronyms. No code written. Full document:
-  `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`. Operator steps: (1) Read
-  docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md and answer the seven open questions
+  `docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md`. Operator steps: (1) Read
+  docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md and answer the seven open questions
   at its end. (2) Decide the code home first: own repository (recommended) or a fifth cargo workspace in
   dotfiles. Everything else in the document hangs off that answer. (3) Decide the shipping name before
   any repository is created; `VPP` is taken by FD.io's Vector Packet Processing (verified on fd.io) and
   renaming after install instructions circulate is a breaking change. (4) If the own-repository answer
-  holds, create `webdavis/vpp` and clone it to ~/workspaces/Ivy/webdavis/vpp; the dotfiles builder is
+  holds, create `webdavis/vpt` and clone it to ~/workspaces/Ivy/webdavis/vpt; the dotfiles builder is
   written to defer cleanly until that clone exists, so no apply is blocked in the meantime. (5) Rule on
   `minutes`: it is already installed, declared as a cask, documents "meetings and voice memos", and owns
-  the vault's agent-processing-pipeline/minutes symlink. Answer before vpp's ingestion design is
+  the vault's agent-processing-pipeline/minutes symlink. Answer before vpt's ingestion design is
   approved, since adopting it removes a layer. (6) Decide whether the audio archive copy may live
   unbacked on one machine until the restic work exists, or whether a backup is a prerequisite. (7) No
   apply, no build and no code are needed for this item; it is a document waiting on decisions. Open
-  questions: (1) Own repository (`webdavis/vpp`) or a fifth cargo workspace inside dotfiles?
+  questions: (1) Own repository (`webdavis/vpt`) or a fifth cargo workspace inside dotfiles?
   Recommendation: own repository, matching the 2026-09-05 plugin ruling and the 2026-09-08
   shippable-product ruling. (2) Does the tool keep the name `vpp`? The acronym belongs to FD.io's Vector
   Packet Processing and the repository's own rules discourage introducing uncommon acronyms; the naming
-  memories ask for self-documenting, user-agnostic names. (3) Which copy of the audio is canonical, and
-  is one unbacked copy acceptable until a real backup exists? Recommendation: Apple's container stays
-  canonical, the archive copy lives outside git, and backups stay a separate ledger item. (4) Do vpp's
-  notes share the vault's existing `transcripts/` and `analysis/` directories, or get their own
-  `agent-processing-pipeline/vpp/` subtree beside the `minutes` symlink? (5) Is `minutes` in or out? It
-  already lists and searches voice memos and already owns a directory inside the vault; if it is in,
-  vpp's scope shrinks, and if it is out, its open tool evaluation should record that vpp supersedes it.
-  **Decided 2026-09-15: out.** vpp does not use or depend on `minutes`, in any form; the operator's own
-  words are that `minutes` is poorly designed, though it has good features worth learning from. vpp
-  supersedes it. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. (6) Do the
+  memories ask for self-documenting, user-agnostic names. **Decided 2026-09-15: renamed to `vpt`, Voice
+  Processing Tool.** `vpp` is also taken on crates.io by an abandoned 0.0.1 placeholder, so
+  `cargo install vpp` would fetch the wrong crate and `cargo publish` under it is refused permanently.
+  Every two-letter option was taken, `vtp`, `vrp` and `vnp` clash, and `vpe` was rejected because the
+  tool's own config names a primary and a fallback engine. `vpt` measured free (HTTP 404). Full record:
+  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 14. (3) Which copy of the audio is
+  canonical, and is one unbacked copy acceptable until a real backup exists? Recommendation: Apple's
+  container stays canonical, the archive copy lives outside git, and backups stay a separate ledger item.
+  (4) Do vpt's notes share the vault's existing `transcripts/` and `analysis/` directories, or get their
+  own `agent-processing-pipeline/vpt/` subtree beside the `minutes` symlink? (5) Is `minutes` in or out?
+  It already lists and searches voice memos and already owns a directory inside the vault; if it is in,
+  vpt's scope shrinks, and if it is out, its open tool evaluation should record that vpt supersedes it.
+  **Decided 2026-09-15: out.** vpt does not use or depend on `minutes`, in any form; the operator's own
+  words are that `minutes` is poorly designed, though it has good features worth learning from. vpt
+  supersedes it. See `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. (6) Do the
   vault's folder-note and frontmatter conventions apply to machine-written notes, and who maintains the
-  folder note for a directory a tool writes into? (7) Should vpp's binary, configuration and LaunchAgent
+  folder note for a directory a tool writes into? (7) Should vpt's binary, configuration and LaunchAgent
   join posture's user-configured watch list? They sit outside the osquery known-good manifests by default
   (verified), so this is an opt-in rather than a consequence.
 
@@ -5678,9 +5683,9 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   No paseo or tmux reference remains; the `relay` mentions read as a rename to pns. Closed 2026-09-15:
   [PR #615](https://github.com/webdavis/dotfiles/pull/615) merged, carrying both Forzare documents onto
   main, and PR #51 was closed in its favour.
-- [ ] Let Bob consume vpp's transcripts, metadata and briefs for meeting preparation. Keep provenance and
+- [ ] Let Bob consume vpt's transcripts, metadata and briefs for meeting preparation. Keep provenance and
   unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
-  Decide whether Bob supplies optional calendar/Todoist context or vpp reads it directly during design.
+  Decide whether Bob supplies optional calendar/Todoist context or vpt reads it directly during design.
 - [ ] After the canonical Forzare documents merge, replace the research folder's Phase 2 copy with a
   pointer to them. Reconcile the residue in
   `~/Documents/ADHD_Task_System_Research_20260521/REVIEW-LEDGER-2026-07-11.md`. Its post-v1 items remain
@@ -5714,8 +5719,8 @@ personal passwords staying in KeePassXC/Strongbox, or Forzare's final position i
 1. OpenSpec and agent workflow tools: select the initial project roots. Configure global defaults without
    automatically generating files throughout every checkout. Preserve per-project instructions and the
    existing review/merge boundaries.
-1. vpp: decide permitted local/cloud processing and cost before selecting redundant engines. Then settle
-   whether vpp reads optional calendar/Todoist context directly or accepts it from Bob, which calendars
+1. vpt: decide permitted local/cloud processing and cost before selecting redundant engines. Then settle
+   whether vpt reads optional calendar/Todoist context directly or accepts it from Bob, which calendars
    and projects it may read, and requested versus scheduled briefs. Discuss these separately rather than
    treating them as one approval. Choose output layout and retention before ingestion starts.
 
