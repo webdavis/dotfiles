@@ -87,10 +87,11 @@ where
         // the card below is raised on far weaker grounds.
         let fires =
             recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events;
-        let posted = match window {
+        let started = match window {
             Some((since, until)) if fires => RecapPublisher::publish(self.ports, since, until),
-            _ => false,
+            _ => None,
         };
+        let posted = started.is_some();
 
         if !recap.replay_card {
             ReturnMoment::complete(self.ports);
@@ -115,6 +116,33 @@ where
         let Some(batch) = claim.replay else {
             return Some(crate::ReplayHandoff::Retained);
         };
+
+        // THE CHILD DISPATCHES THE CARD IT WAS HANDED, and this process
+        // dispatches the one nobody took. A started recap child is the only
+        // process that will hold the rendered recap, so the card that points
+        // at that recap is dispatched there; a card raised on the weaker
+        // grounds below `fires` has no child to hand it to and stays here.
+        //
+        // COMPLETED ON A TAKEN CARD, because the batch has an owner again:
+        // the child submits it under this same identity, so a later return
+        // reads it as queued. A child that dies between taking the card and
+        // submitting it costs that one card, which is the cost `spawn_recap`
+        // already documents for the recap itself.
+        if let Some(started) = started
+            && RecapPublisher::hand_card(
+                self.ports,
+                started,
+                &crate::ReplayCard {
+                    identity: &batch.identity,
+                    detail: &detail,
+                    legs: &decision.legs,
+                },
+            )
+        {
+            ReturnMoment::complete(self.ports);
+            return Some(crate::ReplayHandoff::Queued);
+        }
+
         let handoff = ReplayDelivery::deliver(
             self.ports,
             &batch.identity,

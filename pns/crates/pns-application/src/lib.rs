@@ -38,7 +38,7 @@ pub use ports::clock::Clock;
 pub use ports::decision_outcomes::DecisionOutcomes;
 pub use ports::delivery::{
     ApprovalForwarder, LampSignal, MissedReplay, NotificationDestination, RecapPublisher,
-    ReplayDelivery, ReplayHandoff,
+    ReplayCard, ReplayDelivery, ReplayHandoff,
 };
 pub use ports::delivery_health::DeliveryHealth;
 pub use ports::devices::{Router, StalenessMemory};

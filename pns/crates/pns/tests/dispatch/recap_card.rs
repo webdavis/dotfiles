@@ -14,14 +14,19 @@ fn the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said()
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let (card, raised) = carded_recap(&sandbox);
     assert_eq!(
         raised.len(),
         2,
         "the live event and one recap card: {raised:?}"
     );
     assert_eq!(
-        raised[1]["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
+        card["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
         "the card is composed, never summarized: {raised:?}"
     );
+    // AND IT CARRIES NO PANE, which is what the moshi channel builds its deep
+    // link out of. The catch-up synthesizes its own event and names no pane,
+    // so this card has never had a link to focus a pane with, on this leg or
+    // the phone's; the ownership move neither gains nor loses one.
+    assert_eq!(card["pane"], "", "{card:?}");
 }

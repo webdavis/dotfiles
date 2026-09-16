@@ -176,16 +176,15 @@ fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let (card, raised) = carded_recap(&sandbox);
     assert_eq!(
         raised.len(),
         2,
         "the live event and ONE recap card, never two cards: {raised:?}"
     );
     assert_eq!(raised[0]["state"], "done", "the live event goes first");
-    assert_eq!(raised[1]["agent"], "pns", "{raised:?}");
-    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
-    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert_eq!(card["agent"], "pns", "{raised:?}");
+    let body = card["detail"].as_str().expect("a detail");
     // BOTH ARE FOUND FIRST and then compared: an `Option` compare answers true
     // for an item that is not on the card at all.
     let urgent = body
