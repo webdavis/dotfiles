@@ -105,8 +105,6 @@ set -euo pipefail
 {
   printf 'argv:%s\n' "$*"
   printf 'cwd:%s\n' "$PWD"
-  printf 'workspace:%s\n' "${WORKTREE_REVIEW_ORIGIN_WORKSPACE:-}"
-  printf 'pane:%s\n' "${WORKTREE_REVIEW_ORIGIN_PANE:-}"
 } >"${REVIEW_RECORD:-/dev/null}"
 STUB
 
@@ -138,7 +136,7 @@ set_up() {
   ERR="$case_dir/err"
   RECORD="$case_dir/review-record"
   RAN="$case_dir/picker-ran"
-  unset REVIEW_RECORD PICKER_RAN PICKER_LINE HERDR_WORKSPACE_ID HERDR_PANE_ID
+  unset REVIEW_RECORD PICKER_RAN PICKER_LINE
   cd "$fixture/repo" || return 1
 }
 
@@ -287,21 +285,13 @@ function test_a_resume_with_no_command_runs_tuicr() {
   assert_same "cwd:$fixture/wt/zulu" "$(sed -n 2p "$RECORD")"
 }
 
-function test_the_review_command_inherits_the_originating_workspace() {
-  export REVIEW_RECORD="$RECORD" HERDR_WORKSPACE_ID=w7 HERDR_PANE_ID=w7:p3 PICKER_LINE=2
-  run_subject resume -- "$fixture/bin/review"
-  assert_same "workspace:w7" "$(sed -n 3p "$RECORD")"
-  assert_same "pane:w7:p3" "$(sed -n 4p "$RECORD")"
-  assert_same "cwd:$fixture/wt/mike" "$(sed -n 2p "$RECORD")"
-}
-
 function test_a_target_that_cannot_be_entered_is_refused() {
   # Fail closed: a recorded target that is still a directory but no longer
   # enterable must stop the launcher, never start the review somewhere else.
   local locked="$fixture/locked"
   mkdir -p "$locked"
   run_subject pick
-  printf '%s\t\t\n' "$locked" >"$(selection_file)"
+  printf '%s\n' "$locked" >"$(selection_file)"
   chmod 000 "$locked"
   run_subject resume -- "$fixture/bin/review"
   chmod 755 "$locked"

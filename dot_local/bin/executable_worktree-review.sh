@@ -265,12 +265,22 @@ choose() {
   printf '%s' "${chosen##*$'\t'}"
 }
 
-# record_selection preserves the workspace and pane the pick came from, so the
-# review tool can address its comments to the agent that asked for the review
-# even when one pane hosts several.
+# record_selection remembers the chosen worktree so a later resume can reuse
+# it without walking the list again.
+#
+# It does not record the originating workspace or pane. The wired path
+# (`resume`, run by the herdr-process plugin as `spec.program`) never has
+# HERDR_WORKSPACE_ID or HERDR_PANE_ID in its environment: the plugin strips
+# every HERDR_-prefixed variable before spawning its child (herdr-process
+# startup.rs `private_variable`), and it spawns the process once per profile
+# rather than once per toggle, so even an unstripped value would belong to
+# whichever pane happened to trigger the first spawn, not whoever is looking
+# now. The plugin already tracks the live requesting target itself
+# (`Session::context_for`); forwarding it to the child needs a channel the
+# plugin updates on every toggle, not a spawn-time environment variable, so
+# it stays out of this script.
 record_selection() {
-  printf '%s\t%s\t%s\n' \
-    "$1" "${HERDR_WORKSPACE_ID:-}" "${HERDR_PANE_ID:-}" >"$2"
+  printf '%s\n' "$1" >"$2"
 }
 
 main() {
@@ -328,21 +338,17 @@ main() {
     resume)
       local -a review=("${DEFAULT_REVIEW_COMMAND[@]}")
       (($#)) && review=("$@")
-      local target='' workspace='' pane=''
+      local target=''
       if [[ -s $selection ]]; then
-        IFS=$'\t' read -r target workspace pane <"$selection" || true
+        target="$(<"$selection")"
         [[ -d $target ]] || target=''
       fi
       if [[ -z $target ]]; then
         ensure_cache "$cache" "$common"
         target="$(choose "$cache")" || die 'nothing selected'
         record_selection "$target" "$selection"
-        workspace="${HERDR_WORKSPACE_ID:-}"
-        pane="${HERDR_PANE_ID:-}"
       fi
       cd "$target" || die "cannot enter $target"
-      export WORKTREE_REVIEW_ORIGIN_WORKSPACE="$workspace"
-      export WORKTREE_REVIEW_ORIGIN_PANE="$pane"
       export WORKTREE_REVIEW_TARGET="$target"
       exec "${review[@]}"
       ;;
