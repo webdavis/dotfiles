@@ -267,5 +267,31 @@ fn hostile_field_bytes_do_not_shift_identity_columns() {
     );
 }
 
+#[test]
+fn scalebar_shaped_finding_suppresses_once_both_vouches_pass() {
+    let scalebar = LaunchdIdentity {
+        label: "com.webdavis.scalebar",
+        path: "/fixture/Library/LaunchAgents/com.webdavis.scalebar.plist",
+        program: "/fixture/.local/libexec/scalebar/Scalebar",
+    };
+    let entries = [AllowlistEntry {
+        identity: LaunchdIdentity {
+            path: "~/Library/LaunchAgents/com.webdavis.scalebar.plist",
+            program: "~/.local/libexec/scalebar/Scalebar",
+            ..scalebar
+        },
+        sha256: "",
+    }];
+    let mut calls = Vec::new();
+    assert_eq!(
+        judge(Allowlist::Read(&entries), scalebar, None, |path| {
+            calls.push(path.to_owned());
+            true
+        }),
+        AllowlistVerdict::Suppress
+    );
+    assert_eq!(calls, [scalebar.path, LIST]);
+}
+
 mod curation;
 mod routing;
