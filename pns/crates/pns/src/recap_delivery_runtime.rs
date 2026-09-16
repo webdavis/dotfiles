@@ -94,8 +94,9 @@ pub(crate) fn deliver_recap(
     outcomes
 }
 
-/// The card the return moment handed this child, dispatched now that the recap
-/// it points at has been posted.
+/// The card the return moment handed this child, dispatched as soon as this
+/// child has it, before the recap it points at is ever rendered or posted.
+/// The phone layer owes the summarizer nothing.
 ///
 /// THE SAME SUBMISSION THE RETURN MOMENT WOULD HAVE MADE: its identity, its
 /// legs and its sentence, crossed unchanged. What differs is only WHEN, and

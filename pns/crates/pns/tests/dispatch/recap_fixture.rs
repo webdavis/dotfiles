@@ -43,9 +43,8 @@ pub(super) fn posted_recap(sandbox: &Sandbox) -> String {
 /// on, and the live events raised beside it.
 ///
 /// THE CARD IS THE CHILD'S NOW. It is composed at the return moment and handed
-/// to the recap child, which dispatches it once the recap it points at has
-/// really been posted, so it arrives after the event that triggered it has
-/// exited rather than inside it.
+/// to the recap child, which dispatches it at once, so it arrives from the
+/// child after the event that triggered it has exited rather than inside it.
 pub(super) fn carded_recap(sandbox: &Sandbox) -> (serde_json::Value, Vec<serde_json::Value>) {
     let card = poll_until(|| {
         events(sandbox, "macos-banner")
