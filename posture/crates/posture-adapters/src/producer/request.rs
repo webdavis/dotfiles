@@ -1,5 +1,5 @@
+use crate::wire::{Name, Oversized, Request, RequestId, Signal};
 use posture_application::{Alert, AlertSignal};
-use posture_producer_wire::{Name, Rejection, Request, RequestId, Signal, Violation};
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
@@ -59,12 +59,10 @@ pub(super) fn encode(
     if alert.signal == AlertSignal::NeedsAttention {
         request.class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
     }
-    let encoded = request.encode().map_err(|error| match error.reason {
-        // Identifiers were validated above. Only the rendered detail is unbounded here.
-        Rejection::Bound(Violation::Text { .. } | Violation::Bytes { .. }) => {
-            EncodeFailure::Oversized
-        }
-        _ => EncodeFailure::Invalid,
-    })?;
+    // Identifiers were validated above. Only the rendered detail is unbounded
+    // here, so a cap is the one refusal left and it is the oversized one.
+    let encoded = request
+        .encode()
+        .map_err(|Oversized| EncodeFailure::Oversized)?;
     Ok((identity, encoded + "\n"))
 }

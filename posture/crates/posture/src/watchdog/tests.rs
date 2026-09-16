@@ -158,7 +158,7 @@ fn configuration() -> Configuration {
         pipeline,
         managed_bin,
         authority: [ManifestAuthority::ExplicitOverride; 2],
-        delivery: crate::producer_delivery(&pns),
+        notify: crate::command_notify(&pns),
         pns,
         alarm: "/fixture/osascript".into(),
         gateway: "http://fixture/priority".into(),

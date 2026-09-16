@@ -48,7 +48,7 @@ fn execute(
     }
     let spool = DigestSpoolFile::new(config.store, now.seconds, std::process::id());
     let mut sink = alert_sink(
-        config.delivery,
+        config.notify,
         runner,
         LastResortBanner::new(alarm, config.alarm),
         &mut *stderr,

@@ -1,9 +1,9 @@
-//! The two rules both delivery paths share, written once so the path a page
-//! takes cannot depend on which way it left.
+//! The two rules both delivering modes share, written once so the path a page
+//! takes cannot depend on which mode raised it.
 
+use crate::wire::Name;
 use posture_application::{Alert, IndependentAlarm, Submission, SubmissionFailure};
 use posture_domain::severity_route;
-use posture_producer_wire::Name;
 
 /// The route this page's own tier names, when it has one.
 ///

@@ -1,5 +1,5 @@
 use posture_adapters::{
-    CommandRunner, ControlProbes, Delivery, LastResortBanner, PollStateFiles, PostureQuery,
+    CommandRunner, ControlProbes, LastResortBanner, Notify, PollStateFiles, PostureQuery,
     PostureTrio, SystemClock, SystemRunner, alert_sink, is_executable, read_controls,
 };
 use posture_application::{Clock, Poll, PollFailure, PollStateFailure};
@@ -14,7 +14,7 @@ use std::{
 struct Configuration {
     state: PathBuf,
     controls: PathBuf,
-    delivery: Delivery,
+    notify: Notify,
     alarm: PathBuf,
 }
 
@@ -23,7 +23,7 @@ impl Configuration {
         Self {
             state: home.join(".local/state/osquery-posture-state.json"),
             controls: home.join(".local/libexec/posture/controls.json"),
-            delivery: Delivery::read(home),
+            notify: Notify::read(home),
             alarm: "/usr/bin/osascript".into(),
         }
     }
@@ -113,7 +113,7 @@ fn execute(
         .unwrap_or_default();
     let prior = prior.as_ref().and_then(|state| state.baseline(&priors));
     let mut sink = alert_sink(
-        config.delivery,
+        config.notify,
         producer,
         LastResortBanner::new(alarm, config.alarm),
         &mut *stderr,

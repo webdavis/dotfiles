@@ -68,7 +68,7 @@ impl Subject {
         };
         let config = Configuration {
             state: self.state(),
-            delivery: crate::producer_delivery(std::path::Path::new("/fake/engine")),
+            notify: crate::command_notify(std::path::Path::new("/fake/engine")),
             alarm: "/fake/alarm".into(),
             ..Configuration::from_home(&self.0)
         };

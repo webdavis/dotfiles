@@ -74,15 +74,19 @@ pub use probes::ControlProbes;
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
 
+// The producer API's two documents, spoken by the producer path alone. Nothing
+// outside this crate names them: an engine is reached through `alert_sink`.
 mod producer;
+mod wire;
 pub use producer::ProducerCommand;
 mod hermes;
 mod sink;
 pub use hermes::HermesWebhook;
 mod signed_post;
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
-mod delivery;
-pub use delivery::{DEFAULT_WEBHOOK_BASE, Delivery, DeliveryPath, alert_sink, config_path};
+mod notify;
+pub use notify::{DEFAULT_WEBHOOK_BASE, Notify, NotifyMode, alert_sink, config_path};
+mod banner_only;
 mod last_resort_banner;
 pub use last_resort_banner::LastResortBanner;
 

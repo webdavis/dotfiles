@@ -149,13 +149,13 @@ secret or moving a channel is a KeePassXC edit plus an apply.
 The gateway and the senders read the SAME entries, so one apply lands both sides together and nothing is
 left signing with a key the gateway no longer holds:
 
-| Route           | Sender and the key it reads                                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                      |
-| `posture-pages` | `[delivery.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table |
-| `priority`      | `[plugins.hermes.keys] priority`, and `[delivery.hermes.keys] priority` on posture's own side                                  |
-| `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                    |
-| `general`       | no sender in this repository; an ad-hoc signed POST                                                                            |
+| Route           | Sender and the key it reads                                                                                                  |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                    |
+| `posture-pages` | `[notify.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table |
+| `priority`      | `[plugins.hermes.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                  |
+| `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                  |
+| `general`       | no sender in this repository; an ad-hoc signed POST                                                                          |
 
 pns refuses to post to a route its table names no key for, and records the refusal the way every other
 refused hermes post is recorded; `pns doctor` names every route left without a key. Until the apply that

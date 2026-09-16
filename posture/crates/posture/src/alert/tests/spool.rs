@@ -82,7 +82,7 @@ fn check(case: &str) {
     let inode = std::fs::metadata(&config.log).unwrap().ino();
     std::fs::write(&config.cursor, format!("{inode} 0\n")).unwrap();
     let engine = root.path.join(".local/libexec/engine");
-    config.delivery = crate::producer_delivery(&engine);
+    config.notify = crate::command_notify(&engine);
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
     // THE PATHS ARE BAKED IN rather than read from `$HOME`, because this stub
     // inherits the test runner's environment instead of a cleared one.
