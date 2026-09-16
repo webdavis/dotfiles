@@ -18,25 +18,50 @@ pub(crate) fn nag_config(after_secs: u64) -> String {
 /// Channels that record the last event AND count how many arrived.
 ///
 /// THE COUNT IS THE POINT. `Sandbox::new`'s stub truncates, so two deliveries
-/// leave one file and "exactly one card" is unfalsifiable through it. One byte
+/// leave one file and "exactly one card" is unfalsifiable through it. One line
 /// appended per invocation answers the question the coalescing ruling asks.
+///
+/// THE LINE CARRIES `PNS_REQUEST_ID`, which is the engine's own name for the
+/// EVENT behind a delivery, so a caller can ask how many events were carded
+/// rather than only how many attempts were made. The two differ whenever a
+/// live daemon is ticking beside the fire: a channel script can never confirm
+/// a delivery (`deliver_executable` answers `Silent` whatever the script
+/// exits), so its leg stays retry-eligible from the moment it is written and
+/// `pns daemon retry` re-delivers the same event on a later tick.
 pub(crate) fn counted_channels(sandbox: &Sandbox) {
     for channel in ["mobile", "hermes", "macos-banner"] {
         sandbox.stub_channel(
             channel,
             &format!(
-                "printf 'x' >>\"{s}/{channel}.count\"; cat >\"{s}/{channel}.event\"",
+                "printf '%s\\n' \"$PNS_REQUEST_ID\" >>\"{s}/{channel}.count\"; \
+                 cat >\"{s}/{channel}.event\"",
                 s = sandbox.display()
             ),
         );
     }
 }
 
-/// How many events one counted channel was handed.
+/// How many times one counted channel was handed an event, retries included.
 pub(crate) fn deliveries(sandbox: &Sandbox, channel: &str) -> usize {
+    delivered_requests(sandbox, channel).len()
+}
+
+/// How many DISTINCT events one counted channel was handed, which is the
+/// question "exactly one card" is really asking wherever a daemon's delivery
+/// retry can hand the same event over a second time.
+pub(crate) fn carded_events(sandbox: &Sandbox, channel: &str) -> usize {
+    delivered_requests(sandbox, channel)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+}
+
+fn delivered_requests(sandbox: &Sandbox, channel: &str) -> Vec<String> {
     std::fs::read_to_string(sandbox.path(&format!("{channel}.count")))
         .unwrap_or_default()
-        .len()
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 pub(crate) fn nag_record(sandbox: &Sandbox, session: &str) -> std::path::PathBuf {
