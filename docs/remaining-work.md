@@ -3537,17 +3537,38 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   2026-09-15: [PR #593](https://github.com/webdavis/dotfiles/pull/593) merged, and the two pull requests
   the spec describes, #612 and #613, are both merged too.
 
-- [ ] 81. Settle the Discord channel model in configuration (operator rulings 2026-09-14 and 2026-09-15).
-  Every channel is `#<project>-<stream>` and never a bare project name, and each project gets
-  `#<project>-dev` for continuous integration, pull requests, GitHub notifications and agent session
-  threads, covering dotfiles, pns, uu, posture, homelab, justdavis-ansible, essential-feed-case-study,
-  scalebar, netpulse, plantpulse and casually-concerned. `#github-notifications` is the catch-all, and
-  `#priority` is the severity channel for anything critical from any source, which means rare, actionable
-  and worse if ignored, posted once with the subject in its header. The notification channels are
-  `#pns-events`, `#uu-runs`, `#posture-pages` and `#general`, while `#pns-recap` and `#uu-failures` were
-  deleted. Routing is two-axis: the subject picks the channel and severity overrides it to `#priority`.
-  The Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by
-  the GitHub source and by session events.
+- [x] 81. DONE 2026-09-15 in [PR #696](https://github.com/webdavis/dotfiles/pull/696), merged `b5761206`.
+  The model was already largely expressed in `dot_config/pns/config-values.toml` and read by
+  `pns_domain::channel_map::channel_for`, so that pull request closed the three remaining gaps rather
+  than rebuilding it. `[plugins.discord.channels]` names one entry per project as `#<project>-dev` across
+  all eleven projects the bullet lists, with `#github-notifications` as the `default` catch-all,
+  `#priority` as the severity channel and `#pns-events` for an event carrying no project at all; every
+  entry names its KeePassXC record rather than holding an id. The two-axis routing consults the route
+  severity already chose, then the project as `owner/name`, then its bare name, then the default route,
+  then the catch-all, and four behaviors are pinned: a subject reaching its own project channel, an
+  unmapped repository reaching the catch-all, a critical severity overriding a mapped project's channel,
+  and a critical severity for an unmapped repository or for no repository at all still reaching the
+  severity channel rather than falling through. Two integrity gaps closed with it: an armed
+  `[plugins.discord]` whose map names no channel under `[routes] urgent` is now refused at load, because
+  the lookup would otherwise send a critical page to the project's own routine channel without failing;
+  and every key of the open channels table is now secret-bearing in the values-file check rather than
+  only the fixed `default` one, so a pasted channel id under any project's key is refused before it can
+  render into the committed template. `#general` and `#uu-runs` deliberately get no pns entry: pns
+  selects neither route, uu posts to its own with its own key, and nothing in this repository produces to
+  general. The Discord `Projects` category is server-side and has no configuration surface. THE CONSUMERS
+  of the one shared map arrive with the Discord bot destination in task 82 and the GitHub source in task
+  85, which is those tasks' scope rather than a remainder of this one. Original entry: settle the Discord
+  channel model in configuration (operator rulings 2026-09-14 and 2026-09-15). Every channel is
+  `#<project>-<stream>` and never a bare project name, and each project gets `#<project>-dev` for
+  continuous integration, pull requests, GitHub notifications and agent session threads, covering
+  dotfiles, pns, uu, posture, homelab, justdavis-ansible, essential-feed-case-study, scalebar, netpulse,
+  plantpulse and casually-concerned. `#github-notifications` is the catch-all, and `#priority` is the
+  severity channel for anything critical from any source, which means rare, actionable and worse if
+  ignored, posted once with the subject in its header. The notification channels are `#pns-events`,
+  `#uu-runs`, `#posture-pages` and `#general`, while `#pns-recap` and `#uu-failures` were deleted.
+  Routing is two-axis: the subject picks the channel and severity overrides it to `#priority`. The
+  Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by the
+  GitHub source and by session events.
 
 - [ ] 82. Give pns its own Discord destination. A `pns` Discord bot exists, with View Channels, Send
   Messages, Create Public Threads, Send Messages in Threads, Embed Links and Read Message History, no
