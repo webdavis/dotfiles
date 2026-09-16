@@ -331,13 +331,23 @@ type = "plugin_action"
 command = "herdr-process.tuicr:toggle-float"
 description = "tuicr: toggle floating window"
 
-# The worktree review window; same hide-on-Ctrl-C treatment. Its split-right,
-# split-below and kill actions are generated and available but unbound.
+# The worktree review window; same hide-on-Ctrl-C treatment. Split-right and
+# split-below are generated and available but unbound.
 [[keys.command]]
 key = "prefix+ctrl+r"
 type = "plugin_action"
 command = "herdr-process.review:toggle-float"
 description = "worktree review: toggle floating window"
+
+# Toggling only shows or hides the same session; resume otherwise keeps
+# reviewing whatever worktree it first picked. To review a different one: run
+# `worktree-review.sh pick` from a shell to record the new target, then kill
+# here so the next toggle starts a fresh session against it.
+[[keys.command]]
+key = "prefix+r"
+type = "plugin_action"
+command = "herdr-process.review:kill"
+description = "worktree review: end the session (re-pick with worktree-review.sh pick)"
 
 # ╭────────────────────╮
 # │  tab-smart-rename  │

@@ -32,6 +32,11 @@ ctrl_c = "hide"
 # The review program itself is an argument, not a name this plugin knows: append
 # "--" and a command to args to run something other than tuicr. reviewr is not
 # installed on this machine, which is exactly why the command is configurable.
+#
+# Switching to a different worktree mid-session is two steps, since the
+# session outlives any one toggle: `worktree-review.sh pick` from a shell
+# records the new target, then `review:kill` (bound in config.toml) ends the
+# running session so the next toggle spawns a fresh one against it.
 [windows.review]
 program = "worktree-review.sh"
 args = ["resume"]
