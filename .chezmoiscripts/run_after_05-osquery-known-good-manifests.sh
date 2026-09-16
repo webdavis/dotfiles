@@ -184,9 +184,11 @@ fi
 
 # --- the arm file sets, from managed intent ----------------------------------
 # These filters are one leg of the three-way agreement: the others are the
-# osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh, and an
-# integration test drives all three against one fixture so they cannot drift apart
-# silently. The WATCH leg is the loosest of the three: osquery watches directories,
+# osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh. This
+# filter and _pipeline_is_tracked are each pinned by
+# test/unit/posture-manifest-refresh.test.sh; nothing pins the WATCH leg against
+# the other two, so keeping all three in agreement is a review obligation, not a
+# gate. The WATCH leg is the loosest of the three: osquery watches directories,
 # so it reports neighbors of the covered files too, and _pipeline_is_tracked is what
 # classifies those as untracked. What must match exactly is this filter and the
 # tracked set, or a watched-and-tracked file the manifest can never contain pages
