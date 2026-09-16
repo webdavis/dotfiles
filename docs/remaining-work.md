@@ -444,25 +444,28 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   (`feat(pns): add recap agent --stdin and recap git`, merged): `pns recap agent --stdin` reads the
   markdown recap an agent composed, sanitizes it through the shared `sanitize::printable_line` filter,
   fits it under the same 1,800-character ceiling the night recap posts under (shedding whole sections in
-  a fixed order, `User Tasks` never shed), and delivers it through the unchanged `post_return_recap`
-  (posts to `pns-recap`, falls back once to the default route with an explaining line). `pns recap git`
-  prints the Git block and, in one fenced block, the stack graph and file list, resolving the pull
-  request through `gh-axi pr list --head` (gh-axi's `pr view` has no `--json` and no branch form) and the
-  stack from git ancestry, since neither worktrunk nor `gh-axi stack` can answer it here. Both behaviors
-  are written into `pns/docs/specs/return-recap.md`, and the work-recap skill and the shared agent rules
-  now call these commands instead of saying they are not built; the pns plugin moved to 0.3.0.
-  Twenty-five new tests, `just lint-check`, `just test-unit`, both template renders and a live
-  `pns recap git` run all passed. Operator steps left: `chezmoi apply`,
-  `claude plugin marketplace update pns`, `claude plugin uninstall pns@pns`,
-  `claude plugin install pns@pns`, restart Claude Code, then run `/pns:work-recap` once and confirm the
-  recap lands. Open question left for the operator: `pns-adapters` now shells `npx -y gh-axi` while the
-  sibling `recap/merges.rs` shells `gh` directly, so the two adapters disagree about which GitHub CLI
-  they depend on; needs a ruling on which one moves. On 2026-09-15 the full `chezmoi apply` ran and the
-  plugin move landed: `claude plugin list` reads `pns@pns` 0.4.0, enabled, and
-  [PR #621](https://github.com/webdavis/dotfiles/pull/621) moved `pns-loop` and `pns-work-recap` into the
-  shared skills store. [PR #628](https://github.com/webdavis/dotfiles/pull/628) dropped the `pns-recap`
-  route the same day, so a recap now posts to the default route rather than `#pns-recap`. Still owed: one
-  live `/pns:work-recap` run.
+  a fixed order, `User Tasks` never shed), and delivers it through the unchanged `post_return_recap` (the
+  `pns-recap` route and its Discord channel retired with task 81 on 2026-09-15, so a recap now posts on
+  the default route with nothing left to fall back from; checked against
+  `pns/crates/pns-application/src/post_return_recap.rs` on 2026-09-15, where the code already says so,
+  and a refusal is reported by the leg's own mode rather than retried). `pns recap git` prints the Git
+  block and, in one fenced block, the stack graph and file list, resolving the pull request through
+  `gh-axi pr list --head` (gh-axi's `pr view` has no `--json` and no branch form) and the stack from git
+  ancestry, since neither worktrunk nor `gh-axi stack` can answer it here. Both behaviors are written
+  into `pns/docs/specs/return-recap.md`, and the work-recap skill and the shared agent rules now call
+  these commands instead of saying they are not built; the pns plugin moved to 0.3.0. Twenty-five new
+  tests, `just lint-check`, `just test-unit`, both template renders and a live `pns recap git` run all
+  passed. Operator steps left: `chezmoi apply`, `claude plugin marketplace update pns`,
+  `claude plugin uninstall pns@pns`, `claude plugin install pns@pns`, restart Claude Code, then run
+  `/pns:work-recap` once and confirm the recap lands. Open question left for the operator: `pns-adapters`
+  now shells `npx -y gh-axi` while the sibling `recap/merges.rs` shells `gh` directly, so the two
+  adapters disagree about which GitHub CLI they depend on; needs a ruling on which one moves. On
+  2026-09-15 the full `chezmoi apply` ran and the plugin move landed: `claude plugin list` reads
+  `pns@pns` 0.4.0, enabled, and [PR #621](https://github.com/webdavis/dotfiles/pull/621) moved `pns-loop`
+  and `pns-work-recap` into the shared skills store.
+  [PR #628](https://github.com/webdavis/dotfiles/pull/628) dropped the `pns-recap` route the same day, so
+  a recap now posts to the default route rather than `#pns-recap`. Still owed: one live `/pns:work-recap`
+  run.
 
 ### STOP POINT C
 

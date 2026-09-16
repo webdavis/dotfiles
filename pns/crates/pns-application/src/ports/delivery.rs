@@ -75,20 +75,54 @@ pub trait LampSignal {
     fn pulse(&self, flash: Flash, presence: Option<&Snapshot>);
 }
 
-/// Start the return recap in a separate process.
+/// Start the return recap in a separate process, and hand it the card.
 ///
-/// The answer reports whether that process started. It does not confirm
-/// publication: the caller does not wait for the child to render or post.
+/// `publish` reports whether that process started, as a handle rather than a
+/// bool. It does not confirm publication: the caller does not wait for the
+/// child to render or post.
 ///
-/// THE WINDOW IS THE ONLY ARGUMENT. Which repositories are read, how the
-/// digest is composed and where it is posted are the adapter's; the use case
-/// decides only that this window is worth publishing.
+/// THE WINDOW IS THE ONLY ARGUMENT TO THE SPAWN. Which repositories are read,
+/// how the digest is composed and where it is posted are the adapter's; the
+/// use case decides only that this window is worth publishing.
 ///
-/// Checked against `spawn_recap` (`src/main.rs:1421`), whose decision this
-/// takes and whose spawn stays in the root: `pns-application` names no child
-/// process. Statements: S164, S165.
+/// TWO STEPS AND NOT ONE, in `ApprovalForwarder`'s shape and for its reason:
+/// the caller acts between them. The card's own sentence says whether a recap
+/// is coming, so it cannot be composed until the spawn has answered, and the
+/// child cannot be handed a card that does not exist yet. `hand_card`
+/// consumes the started child, so a card can be handed to it exactly once.
+///
+/// THE CHILD OWNS DISPATCHING THE CARD ONCE IT TOOK IT, which is the whole
+/// point of handing it over: the recap is rendered and posted there, so the
+/// only process that can put anything of the recap ON the card is that one.
+/// A hand-off that fails leaves the card with the caller, which delivers it
+/// itself exactly as it did before the child existed.
+///
+/// Checked against `spawn_recap` and `hand_recap_card` in
+/// `pns-adapters/src/recap_child.rs`, whose decision this takes and whose
+/// spawn stays in the root: `pns-application` names no child process.
+/// Statements: S164, S165.
 pub trait RecapPublisher {
-    fn publish(&self, since: u64, until: u64) -> bool;
+    /// The started child, consumed by the hand-off.
+    type Started;
+
+    fn publish(&self, since: u64, until: u64) -> Option<Self::Started>;
+
+    /// Give the started child the card to dispatch. The answer says whether
+    /// it took it, never whether it delivered it.
+    fn hand_card(&self, started: Self::Started, card: &ReplayCard<'_>) -> bool;
+}
+
+/// The card a started recap child is asked to dispatch: the composed sentence,
+/// the legs the plan chose for it, and the persisted replay identity it is
+/// submitted under.
+///
+/// THE IDENTITY CROSSES WITH IT, which is what keeps one card one card. The
+/// child submits under the same key this process would have used, so a later
+/// return adopting the batch reads it as already queued and composes nothing.
+pub struct ReplayCard<'a> {
+    pub identity: &'a crate::SubmissionIdentity,
+    pub detail: &'a str,
+    pub legs: &'a [Leg],
 }
 
 /// One already-decided notification, delivered over already-decided legs.

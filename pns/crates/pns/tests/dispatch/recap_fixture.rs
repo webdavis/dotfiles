@@ -39,6 +39,27 @@ pub(super) fn posted_recap(sandbox: &Sandbox) -> String {
         .to_string()
 }
 
+/// The recap CARD the detached child dispatched, waited for rather than slept
+/// on, and the live events raised beside it.
+///
+/// THE CARD IS THE CHILD'S NOW. It is composed at the return moment and handed
+/// to the recap child, which dispatches it at once, so it arrives from the
+/// child after the event that triggered it has exited rather than inside it.
+pub(super) fn carded_recap(sandbox: &Sandbox) -> (serde_json::Value, Vec<serde_json::Value>) {
+    let card = poll_until(|| {
+        events(sandbox, "macos-banner")
+            .into_iter()
+            .find(|event| event["state"] == "missed")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap card was dispatched: {:?}",
+            events(sandbox, "macos-banner")
+        )
+    });
+    (card, events(sandbox, "macos-banner"))
+}
+
 /// What a recap says when the summarizer it was told to use produced nothing.
 /// One sentence for every way of failing, so a test names the outcome rather
 /// than the mechanism.

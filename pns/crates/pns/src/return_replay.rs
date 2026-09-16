@@ -23,9 +23,11 @@ use crate::*;
 /// valid and neither implies the other.
 ///
 /// THE ONE CARD SITE FOR BOTH FEATURES, which is the whole reason the recap
-/// lives here rather than beside this. Two layers were locked, phone and
-/// Discord, and a recap that raised its own phone card would put TWO cards on
-/// the phone at one return moment. Worse, the case the recap exists for
+/// lives here rather than beside this. It is where the card is COMPOSED; a
+/// card that points at a recap is DISPATCHED by the recap's own child, which
+/// is the only process that will hold the rendered recap. Two layers were
+/// locked, phone and Discord, and a recap that composed its own phone card
+/// would put TWO cards on the phone at one return moment. Worse, the case the recap exists for
 /// journals NOTHING: a five-hour loop whose cards were all delivered and
 /// forgotten leaves the queue empty, so the catch-up alone would raise no card
 /// at all and the Discord recap would land with nothing pointing at it. So one
@@ -83,8 +85,14 @@ impl pns_application::ActivityRing for CatchUp<'_> {
 }
 
 impl pns_application::RecapPublisher for CatchUp<'_> {
-    fn publish(&self, since: u64, until: u64) -> bool {
+    type Started = std::process::ChildStdin;
+
+    fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {
         spawn_recap(since, until)
+    }
+
+    fn hand_card(&self, started: Self::Started, card: &pns_application::ReplayCard<'_>) -> bool {
+        pns_adapters::hand_recap_card(started, card)
     }
 }
 
