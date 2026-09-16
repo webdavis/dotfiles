@@ -2362,6 +2362,7 @@ is missing.
   between slice 7 and a drill.; (8) Decide on the missing hermes routes (Todoist 6hW4H7XQ6fXPJc3G):
   posture pages currently have nowhere to land, and the fix needs the encrypted hermes config edited, an
   apply, and `hermes gateway restart`.
+
 - [ ] Evaluate native macOS probes for pns, approved 2026-09-13. Benchmark the current `ioreg` idle-time
   and screen-lock probes and the `pgrep`/`ps` process queries used for phone-session activity. Compare
   probe latency and total pns runtime under representative load with small Rust adapters using maintained
@@ -2395,6 +2396,7 @@ is missing.
   separate budgets and needs an explicit adoption decision. Actual device transitions, unreadable
   devices, multi-user behavior and stalled native calls remain acceptance gates. All 33 original
   investigation hashes were preserved; production is unchanged.
+
 - [ ] Finish P4's recorded loop rule: a live loop lease for the pane prevents a condenser-generated
   `asking` guess from arming the blocked marker; actual hook-driven waits still do. The current submit
   path updates that marker without checking the lease. Read the instrument evidence before implementing
@@ -2408,6 +2410,7 @@ is missing.
   remains excluded. [PR #536](https://github.com/webdavis/dotfiles/pull/536) combines this change with
   B18 while preserving separate commits. Combined `just ship` and the installer release build passed;
   required checks passed and the PR merged. Operator deployment and visual acceptance remain open.
+
 - [x] Resolve the historical condenser-stall task
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
   300 ms condenser deadline; production now bounds post-stdout waiting and cleans up process groups.
@@ -2458,6 +2461,7 @@ is missing.
   produced five lines while the rest of the suite produced between 8 and 38 per run. Closed 2026-09-15:
   the load drill is recorded in `docs/research/2026-09-condenser-deadline-load-drill.md` and that Todoist
   task was closed the same day.
+
 - [ ] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
   hook fixtures still inherit the five-second payload deadline and need bounded fixture inputs. The
   Hermes redirect fixture already consumes the complete request and keeps its socket until disconnect;
@@ -2466,6 +2470,19 @@ is missing.
   include B105's approval-submission exit-code failure, historically `0` instead of `42` under load. The
   September 7 disposition leaves it unresolved after #383 and #441; #378 closed unmerged. A bounded
   fixture is not proof of closure, and this audit did not establish a current reproduction.
+
+- [ ] 92. Diagnose `dispatch::records::events_racing_each_other_lose_no_line_and_leave_no_pending_file`,
+  filed 2026-09-16. It is being rerun to green as a known flake and it is NOT recorded anywhere, which is
+  the problem: a test whose whole name is "lose no line" failed on a DOCUMENTATION-ONLY branch reporting
+  `left: 2, right: 5`, so three of five lines were lost. Every lane brief this session carried it on a
+  rerun-once list inherited from an earlier session, so the tolerance is undocumented and nobody has
+  established which side loses the lines. Decide first whether this is a real race in the dispatch write
+  path or a race in the fixture that reads it; the two have opposite fixes and only one of them is a
+  product bug. Reproduce under load rather than alone, since it passes alone. If it is the fixture, the
+  test is repaired and the entry closes; if it is the product, a line lost under concurrency is a dropped
+  notification and the priority rises accordingly. Observed at least twice on 2026-09-16 (runs
+  35058792678 and one rerun) against unrelated diffs.
+
 - [ ] 87. Make the pns nag delivery test deterministic. Continuous integration for
   [PR #629](https://github.com/webdavis/dotfiles/pull/629) failed once on
   `nag_delivery::the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`, which saw
@@ -2482,6 +2499,7 @@ is missing.
   attempt on `fix/pns-nag-delivery` never got a continuous-integration run at all, through a close and
   reopen and an empty commit; the branch was re-cut and the new one ran immediately, so the silence reads
   as macOS runner queueing rather than anything about the branch.
+
 - [x] SUPERSEDED 2026-09-15 by tasks 78 and 90. This entry's premise, that image cards are blocked on
   transport, is no longer true: moshi's documented upload interface holds, the operator approved the
   capability, and the build is filed as task 90 with its two pieces and its deep-link tradeoff. Read task
@@ -2541,6 +2559,7 @@ is missing.
   `upload` subcommand on moshi-hook itself (yes, this is the surface pns actually calls), and whether the
   capability is worth building (yes, approved as a per-card-type opt-in). Superseded by task 78 (the
   decision) and task 90 (the build).
+
 - [x] 78. DECIDED 2026-09-15: approved. This task was a decision and the decision is made, so it is
   closed here; the BUILD is task 90 and is separately open. Decide whether a recap card on the phone
   carries an image, and build it only if the answer is yes (operator ruling 2026-09-15, low priority).
@@ -2555,6 +2574,7 @@ is missing.
   deep-link tradeoff stated at the toggle, and the card-ownership refactor `replay_missed` still needs,
   is filed separately as task 90, approved and not yet started. Full record:
   `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+
 - [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
@@ -2566,6 +2586,7 @@ is missing.
   that card is tapped. The token-placement question (`Authorization: Bearer` header versus the request
   body `moshi.rs` currently requires) is left for this build to answer with evidence. Source: task 78 and
   `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
@@ -2612,6 +2633,7 @@ is missing.
   router client's unverified TLS becomes its own design task, task 89. (6) `pns lights enroll` stays the
   command name; doctor reports state, enrolling performs an action and hands back a value to save. (7)
   Moot: approach B was not chosen, so its third-party trust anchor question does not arise.
+
 - [x] 89. DONE 2026-09-15 in [PR #693](https://github.com/webdavis/dotfiles/pull/693), merged `5257bf24`,
   which wrote `docs/superpowers/specs/2026-09-15-unifi-client-certificate-pinning-design.md` (416 lines)
   and no code. The bullet's premise held up against source: `UniFiRouter::new`
@@ -2634,15 +2656,30 @@ is missing.
   approach, decide where the pin lives (the vault convention that decided the Hue pin applies here too).
   Not started. Source: `docs/superpowers/specs/2026-09-14-hue-bridge-certificate-pinning-design.md`
   (out-of-scope section) and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-- [ ] 91. Drop `posture/crates/posture-producer-wire/` and converge posture on the same three-mode
-  `[notify]` command shape (`desktop`, `command`, `off`) vpt uses, so posture stops carrying its own copy
-  of pns's JSON envelopes. Approved by the operator 2026-09-15, not started. Surfaced while writing vpt's
-  notification design: `posture/crates/posture-adapters/src/producer.rs`'s own header comment already
-  states the target shape, "a JSON request goes in on standard input, a JSON result plus an exit code
-  comes back, and the command and its arguments are both config", but posture still ships a dedicated
+
+- [x] 91. DONE 2026-09-16 in [PR #703](https://github.com/webdavis/dotfiles/pull/703), merged `314853e0`.
+  `posture-producer-wire` was 16 files and 2,051 lines consumed only by `posture-adapters`, of which
+  production needed exactly `RequestId`, `Status`, `decode_result` and the oversized-encode refusal. The
+  two documents are now plain serde in `posture-adapters/src/wire/` (6 files, 648 lines) and the golden
+  fixtures moved to `posture-adapters/fixtures/`, where a decode-and-re-encode round trip pins both
+  directions field by field, so the wire contract is still held honest by documents rather than by a
+  shared type. What went with the crate is the ENGINE'S half only: the depth-limiting parser, the
+  duplicate-field refusal, the structural walk and the rejection taxonomy all guard input a program did
+  not build, and posture never receives a request nor answers with a result. Every field survived, plus
+  the byte cap on each direction and the text cap on `detail`. The config table is now `[notify]` with
+  `hermes`, `command` and `off`, where `off` raises the finding on the local banner through the existing
+  `IndependentAlarm` rather than discarding it, and `mode = "hermes"` still ships on dresden with its
+  recorded reason intact. Net 2,216 deletions against 955 insertions. Original entry: drop
+  `posture/crates/posture-producer-wire/` and converge posture on the same three-mode `[notify]` command
+  shape (`desktop`, `command`, `off`) vpt uses, so posture stops carrying its own copy of pns's JSON
+  envelopes. Approved by the operator 2026-09-15, not started. Surfaced while writing vpt's notification
+  design: `posture/crates/posture-adapters/src/producer.rs`'s own header comment already states the
+  target shape, "a JSON request goes in on standard input, a JSON result plus an exit code comes back,
+  and the command and its arguments are both config", but posture still ships a dedicated
   `posture-producer-wire` crate for the envelope rather than the plain argv-and-stdin contract vpt's
   `[notify]` table covers with no crate at all. Source:
   `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 13.
+
 - [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
@@ -2687,6 +2724,7 @@ is missing.
   `[lights]` gate on arming a wait marker still right? Not answered, not one of the four filed rows. It
   is the only reason the state-based discriminator for B39 cannot be the recommendation, because on a
   machine with no lamps configured the dedup read always finds nothing. Nothing needs changing today.
+
 - [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
@@ -2698,6 +2736,7 @@ is missing.
   Required checks passed and #536 merged. THE AGENT WORK IS DONE: what remains is the operator's own
   deployment and the lamp and Focus acceptance on their own devices, which no agent can run. B19/B25's
   disposition is the one part of this bullet still open to an agent.
+
 - [x] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
   failed `a_terminal_with_nothing_asking_otherwise_is_painted` with `NO_COLOR=1` inherited from the agent
   session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
@@ -2708,6 +2747,7 @@ is missing.
   both disabling variables inherited. Seven private terminal comparisons against the previous binary
   produced identical output and exit status. Merged in #533; full checks passed and local main contains
   it.
+
 - [x] Reconcile B74's concurrent Cargo/lint failure against current source: reproduce the disappearing
   `rmeta` error, identify the failing stage, then close or fix it. The historical extra `target/`
   exclusion was measured ineffective and must not be proposed again without new evidence. The 2026-09-13
@@ -2730,6 +2770,7 @@ is missing.
   injects the real `sourceDir`), and the PR merged 2026-09-14 (`152dfdf7`); its worktree is removed.
   Evidence: `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`. B75's Rustdoc link fixes
   already shipped in `20a0c245`; keep them closed.
+
 - [x] Correct the owning `webdavis/pns.nvim` repository's provisional minimum-version documentation and
   default after checking its actual requirements. Commit `e77799f` corrects the default and docs to
   `0.1.0`; its new default-health check failed before the correction, then all 38 checks passed.
