@@ -1,4 +1,12 @@
--- The log level `lua/plugins/claudecode.lua` hands claudecode.nvim.
+-- The load trigger and the log level `lua/plugins/claudecode.lua` hands
+-- claudecode.nvim.
+--
+-- The trigger: no `event`. A server running on an ordinary start drew a plain
+-- HTTP request from something local within a second, and the plugin answered
+-- with a handshake WARN and then crashed on its own unguarded close. `cmd` and
+-- `keys` are the only triggers left, so `<leader>Cc` is what starts the server
+-- and writes the lock file, and lazy.nvim loads the plugin before that key's
+-- own right-hand side runs.
 --
 -- INFO goes through `nvim_echo`, which is stderr in a headless run, so a
 -- headless session gets `warn` and the zero-stderr startup gate holds; an
