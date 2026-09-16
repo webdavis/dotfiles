@@ -108,8 +108,8 @@ pub(crate) fn deliver_recap(
 /// is still a name worth showing. A recap has no such use for it: git is the
 /// only source that can tell a repository from a bare directory, so a recap
 /// composed outside one carries an EMPTY project and lands on the engine's
-/// own channel through `channel_map::NO_PROJECT_KEY`, which is where every
-/// recap goes today. Filling the directory name in instead would send it to
+/// own channel, which is the key `channel_map::channel_for` consults for an
+/// event with no project and where every recap goes today. Filling the directory name in instead would send it to
 /// whatever channel happens to be mapped under that name, or the catch-all.
 fn recap_project() -> String {
     let cwd = std::env::current_dir()
