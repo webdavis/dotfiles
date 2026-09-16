@@ -184,9 +184,11 @@ fi
 
 # --- the arm file sets, from managed intent ----------------------------------
 # These filters are one leg of the three-way agreement: the others are the
-# osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh, and an
-# integration test drives all three against one fixture so they cannot drift apart
-# silently. The WATCH leg is the loosest of the three: osquery watches directories,
+# osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh. This
+# filter and _pipeline_is_tracked are each pinned by
+# test/unit/posture-manifest-refresh.test.sh; nothing pins the WATCH leg against
+# the other two, so keeping all three in agreement is a review obligation, not a
+# gate. The WATCH leg is the loosest of the three: osquery watches directories,
 # so it reports neighbors of the covered files too, and _pipeline_is_tracked is what
 # classifies those as untracked. What must match exactly is this filter and the
 # tracked set, or a watched-and-tracked file the manifest can never contain pages
@@ -206,7 +208,14 @@ managed_bin_paths=()
 while IFS= read -r target; do
   case "$target" in
     "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) pipeline_paths+=("$target") ;;
-    "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
+    # EVERY LaunchAgent this repository owns, not only the osquery-prefixed ones.
+    # The page-launchd allowlist below refuses to suppress a persistence finding
+    # the pipeline manifest cannot vouch for, so an own agent left out of here
+    # pages instead of digesting however it is allowlisted (com.webdavis.scalebar
+    # did, from #564 until this arm widened). The label prefix is what "ours"
+    # means, and the listing this loop reads is chezmoi's managed intent, so an
+    # unmanaged neighbour under another vendor's label cannot enter the manifest.
+    "$home"/Library/LaunchAgents/com.webdavis.*.plist) pipeline_paths+=("$target") ;;
     # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
     # rather than by its directory. It decides whether an unknown user LaunchAgent
     # pages, so it is infrastructure the alerter judges, and the verdict routes any
