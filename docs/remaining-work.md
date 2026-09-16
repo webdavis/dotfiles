@@ -1930,9 +1930,15 @@ producer.
 - [ ] 65. Neovim task 63: finish the acceptance record required by PR #385. Capture five silent starts,
   full-plugin health output, quiescent startup comparison, rendered which-key groups, both agent loops,
   Swift/custom-plugin behavior, a clean-home apply and quiet repeat apply, and the inventory-to-merged-PR
-  mapping. Synthetic/headless runs do not establish rendered acceptance. Reconcile the stale expected
-  `X = xcode` and `d = do` groups with current `x = xcode` and `d = docker` before the operator checks.
-  Reconcile `dot_config/nvim/docs/todo.md`; bootstrap, neotest, annotation extraction and autosave/format
+  mapping. Synthetic/headless runs do not establish rendered acceptance. RECONCILED 2026-09-15: the stale
+  expected `X = xcode` and `d = do` groups are corrected to the live `x = xcode` and `d = docker` in the
+  acceptance record, read out of `dot_config/nvim/lua/plugins/which-key.lua:34` and `:55`. RENDERED
+  STARTUP IS ALSO DONE: five pseudo-terminal starts on 2026-09-15, each with a UI attached and 99 of 99
+  plugins loaded, and the record's Snacks input and select note is answered (snacks ships no `select`
+  module). What remains of this task is which-key NAVIGATION and buffer-local key presses, both agent
+  loops, the Swift and Xcode behavior, custom-plugin delivery, the fresh-user bootstrap and repeat apply,
+  and the quiescent performance check, all of which need the operator. Reconcile
+  `dot_config/nvim/docs/todo.md`; bootstrap, neotest, annotation extraction and autosave/format
   coordination already exist in source. Keep deferred formatter/linter and agent-protocol evaluations
   separate from this acceptance task. On 2026-09-13 the documentation reconciliation commit from the
   superseded ledger branch was cherry-picked onto `docs/nvim-acceptance` (`7e81209c`, three files: the
