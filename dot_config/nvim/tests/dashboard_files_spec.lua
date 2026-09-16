@@ -13,8 +13,31 @@ local function dashboard_files()
   return require("custom_api.dashboard_files")
 end
 
+-- Scrubbed at every call. Git exports GIT_DIR, GIT_WORK_TREE and
+-- GIT_INDEX_FILE into every hook it runs, and GIT_DIR overrides both `-C` and
+-- `cwd`, so under the pre-commit hook this file's `git init` wrote
+-- `core.bare = true` and a temporary `core.worktree` into the REAL repository
+-- and broke every plain git command in it (measured 2026-09-15). The same
+-- scrub lives in the module, and the last case here proves it holds.
+local GIT_ENVIRONMENT_TO_SCRUB = {
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_COMMON_DIR",
+}
+
+local function without_git_environment(command)
+  local wrapped = { "env" }
+  for _, name in ipairs(GIT_ENVIRONMENT_TO_SCRUB) do
+    table.insert(wrapped, "-u")
+    table.insert(wrapped, name)
+  end
+  return vim.list_extend(wrapped, command)
+end
+
 local function run(command, cwd)
-  local result = vim.system(command, { cwd = cwd, text = true }):wait()
+  local result = vim.system(without_git_environment(command), { cwd = cwd, text = true }):wait()
   assert(result.code == 0, table.concat(command, " ") .. " failed: " .. tostring(result.stderr))
 end
 
@@ -239,6 +262,58 @@ return {
       assert(items[2].key == "1", "the second row answers to " .. tostring(items[2].key))
       assert(items[3].key == "2", "the third row answers to " .. tostring(items[3].key))
     end)
+  end,
+
+  ["an inherited GIT_DIR cannot reach the repository the caller is in"] = function()
+    -- THE REGRESSION THAT BROKE THE REAL REPOSITORY. Git exports GIT_DIR into
+    -- every hook, GIT_DIR overrides both `-C` and `cwd`, and this suite runs
+    -- from the pre-commit hook. So `git status` read the hook's repository, and
+    -- worse, this file's own `git init` wrote `core.bare = true` and a
+    -- temporary `core.worktree` into it, after which every plain git command
+    -- there failed with "this operation must be run in a work tree".
+    --
+    -- The decoy commits a DIFFERENT filename on purpose. A first attempt at
+    -- this case gave the decoy the same fixture as the subject, so a leak
+    -- produced one changed file either way and the case passed without the
+    -- scrub, proving nothing.
+    local module = dashboard_files()
+    local decoy = repository()
+    write(decoy .. "/decoy-only.txt", "decoy\n")
+    run({ "git", "add", "decoy-only.txt" }, decoy)
+    run({ "git", "commit", "--quiet", "-m", "decoy" }, decoy)
+
+    local subject = repository()
+    write(subject .. "/committed.txt", "one\ntwo\n")
+
+    local decoy_config = decoy .. "/.git/config"
+    local before = assert(io.open(decoy_config)):read("a")
+
+    local restore = vim.env.GIT_DIR
+    vim.env.GIT_DIR = decoy .. "/.git"
+
+    local ok, err = pcall(function()
+      inside(subject, function()
+        local changed = module.changed_files()
+        assert(#changed == 1, "expected the subject's one change, got " .. #changed)
+        assert(changed[1].path == subject .. "/committed.txt", "read the wrong repository: " .. changed[1].path)
+      end)
+    end)
+
+    -- The spec's own git calls run while GIT_DIR points at the decoy, so this
+    -- half guards the corruption rather than the misread.
+    local scratch = repository()
+    write(scratch .. "/fresh.txt", "x\n")
+
+    vim.env.GIT_DIR = restore
+
+    local after = assert(io.open(decoy_config)):read("a")
+    assert(after == before, "the inherited repository's config was rewritten:\n" .. after)
+    -- `bare = false` is what `git init` legitimately writes into every config,
+    -- so the pattern has to name the corrupted VALUE rather than the key.
+    assert(not after:match("bare%s*=%s*true"), "core.bare = true was written into the inherited repository")
+    assert(not after:match("worktree%s*="), "core.worktree was written into the inherited repository")
+    assert(vim.fn.isdirectory(scratch .. "/.git") == 1, "the scratch repository was never created")
+    assert(ok, err)
   end,
 
   ["every row carries a key and an action that opens its own file"] = function()
