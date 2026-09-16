@@ -365,31 +365,37 @@ rejected and what it would cost to switch.
 
 ## Open questions for the operator
 
-**Decided 2026-09-15:** question 5 below is answered. `minutes` is out: vpp does not use or depend on it
-in any form. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1. The remaining six
-questions are untouched by that decision and stand as written.
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows B1-B6) and
+`docs/decisions/2026-09-15-vpp-architecture-decisions.md` for the reasoning.
 
 1. **Own repository, or a fifth workspace in dotfiles?** Recommendation: own repository
-   (`webdavis/vpp`). This is the one answer everything else in the document hangs from.
+   (`webdavis/vpp`). This is the one answer everything else in the document hangs from. **Closed: own
+   repository.**
 1. **Does the tool keep the name `vpp`?** The acronym is taken by a well-known networking project and
    the repository's own rules discourage introducing uncommon acronyms. Recommendation: pick the
-   shipping name before the repository is created.
+   shipping name before the repository is created. **Still open.** This is the one question in this
+   document the operator still needs to answer; no rule or convention supplies a replacement name.
 1. **Which copy of the audio is canonical, and is one unbacked copy acceptable until a backup
    exists?** Recommendation: Apple's container is canonical, the archive copy lives outside git, and
-   a real backup stays a separate ledger item rather than a vpp feature.
+   a real backup stays a separate ledger item rather than a vpp feature. **Canonical copy: closed**,
+   Apple's container. **Backup acceptability: still open**, the operator's own risk call for personal
+   recordings with no other machine holding them.
 1. **Do vpp's notes share `transcripts/` and `analysis/` with everything else, or get their own
    subtree?** Recommendation: share them, since the ledger asks for the existing layout, with a
-   per-note provenance field.
+   per-note provenance field. **Closed: share the existing directories.**
 1. **Is `minutes` in or out?** It is installed, declared, already symlinked into the vault, and
    already handles voice memos. If it is in, vpp's scope shrinks; if it is out, its ledger evaluation
    should record that vpp supersedes it. Recommendation: answer this before vpp's ingestion design is
-   approved, because it can remove a whole layer. **Decided 2026-09-15: out.** vpp does not use or depend
-   on `minutes`, in any form. The operator's reasoning: `minutes` is poorly designed, though it has good
+   approved, because it can remove a whole layer. **Closed: out.** vpp does not use or depend on
+   `minutes` in any form. The operator's reasoning: `minutes` is poorly designed, though it has good
    features worth learning from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`,
    decision 1.
 1. **Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
    maintains the folder note for a directory a tool writes into?** This is a vault-governance
-   question that vpp's output format depends on.
+   question that vpp's output format depends on. **Closed: yes, with no carve-out**; the vault
+   `CLAUDE.md` applies to every note it tracks, and the operator writes each folder note once.
 1. **Should vpp's binary, configuration and LaunchAgent join posture's user-configured watch list?**
    They are outside the osquery known-good manifests by default, verified above, so this is an
-   addition the operator opts into rather than a consequence.
+   addition the operator opts into rather than a consequence. **Closed: opt in later**, no action
+   needed now.
