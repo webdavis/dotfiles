@@ -749,28 +749,33 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   `--detail "--no-color"` as a flag, which is the same value-position bug the argv grammar already guards
   against elsewhere.
 
-- [ ] 71a. FIVE THINGS THE TAP DESIGN LEFT OUT, found by re-reading it whole on 2026-09-09. Each is a
-  silent failure, which is why they are recorded rather than left to be noticed later. EXIT CODE:
-  `pns tap` exits non-zero when the touch fails, so the Shortcut can show a failure. A tap that fails
-  silently is worse than no tap, because the operator stops checking. THE STATE DIRECTORY:
-  `~/.local/state/pns/` may not exist on a fresh machine and `pns tap` may be the first thing to reach
-  for it, so it creates the directory rather than failing on it. REMOTE LOGIN is a prerequisite in the
-  Mac setup step. The whole feature needs sshd accepting connections (System Settings, General, Sharing,
-  Remote Login). Without it every other step is wired correctly and nothing happens, which is the worst
-  kind of wrong. Verify sleep and wake behavior on the operator's devices and explain what the Shortcut
-  reports when the Mac cannot answer. `--info` should identify this troubleshooting path. NO CONFIG
-  REQUIRED: `pns tap` must work with no `~/.config/pns/config.toml` at all, falling back to the default
-  marker path, because requiring one would fail on exactly the fresh machine `--install` is walking
-  somebody through. Define the `--json` schema and manual undo instructions before building. DONE
-  2026-09-14 in [PR #569](https://github.com/webdavis/dotfiles/pull/569) (`feat/pns-tap-fresh-machine`,
-  merged `f85a6cfd`), each claim verified against the code first: the non-zero exit, the single stderr
-  line and the OS error were already true, the line now names the marker path and prints the whole error
-  (errno included); the 0700 state directory was already created recursively (pinned by existing tests);
-  Remote Login already led the Mac steps but named no settings path, now it does, and `--info` says what
-  the phone shows when the Mac cannot answer (the SSH action fails, so the phone shows the SSH error,
-  never the success notification); a missing config already fell back to the default marker path (a parse
-  error still fails); the shipped `pns.tap/1` JSON object was kept as is (its `marker` is a table, not a
-  bare path) and gained `touched_at` in RFC 3339 UTC, with the whole field table, the null cases under
+- [x] 71a. THE AGENT WORK IS DONE; only operator device steps remain, and they are listed at the end of
+  this bullet. All five items shipped in [PR #569](https://github.com/webdavis/dotfiles/pull/569) (merged
+  `f85a6cfd`) and the drill document in [PR #598](https://github.com/webdavis/dotfiles/pull/598)
+  (merged). What is left is the operator running the four sleep and wake states against their own Mac and
+  phone and filling the table in `pns/docs/pns-tap-device-acceptance.md`, which no agent can do. FIVE
+  THINGS THE TAP DESIGN LEFT OUT, found by re-reading it whole on 2026-09-09. Each is a silent failure,
+  which is why they are recorded rather than left to be noticed later. EXIT CODE: `pns tap` exits
+  non-zero when the touch fails, so the Shortcut can show a failure. A tap that fails silently is worse
+  than no tap, because the operator stops checking. THE STATE DIRECTORY: `~/.local/state/pns/` may not
+  exist on a fresh machine and `pns tap` may be the first thing to reach for it, so it creates the
+  directory rather than failing on it. REMOTE LOGIN is a prerequisite in the Mac setup step. The whole
+  feature needs sshd accepting connections (System Settings, General, Sharing, Remote Login). Without it
+  every other step is wired correctly and nothing happens, which is the worst kind of wrong. Verify sleep
+  and wake behavior on the operator's devices and explain what the Shortcut reports when the Mac cannot
+  answer. `--info` should identify this troubleshooting path. NO CONFIG REQUIRED: `pns tap` must work
+  with no `~/.config/pns/config.toml` at all, falling back to the default marker path, because requiring
+  one would fail on exactly the fresh machine `--install` is walking somebody through. Define the
+  `--json` schema and manual undo instructions before building. DONE 2026-09-14 in
+  [PR #569](https://github.com/webdavis/dotfiles/pull/569) (`feat/pns-tap-fresh-machine`, merged
+  `f85a6cfd`), each claim verified against the code first: the non-zero exit, the single stderr line and
+  the OS error were already true, the line now names the marker path and prints the whole error (errno
+  included); the 0700 state directory was already created recursively (pinned by existing tests); Remote
+  Login already led the Mac steps but named no settings path, now it does, and `--info` says what the
+  phone shows when the Mac cannot answer (the SSH action fails, so the phone shows the SSH error, never
+  the success notification); a missing config already fell back to the default marker path (a parse error
+  still fails); the shipped `pns.tap/1` JSON object was kept as is (its `marker` is a table, not a bare
+  path) and gained `touched_at` in RFC 3339 UTC, with the whole field table, the null cases under
   `--install` and on early failures, and the undo (delete the marker; the 0700 state directories stay)
   written into `pns/docs/pns-tap-apple-shortcut.md`. Left open, operator-device work: verify sleep and
   wake behavior of the Mac against the Shortcut. That drill was written 2026-09-14 in
@@ -2447,11 +2452,25 @@ is missing.
   `nag_delivery::the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`, which saw
   two cards where it expects one, although that pull request touched no pns code; a rerun passed.
   Reproduce it under load before changing anything, since a second card is either a real double fire or a
-  fixture reading one delivery twice.
-- [ ] Retain Moshi image recap cards as blocked on transport, not ready to build. The recorded reopening
-  conditions are a homelab HTTPS image host, an upstream upload interface, or a documented data-URL path.
-  An operator-approved single-card probe must establish actual image display before treating data URLs as
-  supported. Revisit usefulness before adding a renderer; the proposed recap duplicates Discord. Source:
+  fixture reading one delivery twice. Root-caused and fixed 2026-09-15; the fix is open as
+  [PR #691](https://github.com/webdavis/dotfiles/pull/691) (`fix/pns-nag-delivery-deterministic`). It was
+  neither a double fire nor a fixture reading one delivery twice: the daemon ticking beside the fire
+  re-delivers the SAME event, because a channel script cannot confirm a delivery (`deliver_executable`
+  answers `Silent` whatever it exits), so the nag's legs are retry-eligible the moment they are written
+  and `pns daemon retry` hands the same event over a tick later. A delivery count is therefore a function
+  of when the test thread happens to read it. The test now counts distinct CARDED EVENTS, which is one at
+  every instant after the first delivery and is the number the operator's ruling is about. An earlier
+  attempt on `fix/pns-nag-delivery` never got a continuous-integration run at all, through a close and
+  reopen and an empty commit; the branch was re-cut and the new one ran immediately, so the silence reads
+  as macOS runner queueing rather than anything about the branch.
+- [x] SUPERSEDED 2026-09-15 by tasks 78 and 90. This entry's premise, that image cards are blocked on
+  transport, is no longer true: moshi's documented upload interface holds, the operator approved the
+  capability, and the build is filed as task 90 with its two pieces and its deep-link tradeoff. Read task
+  90 rather than this entry. Original entry, kept for its transport record: retain Moshi image recap
+  cards as blocked on transport, not ready to build. The recorded reopening conditions are a homelab
+  HTTPS image host, an upstream upload interface, or a documented data-URL path. An operator-approved
+  single-card probe must establish actual image display before treating data URLs as supported. Revisit
+  usefulness before adding a renderer; the proposed recap duplicates Discord. Source:
   `~/.claude/pipeline/slices/design-moshi-image-cards.md`. Re-checked on 2026-09-14 and one reopening
   condition now holds, so this entry's premise is wrong. Moshi's notification documentation carries a
   live upload interface, `POST https://api.getmoshi.app/api/v1/images/upload`, authenticated with the
@@ -2503,18 +2522,20 @@ is missing.
   `upload` subcommand on moshi-hook itself (yes, this is the surface pns actually calls), and whether the
   capability is worth building (yes, approved as a per-card-type opt-in). Superseded by task 78 (the
   decision) and task 90 (the build).
-- [ ] 78. Decide whether a recap card on the phone carries an image, and build it only if the answer is
-  yes (operator ruling 2026-09-15, low priority). Decided 2026-09-15: approved. The capability covers
-  every card type, the recap included; what the operator declined is an image on their own recap card
-  specifically, a setting in their own config, not a limit on the capability, since another user might
-  want exactly that for their own recap. The pattern is the one this repository already uses everywhere:
-  build the capability, ship it off, and leave it off in the operator's own configuration. It is opt-in
-  per card type because of a real tradeoff: a Moshi card's `data` carries one `type`, so turning images
-  on for a card type gives up the deep link that focuses the originating herdr pane when that card is
-  tapped. The operator's own configuration keeps the recap card's images off and keeps its deep link. The
-  build itself, the per-card-type opt-in, the deep-link tradeoff stated at the toggle, and the
-  card-ownership refactor `replay_missed` still needs, is filed separately as task 90, approved and not
-  yet started. Full record: `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+- [x] 78. DECIDED 2026-09-15: approved. This task was a decision and the decision is made, so it is
+  closed here; the BUILD is task 90 and is separately open. Decide whether a recap card on the phone
+  carries an image, and build it only if the answer is yes (operator ruling 2026-09-15, low priority).
+  Decided 2026-09-15: approved. The capability covers every card type, the recap included; what the
+  operator declined is an image on their own recap card specifically, a setting in their own config, not
+  a limit on the capability, since another user might want exactly that for their own recap. The pattern
+  is the one this repository already uses everywhere: build the capability, ship it off, and leave it off
+  in the operator's own configuration. It is opt-in per card type because of a real tradeoff: a Moshi
+  card's `data` carries one `type`, so turning images on for a card type gives up the deep link that
+  focuses the originating herdr pane when that card is tapped. The operator's own configuration keeps the
+  recap card's images off and keeps its deep link. The build itself, the per-card-type opt-in, the
+  deep-link tradeoff stated at the toggle, and the card-ownership refactor `replay_missed` still needs,
+  is filed separately as task 90, approved and not yet started. Full record:
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 - [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
@@ -2572,8 +2593,22 @@ is missing.
   router client's unverified TLS becomes its own design task, task 89. (6) `pns lights enroll` stays the
   command name; doctor reports state, enrolling performs an action and hands back a value to save. (7)
   Moot: approach B was not chosen, so its third-party trust anchor question does not arise.
-- [ ] 89. Design certificate pinning for the UniFi router client, filed 2026-09-15. Out of scope for the
-  Hue bridge pinning design: `pns/crates/pns-adapters/src/unifi/client.rs` disables verification against
+- [x] 89. DONE 2026-09-15 in [PR #693](https://github.com/webdavis/dotfiles/pull/693), merged `5257bf24`,
+  which wrote `docs/superpowers/specs/2026-09-15-unifi-client-certificate-pinning-design.md` (416 lines)
+  and no code. The bullet's premise held up against source: `UniFiRouter::new`
+  (`pns/crates/pns-adapters/src/unifi/client.rs:39`) builds its ureq agent with
+  `.tls_config(TlsConfig::builder().disable_verification(true).build())` at line 42, so the client
+  verifies nothing at all rather than pinning the wrong thing, and the API key rides that connection as
+  the `X-API-KEY` header at line 70. The only production construction is `pns home`
+  (`pns/crates/pns/src/command_home.rs:69`). The design offers three approaches and recommends a SHA-256
+  fingerprint pin on the leaf certificate, names a private certificate authority as the better answer on
+  rotation, puts the pin in the vault as an attribute on the existing UniFi entry, and states the cost
+  plainly: a UniFi OS upgrade that regenerates the console certificate makes `pns home` read Unknown
+  until the operator runs `pns home enroll`. The live certificate was NOT measured (reaching the
+  operator's router was out of scope), so the document carries that measurement as an acceptance gate
+  rather than an input. BUILD remains: the design is written, nothing is implemented. Original entry:
+  design certificate pinning for the UniFi router client, filed 2026-09-15. Out of scope for the Hue
+  bridge pinning design: `pns/crates/pns-adapters/src/unifi/client.rs` disables verification against
   `https://192.168.1.1` while sending a router API key, a more valuable credential than the lamp key, and
   it is a different device with a different certificate story that needs its own measurement and design.
   Follows the same shape as the Hue design once written: measure the live certificate, choose a pinning
@@ -2641,8 +2676,9 @@ is missing.
   implementation work. Local implementation `cf7d4866` on `feat/pns-status-quiet` passed 16 focused
   checks, including eleven new cases, three mutation checks and package gates. Independent review passed
   17 checks. PR #536 contains this change and P4; combined full checks and the release build passed.
-  Required checks passed and #536 merged. Operator deployment and actual lamp/Focus acceptance remain
-  open.
+  Required checks passed and #536 merged. THE AGENT WORK IS DONE: what remains is the operator's own
+  deployment and the lamp and Focus acceptance on their own devices, which no agent can run. B19/B25's
+  disposition is the one part of this bullet still open to an agent.
 - [x] Isolate pns color-selection tests from the invoking shell's environment. On 2026-09-13, `just ship`
   failed `a_terminal_with_nothing_asking_otherwise_is_painted` with `NO_COLOR=1` inherited from the agent
   session. The exact test passed after unsetting `NO_COLOR` and `REPORT_LIB_PLAIN`. Production correctly
@@ -3501,17 +3537,38 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   2026-09-15: [PR #593](https://github.com/webdavis/dotfiles/pull/593) merged, and the two pull requests
   the spec describes, #612 and #613, are both merged too.
 
-- [ ] 81. Settle the Discord channel model in configuration (operator rulings 2026-09-14 and 2026-09-15).
-  Every channel is `#<project>-<stream>` and never a bare project name, and each project gets
-  `#<project>-dev` for continuous integration, pull requests, GitHub notifications and agent session
-  threads, covering dotfiles, pns, uu, posture, homelab, justdavis-ansible, essential-feed-case-study,
-  scalebar, netpulse, plantpulse and casually-concerned. `#github-notifications` is the catch-all, and
-  `#priority` is the severity channel for anything critical from any source, which means rare, actionable
-  and worse if ignored, posted once with the subject in its header. The notification channels are
-  `#pns-events`, `#uu-runs`, `#posture-pages` and `#general`, while `#pns-recap` and `#uu-failures` were
-  deleted. Routing is two-axis: the subject picks the channel and severity overrides it to `#priority`.
-  The Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by
-  the GitHub source and by session events.
+- [x] 81. DONE 2026-09-15 in [PR #696](https://github.com/webdavis/dotfiles/pull/696), merged `b5761206`.
+  The model was already largely expressed in `dot_config/pns/config-values.toml` and read by
+  `pns_domain::channel_map::channel_for`, so that pull request closed the three remaining gaps rather
+  than rebuilding it. `[plugins.discord.channels]` names one entry per project as `#<project>-dev` across
+  all eleven projects the bullet lists, with `#github-notifications` as the `default` catch-all,
+  `#priority` as the severity channel and `#pns-events` for an event carrying no project at all; every
+  entry names its KeePassXC record rather than holding an id. The two-axis routing consults the route
+  severity already chose, then the project as `owner/name`, then its bare name, then the default route,
+  then the catch-all, and four behaviors are pinned: a subject reaching its own project channel, an
+  unmapped repository reaching the catch-all, a critical severity overriding a mapped project's channel,
+  and a critical severity for an unmapped repository or for no repository at all still reaching the
+  severity channel rather than falling through. Two integrity gaps closed with it: an armed
+  `[plugins.discord]` whose map names no channel under `[routes] urgent` is now refused at load, because
+  the lookup would otherwise send a critical page to the project's own routine channel without failing;
+  and every key of the open channels table is now secret-bearing in the values-file check rather than
+  only the fixed `default` one, so a pasted channel id under any project's key is refused before it can
+  render into the committed template. `#general` and `#uu-runs` deliberately get no pns entry: pns
+  selects neither route, uu posts to its own with its own key, and nothing in this repository produces to
+  general. The Discord `Projects` category is server-side and has no configuration surface. THE CONSUMERS
+  of the one shared map arrive with the Discord bot destination in task 82 and the GitHub source in task
+  85, which is those tasks' scope rather than a remainder of this one. Original entry: settle the Discord
+  channel model in configuration (operator rulings 2026-09-14 and 2026-09-15). Every channel is
+  `#<project>-<stream>` and never a bare project name, and each project gets `#<project>-dev` for
+  continuous integration, pull requests, GitHub notifications and agent session threads, covering
+  dotfiles, pns, uu, posture, homelab, justdavis-ansible, essential-feed-case-study, scalebar, netpulse,
+  plantpulse and casually-concerned. `#github-notifications` is the catch-all, and `#priority` is the
+  severity channel for anything critical from any source, which means rare, actionable and worse if
+  ignored, posted once with the subject in its header. The notification channels are `#pns-events`,
+  `#uu-runs`, `#posture-pages` and `#general`, while `#pns-recap` and `#uu-failures` were deleted.
+  Routing is two-axis: the subject picks the channel and severity overrides it to `#priority`. The
+  Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by the
+  GitHub source and by session events.
 
 - [ ] 82. Give pns its own Discord destination. A `pns` Discord bot exists, with View Channels, Send
   Messages, Create Public Threads, Send Messages in Threads, Embed Links and Read Message History, no
@@ -3683,46 +3740,59 @@ modernization and Forzare after everything else. Separate future-platform/presen
 other explicit deferrals, unresolved product/security decisions and operator-only actions remain in
 force.
 
-- [ ] Build a persistent process-toggle plugin for Herdr in Rust, following `$clean-code-rust` and its
-  prerequisite `$clean-code`. Consult `$frontend-design:frontend-design` for terminal interface design
-  and review. Behavior agreed 2026-09-12; the 2026-09-13 goal authorizes implementation in the resume
-  order. Support any number of named window configurations and running sessions, with no hardcoded cap.
-  Each configuration supplies a program, arguments, working directory, floating dimensions, and
-  independent shortcuts for Split right, Split below, and Toggle float. tuicr, reviewr, btop, and a
-  scratch shell are example configurations; the plugin stays independent of the program. Split right
-  opens side by side with a vertical divider; Split below stacks panes with a horizontal divider. Either
-  split action starts, docks, or repositions the same session, or focuses it when already placed
-  correctly. Toggle float starts a floating session, pops out an existing split, or hides/restores an
-  existing float. Pop out/dock preserves the running program, terminal screen, position, comments, and
-  unfinished input. Popping out releases the old split's space; hiding a float keeps it hidden until
-  restored or explicitly docked. The plugin owns background session lifetime and forwards input and
-  resize events through the attached view. Shortcuts work from Neovim and shell panes and while a float
-  is focused. Show one floating window at a time: selecting another hides the previous float without
-  stopping either session. Docked sessions remain visible. Stacking floating windows is outside the
-  agreed scope. Center floats over the whole Herdr window, spanning underlying panes, with configurable
-  percentage dimensions that resize and recenter when the terminal window changes size. A hidden session
-  receives the current dimensions when restored. Keep toggling and docking fast. Per window, let users
-  configure whether Ctrl+C in the popup terminates its process or only hides the popup and keeps the
-  background session alive. The hide action must not forward Ctrl+C to the running program. Also expose a
-  separately configurable Herdr kill binding for each named session, closing its view and terminating its
-  owned processes whether floating, docked, or hidden. Hiding preserves the session; quitting or killing
-  ends it. Process exit closes its view and clears its session, including exits while hidden. The next
-  launch starts a fresh instance. Verify attachment, redraw, resizing, focus, configurable Ctrl+C
-  behavior, explicit termination, and process-exit cleanup through supported Herdr interfaces before
-  building the review launcher below. The 2026-09-13 feasibility audit found a supported implementation
-  path in Herdr 0.9.0: percentage popups center and resize over the shared pane surface, spanning its
-  panes while excluding sidebar and tab-bar chrome. The owned Rust attachment must handle configured
-  shortcuts while focused because popup input bypasses native Herdr binding dispatch. Read the same
-  configured prefix and plugin actions, preserve unmatched input and paste, and reject ambiguous
-  encodings. Keep the process in an owned pseudoterminal and replace its views. Hide by ending the owned
-  attachment, never by blindly closing whichever popup is active. Prove view identity, redraw, transition
-  rollback and process cleanup with fixtures before runtime acceptance. These are implementation
-  requirements; no mandatory upstream change was found. Operator note 2026-09-14: herdr's documented
-  `[[keys.command]]` popups are NOT this (a popup lives only until its command exits; no toggle, hide or
-  float exists in the docs, the keybinding actions or the CLI, which offers zoom, split, move, swap and
-  close). When this is built, dig into herdr's source for a true hide before settling for parking the
-  pane in another tab, and check herdr's preview channel (its nightly, more or less) for a hide or float
-  primitive that the stable release lacks.
+- [ ] PARTLY BUILT, checked against the machine on 2026-09-15, because this bullet read as not started
+  and that is wrong. What exists: the Rust plugin is committed at
+  `dot_local/share/herdr/plugins/herdr-process/`, built by
+  `.chezmoiscripts/run_onchange_after_58-build-herdr-process-plugin.sh.tmpl`, deployed to
+  `~/.local/share/herdr/plugins/herdr-process/` with a compiled `target/`, and its generated
+  `herdr-plugin.toml` declares four actions for the `tuicr` profile (`split-right`, `split-below`,
+  `toggle-float`, `kill`) plus an `attach` pane. Its own test suite passes: 42 adapter cases, 14
+  application cases, 19 binary cases and 16 composition cases. WHAT IS LEFT: only one action is bound to
+  a key, `herdr-process.tuicr:toggle-float` at `dot_config/herdr/config.toml:331`, so split-right,
+  split-below and kill are reachable through the plugin but not from the keyboard; and `tuicr` is the
+  only configured profile, so the reviewr, btop and scratch-shell examples in the requirement below do
+  not exist yet. Runtime acceptance (attachment, redraw, resizing, focus, the configurable Ctrl+C
+  behavior, explicit termination, process-exit cleanup) has not been run on the operator's own session.
+  Original requirement, still the specification for what is missing: build a persistent process-toggle
+  plugin for Herdr in Rust, following `$clean-code-rust` and its prerequisite `$clean-code`. Consult
+  `$frontend-design:frontend-design` for terminal interface design and review. Behavior agreed
+  2026-09-12; the 2026-09-13 goal authorizes implementation in the resume order. Support any number of
+  named window configurations and running sessions, with no hardcoded cap. Each configuration supplies a
+  program, arguments, working directory, floating dimensions, and independent shortcuts for Split right,
+  Split below, and Toggle float. tuicr, reviewr, btop, and a scratch shell are example configurations;
+  the plugin stays independent of the program. Split right opens side by side with a vertical divider;
+  Split below stacks panes with a horizontal divider. Either split action starts, docks, or repositions
+  the same session, or focuses it when already placed correctly. Toggle float starts a floating session,
+  pops out an existing split, or hides/restores an existing float. Pop out/dock preserves the running
+  program, terminal screen, position, comments, and unfinished input. Popping out releases the old
+  split's space; hiding a float keeps it hidden until restored or explicitly docked. The plugin owns
+  background session lifetime and forwards input and resize events through the attached view. Shortcuts
+  work from Neovim and shell panes and while a float is focused. Show one floating window at a time:
+  selecting another hides the previous float without stopping either session. Docked sessions remain
+  visible. Stacking floating windows is outside the agreed scope. Center floats over the whole Herdr
+  window, spanning underlying panes, with configurable percentage dimensions that resize and recenter
+  when the terminal window changes size. A hidden session receives the current dimensions when restored.
+  Keep toggling and docking fast. Per window, let users configure whether Ctrl+C in the popup terminates
+  its process or only hides the popup and keeps the background session alive. The hide action must not
+  forward Ctrl+C to the running program. Also expose a separately configurable Herdr kill binding for
+  each named session, closing its view and terminating its owned processes whether floating, docked, or
+  hidden. Hiding preserves the session; quitting or killing ends it. Process exit closes its view and
+  clears its session, including exits while hidden. The next launch starts a fresh instance. Verify
+  attachment, redraw, resizing, focus, configurable Ctrl+C behavior, explicit termination, and
+  process-exit cleanup through supported Herdr interfaces before building the review launcher below. The
+  2026-09-13 feasibility audit found a supported implementation path in Herdr 0.9.0: percentage popups
+  center and resize over the shared pane surface, spanning its panes while excluding sidebar and tab-bar
+  chrome. The owned Rust attachment must handle configured shortcuts while focused because popup input
+  bypasses native Herdr binding dispatch. Read the same configured prefix and plugin actions, preserve
+  unmatched input and paste, and reject ambiguous encodings. Keep the process in an owned pseudoterminal
+  and replace its views. Hide by ending the owned attachment, never by blindly closing whichever popup is
+  active. Prove view identity, redraw, transition rollback and process cleanup with fixtures before
+  runtime acceptance. These are implementation requirements; no mandatory upstream change was found.
+  Operator note 2026-09-14: herdr's documented `[[keys.command]]` popups are NOT this (a popup lives only
+  until its command exits; no toggle, hide or float exists in the docs, the keybinding actions or the
+  CLI, which offers zoom, split, move, swap and close). When this is built, dig into herdr's source for a
+  true hide before settling for parking the pane in another tab, and check herdr's preview channel (its
+  nightly, more or less) for a hide or float primitive that the stable release lacks.
 - [ ] Add a deterministic worktree picker and reviewr launcher. Consult
   `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
   authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
