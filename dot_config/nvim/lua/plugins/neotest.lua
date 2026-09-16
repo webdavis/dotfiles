@@ -721,8 +721,9 @@ return {
     ft = "java",
     dependencies = {
       -- The JDTLS-based LSP client neotest-java drives for classpath and compilation
-      -- (`:checkhealth neotest-java` requires one of nvim-jdtls or nvim-java; this
-      -- config already carries `jdtls`'s server config and cmd_env in lsp.lua).
+      -- (`:checkhealth neotest-java` requires the `jdtls` module from mfussenegger/nvim-jdtls;
+      -- the README also names nvim-java as an LSP alternative, but the health check does not
+      -- accept it. This config already carries `jdtls`'s server config and cmd_env in lsp.lua).
       { "mfussenegger/nvim-jdtls", commit = "6e9d953f0b82bccdb834cfde0e893f3119c22592" },
       -- `:checkhealth neotest-java` flags this as required, not optional, for the
       -- debugging feature the adapter's README lists.
