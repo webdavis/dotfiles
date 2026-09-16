@@ -52,15 +52,15 @@
 --
 -- `cond` keeps the plugin out of headless Neovim entirely (a `nvim --headless`
 -- launch or a `-l` script run, both used by this repo's own test suites and
--- tooling), rather than merely quieting its logger the way `opts.log_level`
--- below does. It scans `vim.v.argv` for the literal flags `--headless` and
--- `-l`, not `#vim.api.nvim_list_uis() == 0`: lazy.nvim evaluates a spec's
--- `cond` during its early spec-parse/resolve pass (`lazy/core/meta.lua`,
--- `fix_cond`), well before the `cmd` or `keys` trigger this plugin loads on
--- and before an interactive session's own UI is guaranteed to have attached, so a
--- UI-count check is unreliable at that point. The `opts.log_level` check below
--- runs at a different, later evaluation point (actual plugin load), where a UI
--- count is reliable, which is why it keeps using it.
+-- tooling), rather than merely quieting its logger the way `opts.log_level` below
+-- does. It scans `vim.v.argv` for the literal flags `--headless` and `-l`, not
+-- `#vim.api.nvim_list_uis() == 0`: lazy.nvim evaluates a spec's `cond` during its
+-- early spec-parse/resolve pass (`lazy/core/meta.lua`, `fix_cond`), well before
+-- the `cmd` or `keys` trigger this plugin loads on and before an interactive
+-- session's own UI is guaranteed to have attached, so a UI-count check is
+-- unreliable at that point. The `opts.log_level` check below runs at a different,
+-- later evaluation point (actual plugin load), where a UI count is reliable,
+-- which is why it keeps using it.
 local function is_headless()
   for _, arg in ipairs(vim.v.argv) do
     if arg == "--headless" or arg == "-l" then
@@ -119,22 +119,21 @@ return {
       desc = "Claude: launch or attach --ide",
     },
   },
-  -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO,
-  -- DEBUG and TRACE through `nvim_echo`, which is STDERR in a headless run. So
-  -- every `--headless` start that reached `VimLeavePre` printed
-  -- `[ClaudeCode] [init] [INFO] Claude Code integration stopped` (`logger.lua`,
-  -- `init.lua:597` at the pinned commit) and failed the zero-stderr startup gate.
-  -- A global `warn` is too wide: `:ClaudeCodeStatus` answers at INFO as well
-  -- (`init.lua:619-621`), and would go silent. A headless session is the one
-  -- kind with no UI attached, and `opts` is evaluated when the plugin loads (a
-  -- `cmd` or one of the `keys`), after the UI has attached in an interactive
-  -- session, so this
-  -- quiets exactly the sessions whose INFO was noise and nothing else. The one
-  -- gap is a UI that attaches AFTER the plugin loaded (an `--embed` client that
-  -- ran commands before attaching): `init` closes it by raising the level back
-  -- to the plugin's default through the logger's own `setup` on the first
-  -- `UIEnter`, and only when the logger has already been loaded, so a normal
-  -- interactive start (UI first, plugin on a command or a key) is untouched.
+  -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO, DEBUG
+  -- and TRACE through `nvim_echo`, which is STDERR in a headless run. So every
+  -- `--headless` start that reached `VimLeavePre` printed `[ClaudeCode] [init]
+  -- [INFO] Claude Code integration stopped` (`logger.lua`, `init.lua:597` at the
+  -- pinned commit) and failed the zero-stderr startup gate. A global `warn` is too
+  -- wide: `:ClaudeCodeStatus` answers at INFO as well (`init.lua:619-621`), and
+  -- would go silent. A headless session is the one kind with no UI attached, and
+  -- `opts` is evaluated when the plugin loads (a `cmd` or one of the `keys`), after
+  -- the UI has attached in an interactive session, so this quiets exactly the
+  -- sessions whose INFO was noise and nothing else. The one gap is a UI that
+  -- attaches AFTER the plugin loaded (an `--embed` client that ran commands before
+  -- attaching): `init` closes it by raising the level back to the plugin's default
+  -- through the logger's own `setup` on the first `UIEnter`, and only when the
+  -- logger has already been loaded, so a normal interactive start (UI first, plugin
+  -- on a command or a key) is untouched.
   init = function()
     -- Not `once`: a UI can attach and detach before the plugin loads (an
     -- `--embed` client attaching, detaching, and then running a `ClaudeCode*`
