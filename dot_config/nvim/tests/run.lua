@@ -12,6 +12,23 @@
 -- A spec file returns a table of `["what it does"] = function() ... end` cases
 -- and asserts with plain `assert`. No plenary, no busted.
 
+-- GIT'S OWN REPOSITORY VARIABLES ARE TAKEN OUT OF THIS PROCESS FIRST.
+--
+-- A git hook exports `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` to every
+-- command it runs, and this suite runs from this repository's own pre-commit
+-- hook. A spec that builds a scratch repository inherits them, so its
+-- `git init` no-ops and every git call it makes (its own, and the module's
+-- under test) acts on the REAL repository instead: measured 2026-09-15, when
+-- one spec committed its fixture file to the branch being committed.
+--
+-- Cleared HERE rather than per spec, because both halves of the leak have to
+-- go: a spec can scrub the environment of children it spawns itself, and it
+-- cannot scrub the one the code under test reads. Nothing in this suite has
+-- any business being pointed at a repository it did not create.
+for _, name in ipairs({ "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE" }) do
+  vim.env[name] = nil
+end
+
 local tests_dir = arg[0]:match("(.*)/") or "."
 local config_root = tests_dir .. "/.."
 local only
