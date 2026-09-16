@@ -111,7 +111,7 @@ fn every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves() {
             // channel map makes: its vocabulary is the operator's project
             // names, so there is no roster to check one against. The key it
             // cannot do without, `default`, is required by
-            // `plugins::refuse_a_map_without_a_catch_all` instead.
+            // `refusals::refuse_a_map_without_a_catch_all` instead.
             assert!(
                 parse_config(&config_writing(table, "zzz_not_a_key", "\"x\"")).is_ok(),
                 "`{table}` is open and takes any key"

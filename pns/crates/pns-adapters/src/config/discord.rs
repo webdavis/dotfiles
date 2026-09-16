@@ -110,7 +110,16 @@ fn channel_map(settings: &toml::Table) -> ChannelMap {
 /// Whether an armed table states the catch-all, which is the one key the
 /// lookup cannot end without.
 pub fn states_default_channel(settings: &toml::Table) -> bool {
-    channel_map(settings).contains_key(DEFAULT_KEY)
+    states_channel(settings, DEFAULT_KEY)
+}
+
+/// Whether an armed table states a channel under `key`.
+///
+/// THE KEY IS AN ARGUMENT because the urgent route's name is the operator's
+/// (`[routes] urgent`) and a copy compiled in here would check the wrong one
+/// the day they rename it.
+pub fn states_channel(settings: &toml::Table, key: &str) -> bool {
+    channel_map(settings).contains_key(key)
 }
 
 /// A non-empty string setting, or None for every way it can fail to be one.
