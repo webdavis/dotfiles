@@ -2551,18 +2551,44 @@ is missing.
   recap card's images off and keeps its deep link. The build itself, the per-card-type opt-in, the
   deep-link tradeoff stated at the toggle, and the card-ownership refactor `replay_missed` still needs,
   is filed separately as task 90, approved and not yet started. Full record:
-  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. MEASURED CORRECTION 2026-09-16, and it bears
+  on the decision above: THE RECAP CARD HAS NEVER CARRIED A DEEP LINK, so on that particular card an
+  image trades away nothing. The replay card is built from
+  `EventArgs { agent: "pns", state: "missed", detail, ..default() }`
+  (`pns/crates/pns-application/src/replay_missed.rs:121`), so its `pane` is the empty string;
+  `pane_is_safe("")` is false on its first clause (`pns/crates/pns-domain/src/safety.rs:17`), so
+  `herdr_link` answers `None` (`pns/crates/pns-adapters/src/destinations/moshi.rs:55`) and the card ships
+  with no `data` object at all. The tradeoff is real for every card type that DOES carry a pane, which is
+  what still makes the opt-in per card type worth building. The operator's preference stands either way,
+  as a preference; it is recorded here because the reason given for it does not hold, and a decision
+  resting on a fact that is not true is worth re-offering rather than quietly inheriting.
 - [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
-  recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and into the detached
-  `pns recap` child, since the card is dispatched today before any render could exist; and the opt-in
-  itself, a per-card-type toggle plus the render, upload and image body, shipped off by default. State
-  the tradeoff at the toggle, not only in a design document: a Moshi card's `data` carries one `type`, so
-  turning images on for a card type gives up the deep link that focuses the originating herdr pane when
-  that card is tapped. The token-placement question (`Authorization: Bearer` header versus the request
-  body `moshi.rs` currently requires) is left for this build to answer with evidence. Source: task 78 and
-  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+  recap posting out of `replay_missed` and into the detached `pns recap` child, since the card is
+  dispatched today before any render could exist. DONE 2026-09-16 in
+  [PR #704](https://github.com/webdavis/dotfiles/pull/704), merged `9c5deb23`. The pointer this bullet
+  used to carry was stale by file: `pns/crates/pns/src/return_replay.rs:38` is only `replay_missed`'s
+  signature, and the posting is in `pns/crates/pns-application/src/replay_missed.rs`, publish at :91 and
+  delivery at :118. The dispatch-before-render claim was CONFIRMED from source: `spawn_recap` returns as
+  soon as `Command::spawn` succeeds, so the card was on the wire while the child had not yet read its
+  config. The card now travels to the child as one JSON line on its stdin and is dispatched there, first,
+  before the summarizer runs, so a parked model cannot hold the phone card for the child's whole
+  deadline; a hand-off the child refuses leaves the card with the return moment, which delivers it
+  exactly as before. WHAT REMAINS is the second piece: and the opt-in a per-card-type toggle plus the
+  render, upload and image body, shipped off by default. State the tradeoff at the toggle, not only in a
+  design document: a Moshi card's `data` carries one `type`, so turning images on for a card type gives
+  up the deep link that focuses the originating herdr pane when that card is tapped. Say it accurately,
+  though: see the correction under task 78, because the RECAP card carries no deep link to lose and a
+  toggle claiming otherwise on that card would be wrong. THE TOKEN-PLACEMENT QUESTION IS ANSWERED,
+  measured 2026-09-15 with bogus tokens only and no real credential read: the two routes differ. The
+  upload route reads the token ONLY from an `Authorization: Bearer` header (a bogus header answers 401
+  "Invalid token"; the token in the body with no header answers 401 "Missing or invalid Authorization
+  header"). The webhook route requires it in the BODY (a header with no body token answers 422 naming
+  property `/token`), which is what `moshi.rs` already does, so the current placement is correct and was
+  not changed. Consequence for this piece: its upload leg needs the header, and `moshi.rs`'s "the request
+  body and nowhere else" sentence has to become "the body on the webhook, an Authorization header on the
+  upload". Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
