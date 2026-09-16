@@ -17,9 +17,9 @@ fn home_constructs_paths_without_reading_legacy_path_overrides() {
     let mut snapshots = home.clone();
     snapshots.push("/.local/log/osquery/osqueryd.snapshots.log");
     assert_eq!(config.snapshots, PathBuf::from(snapshots));
-    // No config file under that home, so delivery stands at its fail-closed
+    // No config file under that home, so the notify choice stands at its fail-closed
     // default rather than at some engine this tool would have to name.
-    assert_eq!(config.delivery, posture_adapters::Delivery::default());
+    assert_eq!(config.notify, posture_adapters::Notify::default());
     assert_eq!(config.alarm, PathBuf::from("/usr/bin/osascript"));
     assert_eq!(config.maximum_age.seconds(), 16);
     assert_eq!(config.maximum_age.display(), "020");

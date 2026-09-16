@@ -12,7 +12,7 @@ fn request(spool: &str, overrides: &[(&str, OsString)]) -> String {
             .map(|(_, value)| value.clone()),
     })
     .unwrap();
-    config.delivery = crate::producer_delivery(&fixture.engine());
+    config.notify = crate::command_notify(&fixture.engine());
     let runner = Runner {
         expected: fixture.engine(),
         reply: Some(Reply::Committed),

@@ -1,9 +1,7 @@
 use super::*;
+use crate::wire::{DeliveryOutcome, DestinationOutcome, Request, ResultEnvelope, Status};
 use crate::{CommandIo, CommandOutput};
 use posture_application::{AlarmFailed, AlertSignal, InspectionFailure};
-use posture_producer_wire::{
-    DeliveryOutcome, DestinationOutcome, Request, ResultEnvelope, Status, decode_request,
-};
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
@@ -40,12 +38,12 @@ impl CommandRunner for Runner {
         let CommandIo::Input(input) = io else {
             panic!("request must be stdin only")
         };
-        let request = decode_request(input).expect("one bounded request").request;
+        let request = Request::decode(input).expect("one bounded request");
         let output = match &self.response {
             Ok(output) => {
                 let mut bytes = output.bytes.clone();
                 if self.matching {
-                    let mut result = posture_producer_wire::decode_result(&bytes).unwrap();
+                    let mut result = crate::wire::decode_result(&bytes).unwrap();
                     result.request_id = Some(request.request_id.clone());
                     bytes = result.encode().unwrap().into_bytes();
                 }
@@ -144,12 +142,12 @@ fn rejection_degradation_and_missing_commitment_do_not_trigger_an_engine_alarm()
 fn an_accepted_receipt_for_another_or_missing_identity_cannot_advance_acceptance() {
     for id in [
         None,
-        Some(posture_producer_wire::RequestId::new("different").unwrap()),
+        Some(crate::wire::RequestId::new("different").unwrap()),
     ] {
         let mut sut = subject(Status::Accepted, true);
         sut.runner.matching = false;
         let output = sut.runner.response.as_mut().unwrap();
-        let mut receipt = posture_producer_wire::decode_result(&output.bytes).unwrap();
+        let mut receipt = crate::wire::decode_result(&output.bytes).unwrap();
         receipt.request_id = id;
         output.bytes = receipt.encode().unwrap().into_bytes();
         assert_eq!(

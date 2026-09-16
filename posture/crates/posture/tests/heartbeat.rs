@@ -105,7 +105,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     assert!(!home.join(".local/state").exists());
 }
 
-/// Point posture's delivery at one owned fixture command, the way the config
+/// Point posture's notify choice at one owned fixture command, the way the config
 /// deployed on a real machine points it at whichever engine that machine runs.
 fn deliver_through(home: &std::path::Path, engine: &std::path::Path) {
     let config = home.join(".config/posture/config.toml");
@@ -113,7 +113,7 @@ fn deliver_through(home: &std::path::Path, engine: &std::path::Path) {
     std::fs::write(
         &config,
         format!(
-            "[delivery]\nmode = \"producer\"\n[delivery.producer]\ncommand = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
             engine.display()
         ),
     )

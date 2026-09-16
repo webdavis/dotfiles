@@ -34,9 +34,9 @@ fn every_path_defaults_under_the_operators_own_home() {
         config.spool,
         PathBuf::from("/Users/someone/.local/state/osquery-digest-spool/digest.ndjson")
     );
-    // No config file under that home, so delivery stands at its fail-closed
+    // No config file under that home, so the notify choice stands at its fail-closed
     // default rather than at some engine this tool would have to name.
-    assert_eq!(config.delivery, posture_adapters::Delivery::default());
+    assert_eq!(config.notify, posture_adapters::Notify::default());
 }
 
 #[test]

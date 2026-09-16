@@ -79,14 +79,14 @@ pub fn compare(name: &str) {
     fs::write(home.join("input"), case["input"].as_str().unwrap()).unwrap();
     let engine = home.join(".local/libexec/engine");
     fs::create_dir_all(engine.parent().unwrap()).unwrap();
-    // Point posture's delivery at this owned fixture command, the way the
+    // Point posture's notify choice at this owned fixture command, the way the
     // config deployed on a real machine points it at that machine's engine.
-    let delivery = home.join(".config/posture/config.toml");
-    fs::create_dir_all(delivery.parent().unwrap()).unwrap();
+    let notify = home.join(".config/posture/config.toml");
+    fs::create_dir_all(notify.parent().unwrap()).unwrap();
     fs::write(
-        &delivery,
+        &notify,
         format!(
-            "[delivery]\nmode = \"producer\"\n[delivery.producer]\ncommand = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
             engine.display()
         ),
     )

@@ -1,4 +1,4 @@
-use posture_adapters::Delivery;
+use posture_adapters::Notify;
 use posture_domain::{AuditBounds, ManifestAuthority};
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
@@ -11,7 +11,7 @@ pub(super) struct Configuration {
     pub managed_bin: PathBuf,
     pub authority: [ManifestAuthority; 2],
     pub pns: PathBuf,
-    pub delivery: Delivery,
+    pub notify: Notify,
     pub alarm: PathBuf,
     pub gateway: String,
     pub route_timeout: Duration,
@@ -76,7 +76,7 @@ impl Configuration {
             managed_bin,
             authority: [pipeline_authority, bin_authority],
             pns: home.join(".cargo/bin/pns"),
-            delivery: Delivery::read(&home),
+            notify: Notify::read(&home),
             alarm: PathBuf::from("/usr/bin/osascript"),
             gateway: value("OSQUERY_HERMES_PRIORITY_URL")
                 .and_then(|v| v.into_string().ok())

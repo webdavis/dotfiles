@@ -44,7 +44,7 @@ fn execute(
     stderr: &mut impl Write,
 ) -> u8 {
     let mut sink = alert_sink(
-        config.delivery,
+        config.notify,
         runners.producer,
         LastResortBanner::new(runners.fallback, config.alarm.clone()),
         &mut *stderr,

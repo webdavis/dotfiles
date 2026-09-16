@@ -1,0 +1,16 @@
+{
+  "schema": "pns.request/1",
+  "request_id": "nvim-7f3a9c2e-0001",
+  "producer": "nvim",
+  "session": { "id": "s-2026-09-06-a", "turn": 3 },
+  "event": "BufWritePost",
+  "signal": { "kind": "succeeded" },
+  "occurred_at": 1788782400,
+  "elapsed_secs": 42,
+  "detail": "wrote 3 files",
+  "context": { "project": "dotfiles", "branch": "main", "pane": "wW:p21" },
+  "scope": "automatic",
+  "route": "alert",
+  "interaction": { "kind": "none" },
+  "extensions": { "nvim": { "buffer": 12 } }
+}

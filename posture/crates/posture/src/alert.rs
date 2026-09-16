@@ -59,7 +59,7 @@ fn execute<R: posture_adapters::CommandRunner>(
     let allowlist = AllowlistText::read(&config.allowlist, &config.home);
 
     let mut sink = alert_sink(
-        config.delivery,
+        config.notify,
         SystemRunner::per_command(PRODUCER_BUDGET),
         LastResortBanner::new(SystemRunner::per_command(ALARM_BUDGET), config.alarm),
         &mut *stderr,

@@ -43,7 +43,7 @@ fn a_real_owned_engine_receives_one_complete_request_and_returns_its_committed_i
     assert_eq!(sut.submit(&alert()), Submission::Accepted);
     let input = fs::read(engine.executable.with_extension("input")).unwrap();
     assert_eq!(input.last(), Some(&b'\n'));
-    let request = decode_request(&input).unwrap().request;
+    let request = Request::decode(&input).unwrap();
     assert_eq!(request.detail, "Security finding\nline one\nline two");
     assert!(sut.alarm.calls.is_empty());
 }
