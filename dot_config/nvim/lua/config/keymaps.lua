@@ -180,9 +180,10 @@ map({
 map({
   mode = "n",
   lhs = "Y",
-  rhs = '"+yg_',
+  rhs = function()
+    require("custom_api.clipboard").yank_to_line_end()
+  end,
   desc = "Yank to the end-of-line (without line-ending)",
-  sequence = true,
 })
 
 map({
@@ -193,12 +194,31 @@ map({
   sequence = true,
 })
 
+-- CHARWISE, LINEWISE AND BLOCKWISE ALL SURVIVE. The Ex range this replaced
+-- (`:'<,'>y+`) is always linewise, so selecting one word copied its whole line.
+--
+-- `x`, not `v`: `v` also covers SELECT mode, where a printable key replaces the
+-- selection. A snippet placeholder is select mode, and with `Y` mapped there,
+-- typing a capital Y over a placeholder yanked a line instead of replacing it.
 map({
-  mode = "v",
+  mode = "x",
   lhs = "<leader>y",
-  rhs = [[:<C-u>'<,'>y+<CR>]],
-  desc = "Yank selected text to clipboard (keep cursor/window)",
-  sequence = true,
+  rhs = function()
+    require("custom_api.clipboard").yank_selection()
+  end,
+  desc = "Yank the selection to clipboard, exactly as selected",
+})
+
+-- The capital is Vim's own linewise convention, and it is mapped here because
+-- the built-in visual `Y` reaches neither the clipboard nor the selection: it
+-- yanks the selected lines into the UNNAMED register.
+map({
+  mode = "x",
+  lhs = "Y",
+  rhs = function()
+    require("custom_api.clipboard").yank_selected_lines()
+  end,
+  desc = "Yank the selected lines to clipboard, whole",
 })
 
 map({
@@ -220,99 +240,40 @@ map({
   lhs = "<leader>yf",
   rhs = function()
     local filename = vim.fn.expand("%:t")
+    -- An unnamed buffer has no name to yank. Without this the clipboard was
+    -- emptied and the notification reported the empty string as a success.
+    if filename == "" then
+      vim.notify("Nothing to yank: this buffer has no filename", vim.log.levels.WARN)
+      return
+    end
     vim.fn.setreg("+", filename)
     vim.notify("Filename (*" .. filename .. "*) yanked to clipboard", vim.log.levels.INFO)
   end,
   desc = "Yank filename to clipboard",
 })
 
-map({
-  mode = { "n" },
-  lhs = "<leader>y(",
-  rhs = function()
-    vim.cmd('normal! "+yi(')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest ( to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y)",
-  rhs = function()
-    vim.cmd('normal! "+yi)')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest ) to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y{",
-  rhs = function()
-    vim.cmd('normal! "+yi{')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest {} to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y}",
-  rhs = function()
-    vim.cmd('normal! "+yi}')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest } to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y[",
-  rhs = function()
-    vim.cmd('normal! "+yi[')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest [] to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y]",
-  rhs = function()
-    vim.cmd('normal! "+yi]')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest ] to clipboard",
-})
-
-map({
-  mode = { "n" },
-  lhs = '<leader>y"',
-  rhs = function()
-    vim.cmd('normal! "+yi"')
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = 'Yank inside nearest "" to clipboard',
-})
-
-map({
-  mode = { "n" },
-  lhs = "<leader>y'",
-  rhs = function()
-    vim.cmd([[normal! "+yi']])
-    local yanked = vim.fn.getreg("+")
-    vim.notify("Yanked: " .. yanked, vim.log.levels.INFO)
-  end,
-  desc = "Yank inside nearest '' to clipboard",
-})
+-- ONE FUNCTION, EIGHT KEYS. Vim treats `i(` and `i)` as the same text object,
+-- and likewise each other pair, so both keys of a pair are kept for whichever
+-- one the hand reaches first while the behaviour lives in one place. Each entry
+-- names the pair so a miss can say what it was looking for.
+for _, pair in ipairs({
+  { keys = { "(", ")" }, delimiter = "(", label = "( ) pair" },
+  { keys = { "{", "}" }, delimiter = "{", label = "{ } pair" },
+  { keys = { "[", "]" }, delimiter = "[", label = "[ ] pair" },
+  { keys = { '"' }, delimiter = '"', label = 'pair of " quotes' },
+  { keys = { "'" }, delimiter = "'", label = "pair of ' quotes" },
+}) do
+  for _, key in ipairs(pair.keys) do
+    map({
+      mode = "n",
+      lhs = "<leader>y" .. key,
+      rhs = function()
+        require("custom_api.clipboard").yank_inside(pair.delimiter, pair.label)
+      end,
+      desc = "Yank inside nearest " .. pair.label .. " to clipboard",
+    })
+  end
+end
 
 -- ┏━━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃    Review Ledger      ┃
