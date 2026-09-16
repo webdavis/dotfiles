@@ -1,3 +1,163 @@
+---@class markdown_plus_keymap
+---@field mode string
+---@field lhs string
+---@field rhs string The `<Plug>` target markdown-plus registers globally.
+
+---Every mapping this configuration adds on top of markdown-plus.nvim, applied
+---buffer-locally to each markdown buffer by the `FileType` autocmd in `config`
+---below. Buffer-local is not a preference: ten of these shadow a Vim built-in
+---(`gd`, `]]`, `[[`, `o`, `O` and insert-mode `<CR>`, `<Tab>`, `<S-Tab>`, `<BS>`
+---and `<C-t>`), so a global copy replaced those motions in every other buffer
+---for the rest of the session once a single markdown file had been opened. The
+---`<Plug>` targets are registered globally by the plugin, which is what lets a
+---buffer-local left-hand side reach them.
+---@type markdown_plus_keymap[]
+local markdown_plus_keymaps = {
+  -- Text Formatting
+  -----------------------
+  -- Normal mode:
+  { mode = "n", lhs = "<localleader>mb", rhs = "<Plug>(MarkdownPlusBold)" },
+  { mode = "n", lhs = "<localleader>mi", rhs = "<Plug>(MarkdownPlusItalic)" },
+  { mode = "n", lhs = "<localleader>ms", rhs = "<Plug>(MarkdownPlusStrikethrough)" },
+  { mode = "n", lhs = "<localleader>mc", rhs = "<Plug>(MarkdownPlusCode)" },
+  { mode = "n", lhs = "<localleader>mw", rhs = "<Plug>(MarkdownPlusCodeBlock)" },
+  { mode = "n", lhs = "<localleader>mC", rhs = "<Plug>(MarkdownPlusClearFormatting)" },
+
+  -- Visual mode:
+  { mode = "x", lhs = "<localleader>mb", rhs = "<Plug>(MarkdownPlusBold)" },
+  { mode = "x", lhs = "<localleader>mi", rhs = "<Plug>(MarkdownPlusItalic)" },
+  { mode = "x", lhs = "<localleader>ms", rhs = "<Plug>(MarkdownPlusStrikethrough)" },
+  { mode = "x", lhs = "<localleader>mc", rhs = "<Plug>(MarkdownPlusCode)" },
+  { mode = "x", lhs = "<localleader>mw", rhs = "<Plug>(MarkdownPlusCodeBlock)" },
+  { mode = "x", lhs = "<localleader>mC", rhs = "<Plug>(MarkdownPlusClearFormatting)" },
+
+  -- Headers
+  -----------------------
+  { mode = "n", lhs = "]]", rhs = "<Plug>(MarkdownPlusNextHeader)" },
+  { mode = "n", lhs = "[[", rhs = "<Plug>(MarkdownPlusPrevHeader)" },
+  { mode = "n", lhs = "<localleader>h+", rhs = "<Plug>(MarkdownPlusPromoteHeader)" },
+  { mode = "n", lhs = "<localleader>h-", rhs = "<Plug>(MarkdownPlusDemoteHeader)" },
+  { mode = "n", lhs = "<localleader>hT", rhs = "<Plug>(MarkdownPlusOpenTocWindow)" },
+  { mode = "n", lhs = "gd", rhs = "<Plug>(MarkdownPlusFollowLink)" },
+
+  -- Table of Contents
+  -----------------------
+  { mode = "n", lhs = "<localleader>ht", rhs = "<Plug>(MarkdownPlusGenerateTOC)" },
+  { mode = "n", lhs = "<localleader>hu", rhs = "<Plug>(MarkdownPlusUpdateTOC)" },
+
+  -- Links & References
+  -----------------------
+  { mode = "n", lhs = "<localleader>l", rhs = "<Plug>(MarkdownPlusInsertLink)" },
+  { mode = "v", lhs = "<localleader>l", rhs = "<Plug>(MarkdownPlusSelectionToLink)" },
+  { mode = "n", lhs = "<localleader>e", rhs = "<Plug>(MarkdownPlusEditLink)" },
+  { mode = "n", lhs = "<localleader>a", rhs = "<Plug>(MarkdownPlusAutoLinkURL)" },
+  { mode = "n", lhs = "<localleader>R", rhs = "<Plug>(MarkdownPlusConvertToReference)" },
+  { mode = "n", lhs = "<localleader>I", rhs = "<Plug>(MarkdownPlusConvertToInline)" },
+
+  -- Image Links
+  -----------------------
+  { mode = "n", lhs = "<localleader>L", rhs = "<Plug>(MarkdownPlusInsertImage)" },
+  { mode = "v", lhs = "<localleader>L", rhs = "<Plug>(MarkdownPlusSelectionToImage)" },
+  { mode = "n", lhs = "<localleader>E", rhs = "<Plug>(MarkdownPlusEditImage)" },
+  { mode = "n", lhs = "<localleader>A", rhs = "<Plug>(MarkdownPlusToggleImageLink)" },
+
+  -- List Management
+  -----------------------
+  -- Insert mode:
+  { mode = "i", lhs = "<CR>", rhs = "<Plug>(MarkdownPlusListEnter)" },
+  { mode = "i", lhs = "<A-CR>", rhs = "<Plug>(MarkdownPlusListShiftEnter)" },
+  { mode = "i", lhs = "<Tab>", rhs = "<Plug>(MarkdownPlusListIndent)" },
+  { mode = "i", lhs = "<S-Tab>", rhs = "<Plug>(MarkdownPlusListOutdent)" },
+  { mode = "i", lhs = "<BS>", rhs = "<Plug>(MarkdownPlusListBackspace)" },
+  { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
+
+  -- Normal mode:
+  { mode = "n", lhs = "o", rhs = "<Plug>(MarkdownPlusNewListItemBelow)" },
+  { mode = "n", lhs = "O", rhs = "<Plug>(MarkdownPlusNewListItemAbove)" },
+  { mode = "n", lhs = "<localleader>r", rhs = "<Plug>(MarkdownPlusRenumberLists)" },
+  { mode = "n", lhs = "<localleader>d", rhs = "<Plug>(MarkdownPlusDebugLists)" },
+  { mode = "n", lhs = "<localleader>X", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
+
+  -- Visual mode:
+  { mode = "x", lhs = "<localleader>mx", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
+
+  -- Quotes Management
+  -----------------------
+  { mode = "n", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
+  { mode = "x", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
+
+  -- Callouts
+  -----------------------
+  { mode = "n", lhs = "<localleader>mQi", rhs = "<Plug>(MarkdownPlusInsertCallout)" },
+  { mode = "x", lhs = "<localleader>mQi", rhs = "<Plug>(MarkdownPlusInsertCallout)" },
+  { mode = "n", lhs = "<localleader>mQt", rhs = "<Plug>(MarkdownPlusToggleCalloutType)" },
+  { mode = "n", lhs = "<localleader>mQc", rhs = "<Plug>(MarkdownPlusConvertToCallout)" },
+  { mode = "n", lhs = "<localleader>mQb", rhs = "<Plug>(MarkdownPlusConvertToBlockquote)" },
+
+  -- Footnotes
+  -----------------------
+  { mode = "n", lhs = "<localleader>fi", rhs = "<Plug>(MarkdownPlusFootnoteInsert)" },
+  { mode = "n", lhs = "<localleader>fe", rhs = "<Plug>(MarkdownPlusFootnoteEdit)" },
+  { mode = "n", lhs = "<localleader>fd", rhs = "<Plug>(MarkdownPlusFootnoteDelete)" },
+  { mode = "n", lhs = "<localleader>fg", rhs = "<Plug>(MarkdownPlusFootnoteGotoDefinition)" },
+  { mode = "n", lhs = "<localleader>fr", rhs = "<Plug>(MarkdownPlusFootnoteGotoReference)" },
+  { mode = "n", lhs = "<localleader>fn", rhs = "<Plug>(MarkdownPlusFootnoteNext)" },
+  { mode = "n", lhs = "<localleader>fp", rhs = "<Plug>(MarkdownPlusFootnotePrev)" },
+  { mode = "n", lhs = "<localleader>fl", rhs = "<Plug>(MarkdownPlusFootnoteList)" },
+
+  -- Tables
+  -----------------------
+  { mode = "n", lhs = "<localleader>tc", rhs = "<Plug>(markdown-plus-table-create)" },
+  { mode = "n", lhs = "<localleader>tf", rhs = "<Plug>(markdown-plus-table-format)" },
+  { mode = "n", lhs = "<localleader>tn", rhs = "<Plug>(markdown-plus-table-normalize)" },
+
+  -- Row operations.
+  { mode = "n", lhs = "<localleader>tir", rhs = "<Plug>(markdown-plus-table-insert-row-below)" },
+  { mode = "n", lhs = "<localleader>tiR", rhs = "<Plug>(markdown-plus-table-insert-row-above)" },
+  { mode = "n", lhs = "<localleader>tdr", rhs = "<Plug>(markdown-plus-table-delete-row)" },
+  { mode = "n", lhs = "<localleader>tyr", rhs = "<Plug>(markdown-plus-table-duplicate-row)" },
+  { mode = "n", lhs = "<localleader>tk", rhs = "<Plug>(markdown-plus-table-move-row-up)" },
+  { mode = "n", lhs = "<localleader>tj", rhs = "<Plug>(markdown-plus-table-move-row-down)" },
+
+  -- Column operations.
+  { mode = "n", lhs = "<localleader>tic", rhs = "<Plug>(markdown-plus-table-insert-column-right)" },
+  { mode = "n", lhs = "<localleader>tiC", rhs = "<Plug>(markdown-plus-table-insert-column-left)" },
+  { mode = "n", lhs = "<localleader>tdc", rhs = "<Plug>(markdown-plus-table-delete-column)" },
+  { mode = "n", lhs = "<localleader>tyc", rhs = "<Plug>(markdown-plus-table-duplicate-column)" },
+  { mode = "n", lhs = "<localleader>tmh", rhs = "<Plug>(markdown-plus-table-move-column-left)" },
+  { mode = "n", lhs = "<localleader>tml", rhs = "<Plug>(markdown-plus-table-move-column-right)" },
+
+  -- Cell operations.
+  { mode = "n", lhs = "<localleader>ta", rhs = "<Plug>(markdown-plus-table-toggle-cell-alignment)" },
+  { mode = "n", lhs = "<localleader>tx", rhs = "<Plug>(markdown-plus-table-clear-cell)" },
+
+  -- Sort operations.
+  { mode = "n", lhs = "<localleader>tt", rhs = "<Plug>(markdown-plus-table-transpose)" },
+  { mode = "n", lhs = "<localleader>tsa", rhs = "<Plug>(markdown-plus-table-sort-ascending)" },
+  { mode = "n", lhs = "<localleader>tsd", rhs = "<Plug>(markdown-plus-table-sort-descending)" },
+
+  -- CSV <--> Table:
+  { mode = "n", lhs = "<localleader>tvx", rhs = "<Plug>(markdown-plus-table-to-csv)" },
+  { mode = "n", lhs = "<localleader>tvi", rhs = "<Plug>(markdown-plus-table-from-csv)" },
+}
+
+-- Header levels 1-6.
+for level = 1, 6 do
+  table.insert(markdown_plus_keymaps, {
+    mode = "n",
+    lhs = "<localleader>h" .. level,
+    rhs = "<Plug>(MarkdownPlusHeader" .. level .. ")",
+  })
+end
+
+---Apply every mapping above to the current buffer.
+---@return nil
+local function set_markdown_plus_keymaps()
+  for _, keymap in ipairs(markdown_plus_keymaps) do
+    vim.keymap.set(keymap.mode, keymap.lhs, keymap.rhs, { buffer = true })
+  end
+end
+
 return {
   {
     "yousefhadder/markdown-plus.nvim",
@@ -10,137 +170,15 @@ return {
         },
       })
 
-      -- Text Formatting
-      -----------------------
-      -- Normal mode:
-      vim.keymap.set("n", "<localleader>mb", "<Plug>(MarkdownPlusBold)")
-      vim.keymap.set("n", "<localleader>mi", "<Plug>(MarkdownPlusItalic)")
-      vim.keymap.set("n", "<localleader>ms", "<Plug>(MarkdownPlusStrikethrough)")
-      vim.keymap.set("n", "<localleader>mc", "<Plug>(MarkdownPlusCode)")
-      vim.keymap.set("n", "<localleader>mw", "<Plug>(MarkdownPlusCodeBlock)")
-      vim.keymap.set("n", "<localleader>mC", "<Plug>(MarkdownPlusClearFormatting)")
-
-      -- Visual mode:
-      vim.keymap.set("x", "<localleader>mb", "<Plug>(MarkdownPlusBold)")
-      vim.keymap.set("x", "<localleader>mi", "<Plug>(MarkdownPlusItalic)")
-      vim.keymap.set("x", "<localleader>ms", "<Plug>(MarkdownPlusStrikethrough)")
-      vim.keymap.set("x", "<localleader>mc", "<Plug>(MarkdownPlusCode)")
-      vim.keymap.set("x", "<localleader>mw", "<Plug>(MarkdownPlusCodeBlock)")
-      vim.keymap.set("x", "<localleader>mC", "<Plug>(MarkdownPlusClearFormatting)")
-
-      -- Headers
-      -----------------------
-      vim.keymap.set("n", "]]", "<Plug>(MarkdownPlusNextHeader)")
-      vim.keymap.set("n", "[[", "<Plug>(MarkdownPlusPrevHeader)")
-      vim.keymap.set("n", "<localleader>h+", "<Plug>(MarkdownPlusPromoteHeader)")
-      vim.keymap.set("n", "<localleader>h-", "<Plug>(MarkdownPlusDemoteHeader)")
-      vim.keymap.set("n", "<localleader>hT", "<Plug>(MarkdownPlusOpenTocWindow)")
-      vim.keymap.set("n", "gd", "<Plug>(MarkdownPlusFollowLink)")
-
-      -- Header levels 1-6.
-      for i = 1, 6 do
-        vim.keymap.set("n", "<localleader>h" .. i, "<Plug>(MarkdownPlusHeader" .. i .. ")")
-      end
-
-      -- Table of Contents
-      -----------------------
-      vim.keymap.set("n", "<localleader>ht", "<Plug>(MarkdownPlusGenerateTOC)")
-      vim.keymap.set("n", "<localleader>hu", "<Plug>(MarkdownPlusUpdateTOC)")
-
-      -- Links & References
-      -----------------------
-      vim.keymap.set("n", "<localleader>l", "<Plug>(MarkdownPlusInsertLink)")
-      vim.keymap.set("v", "<localleader>l", "<Plug>(MarkdownPlusSelectionToLink)")
-      vim.keymap.set("n", "<localleader>e", "<Plug>(MarkdownPlusEditLink)")
-      vim.keymap.set("n", "<localleader>a", "<Plug>(MarkdownPlusAutoLinkURL)")
-      vim.keymap.set("n", "<localleader>R", "<Plug>(MarkdownPlusConvertToReference)")
-      vim.keymap.set("n", "<localleader>I", "<Plug>(MarkdownPlusConvertToInline)")
-
-      -- Image Links
-      -----------------------
-      vim.keymap.set("n", "<localleader>L", "<Plug>(MarkdownPlusInsertImage)")
-      vim.keymap.set("v", "<localleader>L", "<Plug>(MarkdownPlusSelectionToImage)")
-      vim.keymap.set("n", "<localleader>E", "<Plug>(MarkdownPlusEditImage)")
-      vim.keymap.set("n", "<localleader>A", "<Plug>(MarkdownPlusToggleImageLink)")
-
-      -- List Management
-      -----------------------
-      -- Insert mode:
-      vim.keymap.set("i", "<CR>", "<Plug>(MarkdownPlusListEnter)")
-      vim.keymap.set("i", "<A-CR>", "<Plug>(MarkdownPlusListShiftEnter)")
-      vim.keymap.set("i", "<Tab>", "<Plug>(MarkdownPlusListIndent)")
-      vim.keymap.set("i", "<S-Tab>", "<Plug>(MarkdownPlusListOutdent)")
-      vim.keymap.set("i", "<BS>", "<Plug>(MarkdownPlusListBackspace)")
-      vim.keymap.set("i", "<C-t>", "<Plug>(MarkdownPlusToggleCheckbox)")
-
-      -- Normal mode:
-      vim.keymap.set("n", "o", "<Plug>(MarkdownPlusNewListItemBelow)")
-      vim.keymap.set("n", "O", "<Plug>(MarkdownPlusNewListItemAbove)")
-      vim.keymap.set("n", "<localleader>r", "<Plug>(MarkdownPlusRenumberLists)")
-      vim.keymap.set("n", "<localleader>d", "<Plug>(MarkdownPlusDebugLists)")
-      vim.keymap.set("n", "<localleader>X", "<Plug>(MarkdownPlusToggleCheckbox)")
-
-      -- Visual mode:
-      vim.keymap.set("x", "<localleader>mx", "<Plug>(MarkdownPlusToggleCheckbox)")
-
-      -- Quotes Management
-      -----------------------
-      vim.keymap.set("n", "<localleader>mq", "<Plug>(MarkdownPlusToggleQuote)")
-      vim.keymap.set("x", "<localleader>mq", "<Plug>(MarkdownPlusToggleQuote)")
-
-      -- Callouts
-      -----------------------
-      vim.keymap.set("n", "<localleader>mQi", "<Plug>(MarkdownPlusInsertCallout)")
-      vim.keymap.set("x", "<localleader>mQi", "<Plug>(MarkdownPlusInsertCallout)")
-      vim.keymap.set("n", "<localleader>mQt", "<Plug>(MarkdownPlusToggleCalloutType)")
-      vim.keymap.set("n", "<localleader>mQc", "<Plug>(MarkdownPlusConvertToCallout)")
-      vim.keymap.set("n", "<localleader>mQb", "<Plug>(MarkdownPlusConvertToBlockquote)")
-
-      -- Footnotes
-      -----------------------
-      vim.keymap.set("n", "<localleader>fi", "<Plug>(MarkdownPlusFootnoteInsert)")
-      vim.keymap.set("n", "<localleader>fe", "<Plug>(MarkdownPlusFootnoteEdit)")
-      vim.keymap.set("n", "<localleader>fd", "<Plug>(MarkdownPlusFootnoteDelete)")
-      vim.keymap.set("n", "<localleader>fg", "<Plug>(MarkdownPlusFootnoteGotoDefinition)")
-      vim.keymap.set("n", "<localleader>fr", "<Plug>(MarkdownPlusFootnoteGotoReference)")
-      vim.keymap.set("n", "<localleader>fn", "<Plug>(MarkdownPlusFootnoteNext)")
-      vim.keymap.set("n", "<localleader>fp", "<Plug>(MarkdownPlusFootnotePrev)")
-      vim.keymap.set("n", "<localleader>fl", "<Plug>(MarkdownPlusFootnoteList)")
-
-      -- Tables
-      -----------------------
-      vim.keymap.set("n", "<localleader>tc", "<Plug>(markdown-plus-table-create)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tf", "<Plug>(markdown-plus-table-format)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tn", "<Plug>(markdown-plus-table-normalize)", { buffer = false })
-
-      -- Row operations.
-      vim.keymap.set("n", "<localleader>tir", "<Plug>(markdown-plus-table-insert-row-below)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tiR", "<Plug>(markdown-plus-table-insert-row-above)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tdr", "<Plug>(markdown-plus-table-delete-row)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tyr", "<Plug>(markdown-plus-table-duplicate-row)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tk", "<Plug>(markdown-plus-table-move-row-up)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tj", "<Plug>(markdown-plus-table-move-row-down)", { buffer = false })
-
-      -- Column operations.
-      vim.keymap.set("n", "<localleader>tic", "<Plug>(markdown-plus-table-insert-column-right)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tiC", "<Plug>(markdown-plus-table-insert-column-left)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tdc", "<Plug>(markdown-plus-table-delete-column)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tyc", "<Plug>(markdown-plus-table-duplicate-column)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tmh", "<Plug>(markdown-plus-table-move-column-left)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tml", "<Plug>(markdown-plus-table-move-column-right)", { buffer = false })
-
-      -- Cell operations.
-      vim.keymap.set("n", "<localleader>ta", "<Plug>(markdown-plus-table-toggle-cell-alignment)", { buffer = true })
-      vim.keymap.set("n", "<localleader>tx", "<Plug>(markdown-plus-table-clear-cell)", { buffer = false })
-
-      -- Sort operations.
-      vim.keymap.set("n", "<localleader>tt", "<Plug>(markdown-plus-table-transpose)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tsa", "<Plug>(markdown-plus-table-sort-ascending)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tsd", "<Plug>(markdown-plus-table-sort-descending)", { buffer = false })
-
-      -- CSV <--> Table:
-      vim.keymap.set("n", "<localleader>tvx", "<Plug>(markdown-plus-table-to-csv)", { buffer = false })
-      vim.keymap.set("n", "<localleader>tvi", "<Plug>(markdown-plus-table-from-csv)", { buffer = false })
+      -- Registered after the plugin's own `MarkdownPlus` group, so these keys
+      -- win over its defaults on the ones where this configuration chose a
+      -- different left-hand side. lazy.nvim re-fires `FileType` after loading an
+      -- `ft` spec, so the buffer that triggered the load is covered too.
+      vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("MarkdownPlusUserKeymaps", { clear = true }),
+        pattern = "markdown",
+        callback = set_markdown_plus_keymaps,
+      })
     end,
   },
   {
