@@ -76,6 +76,10 @@ impl DaemonSettings for World {
             .expect("loop exceeded its bounded settings sequence")
             .clone()
     }
+    fn github_interval(&self) -> Option<u64> {
+        self.log.borrow_mut().push("github".into());
+        None
+    }
     fn presence_interval(&self) -> Option<u64> {
         self.log.borrow_mut().push("presence".into());
         Some(7)

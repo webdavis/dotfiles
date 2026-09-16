@@ -10,7 +10,7 @@ use super::{PluginKind, Registration, Routing};
 /// run against the real thing. Each entry states its KIND, so a sensor rides
 /// in the same list as the channels rather than in a second one the
 /// composition root has to remember.
-pub const ROSTER: [Registration; 7] = [
+pub const ROSTER: [Registration; 8] = [
     Registration {
         // The home probe's router: an INPUT, so it holds no delivery order to
         // state and sits ahead of the channels, whose order is delivery order.
@@ -26,6 +26,15 @@ pub const ROSTER: [Registration; 7] = [
         // and key rather than declaring its own, which is what `REQUIRES`
         // above holds it to.
         name: PRESENCE,
+        kind: PluginKind::Sensor,
+    },
+    Registration {
+        // The GitHub notification source: a THIRD INPUT, beside the router
+        // and the room sensor and ahead of the channels for the same reason.
+        // It polls the notifications API and submits what it finds through
+        // the ordinary producer path, so no event routes to it and it carries
+        // no routing for a plan to read.
+        name: GITHUB,
         kind: PluginKind::Sensor,
     },
     Registration {
@@ -105,6 +114,11 @@ pub const ROSTER: [Registration; 7] = [
 /// DATA BESIDE `CORE`, for the same reason: this is selection policy, and the
 /// roster states what a plugin IS.
 pub(super) const REQUIRES: [(&str, &str); 1] = [(PRESENCE, "hue")];
+
+/// The GitHub source's config name, spelled once, for `PRESENCE`'s reason:
+/// the roster, the settings reader and the daemon's registration all select
+/// on it, and a literal in each is three spellings to drift.
+pub const GITHUB: &str = "github";
 
 /// The room-presence sensor's config name, spelled once. Three modules select
 /// on it (the roster, the doctor's own check, and the settings reader), and a

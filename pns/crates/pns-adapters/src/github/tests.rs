@@ -70,3 +70,29 @@ fn every_missing_or_unknown_field_is_refused_by_the_name_that_is_wrong() {
         );
     }
 }
+
+#[test]
+fn what_the_encode_writes_is_what_the_decode_reads_back() {
+    // THE ROUND TRIP IS THE PROPERTY, over both halves this module owns: a
+    // field renamed on one side and not the other is red here rather than a
+    // lamp nobody could explain at the far end. Every kind and every outcome,
+    // because each carries its own word.
+    for (_, kind) in GITHUB_KIND_WORDS {
+        for (_, outcome) in GITHUB_OUTCOME_WORDS {
+            let event = GithubEvent {
+                repo: "webdavis/dotfiles".to_string(),
+                kind,
+                outcome,
+                title: "lint".to_string(),
+                url: "https://github.com/webdavis/dotfiles".to_string(),
+                identity: "webdavis/dotfiles|workflow_run|4471".to_string(),
+                occurred_at: 1_789_398_987,
+            };
+            assert_eq!(
+                github_event(&github_extensions(&event)),
+                Ok(Some(event.clone())),
+                "{event:?} did not come back"
+            );
+        }
+    }
+}

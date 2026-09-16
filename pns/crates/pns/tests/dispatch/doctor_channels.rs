@@ -56,12 +56,13 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
         [
             "router: skipped, a sensor and never a delivery destination",
             "presence: skipped, not enabled in the config",
+            "github: skipped, not enabled in the config",
             "mobile: sent, this channel reports no outcome",
             "macos-banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "discord: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
-            "3 sent, 0 failed, 4 skipped",
+            "3 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
                 "phone tap: never tapped (default, {:?}); run `pns tap --info`",

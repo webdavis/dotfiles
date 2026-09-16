@@ -41,6 +41,26 @@ impl pns_application::DaemonSettings for DaemonConfig {
             Err(error) => Err(error.detail().to_string()),
         }
     }
+    /// How often the GitHub poll runs, and `None` while the source is off,
+    /// absent or refused.
+    ///
+    /// THE SERVER'S INTERVAL BEATS THE CONFIG'S, and the poll's own state file
+    /// is where it is held: the documentation asks for `X-Poll-Interval` to be
+    /// obeyed, so the config key is only ever the figure used before the first
+    /// answer. A state file with no interval in it (a fresh machine, or one
+    /// whose first poll has not answered yet) falls back to the key.
+    fn github_interval(&self) -> Option<u64> {
+        let source = match load_config(&config_path(&self.home)) {
+            Ok(LoadOutcome::Loaded(config)) => parse_github(&config).ok().flatten(),
+            _ => None,
+        }?;
+        let asked_for = crate::read_poll_state(&crate::state_dir()).interval_secs;
+        Some(if asked_for == 0 {
+            source.poll_secs
+        } else {
+            asked_for
+        })
+    }
     fn presence_interval(&self) -> Option<u64> {
         match load_config(&config_path(&self.home)) {
             Ok(LoadOutcome::Loaded(config)) => parse_presence(&config)

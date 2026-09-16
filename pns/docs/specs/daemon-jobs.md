@@ -39,7 +39,11 @@ second job, then verifies that the second job still runs.
 
 There is no registry of job ids. The daemon knows only what is in the spool directory, and any of the
 four routes above writes the same record shape (`src/daemon.rs:Job`, `src/daemon.rs:render`). The
-`lights`, `nag:<session-id>` and `presence` jobs are the only ids the crate itself ever writes.
+`lights`, `nag:<session-id>`, `presence` and `github` jobs are the only ids the crate itself ever
+writes. The `github` poll is registered the way `presence` is, on the same `SWITCH_TICKS` sweep and by
+`ensure_github_poll`, and its `every` is the interval the notifications API's own `X-Poll-Interval`
+header last asked for rather than a config figure: `[plugins.github] poll_secs` is only the interval
+used before the first answer.
 
 **The open fact behind the `presence` poll.** The poll reads the bridge's `grouped_motion` roll-up, which
 is the only per-room motion resource that exists on the operator's bridge: as of 2026-09-03 it serves

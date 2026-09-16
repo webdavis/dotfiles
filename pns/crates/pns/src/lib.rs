@@ -51,6 +51,8 @@ mod command_click;
 mod command_daemon;
 mod command_doctor;
 mod command_failures;
+mod command_github;
+pub(crate) use command_github::github_mode;
 mod command_home;
 mod command_lights;
 mod command_loop;

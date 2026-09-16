@@ -145,6 +145,32 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # mute's schedule alone.
 quiet_hours = "22:00-07:00"
 
+# GitHub, polled: which workflow runs, reviews, mentions, releases and
+# security alerts finished, read off the notifications API once per
+# interval. A SENSOR rather than a destination, so no event routes to
+# it; what it finds is submitted through the ordinary producer path and
+# lands in the channel [plugins.discord.channels] maps the repository
+# to, or in its `default` catch-all.
+[plugins.github]
+enabled = true
+# A CLASSIC personal access token with the `notifications` scope and
+# nothing else. A fine-grained token cannot call these endpoints at
+# all: the documentation states they "only support authentication
+# using a personal access token (classic)". `repo` also works and is
+# write access to every repository you can reach, which a
+# notification source has no business holding. Not your `gh` login:
+# pns never reads that, and a daemon whose credentials change when
+# you re-authorize a CLI is a daemon nobody decided about.
+token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notifications)").Password | toToml }}
+# How often the poll runs BEFORE the first answer, bounded 60 to 3600.
+# From then on the server's own X-Poll-Interval decides, which the
+# documentation asks for by name, so this is only ever the starting
+# figure. The floor is 60 because that is what the header says today
+# and anything under it is a request to be rate-limited; the knob is
+# for polling SLOWER. Each request sends the stored Last-Modified, so
+# a quiet minute answers 304 and costs no rate limit at all.
+poll_secs = 60
+
 # Which room you are in, read off the bridge's per-room motion roll-up so
 # the lamp that signals is the one beside you. A SENSOR, not a
 # destination: no event routes to it. It reads the bridge through
