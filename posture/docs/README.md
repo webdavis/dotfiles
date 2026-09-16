@@ -180,24 +180,24 @@ wc -c < ~/.cargo/bin/posture
 | `executable_canary-freshness.sh`                                    | 47    | inside `posture heartbeat` and `watchdog`    | tracked, Bash caller         |
 | Bash in the port's scope                                            | 10137 |                                              | 2222 retired, 7915 tracked   |
 
-The figures below were measured on 2026-09-13 and have not been re-measured since; the
-`posture-producer-wire` row is gone with the crate, whose 16 files became 6 inside `posture-adapters`.
+The figures below were re-measured on 2026-09-15 against `202cf554`, after the `posture-producer-wire`
+crate went into `posture-adapters/src/wire/`.
 
 | Crate                 | Files | Implementation lines | Total lines |
 | --------------------- | ----- | -------------------- | ----------- |
-| `posture-adapters`    | 145   | 6351                 | 14975       |
-| `posture-domain`      | 95    | 4420                 | 10578       |
-| `posture`             | 51    | 1888                 | 5863        |
-| `posture-application` | 49    | 2364                 | 7088        |
+| `posture-adapters`    | 164   | 7473                 | 17339       |
+| `posture-domain`      | 95    | 4571                 | 10928       |
+| `posture`             | 51    | 1865                 | 6005        |
+| `posture-application` | 49    | 2415                 | 7258        |
 | `posture-protocol`    | 2     | 111                  | 269         |
-| Workspace             | 358   | 16017                | 40824       |
+| Workspace             | 361   | 16435                | 41799       |
 
 The installed binary is 3,792,416 bytes (3.6 MiB) at `~/.cargo/bin/posture`, written by the apply of
 2026-09-13 20:50 and well under the builder's 8 MiB refusal bound. Its usage text matches main's `USAGE`
 constant, which is evidence about the deployed subcommand set and not a build identity.
 
-Read the two tables as a size comparison, not a deletion record. 16,017 Rust implementation lines stand
-against 10,137 Bash lines, and 24,807 of the 40,824 total Rust lines are tests the Bash pipeline never
+Read the two tables as a size comparison, not a deletion record. 16,435 Rust implementation lines stand
+against 10,137 Bash lines, and 25,364 of the 41,799 total Rust lines are tests the Bash pipeline never
 had, where five tools carried no coverage at all (spec section 9). Only 845 Bash lines have actually left
 the tracked set; the other 9,292 remain until their own cutover and retirement pull requests land.
 
