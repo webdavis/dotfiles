@@ -71,9 +71,8 @@ fn run_with_stderr(args: &[&str], deadline: Instant, stderr: Stdio) -> Output {
 
 #[test]
 fn every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2() {
-    let deadline = Instant::now() + LIVENESS_BOUND;
     for args in WORDS {
-        let output = run(args, deadline);
+        let output = run(args, Instant::now() + LIVENESS_BOUND);
         assert_eq!(
             output.status.code(),
             Some(2),
