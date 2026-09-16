@@ -1,12 +1,15 @@
 -- The load trigger and the log level `lua/plugins/claudecode.lua` hands
 -- claudecode.nvim.
 --
--- The trigger: no `event`. A server running on an ordinary start drew a plain
--- HTTP request from something local within a second, and the plugin answered
--- with a handshake WARN and then crashed on its own unguarded close. `cmd` and
--- `keys` are the only triggers left, so `<leader>Cc` is what starts the server
--- and writes the lock file, and lazy.nvim loads the plugin before that key's
--- own right-hand side runs.
+-- The trigger is `VeryLazy` and the port range is what makes that safe. A
+-- server on an ordinary start drew a plain HTTP request within a second, the
+-- plugin answered with a handshake WARN and then crashed on its own unguarded
+-- close. The prober was identified as `moshi-hook`'s listener discovery, which
+-- probed decoy servers at 20000, 30000, 40000 and 49151 and left alone 49152,
+-- 50000 and 55000. So the floor is pinned at the start of the ephemeral range
+-- instead of dropping the trigger, and the spec pins the floor rather than the
+-- exact pair, because 49152 is the property that matters and 65535 is just the
+-- top of the range.
 --
 -- INFO goes through `nvim_echo`, which is stderr in a headless run, so a
 -- headless session gets `warn` and the zero-stderr startup gate holds; an
@@ -86,6 +89,17 @@ return {
   ["an interactive session (a UI attached) keeps info"] = function()
     assert(level_with_uis({ { chan = 1 } }) == "info")
   end,
+  ["the websocket port cannot land where the listener probe reaches"] = function()
+    -- Behavior, not a declaration: the upstream default range starts at 10000,
+    -- and every port below 49152 was measured as probed. A floor under that
+    -- boundary is the defect coming back.
+    local _, opts = level_with_uis({ { chan = 1 } })
+    local range = assert(opts.port_range, "the spec hands claudecode no port range")
+    assert(range.min >= 49152, "the port floor is " .. range.min .. ", inside the probed range")
+    assert(range.max <= 65535, "the port ceiling is " .. range.max .. ", past the last port")
+    assert(range.min < range.max, "the range is empty or inverted")
+  end,
+
   ["the terminal provider stays none either way"] = function()
     local _, headless = level_with_uis({})
     local _, interactive = level_with_uis({ { chan = 1 } })
