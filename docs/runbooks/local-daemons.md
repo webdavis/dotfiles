@@ -1,13 +1,13 @@
 # Local daemons: atuin, tailscaled, the hermes gateway, the pns Discord bot
 
-Three long-running services on dresden, each with its own failure mode and diagnostic ladder. The first
-two are chezmoi-tracked LaunchAgents: the plists live under `Library/LaunchAgents/` and the loaders that
-bootstrap them are `.chezmoiscripts/run_onchange_after_*` scripts keyed on the plist's own hash, so a
-loader re-runs when its plist changes rather than on every apply. The hermes gateway is not a
-LaunchAgent; `hermes gateway` owns its lifecycle and this repository owns only its configuration. The pns
-Discord bot at the end is a fourth thing again, neither a service nor a daemon: it is pns's own HTTP
-client, and it is here because it delivers the same notifications the gateway does and is configured the
-same way.
+Four long-running services on dresden, each with its own failure mode and diagnostic ladder. Atuin runs
+as a chezmoi-tracked LaunchAgent: its plist lives under `Library/LaunchAgents/` and its loader is a
+`.chezmoiscripts/run_onchange_after_*` script keyed on the plist's own hash, so the loader re-runs when
+the plist changes rather than on every apply. Tailscaled is a launchd system daemon (see its section
+below), not a chezmoi-tracked LaunchAgent. The hermes gateway is not a LaunchAgent either;
+`hermes gateway` owns its lifecycle and this repository owns only its configuration. The pns Discord bot
+at the end is a fourth thing again, neither a service nor a daemon: it is pns's own HTTP client, and it
+is here because it delivers the same notifications the gateway does and is configured the same way.
 
 ## Shell history (atuin)
 
