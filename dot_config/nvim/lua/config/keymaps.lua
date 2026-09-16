@@ -85,6 +85,10 @@ map({ mode = "n", lhs = "<C-e>", rhs = "<C-e><C-e>", desc = "Scroll down (x2)", 
 map({ mode = "n", lhs = "<C-y>", rhs = "<C-y><C-y>", desc = "Scroll up (x2)", sequence = true })
 
 -- https://github.com/mhinz/vim-galore#saner-behavior-of-n-and-n
+--
+-- Normal mode is re-mapped later by `lua/plugins/hlslens.lua`, which carries the
+-- same direction-stable selection inside its own lens composition. Change one
+-- and change the other, or `n` and `dn` go opposite ways again.
 map({
   mode = "n",
   lhs = "n",
