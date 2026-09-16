@@ -52,3 +52,32 @@ fn lookup_stops_at_a_non_table_segment_rather_than_panicking() {
     );
     assert_eq!(lookup(&values, "plugins.hue.bridge"), None);
 }
+
+/// EVERY CHANNEL ID IS A SECRET, so every key of the open
+/// `[plugins.discord.channels]` table is secret-bearing and not only the
+/// fixed `default` one. A pasted id under a project's key is the exact
+/// mistake the values file exists to make impossible.
+///
+/// The id below is an obvious fake; a real one lives in KeePassXC and reaches
+/// no committed file.
+#[test]
+fn a_literal_channel_id_under_any_project_key_is_refused_by_name() {
+    let mut channels = toml::Table::new();
+    channels.insert(
+        "dotfiles".to_string(),
+        toml::Value::String("000000000000000000".to_string()),
+    );
+    let mut discord = toml::Table::new();
+    discord.insert("channels".to_string(), toml::Value::Table(channels));
+    let mut plugins = toml::Table::new();
+    plugins.insert("discord".to_string(), toml::Value::Table(discord));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let error =
+        refuse_literal_secrets(&values).expect_err("a literal channel id is not a secret marker");
+    assert!(
+        error.contains("plugins.discord.channels.dotfiles"),
+        "{error}"
+    );
+}

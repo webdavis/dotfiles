@@ -194,6 +194,27 @@ mod tests {
     }
 
     #[test]
+    fn the_urgent_route_outranks_the_subject_even_for_a_project_nobody_mapped() {
+        // THE MUTANT THIS PINS: the route tried AFTER the fallbacks rather
+        // than before them, which is green for every mapped project and sends
+        // a critical page about an unmapped one to the catch-all instead.
+        assert_eq!(
+            looked_up(&mapped(), URGENT_ROUTE, "netpulse"),
+            Some("pages")
+        );
+        assert_eq!(
+            looked_up(&mapped(), "", "netpulse"),
+            Some("catch-all"),
+            "the control: without the urgent route that same project falls through"
+        );
+        assert_eq!(
+            looked_up(&mapped(), URGENT_ROUTE, ""),
+            Some("pages"),
+            "and a critical event with no project at all never reaches the engine"
+        );
+    }
+
+    #[test]
     fn a_map_stating_nothing_answers_nothing() {
         assert_eq!(
             looked_up(&ChannelMap::new(), URGENT_ROUTE, "dotfiles"),

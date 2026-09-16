@@ -106,7 +106,18 @@ test-rust:
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path posture/Cargo.toml
 
 # Run the Neovim Lua specs against the source tree.
+#
+# EVERY GIT_* VARIABLE IS SCRUBBED FIRST. git exports GIT_DIR, GIT_INDEX_FILE
+# and friends to every hook it runs, so a spec that builds a real repository in
+# a temporary directory inherits the committing repository's index and operates
+# on that instead: measured 2026-09-15, GIT_INDEX_FILE alone failed all eight
+# dashboard_files cases and rewrote the outer commit message under the
+# pre-commit hook. Scrubbed at the recipe rather than per spec, so a spec added
+# later is clean without knowing about this.
 test-nvim:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  while IFS= read -r name; do unset "$name"; done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
 

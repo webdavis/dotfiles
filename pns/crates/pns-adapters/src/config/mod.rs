@@ -30,6 +30,7 @@ pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
+mod refusals;
 pub use plugins::{
     DEFAULT_SUBMIT_DEADLINE_SECS, armed_discord, armed_mobile, enabled_hue_table, submit_deadline,
 };
@@ -105,7 +106,8 @@ pub use hermes::{HermesKeys, hermes_keys};
 
 mod discord;
 pub use discord::{
-    BOT_TYPE, DiscordSettings, discord_backend, discord_settings, states_default_channel,
+    BOT_TYPE, DiscordSettings, discord_backend, discord_settings, states_channel,
+    states_default_channel,
 };
 
 mod selection;
