@@ -37,6 +37,12 @@ readonly GENERATED_PATHS=('graphify-out/graph.json')
 
 readonly DEFAULT_REVIEW_COMMAND=(tuicr)
 
+# Deliberate layout choice, not a stray number: wide enough for this
+# repository's branch names today, not computed from the widest one on
+# screen. A longer branch just pushes the activity column out of alignment
+# for that one row.
+readonly BRANCH_COLUMN_WIDTH=44
+
 # Worktrees are scanned concurrently because the cold scan is three git
 # invocations per checkout and nothing else: 300 checkouts took 13.5 s in one
 # process and 2.0 s across eight. Each scan writes exactly one short line, well
@@ -227,7 +233,7 @@ refresh_cache() {
 }
 
 render() {
-  awk -F'\t' -v now="$(now_epoch)" '
+  awk -F'\t' -v now="$(now_epoch)" -v branchw="$BRANCH_COLUMN_WIDTH" '
     {
       age = now - $1
       if (age < 0) age = 0
@@ -239,7 +245,7 @@ render() {
       activity = ""
       if ($3 + 0 > 0) activity = sprintf("%s ahead", $3)
       if ($4 + 0 > 0) activity = activity (activity == "" ? "" : "  ") sprintf("%s edited", $4)
-      line = sprintf("%4s  %-44s  %s", stamp, $2, activity)
+      line = sprintf("%4s  %-" branchw "s  %s", stamp, $2, activity)
       sub(/ +$/, "", line)
       print line "\t" $5
     }
