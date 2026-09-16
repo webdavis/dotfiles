@@ -73,93 +73,13 @@ fn an_id_that_could_escape_the_url_path_is_refused_outright() {
     }
 }
 
-// --- the production adapter, over a scripted transport -------------------
+// --- the production adapter, over the shared scripted transport ---------
 //
-// The URLProtocolStub move, in Rust: ureq's `Agent::with_parts` accepts a
-// bespoke `Connector`, so the REAL agent pipeline runs (URL building, the
-// header, redirect policy, the body cap) and only the wire is scripted.
-// The seam lives in `ureq::unversioned`, which is exempt from semver;
-// Cargo.lock pins the version, so it can only shift the day ureq is
-// deliberately bumped, with these tests here to catch it.
+// `crate::http_script` holds the connector; this file states what the ROUTER
+// does over it.
 
+use crate::http_script::{LoopbackResolver, ScriptedConnector, http_ok};
 use std::sync::{Arc, Mutex};
-use ureq::unversioned::resolver::DefaultResolver;
-use ureq::unversioned::transport::{
-    Buffers, ConnectionDetails, Connector, LazyBuffers, NextTimeout, Transport,
-};
-
-/// Hands out one scripted response per connection and keeps a shared
-/// capture of every byte the adapter transmits.
-#[derive(Debug, Default)]
-struct ScriptedConnector {
-    wire: Arc<Mutex<Vec<u8>>>,
-    responses: Arc<Mutex<std::collections::VecDeque<Vec<u8>>>>,
-}
-
-impl Connector for ScriptedConnector {
-    type Out = ScriptedTransport;
-
-    fn connect(
-        &self,
-        _details: &ConnectionDetails,
-        _chained: Option<()>,
-    ) -> Result<Option<Self::Out>, ureq::Error> {
-        let response = self
-            .responses
-            .lock()
-            .unwrap()
-            .pop_front()
-            .unwrap_or_default();
-        Ok(Some(ScriptedTransport {
-            buffers: LazyBuffers::new(65536, 65536),
-            wire: Arc::clone(&self.wire),
-            response,
-            fed: 0,
-        }))
-    }
-}
-
-/// One connection: records what is transmitted, feeds the scripted
-/// response in chunks, and refuses reuse so every request reconnects and
-/// pops the next script entry.
-#[derive(Debug)]
-struct ScriptedTransport {
-    buffers: LazyBuffers,
-    wire: Arc<Mutex<Vec<u8>>>,
-    response: Vec<u8>,
-    fed: usize,
-}
-
-impl Transport for ScriptedTransport {
-    fn buffers(&mut self) -> &mut dyn Buffers {
-        &mut self.buffers
-    }
-
-    fn transmit_output(&mut self, amount: usize, _timeout: NextTimeout) -> Result<(), ureq::Error> {
-        let sent = self.buffers.output()[..amount].to_vec();
-        self.wire.lock().unwrap().extend_from_slice(&sent);
-        Ok(())
-    }
-
-    fn await_input(&mut self, _timeout: NextTimeout) -> Result<bool, ureq::Error> {
-        let pending = &self.response[self.fed..];
-        if pending.is_empty() {
-            return Ok(false);
-        }
-        let sink = self.buffers.input_append_buf();
-        let amount = pending.len().min(sink.len());
-        sink[..amount].copy_from_slice(&pending[..amount]);
-        self.buffers.input_appended(amount);
-        self.fed += amount;
-        Ok(amount > 0)
-    }
-
-    fn is_open(&mut self) -> bool {
-        // A finished response closes the connection, so the agent cannot
-        // pool it: the next request reconnects and pops the next script.
-        self.fed < self.response.len()
-    }
-}
 
 /// The production config semantics (no redirects) over the scripted wire.
 fn scripted_router(responses: &[Vec<u8>], key: &str) -> (UniFiRouter, Arc<Mutex<Vec<u8>>>) {
@@ -167,19 +87,11 @@ fn scripted_router(responses: &[Vec<u8>], key: &str) -> (UniFiRouter, Arc<Mutex<
     let wire = Arc::clone(&connector.wire);
     *connector.responses.lock().unwrap() = responses.iter().cloned().collect();
     let config = ureq::Agent::config_builder().max_redirects(0).build();
-    let agent = ureq::Agent::with_parts(config, connector, DefaultResolver::default());
+    let agent = ureq::Agent::with_parts(config, connector, LoopbackResolver);
     (
         UniFiRouter::with_agent(agent, "http://localhost:9".to_string(), key.to_string()),
         wire,
     )
-}
-
-fn http_ok(body: &str) -> Vec<u8> {
-    format!(
-        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
-        body.len()
-    )
-    .into_bytes()
 }
 
 const SITES_CAPTURE: &str = r#"{"offset":0,"limit":25,"count":1,"totalCount":1,"data":[{"id":"88f7af54-98f8-306a-a1c7-c9349722b1f6","internalReference":"default","name":"Default"}]}"#;

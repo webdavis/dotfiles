@@ -16,6 +16,9 @@
 //! Configuration parsing, backend settings and rendering live here.
 
 mod config;
+#[cfg(test)]
+mod http_script;
+
 mod github;
 mod phone_marker;
 mod tap_install;
