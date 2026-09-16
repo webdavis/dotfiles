@@ -502,8 +502,8 @@ scope ruling.
 
 `~/.local/bin` holds only what the OPERATOR TYPES. Everything invoked by launchd, a hook, a keybinding or
 a `just` recipe lives under `~/.local/libexec`, because `just` and launchd are the interface and the
-script beneath them is an implementation detail. Today that leaves exactly one file in `bin`
-(`ssh-hardening.sh`).
+script beneath them is an implementation detail. Today that leaves three files in `bin`
+(`plannotator-tui`, `ssh-hardening.sh`, `worktree-review.sh`).
 
 **THE FOUR RUST TOOLS ARE OUT OF THAT RULE** (operator ruling 2026-09-09). `pns`, `uu`, `posture` and
 `lights` install to `~/.cargo/bin` instead, declared once in `.chezmoidata/rust_tools.yaml` and read from
