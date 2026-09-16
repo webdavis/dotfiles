@@ -24,17 +24,18 @@ return {
     "AerialPrev",
     "AerialToggle",
   },
-  -- These eight carry their own mappings, so each key is declared once rather
+  -- These six carry their own mappings, so each key is declared once rather
   -- than here and again in `config`. lazy.nvim installs the placeholder from
   -- the entry at startup and the real mapping from the same entry on load.
   -- `<leader>as`, `{` and `}` are not here: `on_attach` owns them, they have
   -- never existed before aerial attached to a buffer, and the event above is
   -- what gets them back.
   -- stylua: ignore start
+  -- `<leader>at` and `<leader>aT` were aliases of `<leader>aa` and `<leader>aA`
+  -- and were deleted on 2026-09-15. Both letters are free now; what lands on
+  -- them, if anything, is the operator's call.
   keys = {
-    { "<leader>at", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus, alias of <leader>aa)" },
     { "<leader>aa", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
-    { "<leader>aT", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus, alias of <leader>aA)" },
     { "<leader>aA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
     { "<leader>ao", "<cmd>AerialOpen!<cr>",     desc = "Aerial: open sidebar (don't focus)" },
     { "<leader>aO", "<cmd>AerialOpen<cr>",      desc = "Aerial: open sidebar (and focus)" },
