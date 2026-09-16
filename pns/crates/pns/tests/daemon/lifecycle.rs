@@ -4,6 +4,12 @@ use super::*;
 #[test]
 fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
     let sandbox = Sandbox::new("daemon-hung-child");
+    // STRUCTURAL: the row waits out a real chain, a spawn, the daemon's
+    // CHILD_TICKS kill bound, a retry, and then a second job, and every wait
+    // is a `poll_until` on the work itself rather than on a clock. Measured
+    // 0.85 s alone and 7.07 s while the operator's other agent lanes were
+    // compiling, an eight-fold spread on the same build.
+    sandbox.allow_slow("waits out a real spawn, kill, retry and follow-on job");
     // ONE STUB, TWO BEHAVIORS, told apart by the event it was handed: the
     // hanging job records the pns process that ran it and then hangs far past
     // the daemon's bound, and any other job records that it arrived.

@@ -3,6 +3,13 @@ use std::os::unix::{ffi::OsStringExt, fs::PermissionsExt};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+/// A LIVENESS BOUND, NOT AN ASSERTION: the row pins the exit code, the empty
+/// streams, the request body and the untouched log, never how long the run
+/// took. The 650ms it carried was calibrated for an idle machine, which is
+/// not the machine this suite runs on while the operator's other agent lanes
+/// are compiling.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 #[test]
 fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once() {
     let home = std::env::temp_dir().join(format!("posture-heartbeat-edge-{}", std::process::id()));
@@ -35,7 +42,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
         epoch + 17
     );
     std::fs::write(&ignored_override, &ignored_before).unwrap();
-    let deadline = Instant::now() + Duration::from_millis(650);
+    let deadline = Instant::now() + LIVENESS_BOUND;
     let mut child = Command::new(env!("CARGO_BIN_EXE_posture"))
         .env_clear()
         .env("HOME", &home)

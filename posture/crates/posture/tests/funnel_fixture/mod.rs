@@ -8,6 +8,21 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The liveness bound on one funnel run: the fixture requires an answer so a
+/// hang fails the row instead of wedging the suite, and NOTHING here reads the
+/// elapsed time. Every case asserts the alerts, the baseline, the exit code
+/// and the stderr, and the one case whose `tailscale` stub sleeps proves the
+/// timeout was honoured by expecting the exit-124 BLIND alert rather than by
+/// the clock.
+///
+/// FIFTEEN SECONDS, not the 900ms this carried. That bound failed four cases
+/// in one run on 2026-09-14 with the suite running against 24 busy loops and
+/// a second workspace's tests, on a build that passes alone; the operator
+/// always has agent lanes compiling, so an idle machine is not the machine
+/// this suite runs on. It stays well clear of the two-second sleep the
+/// stub uses, which is what a regressed timeout would cost.
+const FUNNEL_LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 pub fn compare(name: &str) {
     let started = Instant::now();
     let cases: Vec<Value> = serde_json::from_str(include_str!("captures.json")).unwrap();
@@ -128,7 +143,7 @@ exit {exit}
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() < Duration::from_millis(900) => {
+            Ok(None) if started.elapsed() < FUNNEL_LIVENESS_BOUND => {
                 std::thread::sleep(Duration::from_millis(1))
             }
             result => {
