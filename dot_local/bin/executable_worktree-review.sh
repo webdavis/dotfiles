@@ -247,12 +247,22 @@ ensure_cache() {
 # refresh_in_background : ordering is recomputed off the display path, so the
 # rows on screen belong to the generation the caller already read.
 refresh_in_background() {
-  local cache="$1" stamp age
+  local cache="$1" stamp age lock
   stamp="$(mtime "$cache")"
   [[ -n $stamp ]] || return 0
   age=$(($(now_epoch) - stamp))
   ((age > CACHE_TTL_SECONDS)) || return 0
-  ("$0" refresh >/dev/null 2>&1 &) || true
+  lock="$cache.lock"
+  # mkdir is the atomic test-and-set: a second caller inside the same scan
+  # window finds it already there and skips its own scan.
+  # ponytail: no stale-lock timeout, a refresh killed mid-scan leaves the
+  # lock behind; `rmdir` it by hand if that ever happens.
+  mkdir "$lock" 2>/dev/null || return 0
+  (
+    "$0" refresh >/dev/null 2>&1
+    rmdir "$lock" 2>/dev/null
+  ) &
+  return 0
 }
 
 choose() {
