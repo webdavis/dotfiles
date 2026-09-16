@@ -174,10 +174,12 @@ return {
     )
   end,
 
-  ["a command that is not a list of strings is not wrapped"] = function()
-    -- `vim.system` documents `cmd` as string[]. Anything else is the builtin's
-    -- to reject, with its own error message.
-    assert(wrap_condition()("echo hi") == false, "a string command was wrapped")
+  ["a shell-string jobstart is still wrapped and an empty command is not"] = function()
+    -- The condition guards both wrappers. `jobstart`'s string form always
+    -- spawns the shell (a documented, supported form real callers in this
+    -- tree use, e.g. oil.nvim's `jobstart(vim.o.shell, {term=true})`), so it
+    -- can never hit the nil-handle defect this condition guards against.
+    assert(wrap_condition()("echo hi") == true, "a shell-string jobstart was declined")
     assert(wrap_condition()({}) == false, "an empty command was wrapped")
   end,
 

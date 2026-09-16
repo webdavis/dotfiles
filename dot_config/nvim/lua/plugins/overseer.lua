@@ -453,9 +453,16 @@ return {
       -- while probing for the absent optional `lspmux` binary. Declining the
       -- unspawnable case hands it back to the builtin, which raises as
       -- documented, and leaves every command that can actually run wrapped.
+      --
+      -- The condition guards both wrappers, and `jobstart`'s string form always
+      -- spawns the shell, so it can never hit the nil-handle defect this guards
+      -- against: it is accepted outright rather than checked against PATH.
       experimental_wrap_builtins = {
         enabled = true,
         condition = function(cmd)
+          if type(cmd) == "string" then
+            return true
+          end
           local binary = type(cmd) == "table" and cmd[1] or nil
           return type(binary) == "string" and vim.fn.executable(binary) == 1
         end,
