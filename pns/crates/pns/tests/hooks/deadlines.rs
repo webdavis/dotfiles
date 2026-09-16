@@ -174,7 +174,11 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
     write_script(
         &bin.join("moshi-hook"),
         &format!(
-            "printf '%s\\n' \"$*\" >>\"{sandbox}/moshi.argv\"; cat >/dev/null; exec sleep 10",
+            // THIRTY SECONDS, the same as every other stub standing in for
+            // something that blocks forever, because `HANG_LIMIT` is what
+            // catches a reverted kill here and needs a clear margin under
+            // this sleep on a loaded machine.
+            "printf '%s\\n' \"$*\" >>\"{sandbox}/moshi.argv\"; cat >/dev/null; exec sleep 30",
             sandbox = sandbox.display()
         ),
     );
@@ -247,7 +251,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     );
     // THE STREAM ENDS AT ALL, which is the KILL and not the deadline: a wait
     // that expired without killing the child leaves this open for the stub's
-    // whole ten seconds, so `HANG_LIMIT` is what catches a reverted kill.
+    // whole thirty seconds, so `HANG_LIMIT` is what catches a reverted kill.
     let output = capture
         .output_within(HANG_LIMIT)
         .expect("the hook's streams and process must finish inside the liveness limit");

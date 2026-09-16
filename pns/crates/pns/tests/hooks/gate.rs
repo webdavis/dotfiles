@@ -15,8 +15,12 @@ fn a_forwarded_gate_leaves_the_state_markers_untouched() {
         sandbox.stub_moshi(&mut command, 7);
         let mut child = captured_child::CapturedChild::spawn(&mut command).expect("gate runs");
         write_payload(&mut child.child, b"{\"session_id\":\"new-session\"}\n");
+        // THE SHARED LIVENESS BOUND, not a bound of its own. Nothing below
+        // reads the elapsed time: the row pins the exit code, the submission
+        // and the untouched markers. Its own 800ms was the tightest bound in
+        // this file and failed under load on a build that passes alone.
         let output = child
-            .output_within(std::time::Duration::from_millis(800))
+            .output_within(HANG_LIMIT)
             .expect("gate and pipe holders finish inside the bound");
         assert_eq!(output.status.code(), Some(7));
         assert_eq!(submissions(&sandbox), ["pi-hook"]);

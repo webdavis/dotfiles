@@ -39,9 +39,12 @@ fn invoke(sandbox: &Sandbox, input: &str) -> std::process::Output {
     command
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    // THE SHARED LIVENESS BOUND: every caller asserts the class decision and
+    // the hermes event, none of them the elapsed time, and the 650ms this
+    // carried failed under load on a build that passes alone.
     CapturedChild::spawn(&mut command)
         .unwrap()
-        .input_output_within(input.as_bytes(), std::time::Duration::from_millis(650))
+        .input_output_within(input.as_bytes(), HANG_LIMIT)
         .unwrap()
 }
 

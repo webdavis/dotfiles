@@ -45,6 +45,12 @@ fn an_ordinary_stop_never_reaches_moshi() {
 #[test]
 fn nothing_that_goes_wrong_building_a_notification_fails_the_harness_turn() {
     let sandbox = Sandbox::new("hook-garbage");
+    // STRUCTURAL: one sandbox carries FOUR full engine spawns, because the
+    // point is that each malformed payload is answered on the same state the
+    // last one left, so it costs four times whatever a spawn costs on the
+    // machine. Measured 1,066 ms on an idle one and 5,476 ms with the suite
+    // running against 24 busy loops, which is the ceiling with nothing wrong.
+    sandbox.allow_slow("four engine spawns share one sandbox on purpose");
     for payload in ["", "not json", r#"{"session_id":null}"#] {
         let output = hook(&sandbox, "stop", payload);
         assert_eq!(output.status.code(), Some(0), "payload {payload:?}");
