@@ -44,38 +44,44 @@ const FOOTER: &str = "{{- end }}\n";
 const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
     "plugins.discord.token",
-    "plugins.discord.channels.default",
     "plugins.hue.bridge",
     "plugins.hue.key",
     "plugins.router.api_key",
 ];
 
-/// Every secret-bearing path, the per-route hermes keys included.
+/// The OPEN tables whose every key is secret-bearing whatever it is called.
 ///
-/// EVERY ROUTE THE VALUES FILE NAMES IS SECRET-BEARING, whatever it is
-/// called: a signing key is a secret, so a route line added to that table is
-/// covered the moment it is written rather than when somebody remembers to
-/// add it here too.
+/// A SIGNING KEY AND A CHANNEL ID ARE BOTH SECRETS, and neither table has a
+/// fixed set of keys: the hermes routes are the operator's gateway's and the
+/// discord channels are one per project. Naming the TABLE rather than its
+/// keys is what covers a line the moment it is written rather than when
+/// somebody remembers to add it here too.
+const SECRET_BEARING_TABLES: &[&str] = &["plugins.hermes.keys", "plugins.discord.channels"];
+
+/// Every secret-bearing path, the open tables' own keys included.
 fn secret_bearing_keys(values: &toml::Table) -> impl Iterator<Item = String> {
-    let routes: Vec<String> = lookup(values, "plugins.hermes.keys")
-        .and_then(toml::Value::as_table)
-        .map(|keys| {
-            keys.keys()
-                // `note` IS THE RENDER'S RESERVED KEY, never a route: it
-                // becomes the comment above the table and reaches no config.
-                .filter(|key| *key != "note")
-                .cloned()
-                .collect()
+    let open: Vec<String> = SECRET_BEARING_TABLES
+        .iter()
+        .flat_map(|table| {
+            lookup(values, table)
+                .and_then(toml::Value::as_table)
+                .map(|entries| {
+                    entries
+                        .keys()
+                        // `note` IS THE RENDER'S RESERVED KEY, never an entry:
+                        // it becomes the comment above the table and reaches
+                        // no config.
+                        .filter(|key| *key != "note")
+                        .map(|key| format!("{table}.{key}"))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or_default();
+        .collect();
     SECRET_BEARING_KEYS
         .iter()
         .map(|path| (*path).to_string())
-        .chain(
-            routes
-                .into_iter()
-                .map(|route| format!("plugins.hermes.keys.{route}")),
-        )
+        .chain(open)
 }
 
 const RESOLVED_CONFIG_SNAPSHOT: &str =
