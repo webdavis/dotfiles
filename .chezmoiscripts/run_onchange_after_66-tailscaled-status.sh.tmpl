@@ -6,8 +6,8 @@ set -euo pipefail
 # Tailscale headless-daemon status reminder (sudo-free). Does NOT start or
 # authenticate anything -- Option A auth is a deliberate one-time manual step.
 # Runs on first deploy (and whenever this script changes) to prompt the cutover;
-# stays quiet once the daemon is up and authenticated. Mirrors the atuin/happy
-# daemon scripts' "remind if not healthy" shape.
+# stays quiet once the daemon is up and authenticated. Mirrors the atuin
+# daemon script's "remind if not healthy" shape.
 #
 # Classifies on `tailscale status --json`'s .BackendState so each state gets the
 # right reminder. A command/connection failure (daemon down, or unparseable

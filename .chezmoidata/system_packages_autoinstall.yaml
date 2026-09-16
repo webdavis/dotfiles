@@ -291,7 +291,6 @@ packages:
           # night. `npm ls -g <pkg>@<version>` is exact, so the guard above
           # reinstalls whenever the pin moves.
           - "gnhf@0.1.49"
-          - happy
           - hyperframes
           - mcporter
   herdr_plugins:
