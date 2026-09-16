@@ -193,7 +193,12 @@ return {
     { "<leader>o%", view("vsplit"), desc = "Overseer: open task in vsplit" },
     { "<M-8>", view("vsplit"), desc = "Overseer: open task in vsplit" },
     { "<M-;>", view("float"), desc = "Overseer: open task in floating window" },
-    { "<M-[>", "<cmd>OverseerWatchRun<cr>", desc = overseer_watch_run_desc },
+    -- `<leader>ow`, not the `<M-[>` this was bound to until 2026-09-15. `<M-[>`
+    -- is also how a terminal opens an escape sequence (ESC `[` is CSI), so
+    -- whether Neovim ever sees it as a key depends on the terminal and on
+    -- `timeoutlen`. Every other Alt row here has a `<leader>o` twin; this one
+    -- had none, so it moves into the group rather than onto another Alt key.
+    { "<leader>ow", "<cmd>OverseerWatchRun<cr>", desc = overseer_watch_run_desc, silent = true },
   },
   config = function()
     local overseer = require("overseer")
