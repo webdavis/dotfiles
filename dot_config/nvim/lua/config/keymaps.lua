@@ -236,6 +236,12 @@ map({
   lhs = "<leader>yf",
   rhs = function()
     local filename = vim.fn.expand("%:t")
+    -- An unnamed buffer has no name to yank. Without this the clipboard was
+    -- emptied and the notification reported the empty string as a success.
+    if filename == "" then
+      vim.notify("Nothing to yank: this buffer has no filename", vim.log.levels.WARN)
+      return
+    end
     vim.fn.setreg("+", filename)
     vim.notify("Filename (*" .. filename .. "*) yanked to clipboard", vim.log.levels.INFO)
   end,
