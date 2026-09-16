@@ -1,9 +1,50 @@
--- The dashboard's geometry. Every terminal section runs in a pty as wide as
--- the dashboard less that section's indent, so a row wider than `pane_width`
--- wraps mid-word inside the pane.
+-- The dashboard is a doorway, not a room (operator 2026-09-15). Neovim gets
+-- opened to work on a particular file, so the whole dashboard is a ranked list
+-- of files plus one row of verbs, and every panel that once sat beside it was
+-- removed for failing that test: Git Status duplicated the file list's own
+-- change markers, and Git Log, Notifications, Open Issues, Open PRs and Browse
+-- Repo are all news or browser work rather than the file at hand.
 local dashboard_width = 60
-local pane_indent = 3
-local pane_width = dashboard_width - pane_indent
+
+---The action keys, all `hidden`: the compact verb row in the sections below is
+---the rendering, and these exist only to bind the keys. Without `hidden` the
+---dashboard drew the same seven lines twice.
+-- stylua: ignore
+local action_keys = {
+  { icon = " ", key = "f", desc = "Find File",    action = ":lua Snacks.dashboard.pick('files')", hidden = true },
+  { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')", hidden = true },
+  { icon = " ", key = "g", desc = "Find Text",    action = ":lua Snacks.dashboard.pick('live_grep')", hidden = true },
+  { icon = " ", key = "n", desc = "New File",     action = ":ene | startinsert", hidden = true },
+  { icon = " ", key = "c", desc = "Config",       action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})", hidden = true },
+  { icon = "\u{f00ab} ", key = "L", desc = "Lazy", action = ":Lazy", enabled = package.loaded.lazy ~= nil, hidden = true },
+  { icon = " ", key = "q", desc = "Quit",         action = ":qa", hidden = true },
+}
+
+-- A key claimed twice is not broken, it is quietly wrong: the dashboard draws
+-- both rows and one of them does the other's work. `n` was claimed by New File
+-- AND by a Notifications pane for exactly that reason. Refuse at load instead.
+do
+  local claimed = {}
+  for _, item in ipairs(action_keys) do
+    if claimed[item.key] then
+      error(("dashboard key %q is claimed by both %s and %s"):format(item.key, claimed[item.key], item.desc))
+    end
+    claimed[item.key] = item.desc
+  end
+end
+
+-- What the rows around the file list cost: the label above it, the verb row,
+-- and a margin so the list never runs to the last line of the window.
+local rows_around_the_file_list = 8
+
+---How many file rows this window has room for, between a floor that keeps the
+---list useful and a ceiling set by how many single-keystroke rows are worth
+---offering at all. Read on every render, because the dashboard redraws on
+---`VimResized`.
+---@return number
+local function file_rows()
+  return math.max(3, math.min(9, vim.o.lines - rows_around_the_file_list))
+end
 
 return {
   {
@@ -16,132 +57,41 @@ return {
       dashboard = {
         enabled = true,
         width = dashboard_width,
+        preset = { keys = action_keys },
         sections = {
-          { section = "header" },
-          { section = "keys", gap = 1, padding = 2 },
-          { icon = " ", title = "Recent Files", section = "recent_files", indent = 2, padding = 2 },
-          { icon = " ", title = "Projects", section = "projects", indent = 2, padding = 2 },
-          { section = "startup" },
+          -- FILES FIRST. The dashboard is a doorway, not a room (operator
+          -- 2026-09-15): Neovim is opened to work on a specific file, so the
+          -- ranked file list takes the top rows and the verbs move under it.
+          -- The banner went with them, because it spent the most valuable rows
+          -- on screen naming the program that had just been launched.
           {
-            pane = 2,
-            title = [[
-              ██████╗ ██╗████████╗
-              ██╔════╝ ██║╚══██╔══╝
-              ██║ ████╗██║   ██║
-              ██║   ██║██║   ██║
-              ╚██████╔╝██║   ██║
-              ╚═════╝ ╚═╝   ╚═╝]],
-            height = 0,
             padding = 1,
-          },
-          {
-            pane = 2,
-            icon = " ",
-            desc = "Browse Repo",
-            padding = 1,
-            key = "b",
             -- stylua: ignore
-            action = function() Snacks.gitbrowse() end,
+            text = { { "  where you left off", hl = "dir" } },
           },
           function()
-            local in_git = Snacks.git.get_root() ~= nil
-
-            -- Every command below runs in a pty `pane_width` columns wide, so
-            -- any wider line wraps mid-word inside the pane. Each one bounds
-            -- its own output to that width and prints a placeholder rather
-            -- than nothing, because an empty pane renders as Neovim's
-            -- `[Process exited 0]` line.
-            --
-            -- The jq programs live in long-bracket strings, so their \u001b
-            -- escapes and double quotes reach jq exactly as written, and the
-            -- shell's single quotes hold each together (no program here
-            -- contains one). `gsub("[^ -~]"; "")` drops every non-ASCII and
-            -- control character first, which is what makes jq's codepoint
-            -- slicing below agree with the pane's display columns.
-
-            -- `--stat` bounds the file rows but not the trailing
-            -- "N files changed, X insertions(+), Y deletions(-)" line, which
-            -- passes the pane on a large diff, so sed shortens it to
-            -- "X+, Y-" (that line is the one part of the stat git never
-            -- colors, so the substitution cannot land inside an escape).
-
-            -- One row per notification: unread marker, the repository name
-            -- without its owner in grey, then as much of the title as fits,
-            -- ending in ".." when the title was cut. 1 marker + 1 space + repo
-            -- + 1 space + title, so the title gets the pane less those three
-            -- columns and the repository name.
-            local notifications_title_budget = pane_width - 3
-            local notifications_jq = [[
-if length == 0 then "inbox zero" else
-  .[]
-  | (if .unread then "*" else " " end) as $mark
-  | (.repository.name | gsub("[^ -~]"; "") | .[0:20]) as $repo
-  | (]] .. notifications_title_budget .. [[ - ($repo | length)) as $room
-  | (.subject.title | gsub("[^ -~]"; "")) as $title
-  | (if ($title | length) > $room then $title[0:($room - 2)] + ".." else $title end) as $row
-  | $mark + " \u001b[90m" + $repo + "\u001b[0m " + $row
-end
-]]
-
-            -- One row per issue or pull request: `#<number> <title>`, shared
-            -- by both sections, the title ending in ".." when it was cut.
-            -- 1 space between them, so the title gets the pane less that space
-            -- and the number.
-            local number_title_budget = pane_width - 1
-            local number_title_jq = [[
-if length == 0 then "none" else
-  .[]
-  | ("#" + (.number | tostring)) as $id
-  | (]] .. number_title_budget .. [[ - ($id | length)) as $room
-  | (.title | gsub("[^ -~]"; "")) as $title
-  | $id + " " + (if ($title | length) > $room then $title[0:($room - 2)] + ".." else $title end)
-end
-]]
-
-            -- stylua: ignore start
-            local cmds = {
-                { icon = " ", title = "Git Status", cmd = [[git --no-pager diff --stat=]] .. pane_width .. [[ -B -M -C --color=always | sed 's/ insertions*(+)/+/;s/ deletions*(-)/-/' | grep . || echo "no unstaged changes"]], height = 10 },
-                { icon = " ", title = "Git Log", cmd = [[git log -n 10 --no-decorate --color=always --format='%C(yellow)%h%C(reset) %<|(]] .. pane_width .. [[,trunc)%s' 2>/dev/null | grep . || echo "no commits yet"]], height = 10 },
-                {
-                  title = "Notifications",
-                  cmd = "GH_PAGER=cat gh api 'notifications?all=true&per_page=5' --jq '" .. notifications_jq .. "'",
-                  action = function() vim.ui.open( "https://github.com/notifications") end,
-                  key = "n",
-                  icon = " ",
-                  height = 5,
-                  enabled = true,
-                },
-                {
-                  title = "Open Issues",
-                  cmd = "GH_PAGER=cat gh issue list -L 3 --json number,title --jq '" .. number_title_jq .. "'",
-                  key = "i",
-                  action = function() vim.fn.jobstart( "gh issue list --web", { detach = true, }) end,
-                  icon = " ",
-                  height = 5,
-                  ttl = 15 * 60,
-                },
-                {
-                  icon = " ",
-                  title = "Open PRs",
-                  cmd = "GH_PAGER=cat gh pr list -L 3 --json number,title --jq '" .. number_title_jq .. "'",
-                  key = "P",
-                  action = function() vim.fn.jobstart( "gh pr list --web", { detach = true, }) end,
-                  height = 5,
-                  ttl = 15 * 60,
-                },
-            }
-            -- stylua: ignore end
-            return vim.tbl_map(function(cmd)
-              return vim.tbl_extend("force", {
-                pane = 2,
-                section = "terminal",
-                enabled = in_git,
-                padding = 1,
-                ttl = 5 * 60,
-                indent = pane_indent,
-              }, cmd)
-            end, cmds)
+            return require("custom_api.dashboard_files").section(file_rows(), dashboard_width)
           end,
+          -- One row, not eight. Every verb here is also on the leader map, so
+          -- the dashboard only has to remind rather than teach.
+          {
+            padding = 1,
+            -- stylua: ignore
+            text = {
+              { "  " },
+              { "f", hl = "key" }, { " find   ", hl = "desc" },
+              { "g", hl = "key" }, { " grep   ", hl = "desc" },
+              { "n", hl = "key" }, { " new   ", hl = "desc" },
+              { "c", hl = "key" }, { " config   ", hl = "desc" },
+              { "L", hl = "key" }, { " lazy   ", hl = "desc" },
+              { "q", hl = "key" }, { " quit", hl = "desc" },
+            },
+          },
+          -- The keys themselves, declared but not drawn. `hidden` belongs on
+          -- each key rather than here: on this wrapper it does not reach the
+          -- rows the section generates, and snacks drew a second copy of all
+          -- seven lines under the compact row above.
+          { section = "keys" },
         },
       },
       explorer = {

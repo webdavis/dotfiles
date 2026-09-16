@@ -12,8 +12,8 @@
   </array>
   <key>RunAtLoad</key>
   <true/>
-  <!-- RESTART ONLY ON A CRASH, unlike the atuin and happy daemons' bare
-       KeepAlive true. `[daemon] enabled = false` makes this job exit 0 on
+  <!-- RESTART ONLY ON A CRASH, unlike the atuin daemon's bare KeepAlive
+       true. `[daemon] enabled = false` makes this job exit 0 on
        purpose, and under a bare true that clean exit is relaunched every ten
        seconds forever, which is the atuin restart-loop bug (its own plist
        records ~6000 attempts in production) reproduced deliberately. With
