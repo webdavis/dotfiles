@@ -104,41 +104,6 @@ local markdown_plus_keymaps = {
   { mode = "n", lhs = "<localleader>fn", rhs = "<Plug>(MarkdownPlusFootnoteNext)" },
   { mode = "n", lhs = "<localleader>fp", rhs = "<Plug>(MarkdownPlusFootnotePrev)" },
   { mode = "n", lhs = "<localleader>fl", rhs = "<Plug>(MarkdownPlusFootnoteList)" },
-
-  -- Tables
-  -----------------------
-  { mode = "n", lhs = "<localleader>tc", rhs = "<Plug>(markdown-plus-table-create)" },
-  { mode = "n", lhs = "<localleader>tf", rhs = "<Plug>(markdown-plus-table-format)" },
-  { mode = "n", lhs = "<localleader>tn", rhs = "<Plug>(markdown-plus-table-normalize)" },
-
-  -- Row operations.
-  { mode = "n", lhs = "<localleader>tir", rhs = "<Plug>(markdown-plus-table-insert-row-below)" },
-  { mode = "n", lhs = "<localleader>tiR", rhs = "<Plug>(markdown-plus-table-insert-row-above)" },
-  { mode = "n", lhs = "<localleader>tdr", rhs = "<Plug>(markdown-plus-table-delete-row)" },
-  { mode = "n", lhs = "<localleader>tyr", rhs = "<Plug>(markdown-plus-table-duplicate-row)" },
-  { mode = "n", lhs = "<localleader>tk", rhs = "<Plug>(markdown-plus-table-move-row-up)" },
-  { mode = "n", lhs = "<localleader>tj", rhs = "<Plug>(markdown-plus-table-move-row-down)" },
-
-  -- Column operations.
-  { mode = "n", lhs = "<localleader>tic", rhs = "<Plug>(markdown-plus-table-insert-column-right)" },
-  { mode = "n", lhs = "<localleader>tiC", rhs = "<Plug>(markdown-plus-table-insert-column-left)" },
-  { mode = "n", lhs = "<localleader>tdc", rhs = "<Plug>(markdown-plus-table-delete-column)" },
-  { mode = "n", lhs = "<localleader>tyc", rhs = "<Plug>(markdown-plus-table-duplicate-column)" },
-  { mode = "n", lhs = "<localleader>tmh", rhs = "<Plug>(markdown-plus-table-move-column-left)" },
-  { mode = "n", lhs = "<localleader>tml", rhs = "<Plug>(markdown-plus-table-move-column-right)" },
-
-  -- Cell operations.
-  { mode = "n", lhs = "<localleader>ta", rhs = "<Plug>(markdown-plus-table-toggle-cell-alignment)" },
-  { mode = "n", lhs = "<localleader>tx", rhs = "<Plug>(markdown-plus-table-clear-cell)" },
-
-  -- Sort operations.
-  { mode = "n", lhs = "<localleader>tt", rhs = "<Plug>(markdown-plus-table-transpose)" },
-  { mode = "n", lhs = "<localleader>tsa", rhs = "<Plug>(markdown-plus-table-sort-ascending)" },
-  { mode = "n", lhs = "<localleader>tsd", rhs = "<Plug>(markdown-plus-table-sort-descending)" },
-
-  -- CSV <--> Table:
-  { mode = "n", lhs = "<localleader>tvx", rhs = "<Plug>(markdown-plus-table-to-csv)" },
-  { mode = "n", lhs = "<localleader>tvi", rhs = "<Plug>(markdown-plus-table-from-csv)" },
 }
 
 -- Header levels 1-6.

@@ -33,12 +33,15 @@ local SHADOWING_KEYS = {
 }
 
 -- How many buffer-local mappings onto a markdown-plus `<Plug>` target one
--- markdown buffer must end up with: the spec declares 85, two of which are
+-- markdown buffer must end up with: the spec declares 63, two of which are
 -- visual-mode ("v") and so are stored once in visual and once in select. Losing
 -- a mapping in a refactor fails here instead of going unnoticed until a hand
 -- reaches for the key. Only this configuration's own mappings are counted, so
--- what Neovim's markdown ftplugin adds to the same buffer cannot move it.
-local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 87
+-- what Neovim's markdown ftplugin adds to the same buffer cannot move it. The
+-- table rows are gone from the count: they targeted `<Plug>(markdown-plus-
+-- table-*)`, a spelling the plugin never registers (it uses `<Plug>(MarkdownPlus
+-- Table*)`), so the plugin's own working defaults now cover those keys.
+local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 65
 
 local MODES = { "n", "x", "s", "i" }
 
