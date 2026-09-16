@@ -1,6 +1,6 @@
 return {
   "xvzc/chezmoi.nvim",
-  cmd = { "ChezmoiEdit" },
+  cmd = { "ChezmoiEdit", "ChezmoiList" },
   opts = {
     edit = {
       watch = false,
