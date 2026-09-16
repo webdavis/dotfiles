@@ -40,6 +40,11 @@ fn a_payload_at_the_cap_is_whole_and_is_still_submitted() {
     // MECHANISM-BOUND: the submission is read off the record, so this goes
     // RED at the endpoint switch for item 25 to rewrite.
     let sandbox = Sandbox::new("hook-blocked-at-cap");
+    // STRUCTURAL: a megabyte is the smallest payload that can sit exactly on
+    // the cap, and pushing it through a pipe into a real process and back is
+    // the whole cost. Measured 2,215 ms idle and 4,372 ms under a loaded
+    // machine, with nothing regressed either time.
+    sandbox.allow_slow("exactly at the cap means a real megabyte through a real pipe");
     let mut command = sandbox.pns();
     command.env("PNS_IDLE_SECS", "99999");
     sandbox.stub_moshi(&mut command, 42);
