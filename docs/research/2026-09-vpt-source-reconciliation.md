@@ -1,32 +1,32 @@
-# vpp source reconciliation, 2026-09-14
+# vpt source reconciliation, 2026-09-14
 
-`docs/remaining-work.md` line 2094 asks for one thing before any vpp (Voice Processing Pipeline) design
+`docs/remaining-work.md` line 2094 asks for one thing before any vpt (Voice Processing Tool) design
 work starts: reconcile the transcription plans that already exist, name each one's scope, and name the
-gap vpp fills. The task names three sources (homelab `PLAN-v12-experiments-backlog.md` L-R5, the Ivy
+gap vpt fills. The task names three sources (homelab `PLAN-v12-experiments-backlog.md` L-R5, the Ivy
 vault's `agent-processing-pipeline/` layout, and homelab `PLAN-v11.md` Phase 6) and asserts that none of
 them specifies a watcher for Apple Voice Memos synced to macOS.
 
 This record answers that question, and it reports one thing the task did not ask for because the
 reconciliation turned it up: there is a **fourth** source, it is installed and working on this machine
-today, and it already implements most of the vpp feature list. No transcription system was designed, no
+today, and it already implements most of the vpt feature list. No transcription system was designed, no
 code was written, nothing was installed, configured or applied, and no notification was raised.
 
 ## Verdict
 
-**Defer the vpp ingestion design. The reconciliation is complete and it does not clear vpp to start.**
+**Defer the vpt ingestion design. The reconciliation is complete and it does not clear vpt to start.**
 
 The three named sources reconcile cleanly and the task's assertion about them holds: none specifies a
-Voice Memos watcher, and the gap vpp would fill is real. But the task's premise, that reconciling those
+Voice Memos watcher, and the gap vpt would fill is real. But the task's premise, that reconciling those
 three is sufficient to start designing, does not hold. The `minutes` command-line interface (CLI),
-version 0.26.1, installed as a declared Homebrew cask on 2026-09-08, four days before vpp was planned,
+version 0.26.1, installed as a declared Homebrew cask on 2026-09-08, four days before vpt was planned,
 already ships: a folder watcher with a launchd service, a first-class `memo` content type, `transcribe`
 with a JSON envelope and speaker diarization, Obsidian vault sync by symlink, speaker voiceprints,
 retention policy with a cleanup preview, structured meeting insights, commitments and action tracking,
 weekly-summary and proactive-context automation primitives, and a redacted "process-private projection"
 used by its people and commitments commands.
 
-Six of the seven vpp feature bullets in `remaining-work.md` overlap that tool. Three of vpp's stated open
-questions (summary format, retention, speaker labels) are settings it already has. Two vpp requirements
+Six of the seven vpt feature bullets in `remaining-work.md` overlap that tool. Three of vpt's stated open
+questions (summary format, retention, speaker labels) are settings it already has. Two vpt requirements
 are genuinely absent from it: **redundant transcription with disagreement comparison**, and **pns
 notification of uncertain output**. One more is absent from every source including `minutes`: **an Apple
 Voice Memos watcher**.
@@ -34,20 +34,20 @@ Voice Memos watcher**.
 So the honest shape of the gap is much smaller than the task assumes, and the design that follows depends
 entirely on a ruling nobody has made: is `minutes` kept, or replaced? `remaining-work.md` line 2084 and
 Todoist task `6hPV483GJgGHX95M` both still carry the `minutes` evaluation as open, with "their old scope"
-retained. vpp cannot be scoped until that closes, because the two candidate scopes differ by roughly an
+retained. vpt cannot be scoped until that closes, because the two candidate scopes differ by roughly an
 order of magnitude:
 
-- **vpp as an adapter** (if `minutes` is kept): a Voice Memos discovery front end plus a second engine
+- **vpt as an adapter** (if `minutes` is kept): a Voice Memos discovery front end plus a second engine
   and a disagreement comparison, handing audio to `minutes transcribe --json` and notes to the existing
   vault sync. Small, and it does not duplicate a working tool.
-- **vpp as a replacement** (if `minutes` goes): the whole feature list, including the pieces `minutes`
+- **vpt as a replacement** (if `minutes` goes): the whole feature list, including the pieces `minutes`
   already solved, and a `minutes` retirement.
 
 `PLAN-v12.md` L6 already states the governing rule, for a different service: "Open Notebook must not
 create a second automatic Voice Memos capture/transcription workflow." That rule was never applied to
-`minutes` against vpp, and it is the reason this record stops short of a design.
+`minutes` against vpt, and it is the reason this record stops short of a design.
 
-There is also a live drift worth fixing regardless of the vpp decision: the vault's documented `minutes`
+There is also a live drift worth fixing regardless of the vpt decision: the vault's documented `minutes`
 integration is broken. The symlink is committed, but `minutes` no longer has a configuration file and
 reports `Vault: not configured`, so its sync does not know the target. Details below.
 
@@ -56,10 +56,10 @@ reports `Vault: not configured`, so its sync does not know the target. Details b
 Read, in full, in the sections they cover:
 
 - `/Users/stephen/workspaces/Ivy/webdavis/dotfiles/docs/remaining-work.md`, the
-  `vpp (Voice Processing Pipeline)` section (lines 2168 to 2207) and its "Homelab plan coordination"
+  `vpt (Voice Processing Tool)` section (lines 2168 to 2207) and its "Homelab plan coordination"
   predecessor.
 - `/Users/stephen/workspaces/Ivy/webdavis/homelab/docs/plans/PLAN-v12-experiments-backlog.md`, section
-  `L-R5. vpp (Voice Processing Pipeline)`, line 106 onward.
+  `L-R5. vpt (Voice Processing Tool)`, line 106 onward.
 - `/Users/stephen/workspaces/Ivy/webdavis/homelab/docs/plans/PLAN-v11.md`,
   `Phase 6, Transcription pipeline (cloud-first)`, line 866 onward, plus its cost table rows and its
   Phase 3 skill reference.
@@ -67,7 +67,7 @@ Read, in full, in the sections they cover:
   and `PLAN-v12-service-matrix.md` line 145.
 - `/Users/stephen/workspaces/Ivy/CLAUDE.md`, the `agent-processing-pipeline/` paragraph (lines 36 to 43),
   and the vault `.gitignore`.
-- Todoist tasks `6hVpPJC2cjJW3V9M` (vpp planning), `6gjGcHp69phXmXj3` (Phase 6, five active subtasks) and
+- Todoist tasks `6hVpPJC2cjJW3V9M` (vpt planning), `6gjGcHp69phXmXj3` (Phase 6, five active subtasks) and
   `6hPV483GJgGHX95M` (SP7 tool evaluations), read with `td task view`, `td` 5.3.4.
 
 Commands run on dresden, 2026-09-13 evening local time:
@@ -112,16 +112,16 @@ sentence says so.
 
 ## Findings
 
-### Source 1, homelab `PLAN-v12-experiments-backlog.md` L-R5: the vpp specification itself
+### Source 1, homelab `PLAN-v12-experiments-backlog.md` L-R5: the vpt specification itself
 
-Status line: "queued, planning only. The operator named vpp on 2026-09-12 and chose Rust." Eight
-unchecked bullets. This is not a separate transcription system; it **is** vpp, and it is the most
+Status line: "queued, planning only. The operator named vpt on 2026-09-12 and chose Rust." Eight
+unchecked bullets. This is not a separate transcription system; it **is** vpt, and it is the most
 detailed statement of it. The dotfiles ledger section is a near-paraphrase of it.
 
 L-R5 carries three things the dotfiles copy does not:
 
-1. **The exact pns integration contract**: "`pns submit --json`, with `producer: "vpp"` and
-   `signal.kind: "needs_attention"`. Keep review state in vpp; a notification receipt does not mean the
+1. **The exact pns integration contract**: "`pns submit --json`, with `producer: "vpt"` and
+   `signal.kind: "needs_attention"`. Keep review state in vpt; a notification receipt does not mean the
    user reviewed or corrected the note. Reverify the protocol when implementing."
 1. **The disagreement targets**: "particularly names, numbers and dates."
 1. **The evaluation aid carried forward from the earlier trial**: "three uses per week, review usefulness
@@ -139,7 +139,7 @@ named, never refused."
 One correction for whoever implements it: **`submit` is absent from `pns --help`.** The usage text lists
 `hook`, `gate`, `pulse`, `quiet`, `daemon`, `lights`, `presence`, `shell`, `loop`, `nag`, `recap`,
 `setup`, `doctor`, `tap` and `home`, and the producer-flag form, but not `submit`. The subcommand works;
-it is just undiscoverable from the CLI. That is a pns documentation gap, not a vpp blocker.
+it is just undiscoverable from the CLI. That is a pns documentation gap, not a vpt blocker.
 
 ### Source 2, the Ivy vault `agent-processing-pipeline/` layout: a filing convention, never used
 
@@ -153,7 +153,7 @@ tree is `2026-07-22 01:35`, the moment it was created. The vault `.gitignore` do
 files and the `minutes` symlink.
 
 So this source contributes a **naming and separation convention** and nothing else. It is the answer to
-vpp's "keep original recordings, transcripts and agent analysis separately linked using the existing
+vpt's "keep original recordings, transcripts and agent analysis separately linked using the existing
 vault layout", and it costs nothing to adopt because no data has to be migrated into it.
 
 The `minutes` entry is where this source stops being inert and becomes a live finding. `CLAUDE.md` says
@@ -189,7 +189,7 @@ Its five subsections, and their Todoist mirrors `6gjGcHp69phXmXj3` plus subtasks
 | 6.4   | workflow 2: an n8n four-hour cron over FreshRSS items tagged `transcribe`                                                   | homelab       |
 | 6.5   | workflow 3: an n8n webhook an iPhone Shortcut or Mac CLI posts to                                                           | homelab       |
 
-Three facts settle the relationship to vpp:
+Three facts settle the relationship to vpt:
 
 1. **Its input is a URL, not a recording.** Every one of the three workflows takes a link (a YouTube URL
    in 6.3 and 6.4, a posted payload in 6.5) and runs `yt-dlp` to get audio. It is a "transcribe this
@@ -205,9 +205,9 @@ A provenance wrinkle: Todoist `6gjGcHp69phXmXj3` names its source plan as `PLAN-
 `remaining-work.md` and the current plan text cite `PLAN-v11.md` Phase 6. The content is the same engine
 choice; the task description is just pinned to an older plan revision.
 
-What Phase 6 genuinely contributes to vpp is **the engine decision and the output format**, already made:
+What Phase 6 genuinely contributes to vpt is **the engine decision and the output format**, already made:
 cloud-first Scribe v2, local whisply on faster-whisper as the outage and sensitive-audio fallback, and
-Markdown plus subtitle plus word-level JSON as the three outputs. vpp's open question "choose
+Markdown plus subtitle plus word-level JSON as the three outputs. vpt's open question "choose
 transcription engines, local/cloud processing" is partly answered by a decision that already exists, for
 a sibling pipeline, with a paid-metered cost line attached.
 
@@ -224,9 +224,9 @@ recorder and transcriber that runs on-device", declared in
 2026-09-08. Its `capabilities` output reports `api_version: 1` and a 40-plus feature list, which exists
 precisely so another program can feature-detect it.
 
-Its 60 subcommands include, matched against the vpp bullets in `remaining-work.md`:
+Its 60 subcommands include, matched against the vpt bullets in `remaining-work.md`:
 
-| vpp requirement                                                 | `minutes` today                                                                                                                                                                                                                                   |
+| vpt requirement                                                 | `minutes` today                                                                                                                                                                                                                                   |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | watch for new audio and process it automatically                | `minutes watch [DIR]`, plus `minutes service install` as a launchd login service                                                                                                                                                                  |
 | voice memos as a distinct kind from meetings                    | `-t memo` on `process`, `--content-type memo` on `list`, first-class in `search`                                                                                                                                                                  |
@@ -250,16 +250,16 @@ installs. So the tool is present, the operator has used it (three notes plus an 
 
 Two collisions to note before any design leans on it:
 
-- **Its retention policy deletes originals, and vpp forbids that.** `minutes storage --json` currently
+- **Its retention policy deletes originals, and vpt forbids that.** `minutes storage --json` currently
   classifies every archived demo recording as `"action": "delete-candidate"`,
-  `"reason": "successful recording audio older than 30 days"`. vpp's requirement is "preserve original
+  `"reason": "successful recording audio older than 30 days"`. vpt's requirement is "preserve original
   audio", and L-R5 says the evaluation aid is "not permission to delete recordings or notes". Routing
-  vpp's audio through the `minutes` tree without settling retention puts a 30-day clock on the originals.
+  vpt's audio through the `minutes` tree without settling retention puts a 30-day clock on the originals.
   `cleanup` previews by default, so nothing deletes unattended today, but the classification is already
   there.
 - **It is third party, so the global rule forbids patching it.** The standing rule is never to patch,
   fork or modify the code of a tool the operator does not own; configure it through its own supported
-  options. So "vpp is minutes plus the two missing pieces" is only available as **configure and call**
+  options. So "vpt is minutes plus the two missing pieces" is only available as **configure and call**
   (`minutes transcribe --json`, `minutes process`, `minutes watch`, `minutes capabilities` for feature
   detection), never as a patch. Its `capabilities` command and JSON envelopes say upstream intends that
   use.
@@ -286,7 +286,7 @@ and anything that uploads to a metered cloud engine pays for it.
 Data store with CloudKit mirroring (`ANSCK*` tables alongside `Z_PRIMARYKEY` and `Z_METADATA`). The
 `ZCLOUDRECORDING` table carries `ZDATE`, `ZDURATION`, `ZCUSTOMLABEL` (the user-visible title),
 `ZCUSTOMLABELFORSORTING`, `ZENCRYPTEDTITLE`, `ZPATH`, `ZUNIQUEID`, `ZFOLDER`, `ZEVICTIONDATE`, `ZFLAGS`
-and playback and mix settings. So vpp's "capture metadata" and its "stable recording identifiers" both
+and playback and mix settings. So vpt's "capture metadata" and its "stable recording identifiers" both
 require reading Apple's private schema; the folder alone yields a timestamp and a hex string.
 
 Three measured facts the ingestion design should not have to rediscover:
@@ -313,14 +313,14 @@ under launchd before a mechanism is chosen.
 
 ## Reconciliation summary
 
-| Source                                 | Scope                                                                              | State                                                                            | What it gives vpp                                                                  |
+| Source                                 | Scope                                                                              | State                                                                            | What it gives vpt                                                                  |
 | -------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `PLAN-v12` L-R5                        | vpp itself: the feature list, the pns contract, the rejected features              | queued, planning only                                                            | the specification, and the verified `pns submit --json` contract                   |
+| `PLAN-v12` L-R5                        | vpt itself: the feature list, the pns contract, the rejected features              | queued, planning only                                                            | the specification, and the verified `pns submit --json` contract                   |
 | Ivy vault `agent-processing-pipeline/` | a filing convention: raw audio, transcripts, analysis, audio out of git            | directories exist, all empty since 2026-07-22                                    | the separation and linking layout, free to adopt                                   |
 | `PLAN-v11` Phase 6                     | a homelab hermes skill that transcribes URLs on `lash` via n8n and a queue file    | planned, nothing built                                                           | the engine decision (Scribe v2 plus whisply fallback) and the three output formats |
-| `minutes` 0.26.1 cask                  | an on-device Mac meeting and memo recorder, transcriber, summarizer and vault sync | installed and used; all automation unwired; vault link orphaned; evaluation open | six of seven vpp feature bullets, already working                                  |
+| `minutes` 0.26.1 cask                  | an on-device Mac meeting and memo recorder, transcriber, summarizer and vault sync | installed and used; all automation unwired; vault link orphaned; evaluation open | six of seven vpt feature bullets, already working                                  |
 
-**The gap vpp adds, after all four are accounted for**, is three items and no more:
+**The gap vpt adds, after all four are accounted for**, is three items and no more:
 
 1. **Apple Voice Memos discovery**: finding fully synced recordings in the group container, reading their
    titles and capture metadata out of the Core Data store, and handling interrupted sync, retries and
@@ -328,10 +328,10 @@ under launchd before a mechanism is chosen.
 1. **Redundant transcription with disagreement comparison**, focused on names, numbers and dates,
    preserving alternatives and source references. Absent from all four.
 1. **pns notification of uncertain text and unsupported notes** through `pns submit --json` as
-   `producer: "vpp"` with `signal.kind: "needs_attention"`, with review state held in vpp. Absent from
+   `producer: "vpt"` with `signal.kind: "needs_attention"`, with review state held in vpt. Absent from
    all four.
 
-Everything else on the vpp list either exists in `minutes` today or is a convention the vault already
+Everything else on the vpt list either exists in `minutes` today or is a convention the vault already
 defines. That is the finding, and it is why this record refuses to hand the next task a clean start.
 
 ## Assumptions made in the operator's place
@@ -345,7 +345,7 @@ alternative, and the operator can reverse any of them without invalidating the m
    second transcription system", and `minutes` is the first one.
 1. **I treated the `minutes` evaluation as genuinely open rather than as tacit acceptance.** Its cask is
    declared and it has been used, which could be read as "adopted". Alternative reading: it is adopted,
-   so vpp is automatically the adapter scope. I did not take that reading because `remaining-work.md`
+   so vpt is automatically the adapter scope. I did not take that reading because `remaining-work.md`
    line 2084 and Todoist `6hPV483GJgGHX95M` both still list it as an evaluation retaining its old scope,
    and because none of its automation is wired, which is not what an adopted tool looks like.
 1. **I read the vault `minutes` symlink as drift to be repaired, not as a deliberate unmanaged link.**
@@ -353,11 +353,11 @@ alternative, and the operator can reverse any of them without invalidating the m
    `minutes vault status` reporting "not configured" is the intended state. I flagged it as drift because
    the vault `CLAUDE.md` claims the link is "managed by `minutes vault setup --subdir`", and that claim
    is now false either way.
-1. **I did not run `pns submit --json` live.** Alternative: send a real request with `producer: "vpp"` to
+1. **I did not run `pns submit --json` live.** Alternative: send a real request with `producer: "vpt"` to
    prove the contract end to end. I verified it from source instead, because a live submit would have
    raised a real banner, a Discord message and possibly a phone notification while the operator was
    asleep. The contract is verified at the level of "the subcommand exists, the field names and the enum
-   spelling are correct"; it is not verified at the level of "a vpp-shaped request is accepted and
+   spelling are correct"; it is not verified at the level of "a vpt-shaped request is accepted and
    routed."
 1. **I did not run `minutes cleanup`, `minutes vault setup`, or `minutes service install`.** Alternative:
    exercise the retention and vault paths to measure them rather than reading their help text and JSON. I
@@ -368,33 +368,33 @@ alternative, and the operator can reverse any of them without invalidating the m
 
 ## What would change the verdict
 
-- **The operator rules that `minutes` is rejected or replaced.** Then vpp takes the full scope, the
+- **The operator rules that `minutes` is rejected or replaced.** Then vpt takes the full scope, the
   overlap table becomes a feature checklist rather than a duplication warning, and the design task can
   start immediately on the whole list.
-- **The operator rules that `minutes` is adopted.** Then vpp is scoped to the three gap items, the design
+- **The operator rules that `minutes` is adopted.** Then vpt is scoped to the three gap items, the design
   task starts on a much smaller surface, and the `minutes` configuration (retention, vault target,
-  watcher service) becomes dotfiles-owned work under vpp's "dotfiles owns Mac installation and service
+  watcher service) becomes dotfiles-owned work under vpt's "dotfiles owns Mac installation and service
   configuration" split.
 - **A background service turns out to be unable to read the Voice Memos group container** under launchd's
   own privacy-permission identity. Then Voice Memos discovery is not a watcher at all, and the gap item
   becomes an export path question (the Voice Memos share sheet, a Shortcut, or a foreground agent), which
-  changes what vpp is.
+  changes what vpt is.
 - **Apple's Core Data schema is judged off limits** as an unsupported private interface. Then titles and
-  capture metadata are unavailable, and vpp's "preserve capture metadata" reduces to filesystem
+  capture metadata are unavailable, and vpt's "preserve capture metadata" reduces to filesystem
   timestamps plus whatever an export path carries.
 - **`minutes` ships redundant transcription upstream.** 0.26.2 is already available and unread; a release
   that adds a second engine and disagreement reporting would shrink the gap to two items.
 
 ## Open questions for the operator
 
-1. **Is `minutes` kept or replaced?** This is the blocking one. Everything about vpp's scope follows from
-   it, and the ledger has carried it as an open evaluation since before vpp existed.
-1. **If `minutes` is kept, does vpp call it or run beside it?** Calling `minutes transcribe --json` makes
-   it one of vpp's two engines and reuses its summarization, vault sync and speaker work. Running beside
+1. **Is `minutes` kept or replaced?** This is the blocking one. Everything about vpt's scope follows from
+   it, and the ledger has carried it as an open evaluation since before vpt existed.
+1. **If `minutes` is kept, does vpt call it or run beside it?** Calling `minutes transcribe --json` makes
+   it one of vpt's two engines and reuses its summarization, vault sync and speaker work. Running beside
    it means two tools writing notes about recordings, which is the thing `PLAN-v12` L6 forbids for Open
    Notebook.
 1. **Does the `PLAN-v12` L6 rule ("must not create a second automatic Voice Memos capture/transcription
-   workflow") bind `minutes` against vpp?** It was written for Open Notebook. If it is a general rule, it
+   workflow") bind `minutes` against vpt?** It was written for Open Notebook. If it is a general rule, it
    decides question 2 on its own.
 1. **Which two engines are the redundant pair?** Phase 6 already chose ElevenLabs Scribe v2 with whisply
    on faster-whisper as a fallback, and all three of Scribe, whisply and `openai-whisper` are installed
@@ -404,12 +404,12 @@ alternative, and the operator can reverse any of them without invalidating the m
    sensitive audio", but a Voice Memos recording is everyday personal audio by definition. A blanket
    local-only rule for this source would remove the metered cost line and one of the two candidate
    engines at the same time.
-1. **Repair the vault `minutes` link now, or fold it into the vpp work?** The immediate repair is the
+1. **Repair the vault `minutes` link now, or fold it into the vpt work?** The immediate repair is the
    operator running `minutes vault setup --strategy symlink --subdir agent-processing-pipeline/minutes`
    (which would also restore the missing config file), plus a correction to the vault `CLAUDE.md` claim.
-   Folding it into vpp means the documented integration stays false until vpp ships.
+   Folding it into vpt means the documented integration stays false until vpt ships.
 1. **Should the four unwired transcription installs stay declared?** `whisply`, `openai-whisper`,
    `@elevenlabs/cli` and the `minutes` cask are all in the package data and none is reached by any
-   script. They are either vpp's future inputs or removable weight, and the answer depends on question 4.
+   script. They are either vpt's future inputs or removable weight, and the answer depends on question 4.
 1. **Does `minutes` get upgraded to 0.26.2 before the disposition decision?** Its feature set is the
    input to that decision, and the installed copy is one release behind.

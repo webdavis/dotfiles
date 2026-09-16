@@ -1,11 +1,11 @@
-# vpp redacted drafts for sharing, with a review gate before release
+# vpt redacted drafts for sharing, with a review gate before release
 
 Status: design, written 2026-09-14 while the operator was asleep. Not approved, not built. No code was
 written or changed, and nothing was shared, sent or published while measuring. Every choice made in the
 operator's place is listed under "Assumptions made in the operator's place" with its alternative, and the
 questions that need an answer are at the end.
 
-Scope: `docs/remaining-work.md`, the `vpp (Voice Processing Pipeline)` section, sixth bullet.
+Scope: `docs/remaining-work.md`, the `vpt (Voice Processing Tool)` section, sixth bullet.
 
 > Support a separate redacted draft for sharing, reviewed before release, preserving private originals.
 > Choose the summary format, retention, transcription engines and local/cloud processing before
@@ -28,34 +28,34 @@ plainly the one thing that cannot be made mechanical.
 
 ## What this builds on
 
-This is the sixth document in the vpp chain and it assumes the five before it.
+This is the sixth document in the vpt chain and it assumes the five before it.
 
-**The boundaries design** put vpp's application code in its own project, macOS installation and service
+**The boundaries design** put vpt's application code in its own project, macOS installation and service
 configuration in dotfiles, and the user's content in a configured output directory. Nothing here changes
-that split; a draft is content, its policy is configuration, and the code is vpp's.
+that split; a draft is content, its policy is configuration, and the code is vpt's.
 
 **The discovery design** produced the recording identity, `2026-08-24T144736-4f3ab19c02de`, the sidecar
-record at `~/.local/state/vpp/recordings/<id>.json`, and the rule that Apple's originals are never
+record at `~/.local/state/vpt/recordings/<id>.json`, and the rule that Apple's originals are never
 modified.
 
 **The redundant transcription design** produced the transcript of record, the review record at
-`~/.local/state/vpp/review/<id>.json` with its flag classes and four resolution states, the in-line
+`~/.local/state/vpt/review/<id>.json` with its flag classes and four resolution states, the in-line
 timecode convention `[04:12]`, `known-terms.txt` (the list the operator grows by confirming a term once),
-`vpp verify-note`, and the rule that no transcript text ever rides in a notification.
+`vpt verify-note`, and the rule that no transcript text ever rides in a notification.
 
 **The tags, schema and filing design** produced the three-layer model (the record is authoritative, the
 note is a rendering, the index is a cache rebuilt in 0.245 seconds over 753 files), the managed-marker
 block with its refusal rules, the two output profiles (`portable` and `obsidian`), the slug sanitizer
-with its path refusals, and `vpp path` as the single implementation of the filing rules.
+with its path refusals, and `vpt path` as the single implementation of the filing rules.
 
 **The meeting-briefs design** produced the occasion identity, the four-selector selection rule, the
-`vpp.brief/1` machine form in which every item carries `certainty` and `sources` with no default, and the
+`vpt.brief/1` machine form in which every item carries `certainty` and `sources` with no default, and the
 rule that uncertainty is marked in place rather than in a footer, because a consumer that lifts one
 bullet drops a footer and keeps the sentence. It also stated, in its own security section, the sentence
 this document has to make true: "A brief is not a shareable draft. The redacted-draft bullet is a
 separate ledger item with its own human review gate."
 
-Two disagreements inside the chain remain open and are not resolved here: the audio's home, and vpp's
+Two disagreements inside the chain remain open and are not resolved here: the audio's home, and vpt's
 shipping name (`VPP` collides with FD.io's Vector Packet Processing). Neither affects this bullet.
 
 ## Constraints this design is bound by
@@ -80,12 +80,12 @@ From the repository's standing rules, carried over from the earlier documents wi
   party here; each is configured and called, never modified.
 - **R4.** Tests cover the behavior of tools we wrote and nothing else.
 - **R5.** The operator runs applies. An agent proposes.
-- **R6.** This repository builds no removal mechanisms, and the chain has read that as: vpp deletes
+- **R6.** This repository builds no removal mechanisms, and the chain has read that as: vpt deletes
   nothing.
 
 And from the vault's own `CLAUDE.md`, with the labels the previous documents used: **V3** wiki links for
 internal references, **V5** no colon in a filename, **V6** a folder note per directory that should
-surface in a listing, **V7** Obsidian Git auto-commits the vault on a timer and vpp never runs git.
+surface in a listing, **V7** Obsidian Git auto-commits the vault on a timer and vpt never runs git.
 
 One more constraint, which is this document's own and is not in any ledger: **a design document about
 redaction lands in a public repository.** `gh-axi repo view` reports `visibility: public` for
@@ -211,7 +211,7 @@ for a structural property, and this shape cannot provide one.
 
 ### B. Derive by removal into a staging tree, and gate release on an approval bound to the bytes
 
-vpp reads the source read-only, writes a candidate into its own state tree (mode 0700, outside the vault,
+vpt reads the source read-only, writes a candidate into its own state tree (mode 0700, outside the vault,
 outside git), runs a removal pass, and refuses to produce a released copy until an approval record exists
 whose digest matches the candidate's bytes exactly.
 
@@ -254,16 +254,16 @@ release" means.
 Four verbs, in order, each of which does exactly one thing. Everything else is reused from the chain.
 
 ```
-vpp share draft <source> [--sections ...] [--prose -] [--json]
-vpp share review <draft-id> [--diff] [--show-values]
-vpp share approve <draft-id>
-vpp share release <draft-id> --to <path> [--as <name>]
+vpt share draft <source> [--sections ...] [--prose -] [--json]
+vpt share review <draft-id> [--diff] [--show-values]
+vpt share approve <draft-id>
+vpt share release <draft-id> --to <path> [--as <name>]
 ```
 
-What vpp does not do, and this is the load-bearing half: **it never transmits anything.** No mail, no
+What vpt does not do, and this is the load-bearing half: **it never transmits anything.** No mail, no
 message, no upload, no clipboard, no `open`. `release` writes a file into a directory the operator
 configured, and the act of sending that file is the operator's, performed with their own tools. An egress
-channel inside vpp would make the approval gate the only thing standing between an agent with shell
+channel inside vpt would make the approval gate the only thing standing between an agent with shell
 access and a send, and a gate in that position is a single point of failure rather than a boundary.
 
 The internal seam is the chain's: a domain crate holding the policy, the removal pass, the residue scan
@@ -273,10 +273,10 @@ and the terminal. Under R2 the domain crate splits by stage: `policy`, `redact`,
 ### The draft, and why it lives where it lives
 
 ```
-~/.local/state/vpp/share/<draft-id>/        mode 0700
+~/.local/state/vpt/share/<draft-id>/        mode 0700
   draft.md          the candidate bytes, mode 0600
   draft.json        sources, policy, removals with their real values, candidates, digest, mode 0600
-  approval.json     written by `vpp share approve`, absent until then
+  approval.json     written by `vpt share approve`, absent until then
   releases.json     append-only, one entry per released copy: path, digest, time
 ```
 
@@ -306,7 +306,7 @@ riding in the filename, and a default that carried the slug would do that every 
 
 The released file is assembled, not filtered. Four allowlists, and anything not named is absent.
 
-**Frontmatter** carries at most three keys, none of them vpp's:
+**Frontmatter** carries at most three keys, none of them vpt's:
 
 ```markdown
 ---
@@ -322,15 +322,15 @@ wording and on by default, because a recipient who does not know a document is a
 read it as a verbatim record, and the chain's whole position on uncertainty is that a reader must be able
 to tell.
 
-Everything vpp normally writes is absent by construction: `vppRecording`, `vppOccasion`, `vppStage`,
-`vppCapturedAt`, `vppDurationSecs`, `vppOpenFlags`, `vppEngines`, `vppSchema`, `tags`,
-`vppSuggestedTags`, and every one of the vault's eight keys. Two of those deserve their own sentence.
-`vppRecording` embeds the capture date and time to the second, so it is a timestamp disguised as an
+Everything vpt normally writes is absent by construction: `vptRecording`, `vptOccasion`, `vptStage`,
+`vptCapturedAt`, `vptDurationSecs`, `vptOpenFlags`, `vptEngines`, `vptSchema`, `tags`,
+`vptSuggestedTags`, and every one of the vault's eight keys. Two of those deserve their own sentence.
+`vptRecording` embeds the capture date and time to the second, so it is a timestamp disguised as an
 identifier. `tags` is a compact statement of what a private recording was about, which the tags design
 already called out as sometimes worse than the transcript.
 
 **Sections.** The body is the source's sections minus a fixed deny list minus anything the operator did
-not select. The fixed deny list is `Review` (the flag callout), any managed `vpp:` marker block (link
+not select. The fixed deny list is `Review` (the flag callout), any managed `vpt:` marker block (link
 blocks carry paths and note names), and any section the source marked as generated-but-unverified.
 `--sections` narrows further; it never widens.
 
@@ -397,8 +397,8 @@ the draft that is not a masked value, not a sentence opener, not a heading word 
 of ordinary words. On the measurement above that is on the order of thirty lines for a six-hundred-word
 note, about thirteen of which are the names that matter.
 
-The report is never applied automatically. It is printed by `vpp share review`, and confirming one of its
-tokens as a term through the chain's existing `vpp confirm --term` both masks it in the next draft and
+The report is never applied automatically. It is printed by `vpt share review`, and confirming one of its
+tokens as a term through the chain's existing `vpt confirm --term` both masks it in the next draft and
 adds it to `known-terms.txt` forever, so the thirty-line report shrinks with use. That is the same
 confirm-once mechanism the transcription, tagging and brief designs all use, and this is the fourth place
 it pays for itself.
@@ -412,7 +412,7 @@ attention to do so.
 ### Review
 
 ```
-vpp share review <draft-id> [--diff] [--show-values]
+vpt share review <draft-id> [--diff] [--show-values]
 ```
 
 Prints, and writes nothing:
@@ -432,7 +432,7 @@ anything.
 ### Approval, bound to the bytes
 
 ```
-vpp share approve <draft-id>
+vpt share approve <draft-id>
 ```
 
 Five rules:
@@ -456,7 +456,7 @@ Five rules:
 ### Release
 
 ```
-vpp share release <draft-id> --to <path> [--as <name>]
+vpt share release <draft-id> --to <path> [--as <name>]
 ```
 
 It refuses, before writing anything, when any of these hold:
@@ -469,7 +469,7 @@ It refuses, before writing anything, when any of these hold:
 | The residue scan does not pass on the current bytes                       | the machine's own check, re-run, never cached   |
 | The destination resolves inside a git working tree                        | a push publishes it, on this machine on a timer |
 | The destination resolves inside a known cloud-sync root                   | same, without even a commit                     |
-| The destination resolves inside the output root, the audio destination, or vpp's state tree | that is the private side of the boundary |
+| The destination resolves inside the output root, the audio destination, or vpt's state tree | that is the private side of the boundary |
 | The destination exists and was not produced by this draft                 | never overwrite somebody else's file            |
 | The source is audio, or any non-text artifact                             | a voice is identifying and no redaction removes it |
 
@@ -489,12 +489,12 @@ The ledger's "summary format" question may well be answered with "a written summ
 design accommodates that without owning it, using the chain's existing shape for agent-produced content:
 
 ```
-vpp share draft <source> --prose -
+vpt share draft <source> --prose -
 ```
 
-The prose arrives on standard input from whatever wrote it, exactly as a tag proposal does. vpp then
+The prose arrives on standard input from whatever wrote it, exactly as a tag proposal does. vpt then
 applies the same pipeline to it: the removal pass, the residue scan, the candidate report, the review,
-the byte-bound approval. In addition it runs `vpp verify-note`, which the transcription design already
+the byte-bound approval. In addition it runs `vpt verify-note`, which the transcription design already
 built, so a generated sentence whose numbers, dates and proper nouns do not appear in the cited span is
 flagged before a human reads it.
 
@@ -511,9 +511,9 @@ ship uncommented at their default so the shipped file shows the real posture:
 
 ```toml
 [share]
-# Where `vpp share release` may write. Must not be inside a git working tree or a
+# Where `vpt share release` may write. Must not be inside a git working tree or a
 # cloud-sync root; both are refused unless explicitly allowed below.
-release_dir = "~/Documents/vpp-shared"
+release_dir = "~/Documents/vpt-shared"
 allow_git_destination = false
 allow_sync_destination = false
 # Extra sync roots to refuse, beyond ~/Library/Mobile Documents.
@@ -536,17 +536,17 @@ placeholder = "[{class} {n}]"
 # counts it, "mark" keeps it with its [unverified] marker, which cannot be
 # stripped.
 flagged_spans = "omit"
-# Sections never copied into a draft, in addition to every vpp: marker block.
+# Sections never copied into a draft, in addition to every vpt: marker block.
 deny_sections = ["Review"]
 ```
 
-Nothing here holds a secret, so `~/.config/vpp/config.toml` does not become a KeePassXC-backed target on
+Nothing here holds a secret, so `~/.config/vpt/config.toml` does not become a KeePassXC-backed target on
 account of this feature. Whether it becomes one for the cloud transcription engine is the transcription
 design's open question and is unchanged.
 
 ### Failure modes
 
-| Condition                                                    | What vpp does                                        | Notification |
+| Condition                                                    | What vpt does                                        | Notification |
 | ------------------------------------------------------------ | ---------------------------------------------------- | ------------ |
 | Source artifact missing or unreadable                        | refuse, name the path                                 | none, exit 2 |
 | Source is audio or a non-text artifact                       | refuse, name the kind                                 | none, exit 2 |
@@ -568,7 +568,7 @@ design's open question and is unchanged.
 
 The split is the chain's: a configuration mistake, a broken boundary or an ambiguity that could destroy
 or expose work refuses loudly, and a routine absence is a log line. The pages here are the ones that mean
-either "the boundary between private and shareable is not where it should be" or "vpp's own check did not
+either "the boundary between private and shareable is not where it should be" or "vpt's own check did not
 hold", and both deserve interrupting for.
 
 ### Security and privacy
@@ -576,7 +576,7 @@ hold", and both deserve interrupting for.
 **The draft tree is the most sensitive directory in the whole chain.** `draft.json` holds the map from
 each placeholder to the real value it replaced, which is a compact index of exactly the material the
 operator considered too sensitive to share, next to the sentences it came from. It is mode 0600 inside a
-0700 directory, it is never in the vault, never in git, never in a sync root, and `vpp share review`
+0700 directory, it is never in the vault, never in git, never in a sync root, and `vpt share review`
 hides its values unless asked.
 
 **The gate does not protect against an agent with shell access, and must not be described as if it did.**
@@ -594,7 +594,7 @@ tool that printed "redacted" and nothing else would be making a claim it cannot 
 not a path, not a title. The chain set that rule for flagged spans and tags; a draft is the same class of
 data with an audience attached.
 
-**vpp never runs git**, per V7, and this feature adds the inverse rule: it refuses to write where git
+**vpt never runs git**, per V7, and this feature adds the inverse rule: it refuses to write where git
 would find its output.
 
 **Two fingerprints are not designed, and both are real.** A per-recipient watermark (a distinct
@@ -620,14 +620,14 @@ file, a term list and a temporary directory.
    every occurrence in the draft.
 1. Two drafts built from two sources that share a person use placeholder numbering that does not let the
    two drafts be joined.
-1. A released file's frontmatter contains none of `vppRecording`, `vppOccasion`, `vppStage`,
-   `vppCapturedAt`, `vppOpenFlags`, `vppEngines`, `vppSchema`, `tags` or `vppSuggestedTags`, and none of
+1. A released file's frontmatter contains none of `vptRecording`, `vptOccasion`, `vptStage`,
+   `vptCapturedAt`, `vptOpenFlags`, `vptEngines`, `vptSchema`, `tags` or `vptSuggestedTags`, and none of
    the vault's eight keys.
 1. Every link target is absent from the released bytes, and a wiki link to a contact note leaves neither
    the target nor the name behind.
 1. With `keep_timecodes = false` the released bytes contain no `[mm:ss]` reference, and `draft.json`
    still maps every released line to its source span.
-1. A section on the deny list, and every `vpp:` marker block, is absent from the draft even when the
+1. A section on the deny list, and every `vpt:` marker block, is absent from the draft even when the
    operator selected the whole document.
 1. A span flagged in the review record is omitted by default and counted in the report; with
    `flagged_spans = "mark"` it is kept and its `[unverified]` marker survives the removal pass.
@@ -662,7 +662,7 @@ exactly the false comfort this feature must not produce.
 
 Deliberately not designed here, and not to be smuggled in during implementation.
 
-- **Sending anything.** vpp writes a file. Mail, messaging, upload and clipboard are all absent, and
+- **Sending anything.** vpt writes a file. Mail, messaging, upload and clipboard are all absent, and
   their absence is what keeps the gate meaningful.
 - **Speaker labels.** Named in the ledger as an unapproved candidate. They would also add a dimension
   this design has no answer for: a label is either a real name (which the removal pass would mask into
@@ -683,7 +683,7 @@ Deliberately not designed here, and not to be smuggled in during implementation.
   artifacts and writes into its own tree.
 - **The `minutes` keep-or-replace ruling.** Its `vocabulary` command is named as a possible source of
   terms and nothing here depends on the ruling.
-- **Retention and deletion.** vpp deletes nothing, per R6 and the chain. `vpp storage` gains the draft
+- **Retention and deletion.** vpt deletes nothing, per R6 and the chain. `vpt storage` gains the draft
   tree as a reported class, and any pruning is the operator's own command.
 
 ## Assumptions made in the operator's place
@@ -705,7 +705,7 @@ invalidating the measurements.
    has no terminal, so the requirement is a real barrier, and any bypass flag would be the first thing an
    unattended job reached for. The cost is that a legitimate scripted release is impossible, which is
    the intended cost.
-1. **vpp never transmits.** Alternative: a send integration, which is convenient and is what would make
+1. **vpt never transmits.** Alternative: a send integration, which is convenient and is what would make
    this feature genuinely one-step. Rejected because it puts the gate in series with an egress channel
    inside the same binary, and because the operator's existing tools already send files.
 1. **Redaction is deterministic over confirmed terms plus closed pattern classes, with a candidate report
@@ -736,7 +736,7 @@ invalidating the measurements.
    Alternative: forbid drafting from a brief. Flagged rather than forbidden, because a brief
    concentrates participants and context, which makes it the most dangerous source in the chain; it is an
    open question.
-1. **vpp deletes nothing, drafts included.** Alternative: a retention policy that prunes draft
+1. **vpt deletes nothing, drafts included.** Alternative: a retention policy that prunes draft
    directories. Taken because R6 and the chain say so, and because the draft tree holds the mapping that
    would be worst to lose track of. Retention is in the operator's half of this ledger bullet.
 1. **Nothing was written, shared or published while measuring.** No file was written into the vault, no
@@ -751,14 +751,14 @@ the ledger and four separate decisions:
 - **Summary format.** Extract from the source, or generated prose, or both. This design supports both and
   states plainly that the mechanical protections are much weaker for prose.
 - **Retention.** Of drafts (which hold the placeholder map), of released copies, and of the originals.
-  vpp deletes nothing, so this is a decision about what the operator prunes by hand and when.
+  vpt deletes nothing, so this is a decision about what the operator prunes by hand and when.
 - **Transcription engines** and **local or cloud processing**. Both are the transcription design's open
   questions, and they matter here for a reason that document did not raise: a recording that was
   transcribed by a cloud engine has already left this machine once, before any redaction existed. The
   sharing gate protects the second egress, never the first.
 
 **2. Choose the release directory, and confirm it is not synced anywhere.** The default proposed here is
-`~/Documents/vpp-shared`. Measured: `~/Documents` on this machine is local and not redirected into
+`~/Documents/vpt-shared`. Measured: `~/Documents` on this machine is local and not redirected into
 iCloud, but an iCloud Drive container is active, and this is the kind of setting that changes years later
 without anyone remembering which directories it affects.
 
@@ -770,7 +770,7 @@ flag. If that is too heavy for how the operator actually shares things, the hone
 the ritual now rather than to add a bypass later.
 
 **5. Seed `known-terms.txt` by using the review flow.** Redaction quality is a direct function of that
-list, and it fills itself: every `vpp confirm --term` during transcript review makes every future draft
+list, and it fills itself: every `vpt confirm --term` during transcript review makes every future draft
 better. Nothing extra to do, but worth knowing that the first few drafts will have long candidate
 reports.
 
@@ -780,7 +780,7 @@ folder note to the three the tagging design named and the fourth the brief desig
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows S1-S7) for the reasoning.
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows S1-S7) for the reasoning.
 
 1. **What is a shared draft made of: an extract, or written prose?** This is the ledger's "summary
    format" question. The design supports both, and the difference is not cosmetic: for an extract the
@@ -788,7 +788,7 @@ folder note to the three the tagging design named and the fourth the brief desig
    paraphrase can reintroduce a redacted fact in words the pass never saw.
 1. **What is the retention of drafts and of released copies?** A draft directory holds the map from each
    placeholder to the real value, which makes the draft tree more sensitive than the transcript it came
-   from. vpp deletes nothing, so this is a question about what the operator prunes and on what rhythm.
+   from. vpt deletes nothing, so this is a question about what the operator prunes and on what rhythm.
 1. **Should pseudonyms be stable across drafts?** Stable numbering is easier for a recipient who reads
    several drafts, and it lets two drafts be correlated by anyone holding both. Per-draft numbering is
    the proposed default and it is a real trade in the other direction.
@@ -797,7 +797,7 @@ folder note to the three the tagging design named and the fourth the brief desig
 1. **Should an approval expire?** An approval taken today and released in three weeks was a review of the
    same bytes but not of the same situation. A time-to-live is one configuration key and it is the
    operator's call whether it is protection or friction.
-1. **Does the released file say it came from vpp?** The proposed `source_line` says only that the file is
+1. **Does the released file say it came from vpt?** The proposed `source_line` says only that the file is
    a redacted extract and not a verbatim record. Naming the tool would be more honest about provenance
    and would tell a recipient that a recording exists.
 1. **Is the PDF path in scope later?** The vault already has a PDF export recipe, an operator will reach
@@ -807,6 +807,6 @@ folder note to the three the tagging design named and the fourth the brief desig
    manages the same kind of list, and two lists that disagree would produce a draft that masks a name in
    one pipeline and not the other. This is downstream of the `minutes` keep-or-replace ruling. **Moot,
    decided 2026-09-15:** `minutes` is out entirely, so there is only `known-terms.txt`. See
-   `docs/decisions/2026-09-15-vpp-architecture-decisions.md`, decision 1.
-1. **Where does vpp's code live, and what is it called?** Carried forward unresolved from the boundaries
+   `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1.
+1. **Where does vpt's code live, and what is it called?** Carried forward unresolved from the boundaries
    design, because the chain should not stay in disagreement with itself.

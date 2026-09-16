@@ -1,17 +1,17 @@
-# vpp project boundaries
+# vpt project boundaries
 
 Status: design, written 2026-09-14 by an overnight agent with the operator asleep. NOT approved. No
 code was written or changed. Every choice made in the operator's place is listed under Assumptions
 with its alternative, and the questions that need an answer are at the end.
 
-Scope: this document answers one ledger item, "Keep vpp application code in its own project, Mac
+Scope: this document answers one ledger item, "Keep vpt application code in its own project, Mac
 installation and service configuration in dotfiles, output content in the configured directory (Ivy
-for this operator), and homelab deployments in homelab. Reuse existing transcription tasks. vpp must
+for this operator), and homelab deployments in homelab. Reuse existing transcription tasks. vpt must
 work without Bob, Forzare or the full homelab." It decides where each kind of file lives and how the
 independence claim gets proved. It does NOT design ingestion, transcription, tagging, briefs or
 redaction; each of those is its own ledger item with its own design document in this wave.
 
-vpp, on first use, is the voice processing pipeline the operator named on 2026-09-12: a Rust tool that
+vpt, on first use, is the voice processing pipeline the operator named on 2026-09-12: a Rust tool that
 collects everyday Apple Voice Memos synced to the Mac, preserves the original audio, transcribes it,
 and produces agent notes and summaries.
 
@@ -22,12 +22,12 @@ three of them are governed by different rules:
 
 1. `webdavis/dotfiles`, this checkout, a chezmoi source directory that also holds four Rust tool
    workspaces and every LaunchAgent on the machine.
-1. `webdavis/homelab`, which owns server deployments and already records the vpp feature decisions as
+1. `webdavis/homelab`, which owns server deployments and already records the vpt feature decisions as
    L-R5 in `docs/plans/PLAN-v12-experiments-backlog.md`.
 1. `webdavis/Ivy`, the Obsidian vault, which already defines `agent-processing-pipeline/raw/audio/`,
    `transcripts/` and `analysis/`, excludes audio from git vault-wide, and holds a symlink named
    `minutes` pointing at a third-party tool's output directory outside the repository.
-1. A vpp project that does not exist yet.
+1. A vpt project that does not exist yet.
 
 Without a written boundary the default outcome is predictable: application code lands in dotfiles
 because that is where the build scripts already are, content lands next to the code, and the tool
@@ -57,21 +57,21 @@ From `CLAUDE.md` and the recorded operator rulings, not open for re-litigation h
    are deleted on sight. A boundary check only earns a test if gutting our own logic would turn it
    red.
 1. **Obsidian is optional** and the vault is one possible output directory, not a dependency.
-1. **vpp must work with Bob, Forzare and the homelab all absent**, which is this item's
+1. **vpt must work with Bob, Forzare and the homelab all absent**, which is this item's
    done-means.
 
 ## What is already decided, and where it is recorded
 
 | Source | What it already settles |
 | --- | --- |
-| `docs/remaining-work.md`, vpp section | Rust; collect synced Voice Memos; preserve originals; notes and summaries; pns for review alerts; Obsidian optional; Forzare keeps its post-modernization slot |
-| homelab `PLAN-v12-experiments-backlog.md`, L-R5 | The same feature list, plus the sentence this item formalizes: "vpp owns application code; dotfiles owns Mac installation/configuration, homelab owns deployments, and the configured output directory owns the user's content" |
+| `docs/remaining-work.md`, vpt section | Rust; collect synced Voice Memos; preserve originals; notes and summaries; pns for review alerts; Obsidian optional; Forzare keeps its post-modernization slot |
+| homelab `PLAN-v12-experiments-backlog.md`, L-R5 | The same feature list, plus the sentence this item formalizes: "vpt owns application code; dotfiles owns Mac installation/configuration, homelab owns deployments, and the configured output directory owns the user's content" |
 | homelab `PLAN-v12.md`, L6 | Open Notebook is a homelab deployment, and "must not create a second automatic Voice Memos capture/transcription workflow" |
 | homelab `PLAN-v11.md`, Phase 6 | The existing transcription plan: ElevenLabs Scribe v2 plus whisply on `lash`, local faster-whisper fallback for outages or sensitive audio |
 | Ivy `CLAUDE.md` | The `agent-processing-pipeline/` layout, audio excluded from git, and the `minutes` symlink precedent |
 | Todoist `6hVpPJC2cjJW3V9M`, `6gjGcHp69phXmXj3` | The Mac workflow task and the broader transcription task. "Reuse existing transcription tasks" means these two, and this design files no new ones |
 
-The ledger and L-R5 are one plan recorded twice. That duplication is fine while vpp has no repository
+The ledger and L-R5 are one plan recorded twice. That duplication is fine while vpt has no repository
 of its own and is a hazard afterwards, which the Assumptions section addresses.
 
 ## What exists on this machine today, measured
@@ -97,11 +97,11 @@ Measured on 2026-09-14 on dresden, because three of these facts change what the 
    `install_dir`, `run_onchange_after_53-build-scalebar.sh.tmpl` builds the clone behind two
    deferrals (no clone, no Swift toolchain) so a machine without the clone still applies, and
    `Library/LaunchAgents/com.webdavis.scalebar.plist.tmpl` starts it at login.
-1. **A new vpp LaunchAgent would not join the security pipeline's integrity arm.**
+1. **A new vpt LaunchAgent would not join the security pipeline's integrity arm.**
    `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` selects
    `~/Library/LaunchAgents/com.webdavis.osquery-*.plist` for the pipeline manifest and names exactly
-   two built binaries, `pns` and `posture`. So `com.webdavis.vpp.plist` and a `vpp` binary in
-   `~/.cargo/bin` are outside the manifested set, and adding vpp pages no CRIT and adds no
+   two built binaries, `pns` and `posture`. So `com.webdavis.vpt.plist` and a `vpt` binary in
+   `~/.cargo/bin` are outside the manifested set, and adding vpt pages no CRIT and adds no
    full-apply coupling.
 1. **pns needs nothing declared for a new producer.** `pns/crates/pns-protocol/fixtures/request-v1.json`
    carries `producer` as a free string, and `Signal::NeedsAttention` exists at
@@ -127,27 +127,27 @@ Three questions hide inside "keep things in their own homes", and they have diff
 
 ### A. A fifth cargo workspace inside dotfiles
 
-vpp joins `pns/`, `uu/`, `posture/` and `lights/` at the repository root, with its own `Cargo.toml`,
+vpt joins `pns/`, `uu/`, `posture/` and `lights/` at the repository root, with its own `Cargo.toml`,
 its own `Cargo.lock`, a bare-name entry in `.chezmoiignore`, and a `run_onchange_after_5*` builder
 that compiles out of `.chezmoi.sourceDir`. Installable as
-`cargo install --git https://github.com/webdavis/dotfiles vpp`.
+`cargo install --git https://github.com/webdavis/dotfiles vpt`.
 
 Cheapest by a wide margin: every mechanism exists and is proven. It satisfies "its own project" in
 this repository's own vocabulary, since the four workspaces are already independent projects that may
 not depend on each other.
 
-Against it: vpp's domain is larger than the other four (transcription engines, cloud credentials,
+Against it: vpt's domain is larger than the other four (transcription engines, cloud credentials,
 personal recordings, a vault writer), and its content-adjacent code and its plan documents would live
 in the repository that configures the machine. Every apply also walks the new workspace, and chezmoi
 already pays a measurable price for tree size. The four tools are in dotfiles "for now", with
-extraction by `git subtree split` as the exit; starting vpp there means scheduling that extraction on
+extraction by `git subtree split` as the exit; starting vpt there means scheduling that extraction on
 day one for a tool that has no history to preserve yet.
 
 ### B. Its own repository, built from a local clone by dotfiles (the scalebar shape)
 
-`webdavis/vpp` from day one. dotfiles gains `.chezmoidata/vpp.yaml` (source and install paths), one
+`webdavis/vpt` from day one. dotfiles gains `.chezmoidata/vpt.yaml` (source and install paths), one
 deferral-guarded builder, one LaunchAgent plist with its loader, and one config template. The clone
-lives beside the other project clones under `~/workspaces/Ivy/webdavis/vpp`.
+lives beside the other project clones under `~/workspaces/Ivy/webdavis/vpt`.
 
 It matches the operator's two most recent rulings on this question (own repository on day one for the
 Neovim plugins, tools are products others install), keeps personal-content code out of the machine
@@ -160,7 +160,7 @@ tolerate the clone's absence, which is more code than the unguarded four.
 ### C. Its own repository, installed by `cargo install --git` from a pinned tag
 
 Same repository as B, but dotfiles never builds a working tree: a `run_onchange` script runs
-`cargo install --git https://github.com/webdavis/vpp --locked --tag <pin>`, and the pin is the
+`cargo install --git https://github.com/webdavis/vpt --locked --tag <pin>`, and the pin is the
 declared value.
 
 Least dotfiles code of the three, and it is what an outside user does. But it builds from the network
@@ -181,35 +181,35 @@ for scalebar, which means the risky part is copied rather than invented.
 
 | Home | Owns | Never holds |
 | --- | --- | --- |
-| `webdavis/vpp` | All application code, its own config schema and defaults, its own tests and fixtures, its own design documents and runbooks, its `--help` text | Any path into this checkout, any dotfiles-only assumption, the operator's recordings or notes |
-| `webdavis/dotfiles` | Installation and service configuration for THIS Mac: the source and install path declarations, the builder, the LaunchAgent plist and its loader, the rendered config file with secrets from KeePassXC, runtime package declarations, the fresh-machine notes | vpp source code, vpp domain logic, vpp output |
+| `webdavis/vpt` | All application code, its own config schema and defaults, its own tests and fixtures, its own design documents and runbooks, its `--help` text | Any path into this checkout, any dotfiles-only assumption, the operator's recordings or notes |
+| `webdavis/dotfiles` | Installation and service configuration for THIS Mac: the source and install path declarations, the builder, the LaunchAgent plist and its loader, the rendered config file with secrets from KeePassXC, runtime package declarations, the fresh-machine notes | vpt source code, vpt domain logic, vpt output |
 | The configured output directory (`~/workspaces/Ivy` for this operator) | The operator's content: notes, transcripts and the links between them, under the existing `agent-processing-pipeline/` layout | Application code, machine configuration, committed audio |
-| `webdavis/homelab` | Any server-side deployment vpp may optionally use: Open Notebook (L6), a remote transcription host, credential brokering | Anything vpp needs in order to run on the laptop |
+| `webdavis/homelab` | Any server-side deployment vpt may optionally use: Open Notebook (L6), a remote transcription host, credential brokering | Anything vpt needs in order to run on the laptop |
 
 ### What dotfiles gains, file by file
 
 Named so the change can be reviewed before it is written, and so nothing else gets smuggled in:
 
-1. `.chezmoidata/vpp.yaml`, declaring `source_dir` (`workspaces/Ivy/webdavis/vpp`) and `install_dir`
+1. `.chezmoidata/vpt.yaml`, declaring `source_dir` (`workspaces/Ivy/webdavis/vpt`) and `install_dir`
    (`.cargo/bin`, read from `rust_tools.yaml` if the operator prefers one declaration for every Rust
    binary). Home-relative, because launchd resolves no `~`.
-1. `.chezmoiscripts/run_onchange_after_5X-build-vpp.sh.tmpl`, the scalebar builder with `cargo`
+1. `.chezmoiscripts/run_onchange_after_5X-build-vpt.sh.tmpl`, the scalebar builder with `cargo`
    substituted for `swift`: guarded `glob`/`stat` hashes over the clone's sources and manifests, a
    retry marker so a deferred build retries on the next apply, and two deferrals (no clone, no cargo)
    that exit 0 with one reported line.
-1. `Library/LaunchAgents/com.webdavis.vpp.plist.tmpl` plus its `run_onchange_after_*` loader, if vpp
+1. `Library/LaunchAgents/com.webdavis.vpt.plist.tmpl` plus its `run_onchange_after_*` loader, if vpt
    runs on a schedule or as a watcher. Absolute paths built from the declared install directory.
-1. `dot_config/vpp/private_config.toml.tmpl`, the machine's configuration: output directory, archive
+1. `dot_config/vpt/private_config.toml.tmpl`, the machine's configuration: output directory, archive
    directory, engine selection, and any API key pulled with `keepassxc`. `private_` because a
    rendered secret must not be world-readable.
-1. Additions to `.chezmoidata/system_packages_autoinstall.yaml` for runtime dependencies vpp shells
+1. Additions to `.chezmoidata/system_packages_autoinstall.yaml` for runtime dependencies vpt shells
    out to rather than links against (`ffmpeg` is the likely one), alphabetically, after installing
    them by hand first.
 1. One paragraph in `docs/runbooks/macos-fresh-machine-quickstart.md` if a Transparency, Consent and
    Control grant turns out to be needed, because that runbook already owns the grant list.
 
-Not in dotfiles: no `vpp` entry in `.chezmoiignore` (the clone is outside the source tree, so there
-is nothing to exclude), no vpp workspace, no vpp tests, no vpp documents beyond the ones this wave
+Not in dotfiles: no `vpt` entry in `.chezmoiignore` (the clone is outside the source tree, so there
+is nothing to exclude), no vpt workspace, no vpt tests, no vpt documents beyond the ones this wave
 already wrote and the migration note below.
 
 ### What the content boundary says
@@ -217,19 +217,19 @@ already wrote and the migration note below.
 The vault cannot hold the audio, and no backup exists, so "preserve the original audio" has to be
 answered with a specific copy rather than a folder name:
 
-1. **Apple's container stays the canonical original** and is read-only to vpp. vpp never moves,
+1. **Apple's container stays the canonical original** and is read-only to vpt. vpt never moves,
    rewrites, renames or deletes anything inside it, and any SQLite read there opens
    `file:<path>?mode=ro&immutable=1` so that a plain read connection cannot create journal files
    inside Apple's directory.
-1. **vpp keeps one archive copy** of the original bytes, byte-identical and with its capture
+1. **vpt keeps one archive copy** of the original bytes, byte-identical and with its capture
    metadata, in a configured archive directory. Default: outside the vault and outside git, attached
    to the vault by a symlink if the operator wants it visible there, which is exactly what `minutes`
    already does with `~/meetings`.
 1. **The vault holds notes and links**, git-tracked Markdown under `transcripts/` and `analysis/`,
    each note naming the recording identifier and the archive path. Frontmatter key names come from
    configuration, not from code, so the vault's schema (`hub`, `status`, `startDate`, `description`)
-   is this operator's configuration rather than vpp's contract.
-1. **vpp writes only under its configured directories** and creates a missing output directory only
+   is this operator's configuration rather than vpt's contract.
+1. **vpt writes only under its configured directories** and creates a missing output directory only
    when its parent already exists. A typo'd path fails with the path in the message instead of
    building a tree somewhere unexpected.
 
@@ -238,21 +238,21 @@ answered with a specific copy rather than a folder name:
 These are boundary behaviors of code we own, which is what earns a test under the 2026-08-05 scope
 ruling. Each is written as the sentence the test asserts, with the failure it catches.
 
-1. **vpp builds with dotfiles absent.** Copy the workspace alone into an empty directory and run
+1. **vpt builds with dotfiles absent.** Copy the workspace alone into an empty directory and run
    `cargo build --locked --release` with no `pns`, `posture` or dotfiles checkout on the filesystem.
    Catches the path dependency and the "just read the repo's data file" shortcut. This is the same
    proof the 2026-09-10 un-sharing used, so the method is established.
-1. **vpp completes a run with pns absent.** With nothing named `pns` on `PATH`, a discovery through
-   note pass finishes, the review item is recorded in vpp's own state, and the missing notifier is
+1. **vpt completes a run with pns absent.** With nothing named `pns` on `PATH`, a discovery through
+   note pass finishes, the review item is recorded in vpt's own state, and the missing notifier is
    one log line, not an error exit. Catches a notification path that became a hard dependency.
-1. **vpp completes a run with every network destination unreachable.** A local-engine configuration
+1. **vpt completes a run with every network destination unreachable.** A local-engine configuration
    produces a note; a cloud-engine configuration fails with a named engine and a named reason and
    leaves the recording queued rather than consumed. Catches silent data loss on an outage and the
    accidental homelab dependency.
-1. **vpp completes a run with no vault and no Obsidian.** Point the output directory at an empty
+1. **vpt completes a run with no vault and no Obsidian.** Point the output directory at an empty
    temporary directory: the notes are portable Markdown, and no vault-specific syntax is emitted.
    Catches Obsidian becoming a requirement.
-1. **vpp leaves the source container untouched.** Inventory the container (names, sizes, modification
+1. **vpt leaves the source container untouched.** Inventory the container (names, sizes, modification
    times, including the SQLite sidecars) before and after a full run and compare. Catches both an
    accidental write and a read-write SQLite open.
 1. **The apply defers instead of failing when the clone or the toolchain is missing.** Render the
@@ -261,17 +261,17 @@ ruling. Each is written as the sentence the test asserts, with the failure it ca
    machine whose whole configuration stops because one optional tool has no clone. This is a dotfiles
    test and mirrors the scalebar shape.
 
-Numbers 1 through 5 live in the vpp repository and run in its own suite. Number 6 lives here.
+Numbers 1 through 5 live in the vpt repository and run in its own suite. Number 6 lives here.
 
 ### Configuration boundary
 
-vpp ships its own defaults with every option present and set to its default value, per the
+vpt ships its own defaults with every option present and set to its default value, per the
 2026-08-31 ruling that defaulted keys ship uncommented at their default. dotfiles' rendered config
 carries only what differs on this machine plus the KeePassXC lookups.
 
 The config file is a hand-written chezmoi template to start with. pns's generated template (values
 file plus `pns-config-render` plus a byte-equality test) exists because a hand edit to a large
-generated file drifts silently; that machinery is worth copying when vpp's configuration grows past
+generated file drifts silently; that machinery is worth copying when vpt's configuration grows past
 a handful of options, and not before.
 
 ### Failure modes
@@ -279,13 +279,13 @@ a handful of options, and not before.
 | Situation | Behavior |
 | --- | --- |
 | Clone or cargo missing at apply time | Builder defers, exit 0, retry marker, apply continues |
-| Output or archive directory's parent missing | vpp refuses with the resolved path in the message, creates nothing |
-| pns missing or failing | Log line, run continues, review state kept in vpp |
+| Output or archive directory's parent missing | vpt refuses with the resolved path in the message, creates nothing |
+| pns missing or failing | Log line, run continues, review state kept in vpt |
 | Transcription engine unreachable | Configured fallback, provenance records which engine ran; no fallback configured means the recording stays queued |
 | Homelab down, Open Notebook absent | No effect on a laptop run; the handoff is optional by design (L6's own constraint) |
-| Bob or Forzare absent | No effect; they are consumers of vpp's output, never inputs |
+| Bob or Forzare absent | No effect; they are consumers of vpt's output, never inputs |
 | Interrupted iCloud sync | Discovery design's problem, not this one, but the boundary rule is that a partially synced file is skipped rather than half-ingested |
-| vpp uninstalled | Notes and archive stay where they are, readable without vpp; nothing in the vault depends on the binary |
+| vpt uninstalled | Notes and archive stay where they are, readable without vpt; nothing in the vault depends on the binary |
 
 ### Security
 
@@ -299,12 +299,12 @@ a handful of options, and not before.
 1. **No privilege.** No sudo, no root helper, no privileged LaunchDaemon. The recordings are
    readable as the user (mode 0700, owned by the operator), so nothing here needs to be.
 1. **Read-only at the source**, as specified above, including the SQLite open mode.
-1. **A notification is not a review.** Review state lives in vpp; a delivered pns page proves
+1. **A notification is not a review.** Review state lives in vpt; a delivered pns page proves
    delivery, never that the operator corrected anything.
 
 ### Proving the independence claim, which is this item's done-means
 
-The done-means asks for "a recorded boundary with vpp shown to work with Bob, Forzare and the
+The done-means asks for "a recorded boundary with vpt shown to work with Bob, Forzare and the
 homelab all absent". Bob and Forzare do not exist yet, so the honest form of that proof is the
 absence test, not a mock: behaviors 1 through 4 above, run on a machine where Bob and Forzare have
 never been installed, with the homelab off the network for the duration. Record the four exit codes
@@ -329,7 +329,7 @@ already broken and the stub is hiding it.
 Each of these is a decision that had to be made to write the document, with the alternative that was
 rejected and what it would cost to switch.
 
-1. **vpp is its own GitHub repository from day one.** Alternative: a fifth workspace in dotfiles,
+1. **vpt is its own GitHub repository from day one.** Alternative: a fifth workspace in dotfiles,
    extracted later with `git subtree split`, which is cheaper this week and schedules a migration.
    Switching later costs one subtree split plus rewriting the builder; switching from B to A costs
    about the same in reverse.
@@ -342,60 +342,60 @@ rejected and what it would cost to switch.
 1. **dotfiles builds from a local clone, in the scalebar shape.** Alternative: `cargo install --git`
    from a pinned tag, which removes the clone dependency and adds a pin to bump and a network
    dependency at apply time.
-1. **Apple's container stays the canonical original; vpp keeps one archive copy outside git.**
+1. **Apple's container stays the canonical original; vpt keeps one archive copy outside git.**
    Alternative: treat the copy in the vault's gitignored `raw/audio/` as the archive, which puts the
    audio where the notes are at the cost of one unbacked copy on one machine until a backup exists.
    A third option, tracking audio in git, contradicts the vault's own ignore rules.
-1. **Notes go into the existing `transcripts/` and `analysis/` directories rather than a new `vpp/`
-   subtree.** Alternative: give vpp its own subtree, which reads more cleanly beside the existing
+1. **Notes go into the existing `transcripts/` and `analysis/` directories rather than a new `vpt/`
+   subtree.** Alternative: give vpt its own subtree, which reads more cleanly beside the existing
    `minutes` symlink and against "reuse the existing vault layout" in the ledger.
-1. **pns notification is opt-in in vpp's configuration and degrades to a log line when pns is
+1. **pns notification is opt-in in vpt's configuration and degrades to a log line when pns is
    absent.** Alternative: require pns, which would contradict the shippable-product rule and fail
    behavior 2.
 1. **Frontmatter key names are configuration, not code.** Alternative: hardcode the vault's schema,
    which is faster and makes the tool this operator's only.
-1. **The design documents written in this wave stay in `docs/superpowers/specs/` until the vpp
-   repository exists, then move there with a pointer left behind.** Alternative: keep every vpp
+1. **The design documents written in this wave stay in `docs/superpowers/specs/` until the vpt
+   repository exists, then move there with a pointer left behind.** Alternative: keep every vpt
    document in dotfiles permanently, which contradicts this document's own boundary.
 1. **No new Todoist tasks.** The existing `6hVpPJC2cjJW3V9M` and `6gjGcHp69phXmXj3` are the
    transcription tasks this work reuses, per the ledger's instruction.
 1. **`minutes` is left exactly as it is.** It already lists and searches voice memos and already owns
    `agent-processing-pipeline/minutes`. This document neither wires it in nor removes it, and only
-   requires that vpp not write into that symlinked tree.
+   requires that vpt not write into that symlinked tree.
 
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed except where noted. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows B1-B6) and
-`docs/decisions/2026-09-15-vpp-architecture-decisions.md` for the reasoning.
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows B1-B6) and
+`docs/decisions/2026-09-15-vpt-architecture-decisions.md` for the reasoning.
 
 1. **Own repository, or a fifth workspace in dotfiles?** Recommendation: own repository
-   (`webdavis/vpp`). This is the one answer everything else in the document hangs from. **Closed: own
+   (`webdavis/vpt`). This is the one answer everything else in the document hangs from. **Closed: own
    repository.**
-1. **Does the tool keep the name `vpp`?** The acronym is taken by a well-known networking project and
+1. **Does the tool keep the name `vpt`?** The acronym is taken by a well-known networking project and
    the repository's own rules discourage introducing uncommon acronyms. Recommendation: pick the
    shipping name before the repository is created. **Still open.** This is the one question in this
    document the operator still needs to answer; no rule or convention supplies a replacement name.
 1. **Which copy of the audio is canonical, and is one unbacked copy acceptable until a backup
    exists?** Recommendation: Apple's container is canonical, the archive copy lives outside git, and
-   a real backup stays a separate ledger item rather than a vpp feature. **Canonical copy: closed**,
+   a real backup stays a separate ledger item rather than a vpt feature. **Canonical copy: closed**,
    Apple's container. **Backup acceptability: still open**, the operator's own risk call for personal
    recordings with no other machine holding them.
-1. **Do vpp's notes share `transcripts/` and `analysis/` with everything else, or get their own
+1. **Do vpt's notes share `transcripts/` and `analysis/` with everything else, or get their own
    subtree?** Recommendation: share them, since the ledger asks for the existing layout, with a
    per-note provenance field. **Closed: share the existing directories.**
 1. **Is `minutes` in or out?** It is installed, declared, already symlinked into the vault, and
-   already handles voice memos. If it is in, vpp's scope shrinks; if it is out, its ledger evaluation
-   should record that vpp supersedes it. Recommendation: answer this before vpp's ingestion design is
-   approved, because it can remove a whole layer. **Closed: out.** vpp does not use or depend on
+   already handles voice memos. If it is in, vpt's scope shrinks; if it is out, its ledger evaluation
+   should record that vpt supersedes it. Recommendation: answer this before vpt's ingestion design is
+   approved, because it can remove a whole layer. **Closed: out.** vpt does not use or depend on
    `minutes` in any form. The operator's reasoning: `minutes` is poorly designed, though it has good
-   features worth learning from. See `docs/decisions/2026-09-15-vpp-architecture-decisions.md`,
+   features worth learning from. See `docs/decisions/2026-09-15-vpt-architecture-decisions.md`,
    decision 1.
 1. **Do the vault's folder-note and frontmatter conventions apply to machine-written notes, and who
    maintains the folder note for a directory a tool writes into?** This is a vault-governance
-   question that vpp's output format depends on. **Closed: yes, with no carve-out**; the vault
+   question that vpt's output format depends on. **Closed: yes, with no carve-out**; the vault
    `CLAUDE.md` applies to every note it tracks, and the operator writes each folder note once.
-1. **Should vpp's binary, configuration and LaunchAgent join posture's user-configured watch list?**
+1. **Should vpt's binary, configuration and LaunchAgent join posture's user-configured watch list?**
    They are outside the osquery known-good manifests by default, verified above, so this is an
    addition the operator opts into rather than a consequence. **Closed: opt in later**, no action
    needed now.

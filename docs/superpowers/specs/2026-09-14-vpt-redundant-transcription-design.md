@@ -1,21 +1,21 @@
-# vpp redundant transcription and disagreement review
+# vpt redundant transcription and disagreement review
 
 Status: design, written 2026-09-14 while the operator was asleep. Not approved, not built. No code was
 written or changed. Every choice made in the operator's place is listed under "Assumptions made in the
 operator's place" with its alternative, and the questions that need an answer are at the end.
 
-Scope: `docs/remaining-work.md`, the `vpp (Voice Processing Pipeline)` section, third bullet, line 2189.
+Scope: `docs/remaining-work.md`, the `vpt (Voice Processing Tool)` section, third bullet, line 2189.
 
 > Use redundant transcription and compare disagreements; flag uncertain text and unsupported notes for
 > review, notifying through pns's producer application programming interface (API). Preserve the
 > alternatives and source references. Multiple engines agreeing does not prove correctness. The proposed
 > feature for playing audio from a summary sentence was rejected; original audio preservation remains.
 
-The section intro, added 2026-09-12, sets the frame: "Build vpp in Rust to collect everyday Apple Voice
+The section intro, added 2026-09-12, sets the frame: "Build vpt in Rust to collect everyday Apple Voice
 Memos synced to the Mac, preserve their original audio format, transcribe them, and produce agent notes
 and summaries."
 
-The operator's half of this task is Open Question 8 in the same file, line 2323: "vpp: decide permitted
+The operator's half of this task is Open Question 8 in the same file, line 2323: "vpt: decide permitted
 local/cloud processing and cost before selecting redundant engines." This document does not answer that
 question. It measures what each option actually costs, in wall-clock time and in dollars, so the answer
 is a choice between priced options rather than a guess, and it designs everything that does not depend on
@@ -23,21 +23,21 @@ which engines win.
 
 ## What this builds on
 
-This is the third document in the vpp chain and it assumes the first two.
+This is the third document in the vpt chain and it assumes the first two.
 
-**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpp
-feature bullets, that the `minutes` keep-or-replace ruling is still open, and that exactly two vpp
+**The source reconciliation** established that `minutes` 0.26.1 already covers six of the seven vpt
+feature bullets, that the `minutes` keep-or-replace ruling is still open, and that exactly two vpt
 requirements are absent from every source including `minutes`: redundant transcription with disagreement
 comparison, and pns notification of uncertain output. Both of them are this bullet. So this is the one
-vpp task that is new work under either ruling, which is what makes it safe to design now.
+vpt task that is new work under either ruling, which is what makes it safe to design now.
 
-**The discovery design** drew the boundary this document starts from. `vpp ingest` sweeps Apple's group
+**The discovery design** drew the boundary this document starts from. `vpt ingest` sweeps Apple's group
 container, gates each recording for wholeness, clones it into the vault with `clonefile(2)`, and writes a
 sidecar. It ends there deliberately: "It does not transcribe, summarize, tag, or write a note. That
 boundary is what keeps this design independent of the `minutes` ruling." Its output, a recording with a
 content-derived identity of the form `2026-08-24T144736-4f3ab19c02de`, is this document's input.
 
-**The boundaries design**, written in parallel, recommends that vpp live in its own repository rather
+**The boundaries design**, written in parallel, recommends that vpt live in its own repository rather
 than as a fifth cargo workspace in dotfiles, which is where the discovery design assumed it would go.
 That disagreement is unresolved and it belongs to the operator, not here. Nothing below depends on the
 answer: the code home changes the build and install story, not the comparison. The same is true of the
@@ -55,9 +55,9 @@ fuller statement of the same feature:
 1. Generated notes are checked against the transcript, and unsupported claims are flagged.
 1. Alternatives and source references are preserved.
 1. Agreement between engines is not proof of correctness.
-1. Notification goes through `pns submit --json` with `producer: "vpp"` and
+1. Notification goes through `pns submit --json` with `producer: "vpt"` and
    `signal.kind: "needs_attention"`, the protocol is reverified at implementation time, review state is
-   kept in vpp, and a notification receipt does not mean the operator reviewed anything.
+   kept in vpt, and a notification receipt does not mean the operator reviewed anything.
 1. Playing audio by selecting a summary sentence is rejected. Preserving the original recording is still
    required.
 1. Engines, local versus cloud processing, summary format and retention are chosen before implementation.
@@ -185,7 +185,7 @@ default invocation of the fastest local engine is also the one that reports no c
   unchanged.) It is a different model family from Whisper, it is free, and it runs on device. Reaching it
   needs a small Swift helper, because the framework has no command-line interface; `minutes` builds
   exactly such a helper and keeps it at `~/.minutes/bin/apple-speech-helper` beside its source. That is
-  `minutes`' private helper and R3 means vpp never calls it; it does establish that the approach works
+  `minutes`' private helper and R3 means vpt never calls it; it does establish that the approach works
   here.
 - **Local model weights are already cached**, so no local engine needs a download: 794 MB under
   `~/.cache/whisper` (`base.pt`, `large-v3-turbo.pt`) and Systran faster-whisper plus MLX community
@@ -213,8 +213,8 @@ L-R5 asks for the protocol to be reverified at implementation time. Read today i
 One live hazard, measured by the sibling alert-metadata design on the same day: **the hermes gateway
 declares exactly three webhook routes, `priority`, `pns` and `unattended-upgrades`.** posture names a
 `posture` route that does not exist, every one of its Discord legs answers 404, and eight of them are
-dead-lettered right now. A vpp that names a `vpp` route before the gateway has one would reproduce that
-failure exactly: banner delivered, durable record silently lost. vpp names an existing route until the
+dead-lettered right now. A vpt that names a `vpt` route before the gateway has one would reproduce that
+failure exactly: banner delivered, durable record silently lost. vpt names an existing route until the
 operator adds one.
 
 ## Approaches
@@ -277,17 +277,17 @@ is the thing that stops A from being an expensive no-op.
 Two commands, each running to completion and exiting.
 
 ```
-vpp transcribe <recording-id> [--engines a,b] [--dry-run]
-vpp verify-note <recording-id> [--note <path>]
+vpt transcribe <recording-id> [--engines a,b] [--dry-run]
+vpt verify-note <recording-id> [--note <path>]
 ```
 
-`vpp transcribe` takes a recording that `vpp ingest` has already cloned, runs the configured engines,
+`vpt transcribe` takes a recording that `vpt ingest` has already cloned, runs the configured engines,
 compares them, classifies the flags, writes the transcript and the review record, and notifies. It does
-not summarize and it does not write a note. `vpp verify-note` takes a note that something else generated
+not summarize and it does not write a note. `vpt verify-note` takes a note that something else generated
 and checks its claims against the transcript and the review record.
 
 They are separate because the note generator is a later ledger bullet and may turn out to be
-`minutes process`, an agent, or vpp itself. Every one of those can be checked by the same command as long
+`minutes process`, an agent, or vpt itself. Every one of those can be checked by the same command as long
 as the note follows the source-reference convention below.
 
 The internal seam is the one the other four Rust tools already use: a domain crate that knows
@@ -317,7 +317,7 @@ confidence required would either exclude that engine or invite a fabricated defa
 confidence is worse than an absent one.
 
 Every engine is reached by spawning an already-installed binary and parsing its output, or by one HTTPS
-request. No transcription library is linked into vpp. That keeps R1 intact, keeps vpp buildable with no
+request. No transcription library is linked into vpt. That keeps R1 intact, keeps vpt buildable with no
 engine present, and makes engine selection a configuration value rather than a compile-time one, which is
 precisely what "engine selection is left to the operator's cost decision" requires.
 
@@ -335,10 +335,10 @@ The `family` column is not decoration. It is compared at startup.
 
 ### The engine-family rule, which is the whole point of Finding 1
 
-At startup `vpp transcribe` resolves the configured engine pair and refuses to run when both report the
+At startup `vpt transcribe` resolves the configured engine pair and refuses to run when both report the
 same model family, naming both engines and both families in the refusal. `whisply` with `large-v3-turbo`
 and `openai-whisper` with `turbo` are the same family and were measured to produce identical output; a
-configuration that pairs them is a mistake, not a preference, and vpp says so instead of burning ten
+configuration that pairs them is a mistake, not a preference, and vpt says so instead of burning ten
 minutes of compute to produce zero findings.
 
 Family is reported by the adapter, derived from the model identifier, not guessed from the tool name. Two
@@ -392,7 +392,7 @@ so it is effectively linear here. If the edit distance is large, that is itself 
 engine failed or transcribed something else.
 
 A guard makes that explicit. When the edit distance exceeds `max_divergence_ratio` of the token count,
-default 0.35, vpp stops the span-level comparison, records the recording as `divergent`, and raises one
+default 0.35, vpt stops the span-level comparison, records the recording as `divergent`, and raises one
 flag for the whole recording rather than thousands. A cloud engine that transcribed only the first thirty
 seconds produces exactly this shape, and a thousand-span review list is a worse report of it than one
 sentence.
@@ -434,7 +434,7 @@ Two rules make it usable, and neither needs a model:
 
 - **Aggregate by surface form.** The review record lists each distinct string once with its occurrence
   count and its first timecode, not once per occurrence. "Rajesh" appearing five times is one row.
-- **Suppress confirmed terms permanently.** `~/.config/vpp/known-terms.txt` is a plain list of strings,
+- **Suppress confirmed terms permanently.** `~/.config/vpt/known-terms.txt` is a plain list of strings,
   one per line, that the operator has already confirmed. A term on that list never produces an
   `agreed-unverified` flag again. It still produces a `numeric` or `proper-noun` flag if an engine
   disagrees about it, because that is new information.
@@ -462,7 +462,7 @@ agent-processing-pipeline/                       (the vault, per the discovery d
   transcripts/<id>.md                            the transcript of record, with a Review section
   analysis/<id>.md                               the note, written later by something else
 
-~/.local/state/vpp/                              vpp's own state, mode 0700
+~/.local/state/vpt/                              vpt's own state, mode 0700
   recordings/<id>.json                           the ingest sidecar, from the discovery design
   transcripts/<id>.<engine>.json                 each engine's raw output, verbatim, mode 0600
   review/<id>.json                               the flag list and its review state
@@ -470,7 +470,7 @@ agent-processing-pipeline/                       (the vault, per the discovery d
 
 The split is deliberate. The vault is a human's notes directory and holds what a human reads; the raw
 engine outputs are large, machine-shaped and would clutter it, but they must be keepable, so they live in
-state. The review record lives in state too because L-R5 says review state is kept in vpp.
+state. The review record lives in state too because L-R5 says review state is kept in vpt.
 
 `transcripts/<id>.md` follows the vault's own conventions, which the vault `CLAUDE.md` defines:
 frontmatter properties in the documented order, a first-level heading matching the filename, wiki links
@@ -514,7 +514,7 @@ generator, which is a later bullet.
 sentence in a summary paragraph, ends with one or more timecode ranges in square brackets, for example
 `[12:04-12:19]`. A line with no timecode is making an unsourced claim.
 
-**The check, `vpp verify-note`.** Four rules, in order, each producing its own flag class:
+**The check, `vpt verify-note`.** Four rules, in order, each producing its own flag class:
 
 1. **`unsourced`.** A claim line carries no timecode range.
 1. **`bad-reference`.** A timecode range is empty, inverted, or falls outside the transcript's own time
@@ -540,7 +540,7 @@ One submission per recording, after the comparison and the note check, and only 
 {
   "schema": "pns.request/1",
   "request_id": "<uuid v4>",
-  "producer": "vpp",
+  "producer": "vpt",
   "event": "transcript_review_needed",
   "signal": {
     "kind": "needs_attention"
@@ -548,13 +548,13 @@ One submission per recording, after the comparison and the note check, and only 
   "occurred_at": 1757808000,
   "detail": "<id>: 6 spans to review, 11 agreed spans unverified",
   "context": {
-    "project": "vpp"
+    "project": "vpt"
   },
   "scope": "automatic",
   "route": "pns",
   "extensions": {
     "recording_id": "2026-08-24T144736-4f3ab19c02de",
-    "review_path": "~/.local/state/vpp/review/<id>.json",
+    "review_path": "~/.local/state/vpt/review/<id>.json",
     "transcript_path": "<vault>/agent-processing-pipeline/transcripts/<id>.md",
     "counts": {
       "numeric": 3,
@@ -579,7 +579,7 @@ a date, which makes it the most sensitive fragment of the transcript, and pns de
 a phone. The discovery design already set the same rule for titles. The notification says how many and
 where; the operator opens the file.
 
-**The route must exist on the gateway.** `pns` until the operator adds a `vpp` route, for the reason
+**The route must exist on the gateway.** `pns` until the operator adds a `vpt` route, for the reason
 measured above: posture's non-existent route is silently dead-lettering security pages right now.
 
 **The bounds are respected with room to spare.** The example is a few hundred bytes against a 65,536 byte
@@ -588,24 +588,24 @@ itself never rides along, which is what keeps that true for a recording with two
 
 **A backlog does not stampede.** A first run over the 28 recordings already on this Mac would otherwise
 fire 28 notifications. When one run produces more than `max_notifications_per_run` recordings needing
-review, default 3, vpp sends one aggregate request naming the count and the review directory instead of
+review, default 3, vpt sends one aggregate request naming the count and the review directory instead of
 one per recording.
 
-If `pns` is absent or fails, vpp writes the same record to its log and exits non-zero. It never loses the
+If `pns` is absent or fails, vpt writes the same record to its log and exits non-zero. It never loses the
 review record because a notifier is missing, and it never skips writing the transcript because a
 notification failed.
 
 ### Review state
 
-Kept in vpp, per L-R5, in `~/.local/state/vpp/review/<id>.json`. Each flag has an identifier stable
+Kept in vpt, per L-R5, in `~/.local/state/vpt/review/<id>.json`. Each flag has an identifier stable
 across re-runs, derived from its class and its time range, and a state: `open`, `confirmed` (the
 transcript of record is right), `corrected` (with the operator's text), or `dismissed`.
 
 The command surface is deliberately small:
 
 ```
-vpp review <recording-id>                          print the open flags, ranked
-vpp review <recording-id> --resolve <flag-id> --confirm | --correct <text> | --dismiss
+vpt review <recording-id>                          print the open flags, ranked
+vpt review <recording-id> --resolve <flag-id> --confirm | --correct <text> | --dismiss
 ```
 
 `--confirm` on a `proper-noun` or `agreed-unverified` flag offers to append the term to
@@ -613,12 +613,12 @@ vpp review <recording-id> --resolve <flag-id> --confirm | --correct <text> | --d
 transcript of record; `--correct` records the operator's text alongside the flag, and whether a later
 stage applies it is the open question named above.
 
-Re-running `vpp transcribe` on a recording preserves existing resolutions by flag identifier and adds
+Re-running `vpt transcribe` on a recording preserves existing resolutions by flag identifier and adds
 only new flags. That is what makes a re-run after an engine change safe.
 
 ### Configuration
 
-One file, `~/.config/vpp/config.toml`, extending the discovery design's file. Following the repository's
+One file, `~/.config/vpt/config.toml`, extending the discovery design's file. Following the repository's
 ruling that defaulted keys ship uncommented at their default, so the shipped file shows the real posture:
 
 ```toml
@@ -649,30 +649,30 @@ model_id = "scribe_v2"
 transcode = true
 
 [review]
-known_terms_path = "~/.config/vpp/known-terms.txt"
+known_terms_path = "~/.config/vpt/known-terms.txt"
 grounding_window_secs = 15
 # Aggregate into one notification past this many recordings in a single run.
 max_notifications_per_run = 3
 
 [notify]
-producer = "vpp"
+producer = "vpt"
 # Must name a route the hermes gateway actually declares.
 route = "pns"
 ```
 
-`audit_engine` ships **empty**, and an empty auditor means vpp transcribes once and runs the confidence
+`audit_engine` ships **empty**, and an empty auditor means vpt transcribes once and runs the confidence
 and risk-class signals only. That is the shape of Open Question 8 as a default: nothing leaves the
 machine and nothing costs money until the operator names a second engine. It is not a recommendation that
 redundancy be skipped; it is a refusal to make a cost decision on the operator's behalf by shipping one.
 
 If the operator chooses the cloud engine, the API key is rendered from KeePassXC into this file the way
-the other fifteen vault-backed targets are, which makes `~/.config/vpp/config.toml` the sixteenth and
+the other fifteen vault-backed targets are, which makes `~/.config/vpt/config.toml` the sixteenth and
 means an apply needs KeePassXC unlocked. That is a real cost and it should be weighed against reading the
 key from the environment instead.
 
 ### Failure modes
 
-| Condition                                           | What vpp does                                           | Notification                           |
+| Condition                                           | What vpt does                                           | Notification                           |
 | --------------------------------------------------- | ------------------------------------------------------- | -------------------------------------- |
 | Configured engine binary absent                     | refuse at startup, naming the engine and the config key | page once                              |
 | Both engines report the same model family           | refuse at startup, naming both families                 | page once                              |
@@ -701,7 +701,7 @@ Voice memos are everyday personal audio and a transcript is more searchable than
 - **Only a transcode leaves, and only to the named engine.** The uploaded copy is a 16 kHz mono Opus
   derivative written into a 0700 directory and removed after the request, including on the error path.
   The archived original never moves.
-- **Transcripts are as sensitive as the audio.** `~/.local/state/vpp/` is mode 0700 and every file in it
+- **Transcripts are as sensitive as the audio.** `~/.local/state/vpt/` is mode 0700 and every file in it
   is 0600. The vault transcript inherits the vault's own protections, and unlike the audio it **is**
   committed, because `.gitignore` excludes audio extensions and not Markdown. That means transcripts
   reach the vault's git history and therefore Obsidian's mobile sync. That is probably what the operator
@@ -709,7 +709,7 @@ Voice memos are everyday personal audio and a transcript is more searchable than
   discovering.
 - **Nothing sensitive is logged or notified.** No flagged span, no alternative, no title, no transcript
   excerpt appears in a log line or a pns request. Identities, counts, classes and paths only.
-- **The cloud engine's retention is the operator's question, not vpp's.** vpp cannot promise what a
+- **The cloud engine's retention is the operator's question, not vpt's.** vpt cannot promise what a
   vendor does with an upload. If that matters, the answer is the local pairing, and the design supports
   it.
 - **Apple's container is never written.** Inherited from the discovery design and unchanged: this stage
@@ -793,7 +793,7 @@ its alternative, and reversing any of them changes the design without invalidati
    diff, and accept that the shared-error class ships silently. Rejected because the ledger's own
    sentence about agreement not proving correctness has to mean something in the design, and a class-5
    flag is what it means.
-1. **The engine pair must come from different model families, and vpp refuses otherwise.** Alternative: a
+1. **The engine pair must come from different model families, and vpt refuses otherwise.** Alternative: a
    warning rather than a refusal, or no check at all. Taken as a refusal because the measured failure is
    silent: identical output looks like a clean recording, so a warning would be read as "nothing to
    review" rather than "this configuration detects nothing".
@@ -829,7 +829,7 @@ its alternative, and reversing any of them changes the design without invalidati
 1. **One notification per recording, aggregating past a threshold.** Alternative: one per flag, which is
    unusable, or one per run always, which buries a single urgent recording in a batch.
 1. **`verify-note` annotates and never gates.** Alternative: refuse to publish a note with unsupported
-   claims. Rejected because vpp does not own publication and because a check that blocks gets disabled.
+   claims. Rejected because vpt does not own publication and because a check that blocks gets disabled.
 1. **No engine was run against a real voice memo, and no cloud engine was called at all.** Alternative:
    transcribe one real recording to measure end to end. Not done because it would have written the
    operator's personal speech into a scratch directory, and because calling ElevenLabs would have spent
@@ -865,20 +865,20 @@ transcript of record. It does not work today:
 minutes setup --model small
 ```
 
-**3. Add a `vpp` route to the hermes gateway, or accept that vpp posts on the `pns` route.** The gateway
+**3. Add a `vpt` route to the hermes gateway, or accept that vpt posts on the `pns` route.** The gateway
 declares `priority`, `pns` and `unattended-upgrades` today, and posture's pages are being dead-lettered
-right now for naming a route that is not there. Whichever way this goes, it should be settled before vpp
+right now for naming a route that is not there. Whichever way this goes, it should be settled before vpt
 sends its first notification rather than after.
 
 ## Open questions for the operator
 
 **Triage, 2026-09-15:** every question below is closed. See
-`docs/decisions/2026-09-15-vpp-question-triage.md` (rows T1-T7) and
-`docs/decisions/2026-09-15-vpp-architecture-decisions.md` for the full reasoning; the short form is in the
+`docs/decisions/2026-09-15-vpt-question-triage.md` (rows T1-T7) and
+`docs/decisions/2026-09-15-vpt-architecture-decisions.md` for the full reasoning; the short form is in the
 per-item notes that follow. The architecture is broader than this design's own single-pair
 recommendation: two engine slots, primary and optional fallback, both named in config, with the
 fallback's trigger (on failure, or every recording) also configurable (decision 3). Reconciliation picks
-a winner and flags uncertainty two ways only, inline markers plus `vpp review <id>`; a summary block and a
+a winner and flags uncertainty two ways only, inline markers plus `vpt review <id>`; a summary block and a
 separate document were both considered and rejected (decision 4). Three further engine-pair behaviors are
 approved for building (transcript-wins rule, both-engines-fail handling defaulting to keep-and-flag,
 engine per language), and two adjacent ones are explicitly not built, a disagreement threshold and a
@@ -894,7 +894,7 @@ cloud spend ceiling, both because no defensible default exists yet (decision 5).
    would need a second language in the build. Its confidence reporting is unknown and would need a probe.
    **Closed: yes, approved.** Apple Speech is one of the two starting first-class adapters (decision 10),
    and the confidence reporting is no longer unknown; see the corrected note above this section and
-   `docs/decisions/2026-09-15-vpp-question-triage.md`.
+   `docs/decisions/2026-09-15-vpt-question-triage.md`.
 1. **May a transcript be committed to the vault, and therefore synced to a phone?** The audio is
    gitignored and the transcript would not be. Everything in this design assumes yes, because that is
    what the vault's `transcripts/` directory is for, but it is the decision that puts searchable text of
@@ -904,22 +904,22 @@ cloud spend ceiling, both because no defensible default exists yet (decision 5).
    "Muthukrishnan" is cheap. Applying it automatically changes the transcript of record without a human
    reading the result. The design records and does not apply; the alternative is worth a sentence.
    **Confirmed 2026-09-15:** the design's own recommendation stands. Record only; a correction made
-   through `vpp review` feeds forward into `vpp confirm --term` and improves future transcripts, never
+   through `vpt review` feeds forward into `vpt confirm --term` and improves future transcripts, never
    rewrites a shipped one (decision 4).
 1. **How loud should `agreed-unverified` be?** It is the class that catches the error both engines
    shared, and it is also the largest class. The design ranks it last and aggregates it. Should it appear
    in the pns notification at all, or only in the file? **Closed:** counts only in the `[notify]` event;
-   the flagged text stays in the file and the `vpp review` queue.
+   the flagged text stays in the file and the `vpt review` queue.
 1. **One notification per recording, or one per run?** The default is per recording with aggregation past
    three. A weekly reviewer might prefer one summary always. **Closed:** per recording, aggregating past
    three, as designed; a config default, not a rule.
-1. **Does `verify-note` belong in vpp, or in whatever writes the note?** It is designed here as a
+1. **Does `verify-note` belong in vpt, or in whatever writes the note?** It is designed here as a
    separate command precisely because the writer is undecided. If the writer turns out to be `minutes`,
    the check still works, but it would then be checking a third-party tool's output against a convention
    that tool does not follow, which needs the convention to be enforced somewhere else. **Closed: in
-   vpp.** `minutes` is out entirely (decision 1), so vpp is the only thing that writes the note; the
+   vpt.** `minutes` is out entirely (decision 1), so vpt is the only thing that writes the note; the
    undecided writer this question depended on is now settled.
-1. **Where does vpp's code live?** The boundaries design recommends its own repository; the discovery
+1. **Where does vpt's code live?** The boundaries design recommends its own repository; the discovery
    design assumed a fifth workspace here. Nothing in this document depends on the answer, but the two
    sibling designs should not stay in disagreement. **Closed: own repository.** See
-   `docs/superpowers/specs/2026-09-14-vpp-project-boundaries-design.md`'s own open questions, below.
+   `docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md`'s own open questions, below.
