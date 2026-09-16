@@ -108,8 +108,11 @@ pub struct KnownGood<'a> {
 impl KnownGood<'_> {
     pub fn is_tracked(self, target: &str) -> bool {
         if pipeline_path(self.home, target)
+            // EVERY LaunchAgent this repository owns, which is what the label
+            // prefix means, because the pipeline manifest covers all of them:
+            // a manifested file nothing tracks is never checked.
             || (target.starts_with(&format!(
-                "{}/Library/LaunchAgents/com.webdavis.osquery-",
+                "{}/Library/LaunchAgents/com.webdavis.",
                 self.home
             )) && target.ends_with(".plist"))
             || target == format!("{}/.config/osquery/page-launchd-allowlist.txt", self.home)

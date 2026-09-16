@@ -376,12 +376,14 @@ _pipeline_tuple_settles() {
 # _pipeline_is_tracked <target>: 0 when the path is pipeline infrastructure. The
 # watches fire for every file in a watched dir, so the tracked set is filtered
 # here: a file under the dedicated pipeline home (~/.local/libexec/osquery, where
-# the whole osquery delivery path lives), or one of OUR OWN osquery LaunchAgents.
+# the whole osquery delivery path lives), or one of OUR OWN LaunchAgents. Every
+# agent under this repository's label prefix is tracked, not only the
+# osquery-prefixed ones, because the pipeline manifest covers all of them.
 #
 # The plist arm is anchored to $HOME/Library/LaunchAgents, not matched by basename
 # anywhere: the watch also covers /Library/LaunchAgents and /Library/LaunchDaemons,
 # and the manifest only ever covers the user agents chezmoi manages, so a bare
-# basename match would track a com.webdavis.osquery-*.plist under /Library that the
+# basename match would track a com.webdavis.*.plist under /Library that the
 # manifest can never contain - a watched-but-unmanifested file that pages forever.
 # A rogue /Library plist instead falls through to the persistence detector, which
 # default-denies it. This keeps the tracked set, the manifest's coverage, and the
@@ -401,7 +403,7 @@ _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
     "$HOME"/.local/libexec/osquery/* | "$HOME"/.local/libexec/posture/*) return 0 ;;
-    "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
+    "$HOME"/Library/LaunchAgents/com.webdavis.*.plist) return 0 ;;
     "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     "$HOME"/.local/bin/* | "$HOME"/.local/libexec/*) _managed_bin_is_tracked "$target" ;;
     *) return 1 ;;
