@@ -726,8 +726,9 @@ return {
       -- accept it. This config already carries `jdtls`'s server config and cmd_env in lsp.lua).
       { "mfussenegger/nvim-jdtls", commit = "6e9d953f0b82bccdb834cfde0e893f3119c22592" },
       -- `:checkhealth neotest-java` flags this as required, not optional, for the
-      -- debugging feature the adapter's README lists.
-      { "theHamsta/nvim-dap-virtual-text", commit = "fbdb48c2ed45f4a8293d0d483f7730d24467ccb6" },
+      -- debugging feature the adapter's README lists. opts = {} makes lazy call setup(),
+      -- which is what registers the dap listeners and creates the DapVirtualText* commands.
+      { "theHamsta/nvim-dap-virtual-text", commit = "fbdb48c2ed45f4a8293d0d483f7730d24467ccb6", opts = {} },
     },
   },
   -- jfpedroza/neotest-elixir has had no commit since 2025-01-19, twenty months as of this pin,
