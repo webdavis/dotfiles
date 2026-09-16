@@ -284,6 +284,7 @@ choose() {
   picker="${WORKTREE_REVIEW_PICKER:-fzf}"
   chosen="$(render "$cache" | "$picker" \
     --delimiter=$'\t' --with-nth=1 \
+    --preview='printf %s {2}' --preview-window='bottom,1,border-none' \
     --prompt='review > ' --no-sort --no-multi --height=100%)" || return 1
   [[ -n $chosen ]] || return 1
   printf '%s' "${chosen##*$'\t'}"
