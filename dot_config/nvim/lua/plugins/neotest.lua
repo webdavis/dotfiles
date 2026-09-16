@@ -715,7 +715,22 @@ return {
     ft = "swift",
   },
   { "mrcjkb/rustaceanvim", commit = "a968f5133b8b24f481de12f08cd79420d1ace559", ft = "rust" },
-  { "rcasia/neotest-java", commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870", ft = "java" },
+  {
+    "rcasia/neotest-java",
+    commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870",
+    ft = "java",
+    dependencies = {
+      -- The JDTLS-based LSP client neotest-java drives for classpath and compilation
+      -- (`:checkhealth neotest-java` requires the `jdtls` module from mfussenegger/nvim-jdtls;
+      -- the README also names nvim-java as an LSP alternative, but the health check does not
+      -- accept it. This config already carries `jdtls`'s server config and cmd_env in lsp.lua).
+      { "mfussenegger/nvim-jdtls", commit = "6e9d953f0b82bccdb834cfde0e893f3119c22592" },
+      -- `:checkhealth neotest-java` flags this as required, not optional, for the
+      -- debugging feature the adapter's README lists. opts = {} makes lazy call setup(),
+      -- which is what registers the dap listeners and creates the DapVirtualText* commands.
+      { "theHamsta/nvim-dap-virtual-text", commit = "fbdb48c2ed45f4a8293d0d483f7730d24467ccb6", opts = {} },
+    },
+  },
   -- jfpedroza/neotest-elixir has had no commit since 2025-01-19, twenty months as of this pin,
   -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
   -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
