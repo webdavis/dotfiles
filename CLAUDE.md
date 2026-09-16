@@ -33,7 +33,7 @@ Conditional detail lives under `docs/runbooks/` and is read on demand, not carri
 | `docs/runbooks/git-hooks.md`                      | all four hooks, the dispatcher design, and the pre-push history        |
 | `docs/runbooks/gitbutler.md`                      | the `but` CLI, the vendored skill, and the workspace-mode decision     |
 | `docs/runbooks/local-agents.md`                   | gnhf: its config, its Claude wiring, and its worktree rule             |
-| `docs/runbooks/local-daemons.md`                  | atuin, happy, tailscaled and the hermes gateway's webhook routes       |
+| `docs/runbooks/local-daemons.md`                  | atuin, tailscaled and the hermes gateway's webhook routes              |
 | `docs/runbooks/macos-defaults.md`                 | the two defaults runners, the capture workflow, the gotchas            |
 | `docs/runbooks/macos-fresh-machine-quickstart.md` | first-apply setup, TCC grants, LuLu, and SSH hardening                 |
 | `docs/runbooks/age-key.md`                        | the age identity behind encrypted source files                         |
@@ -293,11 +293,11 @@ Whole-file secrets use `age` encryption (identity at `~/.config/chezmoi/key.txt`
 Packages are declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew`
 with keys `taps`, `formulae`, `casks` and `mas`, plus two siblings of `homebrew` under `packages.macos`:
 `uv` (uv tool installs, e.g. `graphifyy`, which provides the `graphify` CLI behind the post-commit
-dispatcher) and `fnm` (the node runtime plus the npm CLI tools that run on it, e.g. `happy` and
-`@tobilu/qmd`, grouped under one `node` version; bump that one value to move every tool to a new LTS).
-fnm's `~/.local/share/fnm/aliases/default/bin` is a version-free path that LaunchAgents and the bashrc
-rely on. Gotcha: npm is an env-node script, so every scripted npm call must put that fnm dir first in
-PATH, or npm runs on whatever `node` PATH finds and installs into that node's prefix. One script,
+dispatcher) and `fnm` (the node runtime plus the npm CLI tools that run on it, e.g. `@tobilu/qmd`,
+grouped under one `node` version; bump that one value to move every tool to a new LTS). fnm's
+`~/.local/share/fnm/aliases/default/bin` is a version-free path that LaunchAgents and the bashrc rely on.
+Gotcha: npm is an env-node script, so every scripted npm call must put that fnm dir first in PATH, or npm
+runs on whatever `node` PATH finds and installs into that node's prefix. One script,
 `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them: it generates a
 Brewfile from the data, runs `brew bundle`, then runs a guarded `brew bundle cleanup --force`.
 Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the upstream installer when
@@ -574,7 +574,6 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | LaunchAgent                                        | What it does                                         |
 | -------------------------------------------------- | ---------------------------------------------------- |
 | `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
-| `com.webdavis.happy-daemon`                        | supervises the happy remote-control bridge           |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider            |
