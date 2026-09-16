@@ -72,17 +72,21 @@ function M.yank_selected_lines()
   vim.cmd('normal! "' .. REGISTER .. "Y")
 end
 
----Yank from the cursor to the last non-blank character of the line.
+---Yank from the cursor to the last non-blank character of the line, or, with
+---a count, of the count-th line down.
 ---
----GUARDED, because `g_` has no target on a blank line and the unguarded form
----beeped instead of saying anything.
+---GUARDED ONLY WHEN COUNTLESS, because `g_` has no target on a blank line
+---and the unguarded form beeped instead of saying anything. A count changes
+---the target line, so a blank CURRENT line is not necessarily a blank
+---TARGET line and the guard steps aside for it.
 ---@return nil
 function M.yank_to_line_end()
-  if vim.api.nvim_get_current_line():match("^%s*$") then
+  local count = vim.v.count > 0 and tostring(vim.v.count) or ""
+  if count == "" and vim.api.nvim_get_current_line():match("^%s*$") then
     vim.notify("Nothing to yank: the line is blank", vim.log.levels.WARN)
     return
   end
-  vim.cmd('normal! "' .. REGISTER .. "yg_")
+  vim.cmd('normal! "' .. REGISTER .. count .. "yg_")
 end
 
 ---Yank the text inside a delimiter pair to the clipboard.

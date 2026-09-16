@@ -51,6 +51,16 @@ local function from_visual(lines, cursor, keys, action)
   vim.api.nvim_feedkeys(sequence, "x", false)
 end
 
+---Run `action` from a Normal-mode mapping, with `keys` (a count, or "")
+---typed before it, the way a count reaches `v:count` for real.
+local function from_normal(lines, cursor, keys, action)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+  vim.api.nvim_win_set_cursor(0, cursor)
+  vim.keymap.set("n", "<F13>", action)
+  local sequence = vim.api.nvim_replace_termcodes(keys .. "<F13>", true, false, true)
+  vim.api.nvim_feedkeys(sequence, "x", false)
+end
+
 ---Collect the notifications one `action` raises.
 local function notifications_from(action)
   local seen = {}
@@ -144,6 +154,21 @@ return {
     vim.api.nvim_win_set_cursor(0, { 1, 2 })
     clipboard.yank_to_line_end()
     assert(clipboard_text() == "indented tail", ("clipboard held %q"):format(clipboard_text()))
+  end,
+
+  ["a counted Y keeps the count instead of dropping it"] = function()
+    seed_clipboard("PREVIOUS")
+    from_normal({ "one aaa", "two bbb", "three ccc" }, { 1, 0 }, "3", clipboard.yank_to_line_end)
+    assert(clipboard_text() == "one aaa\ntwo bbb\nthree ccc", ("clipboard held %q"):format(clipboard_text()))
+  end,
+
+  ["a counted Y from a blank line reaches past it to a non-blank target"] = function()
+    seed_clipboard("PREVIOUS")
+    local seen = notifications_from(function()
+      from_normal({ "   ", "two bbb" }, { 1, 0 }, "2", clipboard.yank_to_line_end)
+    end)
+    assert(#seen == 0, vim.inspect(seen))
+    assert(clipboard_text() == "   \ntwo bbb", ("clipboard held %q"):format(clipboard_text()))
   end,
 
   ["a short single-line preview is the line itself"] = function()
