@@ -101,14 +101,20 @@ fn a_summarizer_that_never_answers_costs_the_card_nothing() {
     // AND THE CARD IS ALREADY IN THE OPERATOR'S HAND while the model is still
     // thinking, which is the whole two-layer arrangement: the phone layer is
     // composed from the entries and owes the summarizer nothing.
-    let raised = events(&sandbox, "macos-banner");
+    //
+    // IT ARRIVES FROM THE CHILD, WHICH IS WHY IT IS POLLED FOR. The card is
+    // dispatched by the process holding the recap rather than by the event,
+    // and the event has already exited above; a build that dispatched it after
+    // the recap was posted would hold the card behind this parked summarizer
+    // for the whole child deadline instead.
+    let (card, raised) = carded_recap(&sandbox);
     assert_eq!(
         raised.len(),
         2,
         "the live event and one recap card: {raised:?}"
     );
     assert_eq!(
-        raised[1]["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
+        card["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
         "the card waited for the model or was composed by it: {raised:?}"
     );
     assert!(

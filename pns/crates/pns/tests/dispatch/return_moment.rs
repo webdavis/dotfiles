@@ -20,13 +20,13 @@ fn a_window_claim_whose_owner_is_gone_is_adopted_rather_than_lost_or_left_behind
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let (card, raised) = carded_recap(&sandbox);
     assert_eq!(
         raised.len(),
         2,
         "the live event and ONE recap card off the adopted edge: {raised:?}"
     );
-    let body = raised[1]["detail"].as_str().expect("a detail");
+    let body = card["detail"].as_str().expect("a detail");
     assert!(
         body.contains("13 events"),
         "the window was not counted from the claimed edge: {body}"
@@ -183,7 +183,7 @@ fn racing_present_events_recap_one_loud_window_exactly_once_between_them() {
     // winner's own activity entry is stamped at exactly the edge it restores,
     // and the near edge is exclusive, so a later window can hold at most the
     // seven other racers, one under the threshold.
-    let raised = events(&sandbox, "macos-banner");
+    let (_, raised) = carded_recap(&sandbox);
     assert_eq!(
         raised.len(),
         RACERS + 1,

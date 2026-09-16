@@ -14,7 +14,9 @@ struct Recorder {
     claim: Option<Claim>,
     entries: Vec<Entry>,
     posted: bool,
+    takes_card: bool,
     delivered: RefCell<Vec<String>>,
+    handed: RefCell<Vec<(String, Vec<Leg>, crate::SubmissionIdentity)>>,
     claims: RefCell<Vec<(Option<u64>, bool)>>,
     publications: RefCell<Vec<(u64, u64)>>,
     delivery_legs: RefCell<Vec<Vec<Leg>>>,
@@ -30,7 +32,9 @@ impl Recorder {
             claim,
             entries: Vec::new(),
             posted: true,
+            takes_card: true,
             delivered: RefCell::new(Vec::new()),
+            handed: RefCell::new(Vec::new()),
             claims: RefCell::new(Vec::new()),
             publications: RefCell::new(Vec::new()),
             delivery_legs: RefCell::new(Vec::new()),
@@ -69,10 +73,22 @@ impl ActivityRing for Recorder {
     }
 }
 impl RecapPublisher for Recorder {
-    fn publish(&self, since: u64, until: u64) -> bool {
+    type Started = ();
+
+    fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {
         self.note(&format!("publish({since},{until})"));
         self.publications.borrow_mut().push((since, until));
-        self.posted
+        self.posted.then_some(())
+    }
+
+    fn hand_card(&self, (): Self::Started, card: &crate::ReplayCard<'_>) -> bool {
+        self.note("hand_card");
+        self.handed.borrow_mut().push((
+            card.detail.to_string(),
+            card.legs.to_vec(),
+            card.identity.clone(),
+        ));
+        self.takes_card
     }
 }
 impl ReplayDelivery for Recorder {
@@ -165,7 +181,11 @@ fn claim_of(since: Option<u64>, waiting: Vec<Entry>) -> Claim {
 }
 
 #[test]
-fn a_return_claims_the_moment_counts_the_window_publishes_then_delivers() {
+fn a_return_claims_the_moment_counts_the_window_publishes_then_hands_the_card_over() {
+    // THE ORDERING THE CARD'S OWNERSHIP RESTS ON. The child is started first,
+    // because the card's own sentence says whether a recap is coming, and the
+    // composed card is handed to that child rather than delivered here, so the
+    // process holding the rendered recap is the one that dispatches it.
     let mut recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
     recorder.entries = vec![entry(1_100), entry(1_200)];
     let legs = vec![
@@ -178,13 +198,54 @@ fn a_return_claims_the_moment_counts_the_window_publishes_then_delivers() {
     ports(&recorder).run(&returning(legs.clone()), policy(), true);
     assert_eq!(*recorder.claims.borrow(), [(Some(2_000), true)]);
     assert_eq!(*recorder.publications.borrow(), [(1_000, 2_000)]);
-    assert_eq!(*recorder.delivery_legs.borrow(), [legs]);
+    assert!(
+        recorder.delivery_legs.borrow().is_empty(),
+        "a card the child took was delivered here as well"
+    );
+    let handed = recorder.handed.borrow()[0].clone();
+    assert_eq!(handed.1, legs, "the child was handed the plan's own legs");
+    assert_eq!(
+        handed.2,
+        claim_of(Some(1_000), Vec::new())
+            .replay
+            .expect("a batch")
+            .identity,
+        "the child submits under another identity than this batch's"
+    );
     assert_eq!(
         recorder.steps(),
         [
             "claim(journal=true)",
             "entries(1000,2000)",
             "publish(1000,2000)",
+            "hand_card",
+        ]
+    );
+    assert_eq!(
+        recorder.completed.get(),
+        1,
+        "a batch whose card has an owner was left claimed"
+    );
+}
+
+#[test]
+fn a_child_that_will_not_take_the_card_leaves_it_with_this_process() {
+    // THE HAND-OFF IS THE ONLY THING THAT MOVED. A child that died between
+    // the spawn and the hand-off must not cost the operator the card, so the
+    // card falls back to the delivery this process always did.
+    let mut recorder = Recorder::new(Some(claim_of(Some(1_000), Vec::new())));
+    recorder.entries = vec![entry(1_100), entry(1_200)];
+    recorder.takes_card = false;
+    ports(&recorder).run(&returning(vec![leg(true)]), policy(), true);
+    assert_eq!(recorder.handed.borrow().len(), 1, "{:?}", recorder.steps());
+    assert_eq!(*recorder.delivered.borrow(), ["2 events. recap in #pns"]);
+    assert_eq!(
+        recorder.steps(),
+        [
+            "claim(journal=true)",
+            "entries(1000,2000)",
+            "publish(1000,2000)",
+            "hand_card",
             "deliver",
         ]
     );
@@ -368,7 +429,15 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
     ports(&failed).run(&returning(vec![leg(true)]), policy(), true);
 
     assert!(failed.steps().contains(&"deliver".to_string()));
-    assert_eq!(*posted.delivered.borrow(), ["2 events. recap in #pns"]);
+    assert_eq!(
+        posted.handed.borrow()[0].0,
+        "2 events. recap in #pns",
+        "the card the child took claims a recap nobody is writing"
+    );
+    assert!(
+        failed.handed.borrow().is_empty(),
+        "a card was handed to a child that never started"
+    );
     assert_eq!(*failed.delivered.borrow(), ["2 events"]);
 }
 
