@@ -1050,6 +1050,9 @@ vpp still writes no folder notes.
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows R1-R7) for the reasoning.
+
 1. **Does vpp read the calendar and Todoist, or does Bob supply them?** The ledger's own question. The
    design makes both work through one input document, so this sets a configuration value, but it decides
    who holds two credentials and therefore what an agent with shell access can reach.

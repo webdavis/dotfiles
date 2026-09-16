@@ -594,6 +594,9 @@ Resources folder. The vault's `CLAUDE.md` claim that the link is "managed by
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows D1-D6) for the reasoning.
+
 1. **Is reading Apple's undocumented Voice Memos store acceptable at all?** This is the gating one. The
    measurements say there is no supported programmatic path to the audio, so a "no" turns vpp from a
    watcher into a manual filing tool driven by the share sheet, and the design above becomes the wrong

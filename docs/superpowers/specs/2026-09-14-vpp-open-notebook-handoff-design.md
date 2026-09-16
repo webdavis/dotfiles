@@ -591,6 +591,9 @@ that does not exist yet plus a mapping table.
 
 ## Open questions for the operator
 
+**Triage, 2026-09-15:** every question below is closed except where noted. See
+`docs/decisions/2026-09-15-vpp-question-triage.md` (rows H1-H8) for the reasoning.
+
 1. **May a private note cross into Open Notebook, or only a released redacted draft?** The design
    supports both and defaults to allowing private notes, on the reasoning that a redacted research
    workspace answers redacted questions. The counter-argument is that once a hosted model provider is
