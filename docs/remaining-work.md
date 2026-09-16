@@ -2677,14 +2677,16 @@ operator deployment. No source correction was warranted by this audit.
   open with its lint check passed. Deploy both files together, verify a fresh harness connection, and
   recheck the outstanding quiescent timing claim. Private checks do not establish live editor,
   second-account or access-control-list acceptance.
-- [ ] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
+- [x] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
   supported Herdr interfaces and owned integration code; do not patch the third-party plugin. Commit
   `dfe28fd3` passed independent review with 94 private checks; full `just ship` and required continuous
   integration passed. [PR #543](https://github.com/webdavis/dotfiles/pull/543) merged and local main
-  contains it. Operator deployment and live pane-move acceptance remain: run drill one in
-  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
+  contains it. Deployed, and the live pane-move acceptance passed on 2026-09-15: drill one in
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md) ran with two Claude
+  agents in two tabs of the same workspace, and moving Neovim's pane to the second tab made a resend
+  follow that tab rather than the one it started in.
 - [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
   ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
   ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
