@@ -23,3 +23,19 @@ cwd = "~/workspaces/Ivy/webdavis/dotfiles"
 width = "85%"
 height = "85%"
 ctrl_c = "hide"
+
+# The worktree review launcher. `worktree-review.sh resume` opens the picker the
+# first time and reuses the recorded selection on every later toggle, so the
+# review resumes without walking the worktree list again. cwd decides which
+# repository's worktrees the picker lists.
+#
+# The review program itself is an argument, not a name this plugin knows: append
+# "--" and a command to args to run something other than tuicr. reviewr is not
+# installed on this machine, which is exactly why the command is configurable.
+[windows.review]
+program = "worktree-review.sh"
+args = ["resume"]
+cwd = "~/workspaces/Ivy/webdavis/dotfiles"
+width = "90%"
+height = "90%"
+ctrl_c = "hide"

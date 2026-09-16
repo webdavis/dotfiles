@@ -331,6 +331,14 @@ type = "plugin_action"
 command = "herdr-process.tuicr:toggle-float"
 description = "tuicr: toggle floating window"
 
+# The worktree review window; same hide-on-Ctrl-C treatment. Its split-right,
+# split-below and kill actions are generated and available but unbound.
+[[keys.command]]
+key = "prefix+ctrl+r"
+type = "plugin_action"
+command = "herdr-process.review:toggle-float"
+description = "worktree review: toggle floating window"
+
 # ╭────────────────────╮
 # │  tab-smart-rename  │
 # ╰────────────────────╯
