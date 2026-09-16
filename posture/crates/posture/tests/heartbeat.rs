@@ -35,7 +35,12 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
         epoch + 17
     );
     std::fs::write(&ignored_override, &ignored_before).unwrap();
-    let deadline = Instant::now() + Duration::from_millis(650);
+    // A LIVENESS BOUND, NOT AN ASSERTION: the row pins the exit code, the
+    // empty streams, the request body and the untouched log, never how long
+    // the run took. The 650ms it carried was calibrated for an idle machine,
+    // which is not the machine this suite runs on while the operator's other
+    // agent lanes are compiling.
+    let deadline = Instant::now() + Duration::from_secs(15);
     let mut child = Command::new(env!("CARGO_BIN_EXE_posture"))
         .env_clear()
         .env("HOME", &home)

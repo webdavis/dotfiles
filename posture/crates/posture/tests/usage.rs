@@ -9,6 +9,18 @@ use std::os::unix::net::UnixStream;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
+/// The liveness bound on a posture run here: the fixture requires an answer so
+/// a hang fails the row instead of wedging the suite, and NOTHING below reads
+/// the elapsed time. Every row asserts an exit code, stdout and a usage
+/// phrase.
+///
+/// FIFTEEN SECONDS, not the 500ms this file carried inline. One caller shares
+/// a single deadline across every word in `WORDS`, so the old bound was 500ms
+/// for eight real process spawns together: calibrated for an idle machine,
+/// which is not the machine this suite runs on while the operator's other
+/// agent lanes are compiling.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 const WORDS: &[&[&str]] = &[
     &[],
     &["watchdog", "unexpected"],
@@ -59,7 +71,7 @@ fn run_with_stderr(args: &[&str], deadline: Instant, stderr: Stdio) -> Output {
 
 #[test]
 fn every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2() {
-    let deadline = Instant::now() + Duration::from_millis(500);
+    let deadline = Instant::now() + LIVENESS_BOUND;
     for args in WORDS {
         let output = run(args, deadline);
         assert_eq!(
@@ -81,7 +93,7 @@ fn every_unimplemented_word_is_refused_with_usage_on_stderr_and_exit_2() {
 
 #[test]
 fn the_usage_names_every_planned_subcommand() {
-    let deadline = Instant::now() + Duration::from_millis(500);
+    let deadline = Instant::now() + LIVENESS_BOUND;
     let stderr = String::from_utf8_lossy(&run(&[], deadline).stderr).into_owned();
     for phrase in [
         "alert |",
@@ -110,7 +122,7 @@ fn a_closed_stderr_reader_preserves_the_refusal_exit_code() {
     drop(reader);
     let output = run_with_stderr(
         &["frobnicate"],
-        Instant::now() + Duration::from_millis(500),
+        Instant::now() + LIVENESS_BOUND,
         Stdio::from(OwnedFd::from(writer)),
     );
     assert_eq!(output.status.code(), Some(2));
@@ -124,7 +136,7 @@ fn enrich_with_an_absent_or_empty_path_is_successful_and_silent() {
         vec!["enrich", ""],
         vec!["enrich", "", "ignored.app"],
     ] {
-        let output = run(&args, Instant::now() + Duration::from_millis(500));
+        let output = run(&args, Instant::now() + LIVENESS_BOUND);
         assert_eq!(output.status.code(), Some(0));
         assert!(output.stdout.is_empty());
         assert!(output.stderr.is_empty());
@@ -143,7 +155,7 @@ fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
             path.to_str().expect("fixture path"),
             "ignored.app",
         ],
-        Instant::now() + Duration::from_millis(500),
+        Instant::now() + LIVENESS_BOUND,
     );
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stderr.is_empty());
@@ -156,7 +168,7 @@ fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
 
 #[test]
 fn watchdog_requires_home_before_acquiring_live_readers() {
-    let output = run(&["watchdog"], Instant::now() + Duration::from_millis(500));
+    let output = run(&["watchdog"], Instant::now() + LIVENESS_BOUND);
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(output.stderr, b"posture watchdog: HOME is not set\n");
     assert!(output.stdout.is_empty());
