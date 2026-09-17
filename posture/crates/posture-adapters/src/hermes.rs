@@ -229,9 +229,10 @@ impl<P: SignedPost, A: IndependentAlarm> HermesWebhook<P, A> {
 /// A page's `occurrence_id` is the byte range it was judged from, so two
 /// batches reporting one unchanged finding carry different occurrences and
 /// counting those would count pages. The digest folds its own repeats by
-/// content for the same reason. Hashed rather than stored whole, because the
-/// window file then holds fixed-width keys instead of the text of every
-/// finding this machine paged about.
+/// content for the same reason. Hashed rather than stored whole, so identity
+/// is content-based and the key stays a fixed width regardless of what the
+/// finding says; the bounded label stored beside it is `listed_finding`, not
+/// this key.
 fn finding_key(alert: &Alert) -> String {
     request_id::derive(&format!("{}:{}:{}", alert.event, alert.title, alert.detail))
 }
