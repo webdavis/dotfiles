@@ -19,7 +19,9 @@ const AGENT: &str = "posture";
 
 /// The posted body. `state` is the page's own tier, `project` is the source
 /// event, and `route` rides along so a delivery can be read back against the
-/// route it was signed for.
+/// route it was signed for. A copy leg posts this body unchanged to a second
+/// route, so `route` there still names the page's own route, not the one the
+/// copy travels on.
 pub(super) fn encode(alert: &Alert, route: &Name) -> String {
     serde_json::json!({
         "agent": AGENT,

@@ -15,12 +15,16 @@
 //! a retemplated route keeps rendering. See `body` for the list.
 
 mod body;
+mod window;
 
+use crate::request_id;
 use crate::signed_post::{PostOutcome, SignedPost, delivered, sign};
 use crate::sink::{delivery_failed, tier_route};
 use crate::wire::Name;
 use posture_application::{Alert, AlertSink, IndependentAlarm, Submission, SubmissionFailure};
+use posture_domain::Severity;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// What one page's post may take. It matches the budget every caller gives the
@@ -30,11 +34,34 @@ const POST_DEADLINE: Duration = Duration::from_secs(5);
 /// The title the local banner carries when a page could not be posted at all.
 const ALARM_TITLE: &str = "Posture page could not be delivered";
 
+/// The title the local banner carries when the page was delivered but its copy
+/// could not be posted. SEPARATE FROM THE PAGE'S OWN TITLE, because the
+/// finding did reach the operator and a reader who cannot tell the two apart
+/// would go looking for a page that is already in the channel.
+const COPY_ALARM_TITLE: &str = "Posture page copy could not be posted";
+
+/// The title the local banner carries when the hour's copies are spent.
+const CAP_TITLE: &str = "Posture page copy withheld: the hour is full";
+
+/// A second route a CRITICAL page is copied to, verbatim, once its own post
+/// came back delivered, and the file the rolling hour of those copies is
+/// recorded in.
+///
+/// THIS IS A DESTINATION, NOT A FEATURE. posture holds route names and a key
+/// for each; what reads a route is the far side's business and is named
+/// nowhere in this tool.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CriticalCopy {
+    pub route: Name,
+    pub window: PathBuf,
+}
+
 pub struct HermesWebhook<P, A> {
     post: P,
     base_url: String,
     keys: BTreeMap<String, String>,
     route: Name,
+    copy: Option<CriticalCopy>,
     alarm: A,
 }
 
@@ -51,8 +78,17 @@ impl<P: SignedPost, A: IndependentAlarm> HermesWebhook<P, A> {
             base_url,
             keys,
             route,
+            copy: None,
             alarm,
         }
+    }
+
+    /// The same sink, copying every delivered critical page to `copy`'s route.
+    /// A sink built without this posts one page and nothing else, which is the
+    /// behavior of every machine that names no copy route.
+    pub fn copying(mut self, copy: CriticalCopy) -> Self {
+        self.copy = Some(copy);
+        self
     }
 
     /// `<base>/<route>`, which is how the gateway addresses one route.
@@ -65,6 +101,7 @@ impl<P: SignedPost, A: IndependentAlarm> AlertSink for HermesWebhook<P, A> {
     fn submit(&mut self, alert: &Alert) -> Submission {
         let route = tier_route(alert).unwrap_or_else(|| self.route.clone());
         let body = body::encode(alert, &route);
+        let page_id = request_id::derive(&request_id::seed(alert));
         // A ROUTE WITH NO KEY REFUSES THE PAGE AND SAYS SO. An unsigned post
         // is rejected by the gateway, and an empty key is the not-set-up case
         // rather than a signature, so both land here.
@@ -80,10 +117,15 @@ impl<P: SignedPost, A: IndependentAlarm> AlertSink for HermesWebhook<P, A> {
                 SubmissionFailure::Refused,
             );
         };
-        let outcome = self
-            .post
-            .post(&self.url(&route), &body, &signature, Some(POST_DEADLINE));
+        let outcome = self.post.post(
+            &self.url(&route),
+            &body,
+            &signature,
+            &page_id,
+            Some(POST_DEADLINE),
+        );
         if delivered(outcome) {
+            self.copy_delivered_page(alert, &body, &page_id);
             return Submission::Accepted;
         }
         delivery_failed(
@@ -99,6 +141,79 @@ impl<P: SignedPost, A: IndependentAlarm> AlertSink for HermesWebhook<P, A> {
             },
         )
     }
+}
+
+impl<P: SignedPost, A: IndependentAlarm> HermesWebhook<P, A> {
+    /// Post the second copy a delivered critical page earns, and say so on the
+    /// local banner when it is withheld or refused.
+    ///
+    /// THE PAGE'S OWN OUTCOME IS ALREADY SETTLED. Everything here happens
+    /// after the gateway took the page, so no branch of it may answer the
+    /// caller: a copy that could not be posted is a configuration to fix, not
+    /// a finding to re-deliver.
+    fn copy_delivered_page(&mut self, alert: &Alert, body: &str, page_id: &str) {
+        let Some(copy) = self.copy.clone() else {
+            return;
+        };
+        if alert.severity != Some(Severity::Critical) {
+            return;
+        }
+        // A KEYLESS COPY ROUTE IS NOT A SILENT ONE. An unsigned post is
+        // refused by the gateway and an empty key is the not-set-up case, so
+        // both mean this leg is configured and cannot run, which is exactly
+        // the state that would otherwise switch the feature off unnoticed.
+        let Some(signature) = self
+            .keys
+            .get(copy.route.as_str())
+            .and_then(|key| sign(key, body))
+        else {
+            self.report_copy(COPY_ALARM_TITLE, alert);
+            return;
+        };
+        match window::claim(&copy.window, &finding_key(alert), window::now()) {
+            window::Claim::Granted => {}
+            // A REPEAT IS NOT A REFUSAL. This finding's copy is already in the
+            // hour, so there is nothing to tell anyone.
+            window::Claim::AlreadyCopied => return,
+            window::Claim::CapReached => {
+                self.report_copy(CAP_TITLE, alert);
+                return;
+            }
+        }
+        // A DISTINCT ID FOR THE COPY. The gateway's duplicate cache is keyed
+        // on the delivery id alone across every route, so a copy sharing the
+        // page's id would be read as the page arriving twice and dropped.
+        let outcome = self.post.post(
+            &self.url(&copy.route),
+            body,
+            &signature,
+            &request_id::derive_copy(page_id),
+            Some(POST_DEADLINE),
+        );
+        if !delivered(outcome) {
+            self.report_copy(COPY_ALARM_TITLE, alert);
+        }
+    }
+
+    /// Say on the local banner what happened to one page's copy.
+    fn report_copy(&mut self, title: &str, alert: &Alert) {
+        let _ = self
+            .alarm
+            .alarm(title, &format!("{}\n{}", alert.title, alert.detail));
+    }
+}
+
+/// What makes one finding the same finding an hour later: WHAT IT SAYS, not
+/// which batch of log said it.
+///
+/// A page's `occurrence_id` is the byte range it was judged from, so two
+/// batches reporting one unchanged finding carry different occurrences and
+/// counting those would count pages. The digest folds its own repeats by
+/// content for the same reason. Hashed rather than stored whole, because the
+/// window file then holds fixed-width keys instead of the text of every
+/// finding this machine paged about.
+fn finding_key(alert: &Alert) -> String {
+    request_id::derive(&format!("{}:{}:{}", alert.event, alert.title, alert.detail))
 }
 
 #[cfg(test)]

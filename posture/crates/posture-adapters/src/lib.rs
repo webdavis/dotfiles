@@ -80,8 +80,9 @@ mod producer;
 mod wire;
 pub use producer::ProducerCommand;
 mod hermes;
+mod request_id;
 mod sink;
-pub use hermes::HermesWebhook;
+pub use hermes::{CriticalCopy, HermesWebhook};
 mod signed_post;
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
 mod notify;
@@ -144,5 +145,7 @@ pub use ssh_signals::{SshSignals, ssh_install_cancelled};
 mod ssh_user;
 pub use ssh_user::ssh_current_user;
 
+#[cfg(test)]
+mod test_gateway;
 #[cfg(test)]
 mod test_sandbox;

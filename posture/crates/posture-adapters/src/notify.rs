@@ -18,7 +18,7 @@
 //! page, so the finding still reaches the local banner.
 
 use crate::banner_only::BannerOnly;
-use crate::hermes::HermesWebhook;
+use crate::hermes::{CriticalCopy, HermesWebhook};
 use crate::producer::ProducerCommand;
 use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
@@ -37,6 +37,12 @@ pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 /// digest and the cursor-reset warning. A tiered finding overrides it; see
 /// `posture_domain::severity_route`.
 const UNTIERED_ROUTE: &str = "posture-pages";
+
+/// Where the rolling hour of critical-page copies is recorded, under the home
+/// directory the choice was read for. Beside posture's cursor and digest
+/// spool, because it is state of the same kind: small, per-machine, and worth
+/// nothing to anyone who finds it.
+const COPY_WINDOW: &str = ".local/state/posture-critical-copy-window.json";
 
 /// Where posture's notify choice lives for a given home directory. Pure, so
 /// the path rule is testable without an environment.
@@ -58,6 +64,9 @@ pub enum NotifyMode {
     Hermes {
         base_url: String,
         keys: BTreeMap<String, String>,
+        /// A second route a delivered critical page is copied to, when the
+        /// file names one. `None` is one post, which is the default.
+        critical_copy: Option<CriticalCopy>,
     },
     /// Nothing leaves this machine. The page is raised on the local banner,
     /// which is the one channel that needs no delivery at all.
@@ -78,10 +87,15 @@ impl std::fmt::Debug for NotifyMode {
                 .field("path", path)
                 .field("arguments", arguments)
                 .finish(),
-            NotifyMode::Hermes { base_url, keys } => formatter
+            NotifyMode::Hermes {
+                base_url,
+                keys,
+                critical_copy,
+            } => formatter
                 .debug_struct("Hermes")
                 .field("base_url", base_url)
                 .field("keys", &keys.keys().collect::<Vec<_>>())
+                .field("critical_copy", critical_copy)
                 .finish(),
             NotifyMode::Off => formatter.write_str("Off"),
         }
@@ -107,6 +121,7 @@ impl Default for Notify {
             mode: NotifyMode::Hermes {
                 base_url: DEFAULT_WEBHOOK_BASE.to_string(),
                 keys: BTreeMap::new(),
+                critical_copy: None,
             },
             refusal: None,
         }
@@ -137,7 +152,7 @@ impl Notify {
             }
             Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
-        match Self::parse(&text) {
+        match Self::parse(&text, home) {
             Ok(mode) => Notify {
                 mode,
                 refusal: None,
@@ -153,11 +168,13 @@ impl Notify {
         }
     }
 
-    /// The pure half: text in, one notify mode or a named refusal out.
-    fn parse(text: &str) -> Result<NotifyMode, String> {
+    /// The pure half: text and the home directory its relative state paths
+    /// hang off in, one notify mode or a named refusal out. Pure in both
+    /// arguments, so the path rule is testable without an environment.
+    fn parse(text: &str, home: &Path) -> Result<NotifyMode, String> {
         let file: schema::File =
             toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
-        file.notify.into_mode()
+        file.notify.into_mode(home)
     }
 }
 
@@ -190,13 +207,17 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
             Some(route),
             alarm,
         )),
-        NotifyMode::Hermes { base_url, keys } => Box::new(HermesWebhook::new(
-            UreqSignedPost,
+        NotifyMode::Hermes {
             base_url,
             keys,
-            route,
-            alarm,
-        )),
+            critical_copy,
+        } => {
+            let sink = HermesWebhook::new(UreqSignedPost, base_url, keys, route, alarm);
+            match critical_copy {
+                Some(copy) => Box::new(sink.copying(copy)),
+                None => Box::new(sink),
+            }
+        }
         NotifyMode::Off => Box::new(BannerOnly::new(alarm)),
     }
 }

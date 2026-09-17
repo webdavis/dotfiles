@@ -29,14 +29,20 @@ pub enum PostOutcome {
     NoStatus,
 }
 
-/// The POST seam: body plus signature header in, outcome out. The production
-/// implementer honours the deadline; a test double records everything.
+/// The POST seam: body, signature and request id in, outcome out. The
+/// production implementer honours the deadline; a test double records
+/// everything.
+///
+/// THE REQUEST ID IS PART OF EVERY POST, not an option, because the gateway
+/// falls back to a millisecond timestamp when no request id arrives and then
+/// reads a retry of one page as a second page.
 pub trait SignedPost {
     fn post(
         &self,
         url: &str,
         body: &str,
         signature_hex: &str,
+        request_id: &str,
         deadline: Option<Duration>,
     ) -> PostOutcome;
 }
@@ -71,6 +77,9 @@ pub fn delivered(outcome: PostOutcome) -> bool {
 /// signed body to whatever host the gateway names, and the deadline per call.
 /// An HTTP error status IS the answer, so a status-carrying error is unwrapped
 /// rather than collapsed into "it failed".
+///
+/// `X-Request-ID` is the header the gateway actually reads for a delivery
+/// identity, so two posts of one page are one delivery to it.
 pub struct UreqSignedPost;
 
 impl SignedPost for UreqSignedPost {
@@ -79,6 +88,7 @@ impl SignedPost for UreqSignedPost {
         url: &str,
         body: &str,
         signature_hex: &str,
+        request_id: &str,
         deadline: Option<Duration>,
     ) -> PostOutcome {
         let sent = ureq::Agent::config_builder()
@@ -91,6 +101,7 @@ impl SignedPost for UreqSignedPost {
             .post(url)
             .content_type("application/json")
             .header("X-Webhook-Signature", signature_hex)
+            .header("X-Request-ID", request_id)
             .send(body);
         match sent {
             Ok(response) => PostOutcome::Status(response.status().as_u16()),
@@ -102,3 +113,6 @@ impl SignedPost for UreqSignedPost {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
