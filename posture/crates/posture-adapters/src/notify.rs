@@ -229,14 +229,12 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
             "posture: the notify config could not be used, so no page can be delivered: {refusal}"
         );
     }
-    // Validated where it was read, so an unusable name never reaches here.
-    let route = Name::new(notify.route).expect("the untiered route was validated when read");
     match notify.mode {
         NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(
             runner,
             path,
             arguments,
-            Some(route),
+            Some(route_or_default(notify.route)),
             alarm,
         )),
         NotifyMode::Hermes {
@@ -244,7 +242,13 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
             keys,
             critical_copy,
         } => {
-            let sink = HermesWebhook::new(UreqSignedPost, base_url, keys, route, alarm);
+            let sink = HermesWebhook::new(
+                UreqSignedPost,
+                base_url,
+                keys,
+                route_or_default(notify.route),
+                alarm,
+            );
             match critical_copy {
                 Some(copy) => Box::new(sink.copying(copy)),
                 None => Box::new(sink),
@@ -252,6 +256,15 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
         }
         NotifyMode::Off => Box::new(BannerOnly::new(alarm)),
     }
+}
+
+/// A route read through `Notify::parse` is already validated, but `route` is
+/// a public field on a public struct, so any other construction can hand in a
+/// name the identifier rules refuse. Falling back to the shipped default
+/// keeps a bad name from turning a config problem into a panic.
+fn route_or_default(route: String) -> Name {
+    Name::new(route)
+        .unwrap_or_else(|_| Name::new(DEFAULT_ROUTE).expect("the shipped default route is valid"))
 }
 
 #[cfg(test)]
