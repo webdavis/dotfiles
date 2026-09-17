@@ -1,8 +1,9 @@
 use crate::{Mobile, executable_in_path};
 use pns_adapters::{
-    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, DiscordChannel, DiscordSettings,
-    HermesChannel, HermesKeys, MoshiChannel, SystemCommandRunner, UreqDiscordPost, UreqPost,
-    channel_url, refused_backend_line, refused_discord_line, remote_deadline, resolve_path,
+    BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_UPLOAD_URL, DEFAULT_MOSHI_URL, DiscordChannel,
+    DiscordSettings, HermesChannel, HermesKeys, MoshiChannel, SystemCommandRunner, UreqDiscordPost,
+    UreqPost, channel_url, refused_backend_line, refused_discord_line, remote_deadline,
+    resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
 use pns_domain::{Event, EventArgs, registry::Selection, render, routes::Routes};
@@ -87,7 +88,7 @@ fn destinations_for_override(
     let forced = override_dir.map(|_| channels.as_path());
     let native = vec![
         registration::choose(
-            moshi_channel(mobile.token.clone()),
+            moshi_channel(mobile.token.clone(), mobile.image_cards.clone()),
             forced,
             mobile.refusal.as_deref().map(refused_backend_line),
             json,
@@ -170,12 +171,18 @@ fn banner_channel() -> BannerChannel<SystemCommandRunner> {
         herdr_path: executable_in_path("herdr"),
     }
 }
-/// The moshi push, with the token the config already provided.
-pub(crate) fn moshi_channel(token: Option<String>) -> MoshiChannel<UreqPost> {
+/// The moshi push, with the token and the image-card toggles the config
+/// already provided.
+pub(crate) fn moshi_channel(
+    token: Option<String>,
+    image_cards: Vec<String>,
+) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
         token,
         url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
+        upload_url: url_from_env("PNS_MOSHI_UPLOAD_URL", DEFAULT_MOSHI_UPLOAD_URL),
+        image_cards,
     }
 }
 /// The hermes post, signed with the key the config named FOR THIS ROUTE.

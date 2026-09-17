@@ -44,6 +44,9 @@ pub(crate) struct Mobile {
     pub(crate) refusal: Option<String>,
     /// Whether a card fires while the operator is watching the pane.
     pub(crate) watch_card: bool,
+    /// The card types whose cards carry an image. Empty is the shipped
+    /// posture and every card type's text card.
+    pub(crate) image_cards: Vec<String>,
 }
 /// The one read of `[plugins.mobile]`, and the one place its refusal reaches
 /// stderr.
@@ -71,6 +74,7 @@ pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
         token: moshi_secret(settings),
         refusal: None,
         watch_card: watch_card(settings),
+        image_cards: pns_adapters::moshi_image_cards(settings),
     }
 }
 /// The one read of `[plugins.discord]`, and the one place its refusal reaches
