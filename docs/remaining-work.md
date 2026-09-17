@@ -3210,6 +3210,28 @@ plugin.
   (`3 due, 1 overdue`) for lualine or a custom statusline, and an opt-in reminder raises `vim.notify`
   when a task with a time comes due while Neovim is open.
 
+### Daily operations tools
+
+Two tools filed 2026-09-17 from the operator's own pain points, approved the same day.
+
+- [ ] 125. `morning`, a Rust tool with a `/morning` command in every harness. One command that answers
+  "where do I start today": the last apply's result and date from
+  `~/.local/state/chezmoi-apply/latest.apply.log`, every apply the ledger says the operator owes, the
+  open pull requests with their CI state (through `gh`), the newest overnight recap, the ledger's
+  operator-owned items, and today's Todoist tasks through `td`. It prints one framed page and exits; it
+  never applies, merges or edits anything. Its own cargo workspace at the repository root like the other
+  four, installed to `~/.cargo/bin`, declared in `.chezmoidata/rust_tools.yaml`, and it never hardcodes
+  this repository's path (the ledger path and the log path are config). Ships with a `/morning` command
+  for Claude Code (`private_dot_claude/commands/`), Codex and hermes that runs the binary and hands the
+  page to the agent as the day's brief, so the operator's first message of the day is "morning" in any
+  harness. Operator ruling 2026-09-17: a binary plus an agent command, not a `just` recipe.
+- [ ] 126. Quiet follows the calendar. pns turns `pns quiet` on for the duration of a Google Calendar
+  event marked busy and off when it ends, so a meeting never gets a banner and the operator never toggles
+  quiet by hand. The calendar is read through a producer command the config names (the operator's `gog`
+  CLI is the first implementer), polled by the pns daemon on its own clock, read-only, and a manual
+  `pns quiet` always wins over the calendar. Ships off by default with one `[quiet.calendar]` table.
+  Approved 2026-09-17.
+
 ### Recover the remaining design from PR #24
 
 - [x] Review #24 before deciding its disposition. Recovered on 2026-09-13 from head `2202dcbf`; four
@@ -6323,6 +6345,7 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   implement their approved stages with the recorded staging and go-live gates. Todoist remains the user's
   task store. Preserve the stopped-gateway activation transaction, external watchdog, rollback and
   explicit approval for real outbound communication.
+
 - [x] Correct #51's integration path before merging its documents. It targets `integration/modernization`
   at remote `034d9a07`, not main; its two-file review becomes 222 changed files against current main
   (`76b37ae4`). The local integration branch also has nine additional commits. Preserve that history and
@@ -6345,14 +6368,29 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   No paseo or tmux reference remains; the `relay` mentions read as a rename to pns. Closed 2026-09-15:
   [PR #615](https://github.com/webdavis/dotfiles/pull/615) merged, carrying both Forzare documents onto
   main, and PR #51 was closed in its favour.
+
 - [ ] Let Bob consume vpt's transcripts, metadata and briefs for meeting preparation. Keep provenance and
   unresolved transcription warnings visible; do not turn uncertain notes into confirmed commitments.
   Decide whether Bob supplies optional calendar/Todoist context or vpt reads it directly during design.
+
 - [ ] After the canonical Forzare documents merge, replace the research folder's Phase 2 copy with a
   pointer to them. Reconcile the residue in
   `~/Documents/ADHD_Task_System_Research_20260521/REVIEW-LEDGER-2026-07-11.md`. Its post-v1 items remain
   deferred: the mutation wrapper, per-channel delivery lease, Langfuse, email/communications triage and
   extra delivery lanes. Old graphify/pre-commit complaints need current verification before reopening.
+
+- [ ] 127. Recurring-charge watch, part of Forzare, approved 2026-09-17. A monthly job runs YNAB's
+  recurring-charge detection and posts only charges that are NEW since the last run (a payee and amount
+  the previous snapshot did not carry) to the operator's Discord, one line each with the payee, amount
+  and first-seen date, so a forgotten trial or a price rise is caught the month it starts. Read-only
+  against YNAB, snapshot kept under the tool's state directory, nothing posted when nothing is new.
+
+- [ ] 128. Gmail triage into Todoist, part of Forzare, approved 2026-09-17. A daily read-only pass over
+  the inbox that turns actionable mail (a reply owed, a bill, a deadline, a form) into Todoist tasks
+  carrying a link back to the thread and a due date when the mail names one, skips mail it already filed,
+  and posts a three-line card (filed, skipped, needs a look) to the phone. It never sends, archives,
+  labels or deletes mail, and the operator sees every filed task in Todoist's inbox before anything else
+  happens.
 
 ## Open questions
 
