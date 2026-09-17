@@ -737,6 +737,12 @@ their own relay hooks.
 
 ## Code Style
 
+- **Comments are short and concise, and they never explain an absence.** A comment says what the code
+  does or why it is the way it is. It never says why something is not a certain way, what was considered
+  and rejected, what the file does not do, or anything about the conversation that produced it. If it is
+  not in the file, it is not mentioned in the file; that reasoning belongs in the commit message or the
+  pull request body. This applies to every commented format here: shell, Lua, Rust, TOML, YAML, JSON with
+  comments, and chezmoi templates.
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
   `treefmt.toml`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
   `dot_fzf*` and `dot_bash*` patterns, for editors. Note that shfmt and shellcheck both exclude `*.tmpl`

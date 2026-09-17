@@ -2528,7 +2528,18 @@ is missing.
   `event_max_age` all keep `age`, and whether `PNS_PHONE_INPUT_AGE` becomes `PNS_PHONE_INPUT_MAX_AGE` to
   match, which slices 33, 40 and 44 need; (3) confirmation that item 94's four credential names reduce to
   `key` and `keys`; (4) whether item 105 splits `[lights] refresh_secs` into `arm_interval` and
-  `fade_duration`.
+  `fade_duration`. RULING 2026-09-17 on the credential name, answering slicing question 3 and unblocking
+  slices 36 and 39: each plugin's credential key is named for the kind of secret THAT TOOL issues,
+  spelled out in full (`device_token`, `bot_token`, `personal_access_token`, `api_key` for both the
+  router and hue), and the authority is the KeePassXC entry, whose titles already state the type
+  correctly per tool. This REVERSES the plan's item 94, which wanted `key` and `keys` everywhere: a
+  config key spelled `key` beside a vault entry and a vendor document that both say personal access token
+  makes the reader guess whether they are the same thing. If standardizing helps the Rust, the
+  translation belongs in the code behind one internal type, never in the file a human reads, and only
+  when it makes the code cleaner rather than as a rule applied for its own sake. `[plugins.github]` does
+  NOT take item 90's `type = "<vendor>"` table shape: that shape is for delivery destinations and GitHub
+  is a notification source. Two slicing questions remain: the two numbers `[lights] refresh_secs` splits
+  into, which ships at 12 today and serves both the daemon re-arm interval and the fade budget.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -3849,7 +3860,11 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   also reported `last successful run: NEVER RECORDED on this machine`, so it is the first uu run this
   machine has recorded. `pns-events` is the only one of the five not directly exercised by either run.
   Doctor also named two routes the gateway does not serve, `pns-recap` and `posture`, both of which the
-  operator ruled retired rather than missing; that is task 99 and not a gap in this one.
+  operator ruled retired rather than missing; that is task 99 and not a gap in this one. RULING
+  2026-09-17: `general` is recorded as INTENTIONALLY UNUSED, the same disposition as the `#explain`
+  channel. It is proven served by the gateway and no producer in this repository posts to it, so it needs
+  no producer and its silence is not a gap. That leaves `pns-events` as the only route of the five
+  neither the doctor run nor the uu run exercised.
 
 - [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
   2026-09-15, alongside the answers recorded in
@@ -3885,7 +3900,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and a comment no longer overclaims that the environment read is the only thing above the seam. See task
   101 for the two further flakes this work exposed.
 
-- [ ] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
+- [x] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
   and `~/.config/herdr/plugins/config/**` are PLAIN chezmoi targets that parties other than chezmoi
   write: zoetrope's `setup-keys` writes a marked key block, the `herdr-agent-quota` `configure` action
   rewrites the sidebar row and its own setting files, and the operator hand-edits them. Every apply
@@ -3898,7 +3913,16 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and read the app-written state back out of the live file. The fix is to give herdr's targets the same
   treatment, on the pattern of `private_dot_codex/modify_private_config.toml`. Until then every plugin
   toggle needs a manual capture into source before the next apply, which is exactly the manual step the
-  design bar rejects.
+  design bar rejects. CLOSED 2026-09-17 by operator ruling, with the modify template REVERTED.
+  [PR #720](https://github.com/webdavis/dotfiles/pull/720) converted `dot_config/herdr/config.toml` to a
+  `modify_` template; the operator ruled that the file is rarely overwritten and is to stay a plain
+  tracked target, so the template, its declared partial and the quarantine script that only existed to
+  stop an unparseable live file aborting the apply were all removed again. What survives from that pull
+  request is the one piece that stands on its own: the eight one-line `herdr-agent-quota` plugin config
+  leaves are no longer tracked, because the quota plugin regenerates them on every apply and a tracked
+  snapshot fought that. Standing consequence, accepted: an apply still overwrites
+  `~/.config/herdr/config.toml` from source, so a live edit must be committed before the next apply to
+  survive it.
 
 - [x] 96. Point moshi at dresden's tailnet name, filed 2026-09-17. The operator cannot reach dresden from
   moshi since the SSH hardening, and the card reads
@@ -4025,6 +4049,31 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   reasoned from the code, and prove each fix with at least fifty loops under comparable load plus a
   mutation check. Expect to find candidates beyond the two named; report the full audit even for tests
   left alone, with the reason each was judged safe.
+
+- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
+  2026-09-17 from the firewall drill's incidental finding.
+  `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
+  `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
+  `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
+  `posture/crates/posture-adapters/src/notify/schema.rs:18` declares `pub(super) notify: Table` and
+  `dot_config/posture/private_config.toml.tmpl:38` ships `[notify]`, so the two agree today, and the
+  operator received real pages during the 2026-09-17 drill. THE DEFECT IS THE FAILURE MODE. That struct
+  carries `#[serde(deny_unknown_fields)]`, so one unknown or renamed top-level key makes posture refuse
+  the WHOLE delivery configuration and deliver NOTHING, and the only symptom is a line in a log nobody
+  reads. Nothing catches it: the watchdog proves each job RAN rather than that it could deliver, and no
+  check anywhere reads the delivery config for parseability, verified 2026-09-17. Paired with task 100's
+  false all-clear, a machine can sit in total page silence while every surface reports healthy, which for
+  a security monitor is the worst available state. THERE IS A LIVE INSTANCE OF THE RISK.
+  [PR #721](https://github.com/webdavis/dotfiles/pull/721) added a `[jobs]` table to that same struct. It
+  is `#[serde(default)]`, so a config without it is fine, but a config WITH it against an older binary is
+  rejected outright. An apply writes the config target and rebuilds posture in the same run, so they
+  normally move together; if the rebuild fails after the config has landed, posture stops delivering
+  every page until the next successful apply. Two things are wanted. First, make the failure loud: a
+  delivery config that will not parse should reach the local banner and `posture doctor` rather than only
+  a log, because a page that cannot be delivered is precisely what the operator must hear about. Second,
+  prefer degrading to refusing where it is safe: an unknown key inside a known table can warn and
+  continue, while a malformed known key still refuses. Pin both with tests, including one that an unknown
+  key never silently disables delivery.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and

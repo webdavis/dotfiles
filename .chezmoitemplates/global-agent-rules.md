@@ -13,6 +13,11 @@
   disagreeing.
 - One precise question at a time when ambiguous. State a recommendation; ask only if contested.
 - Never create unsolicited docs (`README.md`, `CHANGELOG.md`, etc.) or docstrings.
+- Code comments are short and concise. One line where one line does it.
+- A comment says what the code does or why it is the way it is. It NEVER explains why something is not a
+  certain way, what was considered and rejected, what a file does not do, or anything about the
+  conversation that produced it. If it is not in the file, it is not mentioned in the file. Put that
+  reasoning in the commit message or the pull request body instead.
 - Acronyms in commits and docs: on first use, a **well-known** acronym must give the full name in
   parentheses, `HMAC (hash-based message authentication code)`, then the bare acronym is fine after. A
   **less-common / not-widely-known** acronym is avoided altogether, spell it out every time, never

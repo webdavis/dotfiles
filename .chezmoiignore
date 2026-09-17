@@ -53,6 +53,9 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
+# The quota plugin regenerates these on every apply.
+.config/herdr/plugins/config/herdr-agent-quota/
+
 # The five Rust tool workspaces sit at the repository root in monorepo layout,
 # so lifting one out into its own repository later is a move rather than a
 # rewrite. They are SOURCE and never a deploy target: each builder script
