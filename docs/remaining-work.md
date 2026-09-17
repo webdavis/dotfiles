@@ -2324,11 +2324,11 @@ producer.
   unpublished commits and unrelated work. Do not push that local history or discard the retained edits.
   Publication did not deploy either plan.
 
-- [ ] 21a. Finish the deployed binary cleanup named in task 21. The old
-  `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current callers,
-  preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete files
-  before trashing them. The September 13 caller audit found two Codex hooks still invoking the old pns
-  binary alongside current handlers. Commit `1b0cca44` on `fix/codex-pns-hook-migration` migrates
+- [x] 21a. Finish the deployed binary cleanup named in task 21. AUDITED 2026-09-17; ONE TRASH COMMAND IS
+  OWED. The old `~/.local/libexec/{pns/pns,uu/uu,posture/posture,lights}` binaries remain. Verify current
+  callers, preserve the live `pns/hooks/` installer directory, and obtain approval for the exact obsolete
+  files before trashing them. The September 13 caller audit found two Codex hooks still invoking the old
+  pns binary alongside current handlers. Commit `1b0cca44` on `fix/codex-pns-hook-migration` migrates
   precisely owned legacy commands while preserving unrelated handlers and metadata. Follow-up `257cb3e1`
   fixes four ShellCheck findings in its test. Ten focused cases, synthetic installer checks, full
   `just ship` and independent review passed. [PR #534](https://github.com/webdavis/dotfiles/pull/534)
@@ -2336,7 +2336,36 @@ producer.
   exact-file cleanup approval. The full `chezmoi apply` ran and passed on 2026-09-15 and all four old
   binaries are still on disk: `ls` reports `~/.local/libexec/pns/pns`, `~/.local/libexec/uu/uu`,
   `~/.local/libexec/posture/posture` and `~/.local/libexec/lights`, each dated 2026-09-09. Still owed:
-  the operator's approval of the exact files, then the trash pass.
+  the operator's approval of the exact files, then the trash pass. AUDITED 2026-09-17 in
+  [PR #745](https://github.com/webdavis/dotfiles/pull/745), merged `7a5527e6`, written up in
+  `docs/superpowers/specs/2026-09-17-deployed-binary-cleanup-audit.md`. ALL FOUR OLD BINARIES ARE ALREADY
+  GONE: `~/.local/libexec/pns/pns`, `~/.local/libexec/uu/uu`, `~/.local/libexec/posture/posture` and
+  `~/.local/libexec/lights` do not exist, removed in one UNATTRIBUTED sweep at 2026-09-15 05:29:50-0600,
+  which is what all four parent directories' identical mtimes say; nothing matching is in `~/.Trash` and
+  no apply transcript names the paths. This entry's own still-on-disk file list is therefore superseded,
+  while its caller verification holds. EXACTLY ONE LEFTOVER REMAINS and it is a directory, not a binary:
+  the empty, unmanaged `~/.local/libexec/uu/` at mode 0755. THE WHOLE OPERATOR STEP IS
+  `trash ~/.local/libexec/uu`. Callers: every live caller in the repository and on the deployed side
+  names `~/.cargo/bin`, most of them resolving `rust_tools.install_dir` from
+  `.chezmoidata/rust_tools.yaml` at render time. One repository file names an old path in live code and
+  is NOT a caller: `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh` builds the legacy
+  pattern list its own `migrate` filter rewrites to the cargo path, and its agent is already the cargo
+  binary. `~/.codex/hooks.json` and all twelve pns commands in `~/.claude/settings.json` name the cargo
+  path. PRESERVED: `~/.local/libexec/pns/` survives, because chezmoi declares
+  `hooks/codex/install-hooks.sh` there and `channel_dispatch.rs` also defaults the executable-channel
+  directory to `~/.local/libexec/pns/channels`; `~/.local/libexec/posture/` survives whole, its seven
+  deployed files matching chezmoi's declaration file for file. Two unmanaged `.DS_Store` files in the pns
+  tree are noted and deliberately left out of the command list. THE INTEGRITY FINDING IS THE VALUABLE
+  PART AND IT SPLITS: neither known-good manifest ever held any of the four, because the manifest set
+  derives from chezmoi's intent rather than from the protected tree, but all four WERE watched by the
+  `managed_bin` recursive group. `~/.local/libexec/posture/posture` matches the pipeline-integrity prefix
+  arm UNCONDITIONALLY and a DELETED verb short-circuits the tuple check, so trashing it WOULD have paged
+  a CRIT and no apply on either side could have suppressed it. The other three fell to the
+  manifest-driven arm, were never manifested, and would have been silent. The remaining empty `uu/`
+  directory holds no files, so its removal emits no `file_events` record at all: no page, no ordering to
+  observe, and no apply needed before or after. OPEN QUESTION for the operator: the 2026-09-15 sweep is
+  unattributed, and the audit recorded that as a finding rather than tracing it, because the resulting
+  state is exactly what this task was going to ask for approval to reach.
 
 ## Waiting on the operator
 
@@ -4497,8 +4526,8 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
   second process gets a defined exit contract.
 
-- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
-  2026-09-17 from the firewall drill's incidental finding.
+- [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
+  2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
   `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
   `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
   `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
@@ -4530,7 +4559,36 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
   name, which only the new binary writes. So the exposure was about one minute of total page silence,
   self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
-  is short here only because the rebuild succeeded.
+  is short here only because the rebuild succeeded. SHIPPED 2026-09-17 as
+  [PR #733](https://github.com/webdavis/dotfiles/pull/733), merged `9767bda3`, BOTH HALVES. LOUD:
+  `Notify::report` is the one place a delivery-config outcome is reported and `alert_sink` calls it, so
+  all six jobs are covered by one guard rather than six. A refusal still writes its diagnostics line and
+  now also raises the LOCAL BANNER through the `IndependentAlarm` the caller already hands in, which is
+  the one destination a broken delivery config cannot take away. A new `posture doctor` answers the same
+  question on demand: it names the config path, lists every ignored key, and either prints
+  `FAILED: no page can be delivered: <reason>` and exits 1 or says the config is usable and exits 0.
+  There was no doctor subcommand before. DEGRADE: `#[serde(deny_unknown_fields)]` is gone from all five
+  structs in `notify/schema.rs`, replaced by a flattened unread map on each, so serde itself hands back
+  the keys this build has no field for, at the top level and inside every known table, and each becomes
+  one named warning line. A malformed KNOWN key still refuses the whole file, and so does a missing
+  `[notify]` table, which is what keeps a mistyped top-level table name from paging nowhere. THE
+  TOP-LEVEL DECISION, made deliberately: an unknown TOP-LEVEL key now warns and continues, because that
+  is exactly what the live instance needed. A config written for a newer or older build of one tool is
+  the ordinary case on a machine where an apply writes the config before the builder reinstalls the
+  binary, and refusing it takes away the very pages that would report the trouble. A mistyped table
+  BESIDE a valid `[notify]` costs that table's contents plus a named warning, which is the smaller loss.
+  THE MERGE WITH TASK 99 WAS A REAL CONFLICT AND WAS RESOLVED RATHER THAN GUESSED: both tasks hardened
+  the same four files. `parse` now returns the whole `Notify` instead of a tuple of mode, route and
+  warnings, and `missing_hermes_keys` moved from `NotifyMode` to `Notify`, because `NotifyMode` has no
+  route and cannot know the configured one. One test was added for the same reason, since nothing pinned
+  that the signing-key check follows the CONFIGURED route rather than the shipped default. ALL FIVE
+  BEHAVIOURS WERE PROVEN AGAINST THE REAL BINARY with fixture home directories: an unknown nested key
+  warns and delivery continues; an unknown top-level key does the same, which is the live failure this
+  task exists for; a malformed known key refuses and REDACTS the value in its message; a refusal reaches
+  both doctor and the banner, pinned by a test and its negative; and an untiered page takes the
+  configured route while a critical page still takes `priority`, proven by a fixture that keys only the
+  other route and fails naming `priority`. 1200 posture tests pass. OPERATOR STEP: a full `chezmoi apply`
+  rebuilds posture, after which `posture doctor` exists.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
