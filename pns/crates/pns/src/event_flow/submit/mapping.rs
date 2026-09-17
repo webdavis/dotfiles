@@ -17,6 +17,9 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
         pns_domain::EventArgs {
             agent: request.producer.as_str().into(),
             state: state.into(),
+            // A PRODUCER STATES ITS SIGNAL, so this is never a guess: an
+            // approval it asked for is a real wait even mid-loop.
+            guessed: false,
             project: request.context.project.clone().unwrap_or_default(),
             branch: request.context.branch.clone().unwrap_or_default(),
             pane: request.context.pane.clone().unwrap_or_default(),

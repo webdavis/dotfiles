@@ -40,6 +40,10 @@ struct PhoneCard {
     /// `[failures] serve`, which decides which pointer the card's fix line
     /// carries: the local page, or the place the full form actually is.
     serve: bool,
+    /// The card types whose cards carry an image, carried for the same reason
+    /// the token is: the channel reads its own toggles and this module has no
+    /// business second-guessing which card types the operator armed.
+    image_cards: Vec<String>,
 }
 
 /// Announce every failure this pass recorded that warrants it.
@@ -101,16 +105,17 @@ fn phone_card() -> Option<PhoneCard> {
     else {
         return None;
     };
+    // NOT `read_mobile`, WHICH COMPLAINS. It prints the config error for a
+    // table naming no compiled-in backend, and the event path this runs
+    // inside has already printed that same line for that same event: one
+    // fault, one complaint. The armed table is all this needs.
+    let mobile = pns_adapters::armed_mobile(&config).ok().flatten();
     Some(PhoneCard {
-        // NOT `read_mobile`, WHICH COMPLAINS. It prints the config error for a
-        // table naming no compiled-in backend, and the event path this runs
-        // inside has already printed that same line for that same event: one
-        // fault, one complaint. The token is all this needs.
-        token: pns_adapters::armed_mobile(&config)
-            .ok()
-            .flatten()
-            .and_then(pns_adapters::moshi_secret),
+        token: mobile.and_then(pns_adapters::moshi_secret),
         serve: config.failures.serve,
+        image_cards: mobile
+            .map(pns_adapters::moshi_image_cards)
+            .unwrap_or_default(),
     })
 }
 
@@ -173,7 +178,7 @@ fn push(failure: &Failure, phone: &PhoneCard) {
     // happen in a pane, and a link to whichever pane the daemon happens to be
     // running in would open somewhere the operator was not working.
     let _ = pns_application::NotificationDestination::deliver(
-        &crate::channel_dispatch::moshi_channel(phone.token.clone()),
+        &crate::channel_dispatch::moshi_channel(phone.token.clone(), phone.image_cards.clone()),
         &pns_application::DeliveryRequest {
             producer_request: None,
             producer: "pns",

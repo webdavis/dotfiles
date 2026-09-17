@@ -21,15 +21,22 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
     // that installs the PostToolBatch entry.
     clear_nag(&payload.session_id);
     let reply = turn_reply(payload);
-    let (state, detail) = match reply.is_empty() {
-        true => ("done".to_string(), String::new()),
-        false => condense(&reply),
+    // A STATE THE CONDENSER READ OFF THE TURN IS A GUESS, and says so, so the
+    // submit path can withhold a blocked marker a live loop makes wrong. An
+    // empty reply states nothing to read, so `done` there is not a guess.
+    let (state, detail, guessed) = match reply.is_empty() {
+        true => ("done".to_string(), String::new(), false),
+        false => {
+            let (state, detail) = condense(&reply);
+            (state, detail, true)
+        }
     };
     run_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state,
             detail,
+            guessed,
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,

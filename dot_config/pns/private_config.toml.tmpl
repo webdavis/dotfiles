@@ -54,6 +54,29 @@ mobile_watch_card = false
 # a fraction and anything past 3600 are refused by name.
 submit_deadline_secs = 5
 
+# Which card types carry an IMAGE of the whole message, keyed by card type
+# and off for every one of them until you name it here. A card type is the
+# state word the event carried: `missed` is the card a return raises,
+# `failed` a turn that died, `done` one that finished.
+#
+# WHAT AN IMAGE BUYS: the card's text is cut at 260 characters, and the
+# image shows the message whole, wrapped at 60 columns.
+#
+# WHAT IT COSTS: a moshi card's `data` carries ONE type, so a card with an
+# image cannot also carry the deep link that focuses the herdr pane the
+# event came from. Turning a card type on trades that link away for every
+# card of that type WHICH HAS A PANE. The return card (`missed`) has no
+# pane and so no link to lose, which is why it is the example below.
+#
+# Uploads are capped at 10 an hour by moshi and the links expire after a
+# day; a refused upload, a refused card and a message with nothing to draw
+# all fall back to the ordinary text card with its link.
+#
+# THE LINK NEEDS NO CREDENTIAL: anyone who has it can read the whole
+# message for that day, so arm a card type only where that is acceptable.
+[plugins.mobile.image_cards]
+# missed = false
+
 # The durable paper trail: every event posted to a hermes route, signed
 # with the key that route verifies.
 [plugins.hermes]
@@ -480,8 +503,8 @@ brightness = 100
 pass = [0.2725, 0.1283]
 fail = [0.5562, 0.4084]
 
-# A live pane lease keeps condenser `asking` guesses from arming blocked;
-# real hook waits still take priority.
+# A live pane lease keeps the condenser's guessed waits from arming
+# blocked; real hook waits still take priority.
 [lights.loop]
 duration_ms = 4000
 high = 80

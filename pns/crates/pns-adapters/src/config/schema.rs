@@ -159,12 +159,18 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "plugins.mobile",
         &[
             "enabled",
+            "image_cards",
             "mobile_watch_card",
             "submit_deadline_secs",
             "token",
             "type",
         ],
     ),
+    // AN OPEN TABLE: its keys are CARD TYPES, which is the state word an
+    // event's producer sent, and pns compiles in no roster of those. The row
+    // states the one card type the shipped file shows as an example. See
+    // `OPEN_TABLES`.
+    (MOBILE_IMAGE_CARDS, &["missed"]),
     (
         "plugins.router",
         &[
@@ -200,6 +206,9 @@ pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
 /// The per-route signing keys, whose keys are ROUTE NAMES.
 pub(super) const HERMES_KEYS: &str = "plugins.hermes.keys";
 
+/// The per-card-type image switches, whose keys are CARD TYPES.
+pub(super) const MOBILE_IMAGE_CARDS: &str = "plugins.mobile.image_cards";
+
 /// What the two routes pns selects for itself are called.
 pub(super) const ROUTES: &str = "routes";
 
@@ -218,7 +227,11 @@ pub(super) const ROUTES: &str = "routes";
 /// What still holds is the safety property the old roster was checked for: a
 /// route pns is asked to post to and has no key for is refused at the
 /// signature, so one compromised key reaches one channel.
-pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS, HERMES_KEYS];
+///
+/// THE CARD TYPES ARE HERE FOR THE SAME REASON: a card type is the state word
+/// a producer sent, and producers are separate tools, so a mistyped one is a
+/// card type that never carries an image rather than a refusal at load.
+pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS, HERMES_KEYS, MOBILE_IMAGE_CARDS];
 
 /// Whether a table takes keys this schema never declared.
 pub(super) fn is_open(table: &str) -> bool {

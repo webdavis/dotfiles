@@ -4,14 +4,20 @@
 //! it implements.
 //!
 //! THE SECRET'S PATH IS THE POINT. The token is read from the config's
-//! `[plugins.mobile]` table, placed in the request BODY, and never touches
-//! argv, the environment of a child, or an error string: the bash put it on
-//! stdin for the same reason (the process table is world-readable), and
-//! in-process is the stronger form of the same rule. A missing or empty token
-//! is the not-set-up case, and the deliver seam FAILS it by naming the config
-//! key to write: nothing is posted, and no event hears the sentence, because
-//! this channel is never handed a reporting leg. What has not changed is where
-//! the token may appear, which is the request body and nowhere else.
+//! `[plugins.mobile]` table and never touches argv, the environment of a
+//! child, or an error string: the bash put it on stdin for the same reason
+//! (the process table is world-readable), and in-process is the stronger
+//! form of the same rule. A missing or empty token is the not-set-up case,
+//! and the deliver seam FAILS it by naming the config key to write: nothing
+//! is posted, and no event hears the sentence, because this channel is never
+//! handed a reporting leg.
+//!
+//! WHERE THE TOKEN MAY APPEAR IS PER ROUTE, and the two routes differ
+//! (measured 2026-09-15 with bogus tokens): the BODY on the webhook, which
+//! is the only placement it accepts, and an `Authorization: Bearer` header
+//! on the image upload, which is the only placement THAT accepts. Neither is
+//! argv, neither is a child's environment and neither is an error string,
+//! which is what this rule was always for.
 
 use super::Delivery;
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
@@ -24,6 +30,13 @@ pub const DEFAULT_MOSHI_URL: &str = "https://api.getmoshi.app/api/webhook";
 /// The production impl carries the 10 second deadline; a fake records.
 pub trait HttpPost {
     fn post_json(&self, url: &str, body: &str) -> bool;
+
+    /// The image upload: the PNG in, the code moshi filed it under out, or
+    /// `None` for anything that is not a code this can vouch for.
+    ///
+    /// THE TOKEN IS AN ARGUMENT HERE AND A BODY FIELD ABOVE, because that is
+    /// what the two routes accept; see the module note.
+    fn upload_png(&self, url: &str, token: &str, png: &[u8]) -> Option<String>;
 }
 
 /// The deep link a card's tap follows, built from the ORIGIN PANE and nothing
@@ -104,6 +117,12 @@ pub struct MoshiChannel<H: HttpPost> {
     pub token: Option<String>,
     /// `PNS_MOSHI_URL` override, else the default.
     pub url: String,
+    /// `PNS_MOSHI_UPLOAD_URL` override, else the default.
+    pub upload_url: String,
+    /// The card types whose cards carry an image, which is the states named
+    /// `true` in `[plugins.mobile.image_cards]`. EMPTY IS THE SHIPPED
+    /// POSTURE, and a card type nobody named gets today's text card.
+    pub image_cards: Vec<String>,
 }
 
 impl<H: HttpPost + Send + Sync> NotificationDestination for MoshiChannel<H> {
@@ -135,6 +154,27 @@ impl<H: HttpPost + Send + Sync> NotificationDestination for MoshiChannel<H> {
         let Some(token) = &self.token else {
             return Delivery::Failed(NO_TOKEN_LINE.to_string());
         };
+        // THE IMAGE CARD IS TRIED FIRST AND FALLS BACK TO THE TEXT ONE, which
+        // is what keeps an opt-in from ever costing an event: a render that
+        // drew nothing, an upload that was refused and a webhook that
+        // rejected the image body all arrive here as today's text card, and
+        // the only cost is a round trip nobody was waiting on. The endpoint
+        // shows NO card for a body it answers non-2xx (measured 2026-09-09 on
+        // a lone `request_id`), so the second post cannot double the first.
+        if let Some(image) = self.uploaded_image(event, token)
+            && self.http.post_json(
+                &self.url,
+                &image_body(
+                    token,
+                    &event.title,
+                    &event.preview,
+                    &image,
+                    request.request_id,
+                ),
+            )
+        {
+            return Delivery::Delivered("pushed the card with its image".to_string());
+        }
         if self.http.post_json(
             &self.url,
             &body_with_id(
@@ -157,6 +197,19 @@ impl<H: HttpPost + Send + Sync> NotificationDestination for MoshiChannel<H> {
     }
 }
 
+impl<H: HttpPost> MoshiChannel<H> {
+    /// The public address of this card's image, or `None` when this card type
+    /// carries no image or no image could be made.
+    fn uploaded_image(&self, event: &pns_domain::Event, token: &str) -> Option<String> {
+        if !self.image_cards.contains(&event.state) {
+            return None;
+        }
+        let png = image::card_png(&event.message)?;
+        let code = self.http.upload_png(&self.upload_url, token, &png)?;
+        Some(upload::image_url(&code))
+    }
+}
+
 /// The line for a channel that was selected and never set up. It names the
 /// config key to write, the way hermes's does, because "not set up" without an
 /// address sends the operator hunting.
@@ -175,8 +228,36 @@ pub fn refused_backend_line(reason: &str) -> String {
     format!("push SKIPPED, {reason}; nothing was sent")
 }
 
+/// The webhook body for a card carrying an image.
+///
+/// THE IMAGE TAKES THE DEEP LINK'S PLACE, and that is structural rather than
+/// a choice: `data` is ONE object with ONE `type`, so a card cannot be both an
+/// image card and a url action. The request id rides along exactly as it does
+/// on a url card, because there is a `data` object to put it in.
+pub fn image_body(
+    token: &str,
+    title: &str,
+    preview: &str,
+    image_url: &str,
+    request_id: Option<&str>,
+) -> String {
+    let mut body = serde_json::json!({
+        "token": token,
+        "title": title,
+        "message": preview,
+        "data": { "type": "image", "url": image_url },
+    });
+    if let Some(id) = request_id {
+        body["data"]["request_id"] = serde_json::json!(id);
+    }
+    body.to_string()
+}
+
 mod http;
 pub use http::{POST_DEADLINE, UreqPost};
+mod image;
+pub(super) mod upload;
+pub use upload::DEFAULT_MOSHI_UPLOAD_URL;
 
 #[cfg(test)]
 mod tests;
