@@ -56,9 +56,19 @@ fn github_poll(launch: Launch) -> i32 {
     let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
         return 0;
     };
-    let (Ok(Some(source)), Some(now)) = (pns_adapters::parse_github(&config), now_secs()) else {
-        return 0;
+    let source = match pns_adapters::parse_github(&config) {
+        Ok(Some(source)) => source,
+        Ok(None) => return 0,
+        Err(error) => {
+            // A REFUSED TABLE IS LOUD ON EVERY PATH, the Unauthorized arm's
+            // own reason: an operator armed `[plugins.github]` and typo'd
+            // `poll_secs` deserves the same sentence a revoked token gets,
+            // not a poll that exits 0 and never says why.
+            eprintln!("pns github: [plugins.github] {}", error.detail());
+            return 1;
+        }
     };
+    let Some(now) = now_secs() else { return 0 };
     let state = state_dir();
     let stored = pns_adapters::read_poll_state(&state);
     let polled = pns_adapters::GithubNotifications::new(source.token).poll(&stored.last_modified);
