@@ -45,6 +45,7 @@ const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
     "plugins.discord.token",
     "plugins.hue.bridge",
+    "plugins.hue.certificate",
     "plugins.hue.key",
     "plugins.router.api_key",
 ];

@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 
 pub(super) enum Reply {
     Body,
+    /// One JSON document of the caller's own, for a test whose subject is what
+    /// the bridge SAID rather than that it was reached.
+    Json(String),
     Redirect(String),
     Wait,
 }
@@ -81,6 +84,10 @@ fn serve(listener: TcpListener, reply: Reply) -> Result<String, String> {
             "HTTP/1.1 200 OK\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"data\":[]}"
                 .to_string()
         }
+        Reply::Json(body) => format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        ),
         Reply::Redirect(location) => format!(
             "HTTP/1.1 302 Found\r\nLocation: {location}/stolen\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         ),

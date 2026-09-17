@@ -60,7 +60,7 @@ fn the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge
     // nobody is watching, and every one of these is a machine that has simply
     // not asked for the lamps yet.
     let unreachable = format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{}\"\nkey = \"k\"\n{STUDIO_MAP}",
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}",
         closed_port()
     );
     for (name, config) in [
@@ -101,7 +101,7 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-held-cleared-on-return");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -144,7 +144,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-held-nothing-held");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
     ));
     let mut command = logged_event(&sandbox);
@@ -209,7 +209,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         held_after(
             "lights-feature-off-clears",
             &|port| format!(
-                "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n"
+                "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
             ),
             true,
         ),
@@ -221,7 +221,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         held_after(
             "lights-hue-off-keeps",
             &|port| format!(
-                "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+                "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
                  {STUDIO_MAP}"
             ),
             false,
@@ -244,7 +244,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-tick-clears-its-glow");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n{STUDIO_MAP}"
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     pns_adapters::SqliteStore::for_records(sandbox.state())

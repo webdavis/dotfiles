@@ -198,7 +198,7 @@ fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
         format!(
-            "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+            "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.typo]\nenabled = true\n"
         ),
     )

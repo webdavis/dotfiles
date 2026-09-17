@@ -72,6 +72,14 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
                 armed_secret(terminal, "the light pulse", "an API key the bridge issued")?;
         }
         if !answers.hue_key.is_empty() {
+            answers.hue_certificate = armed(
+                terminal,
+                "the light pulse",
+                "the certificate the bridge presents, as `pns lights enroll` prints it \
+(sha256:...)",
+            )?;
+        }
+        if !answers.hue_certificate.is_empty() {
             answers.hue_rooms = list(armed(
                 terminal,
                 "the light pulse",

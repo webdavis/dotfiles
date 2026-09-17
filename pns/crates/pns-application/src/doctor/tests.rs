@@ -110,6 +110,9 @@ fn report(
             focus: || "focus fixture".into(),
             daemon: || "daemon fixture".into(),
             lamps: || LightsReport::Off,
+            certificate: || {
+                pns_domain::doctor::certificate_row(&pns_domain::doctor::PinState::Unconfigured)
+            },
             delivery_health: || history.health.clone(),
             routes: || history.routes.clone(),
             imports: || {

@@ -19,6 +19,7 @@
 //! here, so every existing caller keeps its old path until the composition
 //! step removes the re-exports.
 
+pub mod certificate_pin;
 pub mod channel_map;
 pub mod count;
 mod decision;
@@ -44,6 +45,8 @@ pub mod routing;
 pub mod safety;
 pub mod stale;
 pub mod surface;
+
+pub use certificate_pin::CertificatePin;
 
 pub use decision::{
     DEFAULT_DESK_IDLE_SECS, Decision, DecisionRequest, EnvironmentSnapshot, GateInputs, Overrides,

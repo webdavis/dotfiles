@@ -4,6 +4,7 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
     match verb {
         "tick" => lights_tick(),
         "quiet" => lights_quiet(),
+        "enroll" => crate::command_enroll::lights_enroll(),
         // UNKNOWN IS AN ERROR, never a silent fallthrough. Argv parsing on the
         // event path is deliberately lenient, so a bare `pns lights` reaching
         // it would skip the word it did not know and fire a notification about
@@ -16,7 +17,8 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
 }
 
 const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
-pns lights quiet [<place> [<duration>|off]]";
+pns lights quiet [<place> [<duration>|off]] | \
+pns lights enroll [--bridge-id <id>]";
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
 /// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the

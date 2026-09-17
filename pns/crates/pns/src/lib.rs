@@ -32,7 +32,17 @@ pub(crate) use std::time::Duration;
 
 pub(crate) use pns_adapters::select_plugins;
 pub(crate) use pns_adapters::{BOT_TYPE, DiscordSettings, discord_backend};
-pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, hue_settings, quiet_window};
+pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, quiet_window};
+
+/// The hue settings with the pin's own refusal said out loud, and the rooms
+/// override read the one way every lamp caller reads it.
+pub(crate) fn armed_hue_settings(settings: &toml::Table) -> Option<pns_adapters::HueSettings> {
+    pns_adapters::armed_hue(
+        settings,
+        std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
+        |refusal| eprintln!("{refusal}"),
+    )
+}
 pub(crate) use pns_adapters::{HermesKeys, hermes_keys};
 pub(crate) use pns_adapters::{
     HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
@@ -45,11 +55,13 @@ pub(crate) use pns_domain::Overrides;
 pub(crate) use pns_domain::registry::roster;
 pub(crate) use pns_domain::render;
 
+mod certificate_notice;
 mod channel_dispatch;
 mod channel_settings;
 mod command_click;
 mod command_daemon;
 mod command_doctor;
+mod command_enroll;
 mod command_failures;
 mod command_github;
 pub(crate) use command_github::github_mode;

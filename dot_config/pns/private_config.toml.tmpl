@@ -158,6 +158,14 @@ enabled = true
 enabled = true
 bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
+# The one certificate the bridge may present, as `sha256:<64 hex>`.
+# REQUIRED, and a table with none refuses to pulse rather than
+# trusting whatever answers the address: the bridge's certificate
+# carries no name any verifier can check, so its own fingerprint is
+# the whole of what makes this address the device you meant. Get the
+# value from `pns lights enroll`, which prints this line ready to
+# paste; it changes only when the bridge hardware does.
+certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
 rooms = ["3F - Studio", "2F - Kitchen"]
 # The hours the room pulse stays dark: local wall clock, the start
 # inclusive and the end exclusive, and it may wrap midnight. A hand-run
