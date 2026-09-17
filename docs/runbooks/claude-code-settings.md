@@ -61,15 +61,19 @@ Overwritten from the template on every apply, whatever the live file holds.
     reaches the dialog host with no `PermissionRequest` at all, and the host defaults its typeless
     notification to `permission_prompt`, which is also every ordinary tool approval's type, so the
     matcher cannot narrow it and an exact message allowlist in the binary
-    (`hook_observations.rs:sandbox_network_detail`) is the discriminator. Every other message on that
-    type is silence, because `PermissionRequest` has already reported it. An earlier `permission_prompt`
-    entry ran `alerter` directly, the last notification path that reached the operator without passing
-    the presence engine, and it double-fired against the approval hook below; it was deleted rather than
-    replaced, and what takes the slot now goes through the engine like everything else. The approval
-    itself hangs off `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness
-    waits for it and registers the card before the prompt is drawn. Its exit code is NOT the operator's
-    answer: that comes back through moshi's own bridge typing into the prompt (measured 2026-08-29,
-    `modify_settings.json`: approve and deny both leave the hook exiting 0 with empty stdout).
+    (`hook_observations.rs:sandbox_network_detail`) is the discriminator, admitting the sandbox dialog
+    alone. Ordinary tool approvals are the ones `PermissionRequest` already reports; the dialog host
+    raises at least fifteen other messages on this same type (a managed-settings review, a cross-session
+    approval, Claude wanting the browser, a review-artifact approval, teammate setup, a proposed session
+    goal, a paused session, and more), and those stay deliberately unreported, out of this change's scope
+    rather than covered by something else. An earlier `permission_prompt` entry ran `alerter` directly,
+    the last notification path that reached the operator without passing the presence engine, and it
+    double-fired against the approval hook below; it was deleted rather than replaced, and what takes the
+    slot now goes through the engine like everything else. The approval itself hangs off
+    `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness waits for it and
+    registers the card before the prompt is drawn. Its exit code is NOT the operator's answer: that comes
+    back through moshi's own bridge typing into the prompt (measured 2026-08-29, `modify_settings.json`:
+    approve and deny both leave the hook exiting 0 with empty stdout).
   - `ConfigChange` runs `pns hook config-change` async, one exact pipe-separated matcher naming the five
     documented config sources, carding a configuration change as an audit trail rather than a turn
     needing attention.
