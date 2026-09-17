@@ -1,4 +1,4 @@
-use crate::legacy::{USAGE, is_producer_argv};
+use crate::legacy::{USAGE, is_help_flag};
 use crate::*;
 
 /// What every command reads instead of the environment: argv from the
@@ -116,8 +116,8 @@ pub(crate) fn run() {
     if first == "shell" {
         std::process::exit(crate::shell_mode(&flagless[1..]));
     }
-    if first == "submit" {
-        std::process::exit(event_flow::submit_mode(&flagless[1..]));
+    if first == SEND {
+        std::process::exit(send_mode(&arguments_after_send(&argv)));
     }
     if first == "tap" {
         std::process::exit(crate::command_tap::tap_mode());
@@ -235,21 +235,107 @@ pub(crate) fn run() {
     if first == "hook" {
         std::process::exit(hook_mode(&second_argument(&flagless)));
     }
-    // A WORD THAT NAMES NO COMMAND IS A TYPO, never an event. It is the house
-    // rule `pns nag` and `pns lights` already keep, moved up to where argv[1]
-    // is decided: the producer parser is deliberately lenient about a token it
-    // does not know, so `pns stpo` used to skip the word, render an empty event
-    // and deliver it. The always-exit-0 contract governs EVENT deliveries, and
-    // a word naming no command never becomes one, so refusing it here
-    // contradicts nothing. `--help`/`-h` still reaches `event_mode` from here
-    // (see `is_producer_argv`): that parser holds the one help arm now, so
-    // there is no second copy of it up here to answer help before anything
-    // else runs.
-    if !is_producer_argv(&argv) {
+    // ARGV THAT NAMES NO SUBCOMMAND ENDS HERE, and only `--help` ends well.
+    // Sending is `pns send` and nothing else, so a bare `pns --state done` is
+    // refused instead of reaching the lenient producer parser, which skipped
+    // the tokens it did not know and delivered an empty event about them.
+    // Refusing costs the always-exit-0 contract nothing: that contract governs
+    // EVENT deliveries, and argv naming no command never becomes one.
+    let usage = Usage::of(&first);
+    if usage.refused() {
         eprint!("{USAGE}");
-        std::process::exit(2);
+    } else {
+        print!("{USAGE}");
     }
-    std::process::exit(event_mode(&argv));
+    std::process::exit(usage.exit_code());
+}
+
+/// Why the usage text is being printed, which is what decides the stream and
+/// the exit code.
+#[derive(Debug, PartialEq, Eq)]
+enum Usage {
+    /// `--help`/`-h`, with no subcommand behind it: what the operator asked
+    /// for, so it goes to stdout and exits 0.
+    Requested,
+    /// Any other word, the empty one included: a typo, a retired spelling, or
+    /// the bare event path that `send` replaced.
+    Refused,
+}
+
+impl Usage {
+    fn of(first: &str) -> Self {
+        if is_help_flag(first) {
+            Self::Requested
+        } else {
+            Self::Refused
+        }
+    }
+    fn refused(&self) -> bool {
+        *self == Self::Refused
+    }
+    fn exit_code(&self) -> i32 {
+        match self {
+            Self::Requested => 0,
+            Self::Refused => 2,
+        }
+    }
+}
+
+/// The one sending subcommand.
+const SEND: &str = "send";
+
+/// `pns send`: one subcommand, two input forms.
+///
+/// THE FORM IS CHOSEN BY `--json` IN LEADING POSITION, once `--no-color` is
+/// taken out of the way: that is the one flag that answers wherever it is
+/// typed, so `pns send --no-color --json` and `pns send --json --no-color`
+/// both name the envelope. The envelope branch then hands `submit::run` that
+/// SAME no-color-filtered tail, since its exact-argv check demands `--json`
+/// alone. The flags branch keeps the raw tail, so a value that merely spells
+/// `--no-color` (`--detail --no-color`) is not mistaken for the flag.
+fn send_mode(args: &[String]) -> i32 {
+    let (filtered, _) = take_tool_wide_flags(args);
+    match SendForm::of(&filtered) {
+        SendForm::Envelope => event_flow::submit_mode(&filtered),
+        SendForm::Flags => event_mode(args),
+    }
+}
+
+/// Which of `pns send`'s two input forms this call is using.
+#[derive(Debug, PartialEq, Eq)]
+enum SendForm {
+    /// One JSON request on standard input, selected by `--json`.
+    Envelope,
+    /// The request spelled as flags.
+    Flags,
+}
+
+impl SendForm {
+    /// LEADING TOKEN ONLY: a flag whose value spells `--json`
+    /// (`--detail --json`) leaves it in a later position, where it is just a
+    /// value rather than the form selector.
+    fn of(args: &[String]) -> Self {
+        if args.first().is_some_and(|argument| argument == "--json") {
+            Self::Envelope
+        } else {
+            Self::Flags
+        }
+    }
+}
+
+/// What `pns send` was handed, taken from the ORIGINAL argv.
+///
+/// UNFILTERED, for the reason `run` keeps the original: a producer sending
+/// `--detail --no-color` would otherwise lose that value to the tool-wide
+/// filter. The subcommand is the first word that is not the color flag, so the
+/// flag still answers in either position without a value that merely spells it
+/// being mistaken for it.
+fn arguments_after_send(argv: &[String]) -> Vec<String> {
+    let subcommand = argv
+        .iter()
+        .position(|token| token != NO_COLOR_FLAG)
+        .map_or(0, |index| index + 1);
+    argv.iter().skip(subcommand).cloned().collect()
 }
 
 #[cfg(test)]
@@ -302,5 +388,73 @@ mod tests {
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);
+    }
+
+    #[test]
+    fn both_input_forms_are_read_off_the_one_send_subcommand() {
+        assert_eq!(
+            SendForm::of(&strings(&["--agent", "lights", "--state", "done"])),
+            SendForm::Flags
+        );
+        assert_eq!(SendForm::of(&strings(&["--json"])), SendForm::Envelope);
+    }
+
+    #[test]
+    fn json_in_a_value_position_is_still_just_a_value() {
+        // `--detail`'s own value could legitimately spell `--json`; only the
+        // leading token names the form.
+        assert_eq!(
+            SendForm::of(&strings(&[
+                "--agent", "x", "--state", "done", "--detail", "--json"
+            ])),
+            SendForm::Flags
+        );
+    }
+
+    #[test]
+    fn the_color_flag_answers_in_either_position_for_the_envelope_form_too() {
+        for args in [
+            strings(&["--no-color", "--json"]),
+            strings(&["--json", "--no-color"]),
+        ] {
+            let (filtered, _) = take_tool_wide_flags(&args);
+            assert_eq!(SendForm::of(&filtered), SendForm::Envelope, "{args:?}");
+            assert_eq!(filtered, strings(&["--json"]), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn the_bare_event_path_is_refused_rather_than_delivered_empty() {
+        // The whole point of the subcommand: argv that used to render an empty
+        // event and notify about it now earns the usage text and exit 2.
+        for first in ["--state", "--agent", "stpo", ""] {
+            let usage = Usage::of(first);
+            assert_eq!(usage, Usage::Refused, "{first:?}");
+            assert_eq!(usage.exit_code(), 2, "{first:?}");
+        }
+    }
+
+    #[test]
+    fn help_with_no_subcommand_still_prints_and_exits_zero() {
+        for first in ["--help", "-h"] {
+            let usage = Usage::of(first);
+            assert_eq!(usage, Usage::Requested, "{first}");
+            assert!(!usage.refused(), "{first}");
+            assert_eq!(usage.exit_code(), 0, "{first}");
+        }
+    }
+
+    #[test]
+    fn send_hands_on_what_followed_it_and_keeps_a_value_spelling_the_color_flag() {
+        for argv in [
+            strings(&["send", "--detail", "--no-color"]),
+            strings(&["--no-color", "send", "--detail", "--no-color"]),
+        ] {
+            assert_eq!(
+                arguments_after_send(&argv),
+                strings(&["--detail", "--no-color"]),
+                "{argv:?}"
+            );
+        }
     }
 }

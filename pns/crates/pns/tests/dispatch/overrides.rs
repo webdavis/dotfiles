@@ -8,7 +8,9 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
     run(sandbox
         .pns()
         .env("PNS_IDLE_SECS", "0")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .arg("--local-only"));
     assert!(sandbox.fired("macos-banner"));
     assert!(!sandbox.fired("mobile"));
@@ -20,7 +22,7 @@ fn remote_only_delivers_through_hermes_alone() {
     let sandbox = Sandbox::new("remote-only");
     run(sandbox
         .pns()
-        .args(["--agent", "weekly", "--state", "done"])
+        .args(["send", "--agent", "weekly", "--state", "done"])
         .args(["--project", "skills", "--detail", "ran", "--remote-only"]));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("mobile"));
@@ -32,7 +34,9 @@ fn hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visib
     let sandbox = Sandbox::new("hermes-sync");
     run(sandbox
         .pns()
-        .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
+        .args([
+            "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+        ])
         .arg("--remote-only"));
     assert_eq!(sandbox.event("hermes")["mode"], "sync");
 }
@@ -42,7 +46,7 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
     let sandbox = Sandbox::new("both-flags");
     let output = run(sandbox
         .pns()
-        .args(["--agent", "x", "--state", "done", "--detail", "y"])
+        .args(["send", "--agent", "x", "--state", "done", "--detail", "y"])
         .args(["--local-only", "--remote-only"])
         .args(["--pane", "w:p; invalid"]));
     assert!(!sandbox.fired("mobile"));
@@ -64,10 +68,9 @@ fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
 #[test]
 fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
     let sandbox = Sandbox::new("at-the-desk");
-    run(sandbox
-        .pns()
-        .env("PNS_IDLE_SECS", "0")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
@@ -83,7 +86,9 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .env("PNS_SKIP_PHONE", "1")
-        .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
+        .args([
+            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+        ]));
     assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
@@ -99,7 +104,9 @@ fn relay_skip_phone_beats_relay_force_phone() {
         .env("PNS_IDLE_SECS", "0")
         .env("PNS_SKIP_PHONE", "1")
         .env("PNS_FORCE_PHONE", "1")
-        .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
+        .args([
+            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+        ]));
     assert!(!sandbox.fired("mobile"));
 }
 
@@ -110,7 +117,9 @@ fn relay_force_phone_overrides_presence() {
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .env("PNS_FORCE_PHONE", "1")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ]));
     assert!(sandbox.fired("mobile"));
 }
 
@@ -120,10 +129,9 @@ fn relay_force_phone_overrides_presence() {
 fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
     let sandbox = Sandbox::new("channel-fails");
     sandbox.stub_channel("mobile", "exit 9");
-    run(sandbox
-        .pns()
-        .env("PNS_IDLE_SECS", "0")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("macos-banner"));
 }
@@ -132,10 +140,9 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
 fn an_absent_channel_is_simply_not_installed() {
     let sandbox = Sandbox::new("absent-channel");
     std::fs::remove_file(sandbox.root.join("channels/hermes.sh")).expect("remove the channel");
-    let output = run(sandbox
-        .pns()
-        .env("PNS_IDLE_SECS", "0")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let output = run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(sandbox.fired("macos-banner"));
     // AND IT IS STILL A NON-EVENT. hermes runs sync on this path, so a launch
     // failure that reported itself would print here; the hand-run check is the

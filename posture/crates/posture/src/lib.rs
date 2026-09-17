@@ -93,7 +93,7 @@ pub(crate) fn command_notify(command: &Path) -> posture_adapters::Notify {
     posture_adapters::Notify {
         mode: posture_adapters::NotifyMode::Command {
             path: command.to_path_buf(),
-            arguments: vec!["submit".to_string(), "--json".to_string()],
+            arguments: vec!["send".to_string(), "--json".to_string()],
         },
         ..Default::default()
     }

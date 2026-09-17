@@ -10,7 +10,7 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
     let sandbox = Sandbox::new("alert-path");
     run(sandbox
         .pns()
-        .args(["--agent", "claude", "--state", "done"])
+        .args(["send", "--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
     assert!(sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
@@ -26,7 +26,9 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));
     assert!(sandbox.fired("hermes"));
@@ -42,7 +44,9 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
     assert!(!sandbox.fired("macos-banner"), "the pane is in plain sight");
     assert!(!sandbox.fired("mobile"));
@@ -56,9 +60,9 @@ fn the_alert_path_labels_the_hermes_leg_silent_on_the_wire() {
     // anyway: the dispatch waits for the channel either way. What the label
     // selects is whether the leg reports its outcome.
     let sandbox = Sandbox::new("hermes-async");
-    run(sandbox
-        .pns()
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(sandbox.pns().args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert_eq!(sandbox.event("hermes")["mode"], "async");
 }
 
@@ -67,7 +71,7 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
     let sandbox = Sandbox::new("rendered-event");
     run(sandbox
         .pns()
-        .args(["--agent", "claude", "--state", "done"])
+        .args(["send", "--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a summary"]));
     let event = sandbox.event("mobile");

@@ -37,7 +37,9 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // handshake fails at once instead of waiting out the ten-second bridge
         // deadline on a connection nobody answered.
         let child = command
-            .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+            .args([
+                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            ])
             .args(["--pane", "t1:p2", "--long-running"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -94,7 +96,9 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     command.env("TZ", "UTC");
     sandbox.stub_herdr(&mut command, false);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
         sandbox.fired("mobile") && sandbox.fired("hermes"),
@@ -120,7 +124,9 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     // avoid.
     let mut ordinary = sandbox.pns();
     sandbox.stub_herdr(&mut ordinary, false);
-    let ordinary = run(ordinary.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let ordinary = run(ordinary.args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(
         !stderr(&ordinary).contains("quiet_hours"),
         "a notification that was never going to light the room is not where a \
@@ -131,7 +137,9 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     let mut pulsing = sandbox.pns();
     sandbox.stub_herdr(&mut pulsing, false);
     let pulsing = run(pulsing
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2", "--long-running"]));
     let said = stderr(&pulsing);
     assert_eq!(
@@ -194,7 +202,9 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
     quiet.env("TZ", "Asia/Tokyo");
     sandbox.stub_herdr(&mut quiet, false);
     run(quiet
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),
@@ -211,7 +221,9 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
     loud.env("TZ", "Asia/Tokyo");
     sandbox.stub_herdr(&mut loud, false);
     let child = loud
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2", "--long-running"])
         .spawn()
         .expect("the engine starts");

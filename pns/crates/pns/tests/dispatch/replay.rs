@@ -115,7 +115,9 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
 
-    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(logged_event(&sandbox).args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
 
     let carded = events(&sandbox, "mobile");
     assert_eq!(
@@ -210,7 +212,9 @@ fn a_switched_off_replay_card_still_journals_the_misses_it_makes() {
 
     // A MUTE ZEROES THE PLAN, which is a miss by every reading.
     mute(&sandbox);
-    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done", "--detail", "muted"]));
+    run(logged_event(&sandbox).args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "muted",
+    ]));
 
     let waiting = journal(&sandbox);
     assert_eq!(waiting.len(), 1, "the miss was recorded: {waiting:?}");

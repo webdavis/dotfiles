@@ -26,6 +26,7 @@ fn pns_arguments_are_local_only() {
                 "--signal=KILL",
                 "2s",
                 "/owned/home/.cargo/bin/pns",
+                "send",
                 "--agent",
                 "lights",
                 "--state",

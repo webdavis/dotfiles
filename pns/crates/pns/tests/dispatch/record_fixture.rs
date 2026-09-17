@@ -15,10 +15,12 @@ pub(super) fn logged_event(sandbox: &Sandbox) -> std::process::Command {
 
 pub(super) fn acknowledged_banner(sandbox: &Sandbox) -> std::process::Command {
     let mut command = logged_event(sandbox);
+    // THE SUBCOMMAND LEADS, because this helper contributes a producer flag of
+    // its own and every caller adds the rest of the send behind it.
     command
         .env_remove("PNS_CHANNELS_DIR")
         .env("PNS_IDLE_SECS", "0")
-        .arg("--local-only");
+        .args(["send", "--local-only"]);
     sandbox.stub_notifier(&mut command);
     sandbox.stub_herdr(&mut command, false);
     command

@@ -10,7 +10,7 @@ fn the_doctor_counts_the_journal_last_and_never_moves_its_exit_code_for_it() {
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     run(logged_event(&sandbox)
         .env("PNS_SKIP_PHONE", "1")
-        .args(["--agent", "claude", "--state", "done"]));
+        .args(["send", "--agent", "claude", "--state", "done"]));
 
     let output = doctor_command(&sandbox).output().expect("the engine runs");
     let printed = stdout(&output);

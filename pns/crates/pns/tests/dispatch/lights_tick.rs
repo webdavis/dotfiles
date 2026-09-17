@@ -116,7 +116,9 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, false);
     let child = command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -151,7 +153,9 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),

@@ -46,6 +46,7 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> 
             .arg(format!("{}s", self.duration.as_secs_f64()))
             .arg(&self.pns)
             .args([
+                "send",
                 "--agent",
                 "lights",
                 "--state",

@@ -91,7 +91,7 @@ fn check(case: &str) {
         format!(
             r##"#!/bin/sh
 set -eu
-[ "$#" = 2 ] && [ "$1" = submit ] && [ "$2" = --json ] || exit 42
+[ "$#" = 2 ] && [ "$1" = send ] && [ "$2" = --json ] || exit 42
 IFS= read -r request
 printf '%s\n' "$request" >'{request}'
 printf 'call\n' >>'{calls}'

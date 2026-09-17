@@ -22,7 +22,9 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
     event.env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
 
     assert!(

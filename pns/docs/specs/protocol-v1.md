@@ -372,7 +372,7 @@ Source: `crates/pns-protocol/src/egress/tests.rs`.
 
 ## protocol-v1/S028: JSON submission adapter
 
-Given `pns submit --json`, when stdin contains one bounded request, then the adapter invokes the existing
+Given `pns send --json`, when stdin contains one bounded request, then the adapter invokes the existing
 submission callback once with the complete decoded request, including ignored field names. It reads no
 more than 65,537 bytes. Requests through 65,536 bytes retain the decoder's existing bounds; an extra byte
 is refused. Invalid arguments are rejected with `submit_usage` before reading stdin. An input read error

@@ -87,7 +87,7 @@ route = "posture-pages"
 
 [notify.command]
 path = "/path/to/engine"
-arguments = ["submit", "--json"]
+arguments = ["send", "--json"]
 
 [notify.hermes]
 url = "http://127.0.0.1:8644/webhooks"
