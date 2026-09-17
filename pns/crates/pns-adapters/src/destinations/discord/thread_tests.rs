@@ -208,11 +208,11 @@ fn a_header_past_the_discord_channel_name_ceiling_is_clipped_to_it() {
     // `MAX_THREAD_NAME_CHARS`, because a test that reads the constant cannot
     // catch the constant being raised past what Discord accepts.
     let threads = Remembered::default();
-    let mut long = session_event();
-    long.branch = "feat/".to_string() + &"a-very-long-branch-name-".repeat(6);
-    let channel = armed_with(opens_a_thread("m-4", "t-4"), &threads);
+    let mut past_the_ceiling = session_event();
+    past_the_ceiling.branch = "feat/".to_string() + &"a-very-long-branch-name-".repeat(6);
+    let channel = armed_with(opens_a_thread("m-6", "t-6"), &threads);
     assert!(matches!(
-        delivered_about(&channel, &long),
+        delivered_about(&channel, &past_the_ceiling),
         Delivery::Delivered(_)
     ));
     let seen = channel.post.seen.lock().unwrap();
@@ -223,7 +223,7 @@ fn a_header_past_the_discord_channel_name_ceiling_is_clipped_to_it() {
         100,
         "clipped to Discord's own ceiling, not past it: {name:?}"
     );
-    let start = format!("{} · feat/a-very-long-branch-name-", long.project);
+    let start = format!("{} · feat/a-very-long-branch-name-", past_the_ceiling.project);
     assert!(
         name.starts_with(&start),
         "the header's own start survives the cut: {name:?}"
