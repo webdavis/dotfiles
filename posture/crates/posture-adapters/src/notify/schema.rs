@@ -4,10 +4,12 @@
 //! trade: the loud half is a named refusal, and the quiet half it replaces is
 //! a security pipeline that silently stops paging.
 
-use super::{DEFAULT_WEBHOOK_BASE, NotifyMode};
+use super::{COPY_WINDOW, DEFAULT_WEBHOOK_BASE, NotifyMode};
+use crate::hermes::CriticalCopy;
+use crate::wire::Name;
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -46,6 +48,12 @@ struct Hermes {
     url: String,
     #[serde(default)]
     keys: BTreeMap<String, String>,
+    /// A ROUTE NAME, AND NOTHING ABOUT WHAT READS IT. A page whose tier is
+    /// critical is copied here verbatim once its own post came back
+    /// delivered; absent is one post. `Name` is what refuses an unusable
+    /// route at load rather than at the first page.
+    #[serde(default)]
+    critical_copy_route: Option<Name>,
 }
 
 fn local_gateway() -> String {
@@ -55,7 +63,7 @@ fn local_gateway() -> String {
 impl Table {
     /// The declared mode, or the refusal for a mode whose own table is missing
     /// what that mode cannot run without.
-    pub(super) fn into_mode(self) -> Result<NotifyMode, String> {
+    pub(super) fn into_mode(self, home: &Path) -> Result<NotifyMode, String> {
         match self.mode {
             // A COMMAND MODE WITH NO COMMAND IS REFUSED, not defaulted to some
             // engine's name. Which program serves the contract is the
@@ -76,10 +84,15 @@ impl Table {
                 let hermes = self.hermes.unwrap_or(Hermes {
                     url: local_gateway(),
                     keys: BTreeMap::new(),
+                    critical_copy_route: None,
                 });
                 Ok(NotifyMode::Hermes {
                     base_url: hermes.url,
                     keys: hermes.keys,
+                    critical_copy: hermes.critical_copy_route.map(|route| CriticalCopy {
+                        route,
+                        window: home.join(COPY_WINDOW),
+                    }),
                 })
             }
             // `off` needs no table of its own: there is nothing to configure

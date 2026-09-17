@@ -1,7 +1,8 @@
 use super::*;
 use posture_application::AlarmFailed;
-use posture_domain::Severity;
 use std::cell::RefCell;
+
+mod copy;
 
 #[derive(Default)]
 struct Alarm {
@@ -25,6 +26,9 @@ struct Sent {
 struct Posts {
     sent: RefCell<Vec<Sent>>,
     outcome: PostOutcome,
+    /// The answer to every post after the first, for a subject whose page is
+    /// taken and whose copy is not.
+    after_first: Option<PostOutcome>,
 }
 impl SignedPost for Posts {
     fn post(
@@ -36,13 +40,17 @@ impl SignedPost for Posts {
         deadline: Option<Duration>,
     ) -> PostOutcome {
         assert_eq!(deadline, Some(POST_DEADLINE));
+        let answer = match self.after_first {
+            Some(after) if !self.sent.borrow().is_empty() => after,
+            _ => self.outcome,
+        };
         self.sent.borrow_mut().push(Sent {
             url: url.into(),
             body: body.into(),
             signature: signature_hex.into(),
             request_id: request_id.into(),
         });
-        self.outcome
+        answer
     }
 }
 
@@ -62,6 +70,7 @@ fn keys() -> BTreeMap<String, String> {
     BTreeMap::from([
         ("posture-pages".to_string(), "key-posture-pages".to_string()),
         ("priority".to_string(), "key-priority".to_string()),
+        ("explain".to_string(), "key-explain".to_string()),
     ])
 }
 
@@ -70,6 +79,7 @@ fn subject(keys: BTreeMap<String, String>, outcome: PostOutcome) -> HermesWebhoo
         Posts {
             sent: RefCell::new(vec![]),
             outcome,
+            after_first: None,
         },
         "http://127.0.0.1:8644/webhooks".to_string(),
         keys,
@@ -161,6 +171,7 @@ fn a_gateway_base_written_with_a_trailing_slash_does_not_double_it() {
         Posts {
             sent: RefCell::new(vec![]),
             outcome: PostOutcome::Status(204),
+            after_first: None,
         },
         "http://127.0.0.1:8644/webhooks/".to_string(),
         keys(),

@@ -82,7 +82,7 @@ pub use producer::ProducerCommand;
 mod hermes;
 mod request_id;
 mod sink;
-pub use hermes::HermesWebhook;
+pub use hermes::{CriticalCopy, HermesWebhook};
 mod signed_post;
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
 mod notify;

@@ -47,6 +47,22 @@ arguments = ["submit", "--json"]
 [notify.hermes]
 url = "http://127.0.0.1:8644/webhooks"
 
+# A SECOND ROUTE A CRITICAL PAGE IS COPIED TO, verbatim, once its own post came
+# back delivered. The page is in its channel before the copy is attempted, so a
+# copy route this file holds no key for, or one the gateway refuses, costs a
+# local banner and never the page. Leave the key out for one post per page,
+# which is what a machine with no second route wants.
+#
+# posture holds a route name here and nothing about what reads it. Whether that
+# is another delivery, a checker or something that answers back is the far
+# side's business.
+#
+# The rolling hour of these copies is recorded in
+# `~/.local/state/posture-critical-copy-window.json`, counted by DISTINCT
+# FINDING: a finding paging six times in an hour is copied once, and twenty
+# distinct findings in one hour is the ceiling.
+critical_copy_route = "explain"
+
 # ONE KEY PER ROUTE. The gateway reads each route's secret as a literal, so a
 # page signed with another route's key answers 401 and vanishes. A route this
 # file holds no key for refuses the page and raises the local banner rather
@@ -54,7 +70,9 @@ url = "http://127.0.0.1:8644/webhooks"
 #
 # `posture-pages` carries every page below critical; `priority` carries a
 # critical security finding, which is what the operator reserved that channel
-# for (machine health and security only, 2026-09-14).
+# for (machine health and security only, 2026-09-14); `explain` is the copy
+# route named above.
 [notify.hermes.keys]
 posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
+explain = {{ (keepassxc "Hermes :: Webhook Secret (#explain)").Password | toToml }}

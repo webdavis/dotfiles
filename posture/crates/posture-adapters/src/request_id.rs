@@ -24,6 +24,17 @@ pub(crate) fn derive(seed: &str) -> String {
     format!("posture-{digest}")
 }
 
+/// The id of one page's COPY, derived from that page's own id.
+///
+/// DISTINCT FROM THE PAGE'S, BY DESIGN. The gateway's duplicate cache is keyed
+/// on the delivery id alone across every route, so a copy sharing the page's
+/// id would be read as one delivery arriving twice and never acted on.
+/// Derived rather than random, so the same page's copy carries the same id on
+/// a retry.
+pub(crate) fn derive_copy(page_id: &str) -> String {
+    derive(&format!("{page_id}:copy"))
+}
+
 /// The seed a page's own id is derived from: its occurrence when the page has
 /// one, so a retry of the same page carries the same id and is recognized
 /// rather than delivered twice.
