@@ -8,41 +8,59 @@
 //! claims the budget and every repeat of that finding inside the hour claims
 //! nothing and is copied no second time.
 //!
+//! PAST THE THRESHOLD THE HOUR IS ONE MESSAGE. A handful of unrelated
+//! findings inside one hour is a machine in trouble rather than a handful of
+//! separate things to read about, so the finding that crosses the threshold
+//! carries the whole hour's list and everything after it in the hour is
+//! already covered by that message.
+//!
 //! IT FAILS OPEN. A window file that cannot be read or written grants the
 //! claim: the copy is a second post of a page already delivered, so losing the
 //! file costs at worst a few extra copies, while withholding on a read error
 //! would silently switch the feature off and nothing would say so.
 
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// How many DISTINCT findings may be copied inside one rolling hour.
+/// How many DISTINCT findings inside one rolling hour are explained one at a
+/// time before the hour is a storm.
 ///
-/// THIS BOUNDS COST, NOT NOISE. Every copy costs a request the far side acts
-/// on, and twenty is sized against the measured ceiling of things posture can
-/// page about at all, which is under twenty: reaching it means every single
-/// thing posture watches failed at once and each still got its copy, and
-/// anything past it is a loop rather than a report. Repeats are already free,
-/// because this counts distinct findings, so lowering the number cannot make a
-/// storm quieter. It can only withhold the copy of a finding nobody has seen
-/// yet, which is why lowering it to quiet a channel has to argue past this
-/// comment first.
-pub(crate) const DISTINCT_FINDINGS_PER_HOUR: usize = 20;
+/// THIS IS THE SPAM LINE, AND IT ALSO BOUNDS COST. Every copy costs a request
+/// the far side acts on, and a number high enough to let a real storm through
+/// one finding at a time is a number that ships twenty separate messages about
+/// one machine. `.chezmoidata/macos_posture_controls.yaml` declares eight
+/// controls and the osquery detectors add more, so five distinct critical
+/// findings in one hour is already several unrelated things failing at once:
+/// past it the useful message is the list, not the next explanation. Repeats
+/// are free, because this counts distinct findings.
+pub(crate) const STORM_THRESHOLD: usize = 5;
 
 /// How long a claim is remembered, in seconds. One hour, matching the
 /// gateway's own duplicate window.
 pub(crate) const WINDOW: u64 = 3600;
 
+/// One distinct finding the hour has already seen, and what it says, which is
+/// what the combined message lists.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Seen {
+    at: u64,
+    finding: String,
+}
+
 /// What the window says about one finding's copy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Claim {
-    /// The first page of this finding inside the hour: copy it.
+    /// A distinct finding inside the threshold: copy this page.
     Granted,
-    /// This finding was already copied inside the hour.
+    /// This finding was already counted inside the hour.
     AlreadyCopied,
-    /// The hour already holds [`DISTINCT_FINDINGS_PER_HOUR`] other findings.
-    CapReached,
+    /// This finding crossed the threshold: send one combined message listing
+    /// every distinct finding the hour holds, this one last.
+    Storm(Vec<String>),
+    /// The hour is already storming and its combined message has been sent.
+    Storming,
 }
 
 /// Decide this finding's copy against the last hour recorded at `path`, and
@@ -51,30 +69,43 @@ pub(crate) enum Claim {
 ///
 /// A GRANT IS SPENT ON THE ATTEMPT, not on a delivery. What the cap bounds is
 /// cost, and a copy the far side refused cost the same request as one it took.
-pub(crate) fn claim(path: &Path, finding: &str, now: u64) -> Claim {
-    let mut claimed = read(path);
-    claimed.retain(|_, at| now.saturating_sub(*at) < WINDOW);
-    let claim = decide(&claimed, finding);
-    if claim == Claim::Granted {
-        claimed.insert(finding.to_string(), now);
+pub(crate) fn claim(path: &Path, key: &str, finding: &str, now: u64) -> Claim {
+    let mut seen = read(path);
+    seen.retain(|_, entry| now.saturating_sub(entry.at) < WINDOW);
+    if seen.contains_key(key) {
+        write(path, &seen);
+        return Claim::AlreadyCopied;
     }
-    write(path, &claimed);
+    seen.insert(
+        key.to_string(),
+        Seen {
+            at: now,
+            finding: finding.to_string(),
+        },
+    );
+    let claim = decide(&seen);
+    write(path, &seen);
     claim
 }
 
-/// The pure rule, over an already-pruned hour.
-fn decide(claimed: &BTreeMap<String, u64>, finding: &str) -> Claim {
-    if claimed.contains_key(finding) {
-        return Claim::AlreadyCopied;
+/// The pure rule, over an hour this finding is already counted in.
+fn decide(seen: &BTreeMap<String, Seen>) -> Claim {
+    match seen.len() {
+        counted if counted <= STORM_THRESHOLD => Claim::Granted,
+        counted if counted == STORM_THRESHOLD + 1 => Claim::Storm(listed(seen)),
+        _ => Claim::Storming,
     }
-    if claimed.len() >= DISTINCT_FINDINGS_PER_HOUR {
-        return Claim::CapReached;
-    }
-    Claim::Granted
+}
+
+/// The hour's findings, oldest first, which is the order they happened in.
+fn listed(seen: &BTreeMap<String, Seen>) -> Vec<String> {
+    let mut entries: Vec<&Seen> = seen.values().collect();
+    entries.sort_by_key(|entry| entry.at);
+    entries.iter().map(|entry| entry.finding.clone()).collect()
 }
 
 /// The hour on disk, and an empty hour for every reason it cannot be read.
-fn read(path: &Path) -> BTreeMap<String, u64> {
+fn read(path: &Path) -> BTreeMap<String, Seen> {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
@@ -83,11 +114,11 @@ fn read(path: &Path) -> BTreeMap<String, u64> {
 
 /// Best effort, because the copy is worth more than the bookkeeping: a state
 /// directory that cannot be made or written costs repeat copies, not a page.
-fn write(path: &Path, claimed: &BTreeMap<String, u64>) {
+fn write(path: &Path, seen: &BTreeMap<String, Seen>) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(text) = serde_json::to_string(claimed) {
+    if let Ok(text) = serde_json::to_string(seen) {
         let _ = std::fs::write(path, text);
     }
 }
