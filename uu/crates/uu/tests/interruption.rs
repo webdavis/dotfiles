@@ -3,6 +3,7 @@ mod support;
 use std::fs::{self, File};
 use std::os::fd::AsRawFd;
 use std::os::unix::process::CommandExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -14,13 +15,18 @@ extern "C" fn stop(_: libc::c_int) {
     STOP.store(true, Ordering::Relaxed);
 }
 
+/// A LIVENESS BOUND, NOT A MEASUREMENT: nothing below reads the elapsed time,
+/// and every passing wait here ends on its own event in a few milliseconds.
+/// Reaching this bound means a fixture process never arrived, which is a
+/// failure whatever the clock says. Two seconds was a wall-clock budget for a
+/// `uu` run spawning a child that spawns a grandchild while the operator's
+/// other agent lanes compile.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 fn until(mut ready: impl FnMut() -> bool) {
     let start = Instant::now();
     while !ready() {
-        assert!(
-            start.elapsed() < Duration::from_secs(2),
-            "fixture timed out"
-        );
+        assert!(start.elapsed() < LIVENESS_BOUND, "fixture timed out");
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -62,6 +68,21 @@ fn child_fixture() {
     }
 }
 
+/// One marker file's CONTENTS, waited for rather than sampled. The child and
+/// the grandchild write four files in their own orders, and `fs::write`
+/// publishes the path before the bytes land, so an existence check can hand
+/// back an empty string or a missing file from a process that is still
+/// writing. Waiting on the value is the event the assertions actually need.
+fn marker(home: &Path, name: &str) -> String {
+    let path = home.join(name);
+    let mut text = String::new();
+    until(|| {
+        text = fs::read_to_string(&path).unwrap_or_default();
+        !text.is_empty()
+    });
+    text
+}
+
 fn interrupted(signal: i32, name: &str) {
     let home = Home::new(name);
     let original_marker = if signal == libc::SIGTERM {
@@ -98,13 +119,9 @@ fn interrupted(signal: i32, name: &str) {
         .process_group(0)
         .spawn()
         .unwrap();
-    until(|| home.dir.join("grandchild-group").exists());
-    let group = fs::read_to_string(home.dir.join("child-group")).unwrap();
-    assert_eq!(group, fs::read_to_string(home.dir.join("child")).unwrap());
-    assert_eq!(
-        group,
-        fs::read_to_string(home.dir.join("grandchild-group")).unwrap()
-    );
+    let group = marker(&home.dir, "child-group");
+    assert_eq!(group, marker(&home.dir, "child"));
+    assert_eq!(group, marker(&home.dir, "grandchild-group"));
     assert_ne!(
         group,
         run.id().to_string(),
