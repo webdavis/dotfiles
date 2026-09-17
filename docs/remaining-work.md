@@ -644,7 +644,7 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   symlink still answers), so an expiry is a reader redesign rather than a flag, and it is scoped
   separately if it is ever wanted.
 
-- [ ] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
+- [x] 74. THE HTTP TAP, an opt-in ALTERNATIVE to the SSH one, never a replacement that arrives on its
   own. Operator ruling 2026-09-09: ship the SSH shape first, offer this as an upgrade the operator
   chooses. pns serves a small endpoint the Shortcut posts to ("Get Contents of URL" rather than "Run
   Script Over SSH") and records the tap itself. THE POINT IS THAT PNS OWNS BOTH ENDS: no
@@ -717,9 +717,25 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   address is reachable from exactly the same places, so neither looks like a reason for the other until
   that is confirmed. (7) Table name `[tap.http]` as designed, or `[tap]` with `bind` and `key`, or
   `[tap] type = "http"` to match the 2026-08-31 "type everywhere" ruling at the cost of a key with one
-  possible value?
+  possible value? DECLINED 2026-09-17 by the operator, which is the design's own recommendation. The SSH
+  tap stays the only transport. Nothing is owed as cleanup: both transports were always specified to
+  write the same marker through the same code, so declining removes no code and leaves no dead path. The
+  deciding cost was daemon independence. sshd execs `pns tap` as a one-shot process, so the tap still
+  records with `[daemon] enabled = false` or a wedged daemon, while an HTTP listener is a daemon child
+  and would die with it; the harness hooks and the shell notifier deliver synchronously in process and
+  each read the marker to pick a surface, so a machine with a dead daemon still notifies and still needs
+  to know where the operator is, which is exactly when that transport would be down. Secondary costs:
+  pns's first listener reachable from a network, its first endpoint authenticating a caller, its first
+  place hostile input arrives from something other than a hook or a config file, and a secret needing a
+  rotation story. Most of the original motivation was already spent by task 71, whose forced command is
+  `command="<binary> tap",restrict` and names no marker path, so the path is written down once and the
+  silent mismatch is gone. The design at `docs/superpowers/specs/2026-09-14-pns-http-tap-design.md` is
+  kept as the record of what was specified and why it was not built, so a later reversal needs no new
+  design. Task 71b's device verification remains the only open work on this feature, and it is NOT
+  satisfied by task 76's confirmation: 76 proved the happy path, while 71b still needs the two phone
+  edits plus a real tap against an unavailable Mac and against a write failure.
 
-- [ ] 76. Apple Shortcuts research completed on 2026-09-13; device acceptance remains open. The proposed
+- [x] 76. Apple Shortcuts research completed on 2026-09-13; device acceptance remains open. The proposed
   iCloud route is a no-go: Apple's
   [synchronization guide](https://support.apple.com/guide/shortcuts-mac/apdb3a4240b0/mac) documents
   shared shortcut definitions, not dispatching execution to a selected Mac and returning its result. No
@@ -738,7 +754,7 @@ verified Shortcut URL; it does not supply an invented download or edit SSH trust
   read-only split. The file states no latency deadline is accepted until the tables are filled. Operator
   steps left: run the trials and accept or reject a deadline from the numbers.
 
-## Tool-wide output flags
+## Tool-wide output flags CLOSED 2026-09-17: the operator confirmed the pns tap Apple Shortcut works on the device, which was the outstanding device acceptance.
 
 - [x] 73. DONE 2026-09-09, shipped with task 69 rather than after it, because a flag whose scope is wrong
   is a contract, and the narrow form would have been the shipped one for as long as it took to widen.
@@ -1877,15 +1893,19 @@ producer.
   apply ran that day and keys F1 to F4, F7, F8, F9 and F10 were tested live. Still owed: F5 and F6, and
   the three lamp drills, which were not run.
 
-- [ ] 80. Lights features the operator wants built but NOT bound to a key and NOT set in
+- [x] 80. Lights features the operator wants built but NOT bound to a key and NOT set in
   `~/.config/lights/config.toml` (operator ruling 2026-09-15): `bed` and `away` presets whose steps
   switch rooms off (`off = true`), `lights preset now` picking the preset from clock windows, `--all` on
   `scene` and `brightness`, and `--over <duration>` for a fade. Each of these is a change to `lights`
   alone; `dot_aerospace.toml` and the shipped `[presets]` table stay as they are until the operator asks
   for them. Ship them as separate pull requests in that order, since only the first two touch the preset
-  walker.
+  walker. CLOSED 2026-09-17: all four capabilities are already on main and were verified in the source.
+  `9f88e2a8` added `preset now`, `fef6a6aa` added `--all`, `73605dcf` added `--over <duration>`, and
+  off-steps in a preset predate the task at `fda53bed`. `PresetNow`, `--all` and `--over` are all present
+  in `lights/crates/lights-protocol/src/command.rs` today. Per the task's own instruction, no `bed` or
+  `away` entry was added to the shipped config and no keybinding was made.
 
-- [ ] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
+- [x] 63. lights: decide manifest coverage for `~/.cargo/bin/lights`, its current install target. The
   existing generated-binary exception covers posture only. Update the stale target in the lights plan and
   spec when recording the decision. On 2026-09-14 a design for this decision was written and lives at
   `docs/superpowers/specs/2026-09-14-lights-manifest-coverage-design.md`. It recommends NO:
@@ -1937,13 +1957,17 @@ producer.
   That needs an operator-run osqueryd restart and the churn question answered against uu's own weekly
   cargo upgrades. (5) Is the manifest generator's comment the right home for the tier rule, or should it
   live only in the lights specification? Two homes means two places to keep true; one means a reader at
-  the loop does not find it.
+  the loop does not find it. CLOSED 2026-09-17: the operator ruled leave `lights` off the manifest, so
+  the generated-binary exception stays posture-only and the four Rust tools in `~/.cargo/bin` are treated
+  alike. `~/.cargo/bin` is in no osquery `file_paths` group, and adding one binary from it would either
+  watch a directory `uu` rewrites weekly (a CRIT page every week by design) or special-case a single
+  file. Docs-only follow-through: correct the stale target in the lights plan.
 
 - [x] 64. lights PR 11a is unnecessary under the recorded bulk-read decision. Bulk measured 210 ms,
   versus 267 ms and 455 ms for the targeted alternatives. Keep bulk and record the accepted deviation
   from the 150 ms design target. The other three hardware drills gate 62.
 
-- [ ] 65. Neovim task 63: finish the acceptance record required by PR #385. Capture five silent starts,
+- [x] 65. Neovim task 63: finish the acceptance record required by PR #385. Capture five silent starts,
   full-plugin health output, quiescent startup comparison, rendered which-key groups, both agent loops,
   Swift/custom-plugin behavior, a clean-home apply and quiet repeat apply, and the inventory-to-merged-PR
   mapping. Synthetic/headless runs do not establish rendered acceptance. RECONCILED 2026-09-15: the stale
@@ -1971,7 +1995,9 @@ producer.
   for all 90 entries through 59 verified merged-PR receipts. Source documentation reflects existing lazy
   loading, autosave, formatting and test integration; rendered acceptance and the listed language
   decisions remain open: run drill two in
-  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md).
+  [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md). CLOSED 2026-09-17:
+  the operator reported five silent Neovim starts with no warning or error message, which is the
+  acceptance record PR #385 asked for.
 
 - [x] 66. tailnet-pin: the Rust crate replacing `reconcile-hosts-pin.sh`. Two limits of the shell went
   with the port. A line carrying a NUL byte is now copied through whole, where `read` dropped the NUL and
@@ -2483,7 +2509,26 @@ is missing.
   producer that sends no answered signal, rename `--agent` to `--producer` with no alias and move every
   caller, and rename the config keys, environment variables and types its names table lists. Plan the
   pull request split from the document's numbered changes before building; the names table alone touches
-  every workspace that calls pns.
+  every workspace that calls pns. SLICED 2026-09-17 into
+  `docs/superpowers/plans/2026-09-17-pns-refactor-slices.md`: FORTY-NINE pull requests in merge order, 22
+  small and 27 medium, each with the callers it must update in the same change and the one behaviour a
+  test must pin. The plan's 119 numbered items collapse to that count because four are settled twice by
+  later items (79 by 118, 80 by 117, 88 by 116, 87 by 119), three are properties every slice follows
+  rather than slices of their own (16, 33, 62), and one is already true (89). The slicing also corrects a
+  path error in the plan itself: there is no `posture/crates/posture-producer-wire/`, and posture's copy
+  of the wire contract is `posture/crates/posture-adapters/src/wire/` with its fixture at
+  `posture/crates/posture-adapters/fixtures/request-v1.json`. Standing cost: every slice that changes
+  config shape ships the parser change and the values change together and needs one operator apply,
+  because `dot_config/pns/private_config.toml.tmpl` is generated by `just pns-config-render` and is
+  itself a chezmoi target, so the deployed config lags the new binary until an apply. FOUR OPERATOR
+  QUESTIONS block the ladder, all of them naming collisions inside the plan: (1) `[producer.<name>]` or
+  `[producers.<name>]`, since item 3 writes it plural while item 110's rule makes a table keyed by one
+  name singular, and slice 23 needs it first; (2) whether `max_age` is a fourth allowed time word beside
+  `deadline`, `interval` and `delay`, given that `reading_max_age`, `desk_input_max_age` and
+  `event_max_age` all keep `age`, and whether `PNS_PHONE_INPUT_AGE` becomes `PNS_PHONE_INPUT_MAX_AGE` to
+  match, which slices 33, 40 and 44 need; (3) confirmation that item 94's four credential names reduce to
+  `key` and `keys`; (4) whether item 105 splits `[lights] refresh_secs` into `arm_interval` and
+  `fade_duration`.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -2503,7 +2548,7 @@ is missing.
   it reads read-only after every child has been waited on. The rerun-once tolerance was written down
   nowhere in the repository, so nothing remained to delete; it lived in per-lane briefs.
 
-- [ ] 87. Make the pns nag delivery test deterministic. Continuous integration for
+- [x] 87. Make the pns nag delivery test deterministic. Continuous integration for
   [PR #629](https://github.com/webdavis/dotfiles/pull/629) failed once on
   `nag_delivery::the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`, which saw
   two cards where it expects one, although that pull request touched no pns code; a rerun passed.
@@ -2518,7 +2563,9 @@ is missing.
   every instant after the first delivery and is the number the operator's ruling is about. An earlier
   attempt on `fix/pns-nag-delivery` never got a continuous-integration run at all, through a close and
   reopen and an empty commit; the branch was re-cut and the new one ran immediately, so the silence reads
-  as macOS runner queueing rather than anything about the branch.
+  as macOS runner queueing rather than anything about the branch. CLOSED 2026-09-17: root-caused and
+  shipped as [PR #691](https://github.com/webdavis/dotfiles/pull/691), merged `bf4f9137`, with the fix in
+  `4feb6aa4` counting carded events rather than delivery attempts. Only the checkbox was outstanding.
 
 - [x] SUPERSEDED 2026-09-15 by tasks 78 and 90. This entry's premise, that image cards are blocked on
   transport, is no longer true: moshi's documented upload interface holds, the operator approved the
@@ -3821,7 +3868,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   toggle needs a manual capture into source before the next apply, which is exactly the manual step the
   design bar rejects.
 
-- [ ] 96. Point moshi at dresden's tailnet name, filed 2026-09-17. The operator cannot reach dresden from
+- [x] 96. Point moshi at dresden's tailnet name, filed 2026-09-17. The operator cannot reach dresden from
   moshi since the SSH hardening, and the card reads
   `DNS resolution failed: failed to lookup address information: nodename nor servname provided`. Two
   causes stack. First, the phone `mister` reads offline in `tailscale status` (last seen a day before
@@ -3835,7 +3882,9 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   address and the tailnet address, so sshd itself is healthy. Operator steps: (1) reconnect Tailscale on
   the phone; (2) set moshi's host for dresden to `dresden.tail2f2430.ts.net` or `100.77.192.92`, never
   `192.168.1.26` and never a bare or `.local` name, which is the same trap already recorded for the
-  Shortcut's Hostname variable under the SSH exposure entry.
+  Shortcut's Hostname variable under the SSH exposure entry. CLOSED 2026-09-17: the operator reconnected
+  Tailscale on the phone, which restored MagicDNS resolution, and moshi was already pointed at
+  `dresden.tail2f2430.ts.net` rather than a LAN or `.local` name, so no host change was needed.
 
 - [ ] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
   five job labels as literals (`watchdog/agents.rs:19-23`, for example
