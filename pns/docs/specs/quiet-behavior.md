@@ -38,7 +38,7 @@ When the run can read a clock and write the state directory
 Then `<state>/quiet-until` holds `now + 1800` followed by one newline, and stdout reads
 `pns: quiet for another 30 minutes`
 
-- Success: `src/main.rs:quiet_mode` parses through `src/quiet.rs:parse_duration`, adds the seconds to
+- Success: `src/main.rs:quiet_mode` parses through `src/duration.rs:parse_duration`, adds the seconds to
   `now_secs()` with `saturating_add`, and publishes through `src/main.rs:publish_state_line`. The
   reported line is read BACK off the file, never rendered from what the run intended
   (`src/main.rs:quiet_mode`), so the report cannot claim a mute that did not land. Pinned by
@@ -135,7 +135,7 @@ When `pns quiet` parses argv
 
 Then it prints a refusal quoting what was typed, then the usage line, exits 2, and writes no state
 
-- Success: `src/main.rs:quiet_mode` returns 2 from two arms: a duration `parse_duration` refused, and any
+- Success: `src/main.rs:quiet_mode` returns 2 from two arms: a duration `duration::parse_duration` refused, and any
   argument list of two or more words. The usage is verbatim
   `pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
   (`src/main.rs:QUIET_USAGE`). Pinned over `tomorrow`, `30`, `off please` and `30m extra` by
@@ -146,8 +146,8 @@ Then it prints a refusal quoting what was typed, then the usage line, exits 2, a
   (`src/main.rs:quiet_mode`).
 - Thresholds: a UNIT IS REQUIRED. `30` is refused because a bare number means minutes to one reader and
   seconds to the next. The refused shapes pinned in
-  `src/quiet.rs:a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed` are `30`, the
-  empty string, `1d`, `-5m`, ` 5m`, `05m`, `m` and `2 h`. The two refusal texts are
+  `src/duration.rs:a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed` are `30`, the
+  empty string, `1d`, `-5m`, ` 5m`, `05m`, `m`, `ms` and `2 h`. The two refusal texts are
   `pns: quiet duration <typed> is not <count><s|m|h>` and
   `pns: quiet duration <typed> is outside 1s to 24h`, each quoting the typed word with Rust debug
   formatting.
@@ -739,7 +739,7 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   the window's: a state file nobody can parse mutes NOTHING at this command and says so, because a lights
   mute the operator cannot see is worse than a lamp that flashed (`src/main.rs:lights_quiet`). The LAMP
   PATH takes the opposite direction, which is behavior 19.
-- Thresholds: durations are `src/quiet.rs:parse_duration`'s, refusal and all, so 1s to 24h with no second
+- Thresholds: durations are `src/duration.rs:parse_duration`'s, refusal and all, so 1s to 24h with no second
   set of bounds (`src/lights.rs:quiet_command`). The cap is `src/lights.rs:MAX_MUTED_PLACES` = 32, and a
   mute past it is REFUSED rather than written, because publishing one more line would have
   `muted_entries` reject the whole file at the next event and cancel every mute on the machine silently:

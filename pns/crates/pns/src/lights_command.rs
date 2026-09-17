@@ -70,8 +70,9 @@ use pns_domain::lights::mute::QuietCommand;
 /// nothing could clear, which is the state the refusal exists to prevent rather
 /// than to create.
 ///
-/// THE DURATION IS `quiet::parse_duration`'S, refusal and all, so a second
-/// spelling of "how long" cannot exist and neither can a second set of bounds.
+/// THE DURATION IS `duration::parse_duration`'S over the mute's own range,
+/// refusal and all, so a second spelling of "how long" cannot exist and
+/// neither can a second set of bounds.
 pub fn quiet_command(
     arguments: &[String],
     known: &[String],
@@ -105,7 +106,12 @@ pub fn quiet_command(
             }
             Ok(QuietCommand::Mute {
                 place: place.clone(),
-                seconds: pns_domain::quiet::parse_duration(word)?,
+                seconds: pns_domain::duration::parse_duration(
+                    "quiet duration",
+                    word,
+                    pns_domain::quiet::MUTE_RANGE,
+                )?
+                .as_secs(),
             })
         }
         // ANY OTHER ARITY IS A REFUSAL, never a silent fallthrough to the

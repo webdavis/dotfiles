@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_duration_outside_the_bounds_is_refused_by_what_was_typed() {
     // ONE SPELLING OF "HOW LONG" IN THE WHOLE CRATE. The refusal is
-    // `parse_duration`'s own, word for word, because a second wording here
-    // would be a second set of bounds the day either one moved.
+    // `duration::parse_duration`'s own, word for word, because a second
+    // wording here would be a second set of bounds the day either moved.
     let known = places(&["3F - Studio"]);
     for typed in ["0s", "25h", "1441m", "9223372036854775807h"] {
         assert_eq!(
