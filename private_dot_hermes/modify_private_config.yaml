@@ -117,9 +117,10 @@
 
        A ROUTE IS NAMED FOR ITS DISCORD CHANNEL BY DEFAULT, and both
        KeePassXC titles below are built from that one name, so route name ==
-       channel name == entry name unless the route declares `channel`. The channels were renamed on 2026-09-14 and the routes
-       followed: `pns` became `pns-events`, `uu` became `uu-runs` and `posture`
-       became `posture-pages`, because the bare tool names are now GitHub repo
+       channel name == entry name unless the route declares `channel`. The
+       channels were renamed on 2026-09-14 and the routes followed: `pns`
+       became `pns-events`, `uu` became `uu-runs` and `posture` became
+       `posture-pages`, because the bare tool names are now GitHub repo
        channels no webhook route may take.
 
        `explain` is the one route whose name is NOT its channel's name. It
