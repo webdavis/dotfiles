@@ -1,59 +1,8 @@
-//! The mute's own tests: what a duration may be typed as, what a state file
-//! may hold, when the mute is on, and what the report says in each state.
+//! The mute's own tests: what a state file may hold, when the mute is on,
+//! and what the report says in each state. The duration its range holds is
+//! pinned in `duration/tests.rs`, the one parser every field goes through.
 
-use super::{expiry_from_state, is_muted, parse_duration, status_line};
-
-#[test]
-fn a_count_and_its_unit_are_that_many_seconds() {
-    assert_eq!(parse_duration("30m"), Ok(1_800));
-    assert_eq!(parse_duration("45s"), Ok(45));
-    assert_eq!(parse_duration("2h"), Ok(7_200));
-}
-
-#[test]
-fn a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed() {
-    // A UNIT IS REQUIRED: a bare number means minutes to one reader and
-    // seconds to the next. The rest are the shapes `parse_count` already
-    // refuses everywhere else in this crate, reaching the operator here as
-    // a quotation of their own typing rather than as a silent coercion.
-    for typed in ["30", "", "1d", "-5m", " 5m", "05m", "m", "2 h"] {
-        assert_eq!(
-            parse_duration(typed),
-            Err(format!(
-                "pns: quiet duration {typed:?} is not <count><s|m|h>"
-            )),
-            "typed: {typed:?}"
-        );
-    }
-}
-
-#[test]
-fn a_duration_outside_the_permitted_range_is_refused_rather_than_clamped() {
-    // A ZERO would be a state file born already expired, and the ceiling
-    // is the indefinite mute by another route: a fat-fingered `900h` the
-    // operator never notices. Clamping either end would hand them a window
-    // they did not ask for and believe they had set.
-    for typed in [
-        "0s",
-        "0m",
-        "0h",
-        "25h",
-        "1441m",
-        "86401s",
-        "9223372036854775807h",
-    ] {
-        assert_eq!(
-            parse_duration(typed),
-            Err(format!(
-                "pns: quiet duration {typed:?} is outside 1s to 24h"
-            )),
-            "typed: {typed:?}"
-        );
-    }
-    // And the two ends themselves are inside it.
-    assert_eq!(parse_duration("1s"), Ok(1));
-    assert_eq!(parse_duration("24h"), Ok(86_400));
-}
+use super::{expiry_from_state, is_muted, status_line};
 
 #[test]
 fn a_state_file_holding_one_epoch_second_is_that_expiry() {
