@@ -55,11 +55,12 @@ lint-actions-security:
   zizmor --offline .github/workflows
 
 # Both commands render templates and require an unlocked KeePassXC database.
+# `apply` keeps a transcript; the script's own header says what it withholds.
 diff:
   chezmoi diff
 
 apply:
-  chezmoi apply -v
+  ./scripts/chezmoi-apply-logged.sh
 
 # Shell suites run through the shared runner. Rust tests run through test-rust.
 
