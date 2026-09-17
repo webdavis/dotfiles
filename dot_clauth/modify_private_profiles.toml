@@ -1,0 +1,111 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for ~/.clauth/profiles.toml.
+
+  Why: clauth WRITES this file while it runs. `active_profile` is the account
+  the fallback chain is currently burning, and clauth's own auto-switching
+  moves it whenever a profile crosses its `fallback_threshold` or its weekly
+  line, which is the entire point of the chain. A plain chezmoi target would
+  therefore yank the active account back to a committed value on every apply,
+  possibly mid-session and possibly onto an account the chain had just switched
+  away from for being spent.
+
+  How: this is a chezmoi modify-template, the same mechanism
+  private_dot_codex/modify_private_config.toml uses for ~/.codex/config.toml
+  and private_dot_claude/modify_settings.json for ~/.claude/settings.json. It
+  receives the current file on .chezmoi.stdin, parses it, overlays the declared
+  fields, and writes the merged document back.
+
+  Two categories of field:
+
+    STABLE      overwritten from here on every apply, whatever the live file
+                says: the profile roster, the fallback chain, `wrap_off`,
+                `refresh_interval_ms` and the whole [herdr] block.
+    FREE-DRIFT  passed through untouched: `active_profile` and anything else
+                clauth adds to this file later.
+
+  `active_profile` IS RUNTIME STATE AND IS NEVER WRITTEN FROM HERE, on the same
+  reasoning that keeps [hooks.state] out of the Codex template: a snapshot in
+  version control would let an apply silently re-point the chain at an account
+  the daemon had already ruled out. On a fresh machine there is nothing to read
+  back, so it is seeded to the chain's head and clauth's `login` is what makes
+  that account real.
+
+  NOT TRACKED, deliberately, though they live under the same ~/.clauth tree:
+  `credentials.json` and any session token, which are secrets and reach this
+  machine through the vault rather than through version control, and each
+  profile's `account_id.json`, which is authentication state rather than
+  configuration. A fresh machine reaches an account by running `clauth login`,
+  not by inheriting a previous machine's account id.
+
+  A NO-OP APPLY IS QUIET. When the overlays change nothing, the live file is
+  emitted back byte for byte rather than re-serialized, because `toToml` sorts
+  keys and indents nested tables where clauth writes in its own order, and an
+  unconditional rewrite would print a diff after every profile switch. The
+  operator's standing ruling is that a no-op apply prints nothing.
+
+  KNOWN LIMIT: a live file that is non-empty and does not parse aborts the
+  WHOLE apply from here, because `fromToml` hard errors and Go's text/template
+  cannot recover. An empty or whitespace-only file is fine. There is no
+  quarantine script for this target the way there is for the Codex config,
+  because clauth writes it through its own serializer rather than by hand and
+  nothing else edits it; if that ever changes, the Codex repair at
+  .chezmoiscripts/run_before_13 is the pattern to copy.
+--- */ -}}
+
+{{- $raw := .chezmoi.stdin -}}
+{{- $stdin := $raw -}}
+{{- if eq (trim $stdin) "" -}}
+{{-   $stdin = "" -}}
+{{- end -}}
+{{- $merged := dict -}}
+{{- if ne $stdin "" -}}
+{{-   $merged = fromToml $stdin -}}
+{{- end -}}
+
+{{- /* The chain's members, in the order the auto-switch walk tries them.
+       `profiles` is the roster clauth offers; `fallback_chain` is which of
+       them the walk may move between, and a profile absent from the chain is
+       reachable by hand but never switched to automatically. */ -}}
+{{- $chain := list "personal-main" "personal-backup" -}}
+{{- $merged = set $merged "profiles" $chain -}}
+{{- $merged = set $merged "fallback_chain" $chain -}}
+
+{{- /* `wrap_off = false` keeps the chain wrapping back to the first member
+       after the last one, so a spent tail does not park the walk. */ -}}
+{{- $merged = set $merged "wrap_off" false -}}
+
+{{- /* How often the usage surface re-reads quota. 90s rather than the default,
+       because the herdr sidebar renders it continuously and a tighter poll
+       spends real requests on a number that moves slowly.
+
+       int64, NOT a bare 90000: `fromToml` decodes every TOML integer as int64
+       while a bare template literal is an int, and `deepEqual` is type-strict,
+       so the bare form makes the no-op branch at the foot of this file compare
+       unequal forever and rewrite the file on every single apply. Same for
+       `tag_watch_secs` below. */ -}}
+{{- $merged = set $merged "refresh_interval_ms" (int64 90000) -}}
+
+{{- /* The clauth herdr plugin's own presentation. `pane_tag` and the two
+       delegate keys are what make `$clauth` and `$clauth_delegate` render in
+       the sidebar row declared in dot_config/herdr/config.toml, so these move
+       together with that row. */ -}}
+{{- $merged = set $merged "herdr" (dict
+    "popup_width" "half"
+    "pane_tag" true
+    "tag_watch_secs" (int64 5)
+    "border_label" true
+    "delegate_dot" true
+    "delegate_row_text" true) -}}
+
+{{- /* Seed only. Present in the live file means the daemon owns it and the
+       parse above already carried it through untouched. */ -}}
+{{- if not (hasKey $merged "active_profile") -}}
+{{-   $merged = set $merged "active_profile" (first $chain) -}}
+{{- end -}}
+
+{{- if and (ne $stdin "") (deepEqual $merged (fromToml $stdin)) -}}
+{{- $raw -}}
+{{- else -}}
+{{ $merged | toToml }}
+{{- end -}}
