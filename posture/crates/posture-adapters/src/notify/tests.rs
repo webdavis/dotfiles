@@ -163,6 +163,25 @@ fn a_known_key_holding_a_value_it_cannot_hold_still_blocks_the_whole_file() {
 }
 
 #[test]
+fn a_value_a_known_key_cannot_hold_never_reaches_the_refusal() {
+    let refusal = Notify::parse(
+        "[notify]\nmode = \"hermes\"\n[notify.hermes]\nkeys = \"sup3rs3cretkey\"\n",
+        Path::new(HOME),
+    )
+    .unwrap_err();
+    assert!(!refusal.contains("sup3rs3cretkey"), "{refusal}");
+    assert!(refusal.contains("<redacted>"), "{refusal}");
+}
+
+#[test]
+fn a_structural_refusal_keeps_naming_itself() {
+    // No value is ever quoted in these messages, so redaction costs them
+    // nothing: the key or word that was wrong is still there to read.
+    let refusal = Notify::parse("[notify]\nmode = \"banner\"\n", Path::new(HOME)).unwrap_err();
+    assert!(refusal.contains("banner"), "{refusal}");
+}
+
+#[test]
 fn a_config_that_will_not_parse_reaches_the_local_banner_and_not_only_a_log() {
     let notify = Notify::refused("unknown variant `banner`".to_string());
     let mut alarm = Alarm::default();

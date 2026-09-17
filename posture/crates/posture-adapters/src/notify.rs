@@ -160,6 +160,35 @@ pub struct Notify {
     pub warnings: Vec<String>,
 }
 
+/// Drop every double-quoted excerpt from a toml parse error's message. A
+/// value error frames the offending value between quotes (`invalid type:
+/// string "s3cret", expected a map`), and the config's own signing keys are
+/// exactly the strings that land there; a structural refusal (an unknown
+/// mode word, a missing table) never quotes anything, so this costs it
+/// nothing. Quotes escaped inside the value (`\"`) are consumed with it
+/// rather than ending the redaction early.
+fn redact_quoted(message: &str) -> String {
+    let mut result = String::with_capacity(message.len());
+    let mut chars = message.chars();
+    while let Some(c) = chars.next() {
+        if c != '"' {
+            result.push(c);
+            continue;
+        }
+        result.push_str("\"<redacted>\"");
+        while let Some(inner) = chars.next() {
+            match inner {
+                '\\' => {
+                    chars.next();
+                }
+                '"' => break,
+                _ => {}
+            }
+        }
+    }
+    result
+}
+
 impl Default for Notify {
     /// The fail-closed choice: the local gateway and no key for any route, so
     /// nothing is delivered quietly and every attempt says so.
@@ -222,7 +251,7 @@ impl Notify {
     /// arguments, so the path rule is testable without an environment.
     fn parse(text: &str, home: &Path) -> Result<(NotifyMode, Vec<String>), String> {
         let file: schema::File =
-            toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
+            toml::from_str(text).map_err(|error| redact_quoted(error.message().trim()))?;
         let warnings = file.unread_keys();
         Ok((file.notify.into_mode(home)?, warnings))
     }
