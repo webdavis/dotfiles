@@ -66,6 +66,10 @@ fn a_fifo_at_the_config_path_is_refused_without_waiting_for_a_writer() {
 #[test]
 fn a_regular_config_and_its_symlink_still_load_the_selected_plugin() {
     let dir = std::env::temp_dir().join(format!("pns-config-link-{}", std::process::id()));
+    // A PID IS NOT UNIQUE OVER TIME, the same reason the pipe above clears
+    // itself: this directory is never removed, so a later run under a recycled
+    // id met its own leftover and `create_dir` refused.
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir(&dir).unwrap();
     let path = dir.join("config.toml");
     std::fs::write(&path, "[plugins.hue]\nenabled = true\n").unwrap();

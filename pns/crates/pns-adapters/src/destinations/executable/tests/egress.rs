@@ -11,6 +11,12 @@ fn capture() -> (std::path::PathBuf, std::path::PathBuf) {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A PID IS NOT UNIQUE OVER TIME. macOS recycles them and this fixture
+    // leaves its directory behind, so a later run under a recycled id met its
+    // predecessor's: `create` failed with EEXIST, and a fixture that got past
+    // that would read a previous run's `id`, `body` and `producer` files.
+    // Clearing first is what makes the name reusable.
+    let _ = std::fs::remove_dir_all(&root);
     std::fs::DirBuilder::new()
         .mode(0o700)
         .create(&root)
