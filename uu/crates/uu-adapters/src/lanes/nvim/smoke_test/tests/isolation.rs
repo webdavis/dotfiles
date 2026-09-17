@@ -4,6 +4,7 @@ use std::time::Instant;
 
 const CASE: &str = "lanes::nvim::smoke_test::tests::isolation::the_real_smoke_children_keep_external_home_and_discovery_unchanged";
 const ROOT: &str = "UU_SMOKE_ISOLATION_ROOT";
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
 fn snapshot(path: &std::path::Path) -> Vec<(PathBuf, Vec<u8>)> {
     let mut result = Vec::new();
@@ -86,12 +87,16 @@ mv "$CLAUDE_CONFIG_DIR/ide/discovery-$phase" "$CLAUDE_CONFIG_DIR/ide/discovery-$
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let start = Instant::now();
     let mut observations = Vec::new();
     for phase in ["prepare", "verify"] {
-        while !root.join(format!("{phase}-ready")).exists()
-            && start.elapsed() < Duration::from_millis(750)
-        {
+        // PER PHASE, AND A LIVENESS BOUND RATHER THAN A MEASUREMENT: the
+        // observations below are only meaningful once the launcher has written
+        // its files, and a child that gave up exits, which breaks this loop on
+        // its own. One 750ms budget covering both phases was a wall-clock
+        // budget for starting a second copy of the test binary and two shell
+        // launchers while the operator's other agent lanes compile.
+        let start = Instant::now();
+        while !root.join(format!("{phase}-ready")).exists() && start.elapsed() < LIVENESS_BOUND {
             if child.try_wait().unwrap().is_some() {
                 break;
             }

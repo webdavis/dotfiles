@@ -19,6 +19,16 @@ impl Connector for HangingConnector {
         Err(ureq::Error::Timeout(details.timeout.reason))
     }
 }
+/// The liveness bound on the owned child re-exec: a hang fails the case
+/// instead of wedging the suite, and NOTHING here reads the elapsed time. The
+/// case asserts the child's exit status, and the transport timeout it proves is
+/// the child's own 20ms configuration.
+///
+/// FIFTEEN SECONDS, not the 400ms this carried, which was a wall-clock budget
+/// for starting a second copy of the test binary while the operator's other
+/// agent lanes compile. A passing run ends on the child's own exit.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 struct OwnedChild(Child);
 impl Drop for OwnedChild {
     fn drop(&mut self) {
@@ -93,7 +103,7 @@ fn transport_timeout_exits_four_without_success() {
         .stdout(File::create(logs.join("stdout")).unwrap())
         .stderr(File::create(logs.join("stderr")).unwrap());
     let mut child = OwnedChild(command.spawn().unwrap());
-    let deadline = Instant::now() + Duration::from_millis(400);
+    let deadline = Instant::now() + LIVENESS_BOUND;
     loop {
         if let Some(status) = child.0.try_wait().unwrap() {
             assert!(

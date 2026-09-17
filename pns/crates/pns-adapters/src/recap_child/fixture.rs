@@ -2,6 +2,17 @@ use super::*;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 
+/// The liveness bound on the owned child re-exec: a hang fails the case
+/// instead of wedging the suite, and NOTHING reads the elapsed time. The cases
+/// assert the child's exit status and its own reaping, and the deadlines they
+/// prove are the child's own 80ms and 500ms budgets.
+///
+/// FIFTEEN SECONDS, not the 250ms and 300ms these carried, which were
+/// wall-clock budgets for starting a second copy of the test binary while the
+/// operator's other agent lanes compile. A passing run ends on the child's own
+/// write, or its own exit.
+pub(super) const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 const MODE: &str = "PNS_RECAP_OWNED_FIXTURE";
 const ROOT: &str = "PNS_RECAP_OWNED_ROOT";
 
@@ -53,7 +64,7 @@ impl Fixture {
     }
 
     fn file(&self, name: &str) {
-        let end = Instant::now() + Duration::from_millis(250);
+        let end = Instant::now() + LIVENESS_BOUND;
         while !self.root.join(name).exists() {
             assert!(Instant::now() < end, "fixture did not write {name}");
             std::thread::sleep(Duration::from_millis(1));
