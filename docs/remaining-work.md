@@ -1382,13 +1382,34 @@ The planned Rust lanes are implemented. The following deployment check remains.
   STEP: a full `chezmoi apply` picks up the rebuilt `uu` and comment-only changes in
   `~/.config/uu/config.toml`.
 
-- [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
-  `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
-  preservation and partial-destination guards. All 18 private installer checks with 96 assertions, 15
-  extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
+- [x] 57c. Refresh graphify's existing Claude skill alongside package upgrades. DONE 2026-09-17. The
+  source adds the `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed
+  with preservation and partial-destination guards. All 18 private installer checks with 96 assertions,
+  15 extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
   [PR #545](https://github.com/webdavis/dotfiles/pull/545) merged and local main contains it. Preserve
   the existing real skill directory before operator adoption; live installation, fresh Claude discovery
-  and scheduled refresh acceptance remain open. No live install or skills run was performed.
+  and scheduled refresh acceptance remain open. No live install or skills run was performed. PREMISE WAS
+  STALE, verified 2026-09-17, and closed by [PR #744](https://github.com/webdavis/dotfiles/pull/744),
+  merged `5b9a1e96`. Every behaviour this entry asks for was already in source and already live: the
+  `uv-graphify-skill` command lane, the app-owned `~/.claude/skills/graphify` symlink declaration and the
+  first-install seed with its preservation and partial-destination guards all landed in
+  [PR #545](https://github.com/webdavis/dotfiles/pull/545), and the operator's 2026-09-13 apply adopted
+  the link. THE TWO CLAIMS THAT HAD ONLY BEEN ASSERTED ARE NOW PROVEN. Lane ordering: lanes are a
+  `BTreeMap` keyed by lane name (`uu-adapters/src/config/lanes.rs`, pinned by
+  `lanes_run_in_name_order_whatever_the_file_order`), so `uv-graphify-skill` provably runs after `uv`.
+  The registration boundary: graphify 0.9.53's installer honours `CLAUDE_CONFIG_DIR` on BOTH of its
+  global-scope writes, the skill bundle and the `CLAUDE.md` registration, which is what keeps the
+  registration out of the managed rendered `~/.claude/CLAUDE.md`. Live proof: `~/.claude/skills/graphify`
+  is the link, its target holds `SKILL.md`, `.graphify_version` and `references/`, the registration sits
+  in `~/.local/share/graphify/claude/CLAUDE.md`, and `grep -c -i graphify ~/.claude/CLAUDE.md` is 0. No
+  code was needed. What shipped is the documentation that proves it plus TWO STALE INSTRUCTIONS THAT
+  WOULD HAVE MISLED THE NEXT READER: the runbook's Graphify section and the lane's config comment both
+  still read as pre-adoption and told the operator to preserve a directory that no longer exists. The
+  review also had the runbook stop citing two private graphify symbol names, which drift silently on the
+  weekly upgrade; the behaviour claim and the pinned version stay, and re-verification now points at a
+  grep. ONE THING IS GENUINELY OPEN: no full weekly run has reached the lane yet, because the last full
+  run was 2026-09-13T18:00:05Z and the apply that deployed it was at 18:38, so the lane's first real
+  exercise is the next weekly `uu` run.
 
 - [x] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
   2026-07-05 (observed 2026-09-13), not the link into `~/.local/share/graphify/claude/skills/graphify`
@@ -4476,8 +4497,8 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
   second process gets a defined exit contract.
 
-- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
-  2026-09-17 from the firewall drill's incidental finding.
+- [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
+  2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
   `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
   `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
   `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
@@ -4509,7 +4530,36 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
   name, which only the new binary writes. So the exposure was about one minute of total page silence,
   self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
-  is short here only because the rebuild succeeded.
+  is short here only because the rebuild succeeded. SHIPPED 2026-09-17 as
+  [PR #733](https://github.com/webdavis/dotfiles/pull/733), merged `9767bda3`, BOTH HALVES. LOUD:
+  `Notify::report` is the one place a delivery-config outcome is reported and `alert_sink` calls it, so
+  all six jobs are covered by one guard rather than six. A refusal still writes its diagnostics line and
+  now also raises the LOCAL BANNER through the `IndependentAlarm` the caller already hands in, which is
+  the one destination a broken delivery config cannot take away. A new `posture doctor` answers the same
+  question on demand: it names the config path, lists every ignored key, and either prints
+  `FAILED: no page can be delivered: <reason>` and exits 1 or says the config is usable and exits 0.
+  There was no doctor subcommand before. DEGRADE: `#[serde(deny_unknown_fields)]` is gone from all five
+  structs in `notify/schema.rs`, replaced by a flattened unread map on each, so serde itself hands back
+  the keys this build has no field for, at the top level and inside every known table, and each becomes
+  one named warning line. A malformed KNOWN key still refuses the whole file, and so does a missing
+  `[notify]` table, which is what keeps a mistyped top-level table name from paging nowhere. THE
+  TOP-LEVEL DECISION, made deliberately: an unknown TOP-LEVEL key now warns and continues, because that
+  is exactly what the live instance needed. A config written for a newer or older build of one tool is
+  the ordinary case on a machine where an apply writes the config before the builder reinstalls the
+  binary, and refusing it takes away the very pages that would report the trouble. A mistyped table
+  BESIDE a valid `[notify]` costs that table's contents plus a named warning, which is the smaller loss.
+  THE MERGE WITH TASK 99 WAS A REAL CONFLICT AND WAS RESOLVED RATHER THAN GUESSED: both tasks hardened
+  the same four files. `parse` now returns the whole `Notify` instead of a tuple of mode, route and
+  warnings, and `missing_hermes_keys` moved from `NotifyMode` to `Notify`, because `NotifyMode` has no
+  route and cannot know the configured one. One test was added for the same reason, since nothing pinned
+  that the signing-key check follows the CONFIGURED route rather than the shipped default. ALL FIVE
+  BEHAVIOURS WERE PROVEN AGAINST THE REAL BINARY with fixture home directories: an unknown nested key
+  warns and delivery continues; an unknown top-level key does the same, which is the live failure this
+  task exists for; a malformed known key refuses and REDACTS the value in its message; a refusal reaches
+  both doctor and the banner, pinned by a test and its negative; and an untiered page takes the
+  configured route while a critical page still takes `priority`, proven by a fixture that keys only the
+  other route and fails naming `priority`. 1200 posture tests pass. OPERATOR STEP: a full `chezmoi apply`
+  rebuilds posture, after which `posture doctor` exists.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
