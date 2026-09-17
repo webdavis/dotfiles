@@ -4057,23 +4057,23 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same change. Operator step: after the next apply, `hermes gateway restart`, so the gateway loads
   the new route.
 
-- [ ] 85. PART 1 OF 4 MERGED 2026-09-17 as [PR #713](https://github.com/webdavis/dotfiles/pull/713);
-  parts 2 to 4 remain. The polling baseline polls `GET /notifications` once per `X-Poll-Interval` with a
-  `Last-Modified` conditional request, dedupes by a durable seen-set with a 24-hour expiry, submits
-  through the ordinary producer API so task 81's channel map decides the channel, and treats a 401 or 403
-  as a configuration refusal rather than an empty listing. Four defects were fixed while finishing it:
-  the server's interval is now clamped to the key's bounds in a pure `job_interval` beside those bounds,
-  so nothing hands the scheduler an unchecked header; the settings reader re-exports the registry's
-  `GITHUB` name instead of declaring a second literal; the first-poll backlog guard reads BOTH halves of
-  the stored state, because a 200 carrying no `Last-Modified` would otherwise make every later tick read
-  as another first poll and silence the source permanently; and `pns github poll` joined the usage text.
-  Built on the design merged in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel
-  names `#github-<repo>` and `#github` are superseded by `#<project>-dev` and `#github-notifications`
-  under task 81. The token is the classic
-  `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope only, no
-  expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare tunnel
-  with a separate receiver process), the lamp colours (configurable in the pns config, defaulting to
-  purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
+- [ ] 85. PARTS 1 AND 2 OF 4 MERGED 2026-09-17, [PR #713](https://github.com/webdavis/dotfiles/pull/713)
+  and [PR #740](https://github.com/webdavis/dotfiles/pull/740); parts 3 and 4 remain. The polling
+  baseline polls `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional
+  request, dedupes by a durable seen-set with a 24-hour expiry, submits through the ordinary producer API
+  so task 81's channel map decides the channel, and treats a 401 or 403 as a configuration refusal rather
+  than an empty listing. Four defects were fixed while finishing it: the server's interval is now clamped
+  to the key's bounds in a pure `job_interval` beside those bounds, so nothing hands the scheduler an
+  unchecked header; the settings reader re-exports the registry's `GITHUB` name instead of declaring a
+  second literal; the first-poll backlog guard reads BOTH halves of the stored state, because a 200
+  carrying no `Last-Modified` would otherwise make every later tick read as another first poll and
+  silence the source permanently; and `pns github poll` joined the usage text. Built on the design merged
+  in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
+  `#github` are superseded by `#<project>-dev` and `#github-notifications` under task 81. The token is
+  the classic `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope
+  only, no expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare
+  tunnel with a separate receiver process), the lamp colours (configurable in the pns config, defaulting
+  to purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
   `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
   and nothing else). On GitHub itself, Actions notifications are set to On GitHub with failed-only off,
   and Dependabot alerts to On GitHub plus CLI. STATUS 2026-09-17: part 1 is SHIPPED, not merely built. It
@@ -4089,7 +4089,48 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   receiver through the existing Cloudflare tunnel as a separate process, then the GitHub lamp colours
   (configurable, defaulting to purple for a pass and orange for a failure), then the lamp wiring for
   `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
-  and nothing else.
+  and nothing else. PART 2 SHIPPED 2026-09-17 as
+  [PR #740](https://github.com/webdavis/dotfiles/pull/740), merged `7cadb16b`, and it DEPARTS FROM THE
+  MERGED DESIGN DELIBERATELY. The receiver is a DOORBELL, not a second source: `pns github receive` binds
+  `127.0.0.1:<webhook_port>`, verifies the delivery, answers it, and runs ONE immediate poll through the
+  same `poll_once` the scheduled job runs. It never parses the webhook body. The design's own shape,
+  where the receiver maps the payload and submits, was rejected on evidence: the poll's identity for a
+  `ci_activity` thread is built from the thread id and the thread's `updated_at`, and a webhook payload
+  carries neither, so the two transports would have minted different identities and double-posted in
+  production while passing any same-identity test. Authentication is HMAC (hash-based message
+  authentication code) SHA-256 over the exact body bytes against `X-Hub-Signature-256`, compared with
+  `verify_slice` rather than `==`, which GitHub's documentation asks for by name; POST to
+  `/webhooks/github` plus both `X-GitHub-Event` and `X-GitHub-Delivery` are required first, a stated
+  `Content-Length` over one mebibyte is refused without allocating, and an empty configured secret
+  verifies nothing rather than trivially passing. Every refusal answers 403 with the reason only in the
+  receiver's own log, so nothing says which check failed. A receiver that is off, unreachable or crashed
+  changes nothing, because the scheduled job is the only delivery path and reads none of the receiver's
+  config. It lives in the pns workspace as a subcommand of the one binary but runs as its own process
+  under `com.webdavis.pns-github-receiver`, so the always-on daemon still never listens on a socket.
+  Proven against fixture requests with a fake secret and an obviously fake token: signed 204, unsigned
+  403, wrong secret 403, wrong path 403, GET 403, and the decisive pair, an unsigned request created no
+  state directory while a signed one did, which is proof the doorbell rang. A local port scanner probed
+  the port twice unprompted during the work and was refused as not a POST. A CORRECTION THIS TURNED UP:
+  part 1's docblock on `submitted` claims the delivery ledger is a second guard behind the seen-set. It
+  is not. `DecisionOutcomes::begin` only refuses to insert a second decision row; `attempt_live` still
+  attempts every leg, so the seen-set is the ONLY dedupe, which is why the doorbell and the tick
+  serialise on a lock in the state directory and a poll that finds it held stands down. That comment
+  needs correcting in a follow-up. Deliberately not built: posture's declared-hostname control that the
+  design folded into this part (posture's own workspace and tests), and any doorbell throttle, marked in
+  code with a note naming the five-thousand-an-hour ceiling. PART 2 IS ARMED ONLY BY THE OPERATOR, and
+  nothing is listening until they do it: create a read-only GitHub App subscribed to `workflow_run`,
+  `check_suite`, `pull_request`, `release` and `dependabot_alert` with a webhook secret, store that
+  secret as `GitHub (Webdavis) :: Webhook Secret (pns receiver)`, add
+  `webhook_secret = { keepassxc = ... }` to `[plugins.github]` in `dot_config/pns/config-values.toml` and
+  run `just pns-config-render`, add a second ingress hostname to `~/.cloudflared/config.yml` above the
+  catch-all pointing at `http://127.0.0.1:8648` and restart cloudflared (that file is not
+  chezmoi-tracked), give that hostname one Cloudflare Access Bypass policy scoped to GitHub's webhook
+  ranges read from `GET https://api.github.com/meta` and no Allow rule, point the App's webhook URL at
+  `https://<hostname>/webhooks/github`, apply, then press Redeliver and expect 204 plus a notification
+  within seconds. TWO QUESTIONS LEFT OPEN: whether a hand-pressed redelivery should force a submission
+  the seen-set would otherwise refuse (under the doorbell it looks like nothing happens, which is
+  probably correct), and whether posture's declared-hostname control gets its own pull request now that a
+  second hostname reaches the internet or waits behind parts 3 and 4.
 
 - [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
   `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
@@ -4255,11 +4296,12 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
   service.
 
-- [ ] 99. Stop naming two retired hermes routes, filed 2026-09-17 on two operator rulings. `pns doctor`
-  on 2026-09-17 reported `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and
-  the same for `route posture`, against `general`, `posture-pages` and `priority` which it confirmed
-  served. Neither route should be added. The operator ruled both retired: `pns-recap` and its Discord
-  channel went with task 81 on 2026-09-15 and a recap now posts on the default route, which
+- [x] 99. Stop naming two retired hermes routes. DONE 2026-09-17. Filed the same day on two operator
+  rulings. `pns doctor` on 2026-09-17 reported
+  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and the same for
+  `route posture`, against `general`, `posture-pages` and `priority` which it confirmed served. Neither
+  route should be added. The operator ruled both retired: `pns-recap` and its Discord channel went with
+  task 81 on 2026-09-15 and a recap now posts on the default route, which
   `pns/crates/pns-application/src/post_return_recap.rs` already implements; and there is no `#posture`
   channel any more, only `#posture-pages`, which the gateway already serves. So the fix is subtractive on
   both names rather than the additive one the earlier design assumed. Two changes: doctor stops checking
@@ -4274,7 +4316,25 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   legs all delivered, so eight daily digests reached the operator locally and never reached Discord. It
   also stays a blocker on `feat/posture-alert-cutover` for the same reason that item gives: when that
   cutover merges and is applied, the CRITICAL security page moves onto the 404 route. Do NOT read
-  `~/.hermes/.env` and do not print any channel id while fixing it.
+  `~/.hermes/.env` and do not print any channel id while fixing it. SHIPPED 2026-09-17 as
+  [PR #737](https://github.com/webdavis/dotfiles/pull/737), merged `6b957e4e`. Both names are gone from
+  both tools. `pns doctor` filters its ledger-derived roster through
+  `pns_domain::doctor::routes_to_check`, which drops a retired route before the probe asks the gateway,
+  so neither unclearable warning can be printed again; the roster itself still comes from
+  `SqliteStore::posted_routes()`, which is why a retired route was reported forever with nothing the
+  operator could do. THE REVIEW CAUGHT THAT THE FIRST CUT RETIRED ONLY ONE NAME, leaving `route posture`
+  warning on; both are retired now. posture's untiered page route is stated ONCE as `route` in the
+  `[notify]` table, defaulting to `posture-pages`: `severity_route` names a route only for Critical
+  (`priority`) and returns `None` for every lesser tier, `notify.rs` holds the single default,
+  `schema.rs` validates the key as a wire `Name` at parse time, and `alert_sink` falls back to the
+  default instead of panicking on a hand-built `Notify`, which the review also found.
+  `dot_config/posture/private_config.toml.tmpl` ships the key uncommented at its default. The bare
+  `posture` literal had already been renamed once on 2026-09-15 by `b89e1cc9`, so what remained of the
+  six sites was two literals for one decision. Both new tests run in under 10 ms. No pns name entered
+  posture, no channel id or secret was read or printed, and no live job was run. This UNBLOCKS
+  `feat/posture-alert-cutover`: its CRITICAL page keeps `priority` and every lesser page now rides the
+  configured route rather than the 404 one that dead-lettered eight digest legs. OPERATOR STEP: a full
+  `chezmoi apply` writes the new `route` key and rebuilds both binaries.
 
 - [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed two
   `THE GATEWAY HAS NO SUCH ROUTE` warnings, `1 notification still waiting to reach a channel`,
