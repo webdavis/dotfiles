@@ -179,13 +179,13 @@ link alone because its target is outside the store.
 
 The `uv-graphify-skill` command lane runs after `uv` in a full weekly run, because lanes run in lane-name
 order and `uv-graphify-skill` sorts after `uv`. It sets `CLAUDE_CONFIG_DIR` only for
-`graphify install --platform claude`, and the installer honors that variable on both writes it makes in
-the global case: the skill bundle goes to `$CLAUDE_CONFIG_DIR/skills/graphify` and the registration to
-`$CLAUDE_CONFIG_DIR/CLAUDE.md` (`graphify/install.py` at 0.9.53, the `_platform_skill_destination` path
-and the `cfg["claude_md"]` branch). Managed global `~/.claude/CLAUDE.md` therefore receives no
-registration, which matters because it is a rendered chezmoi target where any write is erased by the next
-apply. The lane has a 60-second deadline. A failed uv lane does not prevent this refresh from the
-installed package, and `uu run uv` does not run the separate skill lane.
+`graphify install --platform claude`, and the installer honors `CLAUDE_CONFIG_DIR` on both of its
+global-scope writes (verified against graphify 0.9.53; re-verify with `grep -n CLAUDE_CONFIG_DIR` in the
+installed package): the skill bundle goes to `$CLAUDE_CONFIG_DIR/skills/graphify` and the registration to
+`$CLAUDE_CONFIG_DIR/CLAUDE.md`. Managed global `~/.claude/CLAUDE.md` therefore receives no registration,
+which matters because it is a rendered chezmoi target where any write is erased by the next apply. The
+lane has a 60-second deadline. A failed uv lane does not prevent this refresh from the installed package,
+and `uu run uv` does not run the separate skill lane.
 
 The refresh cannot clobber an operator edit, because nothing under `~/.local/share/graphify/claude` is
 operator-authored: the whole directory is the installer's own output, seeded and then overwritten by it.
