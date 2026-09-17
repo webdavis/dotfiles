@@ -94,7 +94,7 @@ fn a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configu
     );
 }
 #[test]
-fn a_finding_below_critical_takes_the_posture_pages_route_whatever_the_caller_configured() {
+fn a_finding_below_critical_takes_the_route_the_caller_configured() {
     for tier in [
         posture_domain::Severity::Notice,
         posture_domain::Severity::Info,
@@ -103,9 +103,11 @@ fn a_finding_below_critical_takes_the_posture_pages_route_whatever_the_caller_co
         let mut input = alert();
         input.severity = Some(tier);
         assert_eq!(sut.submit(&input), Submission::Accepted);
+        // No tier below critical names a route, so the one the caller was
+        // configured with stands; on this machine that is `posture-pages`.
         assert_eq!(
             sut.runner.requests[0].route.as_ref().unwrap().as_str(),
-            "posture-pages",
+            "assigned-route",
             "{tier:?}"
         );
     }

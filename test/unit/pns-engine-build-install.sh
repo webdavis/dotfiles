@@ -52,28 +52,31 @@ marker="$home/.cache/pns-build/engine.retry"
 pending="$home/.cache/pns-build/restart-pending"
 installed="$home/.cargo/bin/pns"
 
-# The script kickstarts the pns LaunchAgent after installing a CHANGED binary,
-# and a sandboxed HOME does nothing to launchctl: without a stub on PATH this
-# test bounces the operator's live daemon on every run. The stub records the
-# exact invocation and answers whatever status the test puts in
-# launchctl.status, defaulting to 113 ("Could not find service", the unloaded-
-# label case) when that file is absent, so a phase that never sets it keeps
-# the original quiet behavior.
+# The script kickstarts the pns daemon AND the pns GitHub receiver after
+# installing a CHANGED binary (both run the same binary), and a sandboxed
+# HOME does nothing to launchctl: without a stub on PATH this test bounces
+# the operator's live jobs on every run. The stub records the exact
+# invocation and answers whatever status the test puts in launchctl.status,
+# defaulting to 113 ("Could not find service", the unloaded-label case) when
+# that file is absent, so a phase that never sets it keeps the original
+# quiet behavior.
 stubbin="$scratch/stubbin"
 kickstarts="$scratch/kickstarts"
 launchctl_status="$scratch/launchctl.status"
 marker_during_kickstart="$scratch/marker-during-kickstart"
-target_label="gui/$(id -u)/com.webdavis.pns-daemon"
+daemon_label="gui/$(id -u)/com.webdavis.pns-daemon"
+receiver_label="gui/$(id -u)/com.webdavis.pns-github-receiver"
 mkdir -p "$stubbin"
 : >"$kickstarts"
 : >"$marker_during_kickstart"
-# "$*" flattens argument boundaries: a mutant that passes "-k $target_label"
+# "$*" flattens argument boundaries: a mutant that passes "-k $daemon_label"
 # as ONE argument prints the same joined text as the correct three separate
 # arguments, so the stub validates $#, $1, $2 and $3 individually before it
 # ever trusts $* to describe what it was called with.
 cat >"$stubbin/launchctl" <<STUB
 #!/usr/bin/env bash
-if [[ \$# -eq 3 ]] && [[ "\$1" == kickstart ]] && [[ "\$2" == -k ]] && [[ "\$3" == "$target_label" ]]; then
+if [[ \$# -eq 3 ]] && [[ "\$1" == kickstart ]] && [[ "\$2" == -k ]] \
+  && { [[ "\$3" == "$daemon_label" ]] || [[ "\$3" == "$receiver_label" ]]; }; then
   printf '%s\n' "\$*" >>"$kickstarts"
 else
   printf 'unexpected-invocation argc=%s: %s\n' "\$#" "\$*" >>"$kickstarts"
@@ -87,6 +90,26 @@ fi
 exit 113
 STUB
 chmod +x "$stubbin/launchctl"
+
+# Both jobs always run through the same marker, so every phase below expects
+# them kickstarted in lockstep: this asserts the running total plus that the
+# two labels split it evenly, which catches an unexpected invocation (an
+# uneven split, or a total that does not match) as readily as a missing one.
+assert_kicks() {
+  local expected_total=$1 context=$2 total daemon_count receiver_count
+  total="$(wc -l <"$kickstarts" | tr -d ' ')"
+  daemon_count="$(grep -c -F -- "$daemon_label" "$kickstarts" || true)"
+  receiver_count="$(grep -c -F -- "$receiver_label" "$kickstarts" || true)"
+  [[ $total -eq $expected_total ]] || {
+    printf '%s: expected %s total kickstarts, got %s\n' "$context" "$expected_total" "$total" >&2
+    exit 1
+  }
+  [[ $daemon_count -eq $receiver_count ]] || {
+    printf '%s: daemon and receiver kickstarts must match (%s vs %s)\n' \
+      "$context" "$daemon_count" "$receiver_count" >&2
+    exit 1
+  }
+}
 
 stdout_log="$scratch/stdout"
 stderr_log="$scratch/stderr"
@@ -206,15 +229,7 @@ run_script || {
 # (skip-when-changed plus restart-when-identical can total the same count as
 # restart-when-changed plus skip-when-identical), so each phase asserts its
 # own running count rather than one check at the end.
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 1 ]] || {
-  echo "the first install must kickstart the daemon exactly once" >&2
-  exit 1
-}
-expected_kickstart="kickstart -k $target_label"
-[[ "$(head -n1 "$kickstarts")" == "$expected_kickstart" ]] || {
-  printf 'the kickstart must target the exact label; got: %s\n' "$(head -n1 "$kickstarts")" >&2
-  exit 1
-}
+assert_kicks 2 "the first install"
 # The marker is armed before the binary is published, not after a kickstart
 # failure, so it must already exist by the time the kickstart itself runs.
 [[ -s $marker_during_kickstart ]] || {
@@ -237,8 +252,7 @@ grep -q 'daemon restarted on a new binary' "$stdout_log" "$stderr_log" && {
 echo 0 >"$launchctl_status"
 
 # --- the marker cannot be armed: refuse to publish rather than install a ---
-# --- binary the daemon has no forced way to pick up -------------------------
-kickstarts_before="$(wc -l <"$kickstarts" | tr -d ' ')"
+# --- binary the jobs have no forced way to pick up ---------------------------
 touch "$home/.stub-build-sleeper"
 rm -rf "$home/.cache/pns-build"
 touch "$home/.cache/pns-build"
@@ -250,10 +264,7 @@ run_script && {
   echo "a refused publish must leave the previously installed binary in place" >&2
   exit 1
 }
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq $kickstarts_before ]] || {
-  echo "a refused publish must never reach the kickstart" >&2
-  exit 1
-}
+assert_kicks 2 "a refused publish"
 rm -f "$home/.cache/pns-build"
 rm -f "$home/.stub-build-sleeper"
 
@@ -266,10 +277,7 @@ rm -f "$home/.stub-build-sleeper"
 # evidence that it lands through a temporary file and a rename.
 touch "$home/.stub-build-sleeper"
 run_script
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
-  echo "a changed binary must kickstart again" >&2
-  exit 1
-}
+assert_kicks 4 "a changed binary"
 "$installed" 5 >/dev/null 2>&1 &
 running=$!
 sleep 0.3
@@ -280,10 +288,7 @@ run_script || {
 }
 kill "$running" 2>/dev/null || true
 wait "$running" 2>/dev/null || true
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 2 ]] || {
-  echo "an identical reinstall must not kickstart the daemon" >&2
-  exit 1
-}
+assert_kicks 4 "an identical reinstall"
 
 # --- a kickstart failure is loud: nonzero exit, a stderr line, and a marker
 # that forces the next apply to retry regardless of what it rebuilds --------
@@ -299,12 +304,15 @@ run_script && {
   echo "a kickstart failure must fail the apply" >&2
   exit 1
 }
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 3 ]] || {
-  echo "a failed kickstart is still attempted once" >&2
+assert_kicks 6 "a failed kickstart"
+grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 5:' "$stderr_log" || {
+  echo "a kickstart failure must print an attributed line to stderr for the daemon" >&2
   exit 1
 }
-grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 5:' "$stderr_log" || {
-  echo "a kickstart failure must print an attributed line to stderr" >&2
+# A daemon failure must never hide a receiver failure: both are attempted and
+# both are reported, which is the whole point of kickstarting them together.
+grep -q 'receiver NOT restarted on the new binary (launchctl kickstart exited 5:' "$stderr_log" || {
+  echo "a kickstart failure must print an attributed line to stderr for the receiver" >&2
   exit 1
 }
 [[ -e $pending ]] || {
@@ -320,10 +328,7 @@ run_script && {
   echo "a 113 on an existing installation must fail the apply" >&2
   exit 1
 }
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 4 ]] || {
-  echo "the existing-installation 113 must still attempt the kickstart" >&2
-  exit 1
-}
+assert_kicks 8 "the existing-installation 113"
 grep -q 'daemon NOT restarted on the new binary (launchctl kickstart exited 113:' "$stderr_log" || {
   echo "a 113 on an existing installation must print an attributed line to stderr" >&2
   exit 1
@@ -340,12 +345,13 @@ run_script || {
   echo "the retried kickstart must succeed and the apply must exit 0" >&2
   exit 1
 }
-[[ "$(wc -l <"$kickstarts" | tr -d ' ')" -eq 5 ]] || {
-  echo "the pending marker must force one more kickstart on an unchanged binary" >&2
+assert_kicks 10 "the retried kickstart"
+grep -q 'daemon restarted on a new binary' "$stdout_log" || {
+  echo "a successful kickstart must print the restarted line for the daemon" >&2
   exit 1
 }
-grep -q 'daemon restarted on a new binary' "$stdout_log" || {
-  echo "a successful kickstart must print the restarted line" >&2
+grep -q 'receiver restarted on a new binary' "$stdout_log" || {
+  echo "a successful kickstart must print the restarted line for the receiver" >&2
   exit 1
 }
 [[ ! -e $pending ]] || {

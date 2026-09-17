@@ -140,6 +140,7 @@ fn kind_of(stated: &Value) -> &'static str {
 pub mod client;
 pub mod notifications;
 pub mod poll_state;
+pub mod webhook;
 
 #[cfg(test)]
 mod tests;

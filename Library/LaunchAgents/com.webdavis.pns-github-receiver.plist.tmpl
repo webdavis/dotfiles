@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.pns-github-receiver</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}</string>
+    <string>github</string>
+    <string>receive</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- A DIFFERENT PROCESS FROM THE DAEMON, which is what keeps the always-on
+       clock off every socket: this one listens, the daemon does not, and the
+       two share nothing but the config table and the poll's state file.
+
+       RESTART ONLY ON A CRASH, the pns daemon's own reasoning: a receiver with
+       no `webhook_secret` in [plugins.github] exits 0 on purpose, and under a
+       bare KeepAlive true that clean exit would be relaunched every ten
+       seconds forever. RunAtLoad is stated because the implication that comes
+       with bare KeepAlive true does not survive the dictionary form. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <!-- STATED AT THE DEFAULT rather than left to it, for the pns daemon's
+       reason: this is the number that decides how fast a crash-looping job
+       burns, and it is invisible when omitted. -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/pns-github-receiver.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/pns-github-receiver.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+    <!-- A bootstrapped job gets PATH=/usr/bin:/bin:/usr/sbin:/sbin and no
+         Homebrew, and a verified delivery runs the same poll the daemon runs,
+         which reaches the same tools the daemon's own PATH finds. -->
+    <key>PATH</key>
+    <string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

@@ -6,6 +6,7 @@ pub(crate) fn github_mode(verb: &str) -> i32 {
     let arguments: Vec<String> = crate::arguments_after_verb();
     match (verb, github_launch(&arguments)) {
         ("poll", Some(launch)) => github_poll(launch),
+        ("receive", Some(_)) => receive::github_receive(),
         // UNKNOWN IS AN ERROR, never a silent fallthrough, exactly as the
         // room sensor's verb is.
         _ => {
@@ -15,7 +16,7 @@ pub(crate) fn github_mode(verb: &str) -> i32 {
     }
 }
 
-const GITHUB_USAGE: &str = "pns: usage: pns github poll [--daemon]";
+const GITHUB_USAGE: &str = "pns: usage: pns github poll [--daemon] | pns github receive [--daemon]";
 
 /// Who launched a poll, which is the whole difference between a refusal worth
 /// printing and one worth swallowing. `command_presence`'s own `Launch`, for
@@ -52,30 +53,83 @@ fn github_launch(arguments: &[String]) -> Option<Launch> {
 /// is bounded by the poll's own interval rather than by a second gate, which
 /// at 60 seconds is one line a minute in a log the doctor reads.
 fn github_poll(launch: Launch) -> i32 {
+    match armed_source() {
+        Ok(source) => poll_once(&source, launch),
+        Err(code) => code,
+    }
+}
+
+/// The armed source, or the exit code an unarmed or refused one answers with.
+///
+/// SHARED BY BOTH VERBS, because the receiver needs the same table the poll
+/// does: the secret it verifies with lives beside the token, and a receiver
+/// that read its own file could disagree with the poll about whether the
+/// source is on at all.
+fn armed_source() -> Result<pns_adapters::GithubSource, i32> {
     let home = std::env::var("HOME").unwrap_or_default();
     let Ok(LoadOutcome::Loaded(config)) = load_config(&config_path(&home)) else {
-        return 0;
+        return Err(0);
     };
-    let source = match pns_adapters::parse_github(&config) {
-        Ok(Some(source)) => source,
-        Ok(None) => return 0,
+    match pns_adapters::parse_github(&config) {
+        Ok(Some(source)) => Ok(source),
+        Ok(None) => Err(0),
         Err(error) => {
             // A REFUSED TABLE IS LOUD ON EVERY PATH, the Unauthorized arm's
             // own reason: an operator armed `[plugins.github]` and typo'd
             // `poll_secs` deserves the same sentence a revoked token gets,
             // not a poll that exits 0 and never says why.
             eprintln!("pns github: [plugins.github] {}", error.detail());
-            return 1;
+            Err(1)
         }
-    };
+    }
+}
+
+/// One conditional request, and one submission per notification nobody has
+/// seen.
+///
+/// ONE POLL AT A TIME, ACROSS EVERY CALLER. The scheduled tick and the push
+/// receiver's doorbell run in different processes over one state file, and the
+/// seen-set is what stops an event being delivered twice: two polls that read
+/// the same state before either published it would both find the same
+/// notification fresh. The lock is what makes the two transports one path
+/// rather than two racing ones, and a poll that finds it held stands down
+/// because the holder is already doing this poll's work.
+fn poll_once(source: &pns_adapters::GithubSource, launch: Launch) -> i32 {
     let Some(now) = now_secs() else { return 0 };
     let state = state_dir();
+    // THE DIRECTORY IS MADE BEFORE THE LOCK IS TAKEN, because a lock is a
+    // file: on a machine whose state directory does not exist yet the claim
+    // would fail, and a poll that read that as "somebody else is polling"
+    // would stand down on every tick forever. Every other writer here
+    // creates it on the way past.
+    let _ = std::fs::create_dir_all(&state);
+    let lock = state.join(GITHUB_POLL_LOCK);
+    if !pns_adapters::claim_lock(&lock, now, GITHUB_POLL_LOCK_STALE_SECS) {
+        // Quiet for the daemon's own tick, the same reasoning as everywhere
+        // else it stands down; loud for an operator who typed this by hand
+        // and would otherwise see nothing at all happen.
+        if launch == Launch::Operator {
+            eprintln!("pns github: another poll is running; this one stood down");
+        }
+        return 0;
+    }
+    let _held = pns_adapters::HeldLock(lock);
     let stored = pns_adapters::read_poll_state(&state);
-    let polled = pns_adapters::GithubNotifications::new(source.token).poll(&stored.last_modified);
+    let polled =
+        pns_adapters::GithubNotifications::new(source.token.clone()).poll(&stored.last_modified);
     report(&stored, &state, polled, now, launch, &mut |event| {
         submitted(event, now)
     })
 }
+
+/// The lock file one poll holds.
+const GITHUB_POLL_LOCK: &str = "github-poll.lock";
+
+/// How long a holder is believed. TWENTY SECONDS, which is twice the
+/// client's own ten-second deadline: a poll cannot outlive that and a holder
+/// that died leaves the path claimable by the next tick rather than by the
+/// next hour.
+const GITHUB_POLL_LOCK_STALE_SECS: u64 = 20;
 
 /// One answer, acted on: nothing at all, a batch to submit, or a complaint.
 ///
@@ -262,6 +316,8 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
 /// for it to disagree.
 const EVENT_NAME: &str = "notification";
 
+mod receive;
+
 #[cfg(test)]
 #[path = "command_github/tests/fixture.rs"]
 mod github_test_fixture;
@@ -273,3 +329,7 @@ mod polling_tests;
 #[cfg(test)]
 #[path = "command_github/tests/envelope.rs"]
 mod envelope_tests;
+
+#[cfg(test)]
+#[path = "command_github/tests/receiving.rs"]
+mod receiving_tests;

@@ -254,10 +254,14 @@ pub(crate) fn doctor_mode() -> i32 {
                 // route at call time and nothing else writes it down. An
                 // unreadable ledger reports NO routes rather than inventing
                 // one, and the summary then says nothing has been posted yet,
-                // which is the honest reading of an empty list either way.
-                let posted = pns_adapters::SqliteStore::new(state_dir())
-                    .posted_routes()
-                    .unwrap_or_default();
+                // which is the honest reading of an empty list either way. A
+                // route the gateway retired is dropped rather than asked
+                // about: history keeps naming it and no edit can clear it.
+                let posted = pns_domain::doctor::routes_to_check(
+                    pns_adapters::SqliteStore::new(state_dir())
+                        .posted_routes()
+                        .unwrap_or_default(),
+                );
                 let base = std::env::var("PNS_HERMES_URL")
                     .unwrap_or_else(|_| pns_adapters::DEFAULT_HERMES_URL.to_string());
                 // The SAME client an event's hermes leg posts through, so a

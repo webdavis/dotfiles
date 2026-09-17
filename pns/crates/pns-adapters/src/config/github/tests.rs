@@ -105,3 +105,57 @@ fn the_interval_the_server_asked_for_beats_the_key_and_is_held_to_its_bounds() {
         );
     }
 }
+
+#[test]
+fn a_table_with_no_webhook_secret_polls_with_the_receiver_inert() {
+    // THE MUTANT THIS PINS: a receiver whose absence is a refusal, which
+    // would take the whole source down over the transport that only makes it
+    // faster. The poll is the floor and reads none of these keys.
+    let source = loaded(&armed("")).expect("it reads").expect("it is armed");
+    assert!(source.webhook.is_none());
+    assert_eq!(source.poll_secs, super::DEFAULT_POLL_SECS);
+    let armed_receiver = loaded(&armed("webhook_secret = \"a-secret\"\n"))
+        .expect("it reads")
+        .expect("it is armed");
+    assert_eq!(
+        armed_receiver.poll_secs,
+        super::DEFAULT_POLL_SECS,
+        "arming the receiver moved the poll"
+    );
+    let webhook = armed_receiver.webhook.expect("the receiver is armed");
+    assert_eq!(webhook.secret, "a-secret");
+    assert_eq!(webhook.port, super::DEFAULT_WEBHOOK_PORT);
+}
+
+#[test]
+fn a_webhook_port_outside_the_range_is_refused_by_name_and_the_ends_are_not() {
+    for stated in ["1023", "65536", "0", "-1"] {
+        let Err(ConfigError::Invalid(said)) = loaded(&armed(&format!(
+            "webhook_secret = \"a-secret\"\nwebhook_port = {stated}\n"
+        ))) else {
+            panic!("port {stated} was accepted");
+        };
+        assert!(said.contains("webhook_port"), "{said}");
+    }
+    for stated in ["1024", "65535"] {
+        let source = loaded(&armed(&format!(
+            "webhook_secret = \"a-secret\"\nwebhook_port = {stated}\n"
+        )))
+        .expect("it reads")
+        .expect("it is armed");
+        assert_eq!(
+            source.webhook.expect("armed").port,
+            stated.parse::<u64>().expect("a count")
+        );
+    }
+}
+
+#[test]
+fn a_webhook_port_with_no_secret_beside_it_arms_nothing() {
+    // A PORT IS NOT AN ARMING. Only the secret decides, because a receiver
+    // with no secret would have nothing to verify a request with.
+    let source = loaded(&armed("webhook_port = 9001\n"))
+        .expect("it reads")
+        .expect("it is armed");
+    assert!(source.webhook.is_none());
+}

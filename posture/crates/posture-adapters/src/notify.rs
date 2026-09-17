@@ -44,9 +44,14 @@ mod schema;
 pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 
 /// The route a page takes when its own tier names none: the heartbeat, the
-/// digest and the cursor-reset warning. A tiered finding overrides it; see
-/// `posture_domain::severity_route`.
-const UNTIERED_ROUTE: &str = "posture-pages";
+/// digest, the cursor-reset warning and every finding below critical. A
+/// critical finding overrides it; see `posture_domain::severity_route`.
+///
+/// ONE NAME, AND THE CONFIG FILE OWNS IT. `[notify] route` states it per
+/// machine, because which channel a page lands in is the operator's gateway's
+/// business rather than this tool's; this value is what they get without
+/// saying.
+const DEFAULT_ROUTE: &str = "posture-pages";
 
 /// Where the rolling hour of critical-page copies is recorded, under the home
 /// directory the choice was read for. Beside posture's cursor and digest
@@ -97,26 +102,6 @@ pub enum NotifyMode {
     Off,
 }
 
-impl NotifyMode {
-    /// The known routes a page can land on with no signing key named for
-    /// them, empty for every mode but `Hermes`: `Command` and `Off` name no
-    /// route to check. The two routes are the ones `severity_route` ever
-    /// hands out, `priority` for a critical finding and `posture-pages` for
-    /// everything else, which is also `UNTIERED_ROUTE`'s own value, the
-    /// route a submission with no tier at all takes.
-    pub fn missing_hermes_keys(&self) -> Vec<&'static str> {
-        let NotifyMode::Hermes { keys, .. } = self else {
-            return Vec::new();
-        };
-        let priority =
-            severity_route(Some(Severity::Critical)).expect("a critical finding names a route");
-        [UNTIERED_ROUTE, priority]
-            .into_iter()
-            .filter(|route| !keys.contains_key(*route))
-            .collect()
-    }
-}
-
 /// WRITTEN BY HAND SO NO SIGNING KEY IS EVER FORMATTED. `keys` holds one
 /// webhook signing key per route and this type is public, so a derived `Debug`
 /// would put every secret into whatever line formats a choice: a diagnostic
@@ -150,6 +135,10 @@ impl std::fmt::Debug for NotifyMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notify {
     pub mode: NotifyMode,
+    /// The route a page with no tier of its own is posted to, or handed to the
+    /// producer under. Validated when the file is read, so it is a path
+    /// segment exactly as written.
+    pub route: String,
     /// Why the config file could not be used, when it could not. The
     /// fail-closed default stands and every page then refuses loudly, so this
     /// is what the operator is told rather than a second outcome to branch on:
@@ -199,6 +188,7 @@ impl Default for Notify {
                 keys: BTreeMap::new(),
                 critical_copy: None,
             },
+            route: DEFAULT_ROUTE.to_string(),
             refusal: None,
             warnings: Vec::new(),
         }
@@ -230,11 +220,7 @@ impl Notify {
             Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
         match Self::parse(&text, home) {
-            Ok((mode, warnings)) => Notify {
-                mode,
-                refusal: None,
-                warnings,
-            },
+            Ok(notify) => notify,
             Err(refusal) => Notify::refused(refusal),
         }
     }
@@ -247,13 +233,36 @@ impl Notify {
     }
 
     /// The pure half: text and the home directory its relative state paths
-    /// hang off in, one notify mode or a named refusal out. Pure in both
+    /// hang off in, one notify choice or a named refusal out. Pure in both
     /// arguments, so the path rule is testable without an environment.
-    fn parse(text: &str, home: &Path) -> Result<(NotifyMode, Vec<String>), String> {
+    fn parse(text: &str, home: &Path) -> Result<Notify, String> {
         let file: schema::File =
             toml::from_str(text).map_err(|error| redact_quoted(error.message().trim()))?;
         let warnings = file.unread_keys();
-        Ok((file.notify.into_mode(home)?, warnings))
+        let route = file.notify.route();
+        Ok(Notify {
+            mode: file.notify.into_mode(home)?,
+            route,
+            refusal: None,
+            warnings,
+        })
+    }
+
+    /// The routes this choice will post to that name no signing key of their
+    /// own, empty for every mode but `Hermes`: `Command` and `Off` name no
+    /// route to check. Two routes are asked about, the configured untiered
+    /// route and the `priority` route `severity_route` hands a critical
+    /// finding.
+    pub fn missing_hermes_keys(&self) -> Vec<&str> {
+        let NotifyMode::Hermes { keys, .. } = &self.mode else {
+            return Vec::new();
+        };
+        let priority =
+            severity_route(Some(Severity::Critical)).expect("a critical finding names a route");
+        [self.route.as_str(), priority]
+            .into_iter()
+            .filter(|route| !keys.contains_key(*route))
+            .collect()
     }
 
     /// Say what this config cost, wherever the operator will see it. The
@@ -292,13 +301,12 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
     diagnostics: &mut impl Write,
 ) -> Box<dyn AlertSink + 'a> {
     notify.report(&mut alarm, diagnostics);
-    let route = Name::new(UNTIERED_ROUTE).expect("the fixed untiered route is valid");
     match notify.mode {
         NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(
             runner,
             path,
             arguments,
-            Some(route),
+            Some(route_or_default(notify.route)),
             alarm,
         )),
         NotifyMode::Hermes {
@@ -306,7 +314,13 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
             keys,
             critical_copy,
         } => {
-            let sink = HermesWebhook::new(UreqSignedPost, base_url, keys, route, alarm);
+            let sink = HermesWebhook::new(
+                UreqSignedPost,
+                base_url,
+                keys,
+                route_or_default(notify.route),
+                alarm,
+            );
             match critical_copy {
                 Some(copy) => Box::new(sink.copying(copy)),
                 None => Box::new(sink),
@@ -314,6 +328,15 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
         }
         NotifyMode::Off => Box::new(BannerOnly::new(alarm)),
     }
+}
+
+/// A route read through `Notify::parse` is already validated, but `route` is
+/// a public field on a public struct, so any other construction can hand in a
+/// name the identifier rules refuse. Falling back to the shipped default
+/// keeps a bad name from turning a config problem into a panic.
+fn route_or_default(route: String) -> Name {
+    Name::new(route)
+        .unwrap_or_else(|_| Name::new(DEFAULT_ROUTE).expect("the shipped default route is valid"))
 }
 
 #[cfg(test)]

@@ -46,7 +46,7 @@ fn report(notify: &Notify, path: &Path, stdout: &mut impl Write) -> u8 {
             1
         }
         None => {
-            let missing = notify.mode.missing_hermes_keys();
+            let missing = notify.missing_hermes_keys();
             if missing.is_empty() {
                 let _ = writeln!(stdout, "posture doctor: the delivery config is usable");
                 0

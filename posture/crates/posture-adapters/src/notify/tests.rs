@@ -5,16 +5,20 @@ use posture_domain::Agent;
 /// without one test's state directory being another's.
 const HOME: &str = "/private/fixture/home";
 
+fn parse_ok(text: &str) -> Notify {
+    Notify::parse(text, Path::new(HOME)).expect("a usable notify choice")
+}
+
 fn parsed(text: &str) -> NotifyMode {
-    Notify::parse(text, Path::new(HOME))
-        .expect("a usable notify choice")
-        .0
+    parse_ok(text).mode
 }
 
 fn warnings_of(text: &str) -> Vec<String> {
-    Notify::parse(text, Path::new(HOME))
-        .expect("a usable notify choice")
-        .1
+    parse_ok(text).warnings
+}
+
+fn parsed_route(text: &str) -> String {
+    parse_ok(text).route
 }
 
 /// Records what reached the local banner, so a refusal can be asserted to have
@@ -222,29 +226,48 @@ fn hermes_mode_states_the_local_gateway_when_the_file_names_none() {
 
 #[test]
 fn a_command_or_off_mode_names_no_missing_route_at_all() {
-    assert_eq!(
-        NotifyMode::Command {
+    let command = Notify {
+        mode: NotifyMode::Command {
             path: PathBuf::from("/x"),
             arguments: Vec::new(),
-        }
-        .missing_hermes_keys(),
-        Vec::<&str>::new()
-    );
-    assert_eq!(NotifyMode::Off.missing_hermes_keys(), Vec::<&str>::new());
+        },
+        ..Default::default()
+    };
+    assert_eq!(command.missing_hermes_keys(), Vec::<&str>::new());
+    let off = Notify {
+        mode: NotifyMode::Off,
+        ..Default::default()
+    };
+    assert_eq!(off.missing_hermes_keys(), Vec::<&str>::new());
 }
 
 #[test]
 fn hermes_mode_names_every_known_route_with_no_key_of_its_own() {
-    let mode = parsed("[notify]\nmode = \"hermes\"\n");
+    let notify = parse_ok("[notify]\nmode = \"hermes\"\n");
     assert_eq!(
-        mode.missing_hermes_keys(),
+        notify.missing_hermes_keys(),
         vec!["posture-pages", "priority"]
     );
 }
 
 #[test]
+fn hermes_mode_asks_after_the_configured_route_rather_than_the_shipped_one() {
+    let notify = parse_ok(
+        r#"
+        [notify]
+        mode = "hermes"
+        route = "somewhere-else"
+        [notify.hermes.keys]
+        posture-pages = "s3cret-posture"
+        priority = "s3cret-priority"
+        "#,
+    );
+    assert_eq!(notify.missing_hermes_keys(), vec!["somewhere-else"]);
+}
+
+#[test]
 fn hermes_mode_with_both_routes_keyed_names_nothing_missing() {
-    let mode = parsed(
+    let notify = parse_ok(
         r#"
         [notify]
         mode = "hermes"
@@ -253,7 +276,7 @@ fn hermes_mode_with_both_routes_keyed_names_nothing_missing() {
         priority = "s3cret-priority"
         "#,
     );
-    assert!(mode.missing_hermes_keys().is_empty(), "{mode:?}");
+    assert!(notify.missing_hermes_keys().is_empty(), "{notify:?}");
 }
 
 #[test]
@@ -294,8 +317,7 @@ fn formatting_a_choice_names_the_routes_and_never_prints_a_signing_key() {
             priority = "s3cret-priority"
             "#,
         ),
-        refusal: None,
-        warnings: Vec::new(),
+        ..Default::default()
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -368,8 +390,7 @@ fn formatting_a_choice_names_the_copy_route_too() {
             explain = "s3cret-explain"
             "#,
         ),
-        refusal: None,
-        warnings: Vec::new(),
+        ..Default::default()
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -443,4 +464,31 @@ fn the_labels_the_watchdog_searches_for_come_off_the_config_file_on_disk() {
     let configured = agent_labels(&home);
     std::fs::remove_dir_all(&home).expect("the sandbox is removable");
     assert_eq!(configured.label(Agent::Heartbeat), "com.example.pulse");
+}
+
+/// THE ROUTE NAME IS THE OPERATOR'S, and this is the one they get without
+/// saying so: `#posture` was retired and `#posture-pages` is the channel the
+/// gateway serves.
+#[test]
+fn an_untiered_page_takes_the_posture_pages_route_by_default() {
+    assert_eq!(Notify::default().route, "posture-pages");
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"hermes\"\n"),
+        "posture-pages"
+    );
+}
+
+/// One name, stated once, for whichever mode carries the page: a machine whose
+/// gateway spells the channel differently says so here rather than needing a
+/// build of its own.
+#[test]
+fn the_untiered_route_is_overridable_in_config() {
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"hermes\"\nroute = \"pages-elsewhere\"\n"),
+        "pages-elsewhere"
+    );
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"off\"\nroute = \"pages-elsewhere\"\n"),
+        "pages-elsewhere"
+    );
 }

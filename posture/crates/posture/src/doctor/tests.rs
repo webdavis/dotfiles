@@ -26,8 +26,8 @@ fn a_delivery_config_this_build_cannot_use_is_named_and_fails_the_doctor() {
 fn a_usable_config_reports_the_ignored_keys_and_still_passes() {
     let notify = Notify {
         mode: NotifyMode::Off,
-        refusal: None,
         warnings: vec!["`jobs.uptime` is not a key this build reads".to_string()],
+        ..Notify::default()
     };
     let (status, output) = reported(&notify);
     assert_eq!(status, 0, "{output}");
@@ -55,8 +55,7 @@ fn a_hermes_mode_missing_only_the_priority_key_names_that_route_alone() {
             keys: [("posture-pages".to_string(), "s3cret".to_string())].into(),
             critical_copy: None,
         },
-        refusal: None,
-        warnings: Vec::new(),
+        ..Notify::default()
     };
     let (status, output) = reported(&notify);
     assert_eq!(status, 1, "{output}");
@@ -76,8 +75,7 @@ fn a_hermes_mode_with_both_signing_keys_passes() {
             .into(),
             critical_copy: None,
         },
-        refusal: None,
-        warnings: Vec::new(),
+        ..Notify::default()
     };
     let (status, output) = reported(&notify);
     assert_eq!(status, 0, "{output}");
