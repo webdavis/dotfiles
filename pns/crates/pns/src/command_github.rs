@@ -109,9 +109,17 @@ fn report(
                 },
                 now,
             );
-            for identity in &fresh {
-                if let Some(event) = mapped.iter().find(|event| &event.identity == identity) {
-                    submit(event);
+            // THE FIRST POLL EVER SUBMITS NOTHING. `stored.last_modified` is
+            // empty on no other tick: a published state always carries the
+            // cursor the last 200 answered with. Notifications are never
+            // marked read, so a fresh machine's first answer is the whole
+            // unread backlog; this establishes the cursor and the seen-set
+            // from it instead of paging the operator for everything at once.
+            if !stored.last_modified.is_empty() {
+                for identity in &fresh {
+                    if let Some(event) = mapped.iter().find(|event| &event.identity == identity) {
+                        submit(event);
+                    }
                 }
             }
             if dropped > 0 && launch == Launch::Operator {

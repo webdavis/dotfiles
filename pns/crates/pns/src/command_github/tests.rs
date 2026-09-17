@@ -178,13 +178,23 @@ mod tests {
         assert!(!state.join(pns_adapters::GITHUB_POLL_STATE).exists());
     }
 
+    /// A prior poll's state, non-empty cursor included: the ordinary tick
+    /// these tests mean to pin, as distinct from the first poll ever.
+    fn a_prior_poll() -> PollState {
+        PollState {
+            last_modified: "Thu, 25 Oct 2026 00:00:00 GMT".to_string(),
+            interval_secs: 60,
+            seen: Vec::new(),
+        }
+    }
+
     #[test]
     fn a_listing_publishes_the_cursor_and_remembers_what_it_reported() {
         let state = scratch("listed");
         let threads = vec![thread("webdavis/dotfiles", "4471")];
         let mut submitted: Vec<String> = Vec::new();
         report(
-            &PollState::default(),
+            &a_prior_poll(),
             &state,
             GithubPolled::Listed {
                 threads,
@@ -209,6 +219,41 @@ mod tests {
                 .map(|seen| seen.identity.as_str())
                 .collect::<Vec<_>>(),
             vec!["webdavis/dotfiles|workflow_run|4471"]
+        );
+    }
+
+    #[test]
+    fn the_first_poll_ever_establishes_the_cursor_without_submitting_the_backlog() {
+        // THE MUTANT THIS PINS: a fresh machine's first answer submitted like
+        // any other tick, which pages the operator for an account's entire
+        // unread backlog (up to fifty threads) in one batch through Discord,
+        // the banner and the phone. `PollState::default()` IS the first-poll
+        // state: no cursor has ever been published.
+        let state = scratch("first-run");
+        report(
+            &PollState::default(),
+            &state,
+            GithubPolled::Listed {
+                threads: vec![
+                    thread("webdavis/dotfiles", "1"),
+                    thread("webdavis/dotfiles", "2"),
+                ],
+                answer: Answer {
+                    identities: Vec::new(),
+                    last_modified: CURSOR.to_string(),
+                    interval_secs: Some(60),
+                },
+            },
+            NOW,
+            Launch::Operator,
+            &mut |event| panic!("{} was submitted on the first poll ever", event.identity),
+        );
+        let published = pns_adapters::read_poll_state(&state);
+        assert_eq!(published.last_modified, CURSOR, "the cursor still moved");
+        assert_eq!(
+            published.seen.len(),
+            2,
+            "the backlog is in the seen-set so it is never reported later"
         );
     }
 
@@ -262,7 +307,7 @@ mod tests {
             ..thread("webdavis/dotfiles", "9999")
         };
         report(
-            &PollState::default(),
+            &a_prior_poll(),
             &state,
             GithubPolled::Listed {
                 // As the API lists them: newest first.
