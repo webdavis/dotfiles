@@ -22,18 +22,10 @@ pub(crate) fn a_reaped_pid() -> u32 {
         .spawn()
         .expect("a child");
     let gone = child.id();
-    let expires = std::time::Instant::now() + std::time::Duration::from_millis(500);
-    loop {
-        if child.try_wait().expect("the child is waitable").is_some() {
-            break;
-        }
-        if std::time::Instant::now() >= expires {
-            let _ = child.kill();
-            let _ = child.wait();
-            panic!("owned true child exceeded its deadline");
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    // WAITED FOR, NOT TIMED: the exit is the event this needs, and `/usr/bin/true`
+    // always reaches it. The 500ms poll this replaced was a wall-clock budget for
+    // scheduling a process on a machine that is never idle.
+    child.wait().expect("the child is waitable");
     gone
 }
 /// A published state file's mode, which is the only thing the test below

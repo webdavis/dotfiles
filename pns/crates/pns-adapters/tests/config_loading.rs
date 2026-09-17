@@ -14,6 +14,9 @@ fn a_fifo_at_the_config_path_is_refused_without_waiting_for_a_writer() {
         return;
     }
     let path = std::env::temp_dir().join(format!("pns-config-fifo-{}", std::process::id()));
+    // A PID IS NOT UNIQUE OVER TIME: this pipe is never removed, so a later run
+    // under a recycled id met its own leftover and `mkfifo` refused.
+    let _ = std::fs::remove_file(&path);
     assert!(
         Command::new("/usr/bin/mkfifo")
             .arg(&path)
@@ -33,7 +36,12 @@ fn a_fifo_at_the_config_path_is_refused_without_waiting_for_a_writer() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("run the loader in a bounded child");
-    let deadline = Instant::now() + Duration::from_millis(400);
+    // A LIVENESS BOUND, NOT A MEASUREMENT: a loader that regressed to opening
+    // the pipe blocks for a writer that never comes, so only a regression ever
+    // waits this long. The 400ms it carried was a wall-clock budget for
+    // starting a second copy of the test binary while the operator's other
+    // agent lanes compile.
+    let deadline = Instant::now() + Duration::from_secs(15);
     let completed = loop {
         if child.try_wait().expect("observe the loader").is_some() {
             break true;

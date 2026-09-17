@@ -68,10 +68,12 @@ fn subject() {
     );
 }
 
-fn wait_for(mut condition: impl FnMut() -> bool, limit: Duration) -> bool {
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
+fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     let start = Instant::now();
     while !condition() {
-        if start.elapsed() >= limit {
+        if start.elapsed() >= LIVENESS_BOUND {
             return false;
         }
         std::thread::sleep(Duration::from_millis(5));
@@ -82,6 +84,10 @@ fn wait_for(mut condition: impl FnMut() -> bool, limit: Duration) -> bool {
 fn cancelled(mode: &str) {
     use std::os::unix::fs::PermissionsExt;
     let home = std::env::temp_dir().join(format!("uu-cancel-{mode}-{}", std::process::id()));
+    // A PID IS NOT UNIQUE OVER TIME, and the markers below are graded by
+    // existence: a run that died before its cleanup would leave `cleaned` or
+    // `late` behind for the next holder of this id to read as its own.
+    let _ = fs::remove_dir_all(&home);
     fs::create_dir_all(&home).unwrap();
     let script = home.join("producer");
     fs::write(
@@ -101,16 +107,15 @@ fn cancelled(mode: &str) {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    assert!(wait_for(
-        || home.join("ready").exists(),
-        Duration::from_secs(2)
-    ));
+    assert!(wait_for(|| home.join("ready").exists()));
     // SAFETY: child is the unreaped fixture subprocess owned by this test.
     assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGTERM) }, 0);
-    let stopped = wait_for(
-        || child.try_wait().unwrap().is_some(),
-        Duration::from_millis(400),
-    );
+    // A LIVENESS BOUND, NOT A MEASUREMENT: a runner that ignored the signal
+    // holds its child until this test writes `release`, so only a regression
+    // waits this long. The 400ms it carried was a wall-clock budget for a
+    // handler, a kill and a reap while the operator's other agent lanes
+    // compile.
+    let stopped = wait_for(|| child.try_wait().unwrap().is_some());
     fs::write(home.join("release"), "yes").unwrap();
     let status = child.wait().unwrap();
     let result = fs::read_to_string(home.join("result")).unwrap();
