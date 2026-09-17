@@ -385,7 +385,10 @@ HMAC is what decides whether a payload is real.
 1. Computes HMAC-SHA256 over the exact body bytes with the webhook secret and compares against the
    header's `sha256=` digest **in constant time**, through `hmac`'s own `verify_slice`, which is
    constant time by construction and is already a dependency of this workspace.
-1. Maps the event to a `GithubEvent`, checks the seen-set, and pipes the request to `pns submit`.
+1. Rings the doorbell: runs the same poll `pns github poll` runs, rather than mapping the payload
+   itself, because a webhook body carries neither the notification thread's id nor its
+   `updated_at`, so parsing it here would give the two transports two different spellings of the
+   same identity.
 1. Answers `204` and forgets the connection.
 
 **Why a subcommand of the existing binary rather than a second binary.** `cargo install` installs

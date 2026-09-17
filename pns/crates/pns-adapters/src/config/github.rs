@@ -32,7 +32,43 @@ pub fn parse_github(config: &Config) -> Result<Option<GithubSource>, ConfigError
         Some(setting) => bounded(GITHUB, "poll_secs", setting, MIN_POLL_SECS, MAX_POLL_SECS)?,
         None => DEFAULT_POLL_SECS,
     };
-    Ok(Some(GithubSource { token, poll_secs }))
+    let webhook = parse_webhook(settings)?;
+    Ok(Some(GithubSource {
+        token,
+        poll_secs,
+        webhook,
+    }))
+}
+
+/// The receiver's own two keys, or nothing at all when no secret arms it.
+///
+/// THE SECRET IS WHAT ARMS IT, and a port without one is inert rather than a
+/// refusal: the poll is the source, the receiver is only how a delivery beats
+/// the next tick, so an operator who has not created the GitHub App yet has a
+/// working source and a receiver that exits.
+fn parse_webhook(settings: &toml::Table) -> Result<Option<GithubWebhook>, ConfigError> {
+    let secret = match settings.get("webhook_secret") {
+        Some(setting) => text(GITHUB, "webhook_secret", setting)?,
+        None => String::new(),
+    };
+    if secret.is_empty() {
+        return Ok(None);
+    }
+    let port = match settings.get("webhook_port") {
+        Some(setting) => bounded(GITHUB, "webhook_port", setting, MIN_PORT, MAX_PORT)?,
+        None => DEFAULT_WEBHOOK_PORT,
+    };
+    Ok(Some(GithubWebhook { secret, port }))
+}
+
+/// The push receiver's settings.
+pub struct GithubWebhook {
+    /// The secret the GitHub App's webhook was created with, which is the
+    /// only thing that decides whether a request really came from GitHub.
+    pub secret: String,
+    /// The loopback port the receiver binds, which the tunnel's ingress
+    /// points at. LOOPBACK ONLY: the tunnel is the only way in.
+    pub port: u64,
 }
 
 /// The GitHub notification source's settings.
@@ -43,6 +79,12 @@ pub struct GithubSource {
     /// else. The server's own `X-Poll-Interval` overrides it from the first
     /// answer onwards.
     pub poll_secs: u64,
+    /// The push receiver's settings, or nothing when no secret arms it.
+    ///
+    /// THE POLL DOES NOT READ THIS. A receiver that is off, misconfigured or
+    /// dead changes nothing about the listing: the push is a doorbell for the
+    /// poll and never a second source.
+    pub webhook: Option<GithubWebhook>,
 }
 
 /// The config-table name, RE-EXPORTED rather than spelled again. The roster
@@ -51,6 +93,17 @@ pub struct GithubSource {
 /// literal here would be a spelling that could drift from the registration
 /// it has to match.
 pub use pns_domain::registry::GITHUB;
+
+/// The loopback port the receiver binds when the config names none.
+///
+/// 8648, beside the hermes gateway's 8644 and 8646 rather than anywhere near
+/// a port a browser or a development server would pick: the ingress names it
+/// once and nothing else on this machine listens there.
+pub const DEFAULT_WEBHOOK_PORT: u64 = 8648;
+
+/// The ports a receiver may bind: an unprivileged one, and a real one.
+const MIN_PORT: u64 = 1024;
+const MAX_PORT: u64 = 65535;
 
 /// The starting interval, and the one the documentation states: "there is an
 /// `X-Poll-Interval` header that specifies how often (in seconds) you are

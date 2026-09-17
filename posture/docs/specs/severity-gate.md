@@ -30,11 +30,12 @@ Given an optional tier, `severity_route` names the hermes route a submission bel
 hold on the gateway for such a page to land, and both are properties of the route: it must be signed with
 the key the sender holds for it, which is why the direct delivery path carries one key per route, and its
 prompt must name fields the posted body carries, which is why that body serves both prompt shapes the
-gateway's routes are written in. Notice and Info are `posture-pages`, the pipeline's own channel. No tier
-at all names no route, and the sink then keeps the route it was configured with, which is how the
-heartbeat, the daily digest, the poll and funnel pages and the cursor-reset warning all keep the route
-their command built. The watchdog is unchanged: it still probes `priority`, because that is the route
-whose health it reports on.
+gateway's routes are written in. Every tier below critical names no route of its own, and neither does a
+submission with no tier at all; the sink then keeps the route it was configured with, which is how a
+notice, an info finding, the heartbeat, the daily digest, the poll and funnel pages and the cursor-reset
+warning all keep the route their command built. That route is stated once, as `route` in the `[notify]`
+table of posture's own config, and defaults to `posture-pages`. The watchdog is unchanged: it still
+probes `priority`, because that is the route whose health it reports on.
 
 No domain operation reads state, starts a process, emits bytes, advances a cursor or contacts a
 destination. A repeated call with the same arguments has the same outcome. Timeout, cancellation, writer
@@ -98,13 +99,13 @@ rather than being simulated inside the domain.
 
 These leaf names have no Bash predecessor: nothing in the shell pipeline chose a route by tier.
 
-| Behavior                                                       | Leaf name                                                                                                                                                                                                                       |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a critical finding belongs on `priority`                       | `severity::tests::a_critical_finding_belongs_on_the_priority_route`                                                                                                                                                             |
-| every lesser tier goes to `posture-pages`                      | `severity::tests::every_tier_below_critical_belongs_on_the_posture_pages_route`                                                                                                                                                 |
-| no tier names no route                                         | `severity::tests::a_submission_carrying_no_tier_names_no_route_of_its_own`                                                                                                                                                      |
-| the producer spends the tier's route, not its configured one   | `producer::tests::request::a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configured`; `producer::tests::request::a_finding_below_critical_takes_the_posture_pages_route_whatever_the_caller_configured` |
-| a submission with no tier keeps the configured route           | `producer::tests::request::attention_retains_occurrence_body_route_time_and_security_class`                                                                                                                                     |
-| the batch page is critical and the reset warning has no tier   | `judge_results::tests::the_batch_page_is_tiered_critical_while_the_reset_warning_carries_no_tier`                                                                                                                               |
-| a real page leaves `posture alert` on the route its tier names | `alert::tests::an_integrity_page_carries_the_actual_hashes_and_upgrade_record`                                                                                                                                                  |
-| the daily digest still leaves on `posture-pages`               | `digest::tests::a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy`                                                                                                                                   |
+| Behavior                                                       | Leaf name                                                                                                                                                                                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a critical finding belongs on `priority`                       | `severity::tests::a_critical_finding_belongs_on_the_priority_route`                                                                                                                                      |
+| every lesser tier keeps the configured route                   | `severity::tests::every_tier_below_critical_takes_the_configured_route`                                                                                                                                  |
+| no tier names no route                                         | `severity::tests::a_submission_carrying_no_tier_names_no_route_of_its_own`                                                                                                                               |
+| the producer spends the tier's route, not its configured one   | `producer::tests::request::a_critical_finding_takes_the_route_its_tier_names_whatever_the_caller_configured`; `producer::tests::request::a_finding_below_critical_takes_the_route_the_caller_configured` |
+| a submission with no tier keeps the configured route           | `producer::tests::request::attention_retains_occurrence_body_route_time_and_security_class`                                                                                                              |
+| the batch page is critical and the reset warning has no tier   | `judge_results::tests::the_batch_page_is_tiered_critical_while_the_reset_warning_carries_no_tier`                                                                                                        |
+| a real page leaves `posture alert` on the route its tier names | `alert::tests::an_integrity_page_carries_the_actual_hashes_and_upgrade_record`                                                                                                                           |
+| the daily digest still leaves on the configured route          | `digest::tests::a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy`                                                                                                            |

@@ -47,12 +47,11 @@ pub fn severity(detector: Detector, action: Action, protection: ProtectionState)
     }
 }
 
-/// Which hermes route a submission of this tier belongs on.
+/// Which hermes route a submission of this tier overrides its caller's with.
 ///
 /// `priority` is machine health and security ONLY (operator ruling
 /// 2026-09-14), so a critical finding is the one thing posture ever puts
-/// there. Everything below critical goes to `posture-pages`, the channel read
-/// at leisure.
+/// there, and it is the one tier that names a route at all.
 ///
 /// TWO THINGS HAVE TO BE TRUE ON THE GATEWAY for a critical page to land, and
 /// both are properties of the route rather than of this function: the route
@@ -65,13 +64,14 @@ pub fn severity(detector: Detector, action: Action, protection: ProtectionState)
 /// signs with the route's own key and posts a body serving both prompt shapes
 /// the gateway's routes are written in.
 ///
-/// `None` is not a default: it is a submission with no tier to read at all, the
-/// heartbeat, the digest and the cursor-reset warning, and it leaves the
-/// caller's configured route standing rather than inventing one.
+/// `None` leaves the caller's configured route standing: a submission with no
+/// tier to read at all, the heartbeat, the digest and the cursor-reset
+/// warning, and every tier below critical, which the operator points at one
+/// route in posture's own config rather than at a name compiled in here.
 pub fn severity_route(severity: Option<Severity>) -> Option<&'static str> {
     match severity? {
         Severity::Critical => Some("priority"),
-        Severity::Notice | Severity::Info => Some("posture-pages"),
+        Severity::Notice | Severity::Info => None,
     }
 }
 

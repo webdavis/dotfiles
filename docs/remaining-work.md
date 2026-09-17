@@ -1352,13 +1352,35 @@ The planned Rust lanes are implemented. The following deployment check remains.
   notification result, success marker and streaks separately. A successful manual run or notification
   HTTP 200 does not establish scheduled acceptance. Do not repeat task 11c's retired-job cleanup.
 
-- [ ] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
-  Current uu reinstalls plugin source tip and rejects a `pin` setting. Installed Herdr's
-  `plugin install --help` exposes `--ref <REF>` (verified 2026-09-12). Record the desired pin/update
-  policy, then implement it through that supported interface in uu's configuration and plugin lane. Do
-  not silently freeze plugin updates or claim that source-tip reinstalls honor a configured revision
-  across weekly updates. Source:
-  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`.
+- [x] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
+  DONE 2026-09-17. PREMISE CORRECTED 2026-09-17: uu had already stopped rejecting a pin. Commit
+  `48217fd6` on main parsed `ref` and passed it to `--ref`, so the sentence below about rejecting a `pin`
+  setting was stale by the time this was filed. What was actually missing was the WEEKLY half: a pin was
+  re-applied unattended, and because the refresh uninstalls before it installs, a revision that had
+  stopped resolving took the working copy with it. Installed Herdr's `plugin install --help` exposes
+  `--ref <REF>` (verified 2026-09-12). Record the desired pin/update policy, then implement it through
+  that supported interface in uu's configuration and plugin lane. Do not silently freeze plugin updates
+  or claim that source-tip reinstalls honor a configured revision across weekly updates. Source:
+  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`. SHIPPED
+  2026-09-17 as [PR #735](https://github.com/webdavis/dotfiles/pull/735), merged `53572d95`. `ref` now
+  means HOLD: the lane reads `herdr plugin list --json` once, reports `HELD at <ref>` when the installed
+  copy is at the pin, and reports the exact `herdr plugin install <repo> --ref <ref> --yes` command as
+  PENDING when it is not, which covers both a pin the operator moved and a plugin nothing has installed.
+  That is the cargo lane's report-rather-than-compile shape rather than a second reporting style. An
+  unpinned entry still uninstalls and reinstalls at its source tip with the same one retry. A listing
+  that cannot be read leaves every pin alone and fails the step by name, once, naming every pinned id
+  (the review caught that the first cut counted one socket failure N times). The pin matches
+  `source.requested_ref` first, then `source.resolved_commit` exactly or by prefix from seven characters
+  up, because a shorter prefix matches commits the plugin was never at. A pin naming a BRANCH reads as
+  held at that branch and the lane never fetches the remote to judge it. `--ref` was verified against the
+  installed binary and the real `plugin list --json` envelope was read for the field names; nothing was
+  installed, uninstalled, enabled or disabled, and no tab, pane or workspace was touched. THE ACCEPTED
+  COST, stated rather than hidden: nothing on the machine moves an already-installed plugin to a new pin
+  any more, so the operator runs the command the pending line prints. `run_after_53`'s presence gate
+  installs a pinned plugin only when it is absent, and its comment was corrected to say so. 514
+  uu-adapters tests pass in 3.68 s with a scripted command-runner double, no spawn and no clock. OPERATOR
+  STEP: a full `chezmoi apply` picks up the rebuilt `uu` and comment-only changes in
+  `~/.config/uu/config.toml`.
 
 - [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
   `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
@@ -2840,7 +2862,7 @@ is missing.
   is the only reason the state-based discriminator for B39 cannot be the recommendation, because on a
   machine with no lamps configured the dedup read always finds nothing. Nothing needs changing today.
 
-- [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
+- [x] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
   already active when muting begins. B19/B25's nag tolerance and future-timestamp handling still need
@@ -4332,6 +4354,21 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the error the busy path returns, and that no sensitive content reached the store), or bound it the way
   101 bounded a liveness case, and sweep for any sibling that asserts a duration without a spawn. Do not
   simply raise the number.
+
+- [ ] 141. A future timestamp reads as maximally fresh instead of unknown, filed 2026-09-17 out of B25's
+  disposition. `age_of` (`pns/crates/pns-domain/src/decision/reading.rs:48`) `saturating_sub`s a
+  `taken_at` that is in the future, which yields age 0, the freshest possible reading, where the
+  function's own stated policy for a clock it cannot read is `None`, meaning unknown. In a presence
+  engine that matters in one direction: a future marker or input timestamp makes the surface look freshly
+  touched, so an alert that should have gone to the phone stays on the banner. A clock that went
+  backwards, a file restored from a backup, or a marker written by a device with a skewed clock all
+  produce it. The fix is stated with its scope and its cost in
+  `docs/superpowers/specs/2026-09-17-nag-tolerance-and-future-timestamp-disposition-design.md`: return
+  `None` for a future `taken_at` rather than saturating to zero. THE DISPOSITION IS SCOPED TO `age_of`
+  ALONE and deliberately does not sweep the other `now.saturating_sub(timestamp)` sites in the crate,
+  because no evidence was gathered that a future timestamp is reachable at those sites or changes their
+  verdict. WAITS ON THE OPERATOR: confirm or reject that disposition before a pull request implements it,
+  since it changes what an unknown reading does to a delivery decision.
 
 - [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
   2026-09-17 from the firewall drill's incidental finding.

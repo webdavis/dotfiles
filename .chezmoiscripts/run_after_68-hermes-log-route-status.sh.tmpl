@@ -42,8 +42,9 @@
 # For the quiet ones this check is the only thing standing between a mistyped or unapplied route and a
 # channel that stays empty forever.
 # Keep this list in step with the route names the producers spell: DEFAULT_RECORD_URL in
-# uu/crates/uu-adapters/src/config/records.rs, severity_route in
-# posture/crates/posture-domain/src/severity.rs, and the roster in
+# uu/crates/uu-adapters/src/config/records.rs, severity_route and DEFAULT_ROUTE in
+# posture/crates/posture-domain/src/severity.rs and posture/crates/posture-adapters/src/notify.rs, and
+# the roster in
 # pns/crates/pns-domain/src/routes.rs.
 #
 # THE PER-ROUTE KEY COMPARISON IS GONE. Every route used to be required to carry the ONE secret pns

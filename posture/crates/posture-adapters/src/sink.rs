@@ -7,9 +7,10 @@ use posture_domain::severity_route;
 
 /// The route this page's own tier names, when it has one.
 ///
-/// A compiled-in route name cannot fail the identifier rules, so a `None` here
-/// only ever means an untiered page: the heartbeat, the digest and the
-/// cursor-reset warning, which keep whatever route their caller configured.
+/// A compiled-in route name cannot fail the identifier rules, so a `None`
+/// here means the page's tier names no route: every tier below critical, and
+/// an untiered page (the heartbeat, the digest, the cursor-reset warning),
+/// which keep whatever route their caller configured.
 pub(crate) fn tier_route(alert: &Alert) -> Option<Name> {
     severity_route(alert.severity).and_then(|route| Name::new(route).ok())
 }

@@ -48,8 +48,12 @@ STUB
   cat >"$sandbox/bin/launchctl" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ $# == 3 && $1 == kickstart && $2 == -k && $3 == "gui/$(id -u)/com.webdavis.pns-daemon" ]]
-printf 'restart\n' >>"$TEST_ROOT/calls"
+[[ $# == 3 && $1 == kickstart && $2 == -k ]]
+case "$3" in
+"gui/$(id -u)/com.webdavis.pns-daemon") printf 'restart-daemon\n' >>"$TEST_ROOT/calls" ;;
+"gui/$(id -u)/com.webdavis.pns-github-receiver") printf 'restart-receiver\n' >>"$TEST_ROOT/calls" ;;
+*) exit 1 ;;
+esac
 STUB
   chmod +x "$fixture_home/.cargo/bin/cargo" "$fixture_home/.cargo/bin/rustc" "$sandbox/bin/launchctl"
 }
@@ -73,7 +77,7 @@ function test_authorized_pns_record_and_manifest_precede_binary_installation() {
   assert_contains "sha256 $(printf new | shasum -a 256 | awk '{print $1}')" "$(cat "$record" 2>/dev/null)"
   assert_contains 'bytes 3' "$(cat "$record" 2>/dev/null)"
   assert_same 600 "$(stat -f '%Lp' "$record" 2>/dev/null)"
-  assert_same $'refresh\nrestart' "$(cat "$sandbox/calls")"
+  assert_same $'refresh\nrestart-daemon\nrestart-receiver' "$(cat "$sandbox/calls")"
 }
 function test_failed_pns_refresh_preserves_prior_record_and_binary() {
   seed_record old
@@ -158,7 +162,7 @@ function test_pns_install_retries_after_publication_left_the_old_binary() {
   run_builder || status=$?
   assert_same 0 "$status"
   assert_same new "$(cat "$binary")"
-  assert_same $'refresh\nrestart' "$(cat "$sandbox/calls")"
+  assert_same $'refresh\nrestart-daemon\nrestart-receiver' "$(cat "$sandbox/calls")"
 }
 
 function test_symlinked_pns_build_record_is_refused_before_reading_or_publication() {

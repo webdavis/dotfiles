@@ -215,6 +215,8 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.github", "enabled", "true"),
     ("plugins.github", "token", "\"ghp-not-a-real-token\""),
     ("plugins.github", "poll_secs", "60"),
+    ("plugins.github", "webhook_secret", "\"a-webhook-secret\""),
+    ("plugins.github", "webhook_port", "8648"),
     ("plugins.presence", "poll_secs", "5"),
     ("plugins.presence", "rooms", "[\"3F - Studio\"]"),
     ("plugins.presence", "stale_after_secs", "15"),
