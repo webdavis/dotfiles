@@ -133,7 +133,7 @@ fn a_roster_that_claims_one_name_twice_panics_naming_it() {
 }
 
 #[test]
-fn the_production_roster_carries_the_two_sensors_beside_the_five_channels() {
+fn the_production_roster_carries_the_three_sensors_beside_the_five_channels() {
     // The const has to SAY what each entry is, so the sensor rides in the
     // same declaration as the channels rather than in a second list the
     // composition root has to remember to register. The sensor is first
@@ -149,6 +149,7 @@ fn the_production_roster_carries_the_two_sensors_beside_the_five_channels() {
         vec![
             ("router", true),
             ("presence", true),
+            ("github", true),
             ("mobile", false),
             ("macos-banner", false),
             ("hermes", false),
@@ -161,6 +162,7 @@ fn the_production_roster_carries_the_two_sensors_beside_the_five_channels() {
         vec![
             "router",
             "presence",
+            "github",
             "mobile",
             "macos-banner",
             "hermes",

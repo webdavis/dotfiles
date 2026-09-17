@@ -22,27 +22,31 @@ pub fn select_plugins(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    /// DOCUMENTS THE RETIRED TABLE NAME, not a new code path: the refusal
-    /// comes from the generic unknown-plugin arm, already pinned for an
-    /// arbitrary name by `channel_settings.rs`. `[plugins.github.channels]`
-    /// was the GitHub source design's own map and is deleted in favour of
-    /// the one `[plugins.discord.channels]`, so an operator whose local file
-    /// still holds it has to be told it moved rather than left with a map
-    /// that resolves nothing and a source that posts to the catch-all. This
-    /// test exists to keep that specific name legible in the suite, not to
-    /// guard a mutant the generic case does not already catch.
+    /// DOCUMENTS THE RETIRED TABLE NAME, not a new code path.
+    /// `[plugins.github.channels]` was the GitHub source design's own map and
+    /// is deleted in favour of the one `[plugins.discord.channels]`, so an
+    /// operator whose local file still holds it has to be told it moved
+    /// rather than left with a map that resolves nothing and a source that
+    /// posts to the catch-all.
+    ///
+    /// THE REFUSAL MOVED WITH THE PLUGIN. `[plugins.github]` is a registered
+    /// sensor now, so the unknown-PLUGIN arm no longer answers for this; the
+    /// schema's unknown-KEY arm does, which is the louder of the two because
+    /// it fails the whole file rather than warning. This test exists to keep
+    /// that specific name legible in the suite, not to guard a mutant the
+    /// generic case does not already catch.
     #[test]
-    fn a_config_still_holding_the_deleted_github_table_is_refused_naming_it() {
-        let text = "[plugins.github.channels]\n\
+    fn a_config_still_holding_the_deleted_github_channel_map_is_refused_naming_it() {
+        let text = "[plugins.github]\n\
+                    enabled = true\n\
+                    token = \"ghp-not-a-real-token\"\n\
+                    [plugins.github.channels]\n\
                     \"webdavis/dotfiles\" = \"9001\"\n";
-        let (_, notice) = select_plugins(
-            &pns_domain::registry::roster(),
-            super::super::parse_config(text)
-                .map(|config| super::super::LoadOutcome::Loaded(Box::new(config))),
-        );
-        let notice = notice.expect("a config naming an unregistered plugin says so");
-        assert!(notice.contains("unknown plugin `github`"), "{notice}");
+        let Err(super::super::ConfigError::Invalid(said)) = super::super::parse_config(text) else {
+            panic!("the retired map was accepted");
+        };
+        assert!(said.contains("channels"), "{said}");
+        assert!(said.contains("github"), "{said}");
     }
 }

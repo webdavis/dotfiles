@@ -45,6 +45,8 @@ mod delivery;
 use delivery::parse_delivery;
 mod focus;
 use focus::parse_focus;
+mod github;
+pub use github::{DEFAULT_POLL_SECS, GITHUB, GithubSource, parse_github};
 mod daemon;
 mod retry;
 pub use daemon::DaemonConfig;

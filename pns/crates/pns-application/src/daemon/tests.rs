@@ -33,15 +33,21 @@ fn the_daemon_reloads_on_the_thirtieth_tick_before_registering_or_draining() {
     assert_eq!(world.count("clock"), 60);
     assert_eq!(world.count("reap"), 59);
     assert_eq!(world.count("presence"), 1);
+    // THE GITHUB SOURCE IS ASKED ON THE SAME SWEEP, once, right after the
+    // room sensor: both are the daemon's own jobs and both are re-registered
+    // from one config read rather than two.
+    assert_eq!(world.count("github"), 1);
     let log = world.log.borrow();
     let at = log.iter().position(|s| s == "presence").unwrap();
     assert_eq!(
-        &log[at - 2..at + 4],
+        &log[at - 2..at + 6],
         [
             "clock",
             "settings",
             "presence",
             "schedule(100)",
+            "github",
+            "cancel(github)",
             "reap",
             "heartbeat"
         ]

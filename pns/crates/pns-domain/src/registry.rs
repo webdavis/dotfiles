@@ -20,7 +20,7 @@
 mod roster;
 mod selection;
 
-pub use roster::{CORE, PRESENCE, ROSTER};
+pub use roster::{CORE, GITHUB, PRESENCE, ROSTER};
 pub use selection::Selection;
 
 /// What a plugin declares about WHERE it delivers. The plan is computed from

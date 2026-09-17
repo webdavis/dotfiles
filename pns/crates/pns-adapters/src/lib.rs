@@ -16,6 +16,9 @@
 //! Configuration parsing, backend settings and rendering live here.
 
 mod config;
+#[cfg(test)]
+mod http_script;
+
 mod github;
 mod phone_marker;
 mod tap_install;
@@ -27,7 +30,13 @@ pub use config::{
     mobile_backend, moshi_secret, parse_config, parse_presence, render, strip_chezmoi_actions,
     submit_deadline,
 };
-pub use github::{GITHUB_EXTENSION, github_event};
+pub use config::{DEFAULT_POLL_SECS, GITHUB, GithubSource, parse_github};
+pub use github::client::{
+    GITHUB_BODY_CAP, GITHUB_DEADLINE, GithubNotifications, Polled as GithubPolled,
+};
+pub use github::notifications::notification_threads;
+pub use github::poll_state::{GITHUB_POLL_STATE, read_poll_state, write_poll_state};
+pub use github::{GITHUB_EXTENSION, github_event, github_extensions};
 pub use phone_marker::{
     MarkerReading, PhoneMarkerPath, TapFailure, phone_marker_path, read_phone_marker,
     record_phone_tap,
