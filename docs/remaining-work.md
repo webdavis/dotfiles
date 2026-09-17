@@ -1352,13 +1352,35 @@ The planned Rust lanes are implemented. The following deployment check remains.
   notification result, success marker and streaks separately. A successful manual run or notification
   HTTP 200 does not establish scheduled acceptance. Do not repeat task 11c's retired-job cleanup.
 
-- [ ] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
-  Current uu reinstalls plugin source tip and rejects a `pin` setting. Installed Herdr's
-  `plugin install --help` exposes `--ref <REF>` (verified 2026-09-12). Record the desired pin/update
-  policy, then implement it through that supported interface in uu's configuration and plugin lane. Do
-  not silently freeze plugin updates or claim that source-tip reinstalls honor a configured revision
-  across weekly updates. Source:
-  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`.
+- [x] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
+  DONE 2026-09-17. PREMISE CORRECTED 2026-09-17: uu had already stopped rejecting a pin. Commit
+  `48217fd6` on main parsed `ref` and passed it to `--ref`, so the sentence below about rejecting a `pin`
+  setting was stale by the time this was filed. What was actually missing was the WEEKLY half: a pin was
+  re-applied unattended, and because the refresh uninstalls before it installs, a revision that had
+  stopped resolving took the working copy with it. Installed Herdr's `plugin install --help` exposes
+  `--ref <REF>` (verified 2026-09-12). Record the desired pin/update policy, then implement it through
+  that supported interface in uu's configuration and plugin lane. Do not silently freeze plugin updates
+  or claim that source-tip reinstalls honor a configured revision across weekly updates. Source:
+  `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/goal-2026-09-01.md`. SHIPPED
+  2026-09-17 as [PR #735](https://github.com/webdavis/dotfiles/pull/735), merged `53572d95`. `ref` now
+  means HOLD: the lane reads `herdr plugin list --json` once, reports `HELD at <ref>` when the installed
+  copy is at the pin, and reports the exact `herdr plugin install <repo> --ref <ref> --yes` command as
+  PENDING when it is not, which covers both a pin the operator moved and a plugin nothing has installed.
+  That is the cargo lane's report-rather-than-compile shape rather than a second reporting style. An
+  unpinned entry still uninstalls and reinstalls at its source tip with the same one retry. A listing
+  that cannot be read leaves every pin alone and fails the step by name, once, naming every pinned id
+  (the review caught that the first cut counted one socket failure N times). The pin matches
+  `source.requested_ref` first, then `source.resolved_commit` exactly or by prefix from seven characters
+  up, because a shorter prefix matches commits the plugin was never at. A pin naming a BRANCH reads as
+  held at that branch and the lane never fetches the remote to judge it. `--ref` was verified against the
+  installed binary and the real `plugin list --json` envelope was read for the field names; nothing was
+  installed, uninstalled, enabled or disabled, and no tab, pane or workspace was touched. THE ACCEPTED
+  COST, stated rather than hidden: nothing on the machine moves an already-installed plugin to a new pin
+  any more, so the operator runs the command the pending line prints. `run_after_53`'s presence gate
+  installs a pinned plugin only when it is absent, and its comment was corrected to say so. 514
+  uu-adapters tests pass in 3.68 s with a scripted command-runner double, no spawn and no clock. OPERATOR
+  STEP: a full `chezmoi apply` picks up the rebuilt `uu` and comment-only changes in
+  `~/.config/uu/config.toml`.
 
 - [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
   `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
