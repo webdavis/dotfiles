@@ -1,5 +1,5 @@
 use crate::{DeliveryHealth, LedgerFailure};
-use pns_domain::Delivery;
+use pns_domain::{Delivery, doctor::Mark};
 
 pub fn report_delivery_health(
     health: Result<&DeliveryHealth, &LedgerFailure>,
@@ -39,50 +39,72 @@ pub fn report_delivery_health(
 /// wrong and nothing about what, so a backlog without a next step leaves the
 /// operator holding a number; a pointer offered on a healthy machine is one the
 /// reader learns to skip.
-pub fn delivery_health_lines(health: Result<DeliveryHealth, String>) -> Vec<String> {
+///
+/// EVERY COUNT CARRIES ITS OWN MARK, and each of them is a warning. The
+/// doctor's closing line withholds its all-clear on a warning and not on a
+/// reading, so a queued or abandoned notification reported as a reading closes
+/// the report with `nothing to act on` over the top of it.
+pub fn delivery_health_lines(health: Result<DeliveryHealth, String>) -> Vec<(Mark, String)> {
     let Ok(health) = health else {
-        return vec![format!(
-            "{PREFIX}the delivery record could not be read, so nothing here is known"
+        return vec![(
+            // UNKNOWN IS NOT ZERO: the counts behind an unreadable record may
+            // be anything, so this cannot pass as a clean bill.
+            Mark::Warn,
+            format!("{PREFIX}the delivery record could not be read, so nothing here is known"),
         )];
     };
 
     let mut lines = Vec::new();
     if health.pending_legs > 0 {
-        lines.push(format!(
-            "{PREFIX}{} still waiting to reach a channel",
-            plural(health.pending_legs, "notification")
+        lines.push((
+            Mark::Warn,
+            format!(
+                "{PREFIX}{} still waiting to reach a channel",
+                plural(health.pending_legs, "notification")
+            ),
         ));
     }
     if health.deadlettered_legs > 0 {
-        lines.push(format!(
-            "{PREFIX}{} given up on after retrying",
-            plural(health.deadlettered_legs, "notification")
+        lines.push((
+            Mark::Warn,
+            format!(
+                "{PREFIX}{} given up on after retrying",
+                plural(health.deadlettered_legs, "notification")
+            ),
         ));
     }
     // A STREAK OF ZERO IS THE NORMAL CASE and says nothing worth a line.
     if health.growth_streak > 0 {
-        lines.push(format!(
-            "{PREFIX}the backlog has grown {} in a row, so it is not draining",
-            plural(u64::from(health.growth_streak), "check")
+        lines.push((
+            Mark::Warn,
+            format!(
+                "{PREFIX}the backlog has grown {} in a row, so it is not draining",
+                plural(u64::from(health.growth_streak), "check")
+            ),
         ));
     }
     if health.alarm_generation.is_some() {
-        lines.push(format!(
-            "{PREFIX}an alarm about this has not reached you yet"
+        lines.push((
+            Mark::Warn,
+            format!("{PREFIX}an alarm about this has not reached you yet"),
         ));
     }
     if health.recording_gap {
-        lines.push(format!(
-            "{PREFIX}the daemon log shows it recently failed to record a delivery, so these \
-             counts may be low"
+        lines.push((
+            Mark::Warn,
+            format!(
+                "{PREFIX}the daemon log shows it recently failed to record a delivery, so these \
+                 counts may be low"
+            ),
         ));
     }
 
     if lines.is_empty() {
         // THE HEALTHY SENTENCE IS EXPLICIT. An empty section reads as output
         // that failed rather than as nothing to report.
-        return vec![format!(
-            "{PREFIX}nothing is queued and nothing was given up on"
+        return vec![(
+            Mark::Good,
+            format!("{PREFIX}nothing is queued and nothing was given up on"),
         )];
     }
     // THE POINTER HANGS OFF THE COUNTS AND NOTHING ELSE. `pns failures` lists
@@ -90,8 +112,11 @@ pub fn delivery_health_lines(health: Result<DeliveryHealth, String>) -> Vec<Stri
     // unacknowledged alarm would send the reader to a listing that does not
     // answer either.
     if health.pending_legs > 0 || health.deadlettered_legs > 0 {
-        lines.push(format!(
-            "{PREFIX}run `pns failures` for what is not arriving"
+        lines.push((
+            // THE NEXT STEP, not a finding: it continues the counts above it
+            // and must not be counted as a second thing to look at.
+            Mark::Detail,
+            format!("{PREFIX}run `pns failures` for what is not arriving"),
         ));
     }
     lines

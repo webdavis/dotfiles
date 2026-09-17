@@ -195,8 +195,8 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
         emit(Item::section("Delivery", DELIVERY_BLURB));
-        for line in crate::delivery_health_lines((actions.delivery_health)()) {
-            emit(Item::note(line));
+        for (mark, line) in crate::delivery_health_lines((actions.delivery_health)()) {
+            emit(Item::row(mark, line));
         }
         // IMMEDIATELY UNDER THE LEDGER, because the two answer one question
         // between them: the line above says what is not arriving, and these say

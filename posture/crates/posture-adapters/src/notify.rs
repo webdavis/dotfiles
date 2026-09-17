@@ -32,7 +32,7 @@ use crate::producer::ProducerCommand;
 use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
 use posture_application::{AlertSink, IndependentAlarm};
-use posture_domain::{AgentLabels, Severity, severity_route};
+use posture_domain::{AgentLabels, DailyTimes, Severity, severity_route};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -65,18 +65,41 @@ pub fn config_path(home: &Path) -> PathBuf {
     home.join(".config/posture/config.toml")
 }
 
-/// The launchd label of each of posture's own jobs, for this home directory.
+/// What posture's config says about its own scheduled jobs: the launchd label
+/// of each, and when the two daily ones fire.
 ///
 /// A file that cannot be read or parsed leaves every job at its shipped
-/// default. The same file's notify half already reports that refusal loudly and
-/// refuses to deliver, so nothing here is the one thing that tells the operator
-/// their config is broken.
-pub fn agent_labels(home: &Path) -> AgentLabels {
-    std::fs::read_to_string(config_path(home))
+/// default. The same file's notify half already reports that refusal loudly
+/// and refuses to deliver, so nothing here is the one thing that tells the
+/// operator their config is broken.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JobSettings {
+    pub labels: AgentLabels,
+    pub daily: DailyTimes,
+    /// A stated value that was ignored, one line each.
+    pub warnings: Vec<String>,
+}
+
+/// The `[jobs]` half of posture's config, for this home directory.
+pub fn job_settings(home: &Path) -> JobSettings {
+    let Some(jobs) = std::fs::read_to_string(config_path(home))
         .ok()
         .and_then(|text| toml::from_str::<schema::File>(&text).ok())
-        .map(|file| file.jobs.into_labels())
-        .unwrap_or_default()
+        .map(|file| file.jobs)
+    else {
+        return JobSettings::default();
+    };
+    let (daily, warnings) = jobs.times();
+    JobSettings {
+        labels: jobs.into_labels(),
+        daily,
+        warnings,
+    }
+}
+
+/// The launchd label of each of posture's own jobs, for this home directory.
+pub fn agent_labels(home: &Path) -> AgentLabels {
+    job_settings(home).labels
 }
 
 /// The three ways one page can be raised.

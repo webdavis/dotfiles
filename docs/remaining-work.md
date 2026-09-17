@@ -346,12 +346,14 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   admitting only four codes, so task 31 has to recreate it rather than add one; and the banner's click
   slot is already free, returning the no-op `:` for exactly the pane-less events every delivery failure
   is.
+
 - [x] 30. Permanent versus temporary classification in `pns-domain`. `DeliveryOutcome`, `FailureClass`
   and `RetryLimits::verdict`, with `DeadletterReason::Permanent`. Permanence outranks both counters, so a
   refused request dead-letters on attempt one. The jitter went with it: `retry_at` is now a pure function
   of the clock and the attempt count, `RetryBackoff::random_secs` is gone, and `retry_random_secs` is
   refused by name rather than ignored, because a key that parses and changes nothing reads as configured
   behavior.
+
 - [x] 31. The ledger columns and the persisted failure record. Migration step 8 widens the CHECK on both
   `http_status` columns to any real status and adds `permanent` to `deadletter_reason`, and the terminal
   decision moves out of the hermes channel and behind `pns_domain::retry`'s permanent class, so a 404 now
@@ -360,6 +362,7 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   row already carries them, `route` was already on the leg, and a per-delivery write measurably slowed
   the suite. The read path the plan put here lands with its caller in task 33 rather than as an uncalled
   method.
+
 - [x] 32. The message, both render forms, the per-destination meaning tables. `pns_domain::failure`
   rather than `pns-protocol`, whose own contract is that it holds no view of the domain model. The
   notification form enforces its 256-character budget itself, in the order the reader can least afford to
@@ -369,6 +372,7 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   design gaps closed while building: the terminal `fix` needed a repair per code, which the design gave
   only as one worked example, and the 413 and 422 rows named no concrete subject despite the design's own
   rule that every meaning must.
+
 - [x] 33. `pns failures` and the `pns doctor` routing to it. The read path, the listing capped at twenty
   newest first, `pns failures <id>` through the full renderer, and the doctor's ledger line naming the
   command when there is something to look at. NO PICKER, so the design's interaction model is not built:
@@ -377,6 +381,7 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   copy of the flags could disagree with the routing it describes. The design's rung 5, a non-zero exit
   for a synchronous producer, is NOT here: it changes what every producer sees and belongs in its own
   change, filed against task 34's PR.
+
 - [x] 34. The `pns doctor` route check. THE PROBE IS AN UNSIGNED POST, measured against the live gateway
   on 2026-09-09: it answers 401 for a route that exists and 404 for one that does not, while GET and HEAD
   answer 405 for every path and distinguish nothing. The signature is what authorizes a delivery, so a
@@ -384,6 +389,7 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   producer names a route at call time and nothing else records it. A missing route reports loudly but
   does not move the exit code: the roster is derived from history, so a route retired on the gateway
   would fail the doctor forever with nothing an operator could do to clear it.
+
 - [x] 34a. `posture-adapters` flake, PR #486, and only one of the two was a flake. The lifecycle case was
   a REAL DEFECT the suite happened to stand on: the command runner decided whether it had a terminal to
   hand over from the errno of `tcgetpgrp`, and Darwin answers a SOCKET at descriptor 0 with `EOPNOTSUPP`
@@ -392,31 +398,37 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   pipe, `/dev/null` and a socket at once. The lock case was fixture shape: a single nonblocking `flock`
   asked once, in a binary where any concurrent spawn holds a copy of every open descriptor between its
   fork and its exec. Three more of the same class in pns followed, PRs #487 and #488.
+
 - [x] 35. The banner click: `pns click`, and its three configured types
+
 - [x] 35a. Raise the failure BANNER, which no task in this plan built: the design gives the notification
   its own 256-character form and its own `fix` line, and `pns_domain::failure::notification` renders it,
   but nothing called it, so a delivery failure was silent everywhere except `pns failures` and
   `pns doctor`. A leg speaks twice at most, on its first failure and on its dead-letter, because a banner
   per attempt teaches the operator to dismiss the one banner the design exists to raise. It carries the
   half of task 35 that had no producer: the banner's click is now `<absolute pns> click <id>`.
+
 - [x] 35b. The failure PHONE CARD, under the existing presence rules (anything but at the desk, the same
   reading `forward_to_moshi` takes). It carries the rule the banner never needed, that a failure is never
   reported through the destination that failed: a mobile refusal pushes no card about itself, and a
   hermes refusal says Discord is empty rather than pointing at it.
+
 - [x] 35c. A non-zero exit code for a synchronous caller whose page did not land, rung 5 of the design's
   "where a failure surfaces". Shipped OPT-IN, behind `--require-delivery`, because the design's
   unconditional form contradicts accepted decision 0010 (a notification never fails the work it reports
   on) and 126 tests pin that contract: every harness hook, the shell notifier and the daemon call the
   event path while real work is in flight. A caller that asked for the answer is one that can take it.
+
 - [x] 36. The local page for moshi's browser preview
-- [ ] 36a. Structured progress recaps, in chat and on `#pns`. Operator request 2026-09-14: every
-  end-of-work summary uses the fixed Recap layout (Git block, stack graph, file list, Summary,
-  In-Progress with a Blocked-on line, Upcoming Agent Tasks, User Tasks; the layout and the approved
-  readability tweaks are in the agent memory `end-of-turn-recap-format`), and the same recap is posted to
-  the `#pns` Discord channel through hermes. Triggers are agent-initiated, never a hook: a PR opened and
-  waiting on a human review or auto-merged, each milestone while a `/goal` runs, after overnight work, an
-  end-of-day summary, and on demand through `/pns:work-recap`. The command is a feature of pns, so it
-  lives in the pns Claude Code plugin as
+
+- [x] 36a. Structured progress recaps, in chat and on `#pns`. DONE 2026-09-17. Operator request
+  2026-09-14: every end-of-work summary uses the fixed Recap layout (Git block, stack graph, file list,
+  Summary, In-Progress with a Blocked-on line, Upcoming Agent Tasks, User Tasks; the layout and the
+  approved readability tweaks are in the agent memory `end-of-turn-recap-format`), and the same recap is
+  posted to the `#pns` Discord channel through hermes. Triggers are agent-initiated, never a hook: a PR
+  opened and waiting on a human review or auto-merged, each milestone while a `/goal` runs, after
+  overnight work, an end-of-day summary, and on demand through `/pns:work-recap`. The command is a
+  feature of pns, so it lives in the pns Claude Code plugin as
   `private_dot_claude/pns-marketplace/plugins/pns/skills/work-recap/SKILL.md`, beside `loop`, and is
   never a bare `/work-recap` (operator 2026-09-14; a bare `/recap` also collides with Claude Code's
   built-in). Three PRs, in order: (1) docs only, the layout in `.chezmoitemplates/global-agent-rules.md`
@@ -466,6 +478,30 @@ Designed in `docs/superpowers/specs/2026-09-08-pns-delivery-failure-reporting-de
   [PR #628](https://github.com/webdavis/dotfiles/pull/628) dropped the `pns-recap` route the same day, so
   a recap now posts to the default route rather than `#pns-recap`. Still owed: one live `/pns:work-recap`
   run.
+
+  THE OPEN QUESTION ABOVE IS ANSWERED, AND IN THE OPPOSITE DIRECTION FROM THE RULING THIS TASK WAS
+  BRIEFED WITH. The brief sent on 2026-09-17 said the operator's gh-axi preference settles it and that
+  `recap/merges.rs` should move onto `npx -y gh-axi`. It should not, for two reasons the lane measured
+  rather than argued. First, the divergence had ALREADY BEEN RESOLVED THE OTHER WAY three days earlier:
+  commit `1861610d` (2026-09-14, on main) moved the Git block's pull-request lookup off `npx -y gh-axi`
+  and onto `gh --json` for a recorded product reason, and no gh-axi reference remains anywhere under
+  `pns/`. Second, moving `merges.rs` would LOSE CAPABILITY, verified against `--help` rather than
+  assumed: `gh-axi pr list` has no `--json`, no search form and no window flag (only `--fields` over a
+  human listing, which has no `body` column), and `gh-axi search prs` takes no output-format flag at all,
+  so the number plus title plus body of every pull request merged in a window cannot be had as a
+  machine-parseable document. The reasoning the lane recorded: the gh-axi rule governs what an AGENT
+  invokes for GitHub work, while pns is a product other people install with `cargo install`, and a
+  shipped binary fetching a package from a registry at recap time is a different thing from an agent
+  choosing a CLI. So both adapters now agree on `gh`, which is what main already said.
+
+  The second half of the commission was delivered:
+  [PR #753](https://github.com/webdavis/dotfiles/pull/753) (`fix/pns-one-github-cli`) merged `689daa11`,
+  adding one seam, `pns/crates/pns-adapters/src/recap/github_cli.rs` (48 lines), which owns the tool
+  name, the 30 second deadline, the PATH story and the empty-cwd guard, with both call sites routed
+  through it. Net 19 lines added and 69 removed across three files, so the duplication the task was filed
+  against is gone even though the CLI did not change. Its review removed a rejected-alternative paragraph
+  from the module doc under the comment rule. Operator step still owed, unchanged: one live
+  `/pns:work-recap` run.
 
 ### STOP POINT C
 
@@ -1378,6 +1414,32 @@ The planned Rust lanes are implemented. The following deployment check remains.
   run, and twelve declared lanes lacked state directories. Record the first scheduled lane verdicts,
   notification result, success marker and streaks separately. A successful manual run or notification
   HTTP 200 does not establish scheduled acceptance. Do not repeat task 11c's retired-job cleanup.
+
+  THE CODE HALF IS CONFIRMED SHIPPED, 2026-09-17, reconciled in
+  [PR #762](https://github.com/webdavis/dotfiles/pull/762), merged `5d79a580`, which wrote
+  `docs/superpowers/specs/2026-09-17-uu-runtime-acceptance-and-interruption-reconciliation.md` and
+  changed no Rust file, ran no apply, triggered no run and sent no notification. Four of this entry's
+  claims were already satisfied and are now evidenced rather than asserted.
+
+  THE INTERRUPTION DEFECT IS FIXED FOR BOTH SIGNALS, which was the thing actually worth checking, since a
+  fix covering only SIGTERM would have satisfied the test name task 101 recorded while leaving the
+  reported defect in place. PR #542's interruption installer registers ONE handler for SIGINT and SIGTERM
+  into a single atomic flag, and every downstream consumer reads that one flag with no branch on which
+  signal arrived; both named cases pass. The duplicate scheduled output is fixed too: the LaunchAgent
+  plist already sends its error stream somewhere other than uu's own application log, in the same pull
+  request. The cua-driver path resolves as claimed and the Claude plugin snapshot still holds all twenty
+  one rows. Of the audit's twelve lanes missing a state directory, EIGHTEEN OF NINETEEN declared lanes
+  now have one, and the single exception is a lane task 57c ADDED which has legitimately not run yet, so
+  it is not a regression.
+
+  WHAT REMAINS IS TIME-GATED AND NO AGENT CAN SHORTEN IT. A read-only `launchctl print` reports zero runs
+  and no exit code ever recorded for the weekly job, so the Sunday noon lane has still never fired. This
+  entry's own rule holds and was not bent: a successful manual run, and a notification returning HTTP
+  200, do NOT establish scheduled acceptance. The document therefore carries the exact commands and the
+  expected passing output to capture AFTER the job fires on 2026-09-20, covering the run count and exit
+  code, the log's run-started and done lines, the last-success timestamp, the one new lane state
+  directory, each lane's streak file, and confirmation that the notification reached a real destination
+  rather than merely logging a 200.
 
 - [x] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
   DONE 2026-09-17. PREMISE CORRECTED 2026-09-17: uu had already stopped rejecting a pin. Commit
@@ -2723,6 +2785,31 @@ is missing.
   is a notification source. Two slicing questions remain: the two numbers `[lights] refresh_secs` splits
   into, which ships at 12 today and serves both the daemon re-arm interval and the fade budget.
 
+  SLICE PROGRESS. The ladder is `docs/superpowers/plans/2026-09-17-pns-refactor-slices.md` and slices are
+  taken in its order, one pull request each.
+
+  SLICE 1 DONE 2026-09-17, [PR #758](https://github.com/webdavis/dotfiles/pull/758), merged `268e01fe`.
+  The duration parser moved out of `pns/crates/pns-domain/src/quiet.rs` into a new `pns-domain::duration`
+  module that takes the field name its refusals quote, the text, and the inclusive range that field
+  allows. It returns a standard duration, refuses a bare number, and spells each range bound back in the
+  largest unit that holds it whole, so a refusal reads in the units an operator would actually type.
+  `quiet` keeps only its own policy bound, a new mute range of one second to twenty four hours, and both
+  mute callers now call the one parser at that range. Five tests pin the units, both refusal shapes, the
+  per-field range refusal, the range spelling, and that two different field names produce two differently
+  named refusals. No config key or template moved, so no apply is owed for this slice.
+
+  THE SLICE SHIPPED WITHOUT THE `ms` UNIT THE LADDER ASKED FOR, AND THAT IS A DEFECT IN THE PLAN RATHER
+  THAN IN THE WORK. The ladder's behaviour line for slice 1 says a duration is accepted in `ms`, `s`, `m`
+  and `h`. The review found that the parser's only caller today is the mute, whose range starts at one
+  second, so every millisecond value the parser accepted was then refused by the range WHILE THE REFUSAL
+  MESSAGE STILL ADVERTISED `ms` AS A LEGAL UNIT: a refusal contradicting the usage line printed directly
+  beneath it. The unit was removed rather than left dead, and the parser's own tests stopped borrowing
+  the mute's policy constant, which had coupled a generic parser to one caller's bound. CONSEQUENCE FOR
+  THE LADDER, and the first later slice to hit it should read this first: plan item 40's unit list is the
+  EVENTUAL set, not slice 1's acceptance, so whichever slice first introduces a field whose range reaches
+  below one second has to re-add the unit and its millisecond spelling row. Slices 12, 22, 29, 30, 33,
+  34, 35, 43 and 44 all parse a duration and are where that will surface.
+
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
   [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
@@ -2845,7 +2932,7 @@ is missing.
   as a preference; it is recorded here because the reason given for it does not hold, and a decision
   resting on a fact that is not true is worth re-offering rather than quietly inheriting.
 
-- [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
+- [x] 90. Build Moshi image cards as a per-card-type opt-in. DONE 2026-09-17. Approved 2026-09-15. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
   recap posting out of `replay_missed` and into the detached `pns recap` child, since the card is
@@ -2871,7 +2958,31 @@ is missing.
   property `/token`), which is what `moshi.rs` already does, so the current placement is correct and was
   not changed. Consequence for this piece: its upload leg needs the header, and `moshi.rs`'s "the request
   body and nowhere else" sentence has to become "the body on the webhook, an Authorization header on the
-  upload". Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
+  upload". Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. SHIPPED
+  2026-09-17 as [PR #751](https://github.com/webdavis/dotfiles/pull/751), merged `73a33acf`, the second
+  of the two pieces (the card-ownership refactor had already landed in PR #704). `MoshiChannel` gained an
+  `image_cards` list, fed by a new open `[plugins.mobile.image_cards]` table, and SHIPPED OFF FOR EVERY
+  CARD TYPE: an empty list leaves the channel byte for byte as it was, which is pinned by a test. For an
+  armed card type, delivery draws the event's whole message as a one-bit greyscale PNG, uploads it, and
+  posts an image object in place of the text card. ANY FAILURE ON THAT PATH FALLS THROUGH to today's text
+  card with its pane deep link, pinned by four tests: nothing to draw, an upload that returned nothing, a
+  reply carrying no code that still passes validation, and a webhook that rejects the image body. NO NEW
+  DEPENDENCY: the font is 95 hand-authored five-by-seven glyphs as embedded data, plus a real glyph for
+  the separator every pns title carries, and the PNG uses deflate's stored block type with hand-rolled
+  checksums. It was verified DECODABLE OUTSIDE THE SUITE, read back as a 672 by 90 eight-bit greyscale
+  image whose pixels dump as legible text art including the wrapped line. THE TOKEN PLACEMENT QUESTION
+  THIS TASK LEFT OPEN IS ANSWERED IN CODE AND IN A TEST: the sentence claiming the body and nowhere else
+  now reads per route, the body on the webhook and an `Authorization: Bearer` header on the upload, and a
+  loopback fixture sends a bogus token through the real upload path and asserts the bearer header
+  arrived, the request was multipart, and THE TOKEN IS NOT IN THE BODY; a second asserts that 401, 302
+  and 500 all yield no code. No live credential was used and no card was sent. The deep-link tradeoff is
+  stated at the toggle in the rendered config and stated ACCURATELY: an image card gives up the pane link
+  for every card type THAT CARRIES A PANE, and the example key is `missed` precisely because the return
+  card carries no pane and so has no link to lose. The renderer is pure and its tests take microseconds.
+  OPERATOR STEPS: a full apply rewrites `~/.config/pns/config.toml` with the new heading, its prose and
+  one COMMENTED example, so nothing is armed by the apply itself; and the live round trip is UNPROVEN and
+  cannot be proven without the operator's own token, so arming one card type and watching for the image
+  is theirs to do. Arming any type but `missed` gives up that type's deep link.
 
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
@@ -3495,15 +3606,17 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   independent alert, restricted evidence and advisory-only requirements in the section below. Supersede
   the digest trigger and obsolete recipes in a smaller reviewed plan after the security decisions are
   settled. #24 remains open; do not merge its old instructions unchanged.
-- [ ] Reconcile the approval interface separately: Butters tap-to-approve scoped to pending findings and
-  the `/osquery allow|deny|list` Hermes skill. Verify the current posture command and trust contracts;
-  investigation must not grant the analyst approval authority. On 2026-09-14 the reconciled scope was
-  written to `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`. Verified on the
-  host: `posture allowlist add|deny|list` is the writer, it refuses a label with no installed launchd
-  agent, pins the plist hash with SHA-256, writes the chezmoi source and then refreshes the root-owned
-  manifest; the allowlist is manifested (`0600 501`) and `allowlist_verdict` spends a vouch before it
-  ever suppresses, so the 2026-07-26 option B plus D-prime both shipped, while option E did not. Nothing
-  in posture, pns or the state tree has a pending-findings concept. Butters is now a Hermes profile (a
+
+- [x] Reconcile the approval interface separately. DONE 2026-09-17. Butters tap-to-approve scoped to
+  pending findings and the `/osquery allow|deny|list` Hermes skill. Verify the current posture command
+  and trust contracts; investigation must not grant the analyst approval authority. On 2026-09-14 the
+  reconciled scope was written to
+  `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`. Verified on the host:
+  `posture allowlist add|deny|list` is the writer, it refuses a label with no installed launchd agent,
+  pins the plist hash with SHA-256, writes the chezmoi source and then refreshes the root-owned manifest;
+  the allowlist is manifested (`0600 501`) and `allowlist_verdict` spends a vouch before it ever
+  suppresses, so the 2026-07-26 option B plus D-prime both shipped, while option E did not. Nothing in
+  posture, pns or the state tree has a pending-findings concept. Butters is now a Hermes profile (a
   computer-use LLM agent), not a bespoke bot; all three live Hermes webhook routes are `deliver_only`, so
   the Discord surface a page lands on cannot carry buttons without modifying third-party code; Hermes's
   own `ExecApprovalView` is session-scoped at 300 s and fires only for `DANGEROUS_PATTERNS`, which
@@ -3560,6 +3673,57 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   Hermes investigator gated on this change landing? The document's position is yes: an agent that reads
   attacker-controlled evidence and can write the suppression file in the same session is the
   configuration that exists today.
+
+  RECONCILED AND BOTH PIECES RETIRED OR SHRUNK, 2026-09-17, as
+  [PR #760](https://github.com/webdavis/dotfiles/pull/760), merged `a38fece5`, one document at
+  `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`. No Rust file, no
+  route, no allowlist entry and no line of this ledger was touched by that pull request.
+
+  PIECE 1, tap to approve scoped to pending findings: NOT BUILDABLE WITHOUT BREAKING THE TRUST BOUNDARY,
+  and on two independent boundaries rather than one. The DELIVERY boundary, because a deliver-only
+  route's delivery path hands a plain string to a dispatcher that takes no components and no view
+  parameter, and hermes's one button surface is session-keyed and approves a COMMAND an agent already
+  proposed rather than a FINDING, so a button on a page would need third-party code changed, which this
+  repository never does. The INVESTIGATION boundary, because every route that could carry a tap is served
+  by an agent, so the tapper is the investigator, which is the one thing this bullet forbids outright.
+
+  PIECE 2, the `/osquery allow|deny|list` skill: BUILDABLE SMALLER, and only the `list` third of it. Both
+  write verbs shrink away, and NOT because a skill would be unsafe. The reason is the live security fact
+  this bullet already suspected on 2026-09-14 and which was MEASURED AGAINST THE INSTALLED HERMES on
+  2026-09-17: the live Discord platform toolset carries `terminal` with a local backend, `sudo -n true`
+  exits 0, `dot_bashrc.tmpl` puts `~/.cargo/bin` on the PATH a hermes shell sources, and BOTH approval
+  gates allow the allowlist writer's add verb, so with no warnings collected the approval path returns
+  approved WITH NO PROMPT. Every Discord hermes agent therefore already holds exactly the authority the
+  proposed skill would have named, so the skill would be a label on an open door. THE BOUNDARY THAT NEEDS
+  AN OPERATOR DECISION IS THE DISCORD PLATFORM TOOLSET ITSELF, not either piece of this design, and that
+  supersedes open question 3 above: gating the recovered investigator on a pending scope does not close a
+  door that is already open to every agent on that platform.
+
+  Three further findings RETIRE design rather than shape it. A PENDING FINDING DOES NOT EXIST IN CODE:
+  the finding type is a borrowed transient over one results-log row, the only persisted progress is an
+  inode plus an offset, and the digest spool holds only digest outcomes, which is the COMPLEMENT of the
+  set an approval would act on, so the derived pending set the 2026-09-14 document recommends cannot be
+  built from what is stored. That answers assumption one of operator step 7 in the negative. A GRANT
+  THROUGH THE WRITER IS SILENT: the allowlist file is watched, the integrity verdict is log-only when the
+  manifest vouches for the new content, and the publisher refreshes that manifest as its last step, so a
+  hand edit pages and the SUPPORTED path does not, which is the opposite of the announcement this design
+  assumed it would get for free. And the allowlist write lock is a blocking exclusive lock recording NO
+  identity, timestamp or verb, so the thread this repository has around it is a concurrency contract
+  rather than an audit trail; that gap is filed as task 146.
+
+  Two of the three properties "scoped to pending findings" needs ALREADY HOLD: the allowlist is consulted
+  in exactly one gate branch, and an entry pins label plus path plus program plus plist hash together so
+  a changed path or program is reported as a reused label rather than suppressed, which is precisely what
+  stops one approved finding widening into an approved class. The missing third, a record that a finding
+  is actually outstanding, needs new persisted state and is the only genuinely new thing either piece
+  would require.
+
+  Tonight's own merges changed two answers relative to the 2026-09-14 reading, and both simplify operator
+  step 5. The webhook platform toolset is declared as the no-MCP sentinel, which resolves to an EMPTY
+  toolset, so the `explain` agent route is fenced from the allow path by an empty toolset rather than by
+  prose. And the bare `posture` route's 404 recorded above is GONE, because task 99 renamed it to
+  `posture-pages`, which the gateway already serves.
+
 - [ ] Reconcile the June hardening-plan remainder and explicitly deferred FleetDM, beaconing and Wazuh
   research. Record accepted scope before implementation. Issue #18's FileVault fix and dead snapshot
   handling are already present in the current query, Bash and Rust paths; reconcile/close its stale issue
@@ -3599,6 +3763,7 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   since no document on `origin/docs/osquery-design` picks FleetDM as a product (its only two mentions are
   citation URLs at `docs/superpowers/research/2026-06-08-macos-persistence-monitoring-design-research.md`
   lines 144 and 145).
+
 - [ ] Give the June hardening requirements explicit dispositions: signature-chain verification,
   interpreter-payload assessment and per-run grouping of repeated findings about the same subject.
   Current Rust code reads signature metadata, leaves interpreter payloads unverified and retains each
@@ -3673,6 +3838,7 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   demonstration. (8) One change set or three pull requests? The recommendation is one design and a ladder
   of three, grouping first, because disposition 1 adds a process per code finding against a deadline that
   disposition 3 relieves.
+
 - [ ] Preserve deferred install-state kernel-extension monitoring and off-host machine-death detection.
   The former needs reconciliation with July's decision to alert on untrusted loaded extensions; do not
   restore June's obsolete delivery block. The latter needs an external host and remains homelab scope: a
@@ -4492,9 +4658,9 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   configured route rather than the 404 one that dead-lettered eight digest legs. OPERATOR STEP: a full
   `chezmoi apply` writes the new `route` key and rebuilds both binaries.
 
-- [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed two
-  `THE GATEWAY HAS NO SUCH ROUTE` warnings, `1 notification still waiting to reach a channel`,
-  `17 notifications given up on after retrying`, and
+- [x] 100. `pns doctor` ends with a false all-clear. DONE 2026-09-17. Filed the same day. The 2026-09-17
+  run printed two `THE GATEWAY HAS NO SUCH ROUTE` warnings,
+  `1 notification still waiting to reach a channel`, `17 notifications given up on after retrying`, and
   `the daemon log shows it recently failed to record a delivery, so these counts may be low`, then closed
   with `nothing to act on`. The cause is already diagnosed in the unnumbered hermes-security item:
   `RouteVerdict::Missing` maps to `Mark::Warn`, and the summary escalates only on an error, so every
@@ -4507,6 +4673,45 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   than waiting for a route to reappear. Side measurement: the dead-letter population was 11 on 2026-09-13
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
+
+  SHIPPED 2026-09-17 as [PR #763](https://github.com/webdavis/dotfiles/pull/763), merged `191f2c59`, and
+  the defect turned out to have TWO halves rather than the one the filing named. The first is the place
+  the filing pointed at: the report's closing decision counted only error rows, so every warning row (a
+  missing route, an unreadable or unanswered pairing, an unknown phone tap, an import failure) passed
+  straight through and the report closed with nothing to act on. The closing list now collects warnings
+  beside issues, COUNTS THE TWO KINDS APART, and numbers every one of them, so the summary names the row
+  to look at rather than merely refusing the all-clear. They are counted apart deliberately: an operator
+  can FIX an issue and may only be able to READ a warning, since a route retired on the gateway cannot be
+  cleared from here.
+
+  The SECOND half was not in the filing and is the more interesting one: the delivery section emitted its
+  counts as plain notes, a reading NO summary could ever escalate, so even a correct closing decision
+  would have passed a dead-letter population through. That function now returns a mark beside each line,
+  with a warning per count and fault (pending, dead-lettered, a growth streak, an unacknowledged alarm, a
+  recording gap, an unreadable record), the pointer to `pns failures` as a detail so it is not counted as
+  a second finding, and the healthy sentence as good.
+
+  TEST FIRST, and the red runs are recorded: two new closing-list tests failed with the all-clear line on
+  the left against the warning count on the right, and the delivery-mark test failed to COMPILE against
+  the old string-only return. Both green after the fix. THE DEFECT COULD NOT BE REPRODUCED FROM A LIVE
+  RUN, for the two reasons the filing predicted: task 99 had already removed the two route warnings that
+  produced the original reading, and a real `pns doctor` run sends a test notification down every
+  channel, so the evidence is a report constructed in tests plus the code path read end to end. THE EXIT
+  CODE WAS DELIBERATELY LEFT ALONE, so automation reading the exit status is unaffected; withholding the
+  all-clear is now visible in the report text instead.
+
+  ONE VISIBLE BEHAVIOUR CHANGE TO EXPECT: every warning producer now withholds the all-clear, and that
+  set includes the pairing check's no-answer verdict, so on a machine where moshi-hook is simply not
+  installed doctor will from now on close by naming the unchecked approval path rather than saying there
+  is nothing to act on. That reads as correct, since the check did not pass, but it is a change and it
+  should not be a surprise. The side measurement needed no work: doctor already printed the standing
+  dead-letter count and now marks it as a warning that reaches the closing list. What remains is the
+  WATCHDOG's alarm shape, which is a design question and was not guessed at: whether it should page on a
+  standing population above a threshold as well as on growth, and what that threshold is. The population
+  grew from 11 on 2026-09-13 to 17 on 2026-09-17. Filed as task 147.
+
+  Operator step: nothing to arm. The change is Rust source only, rebuilt by the apply-time builder, so
+  the next full `chezmoi apply` is what puts it on the deployed binary.
 
 - [x] 101. Make the Rust suites deterministic around real process spawns. DONE 2026-09-17. Filed on the
   operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
@@ -4635,6 +4840,69 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   prerequisite for ever taking the NAME-based pgrep native, which this task does not: read out of source
   which field macOS pgrep itself matches against, since only the manual page's wording and one observed
   agreement support the current reading.
+
+- [ ] 146. Give the allowlist write lock an audit trail, filed 2026-09-17 from the approval-interface
+  reconciliation. `AllowlistWriteLock` takes a blocking exclusive lock on a sidecar of the deployed
+  allowlist and records NOTHING: no identity, no timestamp, no verb. That makes it a concurrency contract
+  rather than an audit trail, which matters because the same reconciliation established that a grant
+  through the SUPPORTED writer is SILENT (the integrity verdict is log-only when the manifest vouches for
+  the new content, and the publisher refreshes that manifest as its last step) while a HAND EDIT pages.
+  So the only path that suppresses a security finding is also the only path that leaves no trace. DONE
+  MEANS: every acquisition that goes on to WRITE records who asked, when, and which verb with which
+  label, somewhere durable enough to answer "who suppressed this finding and when" weeks later, and a
+  test pins that a write with no such record cannot happen. What it must NOT become is a liveness or
+  approval mechanism; this is a record of what happened, not a gate on what may happen. Read the
+  reconciliation document first, because it names the exact call sites and says why the announcement this
+  was assumed to get for free does not exist.
+
+- [ ] 147. Decide the watchdog's dead-letter alarm shape, filed 2026-09-17 out of task 100's evidence.
+  The watchdog reports only an INCREASE in the dead-letter population, never the standing count, so a
+  population that stops growing stops being mentioned however large it is. It was 11 on 2026-09-13 and 17
+  on 2026-09-17. Task 100 fixed the half that was a defect: `pns doctor` already printed the standing
+  count and now marks it as a warning that withholds the all-clear and names it. THE REMAINING QUESTION
+  IS ALARM POLICY AND IS NOT A ONE-LINE CHANGE, which is why task 100 deliberately left it alone: should
+  the watchdog page on a standing population above a threshold as well as on growth, and what is that
+  threshold? A wrong answer here is expensive in both directions, since a low threshold pages nightly
+  about a number nobody is going to drain and a high one restores exactly the silence task 100 was filed
+  against. Decide the policy before writing any code, and settle in the same breath whether the 17
+  currently dead-lettered legs are drained, retried or accepted as a permanent floor, because the
+  threshold means nothing until that is known.
+
+- [ ] 148. Decide whether the Discord platform toolset keeps unprompted shell authority, filed
+  2026-09-17. THIS IS THE BOUNDARY THE RETIRED APPROVAL DESIGN WAS ACTUALLY ABOUT, and it was measured
+  against the installed hermes rather than reasoned about: the live Discord platform toolset carries
+  `terminal` with a local backend, `sudo -n true` exits 0, the managed shell puts the Rust tools' install
+  directory on the PATH a hermes shell sources, and BOTH approval gates allow the posture allowlist
+  writer's add verb, so with no warnings collected the approval path returns approved with no prompt at
+  all. Every Discord hermes agent therefore already holds the authority the proposed `/osquery allow`
+  skill would have named, which is why that skill shrank to its `list` verb: it would have been a label
+  on a door that is already open. The 2026-09-14 design's instinct to gate the recovered security
+  investigator on a pending scope does not close this, because the door is open to every agent on the
+  platform and not only to that one. DONE MEANS a decision, not code: either the toolset is narrowed (and
+  this ledger records what it loses, since narrowing it changes the scope of every hermes slash command,
+  not just this one), or the open authority is ACCEPTED IN WRITING with the reason, so no later task
+  re-derives the same finding and no later design assumes a boundary that is not there. Until it is
+  decided, treat any agent on that platform as able to suppress a security finding. Evidence:
+  `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`.
+
+- [ ] 145. Say in the shared agent rules who the gh-axi preference binds, filed 2026-09-17 because TWO
+  LANES HAVE NOW HAD TO DERIVE IT FROM FIRST PRINCIPLES. `.chezmoitemplates/global-agent-rules.md` says
+  to prefer the `gh-axi` skill over the raw `gh` CLI for every GitHub operation, and never to invoke `gh`
+  directly. Read literally that sentence reaches the Rust products this repository ships, and twice now
+  it has been read that way and sent a lane to move a product's own subprocess onto `npx -y gh-axi`: once
+  inside task 36a's own history, which recorded the disagreement as an open question for the operator,
+  and once in the 2026-09-17 brief that tried to settle it in that direction. Both times the lane worked
+  out on its own that the rule governs what an AGENT invokes and not what a binary other people install
+  with `cargo install` spawns, and the second time it measured that obeying the literal reading would
+  lose capability (`gh-axi pr list` has no `--json` and no window flag, `gh-axi search prs` no
+  output-format flag at all). The fix is one sentence in the partial saying the preference binds agents
+  doing GitHub work, and that a Rust product this repository ships chooses its own subprocess on its own
+  merits, the way it chooses `git`. DONE MEANS: that sentence is in
+  `.chezmoitemplates/global-agent-rules.md`, both rendered copies carry it, and neither
+  `pns/crates/pns-adapters/src/recap/github_cli.rs` nor a future lane needs to re-derive it. THE WORDING
+  IS THE OPERATOR'S CALL, since it is their ruleset and the reading above was inferred rather than
+  stated: if they intend the rule to reach shipped products too, the seam at `github_cli.rs` is the one
+  place that would change, and the capability loss above is the price.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.

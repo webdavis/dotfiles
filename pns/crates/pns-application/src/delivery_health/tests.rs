@@ -104,7 +104,7 @@ fn the_summary_names_the_detail_view_exactly_when_something_is_not_arriving() {
     // rather than as one more finding among the counts above it.
     let pending = delivery_health_lines(Ok(pending));
     assert_eq!(
-        pending.last().map(String::as_str),
+        pending.last().map(|(_, line)| line.as_str()),
         Some("pns doctor: run `pns failures` for what is not arriving"),
         "{pending:?}"
     );
@@ -127,6 +127,65 @@ fn an_unreadable_ledger_names_no_detail_view() {
 
 /// Whether the section pointed the reader at the detail view, wherever in it
 /// the pointer landed.
-fn mentions_failures(lines: &[String]) -> bool {
-    lines.iter().any(|line| line.contains("pns failures"))
+fn mentions_failures(lines: &[(pns_domain::doctor::Mark, String)]) -> bool {
+    lines.iter().any(|(_, line)| line.contains("pns failures"))
+}
+
+/// A count is a finding, not a reading: the doctor's summary withholds its
+/// all-clear on a warning, so a backlog or a dead letter has to arrive marked
+/// as one.
+#[test]
+fn every_count_and_every_fault_is_marked_a_warning_and_the_healthy_sentence_is_not() {
+    use pns_domain::doctor::Mark;
+    let quiet = DeliveryHealth {
+        pending_legs: 0,
+        deadlettered_legs: 0,
+        growth_streak: 0,
+        alarm_generation: None,
+        recording_gap: false,
+    };
+    assert_eq!(
+        delivery_health_lines(Ok(quiet.clone())),
+        vec![(
+            Mark::Good,
+            "pns doctor: nothing is queued and nothing was given up on".to_string()
+        )]
+    );
+
+    for health in [
+        DeliveryHealth {
+            pending_legs: 1,
+            ..quiet.clone()
+        },
+        DeliveryHealth {
+            deadlettered_legs: 17,
+            ..quiet.clone()
+        },
+        DeliveryHealth {
+            growth_streak: 1,
+            ..quiet.clone()
+        },
+        DeliveryHealth {
+            alarm_generation: Some(3),
+            ..quiet.clone()
+        },
+        DeliveryHealth {
+            recording_gap: true,
+            ..quiet.clone()
+        },
+    ] {
+        let lines = delivery_health_lines(Ok(health.clone()));
+        assert_eq!(lines[0].0, Mark::Warn, "{health:?} -> {lines:?}");
+    }
+
+    // The pointer is the section's next step, not a second finding.
+    let pointing = delivery_health_lines(Ok(DeliveryHealth {
+        deadlettered_legs: 2,
+        ..quiet
+    }));
+    assert_eq!(pointing.last().unwrap().0, Mark::Detail, "{pointing:?}");
+
+    // An unreadable record is a warning too: the counts behind it are unknown,
+    // which is not the same as zero.
+    assert_eq!(delivery_health_lines(Err("gone".into()))[0].0, Mark::Warn);
 }
