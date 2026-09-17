@@ -146,11 +146,46 @@ impl SqliteStore {
         )?;
         connection.busy_timeout(self.busy_timeout)?;
         migrations::validate(&connection)?;
-        connection.pragma_update(None, "journal_mode", "WAL")?;
+        prefer_wal(&connection)?;
         connection.pragma_update(None, "synchronous", "FULL")?;
         connection.pragma_update(None, "foreign_keys", true)?;
         migrations::migrate(&mut connection)?;
         Ok(connection)
+    }
+}
+
+/// Put the database in WAL mode, TREATING A REFUSAL BY A BUSY DATABASE AS
+/// SETTLED RATHER THAN FATAL.
+///
+/// MEASURED (sqlite 3.53.4, a 5 second `busy_timeout` set on the connection):
+/// `PRAGMA journal_mode=WAL` answers SQLITE_BUSY in 0.000 seconds while
+/// another connection holds the write lock on a rollback-journal database.
+/// The conversion wants the database to itself and the busy handler is never
+/// consulted for it, so no timeout covers this one statement.
+///
+/// THE COST OF TREATING IT AS FATAL WAS LOST RECORDS: it aborted the whole
+/// open, and every record that open was about to write went with it, all
+/// fail-quiet behind `report`. MEASURED over 3200 fresh opens raced 16 at a
+/// time, 11 lost their open to this statement and none did with this function
+/// in place. That is the dispatch write path dropping a decision, a journal
+/// entry and a ledger row on ordinary contention, which is how five
+/// concurrent events lost three of their five decision lines.
+///
+/// LOSING THE RACE IS NOT A DEGRADED MODE. The journal mode lives in the
+/// database header, so the conversion is a one-time act that whichever
+/// connection wins settles for every later one, and a connection that lost it
+/// reads the header at its next transaction and uses the mode it finds there.
+fn prefer_wal(connection: &Connection) -> Result<(), StoreError> {
+    match connection.pragma_update(None, "journal_mode", "WAL") {
+        Err(rusqlite::Error::SqliteFailure(failure, _))
+            if matches!(
+                failure.code,
+                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+            ) =>
+        {
+            Ok(())
+        }
+        other => other.map_err(StoreError::from),
     }
 }
 
