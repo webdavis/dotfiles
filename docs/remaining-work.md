@@ -2925,17 +2925,21 @@ complete Swift/custom-plugin interaction and fresh-home/repeat applies remain op
 deployed Overseer template has a different filename with identical contents; reconcile that during
 operator deployment. No source correction was warranted by this audit.
 
-- [ ] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
+- [x] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
   nvim-mcp review. `pane_socket.lua` and `executable_nvim-mcp-connect.sh` validate the final runtime
   directory but leave replaceable ancestors unchecked. The resolver's `answers()` follows socket
   symlinks, and newline-containing runtime paths are accepted by the listener but split inconsistently
   during discovery. Source `bffa979a` and `e8bd14ac` fix replaceable ancestors, shared listener/resolver
   path validation, socket symlinks and newline pins. Independent review approved 23 listener cases, 51
   resolver cases, eight private socket drills and eight additional native path checks. Full `just ship`
-  passed after integrating current main, and [PR #546](https://github.com/webdavis/dotfiles/pull/546) is
-  open with its lint check passed. Deploy both files together, verify a fresh harness connection, and
-  recheck the outstanding quiescent timing claim. Private checks do not establish live editor,
-  second-account or access-control-list acceptance.
+  passed after integrating current main, and [PR #546](https://github.com/webdavis/dotfiles/pull/546)
+  MERGED as `2fdf6e61`. CLOSED 2026-09-17. Both files (`dot_config/nvim/lua/custom_api/pane_socket.lua`,
+  `dot_local/libexec/nvim-mcp/executable_nvim-mcp-connect.sh`) are chezmoi-managed and deployed with no
+  drift. Live acceptance: with no Neovim in the pane, `nvim-mcp-connect.sh --diagnose` refused and named
+  the socket it looked for; with the operator's Neovim open in the same herdr tab it resolved exactly one
+  socket and exited 0 without delay, which is the fresh-connection check and the quiescent timing recheck
+  together. Second-account and access-control-list behaviour was NOT tested and is recorded as not
+  claimed, by decision rather than omission.
 - [x] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
