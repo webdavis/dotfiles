@@ -197,3 +197,38 @@ fn an_event_with_no_session_posts_to_the_channel() {
     assert_eq!(channel.post.seen.lock().unwrap().len(), 1, "no thread call");
     assert!(threads.rows().is_empty());
 }
+
+#[test]
+fn a_header_past_the_discord_channel_name_ceiling_is_clipped_to_it() {
+    // THE MUTANT THIS PINS: the cap dropped from `thread_name`, so the one
+    // branch long enough to push the header past 100 characters earns a 400
+    // on the thread creation and that session never gets a thread at all.
+    // The header IS the name, so the cap can only be proven with a branch
+    // long enough to need it. THE CEILING IS WRITTEN OUT rather than read off
+    // `MAX_THREAD_NAME_CHARS`, because a test that reads the constant cannot
+    // catch the constant being raised past what Discord accepts.
+    let threads = Remembered::default();
+    let mut past_the_ceiling = session_event();
+    past_the_ceiling.branch = "feat/".to_string() + &"a-very-long-branch-name-".repeat(6);
+    let channel = armed_with(opens_a_thread("m-6", "t-6"), &threads);
+    assert!(matches!(
+        delivered_about(&channel, &past_the_ceiling),
+        Delivery::Delivered(_)
+    ));
+    let seen = channel.post.seen.lock().unwrap();
+    let opened: serde_json::Value = serde_json::from_str(&seen[1].body).expect("JSON");
+    let name = opened["name"].as_str().expect("a name");
+    assert_eq!(
+        name.chars().count(),
+        100,
+        "clipped to Discord's own ceiling, not past it: {name:?}"
+    );
+    let start = format!(
+        "{} · feat/a-very-long-branch-name-",
+        past_the_ceiling.project
+    );
+    assert!(
+        name.starts_with(&start),
+        "the header's own start survives the cut: {name:?}"
+    );
+}
