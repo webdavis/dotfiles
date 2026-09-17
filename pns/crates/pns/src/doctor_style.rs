@@ -42,6 +42,7 @@ fn unattributed(text: &str) -> &str {
 pub(crate) struct Report {
     paint: Paint,
     issues: Vec<String>,
+    warnings: Vec<String>,
     opened: bool,
 }
 
@@ -50,6 +51,7 @@ impl Report {
         Self {
             paint,
             issues: Vec::new(),
+            warnings: Vec::new(),
             opened: false,
         }
     }
@@ -86,8 +88,10 @@ impl Report {
             }
             Item::Row { mark, text } => {
                 let text = unattributed(text);
-                if *mark == Mark::Bad {
-                    self.issues.push(text.to_string());
+                match mark {
+                    Mark::Bad => self.issues.push(text.to_string()),
+                    Mark::Warn => self.warnings.push(text.to_string()),
+                    _ => {}
                 }
                 let (tone, glyph) = appearance(*mark);
                 let indent = match mark {
@@ -105,22 +109,50 @@ impl Report {
     /// IT REPEATS ROWS ALREADY PRINTED, on purpose. The report is long enough
     /// that the one failing row scrolls off, and an operator who reads only the
     /// last few lines still learns what is broken.
+    ///
+    /// A WARNING WITHHOLDS THE ALL-CLEAR and is listed by its own row, so the
+    /// closing line never says `nothing to act on` over a missing route, a
+    /// dead letter or a notification still queued. The two kinds are counted
+    /// apart because the operator can fix an issue and may only be able to
+    /// read a warning.
+    ///
+    /// THE LIST IS GROUPED BY KIND, issues before warnings, not ordered by
+    /// where each row appeared in the report above.
     pub(crate) fn close(&self) -> Vec<String> {
         let mut lines = vec![String::new(), style::rule(self.paint)];
-        if self.issues.is_empty() {
+        if self.issues.is_empty() && self.warnings.is_empty() {
             lines.push(format!("  {} nothing to act on", self.paint.good("✓")));
             return lines;
         }
-        let count = self.issues.len();
-        let plural = if count == 1 { "" } else { "s" };
+        let headline = counted(&self.issues, "issue to fix")
+            .into_iter()
+            .chain(counted(&self.warnings, "warning to look at"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let headline = format!("{headline}:");
         lines.push(format!(
             "  {}",
-            self.paint.bad(&format!("{count} issue{plural} to fix:"))
+            if self.issues.is_empty() {
+                self.paint.warn(&headline)
+            } else {
+                self.paint.bad(&headline)
+            }
         ));
-        for (index, issue) in self.issues.iter().enumerate() {
-            lines.push(format!("  {}. {issue}", index + 1));
+        for (index, entry) in self.issues.iter().chain(&self.warnings).enumerate() {
+            lines.push(format!("  {}. {entry}", index + 1));
         }
         lines
+    }
+}
+
+/// `1 issue to fix` and `2 issues to fix`, and nothing at all when there are
+/// none, so the headline names only the kinds the report actually found.
+fn counted(entries: &[String], noun: &str) -> Option<String> {
+    let count = entries.len();
+    match count {
+        0 => None,
+        1 => Some(format!("{count} {noun}")),
+        _ => Some(format!("{count} {}", noun.replacen(' ', "s ", 1))),
     }
 }
 
