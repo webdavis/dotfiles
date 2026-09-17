@@ -47,12 +47,14 @@ fn the_channel_flag_names_a_route_and_is_protected_like_every_value_flag() {
 }
 
 #[test]
-fn a_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
+fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
     // A PRODUCER NAMES WHAT ITS EVENT IS; the route it lands on is pns's to
     // decide, and the route's NAME is the operator's, so the parse carries
     // the kind and nothing resolves a route here.
     let routes = pns_domain::routes::Routes::named("logbook", "sirens");
-    let (parsed, warnings) = args(&["--kind", "health", "--agent", "upgrades"]);
+    let (parsed, warnings) = args(&[
+        "--kind", "health", "--state", "failed", "--agent", "upgrades",
+    ]);
     assert_eq!(parsed.kind, pns_domain::routes::Kind::Health);
     assert_eq!(parsed.channel, "", "the parse pinned a route name");
     assert_eq!(parsed.routed(&routes).channel, "sirens");

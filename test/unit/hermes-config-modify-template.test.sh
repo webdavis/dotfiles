@@ -23,7 +23,7 @@ function hermes_config_render() {
   # shellcheck disable=SC2016
   sed \
     -e 's|(keepassxc (printf "Hermes :: Webhook Secret (#%s)" $name)).Password|(printf "stub-secret-%s" $name)|' \
-    -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $name)).Password|"12345678901234567"|' \
+    -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $channel)).Password|"12345678901234567"|' \
     -e 's|(keepassxc "ElevenLabs :: Voice ID").Password|"stub-voice-id"|' \
     "$repo/private_dot_hermes/modify_private_config.yaml" >"$stub"
   HOME="$fixture" CI=1 chezmoi --config /dev/null --config-format toml --source "$fixture/source" \
@@ -44,7 +44,7 @@ function hermes_config_diff_through_chezmoi() {
   # shellcheck disable=SC2016
   sed \
     -e 's|(keepassxc (printf "Hermes :: Webhook Secret (#%s)" $name)).Password|(printf "stub-secret-%s" $name)|' \
-    -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $name)).Password|"12345678901234567"|' \
+    -e 's|(keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $channel)).Password|"12345678901234567"|' \
     -e 's|(keepassxc "ElevenLabs :: Voice ID").Password|"stub-voice-id"|' \
     "$repo"/private_dot_hermes/modify_private_config.yaml* >"$fixture/source/private_dot_hermes/$name"
   cat >"$fixture/home/.hermes/config.yaml"
@@ -105,7 +105,7 @@ LIVE
   # carrying it loses it on the next apply exactly as `osquery` did.
   assert_not_contains 'pns-recap' "$rendered"
   assert_contains 'model_id: keep-me' "$rendered"
-  for route in general pns-events posture-pages priority uu-runs; do
+  for route in explain general pns-events posture-pages priority uu-runs; do
     assert_contains "        ${route}:" "$rendered"
   done
 }
