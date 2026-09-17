@@ -6,7 +6,15 @@ use posture_domain::Agent;
 const HOME: &str = "/private/fixture/home";
 
 fn parsed(text: &str) -> NotifyMode {
-    Notify::parse(text, Path::new(HOME)).expect("a usable notify choice")
+    Notify::parse(text, Path::new(HOME))
+        .expect("a usable notify choice")
+        .0
+}
+
+fn warnings_of(text: &str) -> Vec<String> {
+    Notify::parse(text, Path::new(HOME))
+        .expect("a usable notify choice")
+        .1
 }
 
 /// Records what reached the local banner, so a refusal can be asserted to have
@@ -88,15 +96,51 @@ fn a_mode_this_build_does_not_serve_is_refused_by_name() {
 }
 
 #[test]
-fn a_misspelled_key_or_table_blocks_the_file_rather_than_switching_notification_off() {
-    for text in [
-        "[notify]\nmode = \"hermes\"\nurl = \"http://x\"\n",
-        "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\narguents = []\n",
-        "[notify]\nmode = \"off\"\n[notify.of]\n",
-        "[delivery]\nmode = \"hermes\"\n",
+fn a_key_this_build_does_not_read_is_named_and_never_disables_delivery() {
+    // Each row is a usable file, one key it does not read, and the name that
+    // key must be reported under. The delivery the file configures has to come
+    // out the same either way: an unread key costs a line of warning, never a
+    // destination.
+    for (base, unread, named) in [
+        (
+            "[notify]\nmode = \"hermes\"\n[notify.hermes]\nurl = \"http://127.0.0.1:8/w\"\n",
+            "gateway = \"http://127.0.0.1:9/w\"\n",
+            "notify.hermes.gateway",
+        ),
+        (
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\n",
+            "arguents = []\n",
+            "notify.command.arguents",
+        ),
+        // THE LIVE INSTANCE: a table a newer build of this tool writes, read
+        // by an older one that has no field for it, which used to void the
+        // whole file and deliver nothing at all.
+        (
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\n",
+            "[jobs]\nuptime = \"com.example.x\"\n",
+            "jobs.uptime",
+        ),
     ] {
-        assert!(Notify::parse(text, Path::new(HOME)).is_err(), "{text}");
+        let text = format!("{base}{unread}");
+        let warnings = warnings_of(&text);
+        assert!(
+            warnings.iter().any(|warning| warning.contains(named)),
+            "{named}: {warnings:?}"
+        );
+        assert_eq!(parsed(&text), parsed(base), "{text}");
+        assert!(warnings_of(base).is_empty(), "{base}");
     }
+}
+
+#[test]
+fn a_table_this_build_does_not_read_leaves_the_notify_table_beside_it_alone() {
+    let mode = parsed("[delivery]\nmode = \"off\"\n[notify]\nmode = \"hermes\"\n");
+    assert_eq!(mode, Notify::default().mode);
+    assert!(
+        warnings_of("[delivery]\nx = 1\n[notify]\nmode = \"hermes\"\n")
+            .iter()
+            .any(|warning| warning.contains("`delivery`")),
+    );
 }
 
 #[test]
@@ -196,6 +240,7 @@ fn formatting_a_choice_names_the_routes_and_never_prints_a_signing_key() {
             "#,
         ),
         refusal: None,
+        warnings: Vec::new(),
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -269,6 +314,7 @@ fn formatting_a_choice_names_the_copy_route_too() {
             "#,
         ),
         refusal: None,
+        warnings: Vec::new(),
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -317,13 +363,16 @@ fn a_file_naming_no_job_leaves_every_label_at_its_shipped_default() {
 }
 
 #[test]
-fn a_job_this_build_does_not_run_is_refused_by_name() {
-    let refusal = toml::from_str::<schema::File>(
-        "[notify]\nmode = \"off\"\n[jobs]\nuptime_watchdog = \"com.example.x\"\n",
-    )
-    .err()
-    .expect("an unknown job is refused");
-    assert!(refusal.message().contains("uptime_watchdog"), "{refusal:?}");
+fn a_job_this_build_does_not_run_leaves_every_label_it_does_run_alone() {
+    let text = "[notify]\nmode = \"off\"\n[jobs]\nuptime_watchdog = \"com.example.x\"\n";
+    assert_eq!(labels(text), AgentLabels::default());
+    assert!(
+        warnings_of(text)
+            .iter()
+            .any(|warning| warning.contains("jobs.uptime_watchdog")),
+        "{:?}",
+        warnings_of(text)
+    );
 }
 
 #[test]

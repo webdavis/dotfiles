@@ -11,7 +11,7 @@
 //!
 //! IT ALSO OWNS THE `[jobs]` TABLE of that same file, which names the launchd
 //! label of each job posture installs. The two are read through one schema
-//! because one file declares both, and serde refuses an unknown table by name.
+//! because one file declares both.
 //!
 //! FAIL CLOSED, NEVER SILENT. With no config file, and with one this build
 //! cannot use, the choice is a hermes path holding no key at all, and a keyless
@@ -135,6 +135,9 @@ pub struct Notify {
     /// is what the operator is told rather than a second outcome to branch on:
     /// the job's log, the local banner and `posture doctor` all report it.
     pub refusal: Option<String>,
+    /// Every key the file states that this build does not read, one line each.
+    /// Delivery is configured and runs; these say what was ignored.
+    pub warnings: Vec<String>,
 }
 
 impl Default for Notify {
@@ -148,6 +151,7 @@ impl Default for Notify {
                 critical_copy: None,
             },
             refusal: None,
+            warnings: Vec::new(),
         }
     }
 }
@@ -177,9 +181,10 @@ impl Notify {
             Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
         match Self::parse(&text, home) {
-            Ok(mode) => Notify {
+            Ok((mode, warnings)) => Notify {
                 mode,
                 refusal: None,
+                warnings,
             },
             Err(refusal) => Notify::refused(refusal),
         }
@@ -195,16 +200,20 @@ impl Notify {
     /// The pure half: text and the home directory its relative state paths
     /// hang off in, one notify mode or a named refusal out. Pure in both
     /// arguments, so the path rule is testable without an environment.
-    fn parse(text: &str, home: &Path) -> Result<NotifyMode, String> {
+    fn parse(text: &str, home: &Path) -> Result<(NotifyMode, Vec<String>), String> {
         let file: schema::File =
             toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
-        file.notify.into_mode(home)
+        let warnings = file.unread_keys();
+        Ok((file.notify.into_mode(home)?, warnings))
     }
 
     /// Say what this config cost, wherever the operator will see it. The
     /// banner carries the refusal because a config that will not parse has
     /// already taken every other destination away.
     fn report(&self, alarm: &mut impl IndependentAlarm, diagnostics: &mut impl Write) {
+        for warning in &self.warnings {
+            let _ = writeln!(diagnostics, "posture: {warning}");
+        }
         if let Some(refusal) = &self.refusal {
             let _ = writeln!(
                 diagnostics,

@@ -34,6 +34,9 @@ fn report(notify: &Notify, path: &Path, stdout: &mut impl Write) -> u8 {
         "posture doctor: delivery config: {}",
         path.display()
     );
+    for warning in &notify.warnings {
+        let _ = writeln!(stdout, "posture doctor: warning: {warning}");
+    }
     match &notify.refusal {
         Some(refusal) => {
             let _ = writeln!(

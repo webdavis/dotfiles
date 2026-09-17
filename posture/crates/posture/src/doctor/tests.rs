@@ -23,11 +23,14 @@ fn a_delivery_config_this_build_cannot_use_is_named_and_fails_the_doctor() {
 }
 
 #[test]
-fn a_usable_config_passes() {
-    let (status, output) = reported(&Notify {
+fn a_usable_config_reports_the_ignored_keys_and_still_passes() {
+    let notify = Notify {
         mode: NotifyMode::Off,
         refusal: None,
-    });
+        warnings: vec!["`jobs.uptime` is not a key this build reads".to_string()],
+    };
+    let (status, output) = reported(&notify);
     assert_eq!(status, 0, "{output}");
+    assert!(output.contains("warning: `jobs.uptime`"), "{output}");
     assert!(output.contains("the delivery config is usable"), "{output}");
 }
