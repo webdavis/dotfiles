@@ -9,6 +9,7 @@ fn the_doctor_prints_the_decision_section_after_its_summary_newest_first() {
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
     for turn in 1..=2 {
         run(logged_event(&sandbox).env("PNS_SKIP_PHONE", "1").args([
+            "send",
             "--agent",
             &format!("c{turn}"),
             "--state",
@@ -189,7 +190,7 @@ fn the_doctor_records_no_decision_of_its_own() {
     // out of the ring by the act of going to look at it.
     let sandbox = Sandbox::new("doctor-decision-readonly");
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
-    run(logged_event(&sandbox).args(["--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
     let before = stored_records::text(&sandbox, "decisions");
     doctor_command(&sandbox).output().expect("the engine runs");
     assert_eq!(

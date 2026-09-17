@@ -49,7 +49,7 @@ fn invoke_command(sandbox: &Sandbox, mut command: std::process::Command, input: 
         command.env(key, sandbox.path(leaf));
     }
     let mut child = command
-        .args(["submit", "--json"])
+        .args(["send", "--json"])
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_SYSTEM", "/dev/null")
         .stdin(Stdio::piped())

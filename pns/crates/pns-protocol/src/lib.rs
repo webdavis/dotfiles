@@ -1,6 +1,6 @@
 //! The versioned, source-neutral wire contracts PNS speaks at its edges.
 //!
-//! The request and result envelopes define the planned `pns submit --json`
+//! The request and result envelopes define the `pns send --json`
 //! boundary. Each carries a schema identifier with a major version, a request
 //! identifier and typed outcomes or signals. Requests retain producer-specific
 //! data under `extensions`. The egress envelope carries that request's id

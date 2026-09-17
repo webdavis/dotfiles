@@ -10,6 +10,7 @@ pub fn spawn_shell_event(event: &EventArgs) -> io::Result<()> {
 fn spawn(binary: std::path::PathBuf, event: &EventArgs) -> io::Result<()> {
     let mut command = Command::new(binary);
     command.args([
+        "send",
         "--agent",
         &event.agent,
         "--state",

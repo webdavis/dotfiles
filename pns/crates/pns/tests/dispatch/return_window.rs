@@ -7,7 +7,9 @@ fn a_present_event_moves_the_last_present_marker_and_an_away_event_does_not() {
     // an away operator leaves it where it was, which is what makes the window
     // grow across an absence.
     let away = Sandbox::new("marker-away");
-    run(logged_event(&away).args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(logged_event(&away).args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(away.fired("mobile"), "the away row really was taken");
     assert_eq!(
         last_present(&away),
