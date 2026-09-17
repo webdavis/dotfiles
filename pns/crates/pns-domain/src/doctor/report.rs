@@ -20,10 +20,13 @@
 pub enum Mark {
     /// It works.
     Good,
-    /// It does not work, and the operator has to do something. ONLY THIS MARK
-    /// reaches the closing list of issues, so it is the one to be careful with.
+    /// It does not work, and the operator has to do something. It is counted as
+    /// an issue in the closing list, so it is the one to be careful with.
     Bad,
-    /// It works less than fully, or it is off, and that may be deliberate.
+    /// It works less than fully, or it is off, and that may be deliberate. IT
+    /// STILL WITHHOLDS THE ALL-CLEAR: the closing list names it as something to
+    /// look at, because a report that ends in `nothing to act on` over the top
+    /// of a warning is worse than one that prints no warning at all.
     Warn,
     /// A reading, graded neither way. Most of the report is this: what a
     /// setting is, what the log last recorded, what the lamps last did.

@@ -55,12 +55,52 @@ fn a_report_with_nothing_wrong_closes_by_saying_so() {
 }
 
 #[test]
-fn only_a_bad_row_reaches_the_closing_list() {
+fn a_good_note_or_detail_row_leaves_the_all_clear_standing() {
     let mut report = plain();
-    for mark in [Mark::Good, Mark::Warn, Mark::Note, Mark::Detail] {
+    for mark in [Mark::Good, Mark::Note, Mark::Detail, Mark::Aside] {
         report.item(&Item::row(mark, format!("{mark:?} row")));
     }
     assert_eq!(report.close()[2], "  ✓ nothing to act on");
+}
+
+#[test]
+fn one_warning_withholds_the_all_clear_and_names_what_to_look_at() {
+    let mut report = plain();
+    report.item(&Item::row(
+        Mark::Warn,
+        "route pns-events: THE GATEWAY HAS NO SUCH ROUTE",
+    ));
+    let closing = report.close();
+    assert_eq!(closing[2], "  1 warning to look at:");
+    assert_eq!(
+        closing[3],
+        "  1. route pns-events: THE GATEWAY HAS NO SUCH ROUTE"
+    );
+}
+
+#[test]
+fn issues_and_warnings_are_counted_apart_and_listed_together() {
+    let mut report = plain();
+    report.item(&Item::row(Mark::Bad, "mobile: FAILED, push refused"));
+    report.item(&Item::row(
+        Mark::Warn,
+        "2 notifications given up on after retrying",
+    ));
+    report.item(&Item::row(
+        Mark::Warn,
+        "1 notification still waiting to reach a channel",
+    ));
+    let closing = report.close();
+    assert_eq!(closing[2], "  1 issue to fix, 2 warnings to look at:");
+    assert_eq!(closing[3], "  1. mobile: FAILED, push refused");
+    assert_eq!(
+        closing[4],
+        "  2. 2 notifications given up on after retrying"
+    );
+    assert_eq!(
+        closing[5],
+        "  3. 1 notification still waiting to reach a channel"
+    );
 }
 
 #[test]
