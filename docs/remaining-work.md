@@ -4270,7 +4270,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
 
-- [ ] 101. Make the Rust suites deterministic around real process spawns, filed 2026-09-17 on the
+- [x] 101. Make the Rust suites deterministic around real process spawns. DONE 2026-09-17. Filed on the
   operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
   exposed two more of the same shape on the same day, so the defect is the pattern and not the three
   tests. The pattern: a test spawns a real process, waits on a wall-clock budget, and asserts success, so
@@ -4298,7 +4298,40 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   under load before changing it, or state plainly that it could not be reproduced and that the fix is
   reasoned from the code, and prove each fix with at least fifty loops under comparable load plus a
   mutation check. Expect to find candidates beyond the two named; report the full audit even for tests
-  left alone, with the reason each was judged safe.
+  left alone, with the reason each was judged safe. SHIPPED 2026-09-17 as
+  [PR #731](https://github.com/webdavis/dotfiles/pull/731), merged `7a82c906`. All four workspaces were
+  audited and twelve tests that spawn a process and assert success inside a wall-clock bound were fixed
+  in three commits. BOTH NAMED SURVIVORS WERE REPRODUCED UNDER 48 SYNTHETIC SPINNERS FIRST, and neither
+  root cause was a slow spawn. uu's
+  `sigterm_cleans_owned_children_before_unlocking_and_records_interruption` failed 1 in 40 because its
+  wait gated on `grandchild-group` existing and then read `child-group`, which the child writes later,
+  and `fs::write` publishes a path before its bytes; it reproduces only with its sibling case running
+  concurrently, which is how `just test-rust` runs it. pns's
+  `a_new_registered_destination_dispatches_without_editing_a_name_switch` failed 2 in 60 because its
+  fixture directory is named after `std::process::id()` and never removed, so a run under a recycled id
+  met its predecessor's and raised `AlreadyExists`. The fixes: wait on the event the assertion actually
+  needs (and replace a 500 ms poll of `/usr/bin/true` with a blocking wait); clear a pid-named fixture
+  path before reuse, in three fixtures; and turn the remaining seven sub-second fixture budgets into
+  documented fifteen-second LIVENESS bounds, the treatment posture's `usage.rs`, `heartbeat.rs` and
+  `funnel_fixture` already carried. No deadline any assertion reads was raised. Proof: 550 runs (55 each
+  of ten targets) plus 120 runs of the named pns test at load average 170 to 255 on eight cores, zero
+  failures, and eleven mutation checks, every one red. A mutation run showed the liveness bound is paid
+  only by a regression: the gutted `recap_with_deadline` took 15.01 s where the passing test takes
+  milliseconds.
+
+- [ ] 140. One wall-clock budget assertion outside task 101's spawn scope, filed 2026-09-17 from a lane
+  failure the same night.
+  `busy_ledger_writes_refuse_within_the_budget_without_recording_sensitive_content`
+  (`pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests/failures.rs:16`) asserts
+  `started.elapsed() < Duration::from_millis(100)` and failed a `just ship` run on a branch that never
+  touched that file, while six lanes were compiling at once. Task 101 audited tests that SPAWN a process;
+  this one spawns nothing, so it was out of that audit's scope and is the same family by a different
+  route: a wall-clock number an assertion reads, under load it cannot control. The behaviour worth
+  pinning is that a busy ledger write REFUSES rather than blocking, and that it records no sensitive
+  content; the 100 ms is a proxy for refusing promptly. Replace the proxy with the refusal itself (assert
+  the error the busy path returns, and that no sensitive content reached the store), or bound it the way
+  101 bounded a liveness case, and sweep for any sibling that asserts a duration without a spawn. Do not
+  simply raise the number.
 
 - [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
   2026-09-17 from the firewall drill's incidental finding.
