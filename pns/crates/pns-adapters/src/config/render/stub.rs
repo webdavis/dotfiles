@@ -11,8 +11,9 @@
 /// for chezmoi before it hands the text to `parse_config`, and one stub is
 /// what keeps that standing-in from drifting between the two callers.
 ///
-/// ONLY THAT ONE ACTION IS STOOD IN FOR. An action in value position must
-/// read exactly `{{ (keepassxc "<entry>").<field> | toToml }}`, the text
+/// ONLY THE TWO SECRET ACTIONS ARE STOOD IN FOR. An action in value position
+/// must read exactly `{{ (keepassxc "<entry>").<field> | toToml }}` or
+/// `{{ keepassxcAttribute "<entry>" "<attribute>" | toToml }}`, the two texts
 /// `config_text::secret_action` writes; anything else is refused. Swapping a
 /// quoted placeholder in for ANY action would let a template line that
 /// dropped `| toToml` keep every template test green while chezmoi splices
@@ -30,6 +31,17 @@
 /// traded places). A caller that genuinely wants one fixed value back for
 /// every action (the round-trip tests below, each with exactly one secret)
 /// just ignores the two arguments.
+/// The entry and attribute a `keepassxcAttribute` action names, with the
+/// attribute marked so no attribute can stub to the same text as a field of the
+/// same name on the same entry.
+fn attribute_identity(action: &str) -> Option<(&str, String)> {
+    let rest = action.strip_prefix("{{ keepassxcAttribute \"")?;
+    let (entry, rest) = rest.split_once("\" \"")?;
+    let attribute = rest.strip_suffix("\" | toToml }}")?;
+    (!entry.contains('"') && !attribute.contains('"'))
+        .then(|| (entry, format!("attribute:{attribute}")))
+}
+
 pub fn strip_chezmoi_actions(
     text: &str,
     placeholder: impl Fn(&str, &str) -> String,
@@ -58,11 +70,13 @@ pub fn strip_chezmoi_actions(
                     super::SECRET_FIELDS
                         .iter()
                         .find(|field| rest == format!("{field} | toToml }}}}"))
-                        .map(|field| (entry, *field))
-                });
+                        .map(|field| (entry, (*field).to_string()))
+                })
+                .or_else(|| attribute_identity(action));
             let Some((entry, field)) = secret_identity else {
                 return Err(format!("not a `| toToml` secret action: {action}"));
             };
+            let field = field.as_str();
             rendered.replace_range(start..end, &placeholder(entry, field));
         }
         lines.push(rendered);
