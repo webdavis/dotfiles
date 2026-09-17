@@ -251,6 +251,22 @@ packages:
           id: "899_247_664"
         - name: Xcode
           id: "497_799_835"
+    # Third-party crates installed with `cargo install`, for tools that ship
+    # on crates.io with no Homebrew formula. The four Rust tools THIS
+    # repository builds are not here: their source lives in this checkout and
+    # each has its own apply-time builder, with the install destination
+    # declared in .chezmoidata/rust_tools.yaml.
+    #
+    # `version` is required rather than optional, because an unpinned
+    # `cargo install` resolves to whatever crates.io calls latest on the day a
+    # fresh machine is built, which is not a decision anyone made.
+    cargo:
+      # A launcher and account manager for Claude Code. Its herdr plugin
+      # (declared under packages.herdr_plugins) reads this binary's output and
+      # is pinned to the matching tag, so the two versions move TOGETHER or the
+      # sidebar renders a format the installed binary no longer prints.
+      - name: clauth
+        version: "0.15.2"
     uv:
       - graphifyy
       - nano-pdf
@@ -315,3 +331,9 @@ packages:
       repo: plannotator/herdr-annotate
     - id: furkankly.zoetrope
       repo: furkankly/zoetrope/herdr-plugin
+    # Pinned to the tag the `clauth` binary itself is pinned to in the cargo
+    # lane: the plugin reads the binary's output, so the two move together or
+    # the sidebar reads a format the installed binary no longer prints.
+    - id: clauth
+      repo: uwuclxdy/clauth/herdr-plugin
+      ref: v0.15.2

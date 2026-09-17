@@ -1,0 +1,82 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{ if .packages.macos.cargo -}}
+#!/bin/bash
+
+# run_onchange_before_21-cargo-tools.sh.tmpl
+#
+# Installs the third-party crates declared in
+# .chezmoidata/system_packages_autoinstall.yaml under packages.macos.cargo, each
+# pinned to an exact version. These are tools that ship on crates.io with no
+# Homebrew formula, so the brew bundle cannot carry them.
+#
+# WHY THIS IS NOT PART OF run_onchange_before_10-system-packages.sh.tmpl, which
+# owns every other package lane: that script runs at 10 and rustup is installed
+# at 20, so on a FRESH machine cargo is not on PATH yet when 10 runs. A guard
+# there would skip silently and run_onchange would not retry until the data file
+# changed, which is the same trap script 10 documents for its own brew guard.
+# Numbering this 21 puts it immediately after the rustup install instead.
+#
+# The four Rust tools this repository BUILDS (pns, uu, posture, lights) are not
+# here. Their source is in this checkout, each has its own run_onchange_after_5*
+# builder, and their install destination is declared once in
+# .chezmoidata/rust_tools.yaml.
+
+set -euo pipefail
+
+# G2 section headers for the loud stage below (operator ruling 2026-08-05); the
+# library is inlined at render time, so no runtime sourcing.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+# rustup installs into ~/.cargo/bin, which a non-interactive apply does not
+# necessarily have on PATH: launchd inherits almost nothing and the apply may
+# run before the managed shell's profile has ever been read.
+export PATH="$HOME/.cargo/bin:$PATH"
+
+if ! command -v cargo >/dev/null 2>&1; then
+  printf 'cargo tools: cargo is not on PATH (rustup install at 20 did not complete); skipped, the next apply retries.\n' >&2
+  exit 0
+fi
+
+# `cargo install --version <exact>` is self-guarding: it reports an
+# already-installed package at that version and exits 0 without building, so no
+# separate "is it present" probe is needed and none can disagree with cargo's
+# own record. `--locked` builds against the crate's shipped Cargo.lock rather
+# than resolving fresh dependency versions, so two machines building the same
+# pin get the same tree.
+#
+# A build is slow and NETWORK-BOUND, so each one is bounded and a failure is
+# reported rather than fatal: a crate that cannot be fetched must not abort an
+# apply whose remaining scripts have nothing to do with it. The next apply
+# retries, because run_onchange re-runs whenever this script's rendered body
+# changes and the operator sees the warning meanwhile.
+timeout_bin=""
+for candidate in timeout gtimeout; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    timeout_bin=$candidate
+    break
+  fi
+done
+
+cargo_install() {
+  local crate=$1 version=$2
+  local -a install=(cargo install --locked "$crate" --version "$version")
+  if [[ -n $timeout_bin ]]; then
+    install=("$timeout_bin" 900 "${install[@]}")
+  fi
+  if ! "${install[@]}"; then
+    printf 'cargo tools: %s %s failed to install or timed out; the next apply retries.\n' "$crate" "$version" >&2
+    return 1
+  fi
+}
+
+report_section "cargo" "crate installs" >&2
+
+failed=()
+{{ range .packages.macos.cargo }}
+cargo_install {{ .name | quote }} {{ .version | quote }} || failed+=({{ .name | quote }})
+{{- end }}
+
+if ((${#failed[@]} > 0)); then
+  report_line "WARNING: these crates did not install: ${failed[*]}. Every other lane completed; re-apply to retry." >&2
+fi
+{{ end -}}
+{{ end -}}
