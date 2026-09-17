@@ -5,12 +5,6 @@
 //! so "which GitHub CLI does pns depend on" is a single answer rather than a
 //! constant in each adapter that a later edit could move on one side only.
 //!
-//! `gh` RATHER THAN A WRAPPER ON A PACKAGE REGISTRY. pns is installed with
-//! `cargo install` by people who do not have this machine's npm cache, so
-//! fetching a package at recap time is not something it may do, and the reads
-//! below want a JSON document with a stability contract rather than a listing
-//! meant for a person.
-//!
 //! `gh` CARRIES ITS OWN AUTH AND THIS NEVER TOUCHES IT. No token is read, no
 //! credential is passed, and every spawn below is a LIST, which is what bounds
 //! a remote answer becoming this machine's problem.
