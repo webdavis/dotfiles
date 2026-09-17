@@ -70,10 +70,10 @@ fn subject() {
 
 const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
-fn wait_for(mut condition: impl FnMut() -> bool, limit: Duration) -> bool {
+fn wait_for(mut condition: impl FnMut() -> bool) -> bool {
     let start = Instant::now();
     while !condition() {
-        if start.elapsed() >= limit {
+        if start.elapsed() >= LIVENESS_BOUND {
             return false;
         }
         std::thread::sleep(Duration::from_millis(5));
@@ -107,7 +107,7 @@ fn cancelled(mode: &str) {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    assert!(wait_for(|| home.join("ready").exists(), LIVENESS_BOUND));
+    assert!(wait_for(|| home.join("ready").exists()));
     // SAFETY: child is the unreaped fixture subprocess owned by this test.
     assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGTERM) }, 0);
     // A LIVENESS BOUND, NOT A MEASUREMENT: a runner that ignored the signal
@@ -115,7 +115,7 @@ fn cancelled(mode: &str) {
     // waits this long. The 400ms it carried was a wall-clock budget for a
     // handler, a kill and a reap while the operator's other agent lanes
     // compile.
-    let stopped = wait_for(|| child.try_wait().unwrap().is_some(), LIVENESS_BOUND);
+    let stopped = wait_for(|| child.try_wait().unwrap().is_some());
     fs::write(home.join("release"), "yes").unwrap();
     let status = child.wait().unwrap();
     let result = fs::read_to_string(home.join("result")).unwrap();
