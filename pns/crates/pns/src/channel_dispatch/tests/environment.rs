@@ -1,125 +1,79 @@
 use super::*;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
+/// THE DECISION `destinations_for_override` MAKES, driven by the override
+/// value rather than by the process environment: an absent or blank
+/// `PNS_CHANNELS_DIR` leaves the native backend in place, a set one forces the
+/// executable, and a refused backend precedes either. The `PNS_CHANNELS_DIR`
+/// read itself is the one line above that function.
+///
+/// THIS USED TO RE-EXEC THE TEST BINARY once per scenario with a scrubbed
+/// environment, bounded by a 500ms wall-clock deadline, and it reddened `main`
+/// on untouched code: a spawn that outran the budget was killed, and the kill
+/// read as the factory failing. Nothing here waits on a clock now.
 #[test]
-fn the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch() {
-    if let Ok(scenario) = std::env::var("PNS_REGISTRY_FIXTURE_SCENARIO") {
-        check_factory(&scenario);
-        return;
-    }
+fn a_blank_channels_override_falls_through_and_a_refused_backend_precedes_dispatch() {
     for scenario in ["unset", "blank", "forced", "refused"] {
         let directory = fixture("mobile");
-        let mut child = Command::new(std::env::current_exe().unwrap());
-        child
-            .args([
-                "--exact",
-                "channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch",
-                "--nocapture",
-            ])
-            .env_clear()
-            .env("HOME", &directory)
-            .env("PATH", "/usr/bin:/bin")
-            .env("TMPDIR", &directory)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_SYSTEM", "/dev/null")
-            .env("PNS_REGISTRY_FIXTURE_SCENARIO", scenario)
-            .env("PNS_REQUEST_ID", "hostile-inherited-id")
-            .env("PNS_PRODUCER", "hostile-inherited-producer")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        for key in [
-            "XDG_CONFIG_HOME",
-            "XDG_DATA_HOME",
-            "XDG_STATE_HOME",
-            "XDG_CACHE_HOME",
-            "XDG_RUNTIME_DIR",
-            "XDG_CONFIG_DIRS",
-            "XDG_DATA_DIRS",
-            "CLAUDE_CONFIG_DIR",
-            "TMP",
-            "TEMP",
-        ] {
-            child.env(key, &directory);
-        }
-        if scenario != "unset" {
-            child.env(
-                "PNS_CHANNELS_DIR",
-                if scenario == "blank" {
-                    "".into()
-                } else {
-                    directory.as_os_str().to_owned()
-                },
-            );
-        }
-        let mut child = child.spawn().unwrap();
-        let deadline = Instant::now() + Duration::from_millis(500);
-        while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        if child.try_wait().unwrap().is_none() {
-            child.kill().unwrap();
-        }
-        let output = child.wait_with_output().unwrap();
-        assert!(
-            output.status.success(),
-            "{scenario}: {}",
-            String::from_utf8_lossy(&output.stderr)
+        let override_dir = match scenario {
+            "unset" => None,
+            "blank" => Some(""),
+            _ => Some(directory.to_str().unwrap()),
+        };
+        let mut declarations = Registry::new();
+        declarations.register_channel("mobile", ROUTING).unwrap();
+        let mobile = Mobile {
+            refusal: (scenario == "refused").then(|| "unknown backend".into()),
+            ..Mobile::default()
+        };
+        let selected = destinations_for_override(
+            override_dir,
+            &declarations.all(),
+            "priority",
+            directory.to_str().unwrap(),
+            &mobile,
+            &pns_adapters::HermesKeys::default(),
+            &pns_adapters::DiscordSettings::default(),
+            &pns_domain::routes::Routes::default(),
+            false,
         );
-    }
-}
-
-fn check_factory(scenario: &str) {
-    let directory = PathBuf::from(std::env::var_os("HOME").unwrap());
-    let mut declarations = Registry::new();
-    declarations.register_channel("mobile", ROUTING).unwrap();
-    let mobile = Mobile {
-        refusal: (scenario == "refused").then(|| "unknown backend".into()),
-        ..Mobile::default()
-    };
-    let selected = destinations(
-        &declarations.all(),
-        "priority",
-        directory.to_str().unwrap(),
-        &mobile,
-        &pns_adapters::HermesKeys::default(),
-        &pns_adapters::DiscordSettings::default(),
-        &pns_domain::routes::Routes::default(),
-    );
-    let outcome = selected.deliver("mobile", &request(&Event::default()));
-    match scenario {
-        "forced" => {
-            assert_eq!(outcome, Delivery::Silent);
-            assert_eq!(
-                std::fs::read_to_string(directory.join("id")).unwrap(),
-                "original-92"
-            );
-            assert_eq!(
-                std::fs::read_to_string(directory.join("producer")).unwrap(),
-                "fixture"
-            );
-            assert_eq!(
-                std::fs::read(directory.join("body")).unwrap(),
-                format!(
-                    "{}\n",
-                    pns_adapters::event_json(&Event::default(), ReportMode::Silent)
-                )
-                .as_bytes()
-            );
+        let outcome = selected.deliver("mobile", &request(&Event::default()));
+        match scenario {
+            "forced" => {
+                assert_eq!(outcome, Delivery::Silent);
+                assert_eq!(
+                    std::fs::read_to_string(directory.join("id")).unwrap(),
+                    "original-92"
+                );
+                assert_eq!(
+                    std::fs::read_to_string(directory.join("producer")).unwrap(),
+                    "fixture"
+                );
+                assert_eq!(
+                    std::fs::read(directory.join("body")).unwrap(),
+                    format!(
+                        "{}\n",
+                        pns_adapters::event_json(&Event::default(), ReportMode::Silent)
+                    )
+                    .as_bytes()
+                );
+            }
+            "refused" => {
+                assert_eq!(
+                    outcome,
+                    Delivery::Failed(refused_backend_line("unknown backend"))
+                );
+                assert!(!directory.join("body").exists());
+            }
+            // A BLANK OVERRIDE IS NOT A DIRECTORY: both of these keep the
+            // native moshi backend, which names the config key to write
+            // instead of launching anything.
+            _ => {
+                assert!(
+                    matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.mobile] token")),
+                    "{scenario}: {outcome:?}"
+                );
+                assert!(!directory.join("body").exists());
+            }
         }
-        "refused" => {
-            assert_eq!(
-                outcome,
-                Delivery::Failed(refused_backend_line("unknown backend"))
-            );
-            assert!(!directory.join("body").exists());
-        }
-        "unset" | "blank" => {
-            assert!(
-                matches!(outcome, Delivery::Failed(line) if line.contains("[plugins.mobile] token"))
-            );
-            assert!(!directory.join("body").exists());
-        }
-        _ => panic!("unknown private scenario"),
     }
 }
