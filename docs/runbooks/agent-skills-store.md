@@ -177,29 +177,44 @@ Graphify owns its Claude skill under `~/.local/share/graphify/claude/skills/grap
 tables, preserving Claude-only delivery without adding it to Codex or Hermes. The skills lane leaves this
 link alone because its target is outside the store.
 
-The `uv-graphify-skill` command lane runs after `uv` in a full weekly run. It sets `CLAUDE_CONFIG_DIR`
-only for `graphify install --platform claude`, so upstream writes both the skill and its registration
-under the app-owned directory. Managed global `CLAUDE.md` receives no registration. The lane has a
-60-second deadline. A failed uv lane does not prevent this refresh from the installed package, and
-`uu run uv` does not run the separate skill lane.
+The `uv-graphify-skill` command lane runs after `uv` in a full weekly run, because lanes run in lane-name
+order and `uv-graphify-skill` sorts after `uv`. It sets `CLAUDE_CONFIG_DIR` only for
+`graphify install --platform claude`, and the installer honors `CLAUDE_CONFIG_DIR` on both of its
+global-scope writes (verified against graphify 0.9.53; re-verify with `grep -n CLAUDE_CONFIG_DIR` in the
+installed package): the skill bundle goes to `$CLAUDE_CONFIG_DIR/skills/graphify` and the registration to
+`$CLAUDE_CONFIG_DIR/CLAUDE.md`. Managed global `~/.claude/CLAUDE.md` therefore receives no registration,
+which matters because it is a rendered chezmoi target where any write is erased by the next apply. The
+lane has a 60-second deadline. A failed uv lane does not prevent this refresh from the installed package,
+and `uu run uv` does not run the separate skill lane.
 
-**First adoption requires operator preservation before applying the link.** Preserve the entire existing
-real `~/.claude/skills/graphify` directory under
-`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.graphify-skill.backup/` and review its customizations. The
-upstream `SKILL.md.bak` covers only that file; references are replaced without a backup. The package
-installer seeds an absent app-owned destination after installing `graphifyy` on macOS, before target
-links are applied. It preserves an existing complete bundle and refuses symlink, non-directory or partial
-destinations. Seeding failure aborts that installer. It does not migrate the legacy Claude directory.
+The refresh cannot clobber an operator edit, because nothing under `~/.local/share/graphify/claude` is
+operator-authored: the whole directory is the installer's own output, seeded and then overwritten by it.
+Operator customizations of the skill belong in a vendored store entry, not here.
 
-For operator seeding after preservation, use this exact command:
+The package installer seeds an absent app-owned destination after installing `graphifyy` on macOS, before
+target links are applied. It preserves an existing complete bundle and refuses symlink, non-directory or
+partial destinations, so a half-written destination is reported for repair rather than overwritten.
+Seeding failure aborts that installer. It does not migrate the legacy Claude directory, and no removal
+mechanism reclaims one; `test/unit/graphify-skill-seed.test.sh` pins the guards.
+
+Adopted on dresden on 2026-09-13: `~/.claude/skills/graphify` is the declared link, the target holds the
+0.9.53 bundle (`SKILL.md`, `.graphify_version`, `references/`) and
+`~/.local/share/graphify/claude/CLAUDE.md` holds the registration. The pre-adoption preservation step is
+spent; the July directory the link replaced was not backed up, and the loss was judged nil because it was
+an older copy of the same upstream skill.
+
+To reseed or repair the destination by hand, use this exact command:
 
 ```bash
 /usr/bin/env CLAUDE_CONFIG_DIR="$HOME/.local/share/graphify/claude" \
   "$HOME/.local/bin/graphify" install --platform claude
 ```
 
-Adopt the declared link after preservation and successful seeding. Until then, the old directory remains
-in use; source wiring alone does not establish live or scheduled acceptance.
+Scheduled-refresh acceptance is the one thing still open, and it is an observation rather than a change.
+The lane was deployed by the 2026-09-13 18:38 apply, after that day's 18:00 weekly run, so no full run
+has reached it yet. After the next one, `grep -A6 'uv-graphify-skill' ~/.local/log/uu/uu.log` should show
+the installer's own output lines under that lane; the lane records the child's stdout whatever the exit
+code.
 
 ## Claude delivery (the lock's `claudeDelivery` table)
 

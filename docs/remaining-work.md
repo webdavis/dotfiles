@@ -1382,13 +1382,34 @@ The planned Rust lanes are implemented. The following deployment check remains.
   STEP: a full `chezmoi apply` picks up the rebuilt `uu` and comment-only changes in
   `~/.config/uu/config.toml`.
 
-- [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
-  `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
-  preservation and partial-destination guards. All 18 private installer checks with 96 assertions, 15
-  extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
+- [x] 57c. Refresh graphify's existing Claude skill alongside package upgrades. DONE 2026-09-17. The
+  source adds the `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed
+  with preservation and partial-destination guards. All 18 private installer checks with 96 assertions,
+  15 extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
   [PR #545](https://github.com/webdavis/dotfiles/pull/545) merged and local main contains it. Preserve
   the existing real skill directory before operator adoption; live installation, fresh Claude discovery
-  and scheduled refresh acceptance remain open. No live install or skills run was performed.
+  and scheduled refresh acceptance remain open. No live install or skills run was performed. PREMISE WAS
+  STALE, verified 2026-09-17, and closed by [PR #744](https://github.com/webdavis/dotfiles/pull/744),
+  merged `5b9a1e96`. Every behaviour this entry asks for was already in source and already live: the
+  `uv-graphify-skill` command lane, the app-owned `~/.claude/skills/graphify` symlink declaration and the
+  first-install seed with its preservation and partial-destination guards all landed in
+  [PR #545](https://github.com/webdavis/dotfiles/pull/545), and the operator's 2026-09-13 apply adopted
+  the link. THE TWO CLAIMS THAT HAD ONLY BEEN ASSERTED ARE NOW PROVEN. Lane ordering: lanes are a
+  `BTreeMap` keyed by lane name (`uu-adapters/src/config/lanes.rs`, pinned by
+  `lanes_run_in_name_order_whatever_the_file_order`), so `uv-graphify-skill` provably runs after `uv`.
+  The registration boundary: graphify 0.9.53's installer honours `CLAUDE_CONFIG_DIR` on BOTH of its
+  global-scope writes, the skill bundle and the `CLAUDE.md` registration, which is what keeps the
+  registration out of the managed rendered `~/.claude/CLAUDE.md`. Live proof: `~/.claude/skills/graphify`
+  is the link, its target holds `SKILL.md`, `.graphify_version` and `references/`, the registration sits
+  in `~/.local/share/graphify/claude/CLAUDE.md`, and `grep -c -i graphify ~/.claude/CLAUDE.md` is 0. No
+  code was needed. What shipped is the documentation that proves it plus TWO STALE INSTRUCTIONS THAT
+  WOULD HAVE MISLED THE NEXT READER: the runbook's Graphify section and the lane's config comment both
+  still read as pre-adoption and told the operator to preserve a directory that no longer exists. The
+  review also had the runbook stop citing two private graphify symbol names, which drift silently on the
+  weekly upgrade; the behaviour claim and the pinned version stay, and re-verification now points at a
+  grep. ONE THING IS GENUINELY OPEN: no full weekly run has reached the lane yet, because the last full
+  run was 2026-09-13T18:00:05Z and the apply that deployed it was at 18:38, so the lane's first real
+  exercise is the next weekly `uu` run.
 
 - [x] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
   2026-07-05 (observed 2026-09-13), not the link into `~/.local/share/graphify/claude/skills/graphify`
@@ -1800,10 +1821,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   deployed-status refresh stay open by design, scoped to a separate change once the ports and cutovers
   meet their own gates. [PR #577](https://github.com/webdavis/dotfiles/pull/577)
   (`docs/posture-completion-report`, merged `528746a0`). No operator steps.
-- [ ] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure. The
-  private B020/B027 reproducer loses valid digest records when one invalid UTF-8 byte makes a claimed
-  batch unreadable; a focused preservation fix is in progress on `fix/posture-digest-read-failure`, which
-  merged `main` in (tip `74166d25`); `just ship` passed (exit 0, 5m15s) and
+- [x] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure.
+  DONE 2026-09-17, with four explicit deferrals carried as task 142. The private B020/B027 reproducer
+  loses valid digest records when one invalid UTF-8 byte makes a claimed batch unreadable; a focused
+  preservation fix is in progress on `fix/posture-digest-read-failure`, which merged `main` in (tip
+  `74166d25`); `just ship` passed (exit 0, 5m15s) and
   [PR #558](https://github.com/webdavis/dotfiles/pull/558) was opened against `main`. Independent review
   returned four findings; three are fixed and pushed: torn lines are now dropped and counted, fixed at
   `d2e18d3c`; an unclaimable spool exits 1 with a stderr line, and the LaunchAgent has no `KeepAlive` so
@@ -1862,7 +1884,30 @@ The planned Rust lanes are implemented. The following deployment check remains.
   findings that share both identity and summary inside an already-grouped detector into one bullet
   carrying a count, and the bullet and group caps apply to collapsed lines rather than raw findings.
   Measured against a synthetic 112-line spool: 11 bullet lines and 924 characters before, 3 and 323
-  after, with `~/.claude.json` (previously evicted) now rendering.
+  after, with `~/.claude.json` (previously evicted) now rendering. CLOSED 2026-09-17 by
+  [PR #738](https://github.com/webdavis/dotfiles/pull/738), merged `9b450e5e`. B039b NEEDED NO CODE: the
+  appender's rename re-check had already shipped on main (`c4765f22`, `acfb0ebb`, `8e880fbd`) with six
+  tests in `posture-adapters/src/digest_appender/tests/rename_race.rs`, so the entry above described a
+  proposal that was already built. It was VERIFIED instead of rebuilt:
+  `append_until_the_spool_stops_moving` re-checks the written file's device and inode pair against the
+  file at the spool path through the writer's own handle, bounded at eight attempts and failing loudly at
+  the ceiling; 25 consecutive runs passed at 0.30 s with no wall-clock wait on the success path, and a
+  mutation replacing the re-check with `Ok(false)` turned both race tests red, losing 2 of 160 lines to
+  one claim and 57 of 1000 silently under four claiming threads. THE ONE REAL FIX was the
+  empty-bundle-path disagreement, and it rested on a false claim about another tool: the results-row
+  adapter filtered `Some("")` into typed absence because a comment claimed jq's `//` treats an empty
+  string as missing. Measured, it does not: `jq` keeps an empty string and falls back only on false, null
+  or a missing key. The decision was written down three times and agreed with itself
+  (`posture/docs/decisions/finding-normalization.md`, `posture/docs/specs/finding-normalization.md`, and
+  the captured Bash rows in `posture/docs/acceptance/finding-boundaries.md`), and the domain already
+  agreed; only the adapter did not. The filter is gone, the adapter test pins all four column shapes, and
+  `posture/docs/README.md` records the resolution. QUOTED ZERO WAS DELIBERATELY LEFT ALONE and is the one
+  open question: the capture shows the Bash pipeline letting a counter written as `"0"` through as a
+  finding, while `results_row.rs` parses it and suppresses it as a baseline. The reason in the source is
+  plausible, that osquery's JSON logger has written the counter quoted and a baseline slipping through as
+  a string pages the whole machine once, but NO DECISION DOCUMENT SAYS SO, and the brief forbade changing
+  behaviour to match a decision that is not written down. OPERATOR STEP: either endorse the deviation in
+  a decision document or ask for the capture's behaviour to be restored.
 
 ### STOP POINT G
 
@@ -4057,23 +4102,23 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same change. Operator step: after the next apply, `hermes gateway restart`, so the gateway loads
   the new route.
 
-- [ ] 85. PART 1 OF 4 MERGED 2026-09-17 as [PR #713](https://github.com/webdavis/dotfiles/pull/713);
-  parts 2 to 4 remain. The polling baseline polls `GET /notifications` once per `X-Poll-Interval` with a
-  `Last-Modified` conditional request, dedupes by a durable seen-set with a 24-hour expiry, submits
-  through the ordinary producer API so task 81's channel map decides the channel, and treats a 401 or 403
-  as a configuration refusal rather than an empty listing. Four defects were fixed while finishing it:
-  the server's interval is now clamped to the key's bounds in a pure `job_interval` beside those bounds,
-  so nothing hands the scheduler an unchecked header; the settings reader re-exports the registry's
-  `GITHUB` name instead of declaring a second literal; the first-poll backlog guard reads BOTH halves of
-  the stored state, because a 200 carrying no `Last-Modified` would otherwise make every later tick read
-  as another first poll and silence the source permanently; and `pns github poll` joined the usage text.
-  Built on the design merged in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel
-  names `#github-<repo>` and `#github` are superseded by `#<project>-dev` and `#github-notifications`
-  under task 81. The token is the classic
-  `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope only, no
-  expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare tunnel
-  with a separate receiver process), the lamp colours (configurable in the pns config, defaulting to
-  purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
+- [ ] 85. PARTS 1 AND 2 OF 4 MERGED 2026-09-17, [PR #713](https://github.com/webdavis/dotfiles/pull/713)
+  and [PR #740](https://github.com/webdavis/dotfiles/pull/740); parts 3 and 4 remain. The polling
+  baseline polls `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional
+  request, dedupes by a durable seen-set with a 24-hour expiry, submits through the ordinary producer API
+  so task 81's channel map decides the channel, and treats a 401 or 403 as a configuration refusal rather
+  than an empty listing. Four defects were fixed while finishing it: the server's interval is now clamped
+  to the key's bounds in a pure `job_interval` beside those bounds, so nothing hands the scheduler an
+  unchecked header; the settings reader re-exports the registry's `GITHUB` name instead of declaring a
+  second literal; the first-poll backlog guard reads BOTH halves of the stored state, because a 200
+  carrying no `Last-Modified` would otherwise make every later tick read as another first poll and
+  silence the source permanently; and `pns github poll` joined the usage text. Built on the design merged
+  in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
+  `#github` are superseded by `#<project>-dev` and `#github-notifications` under task 81. The token is
+  the classic `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope
+  only, no expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare
+  tunnel with a separate receiver process), the lamp colours (configurable in the pns config, defaulting
+  to purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
   `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
   and nothing else). On GitHub itself, Actions notifications are set to On GitHub with failed-only off,
   and Dependabot alerts to On GitHub plus CLI. STATUS 2026-09-17: part 1 is SHIPPED, not merely built. It
@@ -4089,7 +4134,48 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   receiver through the existing Cloudflare tunnel as a separate process, then the GitHub lamp colours
   (configurable, defaulting to purple for a pass and orange for a failure), then the lamp wiring for
   `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
-  and nothing else.
+  and nothing else. PART 2 SHIPPED 2026-09-17 as
+  [PR #740](https://github.com/webdavis/dotfiles/pull/740), merged `7cadb16b`, and it DEPARTS FROM THE
+  MERGED DESIGN DELIBERATELY. The receiver is a DOORBELL, not a second source: `pns github receive` binds
+  `127.0.0.1:<webhook_port>`, verifies the delivery, answers it, and runs ONE immediate poll through the
+  same `poll_once` the scheduled job runs. It never parses the webhook body. The design's own shape,
+  where the receiver maps the payload and submits, was rejected on evidence: the poll's identity for a
+  `ci_activity` thread is built from the thread id and the thread's `updated_at`, and a webhook payload
+  carries neither, so the two transports would have minted different identities and double-posted in
+  production while passing any same-identity test. Authentication is HMAC (hash-based message
+  authentication code) SHA-256 over the exact body bytes against `X-Hub-Signature-256`, compared with
+  `verify_slice` rather than `==`, which GitHub's documentation asks for by name; POST to
+  `/webhooks/github` plus both `X-GitHub-Event` and `X-GitHub-Delivery` are required first, a stated
+  `Content-Length` over one mebibyte is refused without allocating, and an empty configured secret
+  verifies nothing rather than trivially passing. Every refusal answers 403 with the reason only in the
+  receiver's own log, so nothing says which check failed. A receiver that is off, unreachable or crashed
+  changes nothing, because the scheduled job is the only delivery path and reads none of the receiver's
+  config. It lives in the pns workspace as a subcommand of the one binary but runs as its own process
+  under `com.webdavis.pns-github-receiver`, so the always-on daemon still never listens on a socket.
+  Proven against fixture requests with a fake secret and an obviously fake token: signed 204, unsigned
+  403, wrong secret 403, wrong path 403, GET 403, and the decisive pair, an unsigned request created no
+  state directory while a signed one did, which is proof the doorbell rang. A local port scanner probed
+  the port twice unprompted during the work and was refused as not a POST. A CORRECTION THIS TURNED UP:
+  part 1's docblock on `submitted` claims the delivery ledger is a second guard behind the seen-set. It
+  is not. `DecisionOutcomes::begin` only refuses to insert a second decision row; `attempt_live` still
+  attempts every leg, so the seen-set is the ONLY dedupe, which is why the doorbell and the tick
+  serialise on a lock in the state directory and a poll that finds it held stands down. That comment
+  needs correcting in a follow-up. Deliberately not built: posture's declared-hostname control that the
+  design folded into this part (posture's own workspace and tests), and any doorbell throttle, marked in
+  code with a note naming the five-thousand-an-hour ceiling. PART 2 IS ARMED ONLY BY THE OPERATOR, and
+  nothing is listening until they do it: create a read-only GitHub App subscribed to `workflow_run`,
+  `check_suite`, `pull_request`, `release` and `dependabot_alert` with a webhook secret, store that
+  secret as `GitHub (Webdavis) :: Webhook Secret (pns receiver)`, add
+  `webhook_secret = { keepassxc = ... }` to `[plugins.github]` in `dot_config/pns/config-values.toml` and
+  run `just pns-config-render`, add a second ingress hostname to `~/.cloudflared/config.yml` above the
+  catch-all pointing at `http://127.0.0.1:8648` and restart cloudflared (that file is not
+  chezmoi-tracked), give that hostname one Cloudflare Access Bypass policy scoped to GitHub's webhook
+  ranges read from `GET https://api.github.com/meta` and no Allow rule, point the App's webhook URL at
+  `https://<hostname>/webhooks/github`, apply, then press Redeliver and expect 204 plus a notification
+  within seconds. TWO QUESTIONS LEFT OPEN: whether a hand-pressed redelivery should force a submission
+  the seen-set would otherwise refuse (under the doorbell it looks like nothing happens, which is
+  probably correct), and whether posture's declared-hostname control gets its own pull request now that a
+  second hostname reaches the internet or waits behind parts 3 and 4.
 
 - [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
   `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
@@ -4255,11 +4341,12 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
   service.
 
-- [ ] 99. Stop naming two retired hermes routes, filed 2026-09-17 on two operator rulings. `pns doctor`
-  on 2026-09-17 reported `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and
-  the same for `route posture`, against `general`, `posture-pages` and `priority` which it confirmed
-  served. Neither route should be added. The operator ruled both retired: `pns-recap` and its Discord
-  channel went with task 81 on 2026-09-15 and a recap now posts on the default route, which
+- [x] 99. Stop naming two retired hermes routes. DONE 2026-09-17. Filed the same day on two operator
+  rulings. `pns doctor` on 2026-09-17 reported
+  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and the same for
+  `route posture`, against `general`, `posture-pages` and `priority` which it confirmed served. Neither
+  route should be added. The operator ruled both retired: `pns-recap` and its Discord channel went with
+  task 81 on 2026-09-15 and a recap now posts on the default route, which
   `pns/crates/pns-application/src/post_return_recap.rs` already implements; and there is no `#posture`
   channel any more, only `#posture-pages`, which the gateway already serves. So the fix is subtractive on
   both names rather than the additive one the earlier design assumed. Two changes: doctor stops checking
@@ -4274,7 +4361,25 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   legs all delivered, so eight daily digests reached the operator locally and never reached Discord. It
   also stays a blocker on `feat/posture-alert-cutover` for the same reason that item gives: when that
   cutover merges and is applied, the CRITICAL security page moves onto the 404 route. Do NOT read
-  `~/.hermes/.env` and do not print any channel id while fixing it.
+  `~/.hermes/.env` and do not print any channel id while fixing it. SHIPPED 2026-09-17 as
+  [PR #737](https://github.com/webdavis/dotfiles/pull/737), merged `6b957e4e`. Both names are gone from
+  both tools. `pns doctor` filters its ledger-derived roster through
+  `pns_domain::doctor::routes_to_check`, which drops a retired route before the probe asks the gateway,
+  so neither unclearable warning can be printed again; the roster itself still comes from
+  `SqliteStore::posted_routes()`, which is why a retired route was reported forever with nothing the
+  operator could do. THE REVIEW CAUGHT THAT THE FIRST CUT RETIRED ONLY ONE NAME, leaving `route posture`
+  warning on; both are retired now. posture's untiered page route is stated ONCE as `route` in the
+  `[notify]` table, defaulting to `posture-pages`: `severity_route` names a route only for Critical
+  (`priority`) and returns `None` for every lesser tier, `notify.rs` holds the single default,
+  `schema.rs` validates the key as a wire `Name` at parse time, and `alert_sink` falls back to the
+  default instead of panicking on a hand-built `Notify`, which the review also found.
+  `dot_config/posture/private_config.toml.tmpl` ships the key uncommented at its default. The bare
+  `posture` literal had already been renamed once on 2026-09-15 by `b89e1cc9`, so what remained of the
+  six sites was two literals for one decision. Both new tests run in under 10 ms. No pns name entered
+  posture, no channel id or secret was read or printed, and no live job was run. This UNBLOCKS
+  `feat/posture-alert-cutover`: its CRITICAL page keeps `priority` and every lesser page now rides the
+  configured route rather than the 404 one that dead-lettered eight digest legs. OPERATOR STEP: a full
+  `chezmoi apply` writes the new `route` key and rebuilds both binaries.
 
 - [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed two
   `THE GATEWAY HAS NO SUCH ROUTE` warnings, `1 notification still waiting to reach a channel`,
@@ -4370,8 +4475,30 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   verdict. WAITS ON THE OPERATOR: confirm or reject that disposition before a pull request implements it,
   since it changes what an unknown reading does to a delivery decision.
 
-- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
-  2026-09-17 from the firewall drill's incidental finding.
+- [ ] 142. The four posture test dispositions 60a deliberately deferred, filed 2026-09-17 with named
+  triggers so they stop reading as a vague remainder. All four are recorded in
+  `posture/docs/test-baseline.tsv` with their own disposition field. (1) FIVE JQ AND PIPE FAULT-INJECTION
+  PROPOSALS, disposition `proposed-disposition`, and NONE OF THEM HAS A RUST MECHANISM LEFT TO TEST:
+  B140/S123 assumed a jq encoder process that no longer exists, and S123 explicitly allows a fragment, so
+  it must not be restated as an atomic-write guarantee; B170/S068's stdout page-candidate pipe is a typed
+  `JudgedBatch` now and a failed sink returns `Retained` with no checkpoint; B171/S042's severity is
+  in-process. Each needs a fresh disposition against the Rust shape or an explicit retirement, not a
+  port. (2) THIRTEEN LEGACY QUEUE LEAVES, disposition `retained-legacy`, keeping their Bash owner: four
+  drain-continuation integration cases (an undecodable poison row, a permanent poison row, errexit on a
+  failing first row, and a mixed-batch full drain) and nine alert-dispatch unit cases (a count probe
+  never creating the database it reads, a counter reading zero while its table is un-bootstrapped, the
+  apostrophe cases through dead-letter reason, page URL, request id and drain SELECT, and an unreadable
+  store failing the probe rather than reporting a false zero). TRIGGER: task 49's acceptance. (3) B001, a
+  detached child never wedging the lock through a leaked descriptor, has no native assertion for
+  `SingleRunLock` inheritance; the similarly named exec test covers `AllowlistWriteLock`, a DIFFERENT
+  lock, so the coverage that looks present is not. (4) B002, two parallel runs delivering a batch exactly
+  once, has no retained two-process test asserting one notification and the shared final cursor together.
+  Both of those need a second real process, which is the only way the assertion means anything; TRIGGER:
+  the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
+  second process gets a defined exit contract.
+
+- [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
+  2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
   `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
   `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
   `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
@@ -4403,7 +4530,36 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
   name, which only the new binary writes. So the exposure was about one minute of total page silence,
   self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
-  is short here only because the rebuild succeeded.
+  is short here only because the rebuild succeeded. SHIPPED 2026-09-17 as
+  [PR #733](https://github.com/webdavis/dotfiles/pull/733), merged `9767bda3`, BOTH HALVES. LOUD:
+  `Notify::report` is the one place a delivery-config outcome is reported and `alert_sink` calls it, so
+  all six jobs are covered by one guard rather than six. A refusal still writes its diagnostics line and
+  now also raises the LOCAL BANNER through the `IndependentAlarm` the caller already hands in, which is
+  the one destination a broken delivery config cannot take away. A new `posture doctor` answers the same
+  question on demand: it names the config path, lists every ignored key, and either prints
+  `FAILED: no page can be delivered: <reason>` and exits 1 or says the config is usable and exits 0.
+  There was no doctor subcommand before. DEGRADE: `#[serde(deny_unknown_fields)]` is gone from all five
+  structs in `notify/schema.rs`, replaced by a flattened unread map on each, so serde itself hands back
+  the keys this build has no field for, at the top level and inside every known table, and each becomes
+  one named warning line. A malformed KNOWN key still refuses the whole file, and so does a missing
+  `[notify]` table, which is what keeps a mistyped top-level table name from paging nowhere. THE
+  TOP-LEVEL DECISION, made deliberately: an unknown TOP-LEVEL key now warns and continues, because that
+  is exactly what the live instance needed. A config written for a newer or older build of one tool is
+  the ordinary case on a machine where an apply writes the config before the builder reinstalls the
+  binary, and refusing it takes away the very pages that would report the trouble. A mistyped table
+  BESIDE a valid `[notify]` costs that table's contents plus a named warning, which is the smaller loss.
+  THE MERGE WITH TASK 99 WAS A REAL CONFLICT AND WAS RESOLVED RATHER THAN GUESSED: both tasks hardened
+  the same four files. `parse` now returns the whole `Notify` instead of a tuple of mode, route and
+  warnings, and `missing_hermes_keys` moved from `NotifyMode` to `Notify`, because `NotifyMode` has no
+  route and cannot know the configured one. One test was added for the same reason, since nothing pinned
+  that the signing-key check follows the CONFIGURED route rather than the shipped default. ALL FIVE
+  BEHAVIOURS WERE PROVEN AGAINST THE REAL BINARY with fixture home directories: an unknown nested key
+  warns and delivery continues; an unknown top-level key does the same, which is the live failure this
+  task exists for; a malformed known key refuses and REDACTS the value in its message; a refusal reaches
+  both doctor and the banner, pinned by a test and its negative; and an untiered page takes the
+  configured route while a critical page still takes `priority`, proven by a fixture that keys only the
+  other route and fails naming `priority`. 1200 posture tests pass. OPERATOR STEP: a full `chezmoi apply`
+  rebuilds posture, after which `posture doctor` exists.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
