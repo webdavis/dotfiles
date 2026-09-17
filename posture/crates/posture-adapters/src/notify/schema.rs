@@ -1,8 +1,12 @@
-//! The config file's shape, declared once so serde refuses an unknown table,
-//! an unknown key and an unknown mode by name. A typo therefore blocks the
-//! whole file rather than quietly switching notification off, which is the
-//! trade: the loud half is a named refusal, and the quiet half it replaces is
-//! a security pipeline that silently stops paging.
+//! The config file's shape, declared once so serde refuses a malformed value
+//! and an unknown mode by name, and names every key it does not read.
+//!
+//! A KEY THIS BUILD DOES NOT READ IS A WARNING, A BROKEN VALUE IS A REFUSAL.
+//! Voiding the whole file over one unread word takes every destination away
+//! and leaves a fail-closed default that delivers nothing, so a config written
+//! for a newer or older build of this tool keeps working and says what was
+//! ignored. A value a known key cannot hold is different: nothing can be
+//! inferred about what the operator meant, so it still blocks the file.
 
 use super::{COPY_WINDOW, DEFAULT_ROUTE, DEFAULT_WEBHOOK_BASE, NotifyMode};
 use crate::hermes::CriticalCopy;
@@ -13,13 +17,14 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct File {
     pub(super) notify: Table,
     /// The launchd label of each job posture installs. Absent, and absent per
     /// key, is the shipped default for that job.
     #[serde(default)]
     pub(super) jobs: Jobs,
+    #[serde(flatten)]
+    unread: Unread,
 }
 
 /// ONE KEY PER JOB, each naming posture's own subcommand, so a label states
@@ -27,7 +32,6 @@ pub(super) struct File {
 /// chooses the labels; a name compiled into this tool would only ever match the
 /// machine it was compiled for.
 #[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct Jobs {
     watchdog: Option<String>,
     alert: Option<String>,
@@ -35,6 +39,8 @@ pub(super) struct Jobs {
     funnel: Option<String>,
     digest: Option<String>,
     heartbeat: Option<String>,
+    #[serde(flatten)]
+    unread: Unread,
 }
 
 impl Jobs {
@@ -59,7 +65,6 @@ impl Jobs {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct Table {
     mode: Mode,
     command: Option<Command>,
@@ -70,6 +75,8 @@ pub(super) struct Table {
     /// trust boundary as `hermes.url`.
     #[serde(default)]
     route: Option<Name>,
+    #[serde(flatten)]
+    unread: Unread,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
@@ -81,15 +88,15 @@ enum Mode {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Command {
     path: PathBuf,
     #[serde(default)]
     arguments: Vec<String>,
+    #[serde(flatten)]
+    unread: Unread,
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Hermes {
     #[serde(default = "local_gateway")]
     url: String,
@@ -103,10 +110,41 @@ struct Hermes {
     /// trust boundary as the `url` key beside it.
     #[serde(default)]
     critical_copy_route: Option<Name>,
+    #[serde(flatten)]
+    unread: Unread,
 }
 
 fn local_gateway() -> String {
     DEFAULT_WEBHOOK_BASE.to_string()
+}
+
+/// Whatever a table held that this build has no field for, kept by name so it
+/// can be reported instead of discarded. Collected by serde itself rather than
+/// checked against a hand-written list of known keys, which would be a second
+/// copy of every field name above.
+type Unread = BTreeMap<String, toml::Value>;
+
+impl File {
+    /// One line per key nothing in this build reads, named with its table so
+    /// the operator can find it in the file.
+    pub(super) fn unread_keys(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut named = |prefix: &str, unread: &Unread| {
+            lines.extend(unread.keys().map(|key| {
+                format!("`{prefix}{key}` is not a key this build reads, so it is ignored")
+            }));
+        };
+        named("", &self.unread);
+        named("notify.", &self.notify.unread);
+        if let Some(command) = &self.notify.command {
+            named("notify.command.", &command.unread);
+        }
+        if let Some(hermes) = &self.notify.hermes {
+            named("notify.hermes.", &hermes.unread);
+        }
+        named("jobs.", &self.jobs.unread);
+        lines
+    }
 }
 
 impl Table {
@@ -142,6 +180,7 @@ impl Table {
                     url: local_gateway(),
                     keys: BTreeMap::new(),
                     critical_copy_route: None,
+                    unread: Unread::new(),
                 });
                 Ok(NotifyMode::Hermes {
                     base_url: hermes.url,
