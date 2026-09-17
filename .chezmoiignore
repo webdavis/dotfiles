@@ -53,10 +53,7 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
-# herdr-agent-quota plugin config leaves: `herdr plugin action invoke configure`
-# (run_after_53) regenerates these one-line files itself on every apply, so a
-# tracked snapshot fights that regeneration and reverts it on the next apply.
-# Never chezmoi-managed; the plugin owns them.
+# The quota plugin regenerates these on every apply.
 .config/herdr/plugins/config/herdr-agent-quota/
 
 # The five Rust tool workspaces sit at the repository root in monorepo layout,

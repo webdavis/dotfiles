@@ -371,20 +371,6 @@ no-op apply emits the live file back byte for byte instead of re-serializing, so
 apply, so `.chezmoiscripts/run_before_13-quarantine-unparseable-codex-config.sh` moves an unparseable
 file into `~/workspaces/backups` first, at the cost of every hook approval on the machine.
 
-### Herdr configuration
-
-`dot_config/herdr/modify_config.toml` is the same modify-template mechanism for
-`~/.config/herdr/config.toml`, which herdr and the operator both rewrite at runtime (the settings
-screens, live keybinding edits, `reload_config`). The declared content, everything this repo owns, lives
-in `.chezmoitemplates/herdr-config-declared.toml.tmpl` (byte-for-byte what the plain target used to be)
-and is deep-merged over the live file with sprig's `mergeOverwrite`: any key the partial sets, at any
-depth, is forced from source on every apply, and any key the live file has that the partial does not
-mention, at any depth, passes through untouched. A no-op apply emits the live file back byte for byte.
-The `herdr-agent-quota` plugin's own leaf files under
-`dot_config/herdr/plugins/config/herdr-agent-quota/` are NOT chezmoi-managed at all (`.chezmoiignore`):
-`herdr plugin action invoke configure` (`run_after_53-install-herdr-third-party-plugins.sh.tmpl`)
-regenerates them itself on every apply, so tracking a snapshot only fights that regeneration.
-
 ### Agent skills (cross-harness store)
 
 `~/.agents/skills` is the single canonical skills store (81 roster skills), serving Claude Code (chezmoi
@@ -751,6 +737,12 @@ their own relay hooks.
 
 ## Code Style
 
+- **Comments are short and concise, and they never explain an absence.** A comment says what the code
+  does or why it is the way it is. It never says why something is not a certain way, what was considered
+  and rejected, what the file does not do, or anything about the conversation that produced it. If it is
+  not in the file, it is not mentioned in the file; that reasoning belongs in the commit message or the
+  pull request body. This applies to every commented format here: shell, Lua, Rust, TOML, YAML, JSON with
+  comments, and chezmoi templates.
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
   `treefmt.toml`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
   `dot_fzf*` and `dot_bash*` patterns, for editors. Note that shfmt and shellcheck both exclude `*.tmpl`
