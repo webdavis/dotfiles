@@ -4086,14 +4086,32 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no producer and its silence is not a gap. That leaves `pns-events` as the only route of the five
   neither the doctor run nor the uu run exercised.
 
-- [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
-  2026-09-15, alongside the answers recorded in
+- [x] 88. Give a storm one combined explanation instead of one per finding. DONE 2026-09-17. Approved by
+  the operator 2026-09-15, alongside the answers recorded in
   `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`. Task 84's per-finding cap cannot
   solve spam by itself: any number low enough to avoid spam is low enough to hide findings, and twenty
   distinct failures already means the machine is in trouble. The useful message at that point is one that
   says so and lists them, not twenty separate explanations. posture's own pages already arrive uncapped
   today, so a storm already reaches the operator on that leg, and a combined message would improve it
-  too. Not yet started.
+  too. SHIPPED 2026-09-17 as [PR #730](https://github.com/webdavis/dotfiles/pull/730), merged `02f59103`.
+  The existing critical-copy leg in `posture-adapters/src/hermes.rs` was extended rather than given a
+  second counter: the rolling-hour window file now stores what each distinct finding says beside its key,
+  and `window::claim` answers four states, Granted (copy the page verbatim as before), AlreadyCopied (a
+  repeat, silent), Storm (this finding crossed the threshold, so post ONE combined message listing every
+  distinct finding of the hour, oldest first) and Storming (the hour's one message is sent, nothing
+  further is explained, sticky for the full hour; the review caught that the first cut was not sticky and
+  it was fixed before merge). The combined message goes to the same copy route, signed with that route's
+  own key, with its own derived request id, in the same body shape as a page. ONE NUMBER:
+  `STORM_THRESHOLD = 5` replaces the twenty-per-hour cap, because after the crossing no per-finding copy
+  is posted, so five copies plus one combined message is the hour's ceiling. The withheld-copy banner is
+  gone; the combined message is what says the machine is in trouble. DECISION RECORDED: the combined form
+  applies ONLY to the explanation leg. posture's own pages stay uncapped and unchanged, because combining
+  pages means holding a critical security page back until its neighbours arrive. 29 hermes tests pass in
+  0.01 s with no spawn and no wall clock. Two questions for the operator: (1) should the pages leg also
+  get an ADDITIVE storm summary page beside the individual pages (one more post in the record channel,
+  withholding nothing)? (2) is five the right threshold once the detector set grows past the eight
+  declared controls? OPERATOR STEP: a full `chezmoi apply` picks up the rebuilt binary and a comment
+  change in `~/.config/posture/config.toml`; no new vault entry and no route change.
 
 - [x] 94. Fix the 500 ms spawn deadline in
   `channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch`,
