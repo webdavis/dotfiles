@@ -69,8 +69,8 @@ impl<R: CommandRunner> Jobs<R> {
     }
 
     fn readings(&mut self) -> Vec<report::Reading> {
-        let plans = std::mem::take(&mut self.plans);
-        let readings = plans
+        let plans = self.plans.clone();
+        plans
             .iter()
             .map(|plan| {
                 let path = plan.unit_path(&self.home);
@@ -81,9 +81,7 @@ impl<R: CommandRunner> Jobs<R> {
                     path,
                 }
             })
-            .collect();
-        self.plans = plans;
-        readings
+            .collect()
     }
 
     /// Whether launchd holds the label in this user's own domain. A refusal
@@ -169,7 +167,7 @@ pub(super) fn perform<R: CommandRunner>(
             }
         }
         Verb::Install => {
-            let plans = std::mem::take(&mut jobs.plans);
+            let plans = jobs.plans.clone();
             let mut failures = 0;
             for plan in &plans {
                 if let Err(refusal) = jobs.install(plan, stdout) {
@@ -181,7 +179,6 @@ pub(super) fn perform<R: CommandRunner>(
                     );
                 }
             }
-            jobs.plans = plans;
             u8::from(failures > 0)
         }
     }
