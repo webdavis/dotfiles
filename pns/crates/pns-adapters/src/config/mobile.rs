@@ -51,9 +51,80 @@ pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
     (!token.is_empty()).then(|| token.to_string())
 }
 
+/// The card types whose cards carry an image: every key of
+/// `[plugins.mobile.image_cards]` whose value is `true`.
+///
+/// A CARD TYPE IS THE EVENT'S STATE, which is the word its producer sent
+/// (`missed` is the card a return moment raises, `failed` a turn that died).
+/// pns compiles in no roster of them, so nothing here can refuse a key by
+/// name; an unknown one is a card type that never fires rather than a
+/// refusal at load, the same trade `[plugins.discord.channels]` makes.
+///
+/// A NON-BOOLEAN IS REFUSED OUT LOUD, the way `mobile_watch_card` is one
+/// level down: reading `"true"` as off leaves the operator having asked for
+/// something, not got it, and been told nothing.
+pub fn moshi_image_cards(settings: &toml::Table) -> Vec<String> {
+    let Some(table) = settings.get("image_cards").and_then(toml::Value::as_table) else {
+        return Vec::new();
+    };
+    table
+        .iter()
+        .filter(|(kind, stated)| match stated.as_bool() {
+            Some(on) => on,
+            None => {
+                eprintln!(
+                    "pns: config error ([plugins.mobile.image_cards] {kind} is {}, not a boolean); \
+                     that card type keeps its text card",
+                    stated.type_str()
+                );
+                false
+            }
+        })
+        .map(|(kind, _)| kind.to_string())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MOSHI_TYPE, mobile_backend, moshi_secret};
+    use super::{MOSHI_TYPE, mobile_backend, moshi_image_cards, moshi_secret};
+
+    // --- which card types carry an image ------------------------------------
+
+    #[test]
+    fn only_a_card_type_switched_on_carries_an_image() {
+        let settings: toml::Table = "[image_cards]\nmissed = true\ndone = false\n"
+            .parse()
+            .unwrap();
+        assert_eq!(moshi_image_cards(&settings), ["missed"]);
+    }
+
+    #[test]
+    fn a_table_nobody_wrote_switches_every_card_type_off() {
+        // SHIPPED OFF FOR EVERY CARD TYPE is the whole posture of this
+        // feature, and absence is how the shipped config states it.
+        for settings in ["", "token = \"x\"\n", "[image_cards]\n"] {
+            assert!(
+                moshi_image_cards(&settings.parse().unwrap()).is_empty(),
+                "`{settings}` armed an image card"
+            );
+        }
+    }
+
+    #[test]
+    fn a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card() {
+        // THE MUTANT THIS PINS: `as_bool().unwrap_or(true)`, which would arm
+        // a card type off a typo.
+        let settings: toml::Table = "[image_cards]\nmissed = \"true\"\ndone = 1\n"
+            .parse()
+            .unwrap();
+        assert!(moshi_image_cards(&settings).is_empty());
+    }
+
+    #[test]
+    fn an_image_cards_key_that_is_not_a_table_arms_nothing() {
+        let settings: toml::Table = "image_cards = true\n".parse().unwrap();
+        assert!(moshi_image_cards(&settings).is_empty());
+    }
 
     // --- the backend the table names ----------------------------------------
 
