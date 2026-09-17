@@ -143,7 +143,7 @@ fn a_protection_row_says_off_only_when_the_column_does() {
 }
 
 #[test]
-fn a_system_extension_falls_back_to_its_path_only_when_the_bundle_column_is_no_string() {
+fn a_system_extension_falls_back_to_its_path_only_when_the_bundle_column_carries_no_path() {
     // An empty bundle path is a value and enriches nothing; the fallback is
     // for a column that carries no path at all. Captured in
     // `docs/acceptance/finding-boundaries.md`: `""` stays empty, `false`
