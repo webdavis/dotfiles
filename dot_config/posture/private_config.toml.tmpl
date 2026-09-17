@@ -52,6 +52,14 @@ heartbeat = "com.webdavis.osquery-heartbeat"
 # with no gateway and no engine, never a way to stop being told.
 mode = "hermes"
 
+# THE ROUTE EVERY PAGE WITHOUT A TIER OF ITS OWN TAKES, whichever mode carries
+# it: the heartbeat, the digest, the cursor-reset warning and every finding
+# below critical. A critical finding overrides it with `priority`, which the
+# operator reserved for machine health and security. `#posture-pages` is the
+# channel the gateway serves; the bare `posture` route it used to answer was
+# retired with its channel, and a page sent there is lost.
+route = "posture-pages"
+
 # The command a page is handed to, and its arguments, passed verbatim. The
 # contract says nothing about the arguments: an engine spells its own submit
 # path however it likes.

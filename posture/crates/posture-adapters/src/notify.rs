@@ -39,9 +39,14 @@ mod schema;
 pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 
 /// The route a page takes when its own tier names none: the heartbeat, the
-/// digest and the cursor-reset warning. A tiered finding overrides it; see
-/// `posture_domain::severity_route`.
-const UNTIERED_ROUTE: &str = "posture-pages";
+/// digest, the cursor-reset warning and every finding below critical. A
+/// critical finding overrides it; see `posture_domain::severity_route`.
+///
+/// ONE NAME, AND THE CONFIG FILE OWNS IT. `[notify] route` states it per
+/// machine, because which channel a page lands in is the operator's gateway's
+/// business rather than this tool's; this value is what they get without
+/// saying.
+pub const DEFAULT_ROUTE: &str = "posture-pages";
 
 /// Where the rolling hour of critical-page copies is recorded, under the home
 /// directory the choice was read for. Beside posture's cursor and digest
@@ -125,6 +130,10 @@ impl std::fmt::Debug for NotifyMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notify {
     pub mode: NotifyMode,
+    /// The route a page with no tier of its own is posted to, or handed to the
+    /// producer under. Validated when the file is read, so it is a path
+    /// segment exactly as written.
+    pub route: String,
     /// Why the config file could not be used, when it could not. The
     /// fail-closed default stands and every page then refuses loudly, so this
     /// is a line for the operator's log rather than a second outcome to branch
@@ -142,6 +151,7 @@ impl Default for Notify {
                 keys: BTreeMap::new(),
                 critical_copy: None,
             },
+            route: DEFAULT_ROUTE.to_string(),
             refusal: None,
         }
     }
@@ -172,8 +182,9 @@ impl Notify {
             Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
         match Self::parse(&text, home) {
-            Ok(mode) => Notify {
+            Ok((mode, route)) => Notify {
                 mode,
+                route,
                 refusal: None,
             },
             Err(refusal) => Notify::refused(refusal),
@@ -190,10 +201,11 @@ impl Notify {
     /// The pure half: text and the home directory its relative state paths
     /// hang off in, one notify mode or a named refusal out. Pure in both
     /// arguments, so the path rule is testable without an environment.
-    fn parse(text: &str, home: &Path) -> Result<NotifyMode, String> {
+    fn parse(text: &str, home: &Path) -> Result<(NotifyMode, String), String> {
         let file: schema::File =
             toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
-        file.notify.into_mode(home)
+        let route = file.notify.route();
+        Ok((file.notify.into_mode(home)?, route))
     }
 }
 
@@ -217,7 +229,8 @@ pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
             "posture: the notify config could not be used, so no page can be delivered: {refusal}"
         );
     }
-    let route = Name::new(UNTIERED_ROUTE).expect("the fixed untiered route is valid");
+    // Validated where it was read, so an unusable name never reaches here.
+    let route = Name::new(notify.route).expect("the untiered route was validated when read");
     match notify.mode {
         NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(
             runner,
