@@ -4007,8 +4007,8 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   step, still owed: delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
   `Discord (Uriel) :: Channel ID (#uu-failures)`.
 
-- [ ] 84. PULL REQUESTS 1 AND 2 OF 3 MERGED 2026-09-17; PR 3 REMAINS. Build the posture critical-page
-  explainer on the design merged in [PR #618](https://github.com/webdavis/dotfiles/pull/618), amended by
+- [x] 84. ALL THREE PULL REQUESTS MERGED 2026-09-17. Build the posture critical-page explainer on the
+  design merged in [PR #618](https://github.com/webdavis/dotfiles/pull/618), amended by
   `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`.
   [PR #711](https://github.com/webdavis/dotfiles/pull/711) declared the hermes `explain` agent route and
   the webhook sandbox (`platform_toolsets.webhook: ["no_mcp"]`) and carved it out of the route-status
@@ -4024,10 +4024,16 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   page it explains and directly under it, moving into the page's own thread once the pns Discord bot of
   task 82 exists. The `#explain` Discord channel and its `Discord (Uriel) :: Channel ID (#explain)` vault
   entry exist but stay UNUSED by decision 7: delivery reuses the `priority` channel entry, and the one
-  new vault entry the route consumes is `Hermes :: Webhook Secret (#explain)`. REMAINING: PR 3, the
-  runbook section in `docs/runbooks/local-daemons.md` and its three gotchas (decision 4 assigns them
-  there). Operator step: after the next apply, `hermes gateway restart`, so the gateway loads the new
-  route.
+  new vault entry the route consumes is `Hermes :: Webhook Secret (#explain)`. PR 3 closed it on
+  2026-09-17 as [PR #728](https://github.com/webdavis/dotfiles/pull/728), merged `db769f18`: the hermes
+  section of `docs/runbooks/local-daemons.md` gained the `explain` route in the routes table, its
+  KeePassXC entry titles, posture as the route's sender, and a subsection on the copy leg with the
+  rolling-hour cap and the restart step. Three gotchas were documented: an empty webhook toolset list
+  leaves every Model Context Protocol server live where the `no_mcp` sentinel is required, the gateway's
+  duplicate-delivery cache is keyed on the request id alone across every route, and an absent placeholder
+  renders as literal braces and is sent as written. Stale route counts in the same file were corrected in
+  the same change. Operator step: after the next apply, `hermes gateway restart`, so the gateway loads
+  the new route.
 
 - [ ] 85. PART 1 OF 4 MERGED 2026-09-17 as [PR #713](https://github.com/webdavis/dotfiles/pull/713);
   parts 2 to 4 remain. The polling baseline polls `GET /notifications` once per `X-Poll-Interval` with a
