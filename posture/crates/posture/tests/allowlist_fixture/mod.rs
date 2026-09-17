@@ -24,9 +24,17 @@ pub struct Fixture {
 impl Fixture {
     pub fn new() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
+        // The epoch nanosecond keeps a RECYCLED process id off an earlier
+        // run's leftovers: nothing removes these roots, so a counter beside
+        // the id alone rebuilds paths an earlier run already filled, and the
+        // `create_dir` below then answers AlreadyExists. Observed on this
+        // machine 2026-09-17, all six rows at once.
         let root = std::env::temp_dir().join(format!(
-            "posture-curation-{}-{}",
+            "posture-curation-{}-{}-{}",
             std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos()),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
