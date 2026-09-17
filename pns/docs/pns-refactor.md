@@ -26,7 +26,7 @@ Agreed changes to pns, one per line. Add a line for each new agreed change.
    only.
 1. Add an explicit per-call switch on the approval hook path: `--remind` turns the reminder on for that
    call and `--no-remind` turns it off, overriding config.
-1. Add a config setting per producer: `[producers.<name>] remind = true|false` in
+1. Add a config setting per producer: `[producer.<name>] remind = true|false` in
    `~/.config/pns/config.toml`. This is still a match on a name, but one the operator wrote on purpose
    and can see. The timing stays in the `[remind]` table.
 1. Resolve the setting in this order, most specific first: the per-call flag, then the producer's config

@@ -820,6 +820,15 @@ size: medium
 
 TOTAL SLICES: 49
 
+## Operator rulings
+
+- 2026-09-17: the per-producer table is SINGULAR, `[producer.<name>]`, not `[producers.<name>]`. This
+  settles question 1 below and unblocks slices 23 and 47. The plan's own item 3 wrote it plural, which
+  predates the plural rule in item 110; item 110 wins, because the table is one producer keyed by its
+  name rather than a set, which is the same shape as `[delivery_class.<name>]` and
+  `[lights.lamp."<name>"]`. `pns/docs/pns-refactor.md` has been corrected in place so the plan no longer
+  contradicts itself, and question 1 below is answered rather than open.
+
 BLOCKED-ON-OPERATOR:
 
 1. Item 3 writes the per-producer reminder setting as `[producers.<name>] remind`, plural. Item 110's

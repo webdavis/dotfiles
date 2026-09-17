@@ -3860,7 +3860,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   today, so a storm already reaches the operator on that leg, and a combined message would improve it
   too. Not yet started.
 
-- [ ] 94. Fix the 500 ms spawn deadline in
+- [x] 94. Fix the 500 ms spawn deadline in
   `channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch`,
   filed 2026-09-17. It reddened MAIN on the #711 merge run with `forced: ` and an empty message, and main
   went green again on the next merge eleven minutes later, so it is a load-sensitive flake rather than a
@@ -3872,7 +3872,18 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   path, this one is a fixture budget. See the standing note that tight fixture budgets flake continuous
   integration. Either raise the bound well past the noise floor or stop asserting success on a process
   the test itself killed; the second is the honest fix, since a killed process succeeding is not a
-  behaviour anyone wants.
+  behaviour anyone wants. DONE 2026-09-17 in [PR #718](https://github.com/webdavis/dotfiles/pull/718),
+  merged `b64c2a08`. The flake was REPRODUCED first, one failure in forty runs of the single test at load
+  average 29, roughly two to three percent, consistent with a 500 ms budget for a spawn a warm run
+  finishes in about 10 ms. The fix removes the spawn rather than widening the budget: the process existed
+  only to control `PNS_CHANNELS_DIR` for one `std::env::var` read, so that read moved one level up and a
+  new private `destinations_for_override` takes the value as a parameter, which the test now calls in
+  process. Net 19 lines removed, the public signatures unchanged, and the launchctl-style re-exec of the
+  test binary gone. Measured after: 60 of 60 passes under the same 48-spinner load, about 43 ms per run.
+  Mutation-checked, deleting the blank-override filter turns it red. Two review findings were fixed in
+  the same pull request, both naming: the test no longer claims the public factory it stopped calling,
+  and a comment no longer overclaims that the environment read is the only thing above the seam. See task
+  101 for the two further flakes this work exposed.
 
 - [ ] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
   and `~/.config/herdr/plugins/config/**` are PLAIN chezmoi targets that parties other than chezmoi
@@ -3984,6 +3995,36 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   than waiting for a route to reappear. Side measurement: the dead-letter population was 11 on 2026-09-13
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
+
+- [ ] 101. Make the Rust suites deterministic around real process spawns, filed 2026-09-17 on the
+  operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
+  exposed two more of the same shape on the same day, so the defect is the pattern and not the three
+  tests. The pattern: a test spawns a real process, waits on a wall-clock budget, and asserts success, so
+  under the concurrent agent load this machine actually runs the wait expires and the assertion reads a
+  kill or a timeout as a failure. It reddens `main` on code the pull request never touched, which is the
+  worst kind of red because it trains everyone to rerun rather than read. This repository already records
+  the finding that sub-second waits around real spawns flake continuous integration. The two known
+  survivors:
+  `channel_dispatch::tests::a_new_registered_destination_dispatches_without_editing_a_name_switch` in the
+  `pns` workspace, which failed once under 48 synthetic CPU spinners and passed on every run after the
+  load was removed; and
+  `uu/crates/uu/tests/interruption.rs:104 sigterm_cleans_owned_children_before_unlocking_and_records_interruption`
+  in the `uu` workspace, a signal-timing case that failed once during a `just test-rust` run under load
+  and passed three consecutive reruns alone. Neither is tracked anywhere else, checked 2026-09-17.
+  Method, following what worked in [PR #718](https://github.com/webdavis/dotfiles/pull/718): audit all
+  four workspaces for a test that spawns a process and bounds it by wall-clock time, and for each one ask
+  what the spawn is actually there for. Where it exists only to control the child's environment or
+  arguments for a decision the parent could make, lift that decision behind a seam and call it in
+  process, which is what removed the race in 94 rather than making it cheaper to wait on. Where a real
+  spawn is genuinely the behaviour under test, such as the `sigterm` case which is about signal handling
+  in a real child, the budget cannot simply be deleted: drive the wait on an observable event rather than
+  a duration, and if a duration is unavoidable say so and justify the number. DO NOT simply raise a
+  deadline; this repository deletes a test that cannot pass within a second rather than tolerating a slow
+  one, so a bigger number trades a flake for a suite that fails the speed rule. Reproduce each flake
+  under load before changing it, or state plainly that it could not be reproduced and that the fix is
+  reasoned from the code, and prove each fix with at least fifty loops under comparable load plus a
+  mutation check. Expect to find candidates beyond the two named; report the full audit even for tests
+  left alone, with the reason each was judged safe.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
