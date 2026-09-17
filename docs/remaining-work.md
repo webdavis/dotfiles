@@ -1829,11 +1829,14 @@ producer.
   continuous integration passed. Each comparison completed within one second. Tasks 62 and 63 retain
   their hardware and manifest-policy gates.
 
-- [ ] 62. lights PR 12: move all seven aerospace keys F4 to F10 to `~/.cargo/bin/lights`. Five still call
-  Bash and two call OpenHue directly. Complete the three remaining command/hardware drills, then verify
-  actual key presses and held-key behavior after apply. Retire the script and propose manual cleanup of
-  its deployed copy and obsolete logs after acceptance. DONE 2026-09-14 in
-  [PR #608](https://github.com/webdavis/dotfiles/pull/608)
+- [x] 62. THE AGENT WORK IS DONE, re-checked 2026-09-16 because this bullet still read as open: PR #608
+  moved F4 to F10 to the `lights` binary and PR #611 added the f1 to f3 presets, both merged. What is
+  left is only what the bullet already lists as operator steps: `aerospace reload-config` after the
+  apply, then press the keys and watch the rooms. Original entry: lights PR 12: move all seven aerospace
+  keys F4 to F10 to `~/.cargo/bin/lights`. Five still call Bash and two call OpenHue directly. Complete
+  the three remaining command/hardware drills, then verify actual key presses and held-key behavior after
+  apply. Retire the script and propose manual cleanup of its deployed copy and obsolete logs after
+  acceptance. DONE 2026-09-14 in [PR #608](https://github.com/webdavis/dotfiles/pull/608)
   (`feat(aerospace): point the seven light keys at the lights binary`, merged): F4 to F10 in
   `dot_aerospace.toml` now call the `lights` binary for the Studio. Operator steps left: run
   `aerospace reload-config` after the apply, then press the keys in the Studio to verify. Separately, on
@@ -2868,9 +2871,17 @@ operator deployment. No source correction was warranted by this audit.
   [`docs/acceptance/nvim-acceptance-drills.md`](acceptance/nvim-acceptance-drills.md) ran with two Claude
   agents in two tabs of the same workspace, and moving Neovim's pane to the second tab made a resend
   follow that tab rather than the one it started in.
-- [ ] Resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused
-  ZLS configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason
-  ZLS reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
+- [x] RESOLVED 2026-09-16, the pair is compatible now. Measured on dresden: `zig version` prints
+  `0.16.0`, `zls --version` prints `0.16.0`, `zig env` exits 0 (it used to fail to locate its
+  installation), `zls` is declared in `.chezmoidata/system_packages_autoinstall.yaml` beside `zig` since
+  [PR #702](https://github.com/webdavis/dotfiles/pull/702) so the weekly bundle keeps it, Mason holds its
+  own copy at `~/.local/share/nvim/mason/packages/zls`, and `dot_config/nvim/lua/plugins/lsp.lua:200`
+  plus `blink-cmp.lua:60` already wire it. So the ZLS configuration is no longer unused and nothing is
+  removed. The one part left is a preference, not a defect: whether a Zig neotest adapter is wanted at
+  all, which is the operator's call and is filed as their decision rather than as work. Original entry:
+  resolve B97's Zig tooling decision: supply a working, compatible Zig/ZLS pair or remove the unused ZLS
+  configuration after that decision. At audit time Zig reported `0.12.0-dev.3158+1e67f5021`, Mason ZLS
+  reported `0.15.1`, and `zig env` failed to locate its installation. The Zig neotest adapter is also
   absent; decide whether that language workflow is wanted before adding it.
 - [x] Preserve B107's deferred JavaScript test-discovery responsiveness work. Caching shipped, but cold
   parsing remains synchronous; the recorded 7.4-second UI stall was not remeasured in this audit. Source
