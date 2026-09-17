@@ -3,7 +3,7 @@ use crate::*;
 mod records;
 mod submit;
 use records::EventRecords;
-pub(crate) use submit::submit_mode;
+pub(crate) use submit::{submit_encoded, submit_mode};
 
 /// Whether this is the event's FIRST delivery, a NUDGE about one already
 /// recorded, or an OBSERVATION.

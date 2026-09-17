@@ -86,5 +86,8 @@ pub struct GithubEvent {
     pub occurred_at: u64,
 }
 
+pub mod notifications;
+pub mod poll;
+
 #[cfg(test)]
 mod tests;

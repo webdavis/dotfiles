@@ -61,6 +61,17 @@ Config {
                 ),
             },
         },
+        "github": PluginEntry {
+            enabled: true,
+            settings: {
+                "poll_secs": Integer(
+                    60,
+                ),
+                "token": String(
+                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
+                ),
+            },
+        },
         "hermes": PluginEntry {
             enabled: true,
             settings: {

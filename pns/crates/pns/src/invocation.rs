@@ -178,6 +178,13 @@ pub(crate) fn run() {
     if first == "lights" {
         std::process::exit(lights_mode(&second_argument(&flagless)));
     }
+    // The GitHub notification source's own poll. A MODE beside the room
+    // sensor's for the same reason: it reads one remote listing, submits what
+    // it finds through the ordinary producer path, and takes no decision of
+    // its own. The daemon is what runs it.
+    if first == pns_adapters::GITHUB {
+        std::process::exit(github_mode(&second_argument(&flagless)));
+    }
     // The room sensor's own upkeep. A MODE beside the lamps' for the same
     // reason: it reads the bridge, publishes one state line and delivers
     // nothing, and the daemon is what runs it.

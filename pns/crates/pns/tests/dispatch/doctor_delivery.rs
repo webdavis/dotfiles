@@ -54,7 +54,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
     );
-    assert!(printed.contains("1 sent, 2 failed, 4 skipped"), "{printed}");
+    assert!(printed.contains("1 sent, 2 failed, 5 skipped"), "{printed}");
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
         );
     }
     assert!(
-        printed.contains("0 sent, 3 failed, 4 skipped"),
+        printed.contains("0 sent, 3 failed, 5 skipped"),
         "the summary has to count what the lines say: {printed}"
     );
 }
@@ -259,12 +259,13 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         [
             "router: skipped, not enabled in the config",
             "presence: skipped, not enabled in the config",
+            "github: skipped, not enabled in the config",
             "mobile: skipped, not enabled in the config",
             "macos-banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "discord: skipped, not enabled in the config",
             "hue: skipped, not enabled in the config",
-            "0 sent, 0 failed, 7 skipped",
+            "0 sent, 0 failed, 8 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
                 "phone tap: never tapped (default, {:?}); run `pns tap --info`",
