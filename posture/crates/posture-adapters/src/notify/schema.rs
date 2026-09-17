@@ -72,16 +72,6 @@ pub(super) struct Table {
     route: Option<Name>,
 }
 
-impl Table {
-    /// The stated untiered route, or the shipped default.
-    pub(super) fn route(&self) -> String {
-        self.route
-            .as_ref()
-            .map(|route| route.as_str().to_string())
-            .unwrap_or_else(|| DEFAULT_ROUTE.to_string())
-    }
-}
-
 #[derive(Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum Mode {
@@ -120,6 +110,14 @@ fn local_gateway() -> String {
 }
 
 impl Table {
+    /// The stated untiered route, or the shipped default.
+    pub(super) fn route(&self) -> String {
+        self.route
+            .as_ref()
+            .map(|route| route.as_str().to_string())
+            .unwrap_or_else(|| DEFAULT_ROUTE.to_string())
+    }
+
     /// The declared mode, or the refusal for a mode whose own table is missing
     /// what that mode cannot run without.
     pub(super) fn into_mode(self, home: &Path) -> Result<NotifyMode, String> {
