@@ -3225,12 +3225,52 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   for Claude Code (`private_dot_claude/commands/`), Codex and hermes that runs the binary and hands the
   page to the agent as the day's brief, so the operator's first message of the day is "morning" in any
   harness. Operator ruling 2026-09-17: a binary plus an agent command, not a `just` recipe.
+
 - [ ] 126. Quiet follows the calendar. pns turns `pns quiet` on for the duration of a Google Calendar
   event marked busy and off when it ends, so a meeting never gets a banner and the operator never toggles
   quiet by hand. The calendar is read through a producer command the config names (the operator's `gog`
   CLI is the first implementer), polled by the pns daemon on its own clock, read-only, and a manual
   `pns quiet` always wins over the calendar. Ships off by default with one `[quiet.calendar]` table.
   Approved 2026-09-17.
+
+- [ ] 132. `pns resume`, the "where was I" answer. A subcommand that prints, framed, the herdr workspace
+  the operator was last in, the agent pane waiting on them if any, the branch and worktree of that pane,
+  and the last command it ran, read from the state pns already keeps plus the herdr CLI. Plain
+  `pns resume` prints to the terminal; `pns resume --notify` sends the same page through the engine as a
+  banner (and the phone when away). The unlock automation is nothing more than a LaunchAgent or Shortcut
+  that calls `pns resume --notify`; the subcommand is the API and the automation only uses it. Operator
+  ruling 2026-09-17.
+
+- [ ] 133. Nightshift, the one-word overnight handoff, paired with gnhf. At bedtime one command composes
+  the overnight goal from the ledger (every open task that is unblocked, not operator-owned and not in an
+  excluded section, in ledger order, with the standing rules attached), launches it through gnhf's loop
+  (see `docs/runbooks/local-agents.md`) or the harness's own goal, silences the personal channels for the
+  night, and hands the morning to `morning` (task 125). Exclusions and rulings are config, never retyped.
+  The 2026-09-17 overnight prompt, written by hand, is the first fixture. Approved 2026-09-17; if SP8
+  turns out to be this, fold it there.
+
+### Scalebar workout widget
+
+Three changes to the Obsidian workout widget, requested by the operator 2026-09-17. Scalebar is its own
+repository at `~/workspaces/Ivy/webdavis/scalebar`; the widget code is
+`obsidian/dataview-scripts/workflow-ui.js` with `timer-widget.js` beside it, and its tests are
+`Tests/workflow-ui.test.js` and the other `Tests/workflow-*.cjs` files. Work lands as pull requests on
+that repository, one per task, and this ledger only records them. The vault copy under `~/workspaces/Ivy`
+is what the operator sees; deploy it the way Scalebar's own docs say, never by hand-editing the vault.
+
+- [ ] 129. The rest timer turns red while it counts down and returns to its normal color the moment it
+  reaches zero. Nothing else about the timer changes.
+- [ ] 130. Carry the previous set's weight forward. When a set is logged, the next set of the same
+  exercise starts with that weight already filled in (bench at 135 lbs, log, the next set reads 135). The
+  "Use previous" button stays and, when pressed, overrides the carried-over weight with the previous
+  session's weight. The button is restyled as two lines inside one button: the first line reads
+  `Use previous weight from <MM-DD-YYYY, Day>` in text smaller than the widget's normal button text, and
+  the second line, smaller again, shows the weight that session used.
+- [ ] 131. Show the workout duration on the time button. After Start Workout and End Workout, the button
+  on the right reads `<start_time> - <end_time>`; print the duration in smaller text between the two
+  times, on that button, so the length of the workout is readable without opening anything. The inner
+  view that opens from that button (the one that clears each time and lists the duration at the bottom)
+  does NOT change in any way. Operator ruling 2026-09-17: that view stays exactly as it is.
 
 ### Recover the remaining design from PR #24
 
@@ -6391,6 +6431,31 @@ on hold. Preserve the proposal while that work finishes; reviewing its status do
   and posts a three-line card (filed, skipped, needs a look) to the phone. It never sends, archives,
   labels or deletes mail, and the operator sees every filed task in Todoist's inbox before anything else
   happens.
+
+- [ ] 134. Money mission control, managed by Forzare and posted to a dedicated Discord channel of its
+  own, approved 2026-09-17. A cash-flow forecast from YNAB's scheduled transactions and income, bill-due
+  escalation through pns, "can I afford X" answered from the phone, and a monthly one-page. Task 127 (the
+  recurring-charge watch) is its first piece and posts to the same channel. Read-only against YNAB; the
+  channel id is a KeePassXC entry like every other channel.
+
+## After the ledger: approved ideas awaiting design
+
+Three ideas the operator approved in principle on 2026-09-17 and ruled NOT to start until the rest of
+this ledger is done. They are recorded so they are not lost and so no overnight run picks them up. Each
+needs a design conversation with the operator first.
+
+- [ ] 135. Attest, the proof ledger. A task closes only on a proof: the command, its output, a hash and a
+  date, submitted by an agent and ticked by the tool, never by hand. A nightly pass re-runs the proofs
+  and flags rot (a pull request that has since merged, a file that no longer exists). This ledger becomes
+  a rendered view of the proofs. The operator wants it and wants to discuss the details after everything
+  else here is finished.
+- [ ] 136. The second brain that answers, a Forzare feature. One local index over the vault, Readwise,
+  transcripts, Todoist and the calendar, asked from any harness or from the phone through hermes, and fed
+  to agents so they stop re-asking rulings. Operator ruling 2026-09-17: the data sources are chosen
+  carefully and deliberately, one at a time, and this waits until the ledger is finished.
+- [ ] 137. Campaign, the job-search crew, a future idea. The operator started at Broccoli AI on 2026-09
+  (`~/workspaces/Ivy/career-campaign/broccoli/ai-tech-support/`) and is focused on that role; nothing
+  here is built now.
 
 ## Open questions
 
