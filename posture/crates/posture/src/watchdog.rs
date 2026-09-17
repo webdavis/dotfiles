@@ -67,6 +67,7 @@ fn execute(
         sink: &mut sink,
         alarm: &mut LastResortBanner::new(runners.independent, config.alarm),
         maximum_age: config.maximum_age,
+        agents: &config.agents,
         gateway_url: &config.gateway,
         state_path: &config.state.to_string_lossy(),
     }

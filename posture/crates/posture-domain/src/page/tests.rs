@@ -23,9 +23,16 @@ pub(super) fn critical(query: &str) -> PageFinding<'_> {
     }
 }
 
+/// The job labels a test machine is configured with. Only the header's
+/// own-plist question reads them, and `headers.rs` overrides one to prove the
+/// answer comes from here rather than from source.
+pub(super) fn agents() -> crate::AgentLabels {
+    crate::AgentLabels::default()
+}
+
 /// The rendered body of a single finding.
 pub(super) fn body(finding: PageFinding<'_>) -> String {
-    render_page(&[finding]).body
+    render_page(&[finding], &agents()).body
 }
 
 #[test]
@@ -71,7 +78,7 @@ fn only_critical_findings_reach_the_page() {
         severity: Severity::Info,
         ..critical("new_admin_user")
     };
-    let page = render_page(&[notice, info]);
+    let page = render_page(&[notice, info], &agents());
     assert_eq!(page.count, 0);
     assert_eq!(page.body, "");
 }

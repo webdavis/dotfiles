@@ -10,11 +10,16 @@ struct Script(
         Result<CommandOutput, InspectionFailure>,
     )>,
 );
+/// The label a test asks about. IT IS NOT A NAME THIS TOOL KNOWS: the reader
+/// is handed whatever label the config named, so the script asserts that the
+/// launchctl target is built from the argument and nothing else.
+const LABEL: &str = "com.example.roundup";
+
 impl Script {
     fn print(output: &str, exit: i32) -> Self {
         Self(VecDeque::from([(
             "/bin/launchctl",
-            vec!["print".into(), "gui/501/com.webdavis.osquery-digest".into()],
+            vec!["print".into(), format!("gui/501/{LABEL}")],
             Ok(CommandOutput {
                 bytes: output.as_bytes().to_vec(),
                 exit,
@@ -48,8 +53,8 @@ fn loaded_agent_fields_reach_existing_crash_streak_policy() {
         501,
     );
     let judged = judge_agent(
-        Agent::Digest,
-        reader.agent(Agent::Digest),
+        LABEL,
+        reader.agent(LABEL),
         AgentState {
             runs: Some(6),
             streak: 1,
@@ -71,7 +76,7 @@ fn sentinel_and_malformed_fields_remain_distinct_from_unloaded() {
     ] {
         let mut reader = SystemWatchdogProcesses::new(Script::print(text, 0), 501);
         assert_eq!(
-            reader.agent(Agent::Digest),
+            reader.agent(LABEL),
             AgentReading::Loaded {
                 runs: None,
                 exit: expected
@@ -79,7 +84,7 @@ fn sentinel_and_malformed_fields_remain_distinct_from_unloaded() {
         );
     }
     let mut reader = SystemWatchdogProcesses::new(Script::print("last exit code = 0\n", 113), 501);
-    assert_eq!(reader.agent(Agent::Digest), AgentReading::Unloaded);
+    assert_eq!(reader.agent(LABEL), AgentReading::Unloaded);
 }
 #[test]
 fn osquery_and_pns_liveness_use_read_only_commands_and_fail_closed() {

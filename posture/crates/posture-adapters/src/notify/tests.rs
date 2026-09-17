@@ -1,4 +1,5 @@
 use super::*;
+use posture_domain::Agent;
 
 /// A home this machine does not have, so a window path can be asserted
 /// without one test's state directory being another's.
@@ -219,4 +220,70 @@ fn formatting_a_choice_names_the_copy_route_too() {
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
     assert!(formatted.contains("explain"), "{formatted}");
+}
+
+/// The labels the `[jobs]` half of one config file states.
+fn labels(text: &str) -> AgentLabels {
+    toml::from_str::<schema::File>(text)
+        .expect("a usable config file")
+        .jobs
+        .into_labels()
+}
+
+#[test]
+fn a_stated_job_label_is_the_one_the_tool_uses_and_the_rest_keep_their_defaults() {
+    let configured = labels(
+        r#"
+        [notify]
+        mode = "off"
+        [jobs]
+        alert = "com.example.osquery-results-alerter"
+        digest = "com.example.roundup"
+        "#,
+    );
+    assert_eq!(
+        configured.label(Agent::Alert),
+        "com.example.osquery-results-alerter"
+    );
+    assert_eq!(configured.label(Agent::Digest), "com.example.roundup");
+    assert_eq!(configured.label(Agent::Poll), "dev.posture.poll");
+}
+
+#[test]
+fn a_file_naming_no_job_leaves_every_label_at_its_shipped_default() {
+    assert_eq!(
+        labels("[notify]\nmode = \"off\"\n"),
+        AgentLabels::default(),
+        "an absent [jobs] table is the shipped posture"
+    );
+    assert_eq!(
+        labels("[notify]\nmode = \"off\"\n[jobs]\nalert = \"\"\n"),
+        AgentLabels::default(),
+        "an empty label is no label, not a job with no name"
+    );
+}
+
+#[test]
+fn a_job_this_build_does_not_run_is_refused_by_name() {
+    let refusal = toml::from_str::<schema::File>(
+        "[notify]\nmode = \"off\"\n[jobs]\nuptime_watchdog = \"com.example.x\"\n",
+    )
+    .err()
+    .expect("an unknown job is refused");
+    assert!(refusal.message().contains("uptime_watchdog"), "{refusal:?}");
+}
+
+#[test]
+fn the_labels_the_watchdog_searches_for_come_off_the_config_file_on_disk() {
+    let home = std::env::temp_dir().join(format!("posture-jobs-{}", std::process::id()));
+    let directory = home.join(".config/posture");
+    std::fs::create_dir_all(&directory).expect("a sandbox home");
+    std::fs::write(
+        directory.join("config.toml"),
+        "[notify]\nmode = \"off\"\n[jobs]\nheartbeat = \"com.example.pulse\"\n",
+    )
+    .expect("a config file");
+    let configured = agent_labels(&home);
+    std::fs::remove_dir_all(&home).expect("the sandbox is removable");
+    assert_eq!(configured.label(Agent::Heartbeat), "com.example.pulse");
 }

@@ -16,9 +16,13 @@ fn fresh_path() -> (Sandbox, PathBuf) {
 fn legacy_state_migrates_without_losing_growth_or_confirmed_audit() {
     let (_sandbox, path) = fresh_path();
     let hash = "a".repeat(64);
-    fs::write(&path, format!(r#"{{"agents":{{"{}":{{"runs":8,"streak":1}}}},"pending":{{"count":7,"growth_streak":1}},"pipeline_audit":{{"fingerprint":"{hash}","streak":999,"paged_fingerprint":"{hash}"}}}}"#,Agent::Digest.label())).unwrap();
+    fs::write(&path, format!(r#"{{"agents":{{"{}":{{"runs":8,"streak":1}}}},"pending":{{"count":7,"growth_streak":1}},"pipeline_audit":{{"fingerprint":"{hash}","streak":999,"paged_fingerprint":"{hash}"}}}}"#,Agent::Digest.key())).unwrap();
     let state = WatchdogStateFile::new(path).load();
-    assert_eq!(state.agents[2].unwrap().runs, Some(8));
+    let digest = Agent::MONITORED
+        .iter()
+        .position(|agent| *agent == Agent::Digest)
+        .unwrap();
+    assert_eq!(state.agents[digest].unwrap().runs, Some(8));
     assert_eq!(
         state.legacy_pending,
         QueueMemory {

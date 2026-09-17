@@ -2,12 +2,17 @@ use posture_application::WatchdogState;
 use posture_domain::{Agent, AgentState, AuditMemory, QueueMemory};
 use serde_json::{Value, json};
 
+/// KEYED BY THE JOB, NOT BY ITS LABEL. A label is per-machine configuration, so
+/// keying remembered runs and streaks by it would throw a job's history away the
+/// day it is renamed. A file written under the old label-keyed scheme reads as a
+/// job never seen, which costs one reset streak on the first tick and pages
+/// nothing: a crash loop has to be observed twice before it is raised.
 pub(super) fn decode(bytes: &[u8]) -> Option<WatchdogState> {
     let value: Value = serde_json::from_slice(bytes).ok()?;
     value.as_object()?;
     let mut state = WatchdogState::default();
-    for (index, agent) in Agent::ALL.into_iter().enumerate() {
-        if let Some(entry) = value["agents"][agent.label()].as_object() {
+    for (index, agent) in Agent::MONITORED.into_iter().enumerate() {
+        if let Some(entry) = value["agents"][agent.key()].as_object() {
             state.agents[index] = Some(AgentState {
                 runs: entry.get("runs").and_then(number),
                 streak: entry.get("streak").and_then(number).unwrap_or(0),
@@ -47,9 +52,9 @@ fn queue(value: &Value) -> QueueMemory {
 }
 pub(super) fn encode(state: &WatchdogState) -> Vec<u8> {
     let mut agents = serde_json::Map::new();
-    for (agent, memory) in Agent::ALL.into_iter().zip(state.agents) {
+    for (agent, memory) in Agent::MONITORED.into_iter().zip(state.agents) {
         if let Some(memory) = memory {
-            agents.insert(agent.label().into(), json!({"runs": memory.runs.map_or(json!(-1), |n| json!(n)), "streak": memory.streak}));
+            agents.insert(agent.key().into(), json!({"runs": memory.runs.map_or(json!(-1), |n| json!(n)), "streak": memory.streak}));
         }
     }
     let queue = |memory: QueueMemory| json!({"count": memory.count.map_or(json!(-1), |n| json!(n)), "growth_streak": memory.growth_streak, "deadletters": memory.deadletters.map_or(json!(-1), |n| json!(n))});

@@ -83,8 +83,8 @@ pub use audit::{
 
 mod watchdog;
 pub use watchdog::{
-    Agent, AgentExit, AgentJudgment, AgentReading, AgentState, AuditFingerprint, AuditJudgment,
-    AuditMemory, ExitCode, QueueCounts, QueueKind, QueueMemory, WatchdogPage,
+    Agent, AgentExit, AgentJudgment, AgentLabels, AgentReading, AgentState, AuditFingerprint,
+    AuditJudgment, AuditMemory, ExitCode, QueueCounts, QueueKind, QueueMemory, WatchdogPage,
     audit_fingerprint_input, judge_agent, judge_audit, judge_queue, osquery_problem, route_problem,
     state_problem, watchdog_page,
 };

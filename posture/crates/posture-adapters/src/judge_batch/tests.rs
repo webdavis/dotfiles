@@ -53,6 +53,7 @@ impl World {
             allowlist,
             spool: &self.spool,
             now: "2026-09-09T12:00:00Z",
+            agents: &posture_domain::AgentLabels::default(),
             diagnostics: &mut diagnostics,
             collaborators: Collaborators {
                 vouches: &mut vouch,

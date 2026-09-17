@@ -6,11 +6,11 @@
 //! stops reading there.
 
 use super::PageFinding;
-use crate::Detector;
 use crate::sanitize;
+use crate::{AgentLabels, Detector};
 
 /// The closing lines for one finding.
-pub(super) fn next_step(finding: &PageFinding<'_>) -> Vec<String> {
+pub(super) fn next_step(finding: &PageFinding<'_>, agents: &AgentLabels) -> Vec<String> {
     let path = finding.enrichment_path;
     if super::header::protection_name(finding.detector()).is_some() {
         return lines(&[
@@ -45,7 +45,7 @@ pub(super) fn next_step(finding: &PageFinding<'_>) -> Vec<String> {
             "- Did you enable this? If not, someone opened a remote-control path into this Mac - **disable it now**.",
             "- System Settings → General → Sharing",
         ]),
-        Some(Detector::FileEventsRecent) => watched_file_next_step(finding),
+        Some(Detector::FileEventsRecent) => watched_file_next_step(finding, agents),
         Some(Detector::PersistenceLaunchd | Detector::PersistenceStartupItemsCrontab) => vec![
             "- Did you set this up? If not, it **auto-runs at every login** - likely malware.".to_string(),
             command("Inspect", "cat --", path),
@@ -64,10 +64,10 @@ pub(super) fn next_step(finding: &PageFinding<'_>) -> Vec<String> {
 }
 
 /// The closing lines for a watched file, which split on whether the file is ours.
-fn watched_file_next_step(finding: &PageFinding<'_>) -> Vec<String> {
+fn watched_file_next_step(finding: &PageFinding<'_>, agents: &AgentLabels) -> Vec<String> {
     let path = finding.enrichment_path;
     let ours = finding.columns.category.unwrap_or_default() == "pipeline_integrity"
-        || super::header::is_our_security_tooling(finding);
+        || super::header::is_our_security_tooling(finding, agents);
     if ours {
         return vec![
             "- Did you just apply your dotfiles? If not, your **security tooling was modified** - investigate now.".to_string(),

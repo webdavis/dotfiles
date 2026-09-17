@@ -1,5 +1,5 @@
 use posture_adapters::Notify;
-use posture_domain::{AuditBounds, ManifestAuthority};
+use posture_domain::{AgentLabels, AuditBounds, ManifestAuthority};
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 pub(super) struct Configuration {
@@ -12,6 +12,8 @@ pub(super) struct Configuration {
     pub authority: [ManifestAuthority; 2],
     pub pns: PathBuf,
     pub notify: Notify,
+    /// The launchd label of each of posture's own jobs, read from its config.
+    pub agents: AgentLabels,
     pub alarm: PathBuf,
     pub gateway: String,
     pub route_timeout: Duration,
@@ -77,6 +79,7 @@ impl Configuration {
             authority: [pipeline_authority, bin_authority],
             pns: home.join(".cargo/bin/pns"),
             notify: Notify::read(&home),
+            agents: posture_adapters::agent_labels(&home),
             alarm: PathBuf::from("/usr/bin/osascript"),
             gateway: value("OSQUERY_HERMES_PRIORITY_URL")
                 .and_then(|v| v.into_string().ok())

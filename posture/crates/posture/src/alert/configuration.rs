@@ -1,4 +1,5 @@
 use posture_adapters::Notify;
+use posture_domain::AgentLabels;
 use std::{ffi::OsString, path::PathBuf};
 
 /// The results log the alerter reads, relative to `$HOME`.
@@ -28,6 +29,8 @@ pub(super) struct Configuration {
     pub allowlist: PathBuf,
     pub spool: PathBuf,
     pub notify: Notify,
+    /// The launchd label of each of posture's own jobs, read from its config.
+    pub agents: AgentLabels,
     pub alarm: PathBuf,
 }
 
@@ -71,6 +74,7 @@ impl Configuration {
         // /var/osquery precisely so the account being watched cannot rewrite
         // them, which is the whole reason a manifest is worth consulting.
         let notify = Notify::read(std::path::Path::new(&home));
+        let agents = posture_adapters::agent_labels(std::path::Path::new(&home));
         Some(Self {
             home: home.to_string_lossy().into_owned(),
             log,
@@ -80,6 +84,7 @@ impl Configuration {
             pipeline_manifest,
             managed_bin_manifest,
             notify,
+            agents,
             alarm: "/usr/bin/osascript".into(),
         })
     }

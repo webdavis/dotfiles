@@ -1,7 +1,7 @@
 use super::*;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
-use posture_domain::{AuditBounds, ManifestAuthority};
+use posture_domain::{AgentLabels, AuditBounds, ManifestAuthority};
 use std::{
     cell::RefCell,
     ffi::OsStr,
@@ -159,6 +159,7 @@ fn configuration() -> Configuration {
         managed_bin,
         authority: [ManifestAuthority::ExplicitOverride; 2],
         notify: crate::command_notify(&pns),
+        agents: AgentLabels::default(),
         pns,
         alarm: "/fixture/osascript".into(),
         gateway: "http://fixture/priority".into(),
