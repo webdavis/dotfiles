@@ -122,36 +122,87 @@ fn a_copy_the_gateway_refused_says_so_and_still_leaves_the_page_delivered() {
     );
 }
 
+/// One critical page per distinct finding, told apart by its detail.
+fn finding(detail: &str) -> Alert {
+    let mut page = alert(Some(Severity::Critical));
+    page.detail = detail.into();
+    page
+}
+
 #[test]
-fn the_twenty_first_distinct_finding_in_the_hour_is_not_copied_and_says_so() {
+fn a_storm_gets_one_combined_message_listing_every_finding_instead_of_one_each() {
     let sandbox = crate::test_sandbox::Sandbox::new("critical-copy");
     let mut sut = copying(keys(), PostOutcome::Status(204), &sandbox);
-    for index in 0..window::DISTINCT_FINDINGS_PER_HOUR {
-        let mut page = alert(Some(Severity::Critical));
-        page.detail = format!("finding {index}");
-        assert_eq!(sut.submit(&page), Submission::Accepted);
+    for index in 0..window::STORM_THRESHOLD {
+        assert_eq!(
+            sut.submit(&finding(&format!("finding {index}"))),
+            Submission::Accepted
+        );
     }
     assert_eq!(
         sut.post.sent.borrow().len(),
-        40,
-        "twenty pages, twenty copies"
+        window::STORM_THRESHOLD * 2,
+        "inside the threshold every finding is explained on its own"
     );
 
-    let mut refused = alert(Some(Severity::Critical));
-    refused.detail = "the twenty first finding".into();
     assert_eq!(
-        sut.submit(&refused),
-        Submission::Accepted,
-        "the page itself is unaffected"
+        sut.submit(&finding("the finding that tipped it")),
+        Submission::Accepted
     );
-    assert_eq!(sut.post.sent.borrow().len(), 41, "the page, and no copy");
+    let sent = sut.post.sent.borrow();
     assert_eq!(
-        sut.alarm.calls,
-        vec![(
-            CAP_TITLE.to_string(),
-            "Security finding\nthe twenty first finding".to_string()
-        )]
+        sent.len(),
+        window::STORM_THRESHOLD * 2 + 2,
+        "the crossing page, and one message for the whole hour"
     );
+    let storm = sent.last().expect("the combined message");
+    assert_eq!(storm.url, "http://127.0.0.1:8644/webhooks/explain");
+    assert_eq!(
+        storm.signature,
+        sign("key-explain", &storm.body).unwrap(),
+        "signed with the copy route's own key"
+    );
+    let body: serde_json::Value = serde_json::from_str(&storm.body).expect("a JSON body");
+    assert_eq!(
+        body["header"],
+        serde_json::json!("6 distinct critical findings in one hour")
+    );
+    let listed = body["body"].as_str().expect("the list");
+    for index in 0..window::STORM_THRESHOLD {
+        assert!(
+            listed.contains(&format!("Security finding: finding {index}")),
+            "every finding of the hour is listed, missing {index}: {listed}"
+        );
+    }
+    assert!(listed.contains("Security finding: the finding that tipped it"));
+    assert_ne!(storm.request_id, sent[sent.len() - 2].request_id);
+    assert!(sut.alarm.calls.is_empty());
+}
+
+#[test]
+fn a_finding_after_the_combined_message_is_still_paged_and_is_not_explained_again() {
+    let sandbox = crate::test_sandbox::Sandbox::new("critical-copy");
+    let mut sut = copying(keys(), PostOutcome::Status(204), &sandbox);
+    for index in 0..=window::STORM_THRESHOLD {
+        assert_eq!(
+            sut.submit(&finding(&format!("finding {index}"))),
+            Submission::Accepted
+        );
+    }
+    let before = sut.post.sent.borrow().len();
+    for index in 0..4 {
+        assert_eq!(
+            sut.submit(&finding(&format!("a later finding {index}"))),
+            Submission::Accepted,
+            "the page itself is unaffected"
+        );
+    }
+    assert_eq!(
+        sut.post.sent.borrow().len(),
+        before + 4,
+        "four pages and nothing else: the hour's one message already said so"
+    );
+    assert!(sut.alarm.calls.is_empty());
 }
 
 #[test]
@@ -169,14 +220,17 @@ fn repeats_of_one_finding_spend_no_budget_and_crowd_out_no_other_findings_copy()
         8,
         "seven pages and the one copy the first occurrence earned"
     );
-    // Nineteen further distinct findings still fit, so the repeats cost none of
-    // the hour's budget.
-    for index in 0..19 {
+    // The rest of the threshold still fits, so the repeats cost none of the
+    // hour's budget.
+    for index in 0..window::STORM_THRESHOLD - 1 {
         let mut page = alert(Some(Severity::Critical));
         page.detail = format!("a different finding {index}");
         assert_eq!(sut.submit(&page), Submission::Accepted);
     }
-    assert_eq!(sut.post.sent.borrow().len(), 8 + 38);
+    assert_eq!(
+        sut.post.sent.borrow().len(),
+        8 + (window::STORM_THRESHOLD - 1) * 2
+    );
     assert!(sut.alarm.calls.is_empty());
 }
 
