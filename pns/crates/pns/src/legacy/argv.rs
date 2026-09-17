@@ -42,7 +42,7 @@ const BARE_FLAGS: [&str; 4] = [
     "--require-delivery",
 ];
 
-/// Whether a token is a producer flag, shared by parsing and invocation classification.
+/// Whether a token is a producer flag.
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
 }

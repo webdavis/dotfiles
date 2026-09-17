@@ -75,11 +75,9 @@ fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
     // word it did not know and notified about an empty event, so `pns stpo`
     // raised a banner and could card the operator's phone.
     //
-    // THE SECOND ARGV IS THE PARSER'S OWN FLAG LIST BEING CONSULTED rather
-    // than a lookalike. A refusal that asked "does anything here start with a
-    // dash" instead of "is this a flag the parser knows" reads `--wat` as a
-    // producer invocation and delivers the empty event again: the same bug,
-    // reached by mistyping the flag as well as the word.
+    // THE REFUSAL READS ONLY THE FIRST WORD: whatever trails a subcommand
+    // pns does not know is refused the same way regardless, so a mistyped
+    // flag (`--wat`) refuses exactly like a mistyped word.
     for argv in [&["stpo"][..], &["stpo", "--wat"][..]] {
         let (sandbox, mut command) = desk_with_a_native_banner("typo");
         let output = command.args(argv).output().expect("the engine runs");

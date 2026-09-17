@@ -23,7 +23,7 @@ pub(crate) fn daemon_mode(verb: &str) -> i32 {
 
 pub(crate) const DAEMON_USAGE: &str = "pns: usage: pns daemon run | \
 pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] \
-[--unless-marker <name>] -- <event args> | \
+[--unless-marker <name>] -- <subcommand> [args] | \
 pns daemon cancel --id <id>";
 /// `pns daemon schedule`: one registration, typed.
 ///
