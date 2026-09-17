@@ -45,9 +45,12 @@ pub struct GithubSource {
     pub poll_secs: u64,
 }
 
-/// The config-table name, spelled once: the registry roster, the settings
-/// reader and the daemon's registration all select on it.
-pub const GITHUB: &str = "github";
+/// The config-table name, RE-EXPORTED rather than spelled again. The roster
+/// is where a plugin's name is declared, and this reader, the poll's own
+/// invocation and the submission's producer name all select on it: a second
+/// literal here would be a spelling that could drift from the registration
+/// it has to match.
+pub use pns_domain::registry::GITHUB;
 
 /// The starting interval, and the one the documentation states: "there is an
 /// `X-Poll-Interval` header that specifies how often (in seconds) you are
