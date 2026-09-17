@@ -50,14 +50,41 @@ pub(crate) fn destinations_with_output(
     routes: &Routes,
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
-    let override_dir = std::env::var("PNS_CHANNELS_DIR")
-        .ok()
-        .filter(|dir| !dir.is_empty());
-    let channels = resolve_path(
-        override_dir.as_deref(),
-        &format!("{home}/.local/libexec/pns/channels"),
-    );
-    let forced = override_dir.as_ref().map(|_| channels.as_path());
+    destinations_for_override(
+        std::env::var("PNS_CHANNELS_DIR").ok().as_deref(),
+        selection,
+        route,
+        home,
+        mobile,
+        hermes_keys,
+        discord,
+        routes,
+        json,
+    )
+}
+
+// THE ENVIRONMENT READ IS THE ONLY THING ABOVE THIS LINE, so the decision the
+// override drives (a blank value falls through to the default directory, a set
+// one forces every channel onto its executable, and a refused backend precedes
+// both) is reachable with the value handed in. It is what keeps the test of
+// that decision a plain call instead of a re-exec of the test binary with a
+// scrubbed environment, which could only be bounded by a wall-clock deadline
+// and reddened `main` under load when a spawn outran it.
+#[allow(clippy::too_many_arguments)]
+fn destinations_for_override(
+    channels_override: Option<&str>,
+    selection: &Selection,
+    route: &str,
+    home: &str,
+    mobile: &Mobile,
+    hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
+    routes: &Routes,
+    json: bool,
+) -> Destinations<Box<dyn NotificationDestination>> {
+    let override_dir = channels_override.filter(|dir| !dir.is_empty());
+    let channels = resolve_path(override_dir, &format!("{home}/.local/libexec/pns/channels"));
+    let forced = override_dir.map(|_| channels.as_path());
     let native = vec![
         registration::choose(
             moshi_channel(mobile.token.clone()),
