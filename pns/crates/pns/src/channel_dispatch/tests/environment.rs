@@ -1,17 +1,17 @@
 use super::*;
 
-/// THE FACTORY'S OWN DECISION, driven by the override value rather than by the
-/// process environment: an absent or blank `PNS_CHANNELS_DIR` leaves the native
-/// backend in place, a set one forces the executable, and a refused backend
-/// precedes either. The read of the variable itself is the one line above
-/// `destinations_for_override`.
+/// THE DECISION `destinations_for_override` MAKES, driven by the override
+/// value rather than by the process environment: an absent or blank
+/// `PNS_CHANNELS_DIR` leaves the native backend in place, a set one forces the
+/// executable, and a refused backend precedes either. The `PNS_CHANNELS_DIR`
+/// read itself is the one line above that function.
 ///
 /// THIS USED TO RE-EXEC THE TEST BINARY once per scenario with a scrubbed
 /// environment, bounded by a 500ms wall-clock deadline, and it reddened `main`
 /// on untouched code: a spawn that outran the budget was killed, and the kill
 /// read as the factory failing. Nothing here waits on a clock now.
 #[test]
-fn the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch() {
+fn a_blank_channels_override_falls_through_and_a_refused_backend_precedes_dispatch() {
     for scenario in ["unset", "blank", "forced", "refused"] {
         let directory = fixture("mobile");
         let override_dir = match scenario {
