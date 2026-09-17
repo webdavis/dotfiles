@@ -35,6 +35,15 @@ pub(crate) fn derive_copy(page_id: &str) -> String {
     derive(&format!("{page_id}:copy"))
 }
 
+/// The id of the ONE message an hour's storm gets, derived from the page that
+/// crossed the threshold.
+///
+/// DISTINCT FROM BOTH THE PAGE'S AND A COPY'S, for the same reason a copy's
+/// is: the gateway keys its duplicate cache on the id alone across routes.
+pub(crate) fn derive_storm(page_id: &str) -> String {
+    derive(&format!("{page_id}:storm"))
+}
+
 /// The seed a page's own id is derived from: its occurrence when the page has
 /// one, so a retry of the same page carries the same id and is recognized
 /// rather than delivered twice.

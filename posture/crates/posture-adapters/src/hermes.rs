@@ -40,8 +40,10 @@ const ALARM_TITLE: &str = "Posture page could not be delivered";
 /// would go looking for a page that is already in the channel.
 const COPY_ALARM_TITLE: &str = "Posture page copy could not be posted";
 
-/// The title the local banner carries when the hour's copies are spent.
-const CAP_TITLE: &str = "Posture page copy withheld: the hour is full";
+/// How many characters of one finding the combined message lists. Enough to
+/// tell two findings apart, short enough that a storm's list stays one
+/// readable message.
+const LISTED_FINDING_CHARACTERS: usize = 120;
 
 /// A second route a CRITICAL page is copied to, verbatim, once its own post
 /// came back delivered, and the file the rolling hour of those copies is
@@ -162,32 +164,50 @@ impl<P: SignedPost, A: IndependentAlarm> HermesWebhook<P, A> {
         // refused by the gateway and an empty key is the not-set-up case, so
         // both mean this leg is configured and cannot run, which is exactly
         // the state that would otherwise switch the feature off unnoticed.
-        let Some(signature) = self
+        // Checked before the hour is claimed, so a leg that cannot post
+        // spends none of it.
+        let Some(key) = self
             .keys
             .get(copy.route.as_str())
-            .and_then(|key| sign(key, body))
+            .filter(|key| !key.is_empty())
+            .cloned()
         else {
             self.report_copy(COPY_ALARM_TITLE, alert);
             return;
         };
-        match window::claim(&copy.window, &finding_key(alert), window::now()) {
-            window::Claim::Granted => {}
-            // A REPEAT IS NOT A REFUSAL. This finding's copy is already in the
-            // hour, so there is nothing to tell anyone.
-            window::Claim::AlreadyCopied => return,
-            window::Claim::CapReached => {
-                self.report_copy(CAP_TITLE, alert);
-                return;
-            }
-        }
-        // A DISTINCT ID FOR THE COPY. The gateway's duplicate cache is keyed
-        // on the delivery id alone across every route, so a copy sharing the
-        // page's id would be read as the page arriving twice and dropped.
+        // THE ID IS DISTINCT FROM THE PAGE'S EITHER WAY. The gateway's
+        // duplicate cache is keyed on the delivery id alone across every
+        // route, so a second post sharing the page's id would be read as the
+        // page arriving twice and dropped.
+        let (payload, request_id) = match window::claim(
+            &copy.window,
+            &finding_key(alert),
+            &listed_finding(alert),
+            window::now(),
+        ) {
+            window::Claim::Granted => (body.to_string(), request_id::derive_copy(page_id)),
+            // A REPEAT IS NOT A REFUSAL. This finding is already in the hour,
+            // so there is nothing to tell anyone. Neither is a finding that
+            // arrives after the storm message: the message said the machine
+            // is in trouble and the finding's own page is in its channel.
+            window::Claim::AlreadyCopied | window::Claim::Storming => return,
+            // ONE MESSAGE FOR THE WHOLE HOUR. Past the threshold the useful
+            // message is that the machine is in trouble, with the findings
+            // listed, rather than the next finding explained on its own.
+            window::Claim::Storm(findings) => (
+                body::encode_storm(&findings, &copy.route),
+                request_id::derive_storm(page_id),
+            ),
+        };
+        let Some(signature) = sign(&key, &payload) else {
+            self.report_copy(COPY_ALARM_TITLE, alert);
+            return;
+        };
         let outcome = self.post.post(
             &self.url(&copy.route),
-            body,
+            &payload,
             &signature,
-            &request_id::derive_copy(page_id),
+            &request_id,
             Some(POST_DEADLINE),
         );
         if !delivered(outcome) {
@@ -209,11 +229,25 @@ impl<P: SignedPost, A: IndependentAlarm> HermesWebhook<P, A> {
 /// A page's `occurrence_id` is the byte range it was judged from, so two
 /// batches reporting one unchanged finding carry different occurrences and
 /// counting those would count pages. The digest folds its own repeats by
-/// content for the same reason. Hashed rather than stored whole, because the
-/// window file then holds fixed-width keys instead of the text of every
-/// finding this machine paged about.
+/// content for the same reason. Hashed rather than stored whole, so identity
+/// is content-based and the key stays a fixed width regardless of what the
+/// finding says; the bounded label stored beside it is `listed_finding`, not
+/// this key.
 fn finding_key(alert: &Alert) -> String {
     request_id::derive(&format!("{}:{}:{}", alert.event, alert.title, alert.detail))
+}
+
+/// The one line a combined message lists this finding as: what it says, on one
+/// line, bounded. Stored in the window file beside the finding's key, because
+/// the process that sends the combined message is not the one that saw the
+/// findings before it.
+fn listed_finding(alert: &Alert) -> String {
+    let first_line = alert.detail.lines().next().unwrap_or_default();
+    let line = format!("{}: {first_line}", alert.title);
+    match line.char_indices().nth(LISTED_FINDING_CHARACTERS) {
+        Some((at, _)) => format!("{}...", &line[..at]),
+        None => line,
+    }
 }
 
 #[cfg(test)]
