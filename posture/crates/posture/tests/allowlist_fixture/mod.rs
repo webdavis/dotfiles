@@ -6,6 +6,16 @@ use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+/// The liveness bound on one `posture allowlist` run, the same bound and the
+/// same reasoning as this suite's `usage.rs` and `funnel_fixture`: a hang fails
+/// the row instead of wedging the suite, and NOTHING here reads the elapsed
+/// time. Every case asserts the exit code, the streams and the recorded calls.
+///
+/// FIFTEEN SECONDS, not the 400ms this carried, which was a wall-clock budget
+/// for spawning the real binary and three bash stubs while the operator's other
+/// agent lanes compile. A passing run ends on the child's own exit.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 pub struct Fixture {
     pub root: PathBuf,
     pub source: PathBuf,
@@ -97,7 +107,7 @@ impl Fixture {
             .process_group(0)
             .spawn()
             .unwrap();
-        let expires = Instant::now() + Duration::from_millis(400);
+        let expires = Instant::now() + LIVENESS_BOUND;
         loop {
             if child.try_wait().unwrap().is_some() {
                 return child.wait_with_output().unwrap();
@@ -105,7 +115,7 @@ impl Fixture {
             if Instant::now() >= expires {
                 let _ = child.kill();
                 let _ = child.wait();
-                panic!("owned allowlist fixture exceeded 400ms");
+                panic!("owned allowlist fixture never finished");
             }
             std::thread::sleep(Duration::from_millis(1));
         }

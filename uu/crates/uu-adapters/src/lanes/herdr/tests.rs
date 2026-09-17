@@ -276,8 +276,14 @@ fn a_lane_with_no_plugins_still_updates_the_binary() {
 
 // --- pinning --------------------------------------------------------------
 
+/// The envelope `herdr plugin list --json` answers with, trimmed to the
+/// fields the lane reads.
+fn listing(plugins: &str) -> String {
+    format!("{{\"result\":{{\"plugins\":[{plugins}]}}}}")
+}
+
 #[test]
-fn an_unpinned_plugin_is_installed_from_tip_with_no_ref_flag() {
+fn an_unpinned_plugin_is_installed_from_tip_with_no_ref_flag_and_no_listing_call() {
     let runner = ScriptedRunner::new(&[]);
     let report = lane(&[("a", "o/a")]).run("herdr", &stub_facts(), &runner);
     assert_eq!(report.failures(), 0);
@@ -285,7 +291,8 @@ fn an_unpinned_plugin_is_installed_from_tip_with_no_ref_flag() {
         !runner
             .calls()
             .iter()
-            .any(|call| call.contains(&"--ref".to_string())),
+            .any(|call| call.contains(&"--ref".to_string())
+                || call.contains(&"--json".to_string())),
         "{:?}",
         runner.calls()
     );
@@ -300,33 +307,119 @@ fn an_unpinned_plugin_is_installed_from_tip_with_no_ref_flag() {
 }
 
 #[test]
-fn a_pinned_plugin_is_installed_at_its_ref_and_the_argv_carries_the_flag() {
-    let runner = ScriptedRunner::new(&[]);
+fn a_pinned_plugin_already_at_its_ref_is_reported_held_and_never_reinstalled() {
+    // AN UNATTENDED REINSTALL OF A PIN COSTS THE WORKING COPY: the refresh
+    // uninstalls first, so a revision that stopped resolving would leave the
+    // plugin missing for a week to change nothing.
+    let runner = ScriptedRunner::new(&[]).answering(&listing(
+        "{\"plugin_id\":\"a\",\"source\":{\"requested_ref\":\"v1.2.0\"}}",
+    ));
     let report = pinned_lane("a", "o/a", "v1.2.0").run("herdr", &stub_facts(), &runner);
     assert_eq!(report.failures(), 0);
     assert!(
-        runner.calls().contains(&vec![
-            "herdr".to_string(),
-            "plugin".to_string(),
-            "install".to_string(),
-            "o/a".to_string(),
-            "--ref".to_string(),
-            "v1.2.0".to_string(),
-            "--yes".to_string(),
-        ]),
+        report
+            .lines
+            .iter()
+            .any(|line| line == "plugin a: HELD at v1.2.0 (pinned, not updated)"),
+        "{:?}",
+        report.lines
+    );
+    assert!(
+        !runner.calls().iter().any(|call| {
+            call.contains(&"install".to_string()) || call.contains(&"uninstall".to_string())
+        }),
         "{:?}",
         runner.calls()
     );
 }
 
 #[test]
-fn the_record_tells_a_plugin_that_moved_apart_from_one_held_at_a_pin() {
-    // A PIN THAT READ AS A REFRESH would be a silent freeze: the week the
-    // operator stops noticing is the week the pin stops being a decision.
-    let runner = ScriptedRunner::new(&[]);
+fn a_pin_the_installed_copy_is_not_at_is_pending_with_the_command_and_not_installed() {
+    let runner = ScriptedRunner::new(&[]).answering(&listing(
+        "{\"plugin_id\":\"a\",\"source\":{\"requested_ref\":\"v1.0.0\"}}",
+    ));
+    let report = pinned_lane("a", "o/a", "v1.2.0").run("herdr", &stub_facts(), &runner);
+    assert_eq!(report.failures(), 0);
+    assert_eq!(report.verdict(), uu_domain::LaneVerdict::Pending);
+    let pending = report
+        .lines
+        .iter()
+        .find(|line| line.contains("pinned at v1.2.0"))
+        .unwrap_or_else(|| panic!("{:?}", report.lines));
+    assert!(pending.contains("installed at v1.0.0"), "{pending}");
+    assert!(
+        pending.contains("herdr plugin install o/a --ref v1.2.0 --yes"),
+        "{pending}"
+    );
+    assert!(
+        !runner
+            .calls()
+            .iter()
+            .any(|call| call.contains(&"install".to_string())),
+        "{:?}",
+        runner.calls()
+    );
+}
+
+#[test]
+fn a_pinned_plugin_nothing_has_installed_is_pending_rather_than_held() {
+    let runner = ScriptedRunner::new(&[]).answering(&listing(""));
+    let report = pinned_lane("a", "o/a", "v1.2.0").run("herdr", &stub_facts(), &runner);
+    let pending = report
+        .lines
+        .iter()
+        .find(|line| line.contains("pinned at v1.2.0"))
+        .unwrap_or_else(|| panic!("{:?}", report.lines));
+    assert!(pending.contains("is not installed"), "{pending}");
+}
+
+#[test]
+fn a_listing_that_cannot_be_read_leaves_every_pin_alone_and_fails_the_step() {
+    // Reporting HELD off an answer nobody could read is how a pin stops
+    // being a decision: it would read the same whatever the plugin is at.
+    for runner in [
+        ScriptedRunner::new(&[&["herdr", "plugin", "list", "--json"]]),
+        ScriptedRunner::new(&[]).answering("{\"error\":{\"message\":\"server down\"}}"),
+    ] {
+        let report = pinned_lane("a", "o/a", "v1.2.0").run("herdr", &stub_facts(), &runner);
+        assert_eq!(report.failures(), 1);
+        let failed = report
+            .lines
+            .iter()
+            .find(|line| line.contains("LEFT ALONE"))
+            .unwrap_or_else(|| panic!("{:?}", report.lines));
+        assert!(
+            failed.contains("plugin a") && failed.contains("v1.2.0"),
+            "{failed}"
+        );
+        assert!(
+            !runner.calls().iter().any(|call| {
+                call.contains(&"install".to_string()) || call.contains(&"uninstall".to_string())
+            }),
+            "{:?}",
+            runner.calls()
+        );
+    }
+}
+
+#[test]
+fn the_listing_is_read_once_for_the_whole_lane_and_the_unpinned_entries_still_refresh() {
+    let runner = ScriptedRunner::new(&[]).answering(&listing(
+        "{\"plugin_id\":\"held\",\"source\":{\"requested_ref\":\"abc1234\"}}",
+    ));
     let mut both = lane(&[("moves", "o/moves"), ("held", "o/held")]);
     both.plugins[1].pinned_ref = Some("abc1234".to_string());
     let report = both.run("herdr", &stub_facts(), &runner);
+    assert_eq!(
+        runner
+            .calls()
+            .iter()
+            .filter(|call| call.contains(&"--json".to_string()))
+            .count(),
+        1,
+        "{:?}",
+        runner.calls()
+    );
     assert!(
         report
             .lines
@@ -342,34 +435,5 @@ fn the_record_tells_a_plugin_that_moved_apart_from_one_held_at_a_pin() {
             .any(|line| line == "plugin held: HELD at abc1234 (pinned, not updated)"),
         "{:?}",
         report.lines
-    );
-}
-
-#[test]
-fn a_ref_that_will_not_resolve_fails_the_step_and_never_falls_back_to_tip() {
-    let runner = ScriptedRunner::new(&[&[
-        "herdr", "plugin", "install", "o/a", "--ref", "v9.9.9", "--yes",
-    ]]);
-    let report = pinned_lane("a", "o/a", "v9.9.9").run("herdr", &stub_facts(), &runner);
-    assert_eq!(report.failures(), 1);
-    let named = report
-        .lines
-        .iter()
-        .find(|line| line.contains("FAILED"))
-        .unwrap_or_else(|| panic!("{:?}", report.lines));
-    assert!(
-        named.contains("plugin a") && named.contains("v9.9.9"),
-        "{named}"
-    );
-    // Every install attempt carried the ref; none of them was a bare tip
-    // install the operator would then read as a refresh at that revision.
-    assert!(
-        runner
-            .calls()
-            .iter()
-            .filter(|call| call.contains(&"install".to_string()))
-            .all(|call| call.contains(&"v9.9.9".to_string())),
-        "{:?}",
-        runner.calls()
     );
 }

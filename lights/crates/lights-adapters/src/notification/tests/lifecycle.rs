@@ -7,6 +7,18 @@ use std::{
     time::Instant,
 };
 
+/// The liveness bound on the owned child re-exec: a hang fails the case
+/// instead of wedging the suite, and NOTHING here reads the elapsed time. The
+/// case asserts the child's exit status, the recorded pids being gone and the
+/// completion marker, and the bound the child proves is its own 80ms announce
+/// duration.
+///
+/// FIFTEEN SECONDS, not the 400ms this carried, which was one wall-clock budget
+/// covering a second copy of the test binary starting, a bash stub reaching its
+/// first write and the whole announce finishing, while the operator's other
+/// agent lanes compile.
+const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+
 pub(super) struct Fixture {
     pub(super) root: PathBuf,
     pub(super) child: PathBuf,
@@ -106,7 +118,7 @@ fn pns_child_hang_is_killed_and_reaped_without_failing_action() {
         process: command.spawn().unwrap(),
         ready: fixture.ready.clone(),
     };
-    let until = Instant::now() + Duration::from_millis(400);
+    let until = Instant::now() + LIVENESS_BOUND;
     while !fixture.ready.exists() {
         assert!(Instant::now() < until, "owned pns did not become ready");
         std::thread::sleep(Duration::from_millis(1));

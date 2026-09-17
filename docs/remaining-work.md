@@ -4007,8 +4007,8 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   step, still owed: delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
   `Discord (Uriel) :: Channel ID (#uu-failures)`.
 
-- [ ] 84. PULL REQUESTS 1 AND 2 OF 3 MERGED 2026-09-17; PR 3 REMAINS. Build the posture critical-page
-  explainer on the design merged in [PR #618](https://github.com/webdavis/dotfiles/pull/618), amended by
+- [x] 84. ALL THREE PULL REQUESTS MERGED 2026-09-17. Build the posture critical-page explainer on the
+  design merged in [PR #618](https://github.com/webdavis/dotfiles/pull/618), amended by
   `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`.
   [PR #711](https://github.com/webdavis/dotfiles/pull/711) declared the hermes `explain` agent route and
   the webhook sandbox (`platform_toolsets.webhook: ["no_mcp"]`) and carved it out of the route-status
@@ -4024,10 +4024,16 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   page it explains and directly under it, moving into the page's own thread once the pns Discord bot of
   task 82 exists. The `#explain` Discord channel and its `Discord (Uriel) :: Channel ID (#explain)` vault
   entry exist but stay UNUSED by decision 7: delivery reuses the `priority` channel entry, and the one
-  new vault entry the route consumes is `Hermes :: Webhook Secret (#explain)`. REMAINING: PR 3, the
-  runbook section in `docs/runbooks/local-daemons.md` and its three gotchas (decision 4 assigns them
-  there). Operator step: after the next apply, `hermes gateway restart`, so the gateway loads the new
-  route.
+  new vault entry the route consumes is `Hermes :: Webhook Secret (#explain)`. PR 3 closed it on
+  2026-09-17 as [PR #728](https://github.com/webdavis/dotfiles/pull/728), merged `db769f18`: the hermes
+  section of `docs/runbooks/local-daemons.md` gained the `explain` route in the routes table, its
+  KeePassXC entry titles, posture as the route's sender, and a subsection on the copy leg with the
+  rolling-hour cap and the restart step. Three gotchas were documented: an empty webhook toolset list
+  leaves every Model Context Protocol server live where the `no_mcp` sentinel is required, the gateway's
+  duplicate-delivery cache is keyed on the request id alone across every route, and an absent placeholder
+  renders as literal braces and is sent as written. Stale route counts in the same file were corrected in
+  the same change. Operator step: after the next apply, `hermes gateway restart`, so the gateway loads
+  the new route.
 
 - [ ] 85. PART 1 OF 4 MERGED 2026-09-17 as [PR #713](https://github.com/webdavis/dotfiles/pull/713);
   parts 2 to 4 remain. The polling baseline polls `GET /notifications` once per `X-Poll-Interval` with a
@@ -4080,14 +4086,32 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no producer and its silence is not a gap. That leaves `pns-events` as the only route of the five
   neither the doctor run nor the uu run exercised.
 
-- [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
-  2026-09-15, alongside the answers recorded in
+- [x] 88. Give a storm one combined explanation instead of one per finding. DONE 2026-09-17. Approved by
+  the operator 2026-09-15, alongside the answers recorded in
   `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`. Task 84's per-finding cap cannot
   solve spam by itself: any number low enough to avoid spam is low enough to hide findings, and twenty
   distinct failures already means the machine is in trouble. The useful message at that point is one that
   says so and lists them, not twenty separate explanations. posture's own pages already arrive uncapped
   today, so a storm already reaches the operator on that leg, and a combined message would improve it
-  too. Not yet started.
+  too. SHIPPED 2026-09-17 as [PR #730](https://github.com/webdavis/dotfiles/pull/730), merged `02f59103`.
+  The existing critical-copy leg in `posture-adapters/src/hermes.rs` was extended rather than given a
+  second counter: the rolling-hour window file now stores what each distinct finding says beside its key,
+  and `window::claim` answers four states, Granted (copy the page verbatim as before), AlreadyCopied (a
+  repeat, silent), Storm (this finding crossed the threshold, so post ONE combined message listing every
+  distinct finding of the hour, oldest first) and Storming (the hour's one message is sent, nothing
+  further is explained, sticky for the full hour; the review caught that the first cut was not sticky and
+  it was fixed before merge). The combined message goes to the same copy route, signed with that route's
+  own key, with its own derived request id, in the same body shape as a page. ONE NUMBER:
+  `STORM_THRESHOLD = 5` replaces the twenty-per-hour cap, because after the crossing no per-finding copy
+  is posted, so five copies plus one combined message is the hour's ceiling. The withheld-copy banner is
+  gone; the combined message is what says the machine is in trouble. DECISION RECORDED: the combined form
+  applies ONLY to the explanation leg. posture's own pages stay uncapped and unchanged, because combining
+  pages means holding a critical security page back until its neighbours arrive. 29 hermes tests pass in
+  0.01 s with no spawn and no wall clock. Two questions for the operator: (1) should the pages leg also
+  get an ADDITIVE storm summary page beside the individual pages (one more post in the record channel,
+  withholding nothing)? (2) is five the right threshold once the detector set grows past the eight
+  declared controls? OPERATOR STEP: a full `chezmoi apply` picks up the rebuilt binary and a comment
+  change in `~/.config/posture/config.toml`; no new vault entry and no route change.
 
 - [x] 94. Fix the 500 ms spawn deadline in
   `channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch`,
@@ -4246,7 +4270,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
 
-- [ ] 101. Make the Rust suites deterministic around real process spawns, filed 2026-09-17 on the
+- [x] 101. Make the Rust suites deterministic around real process spawns. DONE 2026-09-17. Filed on the
   operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
   exposed two more of the same shape on the same day, so the defect is the pattern and not the three
   tests. The pattern: a test spawns a real process, waits on a wall-clock budget, and asserts success, so
@@ -4274,7 +4298,40 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   under load before changing it, or state plainly that it could not be reproduced and that the fix is
   reasoned from the code, and prove each fix with at least fifty loops under comparable load plus a
   mutation check. Expect to find candidates beyond the two named; report the full audit even for tests
-  left alone, with the reason each was judged safe.
+  left alone, with the reason each was judged safe. SHIPPED 2026-09-17 as
+  [PR #731](https://github.com/webdavis/dotfiles/pull/731), merged `7a82c906`. All four workspaces were
+  audited and twelve tests that spawn a process and assert success inside a wall-clock bound were fixed
+  in three commits. BOTH NAMED SURVIVORS WERE REPRODUCED UNDER 48 SYNTHETIC SPINNERS FIRST, and neither
+  root cause was a slow spawn. uu's
+  `sigterm_cleans_owned_children_before_unlocking_and_records_interruption` failed 1 in 40 because its
+  wait gated on `grandchild-group` existing and then read `child-group`, which the child writes later,
+  and `fs::write` publishes a path before its bytes; it reproduces only with its sibling case running
+  concurrently, which is how `just test-rust` runs it. pns's
+  `a_new_registered_destination_dispatches_without_editing_a_name_switch` failed 2 in 60 because its
+  fixture directory is named after `std::process::id()` and never removed, so a run under a recycled id
+  met its predecessor's and raised `AlreadyExists`. The fixes: wait on the event the assertion actually
+  needs (and replace a 500 ms poll of `/usr/bin/true` with a blocking wait); clear a pid-named fixture
+  path before reuse, in three fixtures; and turn the remaining seven sub-second fixture budgets into
+  documented fifteen-second LIVENESS bounds, the treatment posture's `usage.rs`, `heartbeat.rs` and
+  `funnel_fixture` already carried. No deadline any assertion reads was raised. Proof: 550 runs (55 each
+  of ten targets) plus 120 runs of the named pns test at load average 170 to 255 on eight cores, zero
+  failures, and eleven mutation checks, every one red. A mutation run showed the liveness bound is paid
+  only by a regression: the gutted `recap_with_deadline` took 15.01 s where the passing test takes
+  milliseconds.
+
+- [ ] 140. One wall-clock budget assertion outside task 101's spawn scope, filed 2026-09-17 from a lane
+  failure the same night.
+  `busy_ledger_writes_refuse_within_the_budget_without_recording_sensitive_content`
+  (`pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests/failures.rs:16`) asserts
+  `started.elapsed() < Duration::from_millis(100)` and failed a `just ship` run on a branch that never
+  touched that file, while six lanes were compiling at once. Task 101 audited tests that SPAWN a process;
+  this one spawns nothing, so it was out of that audit's scope and is the same family by a different
+  route: a wall-clock number an assertion reads, under load it cannot control. The behaviour worth
+  pinning is that a busy ledger write REFUSES rather than blocking, and that it records no sensitive
+  content; the 100 ms is a proxy for refusing promptly. Replace the proxy with the refusal itself (assert
+  the error the busy path returns, and that no sensitive content reached the store), or bound it the way
+  101 bounded a liveness case, and sweep for any sibling that asserts a duration without a spawn. Do not
+  simply raise the number.
 
 - [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
   2026-09-17 from the firewall drill's incidental finding.
