@@ -2485,17 +2485,23 @@ is missing.
   pull request split from the document's numbered changes before building; the names table alone touches
   every workspace that calls pns.
 
-- [ ] 92. Diagnose `dispatch::records::events_racing_each_other_lose_no_line_and_leave_no_pending_file`,
-  filed 2026-09-16. It is being rerun to green as a known flake and it is NOT recorded anywhere, which is
-  the problem: a test whose whole name is "lose no line" failed on a DOCUMENTATION-ONLY branch reporting
-  `left: 2, right: 5`, so three of five lines were lost. Every lane brief this session carried it on a
-  rerun-once list inherited from an earlier session, so the tolerance is undocumented and nobody has
-  established which side loses the lines. Decide first whether this is a real race in the dispatch write
-  path or a race in the fixture that reads it; the two have opposite fixes and only one of them is a
-  product bug. Reproduce under load rather than alone, since it passes alone. If it is the fixture, the
-  test is repaired and the entry closes; if it is the product, a line lost under concurrency is a dropped
-  notification and the priority rises accordingly. Observed at least twice on 2026-09-16 (runs
-  35058792678 and one rerun) against unrelated diffs.
+- [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
+  Fixed on `fix/pns-dispatch-records-race`, merged as
+  [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
+  `PRAGMA journal_mode=WAL` as fatal. Measured on SQLite 3.53.4, that statement answers SQLITE_BUSY in
+  0.000 seconds while another connection holds the write lock on a rollback-journal database, whatever
+  `busy_timeout` says, because the conversion wants the database to itself and the busy handler is never
+  consulted for it. A `?` on it aborted the whole open, and every record that open was about to write
+  (the decision, the journal entry, the activity line, the delivery ledger row) went with it behind the
+  fail-quiet `report` path, so the process exited 0 having notified nobody. That is exactly the
+  `left: 2, right: 5`: three of five racing events lost the one-time conversion on a fresh database and
+  silently wrote nothing. `prefer_wal` now treats a busy or locked refusal as settled rather than fatal,
+  which loses nothing, because the journal mode lives in the database header and whichever connection
+  wins settles it for every later one. Reproduced on demand before the fix two ways: a staged refusal
+  (0.03s, now the committed regression test, red without the fix) and a load reproducer of 3200 fresh
+  opens raced 16 at a time, which lost 11 opens without the fix and 0 with it. The fixture is exonerated:
+  it reads read-only after every child has been waited on. The rerun-once tolerance was written down
+  nowhere in the repository, so nothing remained to delete; it lived in per-lane briefs.
 
 - [ ] 87. Make the pns nag delivery test deterministic. Continuous integration for
   [PR #629](https://github.com/webdavis/dotfiles/pull/629) failed once on
@@ -3697,59 +3703,80 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   Discord category is `Projects`, and one `repo -> channel entry` map in the pns config is shared by the
   GitHub source and by session events.
 
-- [ ] 82. Give pns its own Discord destination. A `pns` Discord bot exists, with View Channels, Send
-  Messages, Create Public Threads, Send Messages in Threads, Embed Links and Read Message History, no
-  privileged intents, not public and guild-install only, and it stays offline until that destination
-  ships: one thread per agent session, recaps into the project channels, and the slash commands
-  `/pns pending`, `/pns approve` and `/pns reject`. Repository channels are delivered by this bot and
-  never by a hermes route. Its secrets are the KeePassXC entries `Discord (Uriel) :: Bot Token (pns)`,
-  `Discord (Uriel) :: Public Key (pns)`, `Discord (Uriel) :: Application/User ID (pns)`, and one
-  `Discord (Uriel) :: Channel ID (#<project>-dev)` per project plus `(#github-notifications)`.
+- [ ] 82. Give pns its own Discord destination. THE DESIGN'S FOUR PULL REQUESTS ALL MERGED (#639 the
+  plugin and table, #648 the channel map, #650 session threads, #654 the recap plus the GitHub source
+  plus the runbook, #696 the channel model fixes), and the one behaviour the ladder declared but left
+  untested was pinned 2026-09-17 by [PR #712](https://github.com/webdavis/dotfiles/pull/712): the thread
+  name is the header's first line, capped at 100 characters. Dropping that cap was a silent mutant, since
+  the thread creation would earn a 400 and the session would get no thread while the message still landed
+  and the verdict still read Delivered; the test writes the ceiling out as the literal 100 rather than
+  reading the constant, so raising the constant past what Discord accepts also fails, and it was
+  mutation-checked both ways.
 
-- [ ] 83. CODE DONE, NOT MERGED. Built and reviewed 2026-09-16 on `feat/pns-upgrade-failure-route` (six
-  commits, every Rust and lint gate green) and open as
-  [PR #707](https://github.com/webdavis/dotfiles/pull/707); the lane hit the weekly usage limit before
-  the merge step. Version 1 of `pns.request` now carries `kind` (`agent` or `health`), a health event
-  reaches `[routes] urgent` only when its state is one that waits on the operator, and uu gained a test
-  over its own argv proving it names no route, channel or gateway. Remaining: merge #707, then the
-  operator step below. Route a failed upgrade to `priority`. The producer event carries a kind, health or
-  agent, and pns maps that kind to a route, so `uu` never names a route itself; the agent triage then
-  lands under that page in the same channel. The `#uu-failures` channel was dropped on 2026-09-15.
-  Operator step: delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
+  REMAINING: the slash commands `/pns pending`, `/pns approve` and `/pns reject`, which the design places
+  deliberately out of scope and which are BLOCKED ON OPERATOR INFRASTRUCTURE: a public interactions
+  endpoint with its URL registered in the Discord application, plus a pns write path that does not exist
+  yet. A command registered against a dead endpoint is worse than no command, so nothing ships until the
+  endpoint does. Two smaller pieces were considered and deliberately not built: a doctor preflight of the
+  disabled `[plugins.discord]` table, which would contradict the 2026-08-31 ruling that a disabled table
+  is inert, and logging the 429 `Retry-After` header, which the design says is logged rather than obeyed
+  and which today is never read at all, since `DiscordReply` carries no headers.
+
+  Repository channels are delivered by this bot and never by a hermes route. Its secrets are the
+  KeePassXC entries `Discord (Uriel) :: Bot Token (pns)`, `Discord (Uriel) :: Public Key (pns)`,
+  `Discord (Uriel) :: Application/User ID (pns)`, and one
+  `Discord (Uriel) :: Channel ID (#<project>-dev)` per project plus `(#github-notifications)`. The bot
+  stays offline and `[plugins.discord]` ships disabled until the destination ships.
+
+- [x] 83. CLOSED 2026-09-16, merged as [PR #707](https://github.com/webdavis/dotfiles/pull/707). Version
+  1 of `pns.request` now carries `kind` (`agent` or `health`), a health event reaches `[routes] urgent`
+  only when its state is one that waits on the operator, and uu gained a test over its own argv proving
+  it names no route, channel or gateway. The `#uu-failures` channel was dropped on 2026-09-15. Operator
+  step, still owed: delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
   `Discord (Uriel) :: Channel ID (#uu-failures)`.
 
-- [ ] 84. NOT STARTED, twice. Two lanes were launched 2026-09-16 for PR 2 (posture's copy leg) and PR 1
-  (the hermes `explain` route and checker carve-out) and both died on the weekly usage limit before
-  writing a line; their empty worktrees `feat-posture-critical-page-explain-copy` and
-  `feat-hermes-explain-route` still exist. The briefs are in this session's Workflow journal and can be
-  relaunched as is. Build the posture critical-page explainer, three pull requests, on the design merged
-  in [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel
-  as the page it explains and directly under it, moving into the page's own thread once the pns Discord
-  bot of task 82 exists. The accepted defaults are that the explainer runs with zero tools
-  (`platform_toolsets.webhook: ["no_mcp"]`), refuses after twenty explanations in a rolling hour counted
-  by distinct finding rather than by page (raised from six and changed to count distinct findings by the
-  2026-09-15 amendment, `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`, Decision 6),
-  never puts a command in its text, and that pns sends a request id on every hermes post.
+- [ ] 84. PULL REQUESTS 1 AND 2 OF 3 MERGED 2026-09-17; PR 3 REMAINS. Build the posture critical-page
+  explainer on the design merged in [PR #618](https://github.com/webdavis/dotfiles/pull/618), amended by
+  `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`.
+  [PR #711](https://github.com/webdavis/dotfiles/pull/711) declared the hermes `explain` agent route and
+  the webhook sandbox (`platform_toolsets.webhook: ["no_mcp"]`) and carved it out of the route-status
+  check, which now checks six routes with per-route expectations and an inverted `deliver_only` assertion
+  for `explain`; every load-bearing claim was verified against installed hermes 0.17.0, including that
+  the signature is validated before an agent task is created, so the checker's unsigned probe starts no
+  model run. [PR #714](https://github.com/webdavis/dotfiles/pull/714) built posture's copy leg: a
+  critical page is posted a second time, verbatim, to the route `notify.hermes.critical_copy_route`
+  names, after its own post came back delivered, signed with that route's own key and carrying a request
+  id derived from the page's but never equal to it; the hour is counted by distinct finding, capped at
+  twenty, in one timestamp file under `~/.local/state`, failing open. Fourteen hand mutants were run
+  against the new logic and the one survivor was fixed. The explanation posts in the same channel as the
+  page it explains and directly under it, moving into the page's own thread once the pns Discord bot of
+  task 82 exists. The `#explain` Discord channel and its `Discord (Uriel) :: Channel ID (#explain)` vault
+  entry exist but stay UNUSED by decision 7: delivery reuses the `priority` channel entry, and the one
+  new vault entry the route consumes is `Hermes :: Webhook Secret (#explain)`. REMAINING: PR 3, the
+  runbook section in `docs/runbooks/local-daemons.md` and its three gotchas (decision 4 assigns them
+  there). Operator step: after the next apply, `hermes gateway restart`, so the gateway loads the new
+  route.
 
-- [ ] 85. PART 1 OF 4 BUILT, NOT SHIPPED. The polling baseline was written and reviewed 2026-09-16 in the
-  worktree `~/.herdr/worktrees/dotfiles/feat-pns-github-notifications-poll` (three commits, plus the
-  review's fixes half-applied as UNCOMMITTED edits under `pns/crates/pns-adapters/src/config/` and
-  `src/github/`); the lane hit the weekly usage limit mid-fix, so there is no pull request. It polls
-  `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional request, dedupes by
-  a durable seen-set with a 24-hour expiry, and submits through the ordinary producer API so task 81's
-  channel map decides the channel; a 401 or 403 is a configuration refusal, never an empty listing.
-  Resume by finishing the uncommitted fixes in that worktree, committing, and shipping. Then the push
-  receiver, the lamp colours and the lamp wiring, one pull request each. Build the pns GitHub source,
-  four pull requests, on the design merged in [PR #620](https://github.com/webdavis/dotfiles/pull/620),
-  whose channel names `#github-<repo>` and `#github` are superseded by `#<project>-dev` and
-  `#github-notifications` under task 81. The baseline polls the notifications API with the classic token
-  `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, which carries the `notifications`
-  scope only and no expiry, and push arrives later through the existing Cloudflare tunnel with a separate
-  receiver process. The GitHub colours are configurable in the pns config, defaulting to purple for a
-  pass and orange for a failure, and three dedicated lamps carry them, `3F - Studio - HCL2`,
-  `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]` and nothing else. On
-  GitHub itself, Actions notifications are set to On GitHub with failed-only off, and Dependabot alerts
-  to On GitHub plus CLI.
+- [ ] 85. PART 1 OF 4 MERGED 2026-09-17 as [PR #713](https://github.com/webdavis/dotfiles/pull/713);
+  parts 2 to 4 remain. The polling baseline polls `GET /notifications` once per `X-Poll-Interval` with a
+  `Last-Modified` conditional request, dedupes by a durable seen-set with a 24-hour expiry, submits
+  through the ordinary producer API so task 81's channel map decides the channel, and treats a 401 or 403
+  as a configuration refusal rather than an empty listing. Four defects were fixed while finishing it:
+  the server's interval is now clamped to the key's bounds in a pure `job_interval` beside those bounds,
+  so nothing hands the scheduler an unchecked header; the settings reader re-exports the registry's
+  `GITHUB` name instead of declaring a second literal; the first-poll backlog guard reads BOTH halves of
+  the stored state, because a 200 carrying no `Last-Modified` would otherwise make every later tick read
+  as another first poll and silence the source permanently; and `pns github poll` joined the usage text.
+  Built on the design merged in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel
+  names `#github-<repo>` and `#github` are superseded by `#<project>-dev` and `#github-notifications`
+  under task 81. The token is the classic
+  `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope only, no
+  expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare tunnel
+  with a separate receiver process), the lamp colours (configurable in the pns config, defaulting to
+  purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
+  `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
+  and nothing else). On GitHub itself, Actions notifications are set to On GitHub with failed-only off,
+  and Dependabot alerts to On GitHub plus CLI.
 
 - [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
   `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
@@ -3764,6 +3791,92 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   says so and lists them, not twenty separate explanations. posture's own pages already arrive uncapped
   today, so a storm already reaches the operator on that leg, and a combined message would improve it
   too. Not yet started.
+
+- [ ] 94. Fix the 500 ms spawn deadline in
+  `channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch`,
+  filed 2026-09-17. It reddened MAIN on the #711 merge run with `forced: ` and an empty message, and main
+  went green again on the next merge eleven minutes later, so it is a load-sensitive flake rather than a
+  real defect. The mechanism is in the test itself: it spawns a real process, gives it
+  `Duration::from_millis(500)`, KILLS it at the deadline, and then asserts `output.status.success()`. On
+  a loaded runner the child is not finished in 500 ms, so the test kills it and then asserts the killed
+  process succeeded; the empty message after the scenario name is the killed child's empty stderr. This
+  is the same bug CLASS as task 92 but NOT the same bug: 92 was a real product race in the dispatch write
+  path, this one is a fixture budget. See the standing note that tight fixture budgets flake continuous
+  integration. Either raise the bound well past the noise floor or stop asserting success on a process
+  the test itself killed; the second is the honest fix, since a killed process succeeding is not a
+  behaviour anyone wants.
+
+- [ ] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
+  and `~/.config/herdr/plugins/config/**` are PLAIN chezmoi targets that parties other than chezmoi
+  write: zoetrope's `setup-keys` writes a marked key block, the `herdr-agent-quota` `configure` action
+  rewrites the sidebar row and its own setting files, and the operator hand-edits them. Every apply
+  therefore reverts whatever arrived that way. Measured 2026-09-17: an apply destroyed the operator's
+  hand-written clauth block (the `prefix+alt+a` binding plus the `[ui.sidebar.agents.rows_by_agent]`
+  claude row using `$clauth` and `$clauth_delegate`) and they retyped it, and four `herdr-agent-quota`
+  settings plus eight brand-coloured provider rows would have gone the same way had they not been
+  captured into source minutes earlier. `~/.claude/settings.json` and `~/.codex/config.toml` face
+  identical pressure and are SAFE, because both are `modify_` templates that declare the stable fields
+  and read the app-written state back out of the live file. The fix is to give herdr's targets the same
+  treatment, on the pattern of `private_dot_codex/modify_private_config.toml`. Until then every plugin
+  toggle needs a manual capture into source before the next apply, which is exactly the manual step the
+  design bar rejects.
+
+- [ ] 96. Point moshi at dresden's tailnet name, filed 2026-09-17. The operator cannot reach dresden from
+  moshi since the SSH hardening, and the card reads
+  `DNS resolution failed: failed to lookup address information: nodename nor servname provided`. Two
+  causes stack. First, the phone `mister` reads offline in `tailscale status` (last seen a day before
+  filing, key good until 2026-09-24), and a MagicDNS name only resolves for a device actually on the
+  tailnet, which is the resolution failure verbatim. Second, and the part the hardening owns: the
+  `Match LocalAddress` block from [PR #609](https://github.com/webdavis/dotfiles/pull/609) refuses every
+  connection that did not arrive on loopback or in the tailnet address space, measured with
+  `sshd -G -T -C` on 2026-09-17 as `refuseconnection yes` for a LAN source reaching `192.168.1.26` and
+  `refuseconnection no` for a tailnet source reaching `100.77.192.92`. So a LAN path that used to work is
+  refused by design and the tailnet path is the only one left. Port 22 answers on loopback, the LAN
+  address and the tailnet address, so sshd itself is healthy. Operator steps: (1) reconnect Tailscale on
+  the phone; (2) set moshi's host for dresden to `dresden.tail2f2430.ts.net` or `100.77.192.92`, never
+  `192.168.1.26` and never a bare or `.local` name, which is the same trap already recorded for the
+  Shortcut's Hostname variable under the SSH exposure entry.
+
+- [ ] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
+  five job labels as literals (`watchdog/agents.rs:19-23`, for example
+  `Self::ResultsAlerter => "com.webdavis.osquery-results-alerter"`) plus the prefix they are matched on
+  (`page/header.rs:15`, `OUR_AGENT_PREFIX = "com.webdavis.osquery-"`). posture is a product installed
+  with `cargo install`, so a stranger's watchdog searches for LaunchAgents named after this repository's
+  operator, finds none, and either pages on every tick or reports all clear falsely. Three faults sit in
+  that one string: the operator's handle in a shipped binary, against the user-agnostic naming rule; the
+  dependency `osquery` naming the job, which is the axis the libexec directory rule already rejects; and
+  a closed enum, so no installer can choose different names. Fix: the job labels move to
+  `~/.config/posture/config.toml`, read by the watchdog and by task 98's writer from the one place, with
+  reverse-DNS defaults (`dev.posture.watchdog` and siblings) that name posture rather than osquery.
+  Renaming the six deployed jobs on dresden reaches six plists, six `run_onchange_after_60` loaders,
+  `dot_config/osquery/private_page-launchd-allowlist.txt`, the `~/.local/log/osquery/` log paths, the
+  CLAUDE.md LaunchAgent table, and five test files. Two consequences: a renamed label does not replace
+  the old one and this repository builds no removal mechanisms, so the operator owes one
+  `launchctl bootout` per retired job; and the plists sit in the known-good manifest, so the rename ships
+  on a full apply rather than a by-name one.
+
+- [ ] 98. `posture jobs`: let posture install and verify its own scheduled jobs, filed 2026-09-17.
+  posture is a one-shot by design (every subcommand samples current state and exits; there is no daemon
+  and, ruled 2026-09-17, there should not be, because the two daily jobs rely on launchd starting a
+  missed calendar fire on wake, which `man 5 launchd.plist` documents and a sleep loop does not do, and
+  because the watchdog must not share a process with the monitors it reports on). The timers therefore
+  live outside the binary, and on dresden they live in THIS repository, so a stranger who installs
+  posture gets the checks and no schedule at all. Close that with a subcommand group, the verb set
+  already used by `posture ssh`: `posture jobs install` writes the units and loads them;
+  `posture jobs verify` asserts each one exists, is loaded, and matches what posture would write;
+  `posture jobs list` prints what posture expects beside the live state of each; `posture jobs print`
+  dumps a unit to standard output without writing it. `verify` stops at installed-and-loaded and never
+  grows a liveness check: whether a job actually ran and exited zero is `posture watchdog`'s job, and two
+  answers to that question would eventually disagree. Six jobs are in scope, five plain timers (`poll`
+  and `funnel` at 60s, `alert` at 300s, `watchdog` at 900s, and `digest` and `heartbeat` on a daily
+  calendar), plus `alert`'s `WatchPaths` trigger on `~/.local/log/osquery/osqueryd.results.log`, which is
+  a seventh unit file on Linux because systemd splits that into a `.path` unit. `converge` is not
+  scheduled and stays out. The two daily jobs read their hour and minute from `.chezmoidata` today, so
+  those values move into posture's own config with task 97's labels. Depends on task 97: the writer and
+  the watchdog must read the same label list. Naming: the group is `jobs` rather than `timers` because
+  one of the six is a file watch, rather than `agents` because that word now means something else and
+  collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
+  service.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and

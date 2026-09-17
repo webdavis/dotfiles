@@ -143,10 +143,15 @@ because `--no-color` is ignored in either position on 0.50.1.
 
 ```bash
 just d                                      # chezmoi diff
-just a                                      # chezmoi apply
+just a                                      # apply, transcript kept (see below)
 chezmoi status                              # show pending changes
 chezmoi edit <file>                         # edit a template (prefer over direct edit of .tmpl)
 ```
+
+**READ THE APPLY TRANSCRIPT.** `just a` writes `~/.local/state/chezmoi-apply/latest.apply.log`: the
+repository's HEAD and branch, every message the apply printed, and `exit_code:` with `result: OK` or
+`result: FAILED`. Read it after the operator applies instead of asking them to paste anything. Diff
+bodies are withheld and counted in place; run `just d` when the per-target diff is what is needed.
 
 **THE OPERATOR RUNS APPLIES. Agents do not.** Both recipes above reach templates, so both need KeePassXC
 unlocked and an interactive terminal. An agent proposes changes and lets the operator apply them. This
