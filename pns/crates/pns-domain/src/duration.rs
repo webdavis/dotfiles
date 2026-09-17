@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-/// A duration, from `<count><ms|s|m|h>`, inside the range the field allows.
+/// A duration, from `<count><s|m|h>`, inside the range the field allows.
 ///
 /// A UNIT IS REQUIRED, and the count goes through the crate's one numeric
 /// gate, so every shape `parse_count` refuses elsewhere is refused here too.
@@ -36,7 +36,7 @@ pub fn parse_duration(
             return Ok(total);
         }
     }
-    Err(format!("pns: {field} {text:?} is not <count><ms|s|m|h>"))
+    Err(format!("pns: {field} {text:?} is not <count><s|m|h>"))
 }
 
 /// A duration written back in the largest unit that holds it whole, which is
@@ -53,8 +53,8 @@ fn spelled(duration: Duration) -> String {
 }
 
 /// The units a duration may be typed in, and what each is worth in
-/// milliseconds. `ms` LEADS `s`, so the longer suffix is the one that matches.
-const UNITS: [(&str, u64); 4] = [("ms", 1), ("s", 1_000), ("m", 60_000), ("h", 3_600_000)];
+/// milliseconds.
+const UNITS: [(&str, u64); 3] = [("s", 1_000), ("m", 60_000), ("h", 3_600_000)];
 
 #[cfg(test)]
 mod tests;

@@ -19,7 +19,7 @@ fn a_duration_outside_the_bounds_is_refused_by_what_was_typed() {
         assert_eq!(
             quiet_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
             Err(format!(
-                "pns: quiet duration {typed:?} is not <count><ms|s|m|h>"
+                "pns: quiet duration {typed:?} is not <count><s|m|h>"
             )),
             "typed: {typed:?}"
         );

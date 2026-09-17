@@ -146,8 +146,8 @@ Then it prints a refusal quoting what was typed, then the usage line, exits 2, a
   (`src/main.rs:quiet_mode`).
 - Thresholds: a UNIT IS REQUIRED. `30` is refused because a bare number means minutes to one reader and
   seconds to the next. The refused shapes pinned in
-  `src/quiet.rs:a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed` are `30`, the
-  empty string, `1d`, `-5m`, ` 5m`, `05m`, `m` and `2 h`. The two refusal texts are
+  `src/duration.rs:a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed` are `30`, the
+  empty string, `1d`, `-5m`, ` 5m`, `05m`, `m`, `ms` and `2 h`. The two refusal texts are
   `pns: quiet duration <typed> is not <count><s|m|h>` and
   `pns: quiet duration <typed> is outside 1s to 24h`, each quoting the typed word with Rust debug
   formatting.
