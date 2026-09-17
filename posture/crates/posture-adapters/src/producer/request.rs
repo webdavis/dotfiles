@@ -1,8 +1,6 @@
+use crate::request_id;
 use crate::wire::{Name, Oversized, Request, RequestId, Signal};
 use posture_application::{Alert, AlertSignal};
-use sha2::{Digest, Sha256};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::SystemTime;
 
 pub(super) enum EncodeFailure {
     Invalid,
@@ -26,23 +24,10 @@ pub(super) fn encode(
     alert: &Alert,
     route: Option<Name>,
 ) -> Result<(RequestId, String), EncodeFailure> {
-    let seed = alert.occurrence_id.clone().unwrap_or_else(|| {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        // Separate calls, including separate producer instances, never collapse identical findings.
-        format!(
-            "{:?}:{}:{}",
-            SystemTime::now(),
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        )
-    });
-    let digest: String = Sha256::digest(seed.as_bytes())
-        .iter()
-        .take(16)
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    let identity =
-        RequestId::new(format!("posture-{digest}")).map_err(|_| EncodeFailure::Invalid)?;
+    // ONE DERIVATION FOR BOTH DELIVERY PATHS, so a page carries the same
+    // identity whether it was handed to a producer or posted to a route.
+    let identity = RequestId::new(request_id::derive(&request_id::seed(alert)))
+        .map_err(|_| EncodeFailure::Invalid)?;
     let signal = match alert.signal {
         AlertSignal::NeedsAttention => Signal::NeedsAttention,
         AlertSignal::Observation => Signal::Observation,

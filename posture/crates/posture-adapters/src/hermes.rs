@@ -16,6 +16,7 @@
 
 mod body;
 
+use crate::request_id;
 use crate::signed_post::{PostOutcome, SignedPost, delivered, sign};
 use crate::sink::{delivery_failed, tier_route};
 use crate::wire::Name;
@@ -65,6 +66,7 @@ impl<P: SignedPost, A: IndependentAlarm> AlertSink for HermesWebhook<P, A> {
     fn submit(&mut self, alert: &Alert) -> Submission {
         let route = tier_route(alert).unwrap_or_else(|| self.route.clone());
         let body = body::encode(alert, &route);
+        let page_id = request_id::derive(&request_id::seed(alert));
         // A ROUTE WITH NO KEY REFUSES THE PAGE AND SAYS SO. An unsigned post
         // is rejected by the gateway, and an empty key is the not-set-up case
         // rather than a signature, so both land here.
@@ -80,9 +82,13 @@ impl<P: SignedPost, A: IndependentAlarm> AlertSink for HermesWebhook<P, A> {
                 SubmissionFailure::Refused,
             );
         };
-        let outcome = self
-            .post
-            .post(&self.url(&route), &body, &signature, Some(POST_DEADLINE));
+        let outcome = self.post.post(
+            &self.url(&route),
+            &body,
+            &signature,
+            &page_id,
+            Some(POST_DEADLINE),
+        );
         if delivered(outcome) {
             return Submission::Accepted;
         }

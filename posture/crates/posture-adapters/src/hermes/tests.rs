@@ -14,8 +14,16 @@ impl IndependentAlarm for Alarm {
     }
 }
 
+/// One post as the gateway would have seen it.
+struct Sent {
+    url: String,
+    body: String,
+    signature: String,
+    request_id: String,
+}
+
 struct Posts {
-    sent: RefCell<Vec<(String, String, String)>>,
+    sent: RefCell<Vec<Sent>>,
     outcome: PostOutcome,
 }
 impl SignedPost for Posts {
@@ -24,12 +32,16 @@ impl SignedPost for Posts {
         url: &str,
         body: &str,
         signature_hex: &str,
+        request_id: &str,
         deadline: Option<Duration>,
     ) -> PostOutcome {
         assert_eq!(deadline, Some(POST_DEADLINE));
-        self.sent
-            .borrow_mut()
-            .push((url.into(), body.into(), signature_hex.into()));
+        self.sent.borrow_mut().push(Sent {
+            url: url.into(),
+            body: body.into(),
+            signature: signature_hex.into(),
+            request_id: request_id.into(),
+        });
         self.outcome
     }
 }
@@ -75,10 +87,11 @@ fn a_page_is_posted_to_its_tiers_route_signed_with_that_routes_own_key() {
         let mut sut = subject(keys(), PostOutcome::Status(204));
         assert_eq!(sut.submit(&alert(severity)), Submission::Accepted);
         let sent = sut.post.sent.borrow();
-        let (url, body, signature) = sent.first().expect("one post");
-        assert_eq!(url, &format!("http://127.0.0.1:8644/webhooks/{route}"));
-        assert_eq!(signature, &sign(key, body).unwrap());
-        assert_ne!(signature, &sign("key-wrong", body).unwrap());
+        let first = sent.first().expect("one post");
+        assert_eq!(first.url, format!("http://127.0.0.1:8644/webhooks/{route}"));
+        assert_eq!(first.signature, sign(key, &first.body).unwrap());
+        assert_ne!(first.signature, sign("key-wrong", &first.body).unwrap());
+        assert!(!first.request_id.is_empty(), "every post carries an id");
         assert!(sut.alarm.calls.is_empty());
     }
 }
@@ -137,7 +150,7 @@ fn an_untiered_page_takes_the_route_the_sink_was_built_with() {
     let mut sut = subject(keys(), PostOutcome::Status(204));
     assert_eq!(sut.submit(&alert(None)), Submission::Accepted);
     assert_eq!(
-        sut.post.sent.borrow()[0].0,
+        sut.post.sent.borrow()[0].url,
         "http://127.0.0.1:8644/webhooks/posture-pages"
     );
 }
@@ -156,7 +169,7 @@ fn a_gateway_base_written_with_a_trailing_slash_does_not_double_it() {
     );
     assert_eq!(sut.submit(&alert(None)), Submission::Accepted);
     assert_eq!(
-        sut.post.sent.borrow()[0].0,
+        sut.post.sent.borrow()[0].url,
         "http://127.0.0.1:8644/webhooks/posture-pages"
     );
 }
