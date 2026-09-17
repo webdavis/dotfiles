@@ -1800,10 +1800,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   deployed-status refresh stay open by design, scoped to a separate change once the ports and cutovers
   meet their own gates. [PR #577](https://github.com/webdavis/dotfiles/pull/577)
   (`docs/posture-completion-report`, merged `528746a0`). No operator steps.
-- [ ] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure. The
-  private B020/B027 reproducer loses valid digest records when one invalid UTF-8 byte makes a claimed
-  batch unreadable; a focused preservation fix is in progress on `fix/posture-digest-read-failure`, which
-  merged `main` in (tip `74166d25`); `just ship` passed (exit 0, 5m15s) and
+- [x] 60a. Resolve the behavior gaps found by the original-test mapping before final posture closure.
+  DONE 2026-09-17, with four explicit deferrals carried as task 142. The private B020/B027 reproducer
+  loses valid digest records when one invalid UTF-8 byte makes a claimed batch unreadable; a focused
+  preservation fix is in progress on `fix/posture-digest-read-failure`, which merged `main` in (tip
+  `74166d25`); `just ship` passed (exit 0, 5m15s) and
   [PR #558](https://github.com/webdavis/dotfiles/pull/558) was opened against `main`. Independent review
   returned four findings; three are fixed and pushed: torn lines are now dropped and counted, fixed at
   `d2e18d3c`; an unclaimable spool exits 1 with a stderr line, and the LaunchAgent has no `KeepAlive` so
@@ -1862,7 +1863,30 @@ The planned Rust lanes are implemented. The following deployment check remains.
   findings that share both identity and summary inside an already-grouped detector into one bullet
   carrying a count, and the bullet and group caps apply to collapsed lines rather than raw findings.
   Measured against a synthetic 112-line spool: 11 bullet lines and 924 characters before, 3 and 323
-  after, with `~/.claude.json` (previously evicted) now rendering.
+  after, with `~/.claude.json` (previously evicted) now rendering. CLOSED 2026-09-17 by
+  [PR #738](https://github.com/webdavis/dotfiles/pull/738), merged `9b450e5e`. B039b NEEDED NO CODE: the
+  appender's rename re-check had already shipped on main (`c4765f22`, `acfb0ebb`, `8e880fbd`) with six
+  tests in `posture-adapters/src/digest_appender/tests/rename_race.rs`, so the entry above described a
+  proposal that was already built. It was VERIFIED instead of rebuilt:
+  `append_until_the_spool_stops_moving` re-checks the written file's device and inode pair against the
+  file at the spool path through the writer's own handle, bounded at eight attempts and failing loudly at
+  the ceiling; 25 consecutive runs passed at 0.30 s with no wall-clock wait on the success path, and a
+  mutation replacing the re-check with `Ok(false)` turned both race tests red, losing 2 of 160 lines to
+  one claim and 57 of 1000 silently under four claiming threads. THE ONE REAL FIX was the
+  empty-bundle-path disagreement, and it rested on a false claim about another tool: the results-row
+  adapter filtered `Some("")` into typed absence because a comment claimed jq's `//` treats an empty
+  string as missing. Measured, it does not: `jq` keeps an empty string and falls back only on false, null
+  or a missing key. The decision was written down three times and agreed with itself
+  (`posture/docs/decisions/finding-normalization.md`, `posture/docs/specs/finding-normalization.md`, and
+  the captured Bash rows in `posture/docs/acceptance/finding-boundaries.md`), and the domain already
+  agreed; only the adapter did not. The filter is gone, the adapter test pins all four column shapes, and
+  `posture/docs/README.md` records the resolution. QUOTED ZERO WAS DELIBERATELY LEFT ALONE and is the one
+  open question: the capture shows the Bash pipeline letting a counter written as `"0"` through as a
+  finding, while `results_row.rs` parses it and suppresses it as a baseline. The reason in the source is
+  plausible, that osquery's JSON logger has written the counter quoted and a baseline slipping through as
+  a string pages the whole machine once, but NO DECISION DOCUMENT SAYS SO, and the brief forbade changing
+  behaviour to match a decision that is not written down. OPERATOR STEP: either endorse the deviation in
+  a decision document or ask for the capture's behaviour to be restored.
 
 ### STOP POINT G
 
@@ -4429,6 +4453,28 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   because no evidence was gathered that a future timestamp is reachable at those sites or changes their
   verdict. WAITS ON THE OPERATOR: confirm or reject that disposition before a pull request implements it,
   since it changes what an unknown reading does to a delivery decision.
+
+- [ ] 142. The four posture test dispositions 60a deliberately deferred, filed 2026-09-17 with named
+  triggers so they stop reading as a vague remainder. All four are recorded in
+  `posture/docs/test-baseline.tsv` with their own disposition field. (1) FIVE JQ AND PIPE FAULT-INJECTION
+  PROPOSALS, disposition `proposed-disposition`, and NONE OF THEM HAS A RUST MECHANISM LEFT TO TEST:
+  B140/S123 assumed a jq encoder process that no longer exists, and S123 explicitly allows a fragment, so
+  it must not be restated as an atomic-write guarantee; B170/S068's stdout page-candidate pipe is a typed
+  `JudgedBatch` now and a failed sink returns `Retained` with no checkpoint; B171/S042's severity is
+  in-process. Each needs a fresh disposition against the Rust shape or an explicit retirement, not a
+  port. (2) THIRTEEN LEGACY QUEUE LEAVES, disposition `retained-legacy`, keeping their Bash owner: four
+  drain-continuation integration cases (an undecodable poison row, a permanent poison row, errexit on a
+  failing first row, and a mixed-batch full drain) and nine alert-dispatch unit cases (a count probe
+  never creating the database it reads, a counter reading zero while its table is un-bootstrapped, the
+  apostrophe cases through dead-letter reason, page URL, request id and drain SELECT, and an unreadable
+  store failing the probe rather than reporting a false zero). TRIGGER: task 49's acceptance. (3) B001, a
+  detached child never wedging the lock through a leaked descriptor, has no native assertion for
+  `SingleRunLock` inheritance; the similarly named exec test covers `AllowlistWriteLock`, a DIFFERENT
+  lock, so the coverage that looks present is not. (4) B002, two parallel runs delivering a batch exactly
+  once, has no retained two-process test asserting one notification and the shared final cursor together.
+  Both of those need a second real process, which is the only way the assertion means anything; TRIGGER:
+  the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
+  second process gets a defined exit contract.
 
 - [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
   2026-09-17 from the firewall drill's incidental finding.
