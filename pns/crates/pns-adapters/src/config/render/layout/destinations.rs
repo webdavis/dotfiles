@@ -3,7 +3,7 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
     name: "plugins.mobile",
     prose: "",
     opt_in: false,
-    children: &[],
+    children: &[PLUGINS_MOBILE_IMAGE_CARDS],
     keys: &[
         Key {
             name: "enabled",
@@ -42,6 +42,35 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Default("5"),
         },
     ],
+};
+/// Which card types carry an image, keyed by card type. An OPEN table, shipped
+/// with every card type off.
+const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
+    name: "plugins.mobile.image_cards",
+    prose: "# Which card types carry an IMAGE of the whole message, keyed by card type\n\
+                 # and off for every one of them until you name it here. A card type is the\n\
+                 # state word the event carried: `missed` is the card a return raises,\n\
+                 # `failed` a turn that died, `done` one that finished.\n\
+                 #\n\
+                 # WHAT AN IMAGE BUYS: the card's text is cut at 260 characters, and the\n\
+                 # image shows the message whole, wrapped at 60 columns.\n\
+                 #\n\
+                 # WHAT IT COSTS: a moshi card's `data` carries ONE type, so a card with an\n\
+                 # image cannot also carry the deep link that focuses the herdr pane the\n\
+                 # event came from. Turning a card type on trades that link away for every\n\
+                 # card of that type WHICH HAS A PANE. The return card (`missed`) has no\n\
+                 # pane and so no link to lose, which is why it is the example below.\n\
+                 #\n\
+                 # Uploads are capped at 10 an hour by moshi and the links expire after a\n\
+                 # day; a refused upload, a refused card and a message with nothing to draw\n\
+                 # all fall back to the ordinary text card with its link.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "missed",
+        prose: "",
+        sample: Sample::Example("false"),
+    }],
 };
 pub(super) const PLUGINS_DISCORD: Table = Table {
     name: "plugins.discord",

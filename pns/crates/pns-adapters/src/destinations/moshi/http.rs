@@ -39,7 +39,40 @@ impl HttpPost for UreqPost {
             // card the endpoint bounced somewhere else and never delivered.
             .is_ok_and(|response| DELIVERED_STATUS.contains(&response.status().as_u16()))
     }
+
+    /// The multipart upload, under the same deadline and the same no-redirect
+    /// rule as the post above, with the token in an `Authorization` header
+    /// because that is the only placement this route accepts.
+    fn upload_png(&self, url: &str, token: &str, png: &[u8]) -> Option<String> {
+        let body = super::upload::multipart(png)?;
+        let mut response = ureq::Agent::config_builder()
+            .timeout_global(Some(self.timeout))
+            // Following one would send the token to whatever host the
+            // endpoint names, exactly as on the webhook beside it.
+            .max_redirects(0)
+            .build()
+            .new_agent()
+            .post(url)
+            .header("Authorization", &format!("Bearer {token}"))
+            .content_type(super::upload::content_type())
+            .send(&body)
+            .ok()?;
+        if !DELIVERED_STATUS.contains(&response.status().as_u16()) {
+            return None;
+        }
+        let reply = response
+            .body_mut()
+            .with_config()
+            .limit(MAX_REPLY_BYTES)
+            .read_to_string()
+            .ok()?;
+        super::upload::uploaded_code(&reply)
+    }
 }
+
+/// How much of the upload's reply is read. The documented reply is three
+/// short fields; anything past this is not one.
+const MAX_REPLY_BYTES: u64 = 4096;
 
 /// The status codes that mean the card reached the phone. Spelled here rather
 /// than shared with hermes: the two channels answer to different endpoints and

@@ -124,6 +124,9 @@ Config {
         "mobile": PluginEntry {
             enabled: true,
             settings: {
+                "image_cards": Table(
+                    {},
+                ),
                 "mobile_watch_card": Boolean(
                     false,
                 ),
