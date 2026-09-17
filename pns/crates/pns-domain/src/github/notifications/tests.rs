@@ -132,7 +132,10 @@ fn the_identity_is_the_subjects_own_id_and_not_the_threads() {
     // THE MUTANT THIS PINS: the thread id used as the provider id, which the
     // push transport cannot see at all, so the same event would arrive twice.
     let event = polled_event(&ci_activity()).expect("ci_activity maps");
-    assert_eq!(event.identity, "webdavis/dotfiles|workflow_run|4471");
+    assert_eq!(
+        event.identity,
+        "webdavis/dotfiles|workflow_run|4471|1700000000"
+    );
     assert!(
         !event.identity.contains("20111"),
         "the thread id is not the provider id: {}",
@@ -155,7 +158,7 @@ fn a_thread_whose_subject_url_states_no_id_falls_back_to_the_thread_id() {
         };
         assert_eq!(
             polled_event(&thread).map(|event| event.identity),
-            Some("webdavis/dotfiles|workflow_run|20111".to_string()),
+            Some("webdavis/dotfiles|workflow_run|20111|1700000000".to_string()),
             "case {subject_url:?}"
         );
     }
@@ -167,12 +170,55 @@ fn two_kinds_of_the_same_subject_id_in_one_repository_are_two_identities() {
     // ids are per-endpoint, so check suite 4471 and pull request 4471 are
     // different things.
     assert_ne!(
-        identity("webdavis/dotfiles", GithubKind::WorkflowRun, "4471"),
-        identity("webdavis/dotfiles", GithubKind::Check, "4471")
+        identity(
+            "webdavis/dotfiles",
+            GithubKind::WorkflowRun,
+            "4471",
+            1_700_000_000
+        ),
+        identity(
+            "webdavis/dotfiles",
+            GithubKind::Check,
+            "4471",
+            1_700_000_000
+        )
     );
     assert_ne!(
-        identity("webdavis/dotfiles", GithubKind::WorkflowRun, "4471"),
-        identity("webdavis/pns", GithubKind::WorkflowRun, "4471")
+        identity(
+            "webdavis/dotfiles",
+            GithubKind::WorkflowRun,
+            "4471",
+            1_700_000_000
+        ),
+        identity(
+            "webdavis/pns",
+            GithubKind::WorkflowRun,
+            "4471",
+            1_700_000_000
+        )
+    );
+}
+
+#[test]
+fn a_subject_notified_again_later_is_a_new_identity() {
+    // THE MUTANT THIS PINS: `updated_at` dropped from the key. A mention or a
+    // review request on the same pull request re-notifies under this exact
+    // `(repo, kind, provider_id)` days later; without the timestamp the
+    // ledger reads it as the submission it already recorded and refuses it
+    // forever, so the operator never hears about the second one.
+    assert_ne!(
+        identity(
+            "webdavis/dotfiles",
+            GithubKind::ReviewRequest,
+            "689",
+            1_700_000_000
+        ),
+        identity(
+            "webdavis/dotfiles",
+            GithubKind::ReviewRequest,
+            "689",
+            1_700_086_400
+        )
     );
 }
 

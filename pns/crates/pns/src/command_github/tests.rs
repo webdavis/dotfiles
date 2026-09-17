@@ -208,7 +208,10 @@ mod tests {
             Launch::Daemon,
             &mut |event| submitted.push(event.identity.clone()),
         );
-        assert_eq!(submitted, vec!["webdavis/dotfiles|workflow_run|4471"]);
+        assert_eq!(
+            submitted,
+            vec!["webdavis/dotfiles|workflow_run|4471|1789398987"]
+        );
         let published = pns_adapters::read_poll_state(&state);
         assert_eq!(published.last_modified, CURSOR);
         assert_eq!(published.interval_secs, 60);
@@ -218,7 +221,7 @@ mod tests {
                 .iter()
                 .map(|seen| seen.identity.as_str())
                 .collect::<Vec<_>>(),
-            vec!["webdavis/dotfiles|workflow_run|4471"]
+            vec!["webdavis/dotfiles|workflow_run|4471|1789398987"]
         );
     }
 
@@ -267,7 +270,7 @@ mod tests {
             last_modified: CURSOR.to_string(),
             interval_secs: 60,
             seen: vec![Seen {
-                identity: "webdavis/dotfiles|workflow_run|4471".to_string(),
+                identity: "webdavis/dotfiles|workflow_run|4471|1789398987".to_string(),
                 first_seen: NOW - 60,
             }],
         };
@@ -330,9 +333,9 @@ mod tests {
         assert_eq!(
             submitted,
             vec![
-                "webdavis/dotfiles|workflow_run|1",
-                "webdavis/dotfiles|workflow_run|2",
-                "webdavis/dotfiles|workflow_run|3",
+                "webdavis/dotfiles|workflow_run|1|1789398987",
+                "webdavis/dotfiles|workflow_run|2|1789398987",
+                "webdavis/dotfiles|workflow_run|3|1789398987",
             ]
         );
     }

@@ -60,7 +60,12 @@ pub fn polled_event(thread: &NotificationThread) -> Option<GithubEvent> {
         outcome: GithubOutcome::Neutral,
         title: thread.subject_title.clone(),
         url: web_link(thread),
-        identity: identity(&thread.repo_full_name, kind, &provider_id(thread)),
+        identity: identity(
+            &thread.repo_full_name,
+            kind,
+            &provider_id(thread),
+            thread.updated_at,
+        ),
         occurred_at: thread.updated_at,
     })
 }
@@ -107,15 +112,22 @@ fn provider_id(thread: &NotificationThread) -> String {
         .to_string()
 }
 
-/// This event's deduplication key: the repository, the kind and the provider's
-/// own id, in one opaque word both transports compute the same way.
-pub fn identity(repo: &str, kind: GithubKind, provider_id: &str) -> String {
+/// This event's deduplication key: the repository, the kind, the provider's
+/// own id and when the subject last changed, in one opaque word both
+/// transports compute the same way.
+///
+/// `updated_at` IS PART OF THE KEY, not only the payload, because the subject
+/// is never marked read: a mention or a review request on the same pull
+/// request re-notifies under this exact `(repo, kind, provider_id)` days
+/// later, and without the timestamp the ledger reads that resubmission as the
+/// one it already recorded and refuses it forever.
+pub fn identity(repo: &str, kind: GithubKind, provider_id: &str, updated_at: u64) -> String {
     let word = super::GITHUB_KIND_WORDS
         .iter()
         .find(|(_, mapped)| *mapped == kind)
         .map(|(word, _)| *word)
         .unwrap_or_default();
-    format!("{repo}|{word}|{provider_id}")
+    format!("{repo}|{word}|{provider_id}|{updated_at}")
 }
 
 /// Where tapping this notification lands.
