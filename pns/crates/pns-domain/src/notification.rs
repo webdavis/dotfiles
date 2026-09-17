@@ -62,6 +62,12 @@ pub struct EventArgs {
     /// empty. Producers name a kind; nobody outside this crate names a route
     /// it has not been told.
     pub kind: crate::routes::Kind,
+    /// Whether this event's `state` was READ OFF THE TURN'S TEXT by the
+    /// condenser rather than stated by a harness hook. A guess is the model's
+    /// reading of prose, so it can call a turn a wait that is asking nobody
+    /// anything; a hook fired because the harness itself stopped for an
+    /// answer.
+    pub guessed: bool,
 }
 
 impl EventArgs {
