@@ -175,3 +175,44 @@ mod write_reports;
 mod sessions;
 
 mod session_threads;
+
+#[test]
+fn an_open_that_loses_the_wal_conversion_still_records() {
+    // MEASURED: `PRAGMA journal_mode=WAL` answers SQLITE_BUSY instantly when
+    // another connection holds the write lock on a rollback-journal database,
+    // whatever the connection's `busy_timeout` says, and treating that refusal
+    // as fatal aborted the whole open. Every record that open was about to
+    // write went with it, fail-quiet, which is a lost notification.
+    //
+    // STAGED RATHER THAN RACED: an unstaged race needed thousands of fresh
+    // opens to lose one, and this pins the same statement in milliseconds.
+    let state = state();
+    let back_to_rollback = SqliteStore::new(state.clone())
+        .connect()
+        .expect("the schema");
+    back_to_rollback
+        .pragma_update(None, "journal_mode", "DELETE")
+        .expect("a rollback-journal database, the shape a conversion can lose");
+    drop(back_to_rollback);
+    let holder = rusqlite::Connection::open(state.join("pns.db")).expect("another writer");
+    holder.execute_batch("BEGIN IMMEDIATE").expect("its lock");
+
+    let connection = SqliteStore::new(state)
+        .connect()
+        .expect("a conversion this open lost is not the open's problem");
+    assert_eq!(
+        connection
+            .pragma_query_value(None, "journal_mode", |row| row.get::<_, String>(0))
+            .expect("the mode it settled for"),
+        "delete",
+        "the refusal has to be a real one, not a conversion that quietly won"
+    );
+
+    drop(holder);
+    connection
+        .execute(
+            "INSERT INTO decisions(line) VALUES ('after the refusal')",
+            [],
+        )
+        .expect("the open that lost the conversion still writes records");
+}
