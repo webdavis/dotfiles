@@ -9,6 +9,10 @@
 //! program may implement it, and which program does is a per-machine choice
 //! rather than a property of this tool.
 //!
+//! IT ALSO OWNS THE `[jobs]` TABLE of that same file, which names the launchd
+//! label of each job posture installs. The two are read through one schema
+//! because one file declares both, and serde refuses an unknown table by name.
+//!
 //! FAIL CLOSED, NEVER SILENT. With no config file, and with one this build
 //! cannot use, the choice is a hermes path holding no key at all, and a keyless
 //! route refuses the page and raises the local banner. A malformed file
@@ -23,6 +27,7 @@ use crate::producer::ProducerCommand;
 use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
 use posture_application::{AlertSink, IndependentAlarm};
+use posture_domain::AgentLabels;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -48,6 +53,20 @@ const COPY_WINDOW: &str = ".local/state/posture-critical-copy-window.json";
 /// the path rule is testable without an environment.
 pub fn config_path(home: &Path) -> PathBuf {
     home.join(".config/posture/config.toml")
+}
+
+/// The launchd label of each of posture's own jobs, for this home directory.
+///
+/// A file that cannot be read or parsed leaves every job at its shipped
+/// default. The same file's notify half already reports that refusal loudly and
+/// refuses to deliver, so nothing here is the one thing that tells the operator
+/// their config is broken.
+pub fn agent_labels(home: &Path) -> AgentLabels {
+    std::fs::read_to_string(config_path(home))
+        .ok()
+        .and_then(|text| toml::from_str::<schema::File>(&text).ok())
+        .map(|file| file.jobs.into_labels())
+        .unwrap_or_default()
 }
 
 /// The three ways one page can be raised.

@@ -1,6 +1,6 @@
 use crate::{CommandIo, CommandRunner};
 use posture_application::{DaemonHealth, WatchdogProcesses};
-use posture_domain::{Agent, AgentExit, AgentReading};
+use posture_domain::{AgentExit, AgentReading};
 use std::{ffi::OsStr, path::Path};
 
 pub struct SystemWatchdogProcesses<R> {
@@ -58,8 +58,8 @@ impl<R: CommandRunner> WatchdogProcesses for SystemWatchdogProcesses<R> {
             )
             .is_ok()
     }
-    fn agent(&mut self, agent: Agent) -> AgentReading<'_> {
-        if !self.print(agent.label()) {
+    fn agent(&mut self, label: &str) -> AgentReading<'_> {
+        if !self.print(label) {
             return AgentReading::Unloaded;
         }
         AgentReading::Loaded {

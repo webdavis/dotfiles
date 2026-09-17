@@ -4,7 +4,7 @@ mod page;
 
 use crate::{CanaryEpoch, CanaryFreshness, canary_freshness};
 pub use agents::{
-    Agent, AgentExit, AgentJudgment, AgentReading, AgentState, ExitCode, judge_agent,
+    Agent, AgentExit, AgentJudgment, AgentLabels, AgentReading, AgentState, ExitCode, judge_agent,
 };
 pub use audit::{
     AuditFingerprint, AuditJudgment, AuditMemory, audit_fingerprint_input, judge_audit,

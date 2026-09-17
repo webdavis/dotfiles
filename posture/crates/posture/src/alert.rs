@@ -113,6 +113,7 @@ fn execute<R: posture_adapters::CommandRunner>(
         allowlist: allowlist.as_ref(),
         spool: &spool,
         now: &stamp,
+        agents: &config.agents,
         diagnostics: &mut *stderr,
         collaborators: Collaborators {
             vouches: &mut vouches,

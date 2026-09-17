@@ -86,7 +86,7 @@ pub use hermes::{CriticalCopy, HermesWebhook};
 mod signed_post;
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
 mod notify;
-pub use notify::{DEFAULT_WEBHOOK_BASE, Notify, NotifyMode, alert_sink, config_path};
+pub use notify::{DEFAULT_WEBHOOK_BASE, Notify, NotifyMode, agent_labels, alert_sink, config_path};
 mod banner_only;
 mod last_resort_banner;
 pub use last_resort_banner::LastResortBanner;
