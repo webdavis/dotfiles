@@ -53,15 +53,43 @@ impl LaneAdapter for HerdrLane {
         // ONE LISTING FOR THE WHOLE LANE, and none at all when nothing is
         // pinned: an unpinned roster is reinstalled either way, so asking
         // herdr where its plugins sit would answer a question nobody asked.
-        let installed = if self.plugins.iter().any(|entry| entry.pinned_ref.is_some()) {
-            self.installed(runner)
+        let pinned: Vec<&Plugin> = self
+            .plugins
+            .iter()
+            .filter(|entry| entry.pinned_ref.is_some())
+            .collect();
+        // Read once and match once: a listing failure is ONE failure for the
+        // whole lane, not one per pinned entry re-hitting the same Err.
+        let installed = if pinned.is_empty() {
+            Some(BTreeMap::new())
         } else {
-            Ok(BTreeMap::new())
+            match self.installed(runner) {
+                Ok(installed) => Some(installed),
+                Err(why) => {
+                    let names = pinned
+                        .iter()
+                        .map(|p| {
+                            format!(
+                                "plugin {} ({})",
+                                p.id,
+                                p.pinned_ref.as_deref().unwrap_or("")
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    report.failed(format!(
+                        "{why}; every pinned plugin LEFT ALONE: {names}, so whether they sit at \
+                         their revisions is unknown"
+                    ));
+                    None
+                }
+            }
         };
         for plugin in &self.plugins {
-            match plugin.pinned_ref.as_deref() {
-                Some(pin) => self.hold(plugin, pin, &installed, &mut report),
-                None => self.refresh(plugin, runner, &mut report),
+            match (plugin.pinned_ref.as_deref(), &installed) {
+                (Some(pin), Some(installed)) => self.hold(plugin, pin, installed, &mut report),
+                (Some(_), None) => {}
+                (None, _) => self.refresh(plugin, runner, &mut report),
             }
         }
         report
@@ -102,20 +130,10 @@ impl HerdrLane {
         &self,
         plugin: &Plugin,
         pin: &str,
-        installed: &Result<BTreeMap<String, Installed>, String>,
+        installed: &BTreeMap<String, Installed>,
         report: &mut LaneReport,
     ) {
         let id = plugin.id.as_str();
-        let installed = match installed {
-            Ok(installed) => installed,
-            Err(why) => {
-                report.failed(format!(
-                    "plugin {id}: pinned at {pin} and LEFT ALONE; {why}, so whether it sits at \
-                     that revision is unknown"
-                ));
-                return;
-            }
-        };
         let at = installed.get(id);
         match at {
             Some(at) if at.holds(pin) => {
