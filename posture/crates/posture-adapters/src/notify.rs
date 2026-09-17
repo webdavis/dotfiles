@@ -46,7 +46,7 @@ pub const DEFAULT_WEBHOOK_BASE: &str = "http://127.0.0.1:8644/webhooks";
 /// machine, because which channel a page lands in is the operator's gateway's
 /// business rather than this tool's; this value is what they get without
 /// saying.
-pub const DEFAULT_ROUTE: &str = "posture-pages";
+const DEFAULT_ROUTE: &str = "posture-pages";
 
 /// Where the rolling hour of critical-page copies is recorded, under the home
 /// directory the choice was read for. Beside posture's cursor and digest
