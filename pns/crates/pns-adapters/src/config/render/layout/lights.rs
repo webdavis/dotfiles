@@ -138,8 +138,8 @@ pub(super) const LIGHTS_GITHUB: Table = Table {
 };
 pub(super) const LIGHTS_LOOP: Table = Table {
     name: "lights.loop",
-    prose: "# A live pane lease keeps condenser `asking` guesses from arming blocked;\n\
-            # real hook waits still take priority.\n",
+    prose: "# A live pane lease keeps the condenser's guessed waits from arming\n\
+            # blocked; real hook waits still take priority.\n",
     opt_in: true,
     children: &[],
     keys: &[

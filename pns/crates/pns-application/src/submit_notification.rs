@@ -106,7 +106,19 @@ where
             );
         }
 
-        if !(submission.loop_live && submission.event.state == "asking") {
+        // A GUESSED WAIT INSIDE A LIVE LOOP IS THE LOOP WORKING, so neither
+        // record is written: the condenser reads the turn's prose, and a
+        // mid-loop turn that mentions a decision is not a session waiting on
+        // the operator. A HOOK-DRIVEN wait arms either way, because the
+        // harness stopped for an answer rather than guessing that it had.
+        // ONLY A START IS WITHHELD. `blocked_marker_action` is the same rule
+        // the wait itself reads, and a guessed `done` still has to clear a
+        // marker an earlier event armed.
+        let guessed_wait = submission.loop_live
+            && submission.event.guessed
+            && pns_domain::lights::phase::blocked_marker_action(&submission.event.state)
+                == pns_domain::lights::phase::Action::Start;
+        if !guessed_wait {
             BlockedMarker::update(
                 self.ports,
                 submission.session_id,
@@ -115,8 +127,7 @@ where
                 decision.inputs.now_secs,
             );
             // INSIDE THE SAME GUARD, so a loop holding the lamp holds the
-            // escalation too: an `asking` turn inside a live loop is the loop
-            // working rather than a session waiting on the operator.
+            // escalation too: one fact, two records, written together.
             SessionWait::track(
                 self.ports,
                 submission.session_id,
