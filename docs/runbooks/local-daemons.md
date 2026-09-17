@@ -61,7 +61,7 @@ in `~/.hermes/.env` (rendered from `private_dot_hermes/private_dot_env.tmpl`). I
 
 ### The routes
 
-Five routes, and the template that owns them declares exactly these. A live route it does not name is
+Six routes, and the template that owns them declares exactly these. A live route it does not name is
 REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu-runs`), `osquery`
 (superseded by `posture-pages`) and `pns-recap` (retired with its channel on 2026-09-15) leave.
 
@@ -69,15 +69,18 @@ REMOVED by the next apply, which is how `unattended-upgrades` (superseded by `uu
 built from, so route name == channel name == entry name. The channels were renamed on 2026-09-14 and the
 routes followed: `pns` became `pns-events`, `uu` became `uu-runs` and `posture` became `posture-pages`,
 because the bare tool names are now GitHub repo channels (a future pns GitHub source posts there) and no
-webhook route may take one.
+webhook route may take one. `explain`, added 2026-09-17, is the one exception: it posts into `#priority`
+rather than a channel of its own, so it names `priority` as its `channel` and reads that channel's
+existing entry instead of getting a new one.
 
-| Route           | Who posts                                 | What                                                                                                       |
-| --------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `general`       | nothing in this repo yet                  | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one. |
-| `pns-events`    | pns hook and daemon paths                 | Every routine agent event, the return recap included. The default route when nothing names one.            |
-| `priority`      | the alert drainer; pns on `--kind health` | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`. |
-| `uu-runs`       | uu                                        | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`, then from `uu`.                 |
-| `posture-pages` | posture                                   | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.  |
+| Route           | Who posts                                  | What                                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `general`       | nothing in this repo yet                   | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one.                                                                                                                          |
+| `pns-events`    | pns hook and daemon paths                  | Every routine agent event, the return recap included. The default route when nothing names one.                                                                                                                                     |
+| `priority`      | the alert drainer; pns on `--kind health`  | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`.                                                                                                                          |
+| `uu-runs`       | uu                                         | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`, then from `uu`.                                                                                                                                          |
+| `posture-pages` | posture                                    | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.                                                                                                                           |
+| `explain`       | posture, copying a delivered critical page | The one AGENT route on this gateway. It carries no `deliver_only` key, so the gateway hands the posted body to an agent and delivers the agent's reply instead of the body itself. See "The posture critical-page explainer" below. |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks its route from the finding's tier in one place (`severity_route`,
@@ -110,13 +113,16 @@ Read the routes without changing anything:
 yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 ```
 
-Every route carries four things: a `secret`, `deliver: discord`, `deliver_only: true` so the body is
-posted verbatim instead of being fed to an agent, and a `deliver_extra.chat_id` naming its channel.
+Every route carries a `secret`, `deliver: discord`, a `prompt` and a `deliver_extra.chat_id` naming its
+channel. Five of the six also carry `deliver_only: true`, so their body is posted verbatim instead of
+being fed to an agent; `explain` is the one route without it, which is what makes it an agent route.
 `general`, `pns-events` and `priority` share the three-line prompt (`**{header}**`, `-# {subheader}`,
-`{body}`); `posture-pages` and `uu-runs` keep the event-shaped prompt they already had.
+`{body}`); `posture-pages` and `uu-runs` keep the event-shaped prompt they already had; `explain` carries
+its own explainer instruction, framing the posted page as untrusted data.
 
-**Every secret and every channel id comes from KeePassXC by entry name, two entries per route.** Ten
-entries, named off the route:
+**Every secret and every channel id comes from KeePassXC by entry name, one secret entry per route and
+one channel entry per channel.** Eleven entries, named off the route, except `explain`, whose channel
+entry is `priority`'s:
 
 | Route           | Secret entry                                | Channel entry                                    |
 | --------------- | ------------------------------------------- | ------------------------------------------------ |
@@ -125,10 +131,16 @@ entries, named off the route:
 | `posture-pages` | `Hermes :: Webhook Secret (#posture-pages)` | `Discord (Uriel) :: Channel ID (#posture-pages)` |
 | `priority`      | `Hermes :: Webhook Secret (#priority)`      | `Discord (Uriel) :: Channel ID (#priority)`      |
 | `uu-runs`       | `Hermes :: Webhook Secret (#uu-runs)`       | `Discord (Uriel) :: Channel ID (#uu-runs)`       |
+| `explain`       | `Hermes :: Webhook Secret (#explain)`       | `Discord (Uriel) :: Channel ID (#priority)`      |
 
 The parentheses in the secret titles are load-bearing: the retired single shared key lived at
 `Hermes :: Webhook Secret :: #pns`, which is a different entry. The ElevenLabs voice is one more lookup,
 `ElevenLabs :: Voice ID`, whose Password field holds the voice id.
+
+A `Discord (Uriel) :: Channel ID (#explain)` entry and an `#explain` Discord channel both exist and are
+both unused: the route deliberately reads `priority`'s channel entry instead, so one channel id lives in
+one vault entry rather than two that could drift apart. Do not populate or wire the unused entry; it is
+not a leftover to clean up, it is the cost of the route name not matching its channel.
 
 **A missing KeePassXC entry aborts the whole apply. An empty one does not.** keepassxc-cli exits non-zero
 on a title it cannot find, chezmoi fails the template on that, and a failed modify-template takes every
@@ -149,18 +161,49 @@ secret or moving a channel is a KeePassXC edit plus an apply.
 The gateway and the senders read the SAME entries, so one apply lands both sides together and nothing is
 left signing with a key the gateway no longer holds:
 
-| Route           | Sender and the key it reads                                                                                                  |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                    |
-| `posture-pages` | `[notify.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table |
-| `priority`      | `[plugins.hermes.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                  |
-| `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                  |
-| `general`       | no sender in this repository; an ad-hoc signed POST                                                                          |
+| Route           | Sender and the key it reads                                                                                                                                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                                                                                                                                |
+| `posture-pages` | `[notify.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table                                                                                                             |
+| `priority`      | `[plugins.hermes.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                                                                                                                              |
+| `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                                                                                                                              |
+| `general`       | no sender in this repository; an ad-hoc signed POST                                                                                                                                                                                      |
+| `explain`       | posture only, `[notify.hermes.keys] explain` in `dot_config/posture/private_config.toml.tmpl`, and only for the copy of a delivered critical page (`notify.hermes.critical_copy_route`, `posture/crates/posture-adapters/src/hermes.rs`) |
 
 pns refuses to post to a route its table names no key for, and records the refusal the way every other
 refused hermes post is recorded; `pns doctor` names every route left without a key. Until the apply that
 carries both sides has run, the senders still sign with the retired shared key and the gateway answers
-401 on four of the five routes, so apply once, with KeePassXC unlocked, then `hermes gateway restart`.
+401 on the routes that are not that key, so apply once, with KeePassXC unlocked, then
+`hermes gateway restart`.
+
+### The posture critical-page explainer
+
+posture is `explain`'s only sender today, and it is a SECOND sender: `explain` never carries a page on
+its own, only a copy of one `priority` already delivered. `AlertSink::submit`
+(`posture/crates/posture-adapters/src/hermes.rs`) posts a critical finding to its own tier route first;
+once that post comes back delivered, `copy_delivered_page` signs the same body a second time with the
+`explain` key and posts it to `explain`, carrying a request id derived from the page's own id but never
+equal to it (`request_id::derive_copy`). A Notice-tier page, a page whose own post failed, or a machine
+with no `critical_copy_route` configured never reaches that second post at all.
+
+The copy is rationed per distinct finding, not per page:
+`posture/crates/posture-adapters/src/hermes/window.rs` keeps a rolling hour of claims in one timestamp
+file under `~/.local/state/` (`posture-critical-copy-window.json`), a finding already claimed inside the
+hour earns no second copy, and the hour holds at most twenty distinct findings before a further one is
+withheld and reported on the local banner. The window fails open: a file it cannot read or write grants
+the claim rather than silently switching the leg off.
+
+Because `explain` is an agent route, `hermes` hands the copy to a model rather than delivering it
+verbatim, and the prompt (`private_dot_hermes/modify_private_config.yaml`) instructs it to treat the page
+as untrusted data and reply with a fixed four-part explanation, under 1200 characters, naming no command
+of its own. The webhook agent sandbox is empty (`platform_toolsets.webhook: ["no_mcp"]`, same template),
+so the model that reads a posture finding has no tool to misuse. The reply lands in the same `#priority`
+channel as the page it explains, directly under it; it moves into the page's own Discord thread once the
+pns Discord bot (task 82 in `docs/remaining-work.md`) exists to open one.
+
+Operator step after the apply that first declares this route: `hermes gateway restart`, the same restart
+"When a route changes" below already calls for, so the gateway loads `explain` rather than answering it
+404\.
 
 ### Three gotchas
 
@@ -196,6 +239,32 @@ agent-attack-surface pack, so trash it alongside the LaunchAgent and the queue r
 critical arm back to `priority` is now a one-line change in posture's own workspace, and the test named
 for the hold is what makes that flip deliberate.
 
+**An empty `platform_toolsets.webhook` list is not the same thing as `["no_mcp"]`.** `[]` reads as "no
+extra Model Context Protocol allowlist for this platform", which leaves every globally enabled Model
+Context Protocol server live for a webhook agent run, cua-driver (which drives this Mac's graphical
+interface) among them. `["no_mcp"]` is the documented sentinel `hermes_cli/tools_config.py` special-cases
+to mean no tools at all, and it is what `explain`'s sandbox depends on: the route feeds a model text read
+off a machine it does not control, so the boundary that matters is that the model has nothing to act
+with. Saving a change from the `hermes tools` picker in the terminal UI drops the sentinel, because the
+picker has no checkbox for it, so a picker session re-arms every server until the next apply puts
+`["no_mcp"]` back.
+
+**The gateway's duplicate cache is keyed on the delivery id alone, across every route.** Two posts
+carrying the same `X-Request-ID` (or `X-GitHub-Delivery` or `svix-id`) within its one-hour window are one
+delivery even when they target different routes: the second answers `{"status": "duplicate"}` and never
+runs, gateway-wide rather than per route. This is why posture's copy of a critical page carries a request
+id derived from the page's own id but distinct from it (`request_id::derive_copy`,
+`posture/crates/posture-adapters/src/request_id.rs`): reusing the page's id would make the copy read as
+the page arriving a second time and the gateway would drop it silently.
+
+**An absent placeholder renders as its own literal braces, and that reaches Discord.** `_render_prompt`
+degrades a missing key to `{the.key}` rather than failing, so a `deliver_extra` value built from a key a
+sender never sends is not empty, it is the literal text `{that_key}` posted to the channel. This is why
+`explain`'s route carries no `deliver_extra.thread_id`: posture's body has no `thread_id` field yet, so
+an absent key there would send the literal string `{thread_id}` to Discord as a thread id rather than
+degrading cleanly. A thread id is only added to a route once its sender always emits the key, which is
+also true of any future field added to a route's `deliver_extra`.
+
 ### When a route changes
 
 An apply writes the new `~/.hermes/config.yaml`, but the running gateway loaded the old one, so a new or
@@ -210,11 +279,12 @@ yq -r '.platforms.webhook.extra.routes | keys' ~/.hermes/config.yaml
 ```
 
 The first loads the new table. The second is the read-only confirmation, and it should list exactly
-`general`, `pns-events`, `posture-pages`, `priority`, `uu-runs`. What to expect from the apply itself:
-`run_after_68` prints NOTHING when all five routes are present with a secret, a snowflake `chat_id` and
-`deliver_only: true`, no undeclared route is left, `tts.elevenlabs.voice_id` is set, and the gateway
-already answers each route. Every line it does print names the route, the condition, and the KeePassXC
-entry or command that fixes it, and never a value.
+`explain`, `general`, `pns-events`, `posture-pages`, `priority`, `uu-runs`. What to expect from the apply
+itself: `run_after_68` prints NOTHING when all six routes are present with a secret and a snowflake
+`chat_id`, `deliver_only: true` on the five delivery routes and absent on `explain`, no undeclared route
+is left, `tts.elevenlabs.voice_id` is set, and the gateway already answers each route. Every line it does
+print names the route, the condition, and the KeePassXC entry or command that fixes it, and never a
+value.
 
 ## The pns Discord bot (project channels)
 
