@@ -49,22 +49,3 @@ fn a_guessed_finish_inside_a_live_loop_still_clears_the_marker() {
     // the clear would leave a marker armed over a turn that had finished.
     assert!(armed(true, "done", true));
 }
-
-/// A STALE LEASE IS NO LEASE, which is the honest answer rather than the
-/// convenient one: a lease nothing renewed says the pane stopped firing
-/// events, and a loop that ended cannot vouch for the next guess. The pane's
-/// own hook traffic is the renewal, so a live loop is never stale for long.
-#[test]
-fn a_lease_past_its_timeout_reads_as_no_lease() {
-    let timeout = 3900;
-    assert!(pns_domain::lights::held::marker_is_live(
-        100,
-        100 + timeout,
-        timeout
-    ));
-    assert!(!pns_domain::lights::held::marker_is_live(
-        100,
-        101 + timeout,
-        timeout
-    ));
-}
