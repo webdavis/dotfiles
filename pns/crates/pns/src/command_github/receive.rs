@@ -93,16 +93,22 @@ pub(super) fn github_receive() -> i32 {
 /// would record a timed-out delivery on GitHub's side for work it had already
 /// done.
 fn answer(mut stream: TcpStream, secret: &str, doorbell: &mut impl FnMut()) {
-    let _ = stream.set_read_timeout(Some(REQUEST_DEADLINE));
+    // The read side is bounded inside read_request, one deadline for the
+    // whole message; only the write needs setting here.
     let _ = stream.set_write_timeout(Some(REQUEST_DEADLINE));
     let verdict = match read_request(&mut stream) {
         Ok(request) => pns_adapters::delivery(&request, secret),
         Err(reason) => pns_adapters::Delivery::Refused(reason),
     };
-    let status = verdict.status();
-    let _ = stream.write_all(
-        format!("HTTP/1.1 {status} X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes(),
-    );
+    // A REAL REASON PHRASE, and no Content-Length on the 204: RFC 9110
+    // forbids one on a response with no body, and "X" said nothing anyway.
+    let response = match verdict {
+        pns_adapters::Delivery::Verified => "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n",
+        pns_adapters::Delivery::Refused(_) => {
+            "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        }
+    };
+    let _ = stream.write_all(response.as_bytes());
     ring(verdict, doorbell);
 }
 
@@ -137,9 +143,15 @@ const REQUEST_DEADLINE: Duration = Duration::from_secs(10);
 /// number a stranger chose never decides this process's allocation. Reading to
 /// end of file instead would deadlock against a client waiting for its answer.
 fn read_request(stream: &mut TcpStream) -> Result<Vec<u8>, &'static str> {
+    // ONE DEADLINE FOR THE WHOLE MESSAGE, not one per read: the socket's read
+    // timeout resets on every call, so a client trickling in a byte just
+    // under that timeout apart would otherwise hold the connection (and the
+    // single-threaded accept loop) open indefinitely.
+    let deadline = std::time::Instant::now() + REQUEST_DEADLINE;
     let mut raw = Vec::new();
     let mut chunk = [0u8; 8192];
     let head_end = loop {
+        bound_read_timeout(stream, deadline)?;
         let read = stream.read(&mut chunk).unwrap_or(0);
         if read == 0 {
             return Err("the connection said nothing");
@@ -152,12 +164,19 @@ fn read_request(stream: &mut TcpStream) -> Result<Vec<u8>, &'static str> {
             return Err("header block over the ceiling");
         }
     };
-    let stated = pns_adapters::content_length(&String::from_utf8_lossy(&raw[..head_end]))
-        .unwrap_or_default();
+    // NO STATED LENGTH IS A REFUSAL, never zero: a body sent without
+    // `Content-Length` (chunked framing, say) would otherwise be hashed as
+    // empty, and a request that fails the signature check for that reason
+    // logs the wrong cause.
+    let Some(stated) = pns_adapters::content_length(&String::from_utf8_lossy(&raw[..head_end]))
+    else {
+        return Err("no stated content length");
+    };
     if stated > pns_adapters::WEBHOOK_BODY_MAX {
         return Err("body over the ceiling");
     }
     while raw.len() < head_end + stated {
+        bound_read_timeout(stream, deadline)?;
         let read = stream.read(&mut chunk).unwrap_or(0);
         if read == 0 {
             break;
@@ -165,6 +184,20 @@ fn read_request(stream: &mut TcpStream) -> Result<Vec<u8>, &'static str> {
         raw.extend_from_slice(&chunk[..read]);
     }
     Ok(raw)
+}
+
+/// Shrinks the socket's read timeout to what is left of the request's total
+/// budget, or refuses once nothing is left.
+fn bound_read_timeout(
+    stream: &TcpStream,
+    deadline: std::time::Instant,
+) -> Result<(), &'static str> {
+    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+    if remaining.is_zero() {
+        return Err("the request took too long to arrive");
+    }
+    let _ = stream.set_read_timeout(Some(remaining));
+    Ok(())
 }
 
 /// The most header block this reads. Sixteen kibibytes, which is more than
