@@ -3841,7 +3841,15 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
 - [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
   `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
   `uu` run, and `general` has no producer in this repository, so it stays unproven until something posts
-  to it.
+  to it. MEASURED 2026-09-17, four of five now proven. `pns doctor` confirmed `general`, `posture-pages`
+  and `priority` as served by the gateway, and its Channels section reported hermes
+  `sent, posted HTTP 200`. `uu-runs` was proven separately by `uu run rotate-logs`, the cheapest lane,
+  which rotated one log and emitted its run record (`unattended / uu / completed / dresden`,
+  `rotate-logs: 0 failure(s)`, one log rotated at 33931949 bytes and eleven under threshold); that record
+  also reported `last successful run: NEVER RECORDED on this machine`, so it is the first uu run this
+  machine has recorded. `pns-events` is the only one of the five not directly exercised by either run.
+  Doctor also named two routes the gateway does not serve, `pns-recap` and `posture`, both of which the
+  operator ruled retired rather than missing; that is task 99 and not a gap in this one.
 
 - [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
   2026-09-15, alongside the answers recorded in
@@ -3940,34 +3948,42 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
   service.
 
-- [ ] 99. Two routes pns would send to do not exist in the gateway, filed 2026-09-17. `pns doctor`, run
-  by the operator on 2026-09-17, reported
-  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and the same for
-  `route posture`, against `general`, `posture-pages` and `priority` which it confirmed served. So five
-  routes were checked, two are missing, and anything addressed to either is dropped rather than refused.
-  This matters most for `pns-recap`, because the recap is the daily record the operator reads, and for
-  `posture`, because the 2026-09-14 routing ruling put health and security pages on their own name. Note
-  that the committed source names only three hermes keys in `dot_config/pns/config-values.toml` under
-  `[plugins.hermes.keys]`: `pns-events`, `posture-pages` and `priority`. `posture` and `pns` also appear
-  in `[plugins.discord.channels]`, but that table is the per-project channel map rather than a hermes
-  route list, and `[plugins.discord]` ships disabled. So the first job is to find where the two names
-  doctor checked actually come from, since it is not that table, and decide per name whether the gateway
-  gains the route or pns stops naming it. Do NOT read `~/.hermes/.env` or print any channel id while
-  doing it. Related: the five-route live coverage of task 86, which counted `general` proven by this same
-  run.
+- [ ] 99. Stop naming two retired hermes routes, filed 2026-09-17 on two operator rulings. `pns doctor`
+  on 2026-09-17 reported `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and
+  the same for `route posture`, against `general`, `posture-pages` and `priority` which it confirmed
+  served. Neither route should be added. The operator ruled both retired: `pns-recap` and its Discord
+  channel went with task 81 on 2026-09-15 and a recap now posts on the default route, which
+  `pns/crates/pns-application/src/post_return_recap.rs` already implements; and there is no `#posture`
+  channel any more, only `#posture-pages`, which the gateway already serves. So the fix is subtractive on
+  both names rather than the additive one the earlier design assumed. Two changes: doctor stops checking
+  `pns-recap`, because a checker that warns about a route nobody targets trains the operator to ignore
+  it; and posture's six hard-coded `posture` call sites collapse to one overridable default naming
+  `posture-pages`. This SUPERSEDES the additive half of the unnumbered item under
+  `### Hermes security investigation, recovered from #24`, which proposed declaring a `posture` route in
+  the age-encrypted hermes config with its own secret and channel, and it answers that design's first
+  open question (which channel security pages land in) with `#posture-pages`. The measured damage that
+  item records still stands and is the reason this is not cosmetic: the live gateway answers 404 for
+  `posture`, `ledger_legs` holds eight dead-lettered legs on it with `http_status = 404` whose banner
+  legs all delivered, so eight daily digests reached the operator locally and never reached Discord. It
+  also stays a blocker on `feat/posture-alert-cutover` for the same reason that item gives: when that
+  cutover merges and is applied, the CRITICAL security page moves onto the 404 route. Do NOT read
+  `~/.hermes/.env` and do not print any channel id while fixing it.
 
-- [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed
-  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE`, the same for `route posture`,
-  `1 notification still waiting to reach a channel`, `17 notifications given up on after retrying`, and
-  `the daemon log shows it recently failed to record a delivery, so these counts may be low`, and then
-  closed with `checkmark nothing to act on`. Two lost routes and seventeen dead letters are exactly the
-  things to act on, so the summary contradicts the body of the same report. In a tool whose whole job is
-  to say when a notification did not arrive, a false all-clear is the worst available failure: it is the
-  line an operator reads when they are skimming. Fix the verdict so any warning in any section, and any
-  non-zero dead-letter or undelivered count, prevents the all-clear and says what to look at. Pin it with
-  a test that gives doctor a report carrying one warning and asserts the summary is not the all-clear.
-  Side observation to check while in there: the dead-letter count was 11 on 2026-09-13 and is 17 now, so
-  the population is growing rather than static, which the watchdog reports only on an increase.
+- [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed two
+  `THE GATEWAY HAS NO SUCH ROUTE` warnings, `1 notification still waiting to reach a channel`,
+  `17 notifications given up on after retrying`, and
+  `the daemon log shows it recently failed to record a delivery, so these counts may be low`, then closed
+  with `nothing to act on`. The cause is already diagnosed in the unnumbered hermes-security item:
+  `RouteVerdict::Missing` maps to `Mark::Warn`, and the summary escalates only on an error, so every
+  warning passes through as all clear. In a tool whose only job is to say when a notification did not
+  arrive, that is the worst available failure, because it is the line an operator reads when skimming.
+  Fix the verdict so any warning in any section, and any non-zero dead-letter or undelivered count,
+  withholds the all-clear and names what to look at. Pin it with a test that hands doctor a report
+  carrying exactly one warning and asserts the summary is not the all-clear. Note that task 99 removes
+  the two route warnings this run produced, so the all-clear bug must be fixed on its own evidence rather
+  than waiting for a route to reappear. Side measurement: the dead-letter population was 11 on 2026-09-13
+  and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
+  count.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
