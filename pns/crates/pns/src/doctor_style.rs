@@ -115,6 +115,9 @@ impl Report {
     /// dead letter or a notification still queued. The two kinds are counted
     /// apart because the operator can fix an issue and may only be able to
     /// read a warning.
+    ///
+    /// THE LIST IS GROUPED BY KIND, issues before warnings, not ordered by
+    /// where each row appeared in the report above.
     pub(crate) fn close(&self) -> Vec<String> {
         let mut lines = vec![String::new(), style::rule(self.paint)];
         if self.issues.is_empty() && self.warnings.is_empty() {
@@ -149,7 +152,7 @@ fn counted(entries: &[String], noun: &str) -> Option<String> {
     match count {
         0 => None,
         1 => Some(format!("{count} {noun}")),
-        _ => Some(noun.replacen(' ', "s ", 1)).map(|noun| format!("{count} {noun}")),
+        _ => Some(format!("{count} {}", noun.replacen(' ', "s ", 1))),
     }
 }
 
