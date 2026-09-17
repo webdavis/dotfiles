@@ -114,15 +114,66 @@ fn a_thread_naming_no_repository_is_no_event_at_all() {
 }
 
 #[test]
-fn a_polled_event_never_claims_an_outcome_the_thread_does_not_carry() {
-    // THE MUTANT THIS PINS: `Passed` compiled in as the poll's outcome, which
-    // would flash the pass colour at a workflow run that failed. A
-    // notification thread states no conclusion, so `Neutral` is the honest
-    // answer and the only one this transport can give.
+fn a_ci_title_saying_failed_reaches_the_fail_colour() {
+    // THE MUTANT THIS PINS: `Neutral` compiled in as the poll's outcome, which
+    // leaves the `github` lamp dark for every workflow run the inbox reports.
+    let event = polled_event(&ci_activity()).expect("ci_activity maps");
+    assert_eq!(event.outcome, GithubOutcome::Failed);
     assert_eq!(
-        polled_event(&ci_activity()).map(|event| event.outcome),
-        Some(GithubOutcome::Neutral)
+        event.outcome.flash(),
+        Some(crate::lights::flash::Flash::GithubFail)
     );
+}
+
+#[test]
+fn a_ci_title_saying_succeeded_reaches_the_pass_colour() {
+    let thread = NotificationThread {
+        subject_title: "lint workflow run, Attempt #1 succeeded".to_string(),
+        ..ci_activity()
+    };
+    let event = polled_event(&thread).expect("ci_activity maps");
+    assert_eq!(event.outcome, GithubOutcome::Passed);
+    assert_eq!(
+        event.outcome.flash(),
+        Some(crate::lights::flash::Flash::GithubPass)
+    );
+}
+
+#[test]
+fn a_title_with_no_conclusion_word_reaches_no_lamp_at_all() {
+    // THE MUTANT THIS PINS: an else-branch that answers `Passed` or `Failed`,
+    // which would flash a colour nobody's inbox stated. Every one of these is
+    // a real shape: a cancelled run, a run whose name merely contains the word,
+    // and a title carrying both words at once.
+    for title in [
+        "lint workflow run, Attempt #1 cancelled",
+        "failed-login-tests workflow run, Attempt #1",
+        "lint workflow run failed, rerun succeeded",
+        "",
+    ] {
+        let thread = NotificationThread {
+            subject_title: title.to_string(),
+            ..ci_activity()
+        };
+        let event = polled_event(&thread).expect("ci_activity maps");
+        assert_eq!(event.outcome, GithubOutcome::Neutral, "title {title:?}");
+        assert_eq!(event.outcome.flash(), None, "title {title:?}");
+    }
+}
+
+#[test]
+fn a_thread_a_human_raised_never_reaches_a_colour_however_it_is_titled() {
+    // THE MUTANT THIS PINS: the kind gate dropped, which would read a pull
+    // request titled "fix the failed retry path" as a failed CI run.
+    let thread = NotificationThread {
+        reason: "review_requested".to_string(),
+        subject_type: "PullRequest".to_string(),
+        subject_title: "fix the failed retry path".to_string(),
+        ..ci_activity()
+    };
+    let event = polled_event(&thread).expect("review_requested maps");
+    assert_eq!(event.kind, GithubKind::ReviewRequest);
+    assert_eq!(event.outcome, GithubOutcome::Neutral);
 }
 
 // --- the identity both transports have to compute the same way -------------
