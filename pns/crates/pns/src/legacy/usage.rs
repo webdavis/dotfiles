@@ -14,6 +14,7 @@ pns: usage:
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
   pns presence poll                one bridge read, published for the sensor
+  pns github poll                  one notifications read, submitted as events
   pns shell begin --pid <pid> --command <line>
   pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
