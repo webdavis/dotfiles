@@ -168,8 +168,8 @@ impl SqliteStore {
 /// fail-quiet behind `report`. MEASURED over 3200 fresh opens raced 16 at a
 /// time, 11 lost their open to this statement and none did with this function
 /// in place. That is the dispatch write path dropping a decision, a journal
-/// entry and a ledger row on ordinary contention, which is what the "lose no
-/// line" concurrency test kept catching on a loaded runner.
+/// entry and a ledger row on ordinary contention, which is how five
+/// concurrent events lost three of their five decision lines.
 ///
 /// LOSING THE RACE IS NOT A DEGRADED MODE. The journal mode lives in the
 /// database header, so the conversion is a one-time act that whichever
