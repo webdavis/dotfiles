@@ -223,7 +223,10 @@ fn a_header_past_the_discord_channel_name_ceiling_is_clipped_to_it() {
         100,
         "clipped to Discord's own ceiling, not past it: {name:?}"
     );
-    let start = format!("{} · feat/a-very-long-branch-name-", past_the_ceiling.project);
+    let start = format!(
+        "{} · feat/a-very-long-branch-name-",
+        past_the_ceiling.project
+    );
     assert!(
         name.starts_with(&start),
         "the header's own start survives the cut: {name:?}"
