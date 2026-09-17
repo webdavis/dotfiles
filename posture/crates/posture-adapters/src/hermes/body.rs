@@ -37,6 +37,32 @@ pub(super) fn encode(alert: &Alert, route: &Name) -> String {
     .to_string()
 }
 
+/// The ONE message a storm gets, in place of the hour's remaining
+/// explanations: what happened, and every distinct finding the hour holds.
+///
+/// IT IS THE SAME BODY SHAPE AS A PAGE, so the route reading it renders the
+/// same placeholders over a list as it does over one finding.
+pub(super) fn encode_storm(findings: &[String], route: &Name) -> String {
+    let header = format!("{} distinct critical findings in one hour", findings.len());
+    let listed = findings
+        .iter()
+        .map(|finding| format!("- {finding}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    serde_json::json!({
+        "agent": AGENT,
+        "state": "critical",
+        "project": "storm",
+        "detail": format!("{header}\n{listed}"),
+        "route": route.as_str(),
+        "alert": { "title": header, "detail": listed },
+        "header": header,
+        "subheader": format!("{AGENT} \u{b7} storm"),
+        "body": listed,
+    })
+    .to_string()
+}
+
 /// The word the channel shows for this page: its tier when it was judged at
 /// one, and otherwise what the submission is.
 fn state(alert: &Alert) -> &'static str {

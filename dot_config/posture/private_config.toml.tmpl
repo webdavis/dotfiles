@@ -86,8 +86,11 @@ url = "http://127.0.0.1:8644/webhooks"
 #
 # The rolling hour of these copies is recorded in
 # `~/.local/state/posture-critical-copy-window.json`, counted by DISTINCT
-# FINDING: a finding paging six times in an hour is copied once, and twenty
-# distinct findings in one hour is the ceiling.
+# FINDING: a finding paging six times in an hour is copied once. Past five
+# distinct findings in one hour the machine is in trouble rather than five
+# separate things to read about, so the sixth carries ONE combined message
+# listing the hour's findings and everything after it in the hour is left to
+# its own page.
 critical_copy_route = "explain"
 
 # ONE KEY PER ROUTE. The gateway reads each route's secret as a literal, so a
