@@ -42,7 +42,42 @@ delivery = "herdr"
 
 [ui.sidebar.agents]
 row_gap = 1 # herdr-agent-quota
-rows = [["state_icon", "machine", "workspace", "tab"], [{ token = "$quota_provider_model", bold = true, dim = false }], [{ token = "$quota_cache", bold = false, dim = false }, { token = "$quota_cache_state", fg = "#e4b957", bold = false, dim = false }], [{ token = "$quota_cache_ttl", bold = false, dim = false }], [{ token = "$quota_error", fg = "#e4b957", bold = false, dim = false }], [{ token = "$quota_context_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_context_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_context_danger", fg = "#df919b", bold = false, dim = false }], [{ token = "$quota_5h_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_5h_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_5h_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_5h_unknown", bold = false, dim = false }], [{ token = "$quota_week_inline_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_week_inline_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_week_inline_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_week_inline_unknown", bold = false, dim = false }, { token = "$quota_week_normal", fg = "#98b17d", bold = false, dim = false }, { token = "$quota_week_warning", fg = "#dec27f", bold = false, dim = false }, { token = "$quota_week_danger", fg = "#df919b", bold = false, dim = false }, { token = "$quota_week_unknown", bold = false, dim = false }]] # herdr-agent-quota-row
+rows = [
+  [
+    "state_icon",
+    "machine",
+    "workspace",
+    "tab",
+  ],
+  [
+    { token = "$quota_provider_model", bold = true, dim = false },
+  ],
+  [
+    { token = "$quota_topic", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_cache", bold = false, dim = false },
+    { token = "$quota_cache_ttl", bold = false, dim = false },
+    { token = "$quota_cache_state", fg = "#e4b957", bold = false, dim = false },
+    { token = "$quota_error", fg = "#e4b957", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_week_inline_normal", fg = "#82d978", bold = false, dim = false },
+    { token = "$quota_week_inline_warning", fg = "#e4b957", bold = false, dim = false },
+    { token = "$quota_week_inline_danger", fg = "#f16f7e", bold = false, dim = false },
+    { token = "$quota_week_inline_unknown", bold = false, dim = false },
+  ],
+  [
+    { token = "$quota_5h_normal", fg = "#82d978", bold = false, dim = false },
+    { token = "$quota_5h_warning", fg = "#e4b957", bold = false, dim = false },
+    { token = "$quota_5h_danger", fg = "#f16f7e", bold = false, dim = false },
+    { token = "$quota_5h_unknown", bold = false, dim = false },
+    { token = "$quota_week_normal", fg = "#82d978", bold = false, dim = false },
+    { token = "$quota_week_warning", fg = "#e4b957", bold = false, dim = false },
+    { token = "$quota_week_danger", fg = "#f16f7e", bold = false, dim = false },
+    { token = "$quota_week_unknown", bold = false, dim = false },
+  ],
+] # herdr-agent-quota-row
 
 # ╭────────────────╮
 # │  Experimental  │
@@ -371,20 +406,56 @@ type = "plugin_action"
 command = "furkankly.zoetrope.open"
 description = "zoetrope: session graph (overlay)"
 
-# The graph opens over the focused pane and gives the layout back when
-# it closes. The same key closes it. Two other placements, if you would
-# rather keep the graph on screen: uncomment one, or point the binding
-# above at its action. Then: herdr server reload-config
-# [[keys.command]]
-# key = "prefix+shift+v"
-# type = "plugin_action"
-# command = "furkankly.zoetrope.open-split"
-# description = "zoetrope: session graph (split)"
+# The overlay opens over the focused pane and gives the layout back when it
+# closes; the same key closes it. Both other placements are bound too, so the
+# graph can stay on screen: a split beside the pane, or its own tab. All three
+# live INSIDE the managed markers on purpose, because `remove-keys` deletes the
+# marked block and a binding outside it would be orphaned (and a deployed copy
+# that lost the closing marker leaves the block unterminated). After an edit:
+# herdr server reload-config
+[[keys.command]]
+key = "prefix+shift+v"
+type = "plugin_action"
+command = "furkankly.zoetrope.open-split"
+description = "zoetrope: session graph (split)"
 
-# [[keys.command]]
-# key = "prefix+shift+c"
-# type = "plugin_action"
-# command = "furkankly.zoetrope.open-tab"
-# description = "zoetrope: session graph (tab)"
+[[keys.command]]
+key = "prefix+shift+c"
+type = "plugin_action"
+command = "furkankly.zoetrope.open-tab"
+description = "zoetrope: session graph (tab)"
 
 # <<< furkankly.zoetrope keys
+
+# ╭────────╮
+# │  clauth  │
+# ╰────────╯
+# The account manager's own dashboard. `clauth.which`, which publishes the
+# focused pane's account as pane metadata, is the plugin's other action and is
+# deliberately unbound: the quota sidebar already names the account in view.
+[[keys.command]]
+key = "prefix+alt+a"
+type = "plugin_action"
+command = "clauth.open"
+description = "clauth: manage accounts"
+
+# `$clauth` renders the account each Claude Code pane burns and
+# `$clauth_delegate` the delegate behind it, so a per-agent row override is the
+# only place they mean anything. Claude Code panes get their own row shape here;
+# every other agent keeps the shared `[ui.sidebar.agents]` rows above.
+[ui.sidebar.agents.rows_by_agent]
+claude = [
+  [
+    "state_icon",
+    "workspace",
+    "tab",
+  ],
+  [
+    "terminal_title_stripped",
+  ],
+  [
+    "agent",
+    "$clauth",
+    "$clauth_delegate",
+  ],
+]
