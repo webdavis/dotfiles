@@ -1,3 +1,4 @@
+mod github_cli;
 mod merges;
 mod notes;
 mod summarizer;

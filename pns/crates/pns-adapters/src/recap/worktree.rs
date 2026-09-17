@@ -11,6 +11,7 @@
 //! is below HEAD in the stack when its tip is an ancestor of HEAD and is not
 //! already in the trunk.
 
+use super::github_cli;
 use crate::run_bounded;
 use pns_domain::recap::git_block::{Branch, Change, GitFacts, PullRequest, PullRequestLookup};
 use std::process::Command;
@@ -147,33 +148,27 @@ fn change(row: &str) -> Option<Change> {
 /// `pr view` TAKES A NUMBER, so the branch is resolved through `pr list --head`,
 /// which answers with the listing this reads.
 ///
-/// ONE GITHUB CLI FOR THE WHOLE PRODUCT, the same `gh --json` that
-/// `recap::merges` one directory over already reads. pns is installed by people
-/// who do not have this machine's npm cache, so fetching a package from a
-/// registry at recap time to read two integers is not something it may do, and
-/// a text listing with no stability contract is not something it may parse.
-///
-/// `gh` CARRIES ITS OWN AUTH AND THIS NEVER TOUCHES IT: no token is read and
-/// the one spawn is a LIST. A context whose PATH carries no `gh` reads as
-/// unavailable, which costs this one line.
+/// ONE GITHUB CLI FOR THE WHOLE PRODUCT, read through `super::github_cli`, the
+/// same seam `recap::merges` one directory over goes through. A context whose
+/// PATH carries no `gh` reads as unavailable, which costs this one line.
 fn pull_request(cwd: &str, branch: &str) -> PullRequestLookup {
-    let mut command = Command::new(GH);
-    command.args([
-        "pr",
-        "list",
-        "--head",
-        branch,
-        "--state",
-        "all",
-        "--json",
-        "number,state",
-        "--limit",
-        "1",
-    ]);
-    if !cwd.is_empty() {
-        command.current_dir(cwd);
-    }
-    let Some(listing) = run_bounded(command, None, GH_DEADLINE, GH_READ_MAX) else {
+    let listing = github_cli::listing(
+        &[
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "all",
+            "--json",
+            "number,state",
+            "--limit",
+            "1",
+        ],
+        Some(cwd),
+        GH_READ_MAX,
+    );
+    let Some(listing) = listing else {
         return PullRequestLookup::Unavailable;
     };
     listed(&listing)
@@ -223,19 +218,12 @@ fn git(cwd: &str, arguments: &[&str]) -> Option<String> {
 const ORIGIN: &str = "origin";
 /// What the trunk is when `origin/HEAD` says nothing.
 const DEFAULT_TRUNK: &str = "main";
-/// The listing tool, resolved through PATH. See `pull_request`.
-const GH: &str = "gh";
 /// How long a git read may take. Every one of them is local, so anything
 /// slower than this is a wedged repository rather than an answer.
 const GIT_DEADLINE: Duration = Duration::from_secs(10);
 /// How much of a git read is kept. A branch's whole diff against the trunk is
 /// one path per line; this is thousands of them.
 const GIT_READ_MAX: u64 = 512 * 1024;
-/// How long the pull-request listing may take. THIRTY SECONDS, `recap::merges`'
-/// own bound on the same tool: the call MEASURED under a second, so this exists
-/// to stop a wedged network call holding the whole recap rather than to hurry a
-/// slow one.
-const GH_DEADLINE: Duration = Duration::from_secs(30);
 /// How much of the listing is kept. One entry of two fields, so this is orders
 /// of magnitude past it; a truncated read is not JSON, which fails closed into
 /// "nothing answered".
