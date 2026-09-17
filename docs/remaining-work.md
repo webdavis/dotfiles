@@ -2528,7 +2528,17 @@ is missing.
   `event_max_age` all keep `age`, and whether `PNS_PHONE_INPUT_AGE` becomes `PNS_PHONE_INPUT_MAX_AGE` to
   match, which slices 33, 40 and 44 need; (3) confirmation that item 94's four credential names reduce to
   `key` and `keys`; (4) whether item 105 splits `[lights] refresh_secs` into `arm_interval` and
-  `fade_duration`.
+  `fade_duration`. RULING 2026-09-17 on the credential name, answering slicing question 3 and unblocking
+  slices 36 and 39: each plugin's credential key is named for the kind of secret THAT TOOL uses, and the
+  authority is the KeePassXC entry, whose titles already state the type correctly per tool. This REVERSES
+  the plan's item 94, which wanted `key` and `keys` everywhere: a config key spelled `key` beside a vault
+  entry and a vendor document that both say personal access token makes the reader guess whether they are
+  the same thing. If standardizing helps the Rust, the translation belongs in the code behind one
+  internal type, never in the file a human reads, and only when it makes the code cleaner rather than as
+  a rule applied for its own sake. `[plugins.github]` does NOT take item 90's `type = "<vendor>"` table
+  shape: that shape is for delivery destinations and GitHub is a notification source. Two slicing
+  questions remain: the two numbers `[lights] refresh_secs` splits into, which ships at 12 today and
+  serves both the daemon re-arm interval and the fade budget.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -3849,7 +3859,11 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   also reported `last successful run: NEVER RECORDED on this machine`, so it is the first uu run this
   machine has recorded. `pns-events` is the only one of the five not directly exercised by either run.
   Doctor also named two routes the gateway does not serve, `pns-recap` and `posture`, both of which the
-  operator ruled retired rather than missing; that is task 99 and not a gap in this one.
+  operator ruled retired rather than missing; that is task 99 and not a gap in this one. RULING
+  2026-09-17: `general` is recorded as INTENTIONALLY UNUSED, the same disposition as the `#explain`
+  channel. It is proven served by the gateway and no producer in this repository posts to it, so it needs
+  no producer and its silence is not a gap. That leaves `pns-events` as the only route of the five
+  neither the doctor run nor the uu run exercised.
 
 - [ ] 88. Give a storm one combined explanation instead of one per finding. Approved by the operator
   2026-09-15, alongside the answers recorded in
@@ -3874,7 +3888,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the test itself killed; the second is the honest fix, since a killed process succeeding is not a
   behaviour anyone wants.
 
-- [ ] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
+- [x] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
   and `~/.config/herdr/plugins/config/**` are PLAIN chezmoi targets that parties other than chezmoi
   write: zoetrope's `setup-keys` writes a marked key block, the `herdr-agent-quota` `configure` action
   rewrites the sidebar row and its own setting files, and the operator hand-edits them. Every apply
@@ -3887,7 +3901,16 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and read the app-written state back out of the live file. The fix is to give herdr's targets the same
   treatment, on the pattern of `private_dot_codex/modify_private_config.toml`. Until then every plugin
   toggle needs a manual capture into source before the next apply, which is exactly the manual step the
-  design bar rejects.
+  design bar rejects. CLOSED 2026-09-17 by operator ruling, with the modify template REVERTED.
+  [PR #720](https://github.com/webdavis/dotfiles/pull/720) converted `dot_config/herdr/config.toml` to a
+  `modify_` template; the operator ruled that the file is rarely overwritten and is to stay a plain
+  tracked target, so the template, its declared partial and the quarantine script that only existed to
+  stop an unparseable live file aborting the apply were all removed again. What survives from that pull
+  request is the one piece that stands on its own: the eight one-line `herdr-agent-quota` plugin config
+  leaves are no longer tracked, because the quota plugin regenerates them on every apply and a tracked
+  snapshot fought that. Standing consequence, accepted: an apply still overwrites
+  `~/.config/herdr/config.toml` from source, so a live edit must be committed before the next apply to
+  survive it.
 
 - [x] 96. Point moshi at dresden's tailnet name, filed 2026-09-17. The operator cannot reach dresden from
   moshi since the SSH hardening, and the card reads
