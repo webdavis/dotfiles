@@ -5,16 +5,34 @@ use posture_domain::Agent;
 /// without one test's state directory being another's.
 const HOME: &str = "/private/fixture/home";
 
+fn parse_ok(text: &str) -> Notify {
+    Notify::parse(text, Path::new(HOME)).expect("a usable notify choice")
+}
+
 fn parsed(text: &str) -> NotifyMode {
-    Notify::parse(text, Path::new(HOME))
-        .expect("a usable notify choice")
-        .0
+    parse_ok(text).mode
+}
+
+fn warnings_of(text: &str) -> Vec<String> {
+    parse_ok(text).warnings
 }
 
 fn parsed_route(text: &str) -> String {
-    Notify::parse(text, Path::new(HOME))
-        .expect("a usable notify choice")
-        .1
+    parse_ok(text).route
+}
+
+/// Records what reached the local banner, so a refusal can be asserted to have
+/// been raised where no config is needed to raise it.
+#[derive(Default)]
+struct Alarm {
+    calls: Vec<(String, String)>,
+}
+
+impl posture_application::IndependentAlarm for Alarm {
+    fn alarm(&mut self, title: &str, detail: &str) -> Result<(), posture_application::AlarmFailed> {
+        self.calls.push((title.into(), detail.into()));
+        Ok(())
+    }
 }
 
 fn copy_of(mode: &NotifyMode) -> Option<CriticalCopy> {
@@ -82,15 +100,109 @@ fn a_mode_this_build_does_not_serve_is_refused_by_name() {
 }
 
 #[test]
-fn a_misspelled_key_or_table_blocks_the_file_rather_than_switching_notification_off() {
+fn a_key_this_build_does_not_read_is_named_and_never_disables_delivery() {
+    // Each row is a usable file, one key it does not read, and the name that
+    // key must be reported under. The delivery the file configures has to come
+    // out the same either way: an unread key costs a line of warning, never a
+    // destination.
+    for (base, unread, named) in [
+        (
+            "[notify]\nmode = \"hermes\"\n[notify.hermes]\nurl = \"http://127.0.0.1:8/w\"\n",
+            "gateway = \"http://127.0.0.1:9/w\"\n",
+            "notify.hermes.gateway",
+        ),
+        (
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\n",
+            "arguents = []\n",
+            "notify.command.arguents",
+        ),
+        // THE LIVE INSTANCE: a table a newer build of this tool writes, read
+        // by an older one that has no field for it, which used to void the
+        // whole file and deliver nothing at all.
+        (
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\n",
+            "[jobs]\nuptime = \"com.example.x\"\n",
+            "jobs.uptime",
+        ),
+    ] {
+        let text = format!("{base}{unread}");
+        let warnings = warnings_of(&text);
+        assert!(
+            warnings.iter().any(|warning| warning.contains(named)),
+            "{named}: {warnings:?}"
+        );
+        assert_eq!(parsed(&text), parsed(base), "{text}");
+        assert!(warnings_of(base).is_empty(), "{base}");
+    }
+}
+
+#[test]
+fn a_table_this_build_does_not_read_leaves_the_notify_table_beside_it_alone() {
+    let mode = parsed("[delivery]\nmode = \"off\"\n[notify]\nmode = \"hermes\"\n");
+    assert_eq!(mode, Notify::default().mode);
+    assert!(
+        warnings_of("[delivery]\nx = 1\n[notify]\nmode = \"hermes\"\n")
+            .iter()
+            .any(|warning| warning.contains("`delivery`")),
+    );
+}
+
+#[test]
+fn a_known_key_holding_a_value_it_cannot_hold_still_blocks_the_whole_file() {
     for text in [
-        "[notify]\nmode = \"hermes\"\nurl = \"http://x\"\n",
-        "[notify]\nmode = \"command\"\n[notify.command]\npath = \"/x\"\narguents = []\n",
-        "[notify]\nmode = \"off\"\n[notify.of]\n",
+        // A mode, a path and a route are each the one thing their own key is
+        // for, so nothing can be inferred about the operator's intent from a
+        // value that is not one.
+        "[notify]\nmode = \"banner\"\n",
+        "[notify]\nmode = 5\n",
+        "[notify]\nmode = \"command\"\n[notify.command]\npath = 7\n",
+        "[notify]\nmode = \"hermes\"\n[notify.hermes]\nkeys = \"one-key\"\n",
+        "[notify]\nmode = \"off\"\n[jobs]\nalert = 3\n",
+        // A file with no delivery choice in it at all is not a file with one
+        // key too many; there is nothing to degrade to.
         "[delivery]\nmode = \"hermes\"\n",
     ] {
         assert!(Notify::parse(text, Path::new(HOME)).is_err(), "{text}");
     }
+}
+
+#[test]
+fn a_value_a_known_key_cannot_hold_never_reaches_the_refusal() {
+    let refusal = Notify::parse(
+        "[notify]\nmode = \"hermes\"\n[notify.hermes]\nkeys = \"sup3rs3cretkey\"\n",
+        Path::new(HOME),
+    )
+    .unwrap_err();
+    assert!(!refusal.contains("sup3rs3cretkey"), "{refusal}");
+    assert!(refusal.contains("<redacted>"), "{refusal}");
+}
+
+#[test]
+fn a_structural_refusal_keeps_naming_itself() {
+    // No value is ever quoted in these messages, so redaction costs them
+    // nothing: the key or word that was wrong is still there to read.
+    let refusal = Notify::parse("[notify]\nmode = \"banner\"\n", Path::new(HOME)).unwrap_err();
+    assert!(refusal.contains("banner"), "{refusal}");
+}
+
+#[test]
+fn a_config_that_will_not_parse_reaches_the_local_banner_and_not_only_a_log() {
+    let notify = Notify::refused("unknown variant `banner`".to_string());
+    let mut alarm = Alarm::default();
+    let mut diagnostics = Vec::new();
+    notify.report(&mut alarm, &mut diagnostics);
+    let log = String::from_utf8(diagnostics).expect("utf-8 diagnostics");
+    assert!(log.contains("no page can be delivered"), "{log}");
+    let (title, detail) = alarm.calls.first().expect("a banner was raised");
+    assert!(title.contains("cannot deliver"), "{title}");
+    assert!(detail.contains("unknown variant `banner`"), "{detail}");
+}
+
+#[test]
+fn a_usable_config_raises_no_banner_of_its_own() {
+    let mut alarm = Alarm::default();
+    Notify::default().report(&mut alarm, &mut Vec::new());
+    assert!(alarm.calls.is_empty(), "{:?}", alarm.calls);
 }
 
 #[test]
@@ -110,6 +222,61 @@ fn hermes_mode_states_the_local_gateway_when_the_file_names_none() {
             critical_copy: None,
         }
     );
+}
+
+#[test]
+fn a_command_or_off_mode_names_no_missing_route_at_all() {
+    let command = Notify {
+        mode: NotifyMode::Command {
+            path: PathBuf::from("/x"),
+            arguments: Vec::new(),
+        },
+        ..Default::default()
+    };
+    assert_eq!(command.missing_hermes_keys(), Vec::<&str>::new());
+    let off = Notify {
+        mode: NotifyMode::Off,
+        ..Default::default()
+    };
+    assert_eq!(off.missing_hermes_keys(), Vec::<&str>::new());
+}
+
+#[test]
+fn hermes_mode_names_every_known_route_with_no_key_of_its_own() {
+    let notify = parse_ok("[notify]\nmode = \"hermes\"\n");
+    assert_eq!(
+        notify.missing_hermes_keys(),
+        vec!["posture-pages", "priority"]
+    );
+}
+
+#[test]
+fn hermes_mode_asks_after_the_configured_route_rather_than_the_shipped_one() {
+    let notify = parse_ok(
+        r#"
+        [notify]
+        mode = "hermes"
+        route = "somewhere-else"
+        [notify.hermes.keys]
+        posture-pages = "s3cret-posture"
+        priority = "s3cret-priority"
+        "#,
+    );
+    assert_eq!(notify.missing_hermes_keys(), vec!["somewhere-else"]);
+}
+
+#[test]
+fn hermes_mode_with_both_routes_keyed_names_nothing_missing() {
+    let notify = parse_ok(
+        r#"
+        [notify]
+        mode = "hermes"
+        [notify.hermes.keys]
+        posture-pages = "s3cret-posture"
+        priority = "s3cret-priority"
+        "#,
+    );
+    assert!(notify.missing_hermes_keys().is_empty(), "{notify:?}");
 }
 
 #[test]
@@ -272,13 +439,16 @@ fn a_file_naming_no_job_leaves_every_label_at_its_shipped_default() {
 }
 
 #[test]
-fn a_job_this_build_does_not_run_is_refused_by_name() {
-    let refusal = toml::from_str::<schema::File>(
-        "[notify]\nmode = \"off\"\n[jobs]\nuptime_watchdog = \"com.example.x\"\n",
-    )
-    .err()
-    .expect("an unknown job is refused");
-    assert!(refusal.message().contains("uptime_watchdog"), "{refusal:?}");
+fn a_job_this_build_does_not_run_leaves_every_label_it_does_run_alone() {
+    let text = "[notify]\nmode = \"off\"\n[jobs]\nuptime_watchdog = \"com.example.x\"\n";
+    assert_eq!(labels(text), AgentLabels::default());
+    assert!(
+        warnings_of(text)
+            .iter()
+            .any(|warning| warning.contains("jobs.uptime_watchdog")),
+        "{:?}",
+        warnings_of(text)
+    );
 }
 
 #[test]
