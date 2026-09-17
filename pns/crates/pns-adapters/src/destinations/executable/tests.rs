@@ -30,9 +30,15 @@ const HANGS_FOR: Duration = Duration::from_millis(500);
 const BOUNDED_BY: Duration = Duration::from_secs(5);
 
 fn assert_hanging_event_is_bounded(event: String) {
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this root, and the id file inside it is
+    // what proves the channel was reaped.
     let root = std::env::temp_dir().join(format!(
-        "pns-executable-deadline-{}-{}",
+        "pns-executable-deadline-{}-{}-{}",
         std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos()),
         event.len()
     ));
     std::fs::create_dir(&root).unwrap();
