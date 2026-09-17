@@ -1,29 +1,7 @@
 //! The operator mute: a typed, timed instruction to stop decorating.
 
-/// A duration in seconds, from `<count><s|m|h>`.
-///
-/// A UNIT IS REQUIRED, and the count goes through the crate's one numeric
-/// gate, so every shape `parse_count` refuses elsewhere is refused here too.
-/// A bare number is not accepted at either end: it means minutes to one reader
-/// and seconds to the next.
-pub fn parse_duration(text: &str) -> Result<u64, String> {
-    for (unit, seconds) in UNITS {
-        if let Some(digits) = text.strip_suffix(unit)
-            && let Some(count) = crate::count::parse_count(digits)
-        {
-            // SATURATING, so the ceiling below is what refuses a count too
-            // large to multiply rather than an overflow deciding it.
-            let total = count.saturating_mul(seconds);
-            if !(MIN_SECONDS..=MAX_SECONDS).contains(&total) {
-                return Err(format!("pns: quiet duration {text:?} is outside 1s to 24h"));
-            }
-            return Ok(total);
-        }
-    }
-    Err(format!(
-        "pns: quiet duration {text:?} is not <count><s|m|h>"
-    ))
-}
+use std::ops::RangeInclusive;
+use std::time::Duration;
 
 /// The epoch second a mute ends, out of the state file's contents.
 ///
@@ -86,16 +64,16 @@ pub fn minutes_left(expiry: u64, now: Option<u64>) -> u64 {
     expiry.saturating_sub(now.unwrap_or(expiry)).div_ceil(60)
 }
 
-/// The units a mute may be typed in, and what each is worth in seconds.
-const UNITS: [(&str, u64); 3] = [("s", 1), ("m", 60), ("h", 3_600)];
-
-/// A mute spans real time: a zero would write a state file born expired.
-const MIN_SECONDS: u64 = 1;
-
-/// A DAY, and refused rather than clamped past it. A mute the operator forgets
-/// is a notification system that has silently stopped working, and a mistyped
+/// How long a mute may last: the range `duration::parse_duration` holds
+/// `pns quiet` and `pns lights quiet` to, since one spelling of "how long"
+/// cannot have two sets of bounds.
+///
+/// A ZERO would write a state file born expired. A DAY is the ceiling, and
+/// refused rather than clamped past it: a mute the operator forgets is a
+/// notification system that has silently stopped working, and a mistyped
 /// `900h` is that by another route.
-const MAX_SECONDS: u64 = 24 * 60 * 60;
+pub const MUTE_RANGE: RangeInclusive<Duration> =
+    Duration::from_secs(1)..=Duration::from_secs(24 * 60 * 60);
 
 #[cfg(test)]
 mod tests;
