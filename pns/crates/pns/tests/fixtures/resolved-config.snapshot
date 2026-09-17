@@ -70,6 +70,9 @@ Config {
                 "token": String(
                     "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
                 ),
+                "webhook_port": Integer(
+                    8648,
+                ),
             },
         },
         "hermes": PluginEntry {

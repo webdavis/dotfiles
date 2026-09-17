@@ -15,6 +15,7 @@ pns-domain = { path = "../pns-domain" }
 pns-hermes = { path = "../pns-hermes" }
 pns-protocol = { path = "../pns-protocol" }
 
+hmac = "0.13.0"
 libc = "0.2.189"
 rusqlite = { version = "=0.39.0", default-features = false, features = [
   "bundled",
@@ -27,6 +28,7 @@ toml = { version = "1.1.4", default-features = false, features = [
 ] }
 
 serde_json = "1.0.151"
+sha2 = "0.11.0"
 ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
 
 [dev-dependencies]

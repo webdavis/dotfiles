@@ -124,7 +124,16 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // keys are the ROUTE NAMES the operator's own gateway serves, which no
     // roster compiled into pns can enumerate. See `OPEN_TABLES`.
     (HERMES_KEYS, &[]),
-    ("plugins.github", &["enabled", "poll_secs", "token"]),
+    (
+        "plugins.github",
+        &[
+            "enabled",
+            "poll_secs",
+            "token",
+            "webhook_port",
+            "webhook_secret",
+        ],
+    ),
     (
         "plugins.hue",
         &["bridge", "enabled", "key", "quiet_hours", "rooms"],

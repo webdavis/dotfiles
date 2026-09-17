@@ -170,6 +170,19 @@ token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notificat
 # for polling SLOWER. Each request sends the stored Last-Modified, so
 # a quiet minute answers 304 and costs no rate limit at all.
 poll_secs = 60
+# The secret the GitHub App's webhook was created with, which is what
+# arms `pns github receive`: the push transport. Naming one here turns
+# a delivery into an immediate poll instead of waiting for the next
+# tick; naming none leaves the receiver exited and the poll is the
+# source either way. It is a SEPARATE value from the token above and
+# gets its own vault entry, because the receiver verifies deliveries
+# with it and reads no notification of its own.
+# webhook_secret = ""
+# The loopback port the receiver binds, bounded 1024 to 65535, which
+# the Cloudflare tunnel's ingress for the webhook hostname points at.
+# LOOPBACK ONLY: the tunnel is the only way in, and a delivery that
+# did not arrive through it is refused by its signature anyway.
+webhook_port = 8648
 
 # Which room you are in, read off the bridge's per-room motion roll-up so
 # the lamp that signals is the one beside you. A SENSOR, not a
