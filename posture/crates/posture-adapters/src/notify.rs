@@ -11,7 +11,7 @@
 //!
 //! IT ALSO OWNS THE `[jobs]` TABLE of that same file, which names the launchd
 //! label of each job posture installs. The two are read through one schema
-//! because one file declares both, and serde refuses an unknown table by name.
+//! because one file declares both.
 //!
 //! FAIL CLOSED, NEVER SILENT. With no config file, and with one this build
 //! cannot use, the choice is a hermes path holding no key at all, and a keyless
@@ -20,6 +20,11 @@
 //! stops paging, which is the failure a security tool cannot afford. `off` is
 //! the same discipline stated deliberately: it turns off DELIVERY, not the
 //! page, so the finding still reaches the local banner.
+//!
+//! LOUD MEANS THE BANNER, not a log line. A config this build cannot use takes
+//! every destination away at once, and the banner is the one that needs no
+//! config to work, so a refusal is raised there as well as written to the job's
+//! diagnostics; `posture doctor` answers the same question on demand.
 
 use crate::banner_only::BannerOnly;
 use crate::hermes::{CriticalCopy, HermesWebhook};
@@ -27,7 +32,7 @@ use crate::producer::ProducerCommand;
 use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
 use posture_application::{AlertSink, IndependentAlarm};
-use posture_domain::AgentLabels;
+use posture_domain::{AgentLabels, Severity, severity_route};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -136,9 +141,41 @@ pub struct Notify {
     pub route: String,
     /// Why the config file could not be used, when it could not. The
     /// fail-closed default stands and every page then refuses loudly, so this
-    /// is a line for the operator's log rather than a second outcome to branch
-    /// on.
+    /// is what the operator is told rather than a second outcome to branch on:
+    /// the job's log, the local banner and `posture doctor` all report it.
     pub refusal: Option<String>,
+    /// Every key the file states that this build does not read, one line each.
+    /// Delivery is configured and runs; these say what was ignored.
+    pub warnings: Vec<String>,
+}
+
+/// Drop every double-quoted excerpt from a toml parse error's message. A
+/// value error frames the offending value between quotes (`invalid type:
+/// string "s3cret", expected a map`), and the config's own signing keys are
+/// exactly the strings that land there; a structural refusal (an unknown
+/// mode word, a missing table) never quotes anything, so this costs it
+/// nothing. Quotes escaped inside the value (`\"`) are consumed with it
+/// rather than ending the redaction early.
+fn redact_quoted(message: &str) -> String {
+    let mut result = String::with_capacity(message.len());
+    let mut chars = message.chars();
+    while let Some(c) = chars.next() {
+        if c != '"' {
+            result.push(c);
+            continue;
+        }
+        result.push_str("\"<redacted>\"");
+        while let Some(inner) = chars.next() {
+            match inner {
+                '\\' => {
+                    chars.next();
+                }
+                '"' => break,
+                _ => {}
+            }
+        }
+    }
+    result
 }
 
 impl Default for Notify {
@@ -153,6 +190,7 @@ impl Default for Notify {
             },
             route: DEFAULT_ROUTE.to_string(),
             refusal: None,
+            warnings: Vec::new(),
         }
     }
 }
@@ -182,11 +220,7 @@ impl Notify {
             Err(error) => return Notify::refused(format!("{}: {error}", path.display())),
         };
         match Self::parse(&text, home) {
-            Ok((mode, route)) => Notify {
-                mode,
-                route,
-                refusal: None,
-            },
+            Ok(notify) => notify,
             Err(refusal) => Notify::refused(refusal),
         }
     }
@@ -199,13 +233,56 @@ impl Notify {
     }
 
     /// The pure half: text and the home directory its relative state paths
-    /// hang off in, one notify mode or a named refusal out. Pure in both
+    /// hang off in, one notify choice or a named refusal out. Pure in both
     /// arguments, so the path rule is testable without an environment.
-    fn parse(text: &str, home: &Path) -> Result<(NotifyMode, String), String> {
+    fn parse(text: &str, home: &Path) -> Result<Notify, String> {
         let file: schema::File =
-            toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
+            toml::from_str(text).map_err(|error| redact_quoted(error.message().trim()))?;
+        let warnings = file.unread_keys();
         let route = file.notify.route();
-        Ok((file.notify.into_mode(home)?, route))
+        Ok(Notify {
+            mode: file.notify.into_mode(home)?,
+            route,
+            refusal: None,
+            warnings,
+        })
+    }
+
+    /// The routes this choice will post to that name no signing key of their
+    /// own, empty for every mode but `Hermes`: `Command` and `Off` name no
+    /// route to check. Two routes are asked about, the configured untiered
+    /// route and the `priority` route `severity_route` hands a critical
+    /// finding.
+    pub fn missing_hermes_keys(&self) -> Vec<&str> {
+        let NotifyMode::Hermes { keys, .. } = &self.mode else {
+            return Vec::new();
+        };
+        let priority =
+            severity_route(Some(Severity::Critical)).expect("a critical finding names a route");
+        [self.route.as_str(), priority]
+            .into_iter()
+            .filter(|route| !keys.contains_key(*route))
+            .collect()
+    }
+
+    /// Say what this config cost, wherever the operator will see it. The
+    /// banner carries the refusal because a config that will not parse has
+    /// already taken every other destination away.
+    fn report(&self, alarm: &mut impl IndependentAlarm, diagnostics: &mut impl Write) {
+        for warning in &self.warnings {
+            let _ = writeln!(diagnostics, "posture: {warning}");
+        }
+        if let Some(refusal) = &self.refusal {
+            let _ = writeln!(
+                diagnostics,
+                "posture: the notify config could not be used, so no page can be delivered: \
+                 {refusal}"
+            );
+            let _ = alarm.alarm(
+                "posture cannot deliver a page",
+                &format!("the notify config could not be used: {refusal}"),
+            );
+        }
     }
 }
 
@@ -220,15 +297,10 @@ impl Notify {
 pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
     notify: Notify,
     runner: R,
-    alarm: A,
+    mut alarm: A,
     diagnostics: &mut impl Write,
 ) -> Box<dyn AlertSink + 'a> {
-    if let Some(refusal) = &notify.refusal {
-        let _ = writeln!(
-            diagnostics,
-            "posture: the notify config could not be used, so no page can be delivered: {refusal}"
-        );
-    }
+    notify.report(&mut alarm, diagnostics);
     match notify.mode {
         NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(
             runner,

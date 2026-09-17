@@ -128,10 +128,10 @@ type = "uv"
 binary = "/opt/homebrew/bin/uv"
 deadline_secs = 21600
 
-# Refresh the app-owned Claude skill after uv in lane-name order. Keep the
-# installer's registration out of managed ~/.claude/CLAUDE.md. First adoption
-# requires operator preservation of the old real skill directory; see the
-# Graphify section in docs/runbooks/agent-skills-store.md before applying its link.
+# Refresh the app-owned Claude skill after uv in lane-name order. CLAUDE_CONFIG_DIR
+# is what keeps both of the installer's writes, the bundle and its registration,
+# inside the app-owned directory and out of managed ~/.claude/CLAUDE.md. The
+# Graphify section of docs/runbooks/agent-skills-store.md carries the repair recipe.
 [lanes.uv-graphify-skill]
 type = "command"
 run = [
