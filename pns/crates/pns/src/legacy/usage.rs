@@ -5,7 +5,7 @@ pub const USAGE: &str = "\
 pns: usage:
   pns [<producer flags>]           one notification, stated in argv
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved,
+                                   blocked, asked, denied, waiting, resolved,
                                    model-switch, quota, config-change
   pns gate <harness>-hook          presence-gated pass-through to moshi-hook
   pns <harness>-hook               the same gate, spelled the way moshi calls it

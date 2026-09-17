@@ -46,7 +46,7 @@ Overwritten from the template on every apply, whatever the live file holds.
     a path holding literal spaces needs no quoting or escaping, which is what makes the two
     `~/Library/Application Support/...` rules legal as written; only the gitignore metacharacters are
     special, and that page states parentheses need no escaping either.
-- `hooks`, 12 event keys:
+- `hooks`, 14 event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in
     the same pass, where a second hook used to decide the tier on its own.
@@ -55,20 +55,28 @@ Overwritten from the template on every apply, whatever the live file holds.
     model's next turn regardless of the `async` flag.
   - `StopFailure` runs `pns hook stop-failure`, async for the same reason `Stop` is: it fires INSTEAD of
     `Stop` when a turn dies rather than finishing, so without it a dead pane gets no card at all.
-  - `Notification` carries a QUOTA-ONLY hook: one exact pipe-separated matcher naming the three
-    `quota_auto_resume_*` types, async, running `pns hook quota`. The `permission_prompt` matcher used to
-    run `alerter` directly, the last notification path that reached the operator without passing the
-    presence engine, and it double-fired against the approval hook below; it was deleted rather than
-    replaced, so the slot sat empty until the quota entry took it. The approval itself hangs off
-    `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness waits for it and
-    registers the card before the prompt is drawn. Its exit code is NOT the operator's answer: that comes
-    back through moshi's own bridge typing into the prompt (measured 2026-08-29, `modify_settings.json`:
-    approve and deny both leave the hook exiting 0 with empty stdout).
+  - `Notification` carries two matchers. One exact pipe-separated matcher names the three
+    `quota_auto_resume_*` types, async, running `pns hook quota`. The second is `permission_prompt`,
+    async, running `pns hook waiting`, and it exists for the sandbox network approval dialog: that dialog
+    reaches the dialog host with no `PermissionRequest` at all, and the host defaults its typeless
+    notification to `permission_prompt`, which is also every ordinary tool approval's type, so the
+    matcher cannot narrow it and an exact message allowlist in the binary
+    (`hook_observations.rs:sandbox_network_detail`) is the discriminator. Every other message on that
+    type is silence, because `PermissionRequest` has already reported it. An earlier `permission_prompt`
+    entry ran `alerter` directly, the last notification path that reached the operator without passing
+    the presence engine, and it double-fired against the approval hook below; it was deleted rather than
+    replaced, and what takes the slot now goes through the engine like everything else. The approval
+    itself hangs off `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness
+    waits for it and registers the card before the prompt is drawn. Its exit code is NOT the operator's
+    answer: that comes back through moshi's own bridge typing into the prompt (measured 2026-08-29,
+    `modify_settings.json`: approve and deny both leave the hook exiting 0 with empty stdout).
   - `ConfigChange` runs `pns hook config-change` async, one exact pipe-separated matcher naming the five
     documented config sources, carding a configuration change as an audit trail rather than a turn
     needing attention.
   - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without
-    ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook.
+    ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook. It is
+    routed as an OBSERVATION, so it neither arms the waiting lamp nor clears a wait: the decision has
+    already been taken and nobody is answering anything.
   - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask
     the operator for input; async is what keeps pns out of the answer, since this hook runs before the
     dialog is shown and exit code 2 alone would decline the request outright.
@@ -76,8 +84,17 @@ Overwritten from the template on every apply, whatever the live file holds.
     assistant tool batch resolves, whether the operator approved the call or denied it: a denied call
     still produces a tool_result, so it resolves the batch rather than skipping it. The classifier's own
     refusals are `PermissionDenied`'s to report, not this entry's.
-  - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, calling `pns hook asked`
-    and `pns hook plan-ready`.
+  - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, both async and both calling
+    `pns hook resolved`. For those two tools the tool IS the dialog, so the hook fires when the operator
+    answered: it ends the wait `PermissionRequest` armed before the card was drawn, rather than arming a
+    second one and reading the operator's own choice back to them, which is what `pns hook asked` and the
+    deleted `pns hook plan-ready` used to do here.
+  - `ElicitationResult` runs `pns hook resolved` async with no matcher. It is an elicitation's own answer
+    signal, and a matcher there would filter by server name while every answered elicitation is a
+    clearing signal. Async for `Elicitation`'s reason: this hook can observe or override the response
+    before it is sent to the server, and pns has no business answering one.
+  - `SubagentStop` runs `pns hook resolved` async, ending a wait a subagent was holding at the subagent's
+    own end rather than at the parent session's Stop.
   - `SessionStart` is herdr's own agent-state integration, and ownership is split.
     `herdr integration install claude` creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`,
     which is deliberately unmanaged, and writes this ENTRY the first time. The template then redeclares

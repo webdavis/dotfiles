@@ -13,8 +13,8 @@ use crate::{JobSpool, SessionWaits};
 ///
 /// WHICH EVENTS START AND END A WAIT IS `blocked_marker_action` over
 /// `pulse::LAMP_BLOCKED`, the list the lamps already carry, read rather than
-/// copied: `plan-ready` and `asking` are waits by the same definition, and a
-/// second list is a second thing to keep in step.
+/// copied: `asking` is a wait by the same definition, and a second list is a
+/// second thing to keep in step.
 ///
 /// NO `unless_marker`. The nag's answered marker is written by every Stop and
 /// StopFailure (`clear_nag`), so sharing it would cancel almost every

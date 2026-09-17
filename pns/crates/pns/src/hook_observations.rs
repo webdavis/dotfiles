@@ -190,3 +190,26 @@ pub(crate) fn arm_quota_stale_wait(session_id: &str, probes: &SystemProbes<Syste
         probes.now_secs(),
     );
 }
+/// The notification type every approval dialog arrives under, tool approvals
+/// included: the dialog host defaults a typeless registry entry to it, and the
+/// `Notification` matcher matches the type, so the declaration's matcher can
+/// narrow this arm no further than every permission prompt on the machine.
+const PERMISSION_PROMPT: &str = "permission_prompt";
+/// The sandbox network dialog's own notification text, EXACTLY, measured
+/// against Claude Code 2.1.272. It is the only thing that separates this
+/// dialog from a tool approval `PermissionRequest` has already reported, so a
+/// wording change upstream turns the alert OFF rather than misfiring it; the
+/// string is pinned by a test so a version bump has somewhere to fail.
+const SANDBOX_NETWORK_MESSAGE: &str = "A sandboxed command needs network access";
+/// A sandbox network approval card's detail, or `None` for every other
+/// permission prompt, in `quota_observation_detail`'s own style.
+///
+/// THE ALERT IS APPROXIMATE, AND THAT IS THE PLATFORM. `SandboxNetworkPrompts`
+/// calls the dialog host directly with the host and port it wants, but the
+/// registry text it raises is static and the hook payload carries neither, so
+/// the card says what the harness said and stops there. Anything more specific
+/// would be invented.
+pub(crate) fn sandbox_network_detail(notification_type: &str, message: &str) -> Option<String> {
+    (notification_type == PERMISSION_PROMPT && message == SANDBOX_NETWORK_MESSAGE)
+        .then(|| SANDBOX_NETWORK_MESSAGE.to_string())
+}
