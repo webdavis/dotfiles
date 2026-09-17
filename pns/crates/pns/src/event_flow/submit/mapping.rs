@@ -39,10 +39,15 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             long_running: request
                 .elapsed_secs
                 .is_some_and(|seconds| seconds >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
-            // THE PRODUCER API NAMES A ROUTE, NEVER A KIND: version one of the
-            // request carries `route`, so a submission that wants the urgent
-            // one spells it, and the kind is the ordinary session default.
-            kind: pns_domain::routes::Kind::default(),
+            // WHAT THE EVENT IS, as its producer stated it, and a producer
+            // that stated nothing gets the ordinary session default. The
+            // route it lands on is decided from this and never named here:
+            // a producer knows its own work failed and nothing about which
+            // channels a gateway has (operator ruling, 2026-09-15).
+            kind: match request.kind {
+                None | Some(pns_protocol::Kind::Agent) => pns_domain::routes::Kind::Agent,
+                Some(pns_protocol::Kind::Health) => pns_domain::routes::Kind::Health,
+            },
         },
         attempt,
     )

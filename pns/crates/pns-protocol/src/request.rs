@@ -21,7 +21,7 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 15] = [
+const KNOWN_FIELDS: [&str; 16] = [
     "schema",
     "request_id",
     "producer",
@@ -34,6 +34,7 @@ const KNOWN_FIELDS: [&str; 15] = [
     "context",
     "scope",
     "route",
+    "kind",
     "class",
     "interaction",
     "extensions",
@@ -58,6 +59,25 @@ pub enum Signal {
     Resolved,
     Observation,
     Progress,
+}
+
+/// What the event IS, which is what pns maps to a route when the producer
+/// named none. TWO WORDS AND NO MORE: a producer says what kind of thing
+/// happened and never which route or channel it lands on, because a route is
+/// one deployment's gateway and a producer is a tool other people install
+/// (operator ruling, 2026-09-15).
+///
+/// NOT A SECOND SPELLING OF `signal`. The signal says how the work ended and
+/// this says whose work it was, and pns needs both: a health event that
+/// succeeded is not a page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Kind {
+    /// A session event: a harness hook, the shell notifier, a daemon job.
+    Agent,
+    /// A machine's own health, such as an unattended upgrade that failed
+    /// while nobody was watching.
+    Health,
 }
 
 /// Where the event may go. One word, three values, no fourth for "both".
@@ -126,6 +146,12 @@ pub struct Request {
     pub scope: DeliveryScope,
     #[serde(default)]
     pub route: Option<Name>,
+    /// What the event is, for a producer that states it. ABSENT IS NOT
+    /// `Agent`: an absent kind is a producer that said nothing, and it is
+    /// omitted when encoding so the canonical bytes of a request written
+    /// before this field existed do not move.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<Kind>,
     /// An operator-configured delivery class, independent of producer and route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub class: Option<Name>,
@@ -161,6 +187,7 @@ impl Request {
             context: Context::default(),
             scope: DeliveryScope::default(),
             route: None,
+            kind: None,
             class: None,
             interaction: Interaction::default(),
             extensions: Map::new(),

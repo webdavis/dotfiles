@@ -67,3 +67,62 @@ fn normalized_signal_scope_and_elapsed_choose_policy_without_using_source_event_
         assert_eq!(event(&request).0.long_running, long);
     }
 }
+
+#[test]
+fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_session_event() {
+    // THE PRODUCER NAMES A KIND, NEVER A ROUTE. This is the submission half
+    // of the same rule the `--kind` flag carries on the argv half, so a
+    // failed upgrade posted as an envelope pages the way one spawned with
+    // flags does.
+    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
+    let mut request = Request::new(
+        RequestId::new("id").unwrap(),
+        Name::new("uu").unwrap(),
+        Name::new("lane-failed").unwrap(),
+        Signal::Failed,
+    );
+    for (stated, kind) in [
+        (None, pns_domain::routes::Kind::Agent),
+        (
+            Some(pns_protocol::Kind::Agent),
+            pns_domain::routes::Kind::Agent,
+        ),
+        (
+            Some(pns_protocol::Kind::Health),
+            pns_domain::routes::Kind::Health,
+        ),
+    ] {
+        request.kind = stated;
+        assert_eq!(event(&request).0.kind, kind, "{stated:?}");
+    }
+    request.kind = Some(pns_protocol::Kind::Health);
+    assert_eq!(
+        event(&request).0.routed(&routes).channel,
+        "sirens",
+        "a failed health submission stayed off the urgent route"
+    );
+    request.signal = Signal::Succeeded;
+    assert!(
+        event(&request).0.routed(&routes).channel.is_empty(),
+        "a health submission that succeeded paged the operator"
+    );
+}
+
+#[test]
+fn a_route_the_producer_named_still_outranks_the_kind_it_stated() {
+    let mut request = Request::new(
+        RequestId::new("id").unwrap(),
+        Name::new("uu").unwrap(),
+        Name::new("lane-failed").unwrap(),
+        Signal::Failed,
+    );
+    request.kind = Some(pns_protocol::Kind::Health);
+    request.route = Some(Name::new("posture-pages").unwrap());
+    assert_eq!(
+        event(&request)
+            .0
+            .routed(&pns_domain::routes::Routes::named("logbook", "sirens"))
+            .channel,
+        "posture-pages"
+    );
+}
