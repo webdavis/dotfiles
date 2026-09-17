@@ -11,7 +11,12 @@ use std::time::{Duration, Instant};
 /// loaded machine. A generous bound costs the happy path nothing.
 pub(super) const DEADLINE: Duration = Duration::from_secs(30);
 
-pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::Result<()> {
+/// Serve one request, checking its body, and hand the whole request back.
+///
+/// THE REQUEST IS RETURNED, not only accepted, because the upload leg's
+/// token rides a HEADER: a fixture that reads the body alone cannot tell a
+/// header that shipped from one that never did.
+pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::Result<Vec<u8>> {
     let deadline = Instant::now() + DEADLINE;
     listener.set_nonblocking(true)?;
     let (mut stream, _) = poll(deadline, || listener.accept())?;
@@ -55,7 +60,7 @@ pub(super) fn serve(listener: TcpListener, response: &str, body: &[u8]) -> io::R
     // Hold the socket until the client hangs up. Every drain uses the same
     // absolute deadline, so trickled bytes cannot renew the server's lifetime.
     while poll(deadline, || stream.read(&mut chunk))? > 0 {}
-    Ok(())
+    Ok(request)
 }
 
 fn poll<T>(deadline: Instant, mut operation: impl FnMut() -> io::Result<T>) -> io::Result<T> {
