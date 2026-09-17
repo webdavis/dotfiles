@@ -105,6 +105,12 @@ fn poll_once(source: &pns_adapters::GithubSource, launch: Launch) -> i32 {
     let _ = std::fs::create_dir_all(&state);
     let lock = state.join(GITHUB_POLL_LOCK);
     if !pns_adapters::claim_lock(&lock, now, GITHUB_POLL_LOCK_STALE_SECS) {
+        // Quiet for the daemon's own tick, the same reasoning as everywhere
+        // else it stands down; loud for an operator who typed this by hand
+        // and would otherwise see nothing at all happen.
+        if launch == Launch::Operator {
+            eprintln!("pns github: another poll is running; this one stood down");
+        }
         return 0;
     }
     let _held = pns_adapters::HeldLock(lock);
