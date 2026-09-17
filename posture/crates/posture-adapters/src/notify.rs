@@ -20,6 +20,11 @@
 //! stops paging, which is the failure a security tool cannot afford. `off` is
 //! the same discipline stated deliberately: it turns off DELIVERY, not the
 //! page, so the finding still reaches the local banner.
+//!
+//! LOUD MEANS THE BANNER, not a log line. A config this build cannot use takes
+//! every destination away at once, and the banner is the one that needs no
+//! config to work, so a refusal is raised there as well as written to the job's
+//! diagnostics; `posture doctor` answers the same question on demand.
 
 use crate::banner_only::BannerOnly;
 use crate::hermes::{CriticalCopy, HermesWebhook};
@@ -127,8 +132,8 @@ pub struct Notify {
     pub mode: NotifyMode,
     /// Why the config file could not be used, when it could not. The
     /// fail-closed default stands and every page then refuses loudly, so this
-    /// is a line for the operator's log rather than a second outcome to branch
-    /// on.
+    /// is what the operator is told rather than a second outcome to branch on:
+    /// the job's log, the local banner and `posture doctor` all report it.
     pub refusal: Option<String>,
 }
 
@@ -195,6 +200,23 @@ impl Notify {
             toml::from_str(text).map_err(|error| error.message().trim().to_string())?;
         file.notify.into_mode(home)
     }
+
+    /// Say what this config cost, wherever the operator will see it. The
+    /// banner carries the refusal because a config that will not parse has
+    /// already taken every other destination away.
+    fn report(&self, alarm: &mut impl IndependentAlarm, diagnostics: &mut impl Write) {
+        if let Some(refusal) = &self.refusal {
+            let _ = writeln!(
+                diagnostics,
+                "posture: the notify config could not be used, so no page can be delivered: \
+                 {refusal}"
+            );
+            let _ = alarm.alarm(
+                "posture cannot deliver a page",
+                &format!("the notify config could not be used: {refusal}"),
+            );
+        }
+    }
 }
 
 /// The sink the configured mode calls for, with the route an untiered page
@@ -208,15 +230,10 @@ impl Notify {
 pub fn alert_sink<'a, R: CommandRunner + 'a, A: IndependentAlarm + 'a>(
     notify: Notify,
     runner: R,
-    alarm: A,
+    mut alarm: A,
     diagnostics: &mut impl Write,
 ) -> Box<dyn AlertSink + 'a> {
-    if let Some(refusal) = &notify.refusal {
-        let _ = writeln!(
-            diagnostics,
-            "posture: the notify config could not be used, so no page can be delivered: {refusal}"
-        );
-    }
+    notify.report(&mut alarm, diagnostics);
     let route = Name::new(UNTIERED_ROUTE).expect("the fixed untiered route is valid");
     match notify.mode {
         NotifyMode::Command { path, arguments } => Box::new(ProducerCommand::new(

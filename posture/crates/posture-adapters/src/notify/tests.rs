@@ -9,6 +9,20 @@ fn parsed(text: &str) -> NotifyMode {
     Notify::parse(text, Path::new(HOME)).expect("a usable notify choice")
 }
 
+/// Records what reached the local banner, so a refusal can be asserted to have
+/// been raised where no config is needed to raise it.
+#[derive(Default)]
+struct Alarm {
+    calls: Vec<(String, String)>,
+}
+
+impl posture_application::IndependentAlarm for Alarm {
+    fn alarm(&mut self, title: &str, detail: &str) -> Result<(), posture_application::AlarmFailed> {
+        self.calls.push((title.into(), detail.into()));
+        Ok(())
+    }
+}
+
 fn copy_of(mode: &NotifyMode) -> Option<CriticalCopy> {
     match mode {
         NotifyMode::Hermes { critical_copy, .. } => critical_copy.clone(),
@@ -83,6 +97,45 @@ fn a_misspelled_key_or_table_blocks_the_file_rather_than_switching_notification_
     ] {
         assert!(Notify::parse(text, Path::new(HOME)).is_err(), "{text}");
     }
+}
+
+#[test]
+fn a_known_key_holding_a_value_it_cannot_hold_still_blocks_the_whole_file() {
+    for text in [
+        // A mode, a path and a route are each the one thing their own key is
+        // for, so nothing can be inferred about the operator's intent from a
+        // value that is not one.
+        "[notify]\nmode = \"banner\"\n",
+        "[notify]\nmode = 5\n",
+        "[notify]\nmode = \"command\"\n[notify.command]\npath = 7\n",
+        "[notify]\nmode = \"hermes\"\n[notify.hermes]\nkeys = \"one-key\"\n",
+        "[notify]\nmode = \"off\"\n[jobs]\nalert = 3\n",
+        // A file with no delivery choice in it at all is not a file with one
+        // key too many; there is nothing to degrade to.
+        "[delivery]\nmode = \"hermes\"\n",
+    ] {
+        assert!(Notify::parse(text, Path::new(HOME)).is_err(), "{text}");
+    }
+}
+
+#[test]
+fn a_config_that_will_not_parse_reaches_the_local_banner_and_not_only_a_log() {
+    let notify = Notify::refused("unknown variant `banner`".to_string());
+    let mut alarm = Alarm::default();
+    let mut diagnostics = Vec::new();
+    notify.report(&mut alarm, &mut diagnostics);
+    let log = String::from_utf8(diagnostics).expect("utf-8 diagnostics");
+    assert!(log.contains("no page can be delivered"), "{log}");
+    let (title, detail) = alarm.calls.first().expect("a banner was raised");
+    assert!(title.contains("cannot deliver"), "{title}");
+    assert!(detail.contains("unknown variant `banner`"), "{detail}");
+}
+
+#[test]
+fn a_usable_config_raises_no_banner_of_its_own() {
+    let mut alarm = Alarm::default();
+    Notify::default().report(&mut alarm, &mut Vec::new());
+    assert!(alarm.calls.is_empty(), "{:?}", alarm.calls);
 }
 
 #[test]
