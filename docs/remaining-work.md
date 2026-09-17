@@ -4497,8 +4497,8 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
   second process gets a defined exit contract.
 
-- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
-  2026-09-17 from the firewall drill's incidental finding.
+- [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
+  2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
   `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
   `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
   `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
@@ -4530,7 +4530,36 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
   name, which only the new binary writes. So the exposure was about one minute of total page silence,
   self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
-  is short here only because the rebuild succeeded.
+  is short here only because the rebuild succeeded. SHIPPED 2026-09-17 as
+  [PR #733](https://github.com/webdavis/dotfiles/pull/733), merged `9767bda3`, BOTH HALVES. LOUD:
+  `Notify::report` is the one place a delivery-config outcome is reported and `alert_sink` calls it, so
+  all six jobs are covered by one guard rather than six. A refusal still writes its diagnostics line and
+  now also raises the LOCAL BANNER through the `IndependentAlarm` the caller already hands in, which is
+  the one destination a broken delivery config cannot take away. A new `posture doctor` answers the same
+  question on demand: it names the config path, lists every ignored key, and either prints
+  `FAILED: no page can be delivered: <reason>` and exits 1 or says the config is usable and exits 0.
+  There was no doctor subcommand before. DEGRADE: `#[serde(deny_unknown_fields)]` is gone from all five
+  structs in `notify/schema.rs`, replaced by a flattened unread map on each, so serde itself hands back
+  the keys this build has no field for, at the top level and inside every known table, and each becomes
+  one named warning line. A malformed KNOWN key still refuses the whole file, and so does a missing
+  `[notify]` table, which is what keeps a mistyped top-level table name from paging nowhere. THE
+  TOP-LEVEL DECISION, made deliberately: an unknown TOP-LEVEL key now warns and continues, because that
+  is exactly what the live instance needed. A config written for a newer or older build of one tool is
+  the ordinary case on a machine where an apply writes the config before the builder reinstalls the
+  binary, and refusing it takes away the very pages that would report the trouble. A mistyped table
+  BESIDE a valid `[notify]` costs that table's contents plus a named warning, which is the smaller loss.
+  THE MERGE WITH TASK 99 WAS A REAL CONFLICT AND WAS RESOLVED RATHER THAN GUESSED: both tasks hardened
+  the same four files. `parse` now returns the whole `Notify` instead of a tuple of mode, route and
+  warnings, and `missing_hermes_keys` moved from `NotifyMode` to `Notify`, because `NotifyMode` has no
+  route and cannot know the configured one. One test was added for the same reason, since nothing pinned
+  that the signing-key check follows the CONFIGURED route rather than the shipped default. ALL FIVE
+  BEHAVIOURS WERE PROVEN AGAINST THE REAL BINARY with fixture home directories: an unknown nested key
+  warns and delivery continues; an unknown top-level key does the same, which is the live failure this
+  task exists for; a malformed known key refuses and REDACTS the value in its message; a refusal reaches
+  both doctor and the banner, pinned by a test and its negative; and an untiered page takes the
+  configured route while a critical page still takes `priority`, proven by a fixture that keys only the
+  other route and fails naming `priority`. 1200 posture tests pass. OPERATOR STEP: a full `chezmoi apply`
+  rebuilds posture, after which `posture doctor` exists.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
