@@ -90,3 +90,18 @@ fn the_table_name_is_a_plugin_the_registry_knows() {
     // takes the whole file down.
     assert!(parse_config(&armed("")).is_ok());
 }
+
+#[test]
+fn the_interval_the_server_asked_for_beats_the_key_and_is_held_to_its_bounds() {
+    // THE MUTANT THIS PINS: the header handed to the scheduler unchecked. A
+    // `1` there polls sixty times an hour against a documented floor of 60,
+    // which is a request to be rate-limited, and a header past the ceiling
+    // leaves the source registered, alive and silent for as long as it says.
+    for (asked_for, registered) in [(0, 300), (60, 60), (1, 60), (900, 900), (36_000, 3600)] {
+        assert_eq!(
+            super::job_interval(300, asked_for),
+            registered,
+            "a server asking for {asked_for} runs the job at {registered}"
+        );
+    }
+}

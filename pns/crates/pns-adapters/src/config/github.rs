@@ -67,6 +67,24 @@ const MIN_POLL_SECS: u64 = 60;
 /// looking at the website, which is the thing it exists to replace.
 const MAX_POLL_SECS: u64 = 3600;
 
+/// How often the poll's job runs: the interval the server last asked for,
+/// or the config's own key while it has asked for nothing (`asked_for` is
+/// zero on a fresh machine, and on one whose first poll has not answered).
+///
+/// THE SERVER'S NUMBER IS CLAMPED TO THE KEY'S OWN BOUNDS, which is what
+/// keeps this module the one place either end is stated: a `poll_secs = 30`
+/// the file refuses must not reach the scheduler through a header either,
+/// and an interval past the ceiling would leave the source alive and silent
+/// for as long as the header says, which is the one failure the whole source
+/// exists to prevent.
+pub(super) fn job_interval(poll_secs: u64, asked_for: u64) -> u64 {
+    if asked_for == 0 {
+        poll_secs
+    } else {
+        asked_for.clamp(MIN_POLL_SECS, MAX_POLL_SECS)
+    }
+}
+
 #[cfg(test)]
 #[path = "github/tests.rs"]
 mod github_tests;

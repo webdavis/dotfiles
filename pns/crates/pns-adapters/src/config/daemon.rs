@@ -1,3 +1,4 @@
+use super::github::job_interval;
 use super::*;
 
 /// See `Config::daemon_enabled`.
@@ -55,11 +56,7 @@ impl pns_application::DaemonSettings for DaemonConfig {
             _ => None,
         }?;
         let asked_for = crate::read_poll_state(&crate::state_dir()).interval_secs;
-        Some(if asked_for == 0 {
-            source.poll_secs
-        } else {
-            asked_for
-        })
+        Some(job_interval(source.poll_secs, asked_for))
     }
     fn presence_interval(&self) -> Option<u64> {
         match load_config(&config_path(&self.home)) {
