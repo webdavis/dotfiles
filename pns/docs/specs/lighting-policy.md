@@ -1017,7 +1017,7 @@ Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operato
 - Failure sources: a place no lamp, room or zone name reaches
   (`` pns: lights quiet: `<place>` is no lamp, room or zone this can quiet; a mute reaches <names> ``, or
   `"this config claims no lamp at all, so there is nothing a mute could reach"`, exit 2); a duration
-  outside `src/quiet.rs:parse_duration`'s bounds (exit 2); any other arity
+  outside `src/duration.rs:parse_duration`'s bounds (exit 2); any other arity
   (`"pns: lights quiet takes a place, optionally with a duration or off, or nothing at all"`, exit 2); no
   clock (`"pns: state error (the clock cannot be read); the mute was not set"`, exit 1); an unwritable
   file (`"pns: state error (lights-quiet could not be written: {error}); the mute was not set"`, exit 1).
