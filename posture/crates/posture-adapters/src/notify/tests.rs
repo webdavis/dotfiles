@@ -1,5 +1,5 @@
 use super::*;
-use posture_domain::Agent;
+use posture_domain::{Agent, DailyTime};
 
 /// A home this machine does not have, so a window path can be asserted
 /// without one test's state directory being another's.
@@ -491,4 +491,75 @@ fn the_untiered_route_is_overridable_in_config() {
         parsed_route("[notify]\nmode = \"off\"\nroute = \"pages-elsewhere\"\n"),
         "pages-elsewhere"
     );
+}
+
+/// The daily times the `[jobs.daily]` half of one config file states, with
+/// whatever it says was ignored.
+fn daily(text: &str) -> (DailyTimes, Vec<String>) {
+    toml::from_str::<schema::File>(text)
+        .expect("a usable config file")
+        .jobs
+        .times()
+}
+
+#[test]
+fn a_stated_daily_time_is_when_that_job_fires_and_the_other_keeps_its_default() {
+    let (times, warnings) =
+        daily("[notify]\nmode = \"off\"\n[jobs.daily]\nheartbeat = \"07:30\"\n");
+    assert_eq!(
+        times,
+        DailyTimes {
+            heartbeat: DailyTime {
+                hour: 7,
+                minute: 30
+            },
+            ..DailyTimes::default()
+        }
+    );
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn a_daily_time_that_is_not_a_time_is_named_and_the_shipped_one_is_used() {
+    let (times, warnings) = daily("[notify]\nmode = \"off\"\n[jobs.daily]\ndigest = \"6pm\"\n");
+    assert_eq!(times, DailyTimes::default());
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("jobs.daily.digest"), "{warnings:?}");
+    assert!(warnings[0].contains("HH:MM"), "{warnings:?}");
+}
+
+#[test]
+fn an_unread_daily_key_is_reported_without_voiding_the_times_beside_it() {
+    let text = "[notify]\nmode = \"off\"\n[jobs.daily]\nweekly = \"03:00\"\n";
+    assert_eq!(daily(text).0, DailyTimes::default());
+    assert!(
+        warnings_of(text)
+            .iter()
+            .any(|warning| warning.contains("jobs.daily.weekly")),
+        "{:?}",
+        warnings_of(text)
+    );
+}
+
+#[test]
+fn the_daily_times_and_the_labels_come_off_the_same_file_on_disk() {
+    let home = std::env::temp_dir().join(format!("posture-job-settings-{}", std::process::id()));
+    let directory = home.join(".config/posture");
+    std::fs::create_dir_all(&directory).expect("a sandbox home");
+    std::fs::write(
+        directory.join("config.toml"),
+        "[notify]\nmode = \"off\"\n[jobs]\ndigest = \"com.example.roundup\"\n[jobs.daily]\ndigest = \"21:05\"\n",
+    )
+    .expect("a config file");
+    let settings = job_settings(&home);
+    std::fs::remove_dir_all(&home).expect("the sandbox is removable");
+    assert_eq!(settings.labels.label(Agent::Digest), "com.example.roundup");
+    assert_eq!(
+        settings.daily.digest,
+        DailyTime {
+            hour: 21,
+            minute: 5
+        }
+    );
+    assert!(settings.warnings.is_empty(), "{:?}", settings.warnings);
 }

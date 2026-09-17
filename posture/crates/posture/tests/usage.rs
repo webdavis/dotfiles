@@ -26,6 +26,7 @@ const WORDS: &[&[&str]] = &[
     &["watchdog", "unexpected"],
     &["allowlist"],
     &["ssh"],
+    &["jobs"],
     &["--help"],
     &["-h"],
     &["help"],
@@ -107,6 +108,7 @@ fn the_usage_names_every_planned_subcommand() {
         "allowlist list",
         "enrich <path>",
         "ssh install|verify|reload|rollback|print-config|print-path",
+        "jobs install|verify|list|print <job>",
     ] {
         assert!(
             stderr.contains(phrase),
