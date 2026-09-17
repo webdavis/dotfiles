@@ -2862,7 +2862,7 @@ is missing.
   is the only reason the state-based discriminator for B39 cannot be the recommendation, because on a
   machine with no lamps configured the dedup read always finds nothing. Nothing needs changing today.
 
-- [ ] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
+- [x] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
   security-banner and phone-alert mute bypass. Verify quiet/Focus transitions, including an effect
   already active when muting begins. B19/B25's nag tolerance and future-timestamp handling still need
@@ -4354,6 +4354,21 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the error the busy path returns, and that no sensitive content reached the store), or bound it the way
   101 bounded a liveness case, and sweep for any sibling that asserts a duration without a spawn. Do not
   simply raise the number.
+
+- [ ] 141. A future timestamp reads as maximally fresh instead of unknown, filed 2026-09-17 out of B25's
+  disposition. `age_of` (`pns/crates/pns-domain/src/decision/reading.rs:48`) `saturating_sub`s a
+  `taken_at` that is in the future, which yields age 0, the freshest possible reading, where the
+  function's own stated policy for a clock it cannot read is `None`, meaning unknown. In a presence
+  engine that matters in one direction: a future marker or input timestamp makes the surface look freshly
+  touched, so an alert that should have gone to the phone stays on the banner. A clock that went
+  backwards, a file restored from a backup, or a marker written by a device with a skewed clock all
+  produce it. The fix is stated with its scope and its cost in
+  `docs/superpowers/specs/2026-09-17-nag-tolerance-and-future-timestamp-disposition-design.md`: return
+  `None` for a future `taken_at` rather than saturating to zero. THE DISPOSITION IS SCOPED TO `age_of`
+  ALONE and deliberately does not sweep the other `now.saturating_sub(timestamp)` sites in the crate,
+  because no evidence was gathered that a future timestamp is reachable at those sites or changes their
+  verdict. WAITS ON THE OPERATOR: confirm or reject that disposition before a pull request implements it,
+  since it changes what an unknown reading does to a delivery decision.
 
 - [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
   2026-09-17 from the firewall drill's incidental finding.
