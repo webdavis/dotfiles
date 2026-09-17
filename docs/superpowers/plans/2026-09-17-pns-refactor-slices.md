@@ -820,6 +820,23 @@ size: medium
 
 TOTAL SLICES: 49
 
+- 2026-09-17: slicing question 4 is ANSWERED BY CORRECTION, not by a number. Item 105 claimed
+  `lights.refresh_secs` was both the daemon re-arm interval and the breath-fade budget and should split
+  into two settings. It is not: `refresh_secs` is read in `lamp_registration.rs:90` as the re-arm
+  interval and in `maintain_lamps.rs:75` to build `tick_bridge_deadline`, which takes a fifth of it as
+  the budget for ONE bridge call so three calls cannot outlive the interval that spawned them, which the
+  function's own comment states as deliberate coupling. A fade is `duration_ms` on each state's table
+  (4000 for `done`, `failed` and `github`, 2000 for the `blocked` breath), never `refresh_secs`. So there
+  is no second number to choose, slice 42 carries no split, and item 105 is now a plain rename of
+  `refresh_secs` to `arm_interval`. `pns/docs/pns-refactor.md` is corrected in place.
+
+- 2026-09-17: slicing question 3 is ANSWERED. Each plugin's credential key is named for the kind of
+  secret that tool uses, and the authority is the KeePassXC entry, whose titles already state the type
+  correctly per tool. This reverses item 94's `key`/`keys` rule. Standardizing belongs in the Rust behind
+  one internal type if it makes the code cleaner, never in the file a human reads. `[plugins.github]`
+  does not take item 90's `type = "<vendor>"` shape, because that shape is for delivery destinations and
+  GitHub is a notification source. Slices 36 and 39 are unblocked.
+
 BLOCKED-ON-OPERATOR:
 
 1. Item 3 writes the per-producer reminder setting as `[producers.<name>] remind`, plural. Item 110's

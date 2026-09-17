@@ -404,8 +404,12 @@ Agreed changes to pns, one per line. Add a line for each new agreed change.
    retry ceiling; `delivery.retry_base_secs` is not a base but a per-retry increment
    (`wait = base * retries`, `retry.rs:143`); and `delivery.max_age_secs` measures the ORIGINAL EVENT's
    age, which its name does not say (`schema.rs:64-66`).
-1. Split `lights.refresh_secs` (`schema.rs:74`), which is both the daemon re-arm interval and the
-   breath-fade budget, into the two settings it is.
+1. Rename `lights.refresh_secs` (`schema.rs:74`) to `arm_interval`, matching the duration vocabulary.
+   It is one value with one meaning: how often the daemon re-arms the lamps
+   (`lamp_registration.rs:90`), from which `tick_bridge_deadline` takes a fifth as the budget for one
+   bridge call (`lamps/deadline.rs:17`), deliberately, so three calls cannot outlive the interval that
+   spawned them. A fade is `duration_ms` on each state's own table (4000 for `done`, `failed` and
+   `github`, 2000 for the `blocked` breath).
 1. Remove `plugins.hue.rooms` (`schema.rs:129`). It names which places the plain pulse flashes and is
    dead whenever a `[lights]` lamp/room/zone map exists, which is the shipped state, so two keys say one
    thing and one silently wins.
