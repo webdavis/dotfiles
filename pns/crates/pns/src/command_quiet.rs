@@ -31,8 +31,13 @@ pub(crate) fn quiet_mode() -> i32 {
         [word] if word == "off" => {
             let _ = records.set_quiet_expiry(None);
         }
-        [duration] => match pns_domain::quiet::parse_duration(duration) {
-            Ok(seconds) => {
+        [duration] => match pns_domain::duration::parse_duration(
+            "quiet duration",
+            duration,
+            pns_domain::quiet::MUTE_RANGE,
+        ) {
+            Ok(held) => {
+                let seconds = held.as_secs();
                 // NEITHER ARM CLAIMS "nothing is muted". A run that could not
                 // read a clock or could not write cannot see the state it is
                 // making a claim about, and a mute set an hour ago can be
