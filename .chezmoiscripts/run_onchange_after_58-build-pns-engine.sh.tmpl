@@ -201,28 +201,39 @@ fi
 report_line "installed $install_dir/pns"
 
 # 58 runs before 70 in chezmoi's ASCII script ordering, so on a FIRST install
-# the LaunchAgent is not loaded yet: kickstart then fails with "Could not
+# neither LaunchAgent is loaded yet: kickstart then fails with "Could not
 # find service" (exit 113), which this treats as "not loaded yet" and stays
-# quiet about, rather than as an error. On a machine that already had the
-# daemon running, that same 113 means the kickstart never reached it, which
-# is a real problem, not a fresh-machine no-op, so it is loud there too. Any
-# OTHER status (EIO, EPERM, a wrong label) leaves the daemon on the old
-# binary and must always be loud: capture the status once (a bare `if`
-# condition would read every non-zero the same as 113), print one attributed
-# line to stderr, and exit non-zero so chezmoi does not record success. The
-# marker (already armed above when this run changed bytes) stays in place on
-# that path so the next apply retries even on identical bytes.
-if [[ $binary_changed == 1 ]] || [[ -e $pending_marker ]]; then
-  status=0
-  output="$(launchctl kickstart -k "gui/$(id -u)/com.webdavis.pns-daemon" 2>&1)" || status=$?
+# quiet about, rather than as an error. On a machine that already had a job
+# running, that same 113 means the kickstart never reached it, which is a
+# real problem, not a fresh-machine no-op, so it is loud there too. Any OTHER
+# status (EIO, EPERM, a wrong label) leaves that job on the old binary and
+# must always be loud: capture the status once (a bare `if` condition would
+# read every non-zero the same as 113), print one attributed line to stderr,
+# and refuse to settle the marker. Both jobs run the same installed binary,
+# so one marker governs both and clears only once NEITHER is left on the old
+# bytes; each is attempted regardless of whether the other one failed, so a
+# daemon failure never hides a receiver failure or vice versa.
+kickstart_job() {
+  local label=$1 name=$2 status=0 output
+  output="$(launchctl kickstart -k "gui/$(id -u)/$label" 2>&1)" || status=$?
   if [[ $status == 0 ]]; then
-    report_line 'pns: daemon restarted on a new binary'
-    rm -f "$pending_marker"
+    report_line "pns: $name restarted on a new binary"
+    return 0
   elif [[ $status == 113 ]] && [[ $first_install == 1 ]]; then
+    return 0
+  fi
+  printf 'pns: %s NOT restarted on the new binary (launchctl kickstart exited %s: %s)\n' \
+    "$name" "$status" "$output" >&2
+  return 1
+}
+
+if [[ $binary_changed == 1 ]] || [[ -e $pending_marker ]]; then
+  ok=1
+  kickstart_job com.webdavis.pns-daemon daemon || ok=0
+  kickstart_job com.webdavis.pns-github-receiver receiver || ok=0
+  if [[ $ok == 1 ]]; then
     rm -f "$pending_marker"
   else
-    printf 'pns: daemon NOT restarted on the new binary (launchctl kickstart exited %s: %s)\n' \
-      "$status" "$output" >&2
     exit 1
   fi
 fi
