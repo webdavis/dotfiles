@@ -50,8 +50,10 @@ struct Hermes {
     keys: BTreeMap<String, String>,
     /// A ROUTE NAME, AND NOTHING ABOUT WHAT READS IT. A page whose tier is
     /// critical is copied here verbatim once its own post came back
-    /// delivered; absent is one post. `Name` is what refuses an unusable
-    /// route at load rather than at the first page.
+    /// delivered; absent is one post. `Name` only bounds length and refuses
+    /// control characters, so it is used as a path segment exactly as
+    /// written; the value comes from the operator's own config, the same
+    /// trust boundary as the `url` key beside it.
     #[serde(default)]
     critical_copy_route: Option<Name>,
 }
