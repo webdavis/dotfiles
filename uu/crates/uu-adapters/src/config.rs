@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use schema::{admits, non_empty, table_of};
 
 pub(crate) use lanes::NvimHost;
+pub(crate) use lanes::Plugin;
 pub use lanes::{
     BrewLane, ClaudePluginsLane, CommandLane, HerdrLane, Lanes, NpmLane, NvimMasonLane,
     NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, UvLane,
@@ -181,7 +182,7 @@ fn parse_alerts(value: toml::Value) -> Result<Alerts, ConfigError> {
 use records::DEFAULT_RECORD_URL;
 
 #[cfg(test)]
-pub(crate) use lanes::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED, Plugin};
+pub(crate) use lanes::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
 
 #[cfg(test)]
 mod probes;

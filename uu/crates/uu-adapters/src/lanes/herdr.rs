@@ -1,18 +1,24 @@
-//! The herdr lane: the binary refreshes itself, then every plugin in the
-//! roster is reinstalled, at its source's tip or at the revision it is pinned
-//! to.
+//! The herdr lane: the binary refreshes itself, then every UNPINNED plugin in
+//! the roster is reinstalled at its source's tip while every pinned one is
+//! left where it is and reported on.
 //!
 //! herdr HAS NO `plugin update`, so a refresh is an uninstall followed by a
 //! fresh install. An entry with no `ref` re-pins at the source's tip, which is
-//! what every entry has always done. An entry WITH a `ref` is installed
-//! through `herdr plugin install --ref <REF>` and does not move, and the
-//! record says it was HELD rather than refreshed, so a pin cannot quietly
-//! become a freeze nobody remembers taking.
+//! what every entry has always done.
 //!
-//! A REF THAT DOES NOT RESOLVE FAILS THE STEP. There is no tip fallback: an
-//! install from tip after a pinned install failed would leave the record
-//! claiming a revision the plugin is not at, which is the one outcome worse
-//! than the plugin being missing.
+//! A PINNED PLUGIN IS NEVER TOUCHED BY THE WEEKLY RUN. `herdr plugin list
+//! --json` says which revision each installed plugin sits at: an entry already
+//! at its `ref` is reported HELD, and one that is not (a pin the operator has
+//! moved, or a plugin nothing has installed yet) is reported PENDING with the
+//! exact `herdr plugin install --ref` command, the same way the cargo lane
+//! reports a crate it will not compile. An unattended run that reinstalled a
+//! pin would have to uninstall first, so a revision that stopped resolving
+//! would take the working copy with it; the operator runs that install with
+//! the failure in front of them instead.
+//!
+//! WITHOUT THAT LISTING A PIN IS NOT CHECKED. Every pinned entry is left alone
+//! and the step is failed by name, because reporting HELD on an answer nobody
+//! read is the one outcome that makes a pin stop being a decision.
 //!
 //! A failed install RETRIES ONCE and a plugin that still failed is named
 //! loudly, so the record for the week says exactly what is missing. The
@@ -22,8 +28,13 @@
 //! THE RUN EVENT IS UNUSED HERE: this lane predates it and drives herdr by
 //! argv alone.
 
-use crate::config::HerdrLane;
+mod listing;
+
+use std::collections::BTreeMap;
+
+use crate::config::{HerdrLane, Plugin};
 use crate::lanes::{CommandRunner, LaneAdapter};
+use listing::{Installed, parse_plugin_list, pin_sentence};
 use uu_domain::LaneReport;
 use uu_domain::RunFacts;
 
@@ -38,7 +49,27 @@ impl LaneAdapter for HerdrLane {
 
     fn run(&self, name: &str, _facts: &RunFacts, runner: &dyn CommandRunner) -> LaneReport {
         let mut report = LaneReport::new(name);
+        self.update_itself(runner, &mut report);
+        // ONE LISTING FOR THE WHOLE LANE, and none at all when nothing is
+        // pinned: an unpinned roster is reinstalled either way, so asking
+        // herdr where its plugins sit would answer a question nobody asked.
+        let installed = if self.plugins.iter().any(|entry| entry.pinned_ref.is_some()) {
+            self.installed(runner)
+        } else {
+            Ok(BTreeMap::new())
+        };
+        for plugin in &self.plugins {
+            match plugin.pinned_ref.as_deref() {
+                Some(pin) => self.hold(plugin, pin, &installed, &mut report),
+                None => self.refresh(plugin, runner, &mut report),
+            }
+        }
+        report
+    }
+}
 
+impl HerdrLane {
+    fn update_itself(&self, runner: &dyn CommandRunner, report: &mut LaneReport) {
         match runner.run(&self.binary, &["update"]) {
             Ok(_) => {
                 // The version is a COURTESY in the record and never a verdict:
@@ -57,48 +88,67 @@ impl LaneAdapter for HerdrLane {
                 "herdr self-update FAILED ({why}); plugins still refresh below"
             )),
         }
+    }
 
-        for plugin in &self.plugins {
-            let id = plugin.id.as_str();
-            // AN INSTALL OVER A FAILED UNINSTALL IS NOT ATTEMPTED. herdr pins
-            // a plugin at install, so installing on top of a copy that would
-            // not come off is how one plugin becomes two.
-            if let Err(why) = runner.run(&self.binary, &["plugin", "uninstall", id]) {
+    fn installed(&self, runner: &dyn CommandRunner) -> Result<BTreeMap<String, Installed>, String> {
+        runner
+            .run(&self.binary, &["plugin", "list", "--json"])
+            .map_err(|why| format!("`plugin list --json` could not be read ({why})"))
+            .and_then(|stdout| parse_plugin_list(&stdout))
+    }
+
+    /// A pinned plugin: checked against the listing, never installed here.
+    fn hold(
+        &self,
+        plugin: &Plugin,
+        pin: &str,
+        installed: &Result<BTreeMap<String, Installed>, String>,
+        report: &mut LaneReport,
+    ) {
+        let id = plugin.id.as_str();
+        let installed = match installed {
+            Ok(installed) => installed,
+            Err(why) => {
                 report.failed(format!(
-                    "plugin {id}: uninstall failed ({why}); leaving the installed copy alone"
+                    "plugin {id}: pinned at {pin} and LEFT ALONE; {why}, so whether it sits at \
+                     that revision is unknown"
                 ));
-                continue;
+                return;
             }
-            let pinned = plugin.pinned_ref.as_deref();
-            let mut args = vec!["plugin", "install", plugin.repo.as_str()];
-            if let Some(reference) = pinned {
-                args.extend_from_slice(&["--ref", reference]);
+        };
+        let at = installed.get(id);
+        match at {
+            Some(at) if at.holds(pin) => {
+                report.noted(format!("plugin {id}: HELD at {pin} (pinned, not updated)"));
             }
-            args.push("--yes");
-            let install = || runner.run(&self.binary, &args);
-            // The retry is the SECOND call and there is no third: `or_else`
-            // runs it only on a failure, and the reason kept is the one the
-            // last attempt gave. BOTH ATTEMPTS CARRY THE SAME `--ref`.
-            match install().or_else(|_| install()) {
-                Ok(_) => report.noted(match pinned {
-                    Some(reference) => {
-                        format!("plugin {id}: HELD at {reference} (pinned, not updated)")
-                    }
-                    None => format!("plugin {id}: refreshed"),
-                }),
-                Err(why) => report.failed(match pinned {
-                    Some(reference) => format!(
-                        "plugin {id}: INSTALL AT {reference} FAILED twice ({why}); nothing was \
-                         installed from tip and it is now MISSING until the next apply or run"
-                    ),
-                    None => format!(
-                        "plugin {id}: REINSTALL FAILED twice ({why}); it is now MISSING until \
-                         the next apply or run"
-                    ),
-                }),
-            }
+            at => report.pending(pin_sentence(&self.binary, id, &plugin.repo, pin, at)),
         }
-        report
+    }
+
+    /// An unpinned plugin: uninstalled, then reinstalled at its source's tip.
+    fn refresh(&self, plugin: &Plugin, runner: &dyn CommandRunner, report: &mut LaneReport) {
+        let id = plugin.id.as_str();
+        // AN INSTALL OVER A FAILED UNINSTALL IS NOT ATTEMPTED. herdr pins
+        // a plugin at install, so installing on top of a copy that would
+        // not come off is how one plugin becomes two.
+        if let Err(why) = runner.run(&self.binary, &["plugin", "uninstall", id]) {
+            report.failed(format!(
+                "plugin {id}: uninstall failed ({why}); leaving the installed copy alone"
+            ));
+            return;
+        }
+        let args = ["plugin", "install", plugin.repo.as_str(), "--yes"];
+        let install = || runner.run(&self.binary, &args);
+        // The retry is the SECOND call and there is no third: `or_else`
+        // runs it only on a failure, and the reason kept is the one the
+        // last attempt gave.
+        match install().or_else(|_| install()) {
+            Ok(_) => report.noted(format!("plugin {id}: refreshed")),
+            Err(why) => report.failed(format!(
+                "plugin {id}: REINSTALL FAILED twice ({why}); it is now MISSING until the next \
+                 apply or run"
+            )),
+        }
     }
 }
 

@@ -42,7 +42,7 @@ key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}"
 [alerts]
 binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 
-# herdr and every GitHub-sourced plugin, refreshed weekly. herdr has no
+# herdr and every UNPINNED GitHub-sourced plugin, refreshed weekly. herdr has no
 # `plugin update`, so a refresh is an uninstall followed by a fresh install,
 # which re-pins at the source's tip; an install that fails is retried once and a
 # plugin that still failed is named in the record and stays missing until the
@@ -50,12 +50,16 @@ binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 # listed here.
 #
 # `ref` is each plugin's revision, empty below because nothing is pinned. Give
-# one a tag, a branch or a commit (it is handed to `herdr plugin install --ref`
-# unchanged) and that plugin is installed at that revision and does not move
-# again; the weekly record says HELD at it rather than refreshed, so a pin stays
-# a visible decision instead of a silent freeze. A revision herdr cannot resolve
-# fails the step by name and never falls back to tip. Add `ref:` beside a
-# roster entry's `id` and `repo` to set one.
+# one a tag, a branch or a commit (the spelling `herdr plugin install --ref`
+# takes) and the weekly run stops touching that plugin: it reads
+# `herdr plugin list --json` to see which revision the installed copy sits at,
+# says HELD at the pin when that is where it is, and reports the exact install
+# command as pending work when it is not, the way the cargo lane reports a crate
+# it will not compile. Nothing unattended uninstalls a pinned plugin, so a
+# revision that stopped resolving costs a line in the record rather than the
+# working copy. An answer the lane cannot read leaves every pin alone and fails
+# the step, because HELD off an unread answer is a pin that stopped being a
+# decision. Add `ref:` beside a roster entry's `id` and `repo` to set one.
 #
 # Lanes run in NAME order, not the order they are written below: `brew` runs
 # before `herdr` regardless of where either block sits in this file.
