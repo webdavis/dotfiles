@@ -72,6 +72,13 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
                 // that outran it.
                 if let Some(now) = now {
                     crate::ensure_presence_poll(&jobs, self.settings.presence_interval(), now);
+                    // THE GITHUB POLL IS THE DAEMON'S OWN JOB TOO, beside the
+                    // room sensor and for the same reason its docblock gives:
+                    // no event asks for a notification listing, so nothing
+                    // else would ever register it, and a job registered once
+                    // at startup would die with its lease on the first daemon
+                    // that outran it.
+                    crate::ensure_github_poll(&jobs, self.settings.github_interval(), now);
                 }
             }
             crate::RunDaemonTick {

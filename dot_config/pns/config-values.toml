@@ -73,6 +73,13 @@ key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
 rooms = ["3F - Studio", "2F - Kitchen"]
 quiet_hours = "22:00-07:00"
 
+# ARMED WITH THE TOKEN AND NOTHING ELSE. `poll_secs` ships at the layout
+# default (60), which is what the notifications API's own X-Poll-Interval
+# header asks for today; from the first answer onwards the header decides and
+# this key is only the figure used before it.
+[plugins.github]
+token = { keepassxc = "GitHub (Webdavis) :: Personal Access Token (pns notifications)", field = "Password" }
+
 [plugins.presence]
 type = "hue"
 rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]

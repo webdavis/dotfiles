@@ -138,8 +138,10 @@ pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summa
 pub use post_return_recap::post_return_recap;
 
 mod daemon;
+mod github_registration;
 mod presence_registration;
 pub use daemon::{RunDaemon, daemon_tick};
+pub use github_registration::{GITHUB_DAEMON_FLAG, ensure_github_poll};
 pub use ports::jobs::DaemonSettings;
 pub use presence_registration::{PRESENCE_DAEMON_FLAG, ensure_presence_poll};
 

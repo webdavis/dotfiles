@@ -130,3 +130,44 @@ pub(super) const PLUGINS_ROUTER: Table = Table {
         },
     ],
 };
+pub(super) const PLUGINS_GITHUB: Table = Table {
+    name: "plugins.github",
+    prose: "# GitHub, polled: which workflow runs, reviews, mentions, releases and\n\
+                 # security alerts finished, read off the notifications API once per\n\
+                 # interval. A SENSOR rather than a destination, so no event routes to\n\
+                 # it; what it finds is submitted through the ordinary producer path and\n\
+                 # lands in the channel [plugins.discord.channels] maps the repository\n\
+                 # to, or in its `default` catch-all.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "token",
+            prose: "# A CLASSIC personal access token with the `notifications` scope and\n\
+                         # nothing else. A fine-grained token cannot call these endpoints at\n\
+                         # all: the documentation states they \"only support authentication\n\
+                         # using a personal access token (classic)\". `repo` also works and is\n\
+                         # write access to every repository you can reach, which a\n\
+                         # notification source has no business holding. Not your `gh` login:\n\
+                         # pns never reads that, and a daemon whose credentials change when\n\
+                         # you re-authorize a CLI is a daemon nobody decided about.\n",
+            sample: Sample::Example("\"\""),
+        },
+        Key {
+            name: "poll_secs",
+            prose: "# How often the poll runs BEFORE the first answer, bounded 60 to 3600.\n\
+                         # From then on the server's own X-Poll-Interval decides, which the\n\
+                         # documentation asks for by name, so this is only ever the starting\n\
+                         # figure. The floor is 60 because that is what the header says today\n\
+                         # and anything under it is a request to be rate-limited; the knob is\n\
+                         # for polling SLOWER. Each request sends the stored Last-Modified, so\n\
+                         # a quiet minute answers 304 and costs no rate limit at all.\n",
+            sample: Sample::Default("60"),
+        },
+    ],
+};

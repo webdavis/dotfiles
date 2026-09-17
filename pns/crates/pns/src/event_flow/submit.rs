@@ -20,33 +20,44 @@ pub(super) struct ProducerRequest {
 }
 
 pub(crate) fn submit_mode(args: &[String]) -> i32 {
-    match crate::submit::run(
-        args,
-        std::io::stdin().lock(),
-        std::io::stdout().lock(),
-        |decoded| {
-            accept(decoded, |request, producer| {
-                let (event, attempt) = mapping::event(request);
-                let payload = HookPayload {
-                    session_id: request
-                        .session
-                        .as_ref()
-                        .map_or_else(String::new, |session| session.id.as_str().into()),
-                    ..HookPayload::default()
-                };
-                execution::execute(
-                    &event,
-                    &system_probes(),
-                    &payload,
-                    attempt,
-                    &|table, lights, flash, presence| {
-                        fire_pulse_unless_quiet(table, lights, flash, presence)
-                    },
-                    Some(producer),
-                )
-            })
-        },
-    ) {
+    submit_reading(args, std::io::stdin().lock(), std::io::stdout().lock())
+}
+
+/// One envelope this binary built itself, through the SAME path a producer's
+/// own submission takes.
+///
+/// NOT A SECOND SUBMISSION PATH. The GitHub poll runs inside this binary, so
+/// spawning a child of itself to hand the envelope over a pipe would buy
+/// nothing but a process: reading the encoded bytes here runs the identical
+/// decode, ledger, policy and dispatch, which is what keeps the poll an
+/// ordinary producer rather than a privileged one.
+pub(crate) fn submit_encoded(encoded: &[u8]) -> i32 {
+    submit_reading(&["--json".to_string()], encoded, std::io::stdout().lock())
+}
+
+fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::io::Write) -> i32 {
+    match crate::submit::run(args, input, output, |decoded| {
+        accept(decoded, |request, producer| {
+            let (event, attempt) = mapping::event(request);
+            let payload = HookPayload {
+                session_id: request
+                    .session
+                    .as_ref()
+                    .map_or_else(String::new, |session| session.id.as_str().into()),
+                ..HookPayload::default()
+            };
+            execution::execute(
+                &event,
+                &system_probes(),
+                &payload,
+                attempt,
+                &|table, lights, flash, presence| {
+                    fire_pulse_unless_quiet(table, lights, flash, presence)
+                },
+                Some(producer),
+            )
+        })
+    }) {
         Ok(Status::Rejected) | Err(_) => 2,
         Ok(Status::Accepted | Status::Degraded) => 0,
     }

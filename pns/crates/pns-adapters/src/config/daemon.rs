@@ -1,3 +1,4 @@
+use super::github::job_interval;
 use super::*;
 
 /// See `Config::daemon_enabled`.
@@ -40,6 +41,22 @@ impl pns_application::DaemonSettings for DaemonConfig {
             Ok(LoadOutcome::Missing) => Ok(true),
             Err(error) => Err(error.detail().to_string()),
         }
+    }
+    /// How often the GitHub poll runs, and `None` while the source is off,
+    /// absent or refused.
+    ///
+    /// THE SERVER'S INTERVAL BEATS THE CONFIG'S, and the poll's own state file
+    /// is where it is held: the documentation asks for `X-Poll-Interval` to be
+    /// obeyed, so the config key is only ever the figure used before the first
+    /// answer. A state file with no interval in it (a fresh machine, or one
+    /// whose first poll has not answered yet) falls back to the key.
+    fn github_interval(&self) -> Option<u64> {
+        let source = match load_config(&config_path(&self.home)) {
+            Ok(LoadOutcome::Loaded(config)) => parse_github(&config).ok().flatten(),
+            _ => None,
+        }?;
+        let asked_for = crate::read_poll_state(&crate::state_dir()).interval_secs;
+        Some(job_interval(source.poll_secs, asked_for))
     }
     fn presence_interval(&self) -> Option<u64> {
         match load_config(&config_path(&self.home)) {

@@ -38,4 +38,8 @@ pub enum DaemonNotice {
 pub trait DaemonSettings {
     fn enabled(&self) -> Result<bool, String>;
     fn presence_interval(&self) -> Option<u64>;
+    /// How often the GitHub poll runs, or `None` for a source that is off.
+    /// It is the interval the SERVER last asked for, so this reads the poll's
+    /// own state as well as the config.
+    fn github_interval(&self) -> Option<u64>;
 }

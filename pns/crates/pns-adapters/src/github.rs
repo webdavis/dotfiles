@@ -38,6 +38,40 @@ pub fn github_event(extensions: &Map<String, Value>) -> Result<Option<GithubEven
     }))
 }
 
+/// This event as the `extensions` map a producer request carries it in.
+///
+/// THE ENCODE LIVES BESIDE THE DECODE, so one module owns both halves of the
+/// extension and a round-trip test pins them to each other: a field renamed
+/// on one side and not the other is red here rather than a colour nobody
+/// could read at the far end.
+///
+/// THE WORDS COME OFF THE DOMAIN'S OWN TABLES, which is what makes the two
+/// halves share one vocabulary rather than two spellings of it.
+pub fn github_extensions(event: &GithubEvent) -> Map<String, Value> {
+    let mut extensions = Map::new();
+    extensions.insert(
+        GITHUB_EXTENSION.to_string(),
+        serde_json::json!({
+            "repo": event.repo,
+            "kind": word_for(event.kind, &GITHUB_KIND_WORDS),
+            "outcome": word_for(event.outcome, &GITHUB_OUTCOME_WORDS),
+            "title": event.title,
+            "url": event.url,
+            "identity": event.identity,
+            "occurred_at": event.occurred_at,
+        }),
+    );
+    extensions
+}
+
+/// One closed-vocabulary value's own spelling.
+fn word_for<T: PartialEq>(value: T, vocabulary: &[(&'static str, T)]) -> &'static str {
+    vocabulary
+        .iter()
+        .find(|(_, mapped)| *mapped == value)
+        .map_or("", |(word, _)| *word)
+}
+
 /// One required string.
 fn text(table: &Map<String, Value>, field: &str) -> Result<String, String> {
     match table.get(field) {
@@ -102,6 +136,10 @@ fn kind_of(stated: &Value) -> &'static str {
         Value::Object(_) => "object",
     }
 }
+
+pub mod client;
+pub mod notifications;
+pub mod poll_state;
 
 #[cfg(test)]
 mod tests;
