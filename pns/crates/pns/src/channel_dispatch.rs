@@ -63,13 +63,13 @@ pub(crate) fn destinations_with_output(
     )
 }
 
-// THE ENVIRONMENT READ IS THE ONLY THING ABOVE THIS LINE, so the decision the
-// override drives (a blank value falls through to the default directory, a set
-// one forces every channel onto its executable, and a refused backend precedes
-// both) is reachable with the value handed in. It is what keeps the test of
-// that decision a plain call instead of a re-exec of the test binary with a
-// scrubbed environment, which could only be bounded by a wall-clock deadline
-// and reddened `main` under load when a spawn outran it.
+// THE `PNS_CHANNELS_DIR` READ IS THE ONLY THING ABOVE THIS LINE, so the
+// decision the override drives (a blank value falls through to the default
+// directory, a set one forces every channel onto its executable, and a
+// refused backend precedes both) is reachable with the value handed in. It is
+// what keeps the test of that decision a plain call instead of a re-exec of
+// the test binary with a scrubbed environment, which could only be bounded by
+// a wall-clock deadline and reddened `main` under load when a spawn outran it.
 #[allow(clippy::too_many_arguments)]
 fn destinations_for_override(
     channels_override: Option<&str>,
