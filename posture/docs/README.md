@@ -103,11 +103,15 @@ The mapping found these unresolved behaviors:
 Existing research also exposes normalization differences outside the original leaf inputs.
 [finding-boundaries](acceptance/finding-boundaries.md) captures an empty bundle path remaining empty and
 a quoted `"0"` counter surviving. [The decision](decisions/finding-normalization.md) retains the
-empty-path rule. Current results-row adapter tests instead assert fallback for an empty bundle and
-suppression for quoted zero. Resolve those disagreements at the adapter boundary; the domain tests alone
-do not prove the captured input behavior. The snapshot literal/action and interrupted-normalizer
-contracts also remain recorded in [finding-normalization](specs/finding-normalization.md) and
-[S022](acceptance/S022.md), pending an explicit final adapter disposition.
+empty-path rule, and the results-row adapter now follows it: an empty `bundle_path` enriches nothing and
+only an absent, null or non-string column selects the fallback, which is how jq's `//` read the shell.
+The quoted-zero deviation stands and is deliberate: the adapter reads `"0"` as the zero counter, because
+osquery's own JSON logger has written the counter both ways and a baseline that slipped through as a
+string would page the whole machine once. No decision document endorses that deviation from the capture,
+so it is the one normalization difference still awaiting an owner's word. The snapshot literal/action and
+interrupted-normalizer contracts also remain recorded in
+[finding-normalization](specs/finding-normalization.md) and [S022](acceptance/S022.md), pending an
+explicit final adapter disposition.
 
 Source cutover and live acceptance have different owners. Main's heartbeat and digest cutovers do not
 close task50a: the recorded remaining work still requires silent route/banner/ledger evidence and a

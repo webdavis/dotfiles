@@ -60,13 +60,10 @@ fn row(line: &str) -> Option<ResultsRow> {
     let enrichment_path = detector.enrichment_path(EnrichmentPaths {
         path: text("path"),
         target_path: text("target_path"),
-        // AN EMPTY BUNDLE PATH IS NO BUNDLE PATH, so the domain falls back to
-        // `path` for it. jq read the shell's `//` that way and the domain's
-        // `unwrap_or` cannot, since `Some("")` is a value.
-        bundle_path: columns
-            .get("bundle_path")
-            .and_then(Value::as_str)
-            .filter(|bundle| !bundle.is_empty()),
+        // AN EMPTY BUNDLE PATH IS A BUNDLE PATH, and it enriches nothing. Only
+        // an absent, null or non-string column selects the fallback, which is
+        // how jq's `//` read the shell: an empty string is truthy there.
+        bundle_path: columns.get("bundle_path").and_then(Value::as_str),
     });
     Some(ResultsRow {
         detector,

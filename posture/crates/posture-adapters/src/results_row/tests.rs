@@ -143,18 +143,25 @@ fn a_protection_row_says_off_only_when_the_column_does() {
 }
 
 #[test]
-fn a_system_extension_falls_back_to_its_path_when_the_bundle_column_is_blank() {
-    // jq read an empty string as absent through `//`, and a fallback that only
-    // fired on a MISSING key would enrich the wrong file.
-    for bundle in [None, Some("")] {
+fn a_system_extension_falls_back_to_its_path_only_when_the_bundle_column_is_no_string() {
+    // An empty bundle path is a value and enriches nothing; the fallback is
+    // for a column that carries no path at all. Captured in
+    // `docs/acceptance/finding-boundaries.md`: `""` stays empty, `false`
+    // falls back.
+    for (bundle, expected) in [
+        (None, "/tmp/ext"),
+        (Some(serde_json::json!(false)), "/tmp/ext"),
+        (Some(serde_json::json!(null)), "/tmp/ext"),
+        (Some(serde_json::json!("")), ""),
+    ] {
         let mut columns = serde_json::json!({"path": "/tmp/ext"});
-        if let Some(bundle) = bundle {
-            columns["bundle_path"] = serde_json::json!(bundle);
+        if let Some(bundle) = bundle.clone() {
+            columns["bundle_path"] = bundle;
         }
         let batch = line(serde_json::json!({
             "name": "system_extensions_new", "columns": columns
         }));
-        assert_eq!(rows(&batch)[0].enrichment_path, "/tmp/ext", "{bundle:?}");
+        assert_eq!(rows(&batch)[0].enrichment_path, expected, "{bundle:?}");
     }
     let batch = line(serde_json::json!({
         "name": "system_extensions_new",
