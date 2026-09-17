@@ -3249,10 +3249,20 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   The 2026-09-17 overnight prompt, written by hand, is the first fixture. Approved 2026-09-17; if SP8
   turns out to be this, fold it there.
 
-### Scalebar workout widget
+- [ ] 139. pns profiles. A profile is a named bundle of the settings that decide what reaches the
+  operator (quiet, which channels are on, the lights, the phone surface rule) and profiles carry a
+  precedence order by time window and by location (a Wi-Fi network or a Tailscale node the machine sees).
+  `work` is the first profile: during shift hours and the commute, or on the office Wi-Fi, personal
+  channels go quiet (no agent banners, no Discord, no lights, no posture pages except priority), and the
+  machine flips back when the window ends. A manual `pns profile <name>` wins over every rule until
+  cleared, and task 126's calendar quiet is one input to the same precedence rather than a separate
+  switch. Ships with `default` and `work`, each fully visible in the config at its default. Operator
+  ruling 2026-09-17, answering "would profiles help": yes.
 
-Three changes to the Obsidian workout widget, requested by the operator 2026-09-17. Scalebar is its own
-repository at `~/workspaces/Ivy/webdavis/scalebar`; the widget code is
+### Fitness tracking Obsidian views (Scalebar)
+
+Three changes to the Obsidian workout views of the fitness tracking system, requested by the operator
+2026-09-17. Scalebar is its own repository at `~/workspaces/Ivy/webdavis/scalebar`; the widget code is
 `obsidian/dataview-scripts/workflow-ui.js` with `timer-widget.js` beside it, and its tests are
 `Tests/workflow-ui.test.js` and the other `Tests/workflow-*.cjs` files. Work lands as pull requests on
 that repository, one per task, and this ledger only records them. The vault copy under `~/workspaces/Ivy`
@@ -6203,6 +6213,14 @@ transcription was started during this audit.
   out entirely; there is only known-terms.txt. See
   `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 1. (9) Where does vpt's code live,
   and what is it called? Carried forward unresolved from the boundaries design.
+- [ ] 138. `vpt note`, quick voice notes filed where the operator says. A subcommand that records one
+  voice note, transcribes it, and when the recording ends prompts for a destination: one of the pre-saved
+  projects from vpt's config, the current working directory, or a directory chosen at the prompt. The
+  same subcommand takes a flag that skips the prompt: `--project <name>` for a pre-saved project or
+  `--dir <path>` for an absolute or relative directory. The note lands as a dated markdown file with the
+  transcript and a link to the audio; audio stays out of Git. First use is the operator's end-of-shift
+  pattern journal for Broccoli, filed to `~/workspaces/Ivy/career-campaign/broccoli/`, with a weekly
+  rollup of recurring issue types as a later piece. Requested 2026-09-17.
 - [ ] Keep vpt application code in its own project, Mac installation and service configuration in
   dotfiles, output content in the configured directory (Ivy for this operator), and homelab deployments
   in homelab. Reuse existing transcription tasks. vpt must work without Bob, Forzare or the full homelab;
@@ -6453,6 +6471,10 @@ needs a design conversation with the operator first.
   transcripts, Todoist and the calendar, asked from any harness or from the phone through hermes, and fed
   to agents so they stop re-asking rulings. Operator ruling 2026-09-17: the data sources are chosen
   carefully and deliberately, one at a time, and this waits until the ledger is finished.
+- [ ] Broccoli role tools live in the Todoist project `broccoli` (id `6hWq5H2cg7M3PfX7`), not here:
+  `/investigate` (`6hWq5Hj6H9hwhjP7`) and `/escalate` (`6hWq5HwjRqVrFc8f`), both approved 2026-09-17 and
+  both blocked until the operator has learned the real support workflow of the role. No overnight run
+  starts them.
 - [ ] 137. Campaign, the job-search crew, a future idea. The operator started at Broccoli AI on 2026-09
   (`~/workspaces/Ivy/career-campaign/broccoli/ai-tech-support/`) and is focused on that role; nothing
   here is built now.
