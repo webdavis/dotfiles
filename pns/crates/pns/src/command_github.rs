@@ -263,5 +263,13 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
 const EVENT_NAME: &str = "notification";
 
 #[cfg(test)]
-#[path = "command_github/tests.rs"]
-mod github_tests;
+#[path = "command_github/tests/fixture.rs"]
+mod github_test_fixture;
+
+#[cfg(test)]
+#[path = "command_github/tests/polling.rs"]
+mod polling_tests;
+
+#[cfg(test)]
+#[path = "command_github/tests/envelope.rs"]
+mod envelope_tests;
