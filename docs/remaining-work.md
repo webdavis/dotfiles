@@ -2661,65 +2661,46 @@ is missing.
   focuses the originating herdr pane when that card is tapped. The operator's own configuration keeps the
   recap card's images off and keeps its deep link. The build itself, the per-card-type opt-in, the
   deep-link tradeoff stated at the toggle, and the card-ownership refactor `replay_missed` still needs,
-  is filed separately as task 90, approved and not yet started. Full record: \<<\<<\<<< HEAD
-  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-
-# ||||||| 314853e0 `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-
-`docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. MEASURED CORRECTION 2026-09-16, and it bears
-on the decision above: THE RECAP CARD HAS NEVER CARRIED A DEEP LINK, so on that particular card an image
-trades away nothing. The replay card is built from
-`EventArgs { agent: "pns", state: "missed", detail, ..default() }`
-(`pns/crates/pns-application/src/replay_missed.rs:121`), so its `pane` is the empty string;
-`pane_is_safe("")` is false on its first clause (`pns/crates/pns-domain/src/safety.rs:17`), so
-`herdr_link` answers `None` (`pns/crates/pns-adapters/src/destinations/moshi.rs:55`) and the card ships
-with no `data` object at all. The tradeoff is real for every card type that DOES carry a pane, which is
-what still makes the opt-in per card type worth building. The operator's preference stands either way, as
-a preference; it is recorded here because the reason given for it does not hold, and a decision resting
-on a fact that is not true is worth re-offering rather than quietly inheriting.
-
-> > > > > > > origin/main
+  is filed separately as task 90, approved and not yet started. Full record:
+  `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`. MEASURED CORRECTION 2026-09-16, and it bears
+  on the decision above: THE RECAP CARD HAS NEVER CARRIED A DEEP LINK, so on that particular card an
+  image trades away nothing. The replay card is built from
+  `EventArgs { agent: "pns", state: "missed", detail, ..default() }`
+  (`pns/crates/pns-application/src/replay_missed.rs:121`), so its `pane` is the empty string;
+  `pane_is_safe("")` is false on its first clause (`pns/crates/pns-domain/src/safety.rs:17`), so
+  `herdr_link` answers `None` (`pns/crates/pns-adapters/src/destinations/moshi.rs:55`) and the card ships
+  with no `data` object at all. The tradeoff is real for every card type that DOES carry a pane, which is
+  what still makes the opt-in per card type worth building. The operator's preference stands either way,
+  as a preference; it is recorded here because the reason given for it does not hold, and a decision
+  resting on a fact that is not true is worth re-offering rather than quietly inheriting.
 
 - [ ] 90. Build Moshi image cards as a per-card-type opt-in, approved 2026-09-15, not yet started. Covers
   every card type, the recap included; the operator's own configuration keeps the recap card's images
   off. Two pieces, per `docs/research/2026-09-moshi-image-cards.md`: the card-ownership refactor, moving
-  \<<\<<\<<< HEAD recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and
-  into the detached `pns recap` child, since the card is dispatched today before any render could exist;
-  and the opt-in itself, a per-card-type toggle plus the render, upload and image body, shipped off by
-  default. State the tradeoff at the toggle, not only in a design document: a Moshi card's `data` carries
-  one `type`, so turning images on for a card type gives up the deep link that focuses the originating
-  herdr pane when that card is tapped. The token-placement question (`Authorization: Bearer` header
-  versus the request body `moshi.rs` currently requires) is left for this build to answer with evidence.
-  Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-
-# ||||||| 314853e0 recap posting out of `replay_missed` (`pns/crates/pns/src/return_replay.rs:38`) and into the detached `pns recap` child, since the card is dispatched today before any render could exist; and the opt-in itself, a per-card-type toggle plus the render, upload and image body, shipped off by default. State the tradeoff at the toggle, not only in a design document: a Moshi card's `data` carries one `type`, so turning images on for a card type gives up the deep link that focuses the originating herdr pane when that card is tapped. The token-placement question (`Authorization: Bearer` header versus the request body `moshi.rs` currently requires) is left for this build to answer with evidence. Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-
-recap posting out of `replay_missed` and into the detached `pns recap` child, since the card is
-dispatched today before any render could exist. DONE 2026-09-16 in
-[PR #704](https://github.com/webdavis/dotfiles/pull/704), merged `9c5deb23`. The pointer this bullet used
-to carry was stale by file: `pns/crates/pns/src/return_replay.rs:38` is only `replay_missed`'s signature,
-and the posting is in `pns/crates/pns-application/src/replay_missed.rs`, publish at :91 and delivery at
-:118. The dispatch-before-render claim was CONFIRMED from source: `spawn_recap` returns as soon as
-`Command::spawn` succeeds, so the card was on the wire while the child had not yet read its config. The
-card now travels to the child as one JSON line on its stdin and is dispatched there, first, before the
-summarizer runs, so a parked model cannot hold the phone card for the child's whole deadline; a hand-off
-the child refuses leaves the card with the return moment, which delivers it exactly as before. WHAT
-REMAINS is the second piece: and the opt-in a per-card-type toggle plus the render, upload and image
-body, shipped off by default. State the tradeoff at the toggle, not only in a design document: a Moshi
-card's `data` carries one `type`, so turning images on for a card type gives up the deep link that
-focuses the originating herdr pane when that card is tapped. Say it accurately, though: see the
-correction under task 78, because the RECAP card carries no deep link to lose and a toggle claiming
-otherwise on that card would be wrong. THE TOKEN-PLACEMENT QUESTION IS ANSWERED, measured 2026-09-15 with
-bogus tokens only and no real credential read: the two routes differ. The upload route reads the token
-ONLY from an `Authorization: Bearer` header (a bogus header answers 401 "Invalid token"; the token in the
-body with no header answers 401 "Missing or invalid Authorization header"). The webhook route requires it
-in the BODY (a header with no body token answers 422 naming property `/token`), which is what `moshi.rs`
-already does, so the current placement is correct and was not changed. Consequence for this piece: its
-upload leg needs the header, and `moshi.rs`'s "the request body and nowhere else" sentence has to become
-"the body on the webhook, an Authorization header on the upload". Source: task 78 and
-`docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
-
-> > > > > > > origin/main
+  recap posting out of `replay_missed` and into the detached `pns recap` child, since the card is
+  dispatched today before any render could exist. DONE 2026-09-16 in
+  [PR #704](https://github.com/webdavis/dotfiles/pull/704), merged `9c5deb23`. The pointer this bullet
+  used to carry was stale by file: `pns/crates/pns/src/return_replay.rs:38` is only `replay_missed`'s
+  signature, and the posting is in `pns/crates/pns-application/src/replay_missed.rs`, publish at :91 and
+  delivery at :118. The dispatch-before-render claim was CONFIRMED from source: `spawn_recap` returns as
+  soon as `Command::spawn` succeeds, so the card was on the wire while the child had not yet read its
+  config. The card now travels to the child as one JSON line on its stdin and is dispatched there, first,
+  before the summarizer runs, so a parked model cannot hold the phone card for the child's whole
+  deadline; a hand-off the child refuses leaves the card with the return moment, which delivers it
+  exactly as before. WHAT REMAINS is the second piece: and the opt-in a per-card-type toggle plus the
+  render, upload and image body, shipped off by default. State the tradeoff at the toggle, not only in a
+  design document: a Moshi card's `data` carries one `type`, so turning images on for a card type gives
+  up the deep link that focuses the originating herdr pane when that card is tapped. Say it accurately,
+  though: see the correction under task 78, because the RECAP card carries no deep link to lose and a
+  toggle claiming otherwise on that card would be wrong. THE TOKEN-PLACEMENT QUESTION IS ANSWERED,
+  measured 2026-09-15 with bogus tokens only and no real credential read: the two routes differ. The
+  upload route reads the token ONLY from an `Authorization: Bearer` header (a bogus header answers 401
+  "Invalid token"; the token in the body with no header answers 401 "Missing or invalid Authorization
+  header"). The webhook route requires it in the BODY (a header with no body token answers 422 naming
+  property `/token`), which is what `moshi.rs` already does, so the current placement is correct and was
+  not changed. Consequence for this piece: its upload leg needs the header, and `moshi.rs`'s "the request
+  body and nowhere else" sentence has to become "the body on the webhook, an Authorization header on the
+  upload". Source: task 78 and `docs/decisions/2026-09-15-pns-behavior-backlog-brief.md`.
 
 - [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
@@ -3249,15 +3230,69 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   The 2026-09-17 overnight prompt, written by hand, is the first fixture. Approved 2026-09-17; if SP8
   turns out to be this, fold it there.
 
-- [ ] 139. pns profiles. A profile is a named bundle of the settings that decide what reaches the
-  operator (quiet, which channels are on, the lights, the phone surface rule) and profiles carry a
-  precedence order by time window and by location (a Wi-Fi network or a Tailscale node the machine sees).
-  `work` is the first profile: during shift hours and the commute, or on the office Wi-Fi, personal
-  channels go quiet (no agent banners, no Discord, no lights, no posture pages except priority), and the
-  machine flips back when the window ends. A manual `pns profile <name>` wins over every rule until
-  cleared, and task 126's calendar quiet is one input to the same precedence rather than a separate
-  switch. Ships with `default` and `work`, each fully visible in the config at its default. Operator
-  ruling 2026-09-17, answering "would profiles help": yes.
+- [ ] 139. pns profiles. Operator ruling 2026-09-17, answering "would profiles help": yes, and the gaps
+  below were filled by the agent's best judgement on the same day and are part of the ruling until the
+  operator changes one.
+
+  WHAT A PROFILE IS. A named bundle of the settings that decide what reaches the operator: quiet on or
+  off, which channels are on (banner, Discord, phone, lights), and which pages still get through. It
+  replaces nothing in the event pipeline: hooks still record every event and the ledger still fills; a
+  profile changes DELIVERY only. Three profiles ship, each fully visible in the config at its default
+  (operator ruling 2026-08-31): `default` (today's behaviour), `work` (quiet, no lights, no Discord,
+  phone for priority only) and `night` (quiet, lights off, phone for priority only, everything else held
+  for the morning). A `meeting` profile is the operator's to add; task 126's calendar input is what would
+  select it.
+
+  THE PRIORITY FLOOR. A profile can choose HOW a priority page arrives (phone or banner) and never
+  WHETHER. The `priority` route is health and security only (operator ruling 2026-09-14) and no profile,
+  rule or manual override can silence it. posture posts its own pages through its own client and is not
+  touched by pns profiles at all, by design.
+
+  HOW ONE IS CHOSEN. `[[profiles.rules]]` is an ordered list; each rule names a profile and any of these
+  inputs, and the first rule whose inputs all match wins. Inputs: `days` (weekday names), `hours` (a
+  local-time window, midnight-crossing allowed, `22:00-06:00`), `location` (a named network the machine
+  is on, see below), `focus` (a macOS Focus mode by name, through the probe pns already has in
+  `pns-adapters/src/macos/focus.rs`, which is also how B18 finds Focus), and `calendar_busy` (true during
+  a busy event, the input task 126 supplies). No rule matching means `default`. A rule that names a
+  profile the config does not define is a load error that names the rule, never a silent fall-through.
+  Overlapping rules are fine; order decides.
+
+  MANUAL OVERRIDE. `pns profile <name>` wins over every rule until cleared with `pns profile clear`, and
+  `pns profile <name> --for 2h` or `--until 17:30` clears itself. Bare `pns profile` prints the active
+  profile, what chose it (the rule's index and the inputs that matched, or "manual, until 17:30") and
+  what it is suppressing, so the operator can always answer "why is it quiet". The existing quiet expiry
+  in `pns-adapters/src/persistence/sqlite/settings.rs` is the model for the override's storage. A
+  Shortcut over SSH can run the same command from the phone.
+
+  LOCATION. A location is a named network fingerprint. On this machine the Wi-Fi name is NOT readable:
+  `ipconfig getsummary en0` prints `SSID : <redacted>` (measured 2026-09-17), because macOS gates the
+  name behind Location Services. So the fingerprint is the default gateway's MAC address
+  (`route -n get default` for the gateway, `arp -n <gateway>` for the MAC), optionally plus the subnet,
+  and `pns profile learn <name>` records the current network under a name so nobody types a MAC. An
+  unknown network matches no location rule. No GPS, no phone tracking, nothing leaves the machine.
+
+  WHEN IT IS EVALUATED. The pns daemon resolves the active profile on its own clock (every tick),
+  immediately on a network change, on a Focus change and on every override command. Each transition is
+  one line in the ledger with the old profile, the new one and the reason. The resolver is a pure
+  function (inputs in, profile out) so every rule combination has a deterministic unit test with no
+  daemon.
+
+  WHAT HAPPENS TO WHAT WAS SUPPRESSED. Nothing is dropped. An event a profile held back is recorded as
+  held, and on the transition to a profile that allows it the engine delivers ONE roll-up ("held while
+  `work`: 3 done, 1 blocked, 1 failed", with the blocked one first) through the existing replay path
+  (`pns/crates/pns/src/return_replay.rs`), never the backlog one by one. Under `night` that roll-up is
+  what `morning` (task 125) shows.
+
+  RELATION TO OTHER TASKS. 126 becomes a rule input, not a switch. B18 (pause status lighting during
+  quiet and Focus) becomes "the active profile decides whether status lighting runs", and the `default`
+  profile keeps B18's decided behaviour. 133 Nightshift selects `night` when it launches. `pns quiet`
+  stays as the short manual hush it is today and is documented as a temporary override of the active
+  profile's quiet setting.
+
+  DONE MEANS: the three shipped profiles and the rules table are in `dot_config/pns/config-values.toml`
+  and regenerated into the template; the resolver has a test per input and per precedence case;
+  `pns profile` explains its choice; the priority floor has a test that no profile can silence a priority
+  page; a network-change transition is observed live on dresden with the transition line in the ledger.
 
 ### Fitness tracking Obsidian views (Scalebar)
 
