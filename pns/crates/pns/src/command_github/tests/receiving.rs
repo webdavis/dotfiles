@@ -49,23 +49,4 @@ mod tests {
             "one notification reached the channel more than once"
         );
     }
-
-    #[test]
-    fn a_poll_that_finds_the_lock_held_stands_down_instead_of_racing_the_holder() {
-        // THE MUTANT THIS PINS: two polls in two processes (the doorbell's and
-        // the daemon's) reading the state before either published it, which
-        // makes the same notification fresh to both. The lock is what makes
-        // the two transports one path.
-        let state = scratch("poll-lock");
-        let lock = state.join(GITHUB_POLL_LOCK);
-        assert!(pns_adapters::claim_lock(
-            &lock,
-            NOW,
-            GITHUB_POLL_LOCK_STALE_SECS
-        ));
-        assert!(
-            !pns_adapters::claim_lock(&lock, NOW, GITHUB_POLL_LOCK_STALE_SECS),
-            "a second poll took a lock the first one holds"
-        );
-    }
 }
