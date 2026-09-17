@@ -2,7 +2,7 @@ use super::*;
 use std::time::{Duration, Instant};
 
 mod fixture;
-use fixture::{Fixture, LIVENESS_BOUND, child_fixture};
+use fixture::{Fixture, child_fixture};
 
 #[test]
 fn the_whole_recap_deadline_includes_source_reads() {
@@ -12,7 +12,7 @@ fn the_whole_recap_deadline_includes_source_reads() {
     let fixture = Fixture::new("whole-recap");
     let mut child = fixture.spawn("source-hang");
     fixture.ready();
-    let status = fixture.wait(&mut child, LIVENESS_BOUND);
+    let status = fixture.wait(&mut child);
     assert!(
         status.is_some_and(|status| !status.success()),
         "a blocked source read must be stopped by the whole recap deadline"
@@ -26,7 +26,7 @@ fn a_finished_recap_preserves_its_status_and_reaps_the_guardian() {
     }
     let fixture = Fixture::new("finished-recap");
     let mut child = fixture.spawn("complete");
-    let status = fixture.wait(&mut child, LIVENESS_BOUND);
+    let status = fixture.wait(&mut child);
     assert_eq!(status.and_then(|status| status.code()), Some(42));
 }
 

@@ -70,9 +70,9 @@ impl Fixture {
             std::thread::sleep(Duration::from_millis(1));
         }
     }
-    pub(super) fn wait(&self, owned: &mut Owned, duration: Duration) -> Option<ExitStatus> {
+    pub(super) fn wait(&self, owned: &mut Owned) -> Option<ExitStatus> {
         let child = &mut owned.child;
-        let end = Instant::now() + duration;
+        let end = Instant::now() + LIVENESS_BOUND;
         loop {
             if let Some(status) = child.try_wait().unwrap() {
                 return Some(status);
