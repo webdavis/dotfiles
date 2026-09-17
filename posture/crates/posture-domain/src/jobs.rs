@@ -209,8 +209,8 @@ impl JobPlan {
             Trigger::Daily(DailyTime { hour, minute }) => key(
                 "StartCalendarInterval",
                 &format!(
-                    "  <dict>\n    <key>Hour</key>\n    <integer>{hour}</integer>\n    \
-                     <key>Minute</key>\n    <integer>{minute}</integer>\n  </dict>\n"
+                    "  <dict>\n    <key>Hour</key><integer>{hour}</integer>\n    \
+                     <key>Minute</key><integer>{minute}</integer>\n  </dict>\n"
                 ),
             ),
         }

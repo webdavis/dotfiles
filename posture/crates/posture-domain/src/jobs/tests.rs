@@ -128,8 +128,8 @@ fn an_interval_unit_states_its_program_its_interval_and_a_usable_search_path() {
 fn a_daily_unit_states_a_calendar_interval_and_no_interval_at_all() {
     let unit = plan(Agent::Digest).unit();
     assert!(unit.contains("<key>StartCalendarInterval</key>"));
-    assert!(unit.contains("<key>Hour</key>\n    <integer>18</integer>"));
-    assert!(unit.contains("<key>Minute</key>\n    <integer>0</integer>"));
+    assert!(unit.contains("<key>Hour</key><integer>18</integer>"));
+    assert!(unit.contains("<key>Minute</key><integer>0</integer>"));
     assert!(!unit.contains("<key>StartInterval</key>"));
     assert!(unit.contains("<false/>"));
 }
@@ -217,6 +217,29 @@ fn drift_names_the_line_each_side_holds_alone_including_a_repeat() {
         vec!["<string>com.example.poll</string>".to_string()]
     );
     assert!(!drift.is_empty());
+}
+
+#[test]
+fn a_daily_unit_with_hour_and_minute_swapped_is_drift_not_a_match() {
+    let expected = plan(Agent::Digest).unit();
+    let live = JobPlan::new(
+        Agent::Digest,
+        &labels(),
+        DailyTimes {
+            digest: DailyTime {
+                hour: 0,
+                minute: 18,
+            },
+            heartbeat: DailyTimes::default().heartbeat,
+        },
+        Path::new("/private/bin/posture"),
+        Path::new("/private/home"),
+    )
+    .unit();
+    assert!(
+        !unit_drift(&expected, &live).is_empty(),
+        "18:00 and 00:18 hold the same four lines in different order and must not read as equal"
+    );
 }
 
 #[test]
