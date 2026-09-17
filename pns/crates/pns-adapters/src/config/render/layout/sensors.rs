@@ -177,7 +177,9 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
                          # tick; naming none leaves the receiver exited and the poll is the\n\
                          # source either way. It is a SEPARATE value from the token above and\n\
                          # gets its own vault entry, because the receiver verifies deliveries\n\
-                         # with it and reads no notification of its own.\n",
+                         # with it and reads no notification of its own. The LaunchAgent only\n\
+                         # reloads when its plist changes, so arming or rotating this value\n\
+                         # needs `launchctl kickstart -k gui/$(id -u)/com.webdavis.pns-github-receiver`.\n",
             sample: Sample::Example("\"\""),
         },
         Key {

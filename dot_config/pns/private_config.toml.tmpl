@@ -176,7 +176,9 @@ poll_secs = 60
 # tick; naming none leaves the receiver exited and the poll is the
 # source either way. It is a SEPARATE value from the token above and
 # gets its own vault entry, because the receiver verifies deliveries
-# with it and reads no notification of its own.
+# with it and reads no notification of its own. The LaunchAgent only
+# reloads when its plist changes, so arming or rotating this value
+# needs `launchctl kickstart -k gui/$(id -u)/com.webdavis.pns-github-receiver`.
 # webhook_secret = ""
 # The loopback port the receiver binds, bounded 1024 to 65535, which
 # the Cloudflare tunnel's ingress for the webhook hostname points at.
