@@ -226,6 +226,7 @@ fn run(taken: Submission) -> Vec<String> {
 mod arguments;
 mod attempts;
 mod gates;
+mod loop_lease;
 mod order;
 
 mod outcomes;
