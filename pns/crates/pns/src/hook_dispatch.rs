@@ -37,7 +37,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // the session's next event.
         "prompt" => {
             start_of_turn(&payload);
-            end_blocked_wait(&payload.session_id);
+            end_blocked_wait(&payload.session_id, now_secs());
             name_session(&payload, &agent);
         }
         "stop" => end_of_turn(&payload, &agent),
@@ -68,7 +68,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         "resolved" => {
             clear_nag(&payload.session_id);
             if !payload.in_subagent {
-                end_blocked_wait(&payload.session_id);
+                end_blocked_wait(&payload.session_id, now_secs());
             }
         }
         // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
