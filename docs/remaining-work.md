@@ -3823,7 +3823,20 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   purple for a pass and orange for a failure), and the lamp wiring (three dedicated lamps,
   `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
   and nothing else). On GitHub itself, Actions notifications are set to On GitHub with failed-only off,
-  and Dependabot alerts to On GitHub plus CLI.
+  and Dependabot alerts to On GitHub plus CLI. STATUS 2026-09-17: part 1 is SHIPPED, not merely built. It
+  merged as [PR #713](https://github.com/webdavis/dotfiles/pull/713) at `33e38442` and the code is on
+  main (`pns/crates/pns-adapters/src/github/notifications.rs`, `github/client.rs`, `config/github.rs`),
+  so the earlier note about an unshipped worktree with half-applied uncommitted fixes is stale and
+  nothing is at risk. The operator's GitHub-side settings are DONE and confirmed by screenshot on
+  2026-09-17: Actions notifications are `on GitHub` with `Only notify for failed workflows` unchecked,
+  which is what makes a passing run observable at all and therefore what makes the purple-for-pass lamp
+  possible, and Dependabot alerts are `on GitHub, CLI`. Both matter because pns reads the notifications
+  inbox through `GET /notifications`, and an item delivered only by email never enters that inbox for pns
+  to read. REMAINING: three pull requests, none of them blocked on the operator, in this order: the push
+  receiver through the existing Cloudflare tunnel as a separate process, then the GitHub lamp colours
+  (configurable, defaulting to purple for a pass and orange for a failure), then the lamp wiring for
+  `3F - Studio - HCL2`, `3F - MBedroom - HCL2` and `2F - Kitchen - HCD5`, each with `shows = ["github"]`
+  and nothing else.
 
 - [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
   `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
@@ -3926,6 +3939,35 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   one of the six is a file watch, rather than `agents` because that word now means something else and
   collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
   service.
+
+- [ ] 99. Two routes pns would send to do not exist in the gateway, filed 2026-09-17. `pns doctor`, run
+  by the operator on 2026-09-17, reported
+  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE; a page sent here is lost` and the same for
+  `route posture`, against `general`, `posture-pages` and `priority` which it confirmed served. So five
+  routes were checked, two are missing, and anything addressed to either is dropped rather than refused.
+  This matters most for `pns-recap`, because the recap is the daily record the operator reads, and for
+  `posture`, because the 2026-09-14 routing ruling put health and security pages on their own name. Note
+  that the committed source names only three hermes keys in `dot_config/pns/config-values.toml` under
+  `[plugins.hermes.keys]`: `pns-events`, `posture-pages` and `priority`. `posture` and `pns` also appear
+  in `[plugins.discord.channels]`, but that table is the per-project channel map rather than a hermes
+  route list, and `[plugins.discord]` ships disabled. So the first job is to find where the two names
+  doctor checked actually come from, since it is not that table, and decide per name whether the gateway
+  gains the route or pns stops naming it. Do NOT read `~/.hermes/.env` or print any channel id while
+  doing it. Related: the five-route live coverage of task 86, which counted `general` proven by this same
+  run.
+
+- [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed
+  `route pns-recap: THE GATEWAY HAS NO SUCH ROUTE`, the same for `route posture`,
+  `1 notification still waiting to reach a channel`, `17 notifications given up on after retrying`, and
+  `the daemon log shows it recently failed to record a delivery, so these counts may be low`, and then
+  closed with `checkmark nothing to act on`. Two lost routes and seventeen dead letters are exactly the
+  things to act on, so the summary contradicts the body of the same report. In a tool whose whole job is
+  to say when a notification did not arrive, a false all-clear is the worst available failure: it is the
+  line an operator reads when they are skimming. Fix the verdict so any warning in any section, and any
+  non-zero dead-letter or undelivered count, prevents the all-clear and says what to look at. Pin it with
+  a test that gives doctor a report carrying one warning and asserts the summary is not the all-clear.
+  Side observation to check while in there: the dead-letter count was 11 on 2026-09-13 and is 17 now, so
+  the population is growing rather than static, which the watchdog reports only on an increase.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
