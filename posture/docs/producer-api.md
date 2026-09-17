@@ -63,14 +63,15 @@ broken delivery path is itself something the operator has to know.
 
 The severity of a finding names its route, and the route rides in the request for both delivering modes:
 
-| Tier           | Route           |
-| -------------- | --------------- |
-| critical       | `priority`      |
-| notice, info   | `posture-pages` |
-| no tier at all | `posture-pages` |
+| Tier           | Route                |
+| -------------- | -------------------- |
+| critical       | `priority`           |
+| notice, info   | the configured route |
+| no tier at all | the configured route |
 
-"No tier at all" is the heartbeat, the daily digest and the cursor-reset warning, which keep whatever
-route the command built its sink with.
+The configured route is `route` in the `[notify]` table, and it defaults to `posture-pages`. It carries
+every page whose tier names no route of its own: a notice, an info finding, the heartbeat, the daily
+digest and the cursor-reset warning.
 
 In `hermes` mode the route also selects the signing key and the final URL path segment: a `posture-pages`
 page is signed with the `posture-pages` key and posted to `<url>/posture-pages`. A route this machine
@@ -81,7 +82,8 @@ will answer 401 to and calling it delivered.
 
 ```toml
 [notify]
-mode = "hermes" # or "command", or "off"
+mode = "hermes"         # or "command", or "off"
+route = "posture-pages"
 
 [notify.command]
 path = "/path/to/engine"

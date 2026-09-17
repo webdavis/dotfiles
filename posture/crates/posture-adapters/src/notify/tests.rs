@@ -6,7 +6,15 @@ use posture_domain::Agent;
 const HOME: &str = "/private/fixture/home";
 
 fn parsed(text: &str) -> NotifyMode {
-    Notify::parse(text, Path::new(HOME)).expect("a usable notify choice")
+    Notify::parse(text, Path::new(HOME))
+        .expect("a usable notify choice")
+        .0
+}
+
+fn parsed_route(text: &str) -> String {
+    Notify::parse(text, Path::new(HOME))
+        .expect("a usable notify choice")
+        .1
 }
 
 fn copy_of(mode: &NotifyMode) -> Option<CriticalCopy> {
@@ -142,7 +150,7 @@ fn formatting_a_choice_names_the_routes_and_never_prints_a_signing_key() {
             priority = "s3cret-priority"
             "#,
         ),
-        refusal: None,
+        ..Default::default()
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -215,7 +223,7 @@ fn formatting_a_choice_names_the_copy_route_too() {
             explain = "s3cret-explain"
             "#,
         ),
-        refusal: None,
+        ..Default::default()
     };
     let formatted = format!("{notify:?}");
     assert!(!formatted.contains("s3cret"), "{formatted}");
@@ -286,4 +294,31 @@ fn the_labels_the_watchdog_searches_for_come_off_the_config_file_on_disk() {
     let configured = agent_labels(&home);
     std::fs::remove_dir_all(&home).expect("the sandbox is removable");
     assert_eq!(configured.label(Agent::Heartbeat), "com.example.pulse");
+}
+
+/// THE ROUTE NAME IS THE OPERATOR'S, and this is the one they get without
+/// saying so: `#posture` was retired and `#posture-pages` is the channel the
+/// gateway serves.
+#[test]
+fn an_untiered_page_takes_the_posture_pages_route_by_default() {
+    assert_eq!(Notify::default().route, "posture-pages");
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"hermes\"\n"),
+        "posture-pages"
+    );
+}
+
+/// One name, stated once, for whichever mode carries the page: a machine whose
+/// gateway spells the channel differently says so here rather than needing a
+/// build of its own.
+#[test]
+fn the_untiered_route_is_overridable_in_config() {
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"hermes\"\nroute = \"pages-elsewhere\"\n"),
+        "pages-elsewhere"
+    );
+    assert_eq!(
+        parsed_route("[notify]\nmode = \"off\"\nroute = \"pages-elsewhere\"\n"),
+        "pages-elsewhere"
+    );
 }

@@ -24,7 +24,7 @@ pub use lights::{LightsReport, lights_lines};
 pub use outcome::{Check, CheckKind, ConfigState, Outcome, exit_code, line, outcome_mark, summary};
 pub use pairing::{Pairing, PairingReport, pairing_lines, pairing_mark};
 pub use report::{Item, Mark};
-pub use routes::{RouteVerdict, route_line, route_mark, routes_summary};
+pub use routes::{RouteVerdict, route_line, route_mark, routes_summary, routes_to_check};
 
 mod decisions;
 pub use decisions::{Detail, Summary, ago, section as decision_section, summarize};
