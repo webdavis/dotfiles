@@ -119,13 +119,18 @@ fn report(
                 },
                 now,
             );
-            // THE FIRST POLL EVER SUBMITS NOTHING. `stored.last_modified` is
-            // empty on no other tick: a published state always carries the
-            // cursor the last 200 answered with. Notifications are never
+            // THE FIRST POLL EVER SUBMITS NOTHING. Notifications are never
             // marked read, so a fresh machine's first answer is the whole
             // unread backlog; this establishes the cursor and the seen-set
             // from it instead of paging the operator for everything at once.
-            if !stored.last_modified.is_empty() {
+            //
+            // IT IS THE ABSENCE OF BOTH HALVES THAT SAYS "FIRST", not the
+            // cursor alone: a 200 carrying no `Last-Modified` leaves the
+            // cursor empty with the batch already remembered, and reading
+            // that as another first poll would silence the source for as
+            // long as the header stayed away.
+            let established = !stored.last_modified.is_empty() || !stored.seen.is_empty();
+            if established {
                 for identity in &fresh {
                     if let Some(event) = mapped.iter().find(|event| &event.identity == identity) {
                         submit(event);

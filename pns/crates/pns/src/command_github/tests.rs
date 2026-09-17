@@ -261,6 +261,39 @@ mod tests {
     }
 
     #[test]
+    fn a_state_holding_a_seen_set_and_no_cursor_is_not_the_first_poll_ever() {
+        // THE MUTANT THIS PINS: "first poll" read off the cursor alone. A 200
+        // that carried no `Last-Modified` publishes the batch it remembered
+        // under an empty cursor, and a source that read every later tick as
+        // another first poll would go silent for as long as the header did.
+        let state = scratch("established-without-a-cursor");
+        let stored = PollState {
+            last_modified: String::new(),
+            interval_secs: 60,
+            seen: vec![Seen {
+                identity: "webdavis/dotfiles|workflow_run|1|1789398987".to_string(),
+                first_seen: NOW - 60,
+            }],
+        };
+        let mut submitted: Vec<String> = Vec::new();
+        report(
+            &stored,
+            &state,
+            GithubPolled::Listed {
+                threads: vec![thread("webdavis/dotfiles", "4471")],
+                answer: Answer::default(),
+            },
+            NOW,
+            Launch::Daemon,
+            &mut |event| submitted.push(event.identity.clone()),
+        );
+        assert_eq!(
+            submitted,
+            vec!["webdavis/dotfiles|workflow_run|4471|1789398987"]
+        );
+    }
+
+    #[test]
     fn a_listing_of_only_notifications_already_reported_leaves_the_seen_set_alone() {
         // THE NEGATIVE CASE FOR THE DEDUPLICATION: notifications are never
         // marked read, so the same unread thread comes back on every poll
