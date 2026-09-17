@@ -1415,6 +1415,32 @@ The planned Rust lanes are implemented. The following deployment check remains.
   notification result, success marker and streaks separately. A successful manual run or notification
   HTTP 200 does not establish scheduled acceptance. Do not repeat task 11c's retired-job cleanup.
 
+  THE CODE HALF IS CONFIRMED SHIPPED, 2026-09-17, reconciled in
+  [PR #762](https://github.com/webdavis/dotfiles/pull/762), merged `5d79a580`, which wrote
+  `docs/superpowers/specs/2026-09-17-uu-runtime-acceptance-and-interruption-reconciliation.md` and
+  changed no Rust file, ran no apply, triggered no run and sent no notification. Four of this entry's
+  claims were already satisfied and are now evidenced rather than asserted.
+
+  THE INTERRUPTION DEFECT IS FIXED FOR BOTH SIGNALS, which was the thing actually worth checking, since a
+  fix covering only SIGTERM would have satisfied the test name task 101 recorded while leaving the
+  reported defect in place. PR #542's interruption installer registers ONE handler for SIGINT and SIGTERM
+  into a single atomic flag, and every downstream consumer reads that one flag with no branch on which
+  signal arrived; both named cases pass. The duplicate scheduled output is fixed too: the LaunchAgent
+  plist already sends its error stream somewhere other than uu's own application log, in the same pull
+  request. The cua-driver path resolves as claimed and the Claude plugin snapshot still holds all twenty
+  one rows. Of the audit's twelve lanes missing a state directory, EIGHTEEN OF NINETEEN declared lanes
+  now have one, and the single exception is a lane task 57c ADDED which has legitimately not run yet, so
+  it is not a regression.
+
+  WHAT REMAINS IS TIME-GATED AND NO AGENT CAN SHORTEN IT. A read-only `launchctl print` reports zero runs
+  and no exit code ever recorded for the weekly job, so the Sunday noon lane has still never fired. This
+  entry's own rule holds and was not bent: a successful manual run, and a notification returning HTTP
+  200, do NOT establish scheduled acceptance. The document therefore carries the exact commands and the
+  expected passing output to capture AFTER the job fires on 2026-09-20, covering the run count and exit
+  code, the log's run-started and done lines, the last-success timestamp, the one new lane state
+  directory, each lane's streak file, and confirmation that the notification reached a real destination
+  rather than merely logging a 200.
+
 - [x] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
   DONE 2026-09-17. PREMISE CORRECTED 2026-09-17: uu had already stopped rejecting a pin. Commit
   `48217fd6` on main parsed `ref` and passed it to `--ref`, so the sentence below about rejecting a `pin`
@@ -2759,6 +2785,31 @@ is missing.
   is a notification source. Two slicing questions remain: the two numbers `[lights] refresh_secs` splits
   into, which ships at 12 today and serves both the daemon re-arm interval and the fade budget.
 
+  SLICE PROGRESS. The ladder is `docs/superpowers/plans/2026-09-17-pns-refactor-slices.md` and slices are
+  taken in its order, one pull request each.
+
+  SLICE 1 DONE 2026-09-17, [PR #758](https://github.com/webdavis/dotfiles/pull/758), merged `268e01fe`.
+  The duration parser moved out of `pns/crates/pns-domain/src/quiet.rs` into a new `pns-domain::duration`
+  module that takes the field name its refusals quote, the text, and the inclusive range that field
+  allows. It returns a standard duration, refuses a bare number, and spells each range bound back in the
+  largest unit that holds it whole, so a refusal reads in the units an operator would actually type.
+  `quiet` keeps only its own policy bound, a new mute range of one second to twenty four hours, and both
+  mute callers now call the one parser at that range. Five tests pin the units, both refusal shapes, the
+  per-field range refusal, the range spelling, and that two different field names produce two differently
+  named refusals. No config key or template moved, so no apply is owed for this slice.
+
+  THE SLICE SHIPPED WITHOUT THE `ms` UNIT THE LADDER ASKED FOR, AND THAT IS A DEFECT IN THE PLAN RATHER
+  THAN IN THE WORK. The ladder's behaviour line for slice 1 says a duration is accepted in `ms`, `s`, `m`
+  and `h`. The review found that the parser's only caller today is the mute, whose range starts at one
+  second, so every millisecond value the parser accepted was then refused by the range WHILE THE REFUSAL
+  MESSAGE STILL ADVERTISED `ms` AS A LEGAL UNIT: a refusal contradicting the usage line printed directly
+  beneath it. The unit was removed rather than left dead, and the parser's own tests stopped borrowing
+  the mute's policy constant, which had coupled a generic parser to one caller's bound. CONSEQUENCE FOR
+  THE LADDER, and the first later slice to hit it should read this first: plan item 40's unit list is the
+  EVENTUAL set, not slice 1's acceptance, so whichever slice first introduces a field whose range reaches
+  below one second has to re-add the unit and its millisecond spelling row. Slices 12, 22, 29, 30, 33,
+  34, 35, 43 and 44 all parse a duration and are where that will surface.
+
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
   [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
@@ -3555,15 +3606,17 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   independent alert, restricted evidence and advisory-only requirements in the section below. Supersede
   the digest trigger and obsolete recipes in a smaller reviewed plan after the security decisions are
   settled. #24 remains open; do not merge its old instructions unchanged.
-- [ ] Reconcile the approval interface separately: Butters tap-to-approve scoped to pending findings and
-  the `/osquery allow|deny|list` Hermes skill. Verify the current posture command and trust contracts;
-  investigation must not grant the analyst approval authority. On 2026-09-14 the reconciled scope was
-  written to `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`. Verified on the
-  host: `posture allowlist add|deny|list` is the writer, it refuses a label with no installed launchd
-  agent, pins the plist hash with SHA-256, writes the chezmoi source and then refreshes the root-owned
-  manifest; the allowlist is manifested (`0600 501`) and `allowlist_verdict` spends a vouch before it
-  ever suppresses, so the 2026-07-26 option B plus D-prime both shipped, while option E did not. Nothing
-  in posture, pns or the state tree has a pending-findings concept. Butters is now a Hermes profile (a
+
+- [x] Reconcile the approval interface separately. DONE 2026-09-17. Butters tap-to-approve scoped to
+  pending findings and the `/osquery allow|deny|list` Hermes skill. Verify the current posture command
+  and trust contracts; investigation must not grant the analyst approval authority. On 2026-09-14 the
+  reconciled scope was written to
+  `docs/superpowers/specs/2026-09-14-osquery-approval-authority-design.md`. Verified on the host:
+  `posture allowlist add|deny|list` is the writer, it refuses a label with no installed launchd agent,
+  pins the plist hash with SHA-256, writes the chezmoi source and then refreshes the root-owned manifest;
+  the allowlist is manifested (`0600 501`) and `allowlist_verdict` spends a vouch before it ever
+  suppresses, so the 2026-07-26 option B plus D-prime both shipped, while option E did not. Nothing in
+  posture, pns or the state tree has a pending-findings concept. Butters is now a Hermes profile (a
   computer-use LLM agent), not a bespoke bot; all three live Hermes webhook routes are `deliver_only`, so
   the Discord surface a page lands on cannot carry buttons without modifying third-party code; Hermes's
   own `ExecApprovalView` is session-scoped at 300 s and fires only for `DANGEROUS_PATTERNS`, which
@@ -3620,6 +3673,57 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   Hermes investigator gated on this change landing? The document's position is yes: an agent that reads
   attacker-controlled evidence and can write the suppression file in the same session is the
   configuration that exists today.
+
+  RECONCILED AND BOTH PIECES RETIRED OR SHRUNK, 2026-09-17, as
+  [PR #760](https://github.com/webdavis/dotfiles/pull/760), merged `a38fece5`, one document at
+  `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`. No Rust file, no
+  route, no allowlist entry and no line of this ledger was touched by that pull request.
+
+  PIECE 1, tap to approve scoped to pending findings: NOT BUILDABLE WITHOUT BREAKING THE TRUST BOUNDARY,
+  and on two independent boundaries rather than one. The DELIVERY boundary, because a deliver-only
+  route's delivery path hands a plain string to a dispatcher that takes no components and no view
+  parameter, and hermes's one button surface is session-keyed and approves a COMMAND an agent already
+  proposed rather than a FINDING, so a button on a page would need third-party code changed, which this
+  repository never does. The INVESTIGATION boundary, because every route that could carry a tap is served
+  by an agent, so the tapper is the investigator, which is the one thing this bullet forbids outright.
+
+  PIECE 2, the `/osquery allow|deny|list` skill: BUILDABLE SMALLER, and only the `list` third of it. Both
+  write verbs shrink away, and NOT because a skill would be unsafe. The reason is the live security fact
+  this bullet already suspected on 2026-09-14 and which was MEASURED AGAINST THE INSTALLED HERMES on
+  2026-09-17: the live Discord platform toolset carries `terminal` with a local backend, `sudo -n true`
+  exits 0, `dot_bashrc.tmpl` puts `~/.cargo/bin` on the PATH a hermes shell sources, and BOTH approval
+  gates allow the allowlist writer's add verb, so with no warnings collected the approval path returns
+  approved WITH NO PROMPT. Every Discord hermes agent therefore already holds exactly the authority the
+  proposed skill would have named, so the skill would be a label on an open door. THE BOUNDARY THAT NEEDS
+  AN OPERATOR DECISION IS THE DISCORD PLATFORM TOOLSET ITSELF, not either piece of this design, and that
+  supersedes open question 3 above: gating the recovered investigator on a pending scope does not close a
+  door that is already open to every agent on that platform.
+
+  Three further findings RETIRE design rather than shape it. A PENDING FINDING DOES NOT EXIST IN CODE:
+  the finding type is a borrowed transient over one results-log row, the only persisted progress is an
+  inode plus an offset, and the digest spool holds only digest outcomes, which is the COMPLEMENT of the
+  set an approval would act on, so the derived pending set the 2026-09-14 document recommends cannot be
+  built from what is stored. That answers assumption one of operator step 7 in the negative. A GRANT
+  THROUGH THE WRITER IS SILENT: the allowlist file is watched, the integrity verdict is log-only when the
+  manifest vouches for the new content, and the publisher refreshes that manifest as its last step, so a
+  hand edit pages and the SUPPORTED path does not, which is the opposite of the announcement this design
+  assumed it would get for free. And the allowlist write lock is a blocking exclusive lock recording NO
+  identity, timestamp or verb, so the thread this repository has around it is a concurrency contract
+  rather than an audit trail; that gap is filed as task 146.
+
+  Two of the three properties "scoped to pending findings" needs ALREADY HOLD: the allowlist is consulted
+  in exactly one gate branch, and an entry pins label plus path plus program plus plist hash together so
+  a changed path or program is reported as a reused label rather than suppressed, which is precisely what
+  stops one approved finding widening into an approved class. The missing third, a record that a finding
+  is actually outstanding, needs new persisted state and is the only genuinely new thing either piece
+  would require.
+
+  Tonight's own merges changed two answers relative to the 2026-09-14 reading, and both simplify operator
+  step 5. The webhook platform toolset is declared as the no-MCP sentinel, which resolves to an EMPTY
+  toolset, so the `explain` agent route is fenced from the allow path by an empty toolset rather than by
+  prose. And the bare `posture` route's 404 recorded above is GONE, because task 99 renamed it to
+  `posture-pages`, which the gateway already serves.
+
 - [ ] Reconcile the June hardening-plan remainder and explicitly deferred FleetDM, beaconing and Wazuh
   research. Record accepted scope before implementation. Issue #18's FileVault fix and dead snapshot
   handling are already present in the current query, Bash and Rust paths; reconcile/close its stale issue
@@ -3659,6 +3763,7 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   since no document on `origin/docs/osquery-design` picks FleetDM as a product (its only two mentions are
   citation URLs at `docs/superpowers/research/2026-06-08-macos-persistence-monitoring-design-research.md`
   lines 144 and 145).
+
 - [ ] Give the June hardening requirements explicit dispositions: signature-chain verification,
   interpreter-payload assessment and per-run grouping of repeated findings about the same subject.
   Current Rust code reads signature metadata, leaves interpreter payloads unverified and retains each
@@ -3733,6 +3838,7 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   demonstration. (8) One change set or three pull requests? The recommendation is one design and a ladder
   of three, grouping first, because disposition 1 adds a process per code finding against a deadline that
   disposition 3 relieves.
+
 - [ ] Preserve deferred install-state kernel-extension monitoring and off-host machine-death detection.
   The former needs reconciliation with July's decision to alert on untrusted loaded extensions; do not
   restore June's obsolete delivery block. The latter needs an external host and remains homelab scope: a
@@ -4552,9 +4658,9 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   configured route rather than the 404 one that dead-lettered eight digest legs. OPERATOR STEP: a full
   `chezmoi apply` writes the new `route` key and rebuilds both binaries.
 
-- [ ] 100. `pns doctor` ends with a false all-clear, filed 2026-09-17. The 2026-09-17 run printed two
-  `THE GATEWAY HAS NO SUCH ROUTE` warnings, `1 notification still waiting to reach a channel`,
-  `17 notifications given up on after retrying`, and
+- [x] 100. `pns doctor` ends with a false all-clear. DONE 2026-09-17. Filed the same day. The 2026-09-17
+  run printed two `THE GATEWAY HAS NO SUCH ROUTE` warnings,
+  `1 notification still waiting to reach a channel`, `17 notifications given up on after retrying`, and
   `the daemon log shows it recently failed to record a delivery, so these counts may be low`, then closed
   with `nothing to act on`. The cause is already diagnosed in the unnumbered hermes-security item:
   `RouteVerdict::Missing` maps to `Mark::Warn`, and the summary escalates only on an error, so every
@@ -4567,6 +4673,45 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   than waiting for a route to reappear. Side measurement: the dead-letter population was 11 on 2026-09-13
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
+
+  SHIPPED 2026-09-17 as [PR #763](https://github.com/webdavis/dotfiles/pull/763), merged `191f2c59`, and
+  the defect turned out to have TWO halves rather than the one the filing named. The first is the place
+  the filing pointed at: the report's closing decision counted only error rows, so every warning row (a
+  missing route, an unreadable or unanswered pairing, an unknown phone tap, an import failure) passed
+  straight through and the report closed with nothing to act on. The closing list now collects warnings
+  beside issues, COUNTS THE TWO KINDS APART, and numbers every one of them, so the summary names the row
+  to look at rather than merely refusing the all-clear. They are counted apart deliberately: an operator
+  can FIX an issue and may only be able to READ a warning, since a route retired on the gateway cannot be
+  cleared from here.
+
+  The SECOND half was not in the filing and is the more interesting one: the delivery section emitted its
+  counts as plain notes, a reading NO summary could ever escalate, so even a correct closing decision
+  would have passed a dead-letter population through. That function now returns a mark beside each line,
+  with a warning per count and fault (pending, dead-lettered, a growth streak, an unacknowledged alarm, a
+  recording gap, an unreadable record), the pointer to `pns failures` as a detail so it is not counted as
+  a second finding, and the healthy sentence as good.
+
+  TEST FIRST, and the red runs are recorded: two new closing-list tests failed with the all-clear line on
+  the left against the warning count on the right, and the delivery-mark test failed to COMPILE against
+  the old string-only return. Both green after the fix. THE DEFECT COULD NOT BE REPRODUCED FROM A LIVE
+  RUN, for the two reasons the filing predicted: task 99 had already removed the two route warnings that
+  produced the original reading, and a real `pns doctor` run sends a test notification down every
+  channel, so the evidence is a report constructed in tests plus the code path read end to end. THE EXIT
+  CODE WAS DELIBERATELY LEFT ALONE, so automation reading the exit status is unaffected; withholding the
+  all-clear is now visible in the report text instead.
+
+  ONE VISIBLE BEHAVIOUR CHANGE TO EXPECT: every warning producer now withholds the all-clear, and that
+  set includes the pairing check's no-answer verdict, so on a machine where moshi-hook is simply not
+  installed doctor will from now on close by naming the unchecked approval path rather than saying there
+  is nothing to act on. That reads as correct, since the check did not pass, but it is a change and it
+  should not be a surprise. The side measurement needed no work: doctor already printed the standing
+  dead-letter count and now marks it as a warning that reaches the closing list. What remains is the
+  WATCHDOG's alarm shape, which is a design question and was not guessed at: whether it should page on a
+  standing population above a threshold as well as on growth, and what that threshold is. The population
+  grew from 11 on 2026-09-13 to 17 on 2026-09-17. Filed as task 147.
+
+  Operator step: nothing to arm. The change is Rust source only, rebuilt by the apply-time builder, so
+  the next full `chezmoi apply` is what puts it on the deployed binary.
 
 - [x] 101. Make the Rust suites deterministic around real process spawns. DONE 2026-09-17. Filed on the
   operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
@@ -4695,6 +4840,50 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   prerequisite for ever taking the NAME-based pgrep native, which this task does not: read out of source
   which field macOS pgrep itself matches against, since only the manual page's wording and one observed
   agreement support the current reading.
+
+- [ ] 146. Give the allowlist write lock an audit trail, filed 2026-09-17 from the approval-interface
+  reconciliation. `AllowlistWriteLock` takes a blocking exclusive lock on a sidecar of the deployed
+  allowlist and records NOTHING: no identity, no timestamp, no verb. That makes it a concurrency contract
+  rather than an audit trail, which matters because the same reconciliation established that a grant
+  through the SUPPORTED writer is SILENT (the integrity verdict is log-only when the manifest vouches for
+  the new content, and the publisher refreshes that manifest as its last step) while a HAND EDIT pages.
+  So the only path that suppresses a security finding is also the only path that leaves no trace. DONE
+  MEANS: every acquisition that goes on to WRITE records who asked, when, and which verb with which
+  label, somewhere durable enough to answer "who suppressed this finding and when" weeks later, and a
+  test pins that a write with no such record cannot happen. What it must NOT become is a liveness or
+  approval mechanism; this is a record of what happened, not a gate on what may happen. Read the
+  reconciliation document first, because it names the exact call sites and says why the announcement this
+  was assumed to get for free does not exist.
+
+- [ ] 147. Decide the watchdog's dead-letter alarm shape, filed 2026-09-17 out of task 100's evidence.
+  The watchdog reports only an INCREASE in the dead-letter population, never the standing count, so a
+  population that stops growing stops being mentioned however large it is. It was 11 on 2026-09-13 and 17
+  on 2026-09-17. Task 100 fixed the half that was a defect: `pns doctor` already printed the standing
+  count and now marks it as a warning that withholds the all-clear and names it. THE REMAINING QUESTION
+  IS ALARM POLICY AND IS NOT A ONE-LINE CHANGE, which is why task 100 deliberately left it alone: should
+  the watchdog page on a standing population above a threshold as well as on growth, and what is that
+  threshold? A wrong answer here is expensive in both directions, since a low threshold pages nightly
+  about a number nobody is going to drain and a high one restores exactly the silence task 100 was filed
+  against. Decide the policy before writing any code, and settle in the same breath whether the 17
+  currently dead-lettered legs are drained, retried or accepted as a permanent floor, because the
+  threshold means nothing until that is known.
+
+- [ ] 148. Decide whether the Discord platform toolset keeps unprompted shell authority, filed
+  2026-09-17. THIS IS THE BOUNDARY THE RETIRED APPROVAL DESIGN WAS ACTUALLY ABOUT, and it was measured
+  against the installed hermes rather than reasoned about: the live Discord platform toolset carries
+  `terminal` with a local backend, `sudo -n true` exits 0, the managed shell puts the Rust tools' install
+  directory on the PATH a hermes shell sources, and BOTH approval gates allow the posture allowlist
+  writer's add verb, so with no warnings collected the approval path returns approved with no prompt at
+  all. Every Discord hermes agent therefore already holds the authority the proposed `/osquery allow`
+  skill would have named, which is why that skill shrank to its `list` verb: it would have been a label
+  on a door that is already open. The 2026-09-14 design's instinct to gate the recovered security
+  investigator on a pending scope does not close this, because the door is open to every agent on the
+  platform and not only to that one. DONE MEANS a decision, not code: either the toolset is narrowed (and
+  this ledger records what it loses, since narrowing it changes the scope of every hermes slash command,
+  not just this one), or the open authority is ACCEPTED IN WRITING with the reason, so no later task
+  re-derives the same finding and no later design assumes a boundary that is not there. Until it is
+  decided, treat any agent on that platform as able to suppress a security finding. Evidence:
+  `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`.
 
 - [ ] 145. Say in the shared agent rules who the gh-axi preference binds, filed 2026-09-17 because TWO
   LANES HAVE NOW HAD TO DERIVE IT FROM FIRST PRINCIPLES. `.chezmoitemplates/global-agent-rules.md` says
