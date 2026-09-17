@@ -15,7 +15,7 @@
 # sees the VALUES: the routes are rendered from KeePassXC at apply time, so nothing in git can be
 # checked instead.
 #
-# FIVE routes are checked, because they fail differently and most of them fail quietly:
+# SIX routes are checked, because they fail differently and most of them fail quietly:
 #   general               the catch-all channel. No producer in this repository posts to it today; it is
 #                         declared so an ad-hoc POST has a signed route rather than borrowing another.
 #   pns-events            agent events. One that never arrives is usually noticed anyway, because
@@ -25,10 +25,20 @@
 #   uu-runs               the weekly RECORD from the unattended jobs. A record that never arrives looks
 #                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
 #                         to look.
-# Each route is named for the Discord channel it posts to, which is also the name both of its
+#   explain               the ONE agent route: a critical page is copied here and an agent's explanation
+#                         of it is what gets delivered. Its silence looks like nothing at all, because
+#                         the page it explains arrived on its own route regardless.
+# Five routes are named for the Discord channel they post to, which is also the name both of their
 # KeePassXC entries are built from (renamed 2026-09-14: `pns` -> `pns-events`, `uu` -> `uu-runs`,
 # `posture` -> `posture-pages`, because the bare tool names became GitHub repo channels; `pns-recap`
-# retired with its channel on 2026-09-15 and the return recap posts to `pns-events`).
+# retired with its channel on 2026-09-15 and the return recap posts to `pns-events`). `explain` is the
+# exception: it posts into #priority, under the page it explains, so its channel id comes from that
+# channel's one vault entry and only its SECRET is named after the route.
+#
+# THE DELIVER_ONLY CHECK IS PER ROUTE, AND IT IS INVERTED FOR `explain`. The other five must be
+# deliver_only or hermes feeds their bodies to an agent; `explain` must NOT be, because an agent is what
+# generates the explanation. Both directions are failures worth reporting, so each route carries its own
+# expectation below rather than sharing one assertion.
 # For the quiet ones this check is the only thing standing between a mistyped or unapplied route and a
 # channel that stays empty forever.
 # Keep this list in step with the route names the producers spell: DEFAULT_RECORD_URL in
@@ -38,7 +48,7 @@
 #
 # THE PER-ROUTE KEY COMPARISON IS GONE. Every route used to be required to carry the ONE secret pns
 # signs with, and this script compared the others against the default route's value. The routes now
-# carry five DIFFERENT secrets, one KeePassXC entry each, so there is nothing left to compare a route
+# carry six DIFFERENT secrets, one KeePassXC entry each, so there is nothing left to compare a route
 # against: agreement is between the vault entry a route renders from and the key its senders hold, and
 # neither of those is in this file. What is checkable here is that a secret and a channel are PRESENT,
 # which is what the two value checks below do, by shape and never by value.
@@ -49,8 +59,17 @@ command -v yq >/dev/null 2>&1 || exit 0
 port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
 [[ $port =~ ^[0-9]+$ ]] || port=8644
 
-expected_routes=(general pns-events posture-pages priority uu-runs)
+expected_routes=(explain general pns-events posture-pages priority uu-runs)
 for route in "${expected_routes[@]}"; do
+  # Per-route expectations, defaulted to the delivery shape five of the six share.
+  channel="$route"
+  want_deliver_only=true
+  case $route in
+    explain)
+      channel=priority
+      want_deliver_only=false
+      ;;
+  esac
   # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
   # so a config that had lost a route was indistinguishable from a machine with no hermes at all.
   if ! yq -e ".platforms.webhook.extra.routes // {} | has(\"$route\")" "$cfg" >/dev/null 2>&1; then
@@ -66,7 +85,7 @@ for route in "${expected_routes[@]}"; do
     printf '\n  ⚠ hermes: the %s route has NO secret, so the gateway refuses to start the webhook platform\n    and EVERY route stops answering. Check the KeePassXC entry "Hermes :: Webhook Secret (#%s)" is\n    populated, then: chezmoi apply\n\n' \
       "$route" "$route"
   fi
-  # NO CHANNEL NAMED, or one that is not a snowflake. A deliver_only route whose deliver_extra.chat_id
+  # NO CHANNEL NAMED, or one that is not a snowflake. A route whose deliver_extra.chat_id
   # is empty or absent falls back to the gateway's HOME channel, so every message lands in #general
   # instead of the channel the route was created for, and nothing about that looks broken from either
   # end. The shape test is what catches the other half: a Discord snowflake is 17 to 20 digits today, so
@@ -74,16 +93,25 @@ for route in "${expected_routes[@]}"; do
   chat_id="$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_extra.chat_id // \"\"" "$cfg" 2>/dev/null || echo '')"
   if [[ ! $chat_id =~ ^[0-9]{17,20}$ ]]; then
     printf '\n  ⚠ hermes: the %s route names no usable channel, so its messages go to the HOME channel\n    instead. A Discord channel id is 17 to 20 digits. Check the KeePassXC entry\n    "Discord (Uriel) :: Channel ID (#%s)", then: chezmoi apply\n\n' \
-      "$route" "$route"
+      "$route" "$channel"
   fi
-  # NOT DELIVER_ONLY. Without that field hermes hands the message to an AGENT instead of posting it
-  # verbatim, and these bodies are built from third-party package and skill names. The template declares
-  # the field, so this only fires when something rewrote the file after chezmoi wrote it, which
-  # run_after_59's `hermes config migrate` is in a position to do.
-  if [[ "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$cfg" 2>/dev/null || echo false)" != "true" ]]; then
+  # THE WRONG MODE, in either direction. Both spellings are declared by the template, so either
+  # warning only fires when something rewrote the file after chezmoi wrote it, which run_after_59's
+  # `hermes config migrate` is in a position to do.
+  deliver_only="$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$cfg" 2>/dev/null || echo false)"
+  if [[ $want_deliver_only == true && $deliver_only != "true" ]]; then
+    # A delivery route that became an agent route hands bodies built from third-party package and
+    # skill names to a model, and delivers the model's prose instead of the message.
     printf '\n  ⚠ hermes: the %s route is NOT deliver_only, so hermes feeds its messages to an AGENT\n    instead of posting them verbatim, and those messages carry third-party package and skill names.\n    Run: chezmoi apply\n\n' \
       "$route"
+  elif [[ $want_deliver_only == false && $deliver_only == "true" ]]; then
+    # An agent route that became a delivery route posts the page back verbatim into the channel that
+    # already has it, and the explanation silently stops being generated.
+    printf '\n  ⚠ hermes: the %s route IS deliver_only, so hermes posts the page back verbatim instead of\n    handing it to an agent, and no explanation is generated at all.\n    Run: chezmoi apply\n\n' \
+      "$route"
   fi
+  # NOT LOADED. The probe is unsigned, and the gateway validates the signature before it dispatches
+  # anything (measured 2026-09-15), so an unsigned `{}` answers 401 on `explain` and starts no model run.
   code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/${route}" \
     -H 'Content-Type: application/json' -d '{}' 2>/dev/null || echo 000)"
   if [[ $code == "404" ]]; then
