@@ -829,6 +829,17 @@ TOTAL SLICES: 49
   `[lights.lamp."<name>"]`. `pns/docs/pns-refactor.md` has been corrected in place so the plan no longer
   contradicts itself, and question 1 below is answered rather than open.
 
+- 2026-09-17: `max_age` IS a fourth allowed time word, defined as a bound on how stale a value may be,
+  and `PNS_PHONE_INPUT_AGE` becomes `PNS_PHONE_INPUT_MAX_AGE` to match. This settles question 2 below and
+  unblocks slices 33, 40 and 44. The plan's item 85 listed `age` among six words naming one idea, while
+  its own rename table kept `age` in `event_max_age`, `reading_max_age` and `desk_input_max_age`; the
+  table wins. `deadline`, `interval` and `delay` all point forward at work, whereas these three judge a
+  value already held (the plan itself notes `delivery.max_age_secs` measures the ORIGINAL EVENT's age),
+  so folding them into `deadline` would make each read as a timeout on OBTAINING the value, which is a
+  different knob and would recreate the ambiguity item 85 exists to remove. `pns/docs/pns-refactor.md`
+  has been corrected in place, so questions 1 and 2 below are both answered rather than open; questions
+  3 and 4 remain.
+
 BLOCKED-ON-OPERATOR:
 
 1. Item 3 writes the per-producer reminder setting as `[producers.<name>] remind`, plural. Item 110's

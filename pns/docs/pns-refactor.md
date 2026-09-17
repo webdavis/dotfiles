@@ -320,10 +320,17 @@ Agreed changes to pns, one per line. Add a line for each new agreed change.
    (parsed as float seconds today, `crates/pns/src/turn_text.rs:82-85`) and `PNS_PHONE_INPUT_AGE` (no
    unit at all, `crates/pns-domain/src/decision/overrides.rs:90`).
 1. Use one word per kind of time knob, rather than six for one idea: `deadline` bounds a single
-   operation, `interval` repeats, `delay` waits before acting. Today `timeout`, `deadline`, `threshold`,
-   `interval`, `tick` and `age` all name the same kind of value (`PNS_REMOTE_TIMEOUT`,
+   operation, `interval` repeats, `delay` waits before acting, and `max_age` bounds how stale a value
+   may be. The first three point forward at work this process is about to do or repeat; `max_age` points
+   backward at a value already in hand and says how old it may be and still be trusted, which is why it
+   earns a word rather than being a fourth synonym (operator ruling 2026-09-17). Today `timeout`,
+   `deadline`, `threshold`, `interval` and `tick` all name the same kind of value (`PNS_REMOTE_TIMEOUT`,
    `PNS_DB_BUSY_TIMEOUT_MS`, the four `*_DEADLINE_MS`, `PNS_PULSE_THRESHOLD_SECS`,
-   `PNS_REPLY_REREAD_INTERVAL`, `PNS_DAEMON_TICK_MS`, `PNS_PHONE_INPUT_AGE`).
+   `PNS_REPLY_REREAD_INTERVAL`, `PNS_DAEMON_TICK_MS`), and `PNS_PHONE_INPUT_AGE` is the one `age` that
+   stays, as `PNS_PHONE_INPUT_MAX_AGE`, because it measures exactly that: how long ago the phone was
+   tapped and whether that still counts. Collapsing it into `deadline` would make it read as a timeout
+   on TAKING the reading, which is a different knob pns could also want, so the collapse would recreate
+   the ambiguity this item exists to remove.
 1. Spell words out in environment names, as the repository's naming rule requires:
    `PNS_DB_BUSY_TIMEOUT_MS` abbreviates "database" where every other adapter name says `sqlite`
    (`crates/pns-adapters/src/persistence/sqlite/store.rs:40`), and `PNS_IDLE_SECS` beside
@@ -536,7 +543,8 @@ Every rename above, old to new. Durations take a duration string; nothing else c
 | `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_HERMES_URL`, `PNS_MOSHI_URL`, `PNS_TERMINAL_BUNDLE_ID`                                    | keep, plus a config key each                                                   |
 | `MOSHI_HOOK_BIN`, `CODEX_BIN`                                                                                                       | `PNS_MOSHI_HOOK_BIN`, `PNS_CODEX_BIN`                                          |
 | `PNS_IDLE_SECS`, `PNS_DESK_IDLE_SECS`                                                                                               | `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`                                             |
-| `PNS_PHONE_INPUT_AGE`, `PNS_REPLY_REREAD_INTERVAL`                                                                                  | unchanged names, duration values                                               |
+| `PNS_PHONE_INPUT_AGE`                                                                                                               | `PNS_PHONE_INPUT_MAX_AGE`, duration value                                      |
+| `PNS_REPLY_REREAD_INTERVAL`                                                                                                         | unchanged name, duration value                                                 |
 | `PNS_PAYLOAD_DEADLINE_MS`, `PNS_MOSHI_JSON_DEADLINE_MS`, `PNS_MOSHI_STATUS_DEADLINE_MS`                                             | `PNS_PAYLOAD_DEADLINE`, `PNS_MOSHI_JSON_DEADLINE`, `PNS_MOSHI_STATUS_DEADLINE` |
 | `PNS_DAEMON_TICK_MS`                                                                                                                | `PNS_DAEMON_TICK_INTERVAL`                                                     |
 | `PNS_DB_BUSY_TIMEOUT_MS`                                                                                                            | `[storage] busy_deadline`                                                      |
