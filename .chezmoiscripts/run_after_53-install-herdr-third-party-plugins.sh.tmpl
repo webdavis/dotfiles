@@ -56,8 +56,9 @@ plugin_registered() {
 # plugin repository, which is a network operation and not a socket round trip.
 # A pinned ref (uu's own `ref:` roster key) is passed through so a fresh install
 # lands at that revision instead of tip; the id-only presence gate above still
-# skips a plugin that is already registered, pinned or not, since only uu's
-# weekly refresh reconciles a plugin sitting at the wrong revision.
+# skips a plugin that is already registered, pinned or not. Nothing moves a
+# pinned plugin that is already installed: uu's weekly run reports the install
+# command for the revision it is not at, and the operator runs it.
 install_plugin() {
   local plugin_id=$1 source_repo=$2 ref=${3:-}
   local -a install_args=("$source_repo")

@@ -177,7 +177,6 @@ pub(crate) use uv::parse_uv_lane;
 
 #[cfg(test)]
 pub(crate) use brew::{DEFAULT_BREW, DEFAULT_MAS, DEFAULT_TAILSCALED};
-#[cfg(test)]
 pub(crate) use herdr::Plugin;
 
 #[cfg(test)]
