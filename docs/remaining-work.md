@@ -1083,7 +1083,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   expected CRIT watchdog page with its dead-letter banner, the `osquery-watchdog-state.json` read, and
   the follow-up pull request retiring `uptime-watchdog.sh`, `pipeline-audit.sh` and
   `results-alerter/pipeline-verdict.sh` from source.
-- [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
+- [x] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
   exact alerts, baseline bytes, markers and submission order. The full repository gate and required
@@ -1120,7 +1120,14 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh` producer (998 lines) is still
   present in source and referenced by nothing (no plist, no justfile recipe, no `.chezmoiignore` entry),
   so the "before removing the Bash producer" half of this task's acceptance is not yet closed; it retires
-  from source in the same follow-up pull request as task 46.
+  from source in the same follow-up pull request as task 46. CLOSED 2026-09-17: the exposure and recovery
+  drill ran twice on the live machine. Each cycle: firewall off, `posture-state.json` read `firewall: 0`
+  at the next scheduled tick and stayed 0 across a second tick, firewall on, the recovery tick read
+  `firewall: 1`. The agent advanced 2541 to 2547 runs at exit code 0 with no missed tick, and the second
+  cycle detected the exposure again, proving the marker rearms. The operator received EXACTLY TWO
+  critical pages, one per cycle and none per tick or on recovery, which is the delivery half only they
+  could confirm. The firewall was verified enabled as the drill's last action. The Bash producer still
+  retires with task 46's follow-up pull request.
 - [x] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -1714,7 +1721,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`. Closed 2026-09-15:
   [PR #549](https://github.com/webdavis/dotfiles/pull/549) merged, and `posture ssh install`,
   `posture ssh verify` and `posture ssh reload` all exited 0 live on 2026-09-14.
-- [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
+- [x] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
   coverage for relocated data and update its consumers, then retire the old managed scripts and approved
   deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
   Coordinate that removal across watch paths, manifests and Rust manifest selection. Keep osqueryd
@@ -1739,7 +1746,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   removed. Deployed 2026-09-13 20:50: the apply rebuilt pns, posture and uu, the relocated data is at
   `~/.local/libexec/posture/` (`controls.json`, `converge/`), and the operator ran the one `trash` pass
   (`posture-controls.json` and `osquery-converge/desired/` are gone). Restart acceptance (the plan's
-  operator-run osqueryd restart after the watched paths changed) remains open.
+  operator-run osqueryd restart after the watched paths changed) remains open. CLOSED 2026-09-17: the
+  outstanding osqueryd restart was performed and verified.
+  `launchctl kickstart -k system/io.osquery.agent` moved the daemon from pid 891 to pid 56295 with
+  `state = running`, so the relocated watch paths from
+  [PR #553](https://github.com/webdavis/dotfiles/pull/553) are now the ones the running daemon reads.
 - [x] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
   before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
   inventory. Preparatory mapping on `docs/posture-test-mapping` at `d95c39f3` preserves all original
@@ -2914,17 +2925,21 @@ complete Swift/custom-plugin interaction and fresh-home/repeat applies remain op
 deployed Overseer template has a different filename with identical contents; reconcile that during
 operator deployment. No source correction was warranted by this audit.
 
-- [ ] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
+- [x] Finish [6hR57XgFJxrgVFVM](https://app.todoist.com/app/task/6hR57XgFJxrgVFVM), the remaining
   nvim-mcp review. `pane_socket.lua` and `executable_nvim-mcp-connect.sh` validate the final runtime
   directory but leave replaceable ancestors unchecked. The resolver's `answers()` follows socket
   symlinks, and newline-containing runtime paths are accepted by the listener but split inconsistently
   during discovery. Source `bffa979a` and `e8bd14ac` fix replaceable ancestors, shared listener/resolver
   path validation, socket symlinks and newline pins. Independent review approved 23 listener cases, 51
   resolver cases, eight private socket drills and eight additional native path checks. Full `just ship`
-  passed after integrating current main, and [PR #546](https://github.com/webdavis/dotfiles/pull/546) is
-  open with its lint check passed. Deploy both files together, verify a fresh harness connection, and
-  recheck the outstanding quiescent timing claim. Private checks do not establish live editor,
-  second-account or access-control-list acceptance.
+  passed after integrating current main, and [PR #546](https://github.com/webdavis/dotfiles/pull/546)
+  MERGED as `2fdf6e61`. CLOSED 2026-09-17. Both files (`dot_config/nvim/lua/custom_api/pane_socket.lua`,
+  `dot_local/libexec/nvim-mcp/executable_nvim-mcp-connect.sh`) are chezmoi-managed and deployed with no
+  drift. Live acceptance: with no Neovim in the pane, `nvim-mcp-connect.sh --diagnose` refused and named
+  the socket it looked for; with the operator's Neovim open in the same herdr tab it resolved exactly one
+  socket and exited 0 without delay, which is the fresh-connection check and the quiescent timing recheck
+  together. Second-account and access-control-list behaviour was NOT tested and is recorded as not
+  claimed, by decision rather than omission.
 - [x] Resolve B103's same-workspace pane-move routing bug. The current integration validates workspace
   identity, while the agent resolver still uses the old `HERDR_TAB_ID`; the isolated review reproduction
   selected the old tab's agent. The cross-workspace refusal in `4c06b8ca` does not fix this case. Use
@@ -3102,6 +3117,98 @@ operator deployment. No source correction was warranted by this audit.
   [PR #556](https://github.com/webdavis/dotfiles/pull/556), and both the spec (line 1326, "answers
   through the callback, never a return value") and the plan (line 867, `herdr.agent_pane(on_pane)`)
   describe the callback contract, so the box is ticked.
+
+### herdr-todoist and todoist.nvim
+
+Two Todoist plugins, filed 2026-09-17 and reshaped the same day on an operator ruling: the herdr plugin
+is the home and the Neovim plugin is the editor, entered from the herdr pane. Each is its own public
+repository, `webdavis/herdr-todoist` (Rust, a ratatui pane the way reviewr is) and
+`webdavis/todoist.nvim` (Lua), the same way pns.nvim and neotest-bashunit are (operator ruling
+2026-09-05); this repository carries only the herdr plugin config, the lazy.nvim spec and the keymaps.
+Both talk to the Todoist API directly and share no code: Todoist is the only source of truth, and each
+refreshes when it regains focus. The API token is a secret in both: it comes from a user-supplied command
+(`token_command`, for example a `keepassxc-cli` call) or an environment variable, never from a value
+written in a config file, and on dresden the chezmoi template names the KeePassXC entry. Filters use
+Todoist's own filter query language, the one the app's Filters feature uses, so anything Todoist accepts
+as a filter is a view in either plugin. Tasks 103 to 113 are the herdr plugin, 114 to 124 the Neovim
+plugin.
+
+- [ ] 103. Create the `webdavis/herdr-todoist` repository: a ratatui TUI in a plugin-owned pane with a
+  `herdr-plugin.toml` manifest, `open`, `toggle` and `focus` actions, an async Todoist client with
+  rate-limit and network errors shown in the pane's status line, and a `doctor` action that proves the
+  token resolves and one request succeeds without printing the token. Installed on dresden through
+  `herdr plugin install` and its config committed under `dot_config/herdr/plugins/config/`.
+- [ ] 104. List view. Every open task grouped by project and section, each line carrying due date,
+  priority, labels and subtask count, with subtasks folded under their parent, `R` to refresh, and the
+  cursor kept on the same task across a refresh.
+- [ ] 105. Named filter views. `[[views]]` in the plugin config declares `name` and `filter` pairs
+  (`today = "today | overdue"`, `work = "#Work & !@waiting"`), the pane switches between them with a
+  picker and number keys, and each view is also a plugin action (`view:today`) so a herdr keybinding can
+  open the pane straight onto it. A rejected filter shows the API's own message rather than an empty
+  list.
+- [ ] 106. Toggle pane. The `toggle` action opens the pane in the current workspace or closes it, `focus`
+  jumps to it, both bindable in `dot_config/herdr/config.toml`; width, side and the view it opens on are
+  config, and `auto_open = false` keeps it closed until asked.
+- [ ] 107. Completed tab. Completed tasks newest first, paged so the first screen is fast, with the
+  completion date on each line and `u` to reopen one.
+- [ ] 108. Quick edits in the pane. `x` completes, `X` reopens, `dd` deletes after a confirm, `p` cycles
+  priority, `s` takes a natural-language due string (`tomorrow`, `next mon`, `every 2 weeks`) sent as
+  Todoist's `due_string`, `l` toggles labels from a picker, `m` moves the task to a project or section
+  from a picker, and `a` is Quick Add (`Pay rent tomorrow 9am p1 #Finances @home`). Each is a one-line
+  input drawn by the pane, so no editor is entered.
+- [ ] 109. Comments. `<CR>` on a task opens its detail with the description rendered as markdown and the
+  comment thread, and `c` adds a comment from a multi-line box in the pane.
+- [ ] 110. Send to the agent. `S` on a task sends a brief (title, description, due, priority, labels, the
+  task's URL, and an optional note typed in the pane) into the workspace's agent pane, the way reviewr
+  sends line comments, and a comment on the task records that it was handed to an agent and when. It
+  never sends on its own.
+- [ ] 111. Enter Neovim from the pane. `e` on a task runs the configured editor command (default `nvim`)
+  in the same pane with `+"Todoist task <id>"`, blocks until it exits, then refreshes the list; the
+  pane's own multi-line box is the fallback when no editor is configured. This is the seam with task 115.
+- [ ] 112. Pretty UI. Nerd Font icons for priority, due state (overdue, today, upcoming, none), labels
+  and recurring tasks, a palette that follows reviewr's theme names so both panes match, and a
+  plain-ASCII fallback set by config.
+- [ ] 113. Cache and background refresh. The pane opens from a local cache so the first render is
+  instant, refreshes on an interval and after every write, and marks itself stale with the cache age when
+  the network is down. Writes made offline are queued and replayed in order once a refresh succeeds.
+- [ ] 114. Create the `webdavis/todoist.nvim` repository with the Lua client and the token boundary:
+  async through `vim.system` and `curl`, no blocking calls on the UI thread, errors through `vim.notify`
+  with a retry, `:checkhealth todoist` that proves the token resolves and one request succeeds without
+  printing it, a `lazy.nvim` spec in `dot_config/nvim/lua/plugins/`, and busted specs run the way the
+  other custom plugins run theirs.
+- [ ] 115. `:Todoist task <id>`, the whole task as a buffer. A scratch buffer with the fields as a small
+  header (content, due string, priority, labels, project, section) and the description as a markdown body
+  below it; `:w` validates and writes the task back, `:q` on an unwritten buffer asks, and the buffer
+  reports the API's message on a rejected write. This is what the herdr pane enters (task 111) and what
+  `<CR>` opens in every list below.
+- [ ] 116. `:Todoist` and named views on keymaps. `:Todoist` lists every open task grouped by project and
+  section; `setup({ views = { today = "today | overdue" } })` declares named views, `:Todoist today`
+  opens one, and `require("todoist").open("today")` is what a keymap calls. View names match the herdr
+  plugin's by convention so the same word opens the same list in both.
+- [ ] 117. A toggleable sidebar inside Neovim. `:Todoist toggle` opens a fixed-width split on the
+  configured side showing one view (default `today`), closes it on a second call, and survives layout
+  changes the way nvim-tree and neo-tree do.
+- [ ] 118. Completed view. `:Todoist completed`, newest first, paged, completion date on each line, `u`
+  reopens.
+- [ ] 119. Quick edits in the list. `x`, `X`, `dd`, `p`, `s`, `l`, `m` and `a` do what task 108's keys
+  do, so a hand that learned one plugin knows the other, and `u` undoes the last complete or reopen
+  within the session.
+- [ ] 120. Capture a task from code. `:Todoist capture` creates a task whose description carries
+  `path:line` and the repository name from the current buffer, a visual selection of a `TODO` or `FIXME`
+  comment becomes the task's content, a task with a location shows a location icon in the list, and `gd`
+  on it jumps to the file and line.
+- [ ] 121. Picker integration. A source for `fzf-lua` (the operator's picker) and a generic
+  `vim.ui.select` path for everything else: fuzzy-search open tasks, `<CR>` opens the task buffer,
+  `<C-x>` completes from the picker, and the picker respects the current view's filter.
+- [ ] 122. Subtasks as a fold tree. Tasks with children render as a tree, `za` folds a task's subtasks,
+  `>` and `<` indent a task under the one above it or promote it, and completing a parent asks before
+  completing its open children.
+- [ ] 123. Send to the agent from Neovim. `S` on a task sends the same brief as task 110 into the
+  workspace's agent pane through the `herdr` CLI when `HERDR_ENV` is set, and copies it to the clipboard
+  with a notice otherwise.
+- [ ] 124. Statusline component and due reminders. `require("todoist").status()` returns a short string
+  (`3 due, 1 overdue`) for lualine or a custom statusline, and an opt-in reminder raises `vim.notify`
+  when a task with a time comes due while Neovim is open.
 
 ### Recover the remaining design from PR #24
 
@@ -3875,7 +3982,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   today, so a storm already reaches the operator on that leg, and a combined message would improve it
   too. Not yet started.
 
-- [ ] 94. Fix the 500 ms spawn deadline in
+- [x] 94. Fix the 500 ms spawn deadline in
   `channel_dispatch::tests::environment::the_public_factory_preserves_blank_override_and_backend_refusal_before_dispatch`,
   filed 2026-09-17. It reddened MAIN on the #711 merge run with `forced: ` and an empty message, and main
   went green again on the next merge eleven minutes later, so it is a load-sensitive flake rather than a
@@ -3887,7 +3994,18 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   path, this one is a fixture budget. See the standing note that tight fixture budgets flake continuous
   integration. Either raise the bound well past the noise floor or stop asserting success on a process
   the test itself killed; the second is the honest fix, since a killed process succeeding is not a
-  behaviour anyone wants.
+  behaviour anyone wants. DONE 2026-09-17 in [PR #718](https://github.com/webdavis/dotfiles/pull/718),
+  merged `b64c2a08`. The flake was REPRODUCED first, one failure in forty runs of the single test at load
+  average 29, roughly two to three percent, consistent with a 500 ms budget for a spawn a warm run
+  finishes in about 10 ms. The fix removes the spawn rather than widening the budget: the process existed
+  only to control `PNS_CHANNELS_DIR` for one `std::env::var` read, so that read moved one level up and a
+  new private `destinations_for_override` takes the value as a parameter, which the test now calls in
+  process. Net 19 lines removed, the public signatures unchanged, and the launchctl-style re-exec of the
+  test binary gone. Measured after: 60 of 60 passes under the same 48-spinner load, about 43 ms per run.
+  Mutation-checked, deleting the blank-override filter turns it red. Two review findings were fixed in
+  the same pull request, both naming: the test no longer claims the public factory it stopped calling,
+  and a comment no longer overclaims that the environment read is the only thing above the seam. See task
+  101 for the two further flakes this work exposed.
 
 - [x] 95. Make the herdr configuration survive an apply, filed 2026-09-17. `~/.config/herdr/config.toml`
   and `~/.config/herdr/plugins/config/**` are PLAIN chezmoi targets that parties other than chezmoi
@@ -3931,7 +4049,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   Tailscale on the phone, which restored MagicDNS resolution, and moshi was already pointed at
   `dresden.tail2f2430.ts.net` rather than a LAN or `.local` name, so no host change was needed.
 
-- [ ] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
+- [x] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
   five job labels as literals (`watchdog/agents.rs:19-23`, for example
   `Self::ResultsAlerter => "com.webdavis.osquery-results-alerter"`) plus the prefix they are matched on
   (`page/header.rs:15`, `OUR_AGENT_PREFIX = "com.webdavis.osquery-"`). posture is a product installed
@@ -3947,7 +4065,19 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   CLAUDE.md LaunchAgent table, and five test files. Two consequences: a renamed label does not replace
   the old one and this repository builds no removal mechanisms, so the operator owes one
   `launchctl bootout` per retired job; and the plists sit in the known-good manifest, so the rename ships
-  on a full apply rather than a by-name one.
+  on a full apply rather than a by-name one. DONE 2026-09-17 in
+  [PR #721](https://github.com/webdavis/dotfiles/pull/721), merged `3599a3bb`. The labels now come from a
+  `[jobs]` table in `~/.config/posture/config.toml`, read by both the watchdog and the page header,
+  defaulting to `dev.posture.<key>`. `Agent` was rebuilt around posture's own six subcommands with
+  `Agent::MONITORED` naming the five the watchdog can judge, since it cannot judge itself, and the
+  launchctl adapter now knows no names at all. The plist match is whole-name rather than prefix, so a
+  label like `dev.posture.digest.extra` cannot be swept in. Every test goes red if a label returns to
+  source. The rename of the six jobs deployed on this machine was deliberately NOT done: the shipped
+  config states the existing `com.webdavis.osquery-*` labels verbatim, so no `launchctl bootout` is owed,
+  and the rename stays follow-up work. Confirmed live after the 2026-09-17 apply:
+  `~/.local/state/osquery-watchdog-state.json` is now keyed by job (`alert`, `poll`, `funnel`, `digest`,
+  `heartbeat`) rather than by label, which only the new binary writes, with every streak at 0 and no page
+  raised.
 
 - [ ] 98. `posture jobs`: let posture install and verify its own scheduled jobs, filed 2026-09-17.
   posture is a one-shot by design (every subcommand samples current state and exits; there is no daemon
@@ -4008,6 +4138,71 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   than waiting for a route to reappear. Side measurement: the dead-letter population was 11 on 2026-09-13
   and is 17 now, so it is growing, and the watchdog reports only an increase rather than the standing
   count.
+
+- [ ] 101. Make the Rust suites deterministic around real process spawns, filed 2026-09-17 on the
+  operator's ruling to treat this as one task rather than one per test. Task 94 fixed one flake and
+  exposed two more of the same shape on the same day, so the defect is the pattern and not the three
+  tests. The pattern: a test spawns a real process, waits on a wall-clock budget, and asserts success, so
+  under the concurrent agent load this machine actually runs the wait expires and the assertion reads a
+  kill or a timeout as a failure. It reddens `main` on code the pull request never touched, which is the
+  worst kind of red because it trains everyone to rerun rather than read. This repository already records
+  the finding that sub-second waits around real spawns flake continuous integration. The two known
+  survivors:
+  `channel_dispatch::tests::a_new_registered_destination_dispatches_without_editing_a_name_switch` in the
+  `pns` workspace, which failed once under 48 synthetic CPU spinners and passed on every run after the
+  load was removed; and
+  `uu/crates/uu/tests/interruption.rs:104 sigterm_cleans_owned_children_before_unlocking_and_records_interruption`
+  in the `uu` workspace, a signal-timing case that failed once during a `just test-rust` run under load
+  and passed three consecutive reruns alone. Neither is tracked anywhere else, checked 2026-09-17.
+  Method, following what worked in [PR #718](https://github.com/webdavis/dotfiles/pull/718): audit all
+  four workspaces for a test that spawns a process and bounds it by wall-clock time, and for each one ask
+  what the spawn is actually there for. Where it exists only to control the child's environment or
+  arguments for a decision the parent could make, lift that decision behind a seam and call it in
+  process, which is what removed the race in 94 rather than making it cheaper to wait on. Where a real
+  spawn is genuinely the behaviour under test, such as the `sigterm` case which is about signal handling
+  in a real child, the budget cannot simply be deleted: drive the wait on an observable event rather than
+  a duration, and if a duration is unavoidable say so and justify the number. DO NOT simply raise a
+  deadline; this repository deletes a test that cannot pass within a second rather than tolerating a slow
+  one, so a bigger number trades a flake for a suite that fails the speed rule. Reproduce each flake
+  under load before changing it, or state plainly that it could not be reproduced and that the fix is
+  reasoned from the code, and prove each fix with at least fifty loops under comparable load plus a
+  mutation check. Expect to find candidates beyond the two named; report the full audit even for tests
+  left alone, with the reason each was judged safe.
+
+- [ ] 102. A rejected delivery config silences posture entirely and only a log file says so, filed
+  2026-09-17 from the firewall drill's incidental finding.
+  `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
+  `posture: the delivery config could not be used, so no page can be delivered: unknown field notify,`
+  `expected delivery`. That specific mismatch is RESOLVED and is not the task: the source struct at
+  `posture/crates/posture-adapters/src/notify/schema.rs:18` declares `pub(super) notify: Table` and
+  `dot_config/posture/private_config.toml.tmpl:38` ships `[notify]`, so the two agree today, and the
+  operator received real pages during the 2026-09-17 drill. THE DEFECT IS THE FAILURE MODE. That struct
+  carries `#[serde(deny_unknown_fields)]`, so one unknown or renamed top-level key makes posture refuse
+  the WHOLE delivery configuration and deliver NOTHING, and the only symptom is a line in a log nobody
+  reads. Nothing catches it: the watchdog proves each job RAN rather than that it could deliver, and no
+  check anywhere reads the delivery config for parseability, verified 2026-09-17. Paired with task 100's
+  false all-clear, a machine can sit in total page silence while every surface reports healthy, which for
+  a security monitor is the worst available state. THERE IS A LIVE INSTANCE OF THE RISK.
+  [PR #721](https://github.com/webdavis/dotfiles/pull/721) added a `[jobs]` table to that same struct. It
+  is `#[serde(default)]`, so a config without it is fine, but a config WITH it against an older binary is
+  rejected outright. An apply writes the config target and rebuilds posture in the same run, so they
+  normally move together; if the rebuild fails after the config has landed, posture stops delivering
+  every page until the next successful apply. Two things are wanted. First, make the failure loud: a
+  delivery config that will not parse should reach the local banner and `posture doctor` rather than only
+  a log, because a page that cannot be delivered is precisely what the operator must hear about. Second,
+  prefer degrading to refusing where it is safe: an unknown key inside a known table can warn and
+  continue, while a malformed known key still refuses. Pin both with tests, including one that an unknown
+  key never silently disables delivery. CONFIRMED LIVE 2026-09-17, during the apply that shipped task 97.
+  The monitor log gained
+  `posture: the notify config could not be used, so no page can be delivered: unknown field jobs,`
+  `expected notify` inside the apply window (10:17:26Z to 10:18:49Z). The cause is the ordering this
+  entry predicted: an apply writes the config target before the `run_onchange_after_5*` builder
+  reinstalls the binary, so a scheduled poll tick that lands in between runs the OLD binary against the
+  NEW config and delivers nothing. It closed itself when the rebuild finished: ticks after 10:18 produced
+  no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
+  name, which only the new binary writes. So the exposure was about one minute of total page silence,
+  self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
+  is short here only because the rebuild succeeded.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and

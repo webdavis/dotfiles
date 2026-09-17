@@ -841,6 +841,27 @@ size: medium
 
 TOTAL SLICES: 49
 
+## Operator rulings
+
+- 2026-09-17: the per-producer table is SINGULAR, `[producer.<name>]`, not `[producers.<name>]`. This
+  settles question 1 below and unblocks slices 23 and 47. The plan's own item 3 wrote it plural, which
+  predates the plural rule in item 110; item 110 wins, because the table is one producer keyed by its
+  name rather than a set, which is the same shape as `[delivery_class.<name>]` and
+  `[lights.lamp."<name>"]`. `pns/docs/pns-refactor.md` has been corrected in place so the plan no longer
+  contradicts itself, and question 1 below is answered rather than open.
+
+- 2026-09-17: `max_age` IS a fourth allowed time word, defined as a bound on how stale a value may be,
+  and `PNS_PHONE_INPUT_AGE` becomes `PNS_PHONE_INPUT_MAX_AGE` to match. This settles question 2 below and
+  unblocks slices 33, 40 and 44. The plan's item 85 listed `age` among six words naming one idea, while
+  its own rename table kept `age` in `event_max_age`, `reading_max_age` and `desk_input_max_age`; the
+  table wins. `deadline`, `interval` and `delay` all point forward at work, whereas these three judge a
+  value already held (the plan itself notes `delivery.max_age_secs` measures the ORIGINAL EVENT's age),
+  so folding them into `deadline` would make each read as a timeout on OBTAINING the value, which is a
+  different knob and would recreate the ambiguity item 85 exists to remove. `pns/docs/pns-refactor.md`
+  has been corrected in place, so questions 1 and 2 below are both answered rather than open; questions
+  3 and 4 remain.
+||||||| 7f6b6a8a
+
 - 2026-09-17: slicing question 4 is ANSWERED BY CORRECTION, not by a number. Item 105 claimed
   `lights.refresh_secs` was both the daemon re-arm interval and the breath-fade budget and should split
   into two settings. It is not: `refresh_secs` is read in `lamp_registration.rs:90` as the re-arm
