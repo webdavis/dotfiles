@@ -62,6 +62,15 @@ pub const GITHUB_DEADLINE: std::time::Duration = std::time::Duration::from_secs(
 /// proxy streaming garbage costs at most this much before reading unavailable.
 pub const GITHUB_BODY_CAP: u64 = 2_000_000;
 
+/// The most pages one poll follows, even when the server keeps offering a
+/// `next` link.
+///
+/// TEN, because notifications are never marked read, so an account can carry
+/// more than one page of unread threads for a long time: ten pages of fifty
+/// is five hundred threads, generous for a backlog and still a bound against
+/// a poll that never returns.
+pub const GITHUB_MAX_PAGES: usize = 10;
+
 /// The API version this build speaks, sent on every request as the
 /// documentation asks.
 const API_VERSION: &str = "2022-11-28";
@@ -101,64 +110,109 @@ impl GithubNotifications {
     /// already everything the account watches, and narrowing to participating
     /// threads would drop the `ci_activity` notifications this exists for.
     /// It is stated rather than left implicit so a default change upstream
-    /// cannot silently narrow it.
+    /// cannot silently narrow it. `per_page=50` is the documented ceiling,
+    /// stated for the same reason.
+    ///
+    /// A LISTING IS FOLLOWED ACROSS PAGES, bounded by `GITHUB_MAX_PAGES`,
+    /// because notifications are never marked read: an account with more
+    /// unread threads than one page holds would otherwise never see the
+    /// oldest of them, page one being newest-first. Only the FIRST page's
+    /// request carries `If-Modified-Since` and only its own cursor and
+    /// interval headers are kept; a `next` link is an unconditional
+    /// continuation of the one listing, not a second resource.
     pub fn poll(&self, last_modified: &str) -> Polled {
-        let mut request = self
-            .agent
-            .get(format!("{}/notifications?participating=false", self.base))
-            .header("Authorization", &format!("Bearer {}", self.token))
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", API_VERSION);
-        if !last_modified.is_empty() {
-            request = request.header("If-Modified-Since", last_modified);
-        }
-        match request.call() {
-            Ok(response) => self.read(response),
-            // A STATUS IS NOT A TRANSPORT FAILURE. ureq answers `Err` for a
-            // 4xx or 5xx, and the four cases below are the whole reason this
-            // poll reports something other than "nothing happened".
-            Err(ureq::Error::StatusCode(status)) => refused(status, None),
-            Err(error) => Polled::Unavailable {
-                detail: error.to_string(),
-            },
-        }
-    }
-
-    /// One successful response, read into the answer it carries.
-    fn read(&self, mut response: ureq::http::Response<ureq::Body>) -> Polled {
-        let interval_secs = header(&response, "x-poll-interval").and_then(|it| it.parse().ok());
-        let status = response.status().as_u16();
-        if status == 304 {
-            return Polled::NotModified { interval_secs };
-        }
-        if status != 200 {
-            // A 2xx or 3xx nobody expects, and the rate-limit header with it
-            // in case a future build answers 403 through this arm.
-            return refused(status, header(&response, "x-ratelimit-remaining"));
-        }
-        let last_modified = header(&response, "last-modified").unwrap_or_default();
-        match response
-            .body_mut()
-            .with_config()
-            .limit(GITHUB_BODY_CAP)
-            .read_to_string()
-        {
-            Ok(body) => {
-                let threads = super::notifications::notification_threads(&body);
-                Polled::Listed {
-                    answer: Answer {
-                        identities: Vec::new(),
-                        last_modified,
-                        interval_secs,
-                    },
-                    threads,
-                }
+        let mut url = format!(
+            "{}/notifications?participating=false&per_page=50",
+            self.base
+        );
+        let mut threads = Vec::new();
+        let mut answer = Answer::default();
+        for page in 1..=GITHUB_MAX_PAGES {
+            let mut request = self
+                .agent
+                .get(&url)
+                .header("Authorization", &format!("Bearer {}", self.token))
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", API_VERSION);
+            if page == 1 && !last_modified.is_empty() {
+                request = request.header("If-Modified-Since", last_modified);
             }
-            Err(error) => Polled::Unavailable {
-                detail: error.to_string(),
-            },
+            let response = match request.call() {
+                Ok(response) => response,
+                // A STATUS IS NOT A TRANSPORT FAILURE. ureq answers `Err` for
+                // a 4xx or 5xx, and the four cases below are the whole reason
+                // this poll reports something other than "nothing happened".
+                Err(ureq::Error::StatusCode(status)) => return refused(status, None),
+                Err(error) => {
+                    return Polled::Unavailable {
+                        detail: error.to_string(),
+                    };
+                }
+            };
+            let status = response.status().as_u16();
+            if page == 1 && status == 304 {
+                let interval_secs =
+                    header(&response, "x-poll-interval").and_then(|it| it.parse().ok());
+                return Polled::NotModified { interval_secs };
+            }
+            if status != 200 {
+                // A 2xx or 3xx nobody expects, and the rate-limit header with
+                // it in case a future build answers 403 through this arm.
+                return refused(status, header(&response, "x-ratelimit-remaining"));
+            }
+            let next = header(&response, "link").and_then(|link| next_page(&link));
+            if page == 1 {
+                answer.last_modified = header(&response, "last-modified").unwrap_or_default();
+                answer.interval_secs =
+                    header(&response, "x-poll-interval").and_then(|it| it.parse().ok());
+            }
+            match read_page(response) {
+                Ok(mut page_threads) => threads.append(&mut page_threads),
+                Err(polled) => return polled,
+            }
+            match next {
+                Some(next_url) => url = next_url,
+                None => break,
+            }
         }
+        Polled::Listed { threads, answer }
     }
+}
+
+/// One page's body, read into the threads it carries.
+fn read_page(
+    mut response: ureq::http::Response<ureq::Body>,
+) -> Result<Vec<NotificationThread>, Polled> {
+    match response
+        .body_mut()
+        .with_config()
+        .limit(GITHUB_BODY_CAP)
+        .read_to_string()
+    {
+        Ok(body) => Ok(super::notifications::notification_threads(&body)),
+        Err(error) => Err(Polled::Unavailable {
+            detail: error.to_string(),
+        }),
+    }
+}
+
+/// The `rel="next"` target off a `Link` header, or nothing when this is the
+/// last page.
+///
+/// THE SERVER'S OWN URL, VERBATIM, never rebuilt from a page number this
+/// crate would have to keep in step with `per_page`.
+fn next_page(link_header: &str) -> Option<String> {
+    link_header.split(',').find_map(|entry| {
+        let mut segments = entry.split(';');
+        let url = segments
+            .next()?
+            .trim()
+            .trim_start_matches('<')
+            .trim_end_matches('>');
+        segments
+            .any(|attribute| attribute.trim() == r#"rel="next""#)
+            .then(|| url.to_string())
+    })
 }
 
 /// Which refusal a status is.

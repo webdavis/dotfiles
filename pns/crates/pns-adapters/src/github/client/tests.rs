@@ -58,8 +58,8 @@ fn the_request_carries_the_token_the_accept_header_and_the_api_version() {
     );
     assert!(wire.contains("x-github-api-version: 2022-11-28"), "{wire}");
     assert!(
-        wire.contains("get /notifications?participating=false http/1.1"),
-        "participating is stated rather than left to a default: {wire}"
+        wire.contains("get /notifications?participating=false&per_page=50 http/1.1"),
+        "participating and per_page are stated rather than left to a default: {wire}"
     );
 }
 
@@ -133,6 +133,61 @@ fn a_200_carries_the_threads_the_cursor_and_the_interval() {
     assert!(
         answer.identities.is_empty(),
         "the identities are the policy's to compute, not the wire's"
+    );
+}
+
+#[test]
+fn a_link_header_naming_a_next_page_is_followed_and_only_page_ones_headers_are_kept() {
+    // THE MUTANT THIS PINS: page one's own fifty read as the whole listing,
+    // which permanently hides an account's older unread threads behind a
+    // page boundary nothing here ever crosses; notifications are never
+    // marked read, so a busy account can carry more than one page for a
+    // long time.
+    let second_thread = ONE_THREAD.replace("20111", "20222").replace("4471", "4472");
+    let (github, wire) = scripted(&[
+        http_response(
+            "200 OK",
+            &[
+                ("content-type", "application/json"),
+                ("last-modified", "Thu, 25 Oct 2026 15:16:27 GMT"),
+                ("x-poll-interval", "60"),
+                (
+                    "link",
+                    r#"<http://localhost:9/notifications?participating=false&per_page=50&page=2>; rel="next""#,
+                ),
+            ],
+            ONE_THREAD,
+        ),
+        http_response(
+            "200 OK",
+            &[
+                ("content-type", "application/json"),
+                // A continuation page carries no cursor of its own; only page
+                // one's headers are read.
+                ("last-modified", "Thu, 25 Oct 2026 16:00:00 GMT"),
+            ],
+            &second_thread,
+        ),
+    ]);
+    let Polled::Listed { threads, answer } = github.poll("") else {
+        panic!("a 200 lists");
+    };
+    assert_eq!(threads.len(), 2, "both pages' threads are carried");
+    assert_eq!(threads[0].id, "20111");
+    assert_eq!(threads[1].id, "20222");
+    assert_eq!(
+        answer.last_modified, "Thu, 25 Oct 2026 15:16:27 GMT",
+        "page one's cursor, not the continuation page's"
+    );
+    let wire = sent(&wire);
+    assert_eq!(
+        wire.matches("get ").count(),
+        2,
+        "the next link was followed: {wire}"
+    );
+    assert!(
+        wire.contains("page=2"),
+        "the request used the server's own url rather than one rebuilt here: {wire}"
     );
 }
 
