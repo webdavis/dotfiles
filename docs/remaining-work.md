@@ -2471,6 +2471,17 @@ is missing.
   September 7 disposition leaves it unresolved after #383 and #441; #378 closed unmerged. A bounded
   fixture is not proof of closure, and this audit did not establish a current reproduction.
 
+- [ ] 93. Implement `pns/docs/pns-refactor.md`, the agreed refactor plan the operator asked for alongside
+  the numbered list. The plan merged as documentation in
+  [PR #698](https://github.com/webdavis/dotfiles/pull/698) and nothing in it is built yet. Its changes:
+  stop using the sender's name as a feature switch (delete the `event.agent != "claude"` check in
+  `arm_nag.rs`), add a per-call `--remind` and `--no-remind` flag, add `[producers.<name>] remind` in
+  config, resolve flag then config then a built-in default of off, warn when a reminder is armed for a
+  producer that sends no answered signal, rename `--agent` to `--producer` with no alias and move every
+  caller, and rename the config keys, environment variables and types its names table lists. Plan the
+  pull request split from the document's numbered changes before building; the names table alone touches
+  every workspace that calls pns.
+
 - [ ] 92. Diagnose `dispatch::records::events_racing_each_other_lose_no_line_and_leave_no_pending_file`,
   filed 2026-09-16. It is being rerun to green as a known flake and it is NOT recorded anywhere, which is
   the problem: a test whose whole name is "lose no line" failed on a DOCUMENTATION-ONLY branch reporting
@@ -3684,25 +3695,43 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `Discord (Uriel) :: Public Key (pns)`, `Discord (Uriel) :: Application/User ID (pns)`, and one
   `Discord (Uriel) :: Channel ID (#<project>-dev)` per project plus `(#github-notifications)`.
 
-- [ ] 83. Route a failed upgrade to `priority`. The producer event carries a kind, health or agent, and
-  pns maps that kind to a route, so `uu` never names a route itself; the agent triage then lands under
-  that page in the same channel. The `#uu-failures` channel was dropped on 2026-09-15. Operator step:
-  delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
+- [ ] 83. CODE DONE, NOT MERGED. Built and reviewed 2026-09-16 on `feat/pns-upgrade-failure-route` (six
+  commits, every Rust and lint gate green) and open as
+  [PR #707](https://github.com/webdavis/dotfiles/pull/707); the lane hit the weekly usage limit before
+  the merge step. Version 1 of `pns.request` now carries `kind` (`agent` or `health`), a health event
+  reaches `[routes] urgent` only when its state is one that waits on the operator, and uu gained a test
+  over its own argv proving it names no route, channel or gateway. Remaining: merge #707, then the
+  operator step below. Route a failed upgrade to `priority`. The producer event carries a kind, health or
+  agent, and pns maps that kind to a route, so `uu` never names a route itself; the agent triage then
+  lands under that page in the same channel. The `#uu-failures` channel was dropped on 2026-09-15.
+  Operator step: delete the two vault entries `Hermes :: Webhook Secret (#uu-failures)` and
   `Discord (Uriel) :: Channel ID (#uu-failures)`.
 
-- [ ] 84. Build the posture critical-page explainer, three pull requests, on the design merged in
-  [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel as
-  the page it explains and directly under it, moving into the page's own thread once the pns Discord bot
-  of task 82 exists. The accepted defaults are that the explainer runs with zero tools
+- [ ] 84. NOT STARTED, twice. Two lanes were launched 2026-09-16 for PR 2 (posture's copy leg) and PR 1
+  (the hermes `explain` route and checker carve-out) and both died on the weekly usage limit before
+  writing a line; their empty worktrees `feat-posture-critical-page-explain-copy` and
+  `feat-hermes-explain-route` still exist. The briefs are in this session's Workflow journal and can be
+  relaunched as is. Build the posture critical-page explainer, three pull requests, on the design merged
+  in [PR #618](https://github.com/webdavis/dotfiles/pull/618). The explanation posts in the same channel
+  as the page it explains and directly under it, moving into the page's own thread once the pns Discord
+  bot of task 82 exists. The accepted defaults are that the explainer runs with zero tools
   (`platform_toolsets.webhook: ["no_mcp"]`), refuses after twenty explanations in a rolling hour counted
   by distinct finding rather than by page (raised from six and changed to count distinct findings by the
   2026-09-15 amendment, `docs/superpowers/specs/2026-09-15-posture-explainer-amendment.md`, Decision 6),
   never puts a command in its text, and that pns sends a request id on every hermes post.
 
-- [ ] 85. Build the pns GitHub source, four pull requests, on the design merged in
-  [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
-  `#github` are superseded by `#<project>-dev` and `#github-notifications` under task 81. The baseline
-  polls the notifications API with the classic token
+- [ ] 85. PART 1 OF 4 BUILT, NOT SHIPPED. The polling baseline was written and reviewed 2026-09-16 in the
+  worktree `~/.herdr/worktrees/dotfiles/feat-pns-github-notifications-poll` (three commits, plus the
+  review's fixes half-applied as UNCOMMITTED edits under `pns/crates/pns-adapters/src/config/` and
+  `src/github/`); the lane hit the weekly usage limit mid-fix, so there is no pull request. It polls
+  `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional request, dedupes by
+  a durable seen-set with a 24-hour expiry, and submits through the ordinary producer API so task 81's
+  channel map decides the channel; a 401 or 403 is a configuration refusal, never an empty listing.
+  Resume by finishing the uncommitted fixes in that worktree, committing, and shipping. Then the push
+  receiver, the lamp colours and the lamp wiring, one pull request each. Build the pns GitHub source,
+  four pull requests, on the design merged in [PR #620](https://github.com/webdavis/dotfiles/pull/620),
+  whose channel names `#github-<repo>` and `#github` are superseded by `#<project>-dev` and
+  `#github-notifications` under task 81. The baseline polls the notifications API with the classic token
   `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, which carries the `notifications`
   scope only and no expiry, and push arrives later through the existing Cloudflare tunnel with a separate
   receiver process. The GitHub colours are configurable in the pns config, defaulting to purple for a
@@ -3898,24 +3927,32 @@ force.
   CLI, which offers zoom, split, move, swap and close). When this is built, dig into herdr's source for a
   true hide before settling for parking the pane in another tab, and check herdr's preview channel (its
   nightly, more or less) for a hide or float primitive that the stable release lacks.
-- [ ] Add a deterministic worktree picker and reviewr launcher. Consult
-  `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is
-  authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
-  repository, list existing worktrees with the most recently updated first, including commits and
-  uncommitted file edits while excluding ignored files. Search and select a worktree without changing the
-  agent's working directory or branch. Agents may remain on main while orchestrating multiple worktrees;
-  selection needs no language-model call or agent-to-worktree registry. Keep worktree selection separate
-  from the generic process-toggle plugin; the picker can be an ordinary command rather than another
-  required plugin package. Use the shared session behavior above for Split right, Split below, and Toggle
-  float. With no selected target, open the picker first; subsequent toggles resume that review without
-  repeating discovery. Preserve the originating workspace context so reviewr can send comments to the
-  intended agent, including its agent picker when several agents are present. Opening the picker and
-  resuming a review must feel immediate with hundreds of worktrees. Measure first-load, repeat-load, and
-  review-start latency separately and agree a budget before implementation. Evaluate cached activity
-  ordering refreshed separately from display, keeping the selection stable during refresh; resolve
-  deletion timestamps, stale paths, and cache freshness before claiming accurate recency. Reuse the
-  process-toggle session handling after its feasibility checks pass; do not patch reviewr or duplicate
-  that handling here. The requested upstream proposal already exists as
+- [x] DONE 2026-09-16 in [PR #706](https://github.com/webdavis/dotfiles/pull/706), merged `744489fa`:
+  `~/.local/bin/worktree-review.sh` (bash, 352 lines, 19 bashunit tests, 21 mutants caught) plus a
+  `review` profile and one chord handing it to the live herdr-process plugin for the three placement
+  actions. `reviewr` is NOT installed on this machine, so the launcher takes the review command as an
+  argument defaulting to `tuicr`, and nothing names reviewr. Measured against a synthetic 301-worktree
+  repository: first load 4.9 s median cold (budget proposed 8 s), repeat load 0.05 s, review start under
+  0.1 s. Recency is max(HEAD committer time, newest non-ignored mtime), `graphify-out/graph.json`
+  excluded as generated. OPERATOR STEPS LEFT: confirm the three latency budgets the lane proposed, and
+  run one real pick and resume in your own herdr session. Original entry: add a deterministic worktree
+  picker and reviewr launcher. Consult `$frontend-design:frontend-design` for the picker's interface
+  design and review. Implementation is authorized by the 2026-09-13 goal after the process-toggle
+  feasibility checks pass. From the current repository, list existing worktrees with the most recently
+  updated first, including commits and uncommitted file edits while excluding ignored files. Search and
+  select a worktree without changing the agent's working directory or branch. Agents may remain on main
+  while orchestrating multiple worktrees; selection needs no language-model call or agent-to-worktree
+  registry. Keep worktree selection separate from the generic process-toggle plugin; the picker can be an
+  ordinary command rather than another required plugin package. Use the shared session behavior above for
+  Split right, Split below, and Toggle float. With no selected target, open the picker first; subsequent
+  toggles resume that review without repeating discovery. Preserve the originating workspace context so
+  reviewr can send comments to the intended agent, including its agent picker when several agents are
+  present. Opening the picker and resuming a review must feel immediate with hundreds of worktrees.
+  Measure first-load, repeat-load, and review-start latency separately and agree a budget before
+  implementation. Evaluate cached activity ordering refreshed separately from display, keeping the
+  selection stable during refresh; resolve deletion timestamps, stale paths, and cache freshness before
+  claiming accurate recency. Reuse the process-toggle session handling after its feasibility checks pass;
+  do not patch reviewr or duplicate that handling here. The requested upstream proposal already exists as
   [reviewr issue #99](https://github.com/persiyanov/herdr-reviewr/issues/99); check it when revisiting
   supported placement actions.
 - [ ] SP5, evaluate xonsh before SP4's shell work, after Neovim acceptance. The 2026-09-13 goal supplies
