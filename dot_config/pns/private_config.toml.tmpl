@@ -71,6 +71,9 @@ submit_deadline_secs = 5
 # Uploads are capped at 10 an hour by moshi and the links expire after a
 # day; a refused upload, a refused card and a message with nothing to draw
 # all fall back to the ordinary text card with its link.
+#
+# THE LINK NEEDS NO CREDENTIAL: anyone who has it can read the whole
+# message for that day, so arm a card type only where that is acceptable.
 [plugins.mobile.image_cards]
 # missed = false
 

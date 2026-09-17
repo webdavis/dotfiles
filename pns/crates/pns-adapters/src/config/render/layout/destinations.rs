@@ -63,7 +63,10 @@ const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
                  #\n\
                  # Uploads are capped at 10 an hour by moshi and the links expire after a\n\
                  # day; a refused upload, a refused card and a message with nothing to draw\n\
-                 # all fall back to the ordinary text card with its link.\n",
+                 # all fall back to the ordinary text card with its link.\n\
+                 #\n\
+                 # THE LINK NEEDS NO CREDENTIAL: anyone who has it can read the whole\n\
+                 # message for that day, so arm a card type only where that is acceptable.\n",
     opt_in: true,
     children: &[],
     keys: &[Key {
