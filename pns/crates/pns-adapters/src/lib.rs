@@ -135,7 +135,7 @@ pub use destinations::discord::{
 
 pub use destinations::moshi::{
     DEFAULT_MOSHI_UPLOAD_URL, DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, POST_DEADLINE, UreqPost,
-    herdr_link, image_body, refused_backend_line, webhook_body,
+    herdr_link, refused_backend_line, webhook_body,
 };
 
 mod destinations;
