@@ -17,7 +17,12 @@ impl Drop for OwnedWizard {
 
 #[test]
 fn setup_warns_before_secrets_about_managed_replacement_and_secret_diffs() {
-    let expires = Instant::now() + Duration::from_millis(700);
+    // A LIVENESS BOUND, NOT A MEASUREMENT: nothing below reads the elapsed
+    // time, and every wait here ends on a prompt the wizard printed or on its
+    // exit. The 700ms it carried was one wall-clock budget covering a pty
+    // spawn, the real binary starting, two prompt round trips and the exit,
+    // while the operator's other agent lanes compile.
+    let expires = Instant::now() + Duration::from_secs(15);
     let sandbox = Sandbox::without_config("setup-managed-warning");
     let mut command = sandbox.bare();
     for (name, leaf) in [
