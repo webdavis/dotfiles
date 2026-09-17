@@ -4,7 +4,7 @@
 //! trade: the loud half is a named refusal, and the quiet half it replaces is
 //! a security pipeline that silently stops paging.
 
-use super::{COPY_WINDOW, DEFAULT_WEBHOOK_BASE, NotifyMode};
+use super::{COPY_WINDOW, DEFAULT_ROUTE, DEFAULT_WEBHOOK_BASE, NotifyMode};
 use crate::hermes::CriticalCopy;
 use crate::wire::Name;
 use posture_domain::{Agent, AgentLabels};
@@ -64,6 +64,12 @@ pub(super) struct Table {
     mode: Mode,
     command: Option<Command>,
     hermes: Option<Hermes>,
+    /// The route every page with no tier of its own takes, whichever mode
+    /// carries it. `Name` refuses a control character and bounds the length,
+    /// so what is left is used as a path segment exactly as written, the same
+    /// trust boundary as `hermes.url`.
+    #[serde(default)]
+    route: Option<Name>,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
@@ -104,6 +110,14 @@ fn local_gateway() -> String {
 }
 
 impl Table {
+    /// The stated untiered route, or the shipped default.
+    pub(super) fn route(&self) -> String {
+        self.route
+            .as_ref()
+            .map(|route| route.as_str().to_string())
+            .unwrap_or_else(|| DEFAULT_ROUTE.to_string())
+    }
+
     /// The declared mode, or the refusal for a mode whose own table is missing
     /// what that mode cannot run without.
     pub(super) fn into_mode(self, home: &Path) -> Result<NotifyMode, String> {

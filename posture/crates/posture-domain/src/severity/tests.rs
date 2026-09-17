@@ -99,13 +99,9 @@ fn a_critical_finding_belongs_on_the_priority_route() {
 }
 
 #[test]
-fn every_tier_below_critical_belongs_on_the_posture_pages_route() {
+fn every_tier_below_critical_takes_the_configured_route() {
     for tier in [Severity::Notice, Severity::Info] {
-        assert_eq!(
-            severity_route(Some(tier)),
-            Some("posture-pages"),
-            "{tier:?}"
-        );
+        assert_eq!(severity_route(Some(tier)), None, "{tier:?}");
     }
 }
 

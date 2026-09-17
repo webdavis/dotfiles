@@ -586,6 +586,7 @@ bootstrapped by a matching `.chezmoiscripts/run_onchange_after_*` loader.
 | -------------------------------------------------- | ---------------------------------------------------- |
 | `com.webdavis.atuin-daemon`                        | supervises the atuin history daemon                  |
 | `com.webdavis.pns-daemon`                          | the pns clock: runs leased jobs between events       |
+| `com.webdavis.pns-github-receiver`                 | the GitHub push receiver: a delivery polls now       |
 | `com.webdavis.uu`                                  | weekly unattended-upgrades run, one lane per subject |
 | `com.webdavis.yt-dlp-pot-provider`                 | the yt-dlp proof-of-origin token provider            |
 | `com.webdavis.scalebar`                            | starts the Scalebar menu-bar app at login            |
