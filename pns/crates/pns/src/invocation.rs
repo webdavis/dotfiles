@@ -286,14 +286,17 @@ const SEND: &str = "send";
 
 /// `pns send`: one subcommand, two input forms.
 ///
-/// THE FORM IS CHOSEN BY `--json` AND NOTHING ELSE. Flags carry the request
-/// for a caller that has an argv (the shell notifier, lights, uu, a scheduled
-/// job); `--json` carries it on standard input for a caller that has an
-/// envelope (posture, and this binary's own GitHub poll). Both reach one
-/// request path from here, so a field added to the request is added once.
+/// THE FORM IS CHOSEN BY `--json` IN LEADING POSITION, once `--no-color` is
+/// taken out of the way: that is the one flag that answers wherever it is
+/// typed, so `pns send --no-color --json` and `pns send --json --no-color`
+/// both name the envelope. The envelope branch then hands `submit::run` that
+/// SAME no-color-filtered tail, since its exact-argv check demands `--json`
+/// alone. The flags branch keeps the raw tail, so a value that merely spells
+/// `--no-color` (`--detail --no-color`) is not mistaken for the flag.
 fn send_mode(args: &[String]) -> i32 {
-    match SendForm::of(args) {
-        SendForm::Envelope => event_flow::submit_mode(args),
+    let (filtered, _) = take_tool_wide_flags(args);
+    match SendForm::of(&filtered) {
+        SendForm::Envelope => event_flow::submit_mode(&filtered),
         SendForm::Flags => event_mode(args),
     }
 }
@@ -308,8 +311,11 @@ enum SendForm {
 }
 
 impl SendForm {
+    /// LEADING TOKEN ONLY: a flag whose value spells `--json`
+    /// (`--detail --json`) leaves it in a later position, where it is just a
+    /// value rather than the form selector.
     fn of(args: &[String]) -> Self {
-        if args.iter().any(|argument| argument == "--json") {
+        if args.first().is_some_and(|argument| argument == "--json") {
             Self::Envelope
         } else {
             Self::Flags
@@ -391,6 +397,30 @@ mod tests {
             SendForm::Flags
         );
         assert_eq!(SendForm::of(&strings(&["--json"])), SendForm::Envelope);
+    }
+
+    #[test]
+    fn json_in_a_value_position_is_still_just_a_value() {
+        // `--detail`'s own value could legitimately spell `--json`; only the
+        // leading token names the form.
+        assert_eq!(
+            SendForm::of(&strings(&[
+                "--agent", "x", "--state", "done", "--detail", "--json"
+            ])),
+            SendForm::Flags
+        );
+    }
+
+    #[test]
+    fn the_color_flag_answers_in_either_position_for_the_envelope_form_too() {
+        for args in [
+            strings(&["--no-color", "--json"]),
+            strings(&["--json", "--no-color"]),
+        ] {
+            let (filtered, _) = take_tool_wide_flags(&args);
+            assert_eq!(SendForm::of(&filtered), SendForm::Envelope, "{args:?}");
+            assert_eq!(filtered, strings(&["--json"]), "{args:?}");
+        }
     }
 
     #[test]
