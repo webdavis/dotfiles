@@ -286,6 +286,7 @@ dependencies = [
 name = "pns-adapters"
 version = "0.1.0"
 dependencies = [
+ "hmac",
  "libc",
  "pns-application",
  "pns-domain",
@@ -294,6 +295,7 @@ dependencies = [
  "rusqlite",
  "rustls",
  "serde_json",
+ "sha2",
  "toml",
  "ureq",
 ]

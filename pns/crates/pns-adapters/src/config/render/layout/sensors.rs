@@ -169,5 +169,26 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
                          # a quiet minute answers 304 and costs no rate limit at all.\n",
             sample: Sample::Default("60"),
         },
+        Key {
+            name: "webhook_secret",
+            prose: "# The secret the GitHub App's webhook was created with, which is what\n\
+                         # arms `pns github receive`: the push transport. Naming one here turns\n\
+                         # a delivery into an immediate poll instead of waiting for the next\n\
+                         # tick; naming none leaves the receiver exited and the poll is the\n\
+                         # source either way. It is a SEPARATE value from the token above and\n\
+                         # gets its own vault entry, because the receiver verifies deliveries\n\
+                         # with it and reads no notification of its own. The LaunchAgent only\n\
+                         # reloads when its plist changes, so arming or rotating this value\n\
+                         # needs `launchctl kickstart -k gui/$(id -u)/com.webdavis.pns-github-receiver`.\n",
+            sample: Sample::Example("\"\""),
+        },
+        Key {
+            name: "webhook_port",
+            prose: "# The loopback port the receiver binds, bounded 1024 to 65535, which\n\
+                         # the Cloudflare tunnel's ingress for the webhook hostname points at.\n\
+                         # LOOPBACK ONLY: the tunnel is the only way in, and a delivery that\n\
+                         # did not arrive through it is refused by its signature anyway.\n",
+            sample: Sample::Default("8648"),
+        },
     ],
 };
