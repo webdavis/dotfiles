@@ -87,18 +87,31 @@ pub fn enroll(bridge: &str, deadline: Duration) -> Result<Enrollment, String> {
     })
 }
 
-/// The common name out of a DER-encoded certificate's subject.
+/// The common name out of a DER-encoded certificate's SUBJECT.
 ///
-/// A SCAN RATHER THAN A PARSER, and deliberately: the only thing wanted out of
-/// this certificate is one printable string, and pulling in an X.509 parser to
-/// get it would put a whole new attack surface in a non-test build for one
-/// field. The attribute is found by its object identifier (2.5.4.3, encoded as
-/// `55 04 03`) followed by a printable or UTF-8 string header.
+/// BOUNDED TO THE SUBJECT, never the whole certificate: in a TBSCertificate
+/// the issuer DN precedes the subject DN, so a scan over the full DER finds
+/// the issuer's common name first. On a CA-signed bridge certificate that is
+/// `root-bridge`, not the bridge's own id. `webpki::EndEntityCert::subject()`
+/// parses just enough of the DER to hand back the subject's own bytes (no
+/// chain, no trust anchor), and the OID scan then runs over that slice alone.
 fn common_name(certificate: &[u8]) -> Option<String> {
+    let der = rustls::pki_types::CertificateDer::from(certificate);
+    let end_entity = webpki::EndEntityCert::try_from(&der).ok()?;
+    common_name_in(end_entity.subject())
+}
+
+/// Find a common name (2.5.4.3, encoded as `55 04 03`) followed by a
+/// printable or UTF-8 string header, inside a DER-encoded distinguished name.
+///
+/// A SCAN RATHER THAN A FULL PARSER, and deliberately: the only thing wanted
+/// out of the subject is one printable string, and pulling in an RDN parser
+/// to get it would be a second attack surface for one field.
+fn common_name_in(subject: &[u8]) -> Option<String> {
     const COMMON_NAME_OID: [u8; 5] = [0x06, 0x03, 0x55, 0x04, 0x03];
     let mut at = 0;
-    while at + COMMON_NAME_OID.len() + 2 <= certificate.len() {
-        if certificate[at..at + COMMON_NAME_OID.len()] != COMMON_NAME_OID {
+    while at + COMMON_NAME_OID.len() + 2 <= subject.len() {
+        if subject[at..at + COMMON_NAME_OID.len()] != COMMON_NAME_OID {
             at += 1;
             continue;
         }
@@ -106,13 +119,13 @@ fn common_name(certificate: &[u8]) -> Option<String> {
         // PrintableString (0x13) or UTF8String (0x0c), short form length only:
         // a common name is a handful of characters and a long-form length here
         // would mean something other than a name.
-        let tag = certificate[header];
-        let length = certificate[header + 1] as usize;
-        if !matches!(tag, 0x13 | 0x0c) || header + 2 + length > certificate.len() {
+        let tag = subject[header];
+        let length = subject[header + 1] as usize;
+        if !matches!(tag, 0x13 | 0x0c) || header + 2 + length > subject.len() {
             at += 1;
             continue;
         }
-        return String::from_utf8(certificate[header + 2..header + 2 + length].to_vec()).ok();
+        return String::from_utf8(subject[header + 2..header + 2 + length].to_vec()).ok();
     }
     None
 }

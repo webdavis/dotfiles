@@ -3,9 +3,11 @@ use crate::hue::pinned_tls::certificate_digest;
 
 use crate::hue::fixture_server::{Reply, Server};
 
-/// The fixture's certificate names this, and the scripted `/api/config`
-/// answers say the same thing when the two are meant to agree.
-const FIXTURE_NAME: &str = "pns-private-fixture.invalid";
+/// The fixture's certificate names this in its SUBJECT (issuer is
+/// `root-bridge`, the shape a CA-signed bridge certificate actually has), and
+/// the scripted `/api/config` answers say the same thing when the two are
+/// meant to agree.
+const FIXTURE_NAME: &str = "C42996FFFECB6DCC";
 
 const PATIENT: Duration = Duration::from_secs(10);
 
@@ -33,7 +35,7 @@ fn an_enrollment_reads_the_presented_certificate_and_the_hosts_own_answer() {
 #[test]
 fn a_host_whose_reported_id_is_not_the_certificates_name_does_not_agree_with_itself() {
     let server = Server::start(Reply::Json(
-        "{\"bridgeid\":\"C42996FFFECB6DCC\",\"modelid\":\"BSB003\"}".to_string(),
+        "{\"bridgeid\":\"0000000000000000\",\"modelid\":\"BSB003\"}".to_string(),
     ));
     let address = server.url().replace("https://", "");
 
