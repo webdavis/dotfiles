@@ -14,6 +14,14 @@
 //! carries the whole hour's list and everything after it in the hour is
 //! already covered by that message.
 //!
+//! THE STORM ITSELF IS REMEMBERED, NOT RECOMPUTED FROM THE ENTRY COUNT. Each
+//! entry is still pruned individually once it is an hour old, so a storm
+//! raised by five findings a second apart would otherwise un-cross the
+//! threshold as the oldest entries age out, and the next distinct finding
+//! would cross it again and send a second combined message. `stormed_at`
+//! stays set for a full hour from the crossing regardless of how the entry
+//! count drifts underneath it.
+//!
 //! IT FAILS OPEN. A window file that cannot be read or written grants the
 //! claim: the copy is a second post of a page already delivered, so losing the
 //! file costs at worst a few extra copies, while withholding on a read error
@@ -49,6 +57,19 @@ struct Seen {
     finding: String,
 }
 
+/// The hour on disk: every distinct finding seen, and whether the hour has
+/// already crossed into a storm.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct Window {
+    #[serde(default)]
+    seen: BTreeMap<String, Seen>,
+    /// When the hour crossed the threshold, kept independent of `seen` so a
+    /// storm stays a storm for the full hour even as individual entries age
+    /// out of the map.
+    #[serde(default)]
+    stormed_at: Option<u64>,
+}
+
 /// What the window says about one finding's copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Claim {
@@ -70,30 +91,47 @@ pub(crate) enum Claim {
 /// A GRANT IS SPENT ON THE ATTEMPT, not on a delivery. What the cap bounds is
 /// cost, and a copy the far side refused cost the same request as one it took.
 pub(crate) fn claim(path: &Path, key: &str, finding: &str, now: u64) -> Claim {
-    let mut seen = read(path);
-    seen.retain(|_, entry| now.saturating_sub(entry.at) < WINDOW);
-    if seen.contains_key(key) {
-        write(path, &seen);
+    let mut window = read(path);
+    window
+        .seen
+        .retain(|_, entry| now.saturating_sub(entry.at) < WINDOW);
+    if window
+        .stormed_at
+        .is_some_and(|at| now.saturating_sub(at) >= WINDOW)
+    {
+        window.stormed_at = None;
+    }
+    if window.seen.contains_key(key) {
+        write(path, &window);
         return Claim::AlreadyCopied;
     }
-    seen.insert(
+    window.seen.insert(
         key.to_string(),
         Seen {
             at: now,
             finding: finding.to_string(),
         },
     );
-    let claim = decide(&seen);
-    write(path, &seen);
+    let claim = if window.stormed_at.is_some() {
+        Claim::Storming
+    } else {
+        decide(&window.seen)
+    };
+    if let Claim::Storm(_) = claim {
+        window.stormed_at = Some(now);
+    }
+    write(path, &window);
     claim
 }
 
-/// The pure rule, over an hour this finding is already counted in.
+/// The pure rule, over an hour this finding is already counted in, called
+/// only while no storm is already active: any count past the threshold is a
+/// fresh crossing.
 fn decide(seen: &BTreeMap<String, Seen>) -> Claim {
-    match seen.len() {
-        counted if counted <= STORM_THRESHOLD => Claim::Granted,
-        counted if counted == STORM_THRESHOLD + 1 => Claim::Storm(listed(seen)),
-        _ => Claim::Storming,
+    if seen.len() <= STORM_THRESHOLD {
+        Claim::Granted
+    } else {
+        Claim::Storm(listed(seen))
     }
 }
 
@@ -105,7 +143,7 @@ fn listed(seen: &BTreeMap<String, Seen>) -> Vec<String> {
 }
 
 /// The hour on disk, and an empty hour for every reason it cannot be read.
-fn read(path: &Path) -> BTreeMap<String, Seen> {
+fn read(path: &Path) -> Window {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
@@ -114,11 +152,11 @@ fn read(path: &Path) -> BTreeMap<String, Seen> {
 
 /// Best effort, because the copy is worth more than the bookkeeping: a state
 /// directory that cannot be made or written costs repeat copies, not a page.
-fn write(path: &Path, seen: &BTreeMap<String, Seen>) {
+fn write(path: &Path, window: &Window) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(text) = serde_json::to_string(seen) {
+    if let Ok(text) = serde_json::to_string(window) {
         let _ = std::fs::write(path, text);
     }
 }

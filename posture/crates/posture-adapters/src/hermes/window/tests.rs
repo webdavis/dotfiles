@@ -90,23 +90,51 @@ fn every_distinct_finding_after_the_crossing_one_is_already_covered_by_that_mess
 }
 
 #[test]
-fn a_claim_older_than_the_hour_is_forgotten_by_both_the_threshold_and_the_repeat_rule() {
+fn a_claim_older_than_the_hour_is_forgotten_by_the_repeat_rule_below_the_threshold() {
     let sandbox = crate::test_sandbox::Sandbox::new("copy-window");
     let path = window(&sandbox);
-    fill(&path, STORM_THRESHOLD, 1_000);
-    // One second short of the hour the threshold is still reached, and at the
-    // hour itself every entry has left the window.
-    assert!(matches!(
-        claim(&path, "key-late", "a finding", 999 + WINDOW),
-        Claim::Storm(_)
-    ));
-    assert_eq!(
-        claim(&path, "key-later", "a finding", 1_000 + WINDOW),
-        Claim::Granted
-    );
+    fill(&path, STORM_THRESHOLD - 1, 1_000);
+    // At the hour itself every earlier entry has left the window, so a
+    // finding claimed before is granted again as if new.
     assert_eq!(
         claim(&path, "key-0", "finding 0", 1_000 + WINDOW),
         Claim::Granted
+    );
+}
+
+#[test]
+fn a_storm_stays_a_storm_for_the_full_hour_even_as_its_entries_age_out() {
+    let sandbox = crate::test_sandbox::Sandbox::new("copy-window");
+    let path = window(&sandbox);
+    // Five findings a second apart, then the one that crosses the threshold.
+    for index in 0..STORM_THRESHOLD {
+        assert_eq!(
+            claim(
+                &path,
+                &format!("key-{index}"),
+                &format!("finding {index}"),
+                1_000 + index as u64
+            ),
+            Claim::Granted
+        );
+    }
+    let crossing_at = 1_000 + STORM_THRESHOLD as u64;
+    assert!(matches!(
+        claim(&path, "key-crossing", "the crossing finding", crossing_at),
+        Claim::Storm(_)
+    ));
+    // Every entry that built the storm ages out of the map well inside the
+    // hour the storm itself is still remembered for.
+    let still_within_the_storms_hour = crossing_at + WINDOW - 1;
+    assert_eq!(
+        claim(
+            &path,
+            "key-fresh",
+            "a fresh distinct finding",
+            still_within_the_storms_hour
+        ),
+        Claim::Storming,
+        "a new distinct finding inside the storm's hour must not re-cross and send a second combined message"
     );
 }
 
