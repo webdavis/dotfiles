@@ -2529,16 +2529,17 @@ is missing.
   match, which slices 33, 40 and 44 need; (3) confirmation that item 94's four credential names reduce to
   `key` and `keys`; (4) whether item 105 splits `[lights] refresh_secs` into `arm_interval` and
   `fade_duration`. RULING 2026-09-17 on the credential name, answering slicing question 3 and unblocking
-  slices 36 and 39: each plugin's credential key is named for the kind of secret THAT TOOL uses, and the
-  authority is the KeePassXC entry, whose titles already state the type correctly per tool. This REVERSES
-  the plan's item 94, which wanted `key` and `keys` everywhere: a config key spelled `key` beside a vault
-  entry and a vendor document that both say personal access token makes the reader guess whether they are
-  the same thing. If standardizing helps the Rust, the translation belongs in the code behind one
-  internal type, never in the file a human reads, and only when it makes the code cleaner rather than as
-  a rule applied for its own sake. `[plugins.github]` does NOT take item 90's `type = "<vendor>"` table
-  shape: that shape is for delivery destinations and GitHub is a notification source. Two slicing
-  questions remain: the two numbers `[lights] refresh_secs` splits into, which ships at 12 today and
-  serves both the daemon re-arm interval and the fade budget.
+  slices 36 and 39: each plugin's credential key is named for the kind of secret THAT TOOL issues,
+  spelled out in full (`device_token`, `bot_token`, `personal_access_token`, `api_key` for both the
+  router and hue), and the authority is the KeePassXC entry, whose titles already state the type
+  correctly per tool. This REVERSES the plan's item 94, which wanted `key` and `keys` everywhere: a
+  config key spelled `key` beside a vault entry and a vendor document that both say personal access token
+  makes the reader guess whether they are the same thing. If standardizing helps the Rust, the
+  translation belongs in the code behind one internal type, never in the file a human reads, and only
+  when it makes the code cleaner rather than as a rule applied for its own sake. `[plugins.github]` does
+  NOT take item 90's `type = "<vendor>"` table shape: that shape is for delivery destinations and GitHub
+  is a notification source. Two slicing questions remain: the two numbers `[lights] refresh_secs` splits
+  into, which ships at 12 today and serves both the daemon re-arm interval and the fade budget.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as

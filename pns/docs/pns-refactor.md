@@ -360,10 +360,22 @@ Agreed changes to pns, one per line. Add a line for each new agreed change.
 1. Rename `[lights.github]` (`schema.rs:96`), the one vendor word among behaviours that are otherwise
    states (`done`, `failed`, `blocked`, `unread`, `loop`, `dim`), to the state it lights: the pass and
    fail colors of a checks result.
-1. One word for a credential. Today one concept wears four names: `plugins.mobile.token`,
-   `plugins.discord.token`, `plugins.hue.key`, `plugins.router.api_key` and the per-route
-   `plugins.hermes.keys.<route>` (`schema.rs:117-161`). Use `key` for a single credential and `keys` for
-   a map of them.
+1. Name each credential for the kind of secret its own tool issues, spelled out, and take the wording
+   from the KeePassXC entry that already states it (operator ruling 2026-09-17). A config key that
+   disagrees with the vendor's own word and with the vault entry makes a reader guess whether they are
+   the same secret.
+
+   | Table              | Key today | Key after               |
+   | ------------------ | --------- | ----------------------- |
+   | `plugins.mobile`   | `token`   | `device_token`          |
+   | `plugins.discord`  | `token`   | `bot_token`             |
+   | `plugins.github`   | `token`   | `personal_access_token` |
+   | `plugins.router`   | `api_key` | `api_key`               |
+   | `plugins.hue`      | `key`     | `api_key`               |
+
+   `plugins.hermes.keys.<route>` stays a map of route keys. `plugins.hue.bridge` is a host address
+   rather than a credential and is out of scope. If a single internal type helps the Rust, it lives in
+   the code, not in the file a human reads.
 1. One word for a route. `[routes] default`/`urgent` and `plugins.hermes.keys.<route>` say route;
    `plugins.router.stale_alert_channel` (`schema.rs:167`) says channel for the same thing, while its own
    code calls the variable `alert_route` (`crates/pns/src/command_home.rs:52`) and its error text says

@@ -830,12 +830,18 @@ TOTAL SLICES: 49
   is no second number to choose, slice 42 carries no split, and item 105 is now a plain rename of
   `refresh_secs` to `arm_interval`. `pns/docs/pns-refactor.md` is corrected in place.
 
-- 2026-09-17: slicing question 3 is ANSWERED. Each plugin's credential key is named for the kind of
-  secret that tool uses, and the authority is the KeePassXC entry, whose titles already state the type
-  correctly per tool. This reverses item 94's `key`/`keys` rule. Standardizing belongs in the Rust behind
-  one internal type if it makes the code cleaner, never in the file a human reads. `[plugins.github]`
-  does not take item 90's `type = "<vendor>"` shape, because that shape is for delivery destinations and
-  GitHub is a notification source. Slices 36 and 39 are unblocked.
+- 2026-09-17: slicing question 3 is ANSWERED, and the answer renames four keys rather than the one an
+  earlier reading of it suggested. Each credential is named for the kind of secret its own tool issues,
+  spelled out in full, with the KeePassXC entry title as the authority:
+  `plugins.mobile.token` becomes `device_token`, `plugins.discord.token` becomes `bot_token`,
+  `plugins.github.token` becomes `personal_access_token`, `plugins.hue.key` becomes `api_key`, and
+  `plugins.router.api_key` is already correct. `plugins.hermes.keys.<route>` stays a map of route keys,
+  and `plugins.hue.bridge` is a host address rather than a credential. This reverses item 94, which
+  wanted `key` and `keys` everywhere, and it also satisfies the repository's spell-words-out naming
+  rule. `[plugins.github]` does not take item 90's `type = "<vendor>"` shape, because that shape is for
+  delivery destinations and GitHub is a notification source. If one internal type helps the Rust it
+  lives in the code, never in the file a human reads. Slices 36 and 39 are unblocked, and each is a
+  breaking config rename that must move its own callers in the same change.
 
 BLOCKED-ON-OPERATOR:
 
