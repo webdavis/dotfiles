@@ -139,7 +139,7 @@ impl CommandRunner for Runner {
             }
             "submit" => {
                 assert_eq!(program, Path::new("/fake/engine"));
-                assert_eq!(args, [OsStr::new("submit"), OsStr::new("--json")]);
+                assert_eq!(args, [OsStr::new("send"), OsStr::new("--json")]);
                 let CommandIo::Input(input) = io else {
                     panic!("stdin request required")
                 };

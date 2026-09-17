@@ -75,7 +75,7 @@ impl CommandRunner for Runner {
                 }
             }
             _ if program.file_name() == Some(OsStr::new("pns")) => {
-                assert_eq!(args, [OsStr::new("submit"), OsStr::new("--json")]);
+                assert_eq!(args, [OsStr::new("send"), OsStr::new("--json")]);
                 let CommandIo::Input(input) = io else {
                     panic!("stdin request required")
                 };

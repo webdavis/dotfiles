@@ -65,7 +65,7 @@ route = "posture-pages"
 # path however it likes.
 [notify.command]
 path = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
-arguments = ["submit", "--json"]
+arguments = ["send", "--json"]
 
 # The mode selected above. `url` is the gateway's webhook base, one path
 # segment above the route: a page for the `posture-pages` route is posted to

@@ -69,6 +69,7 @@ function test_a_failed_skills_bootstrap_advances_the_retry_marker_without_aborti
   assert_same '9' "$(cat "$SKILLS_FIXTURE/.local/state/skills/first-install-pending")"
   assert_same $'bootstrap\nskills' "$(cat "$SKILLS_FIXTURE/argv" 2>/dev/null)"
   assert_contains 'owned bootstrap failure' "$(cat "$SKILLS_FIXTURE/stderr")"
+  assert_same 'send' "$(head -n 1 "$SKILLS_FIXTURE/alarm" 2>/dev/null)"
   assert_contains 'bootstrap skills' "$(cat "$SKILLS_FIXTURE/alarm" 2>/dev/null)"
 }
 
