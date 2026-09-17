@@ -672,6 +672,27 @@ behaviour-to-pin: a single credential is `key` and a map of them is `keys`, the 
 risk: medium, apply window. Note the open question about `[plugins.github] token`, below.
 size: medium
 
+operator-ruling-2026-09-17: the credential keys are named for the secret each tool issues, spelled out,
+taking the wording from the KeePassXC entry: `plugins.mobile.token` becomes `device_token`,
+`plugins.discord.token` becomes `bot_token`, `plugins.github.token` becomes `personal_access_token`,
+`plugins.hue.key` becomes `api_key`, and `plugins.router.api_key` is already right. This reverses item
+94's `key`/`keys` rule. `plugins.hermes.keys.<route>` stays a map of route keys and `plugins.hue.bridge`
+is a host rather than a credential.
+
+fold-in-here (operator approved 2026-09-17): introduce a `Secret` newtype in the same slice, because
+renaming a key and changing its type in one breaking change is cheaper than two. `mobile.rs` and
+`router.rs` both carry the comment that the key "never enters a type that derives Debug, so it cannot
+ride a formatted dump into a log line", and both return `Option<String>`, which derives both `Debug` and
+`Display`. The invariant is therefore prose in two files rather than a property of the type, and one
+`#[derive(Debug)]` on a struct that happens to hold a key puts a secret one `{:?}` from a log line. Give
+`Secret(String)` no `Debug`, no `Display` and no `Serialize`, so a formatting attempt fails to compile,
+and add one shared `secret(table, name) -> Option<Secret>` holding the shape check. The key name stays a
+parameter and each plugin keeps its own policy for a missing value, which is deliberate and must not be
+flattened: `mobile` and `router` return `None` meaning "not set up, never an error", while `github`
+returns a named refusal because its poll is opt-in and a missing token there is a mistake. Expect an
+explicit `.expose()` at each egress point where the secret becomes a header value; that call site is the
+audit surface and is a feature of the change rather than a cost of it.
+
 SLICE 40: presence keys say what they measure
 plan-items: 107, the two presence thirds of 99, and the `poll_secs` part of 109
 why-this-order: after slice 36.
