@@ -1,0 +1,98 @@
+# clauth profile configuration
+
+# Base URL for an API-endpoint profile. Leave commented for an OAuth
+# (Pro / Max / Team / Enterprise) profile.
+# base_url = "https://api.anthropic.com"
+
+# API key for the endpoint. Only used when base_url is set.
+# api_key = "sk-ant-..."
+
+# Auto-start the 5-hour usage window for this profile. clauth fires a
+# 1-token Haiku ping at launch and on every 30s refresh while there's
+# no running window. ~0.001¢ per ping. OAuth profiles only.
+# Old name `kick_timer = true` is still accepted.
+auto_start = true
+
+# 5-hour utilization percentage at/above which clauth will auto-switch
+# off this profile, provided the profile is also a member of the
+# fallback chain configured in ~/.clauth/profiles.toml. Range 0..=100.
+fallback_threshold = 95
+
+# Per-account override of the chain-wide weekly (7d) switch line (the
+# Config tab's `weekly limit`, default 98). Governs when auto-switching
+# treats this account's week — aggregate and per-model — as spent.
+# Commented = follow the chain-wide value. Range 0..=100.
+# weekly_threshold = 98.0
+
+# Marks this profile as the fallback chain's last resort. Once the
+# auto-switch walk lands here with no other member having headroom, it
+# parks instead of turning off all accounts. Independent of
+# fallback_threshold, this profile still switches away at its own
+# threshold whenever another chain member has headroom.
+# last_resort = true
+
+# Marks this profile as the fallback chain's preferred (home) account.
+# At most one member is preferred; the toggle is a radio. Once live work
+# has drifted off it and it reads clear and fresh again, the daemon walks
+# the active account — and every following session — back to it. Mutually
+# exclusive with last_resort.
+# preferred = true
+
+# CLA-ROLL: re-stamp this profile's session-token.json with the usage
+# chain's current access token on every rotation (plan-gated models
+# work in sessions, refresh chain stays clauth-private). Managed by
+# `clauth rolling-token <profile>` / `clauth static-token <profile>`.
+# rolling_token = true
+
+# Ceiling in US dollars on what the fallback chain may spend of this
+# account's pay-as-you-go budget unattended. Needs `spend_budget_switching`
+# on in profiles.toml AND pay-as-you-go enabled on the account; 0 (the
+# default) never spends. The chain stops using this account once its
+# spend reaches 90% of this or of the account's own cap, whichever is
+# lower — parking on a `last_resort` member if the chain has one, else
+# per `switch_off_when_budget_spent`.
+# max_auto_spend = 5.0
+
+# Whether auto-switching checks this account's aggregate weekly (7d)
+# usage against the weekly limit. Set false to keep this account in
+# rotation across the soft weekly band; the 100% hard cap always blocks.
+# check_weekly = false
+
+# Whether auto-switching checks this account's per-model weekly windows
+# (e.g. "7d fable") against the weekly limit. Set false to ignore them
+# and keep this account in rotation for use with other models.
+# check_scoped = false
+
+# 5-hour utilization percentage at/above which clauth fires a bell
+# notification in the overview tab. Range 0..=100.
+# bell_threshold = 95.0
+
+# Disable this account: it becomes invisible to the fallback chain, the
+# usage/rotation scheduler, and the daemon status feed (by default), while
+# its profile directory and credentials stay on disk untouched.
+# disabled = true
+
+# Alibaba Model Studio console session. The ONLY credential that can read
+# Token Plan quota — the api key authenticates inference and is never read
+# by the quota surface. Captured by `clauth login <name>` on an Alibaba
+# profile. It expires 48h after your aliyun browser sign-in, NOT after the
+# login: re-running the login inherits whatever is left of that window,
+# which can be minutes. A full window needs a fresh console sign-in first.
+# site: domestic | international.
+# [console]
+# token = "..."
+# site = "international"
+# region = "ap-southeast-1"
+
+# Per-account Claude Code model configuration, written into this profile's
+# settings.json. `default` is the `model` setting (an alias like `opusplan`
+# or a full id like `claude-opus-4-8[1m]`); `opus`/`sonnet`/`haiku`/`fable`
+# pin what those aliases resolve to (ANTHROPIC_DEFAULT_*_MODEL); `subagent`
+# forces the subagent model (CLAUDE_CODE_SUBAGENT_MODEL).
+# [models]
+# default = "opusplan"
+
+# Extra env vars merged into ~/.claude/settings.json's env block while
+# this profile is active. Cleared on switch to another profile.
+# [env]
+# HTTP_PROXY = "http://localhost:8080"
