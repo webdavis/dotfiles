@@ -54,6 +54,19 @@ impl Agent {
         }
     }
 }
+/// `AgentLabels` indexes by discriminant (`agent as usize`), so a reordering
+/// of `Agent::ALL` that drifted from declaration order would silently
+/// mislabel every job. This fails the build instead of waiting on a test.
+const _: () = {
+    let mut i = 0;
+    while i < Agent::ALL.len() {
+        assert!(
+            Agent::ALL[i] as usize == i,
+            "Agent::ALL must stay in discriminant order"
+        );
+        i += 1;
+    }
+};
 
 /// The launchd label of each job, defaulted and overridable per job.
 ///
