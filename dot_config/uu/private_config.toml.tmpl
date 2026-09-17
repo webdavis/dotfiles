@@ -28,10 +28,13 @@ time = "12:00"
 [records]
 url = "http://127.0.0.1:8644/webhooks/uu-runs"
 key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}"
-# Optional second destination for failed, stale, pending and record-lost alarms.
-# Signed with the same key. Each configured destination is attempted once;
-# a refusal stays retryable for one-shot alarms without changing the run verdict.
-# failure_webhook = "http://127.0.0.1:8644/webhooks/uu-failures"
+# Optional second destination for failed, stale, pending and record-lost alarms,
+# for a machine with no engine to report them through. Signed with the same key.
+# Each configured destination is attempted once; a refusal stays retryable for
+# one-shot alarms without changing the run verdict. Unset here: a failed lane
+# reaches the operator through [alerts] below, which states what the failure IS
+# and lets the engine decide which of its routes pages.
+# failure_webhook = "http://127.0.0.1:8644/webhooks/<route>"
 
 # Where a failed lane is reported. uu is a client here and takes no delivery
 # decision: pns owns presence and escalation. An engine that is not there leaves

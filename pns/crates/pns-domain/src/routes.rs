@@ -99,10 +99,21 @@ impl Kind {
     /// The route this kind takes when the event named none, or `None` when it
     /// takes the default route, which is the empty route every path already
     /// reads as the default.
-    pub fn route(self, routes: &Routes) -> Option<&str> {
+    ///
+    /// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
+    /// picks the channel and severity overrides it). A health event pages only
+    /// when somebody is waiting on it: an upgrade that failed while nobody
+    /// watched is why the urgent route exists, and one that went fine is a
+    /// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
+    /// place this crate says which states wait on the operator, so a page and
+    /// the recap's own NEEDS YOU section cannot disagree about what urgent is.
+    pub fn route<'a>(self, routes: &'a Routes, state: &str) -> Option<&'a str> {
         match self {
             Self::Agent => None,
-            Self::Health => Some(routes.urgent_route()),
+            Self::Health if crate::missed::NEEDS_YOU.contains(&state) => {
+                Some(routes.urgent_route())
+            }
+            Self::Health => None,
         }
     }
 
@@ -115,15 +126,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
+    fn a_failed_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
         let named = Routes::named("logbook", "sirens");
-        assert_eq!(Kind::Health.route(&named), Some("sirens"));
+        assert_eq!(Kind::Health.route(&named, "failed"), Some("sirens"));
         assert_eq!(
-            Kind::Agent.route(&named),
+            Kind::Agent.route(&named, "failed"),
             None,
             "the default route is the empty route, not a second spelling of it"
         );
         assert_eq!(Kind::default(), Kind::Agent);
+    }
+
+    #[test]
+    fn a_health_event_nobody_has_to_answer_stays_off_the_urgent_route() {
+        // THE MUTANT THIS PINS: the state ignored, which would page the
+        // operator for a weekly upgrade that went fine.
+        let named = Routes::named("logbook", "sirens");
+        for state in ["done", "resolved", "observation", "progress", ""] {
+            assert_eq!(
+                Kind::Health.route(&named, state),
+                None,
+                "`{state}` is nobody waiting on the operator"
+            );
+        }
+        for state in crate::missed::NEEDS_YOU {
+            assert_eq!(
+                Kind::Health.route(&named, state),
+                Some("sirens"),
+                "`{state}` is the operator being waited on"
+            );
+        }
     }
 
     #[test]

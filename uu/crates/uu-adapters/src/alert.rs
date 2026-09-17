@@ -65,13 +65,24 @@ mod tests {
     }
 
     #[test]
-    fn an_alert_never_names_a_channel_because_the_default_route_is_the_alert_route() {
-        assert!(
-            !alert_argv("dresden", "herdr", "x")
-                .iter()
-                .any(|a| a == "--channel"),
-            "an alert on the record route is a failure nobody is paged about"
-        );
+    fn an_alert_names_no_route_channel_or_gateway_of_any_kind() {
+        // THE RULE THIS PINS, over uu's own request rather than over the
+        // engine's answer: uu states what happened and never where it lands,
+        // because a route and a channel belong to whatever gateway somebody
+        // configured and uu is a tool other people install.
+        let argv = alert_argv("dresden", "herdr", "2 failure(s)");
+        for flag in ["--channel", "--route", "--url", "--webhook", "--priority"] {
+            assert!(
+                !argv.iter().any(|token| token == flag),
+                "`{flag}` names a destination uu is not entitled to choose: {argv:?}"
+            );
+        }
+        for token in &argv {
+            assert!(
+                !token.contains("://") && !token.starts_with('#'),
+                "`{token}` is a gateway or a channel: {argv:?}"
+            );
+        }
     }
 
     #[test]

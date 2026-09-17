@@ -131,7 +131,7 @@ mod tests {
         // lookup consults first, so the two cannot disagree.
         let routes = crate::routes::Routes::named(DEFAULT_ROUTE, URGENT_ROUTE);
         let route = crate::routes::Kind::Health
-            .route(&routes)
+            .route(&routes, "failed")
             .expect("health takes a route of its own");
         let channels = map(&[(DEFAULT_KEY, "catch-all"), (route, "pages")]);
         assert_eq!(looked_up(&channels, route, "dotfiles"), Some("pages"));
