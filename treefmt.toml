@@ -95,12 +95,7 @@ excludes = [
 command = "taplo"
 options = ["format"]
 includes = ["*.toml"]
-excludes = [
-  "dot_aerospace.toml",
-  "dot_config/herdr/config.toml",
-  "modify_*",
-  "**/modify_*",
-]
+excludes = ["dot_aerospace.toml", "modify_*", "**/modify_*"]
 
 [formatter.actionlint]
 command = "actionlint"

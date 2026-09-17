@@ -14,7 +14,7 @@ set -euo pipefail
 # config files are therefore build inputs and are hashed here, so editing a
 # profile or a chord re-fires this script and the manifest is re-rendered.
 #   .config/herdr/processes.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/processes.toml") | sha256sum }}
-#   .config/herdr/config.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/config.toml") | sha256sum }}
+#   .config/herdr/config.toml {{ include (joinPath .chezmoi.sourceDir ".chezmoitemplates/herdr-config-declared.toml.tmpl") | sha256sum }}
 #
 # G2 section headers; the build partial calls report_section, so the library has
 # to be inlined ahead of it or the call is command-not-found under set -e.

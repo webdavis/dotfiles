@@ -366,6 +366,20 @@ no-op apply emits the live file back byte for byte instead of re-serializing, so
 apply, so `.chezmoiscripts/run_before_13-quarantine-unparseable-codex-config.sh` moves an unparseable
 file into `~/workspaces/backups` first, at the cost of every hook approval on the machine.
 
+### Herdr configuration
+
+`dot_config/herdr/modify_config.toml` is the same modify-template mechanism for
+`~/.config/herdr/config.toml`, which herdr and the operator both rewrite at runtime (the settings
+screens, live keybinding edits, `reload_config`). The declared content, everything this repo owns, lives
+in `.chezmoitemplates/herdr-config-declared.toml.tmpl` (byte-for-byte what the plain target used to be)
+and is deep-merged over the live file with sprig's `mergeOverwrite`: any key the partial sets, at any
+depth, is forced from source on every apply, and any key the live file has that the partial does not
+mention, at any depth, passes through untouched. A no-op apply emits the live file back byte for byte.
+The `herdr-agent-quota` plugin's own leaf files under
+`dot_config/herdr/plugins/config/herdr-agent-quota/` are NOT chezmoi-managed at all (`.chezmoiignore`):
+`herdr plugin action invoke configure` (`run_after_53-install-herdr-third-party-plugins.sh.tmpl`)
+regenerates them itself on every apply, so tracking a snapshot only fights that regeneration.
+
 ### Agent skills (cross-harness store)
 
 `~/.agents/skills` is the single canonical skills store (81 roster skills), serving Claude Code (chezmoi
