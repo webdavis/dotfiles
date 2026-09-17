@@ -1,6 +1,6 @@
-use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, herdr_link, webhook_body};
+use super::{DEFAULT_MOSHI_URL, HttpPost, MoshiChannel, herdr_link, image_body, webhook_body};
 use crate::destinations::{Delivery, Event};
-use crate::moshi_secret;
+use crate::{moshi_image_cards, moshi_secret};
 use pns_application::NotificationDestination;
 use pns_domain::routing::ReportMode;
 use request::delivery_request;
@@ -11,14 +11,30 @@ struct RecordingHttp {
     /// already carries its outcome: a push that was refused is reachable
     /// no other way, and it is the direction a doctor exists to find.
     answers: bool,
+    /// What the upload answers: the code it filed the image under, or `None`
+    /// for an upload nothing came back from.
+    uploads_as: Option<String>,
     posts: Mutex<Vec<(String, String)>>,
+    /// Every upload attempted: its url, the token it carried, and how many
+    /// bytes it sent.
+    uploads: Mutex<Vec<(String, String, usize)>>,
 }
 
 impl RecordingHttp {
     fn answering(answers: bool) -> Self {
         RecordingHttp {
             answers,
+            uploads_as: None,
             posts: Mutex::new(Vec::new()),
+            uploads: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// An endpoint that takes the post and files an upload under this code.
+    fn uploading(code: &str) -> Self {
+        RecordingHttp {
+            uploads_as: Some(code.to_string()),
+            ..RecordingHttp::answering(true)
         }
     }
 }
@@ -31,15 +47,32 @@ impl HttpPost for RecordingHttp {
             .push((url.to_string(), body.to_string()));
         self.answers
     }
+
+    fn upload_png(&self, url: &str, token: &str, png: &[u8]) -> Option<String> {
+        self.uploads
+            .lock()
+            .unwrap()
+            .push((url.to_string(), token.to_string(), png.len()));
+        self.uploads_as.clone()
+    }
 }
 
 /// The channel as the composition root builds it: the secret already
 /// extracted from the `[plugins.mobile]` settings, no file anywhere near it.
 fn channel_with_settings(settings: &str) -> MoshiChannel<RecordingHttp> {
+    channel_over(RecordingHttp::answering(true), settings)
+}
+
+/// The same channel over a scripted endpoint, so one test can say what the
+/// upload answered and another what the webhook did.
+fn channel_over(http: RecordingHttp, settings: &str) -> MoshiChannel<RecordingHttp> {
+    let settings: toml::Table = settings.parse().unwrap();
     MoshiChannel {
-        http: RecordingHttp::answering(true),
-        token: moshi_secret(&settings.parse().unwrap()),
+        http,
+        token: moshi_secret(&settings),
         url: "https://example.invalid/hook".to_string(),
+        upload_url: "https://example.invalid/upload".to_string(),
+        image_cards: moshi_image_cards(&settings),
     }
 }
 
@@ -164,6 +197,8 @@ fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
             http: RecordingHttp::answering(true),
             token: None,
             url: DEFAULT_MOSHI_URL.to_string(),
+            upload_url: crate::DEFAULT_MOSHI_UPLOAD_URL.to_string(),
+            image_cards: Vec::new(),
         },
     ] {
         assert_eq!(
@@ -193,11 +228,10 @@ fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_th
             ),
         ),
     ] {
-        let channel = MoshiChannel {
-            http: RecordingHttp::answering(answered),
-            token: Some("tok-secret-9".to_string()),
-            url: "https://example.invalid/hook".to_string(),
-        };
+        let channel = channel_over(
+            RecordingHttp::answering(answered),
+            "token = \"tok-secret-9\"\n",
+        );
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             verdict,
@@ -299,3 +333,5 @@ fn a_closed_port_is_a_quiet_false_never_a_report() {
 mod transport;
 
 mod request;
+
+mod image_card;

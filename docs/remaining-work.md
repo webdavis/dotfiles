@@ -2526,39 +2526,65 @@ is missing.
   posture pages currently have nowhere to land, and the fix needs the encrypted hermes config edited, an
   apply, and `hermes gateway restart`.
 
-- [ ] Evaluate native macOS probes for pns, approved 2026-09-13. Benchmark the current `ioreg` idle-time
-  and screen-lock probes and the `pgrep`/`ps` process queries used for phone-session activity. Compare
-  probe latency and total pns runtime under representative load with small Rust adapters using maintained
-  IOKit bindings and the existing `libc` dependency where suitable. Reuse bindings to Apple's system
-  interfaces; keep the adapter inside pns and limited to the calls it needs. Adopt a replacement only
-  when measurements show a worthwhile benefit and behavior checks pass. Preserve unknown readings,
-  lock/idle routing, process and terminal matching, bounded execution and handling of processes that exit
-  during a query. Record the measurements and retain the current commands if the replacement is not an
-  improvement. Include this in the existing
-  [pns performance task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp). Keep `terminal-notifier`
-  unless a demonstrated feature gap justifies taking over notification permissions, app identity and
-  click handling. Keep `rusqlite`/SQLite and supported external-tool interfaces. Focus detection is
-  already Rust; changing languages does not remove its dependence on undocumented Apple files. A general
-  translation framework or rewrite of third-party implementations is outside this task. This approval
-  schedules the investigation and conditional replacements. September 13's private prototype measured the
-  parallel desk/phone probe stage at 216.7 ms median with current commands versus 18.8 ms through bounded
-  native helpers; added-load medians were 276.8 ms and 27.4 ms. Sixty live parity comparisons passed for
-  observed conditions, but this does not cover locked-state transitions or total pns runtime. The
-  direct-call variant loses interruptible deadlines. The native phone candidate also misses an `argv[0]`
-  match accepted by current `pgrep`; do not adopt it as equivalent. Resolve that selection mismatch,
-  compare a hybrid retaining `pgrep` if useful, and measure total runtime before adoption. Keep
-  production probes unchanged until those checks and required device acceptance pass. The bounded
-  prototype uses maintained `objc2-io-kit` and Core Foundation bindings with the existing `libc` version.
-  Raw activity readings remain private in the local investigation, not in this repository. The private
-  hybrid follow-up retained actual `pgrep -x` selection and fixed the argument-zero witness mismatch.
-  Bounded phone medians were 207.8 to 39.6 ms ambient and 238.2 to 43.2 ms under added load. A complete
-  pns process with private destination stubs measured 239.9 to 83.1 ms and 270.8 to 88.0 ms respectively.
-  All 320 whole-process runs completed and 50 bracketed comparisons agreed. These measurements exclude
-  real delivery, daemon and hook latency. The candidate combines bounded native desk probes with hybrid
-  phone selection. Its five-second total phone deadline is tighter than the existing chain's three
-  separate budgets and needs an explicit adoption decision. Actual device transitions, unreadable
-  devices, multi-user behavior and stalled native calls remain acceptance gates. All 33 original
-  investigation hashes were preserved; production is unchanged.
+- [x] Evaluate native macOS probes for pns, approved 2026-09-13. MEASURED 2026-09-17; ADOPTION IS TASK
+  144 AND WAITS ON ONE OPERATOR DECISION. Benchmark the current `ioreg` idle-time and screen-lock probes
+  and the `pgrep`/`ps` process queries used for phone-session activity. Compare probe latency and total
+  pns runtime under representative load with small Rust adapters using maintained IOKit bindings and the
+  existing `libc` dependency where suitable. Reuse bindings to Apple's system interfaces; keep the
+  adapter inside pns and limited to the calls it needs. Adopt a replacement only when measurements show a
+  worthwhile benefit and behavior checks pass. Preserve unknown readings, lock/idle routing, process and
+  terminal matching, bounded execution and handling of processes that exit during a query. Record the
+  measurements and retain the current commands if the replacement is not an improvement. Include this in
+  the existing [pns performance task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp). Keep
+  `terminal-notifier` unless a demonstrated feature gap justifies taking over notification permissions,
+  app identity and click handling. Keep `rusqlite`/SQLite and supported external-tool interfaces. Focus
+  detection is already Rust; changing languages does not remove its dependence on undocumented Apple
+  files. A general translation framework or rewrite of third-party implementations is outside this task.
+  This approval schedules the investigation and conditional replacements. September 13's private
+  prototype measured the parallel desk/phone probe stage at 216.7 ms median with current commands versus
+  18.8 ms through bounded native helpers; added-load medians were 276.8 ms and 27.4 ms. Sixty live parity
+  comparisons passed for observed conditions, but this does not cover locked-state transitions or total
+  pns runtime. The direct-call variant loses interruptible deadlines. The native phone candidate also
+  misses an `argv[0]` match accepted by current `pgrep`; do not adopt it as equivalent. Resolve that
+  selection mismatch, compare a hybrid retaining `pgrep` if useful, and measure total runtime before
+  adoption. Keep production probes unchanged until those checks and required device acceptance pass. The
+  bounded prototype uses maintained `objc2-io-kit` and Core Foundation bindings with the existing `libc`
+  version. Raw activity readings remain private in the local investigation, not in this repository. The
+  private hybrid follow-up retained actual `pgrep -x` selection and fixed the argument-zero witness
+  mismatch. Bounded phone medians were 207.8 to 39.6 ms ambient and 238.2 to 43.2 ms under added load. A
+  complete pns process with private destination stubs measured 239.9 to 83.1 ms and 270.8 to 88.0 ms
+  respectively. All 320 whole-process runs completed and 50 bracketed comparisons agreed. These
+  measurements exclude real delivery, daemon and hook latency. The candidate combines bounded native desk
+  probes with hybrid phone selection. Its five-second total phone deadline is tighter than the existing
+  chain's three separate budgets and needs an explicit adoption decision. Actual device transitions,
+  unreadable devices, multi-user behavior and stalled native calls remain acceptance gates. All 33
+  original investigation hashes were preserved; production is unchanged. MEASURED 2026-09-17 in
+  [PR #755](https://github.com/webdavis/dotfiles/pull/755), merged `c6c2c76d`, written up in
+  `docs/superpowers/specs/2026-09-17-native-macos-probe-evaluation.md`. Production is unchanged: no Rust,
+  no dependency, no apply. Ambient medians on dresden over 200 runs each with the shell disabled:
+  `ioreg -c IOHIDSystem` 44.47 ms, `ioreg -n Root -d1` 28.77 ms, `pgrep -x mosh-server` 25.92 ms,
+  `pgrep -P` 26.34 ms, `ps -o tty=` 4.14 ms, against a spawn floor of 1.62 ms for `/usr/bin/true`. Under
+  eight spinners the same set measured 44.43, 30.49, 30.49, 29.52 and 9.09 ms. The desk pair costs 73.2
+  ms serial and the phone chain 56.4 ms, and because `start.rs` runs them on two threads the stage is
+  about 73 ms. NATIVE, timed in process over 200 iterations: the IOKit idle property 0.0100 ms, the
+  CoreGraphics session dictionary 0.1430 ms, and a libproc name, parent and terminal walk 1.0360 ms.
+  Parity was checked live rather than assumed. PROBES ARE OVER NINE TENTHS OF PNS'S LOCAL WORK (its own
+  non-probe work measures 4.45 ms and 2.79 ms) and about 30 percent of the whole run against the
+  previously quoted 239.9 ms figure, which the document labels as quoted rather than verified.
+  RECOMMENDATIONS, ranked: adopt native for the idle read; adopt native for the lock read BUT through the
+  registry Root node's `IOConsoleLocked` and NOT through `CGSessionCopyCurrentDictionary`, which was the
+  example this task's brief gave and is the wrong call, because it reads a different source of truth,
+  returns a null dictionary in a session without one, and the shipped code's Some(true)-only fail
+  direction would turn that null into silently never locking; adopt native for `pgrep -P` through the
+  same libproc walk, which needs NO new dependency because libc 0.2.189 already declares `proc_listpids`,
+  `proc_pidinfo`, `proc_name` and the bsdinfo struct; KEEP `pgrep -x mosh-server` shelled, because macOS
+  pgrep matches process names while libproc offers a 16-byte comm beside a 32-byte name, which is the
+  argv[0] mismatch class an earlier investigation already hit; and KEEP `ps -o tty=` shelled at 4.1 ms,
+  where it disappears for free if the libproc walk lands. NO CACHING: a fresh process per run means a
+  cache needs a state file that costs more than the 4.1 ms it saves. Expected stage cost after the three
+  adoptions is about 27 ms, bounded by the retained pgrep. THE ONE COST THE MILLISECONDS CANNOT PRICE,
+  and the reason adoption is a separate task: a native in-process call loses the forked cleanup child's
+  five-second deadline that bounds every probe today.
 
 - [x] Finish P4's recorded loop rule. DONE 2026-09-17, and the rule as recorded was narrower than the
   defect: a live loop lease for the pane prevents a condenser-generated `asking` guess from arming the
@@ -4255,22 +4281,29 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   probably correct), and whether posture's declared-hostname control gets its own pull request now that a
   second hostname reaches the internet or waits behind parts 3 and 4.
 
-- [ ] 86. Finish the live coverage of the five hermes routes. The 2026-09-15 check covered `pns-events`,
-  `priority` and `posture-pages` with real posts. `uu-runs` gets its first live post at the next weekly
-  `uu` run, and `general` has no producer in this repository, so it stays unproven until something posts
-  to it. MEASURED 2026-09-17, four of five now proven. `pns doctor` confirmed `general`, `posture-pages`
-  and `priority` as served by the gateway, and its Channels section reported hermes
-  `sent, posted HTTP 200`. `uu-runs` was proven separately by `uu run rotate-logs`, the cheapest lane,
-  which rotated one log and emitted its run record (`unattended / uu / completed / dresden`,
-  `rotate-logs: 0 failure(s)`, one log rotated at 33931949 bytes and eleven under threshold); that record
-  also reported `last successful run: NEVER RECORDED on this machine`, so it is the first uu run this
-  machine has recorded. `pns-events` is the only one of the five not directly exercised by either run.
-  Doctor also named two routes the gateway does not serve, `pns-recap` and `posture`, both of which the
-  operator ruled retired rather than missing; that is task 99 and not a gap in this one. RULING
-  2026-09-17: `general` is recorded as INTENTIONALLY UNUSED, the same disposition as the `#explain`
-  channel. It is proven served by the gateway and no producer in this repository posts to it, so it needs
-  no producer and its silence is not a gap. That leaves `pns-events` as the only route of the five
-  neither the doctor run nor the uu run exercised.
+- [x] 86. Finish the live coverage of the five hermes routes. CLOSED 2026-09-17 on the two answers it was
+  waiting for. The 2026-09-15 check covered `pns-events`, `priority` and `posture-pages` with real posts.
+  `uu-runs` gets its first live post at the next weekly `uu` run, and `general` has no producer in this
+  repository, so it stays unproven until something posts to it. MEASURED 2026-09-17, four of five now
+  proven. `pns doctor` confirmed `general`, `posture-pages` and `priority` as served by the gateway, and
+  its Channels section reported hermes `sent, posted HTTP 200`. `uu-runs` was proven separately by
+  `uu run rotate-logs`, the cheapest lane, which rotated one log and emitted its run record
+  (`unattended / uu / completed / dresden`, `rotate-logs: 0 failure(s)`, one log rotated at 33931949
+  bytes and eleven under threshold); that record also reported
+  `last successful run: NEVER RECORDED on this machine`, so it is the first uu run this machine has
+  recorded. `pns-events` is the only one of the five not directly exercised by either run. Doctor also
+  named two routes the gateway does not serve, `pns-recap` and `posture`, both of which the operator
+  ruled retired rather than missing; that is task 99 and not a gap in this one. RULING 2026-09-17:
+  `general` is recorded as INTENTIONALLY UNUSED, the same disposition as the `#explain` channel. It is
+  proven served by the gateway and no producer in this repository posts to it, so it needs no producer
+  and its silence is not a gap. That leaves `pns-events` as the only route of the five neither the doctor
+  run nor the uu run exercised. CLOSED 2026-09-17. `general` is recorded as INTENTIONALLY UNUSED by
+  operator ruling, the same standing as the `explain` channel entry, so it needs no live post and its
+  absence from the coverage table is the answer rather than a gap. `uu-runs` gets its first live post at
+  the next weekly `uu` run and needs no agent action; when that run happens its record is the coverage.
+  The other three routes were already covered with real posts on 2026-09-15, and tonight's evidence pass
+  for task 50a added three more heartbeat and two more digest deliveries on `posture-pages` (2026-09-15
+  through 09-17), so that route's coverage is now repeated rather than single.
 
 - [x] 88. Give a storm one combined explanation instead of one per finding. DONE 2026-09-17. Approved by
   the operator 2026-09-15, alongside the answers recorded in
@@ -4585,6 +4618,23 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   health it did not verify. Make the result reach something the operator can read, a non-zero exit or the
   local banner or both, and pin it with a test that a refused submission does not look like a successful
   run. Check `digest` and the other one-shot jobs for the same discarded result while you are in there.
+
+- [ ] 144. Adopt the three native macOS probes the 2026-09-17 measurements recommend, filed the same day.
+  The measurements and the per-probe verdicts are in
+  `docs/superpowers/specs/2026-09-17-native-macos-probe-evaluation.md` and are not re-derived here: adopt
+  the IOKit idle property in place of `ioreg -c IOHIDSystem` (44.47 ms to 0.0100 ms), the registry Root
+  node's `IOConsoleLocked` in place of `ioreg -n Root -d1`, and a libproc walk in place of `pgrep -P`
+  (26.34 ms to 1.0360 ms, with no new dependency since libc already declares the calls).
+  `pgrep -x mosh-server` and `ps -o tty=` stay shelled, and the second disappears on its own once the
+  walk lands. Expected stage cost falls from about 73 ms to about 27 ms. WAITS ON ONE OPERATOR DECISION,
+  which no measurement can make: a native in-process call cannot be killed by the forked cleanup child
+  that bounds every probe today, so adopting these trades the interruptible five-second probe deadline
+  for the speed. If that trade is refused, this task is closed as declined rather than left open. If it
+  is accepted, four acceptance gates are still unexercised and belong to the build: a real lock and
+  unlock transition, an unreadable device, a multi-user session, and a stalled native call. One
+  prerequisite for ever taking the NAME-based pgrep native, which this task does not: read out of source
+  which field macOS pgrep itself matches against, since only the manual page's wording and one observed
+  agreement support the current reading.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.

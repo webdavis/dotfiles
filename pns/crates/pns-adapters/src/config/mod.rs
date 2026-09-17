@@ -82,7 +82,7 @@ mod presence;
 pub use presence::parse_presence;
 
 mod mobile;
-pub use mobile::{MOSHI_TYPE, mobile_backend, moshi_secret};
+pub use mobile::{MOSHI_TYPE, mobile_backend, moshi_image_cards, moshi_secret};
 
 mod render;
 pub use render::{identity_placeholder, render, strip_chezmoi_actions};
