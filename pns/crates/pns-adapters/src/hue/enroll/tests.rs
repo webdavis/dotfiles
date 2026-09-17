@@ -1,9 +1,7 @@
 use super::*;
 use crate::hue::pinned_tls::certificate_digest;
 
-#[path = "../transport_tests/server.rs"]
-mod server;
-use server::{Reply, Server};
+use crate::hue::fixture_server::{Reply, Server};
 
 /// The fixture's certificate names this, and the scripted `/api/config`
 /// answers say the same thing when the two are meant to agree.

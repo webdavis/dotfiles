@@ -31,9 +31,7 @@ fn bridge(base: String, pin: CertificatePin, deadline: Duration) -> UreqBridge {
     }
 }
 
-#[path = "transport_tests/server.rs"]
-mod server;
-use server::{Reply, Server};
+use crate::hue::fixture_server::{Reply, Server};
 
 /// The deadline every test that is NOT about the deadline hands the bridge.
 ///

@@ -18,9 +18,8 @@ fn every_feature_armed() -> Answers {
         hermes_key: "hermes-secret".to_string(),
         hue_bridge: "192.168.1.9".to_string(),
         hue_key: "hue-secret".to_string(),
-        hue_certificate:
-            "sha256:0000000000000000000000000000000000000000000000000000000000000001"
-                .to_string(),
+        hue_certificate: "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+            .to_string(),
         hue_rooms: vec!["Studio".to_string(), "Kitchen".to_string()],
         router_type: "unifi".to_string(),
         router_url: "https://192.168.1.1".to_string(),

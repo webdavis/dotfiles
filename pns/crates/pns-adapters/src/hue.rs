@@ -24,6 +24,9 @@
 // answers. What stays here parses: the `[plugins.hue]` settings, the quiet
 // window off a config string, and the bridge's own JSON listing.
 
+#[cfg(test)]
+mod fixture_server;
+
 mod enroll;
 mod inventory;
 mod mismatch;

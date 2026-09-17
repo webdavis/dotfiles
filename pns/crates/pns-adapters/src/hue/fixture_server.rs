@@ -5,6 +5,9 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+/// The answers the fixture can give. ONE MODULE FOR BOTH SUITES: the transport
+/// tests need a body, a redirect and a silence, and enrollment needs one JSON
+/// document of its own.
 pub(super) enum Reply {
     Body,
     /// One JSON document of the caller's own, for a test whose subject is what
@@ -72,8 +75,10 @@ fn serve(listener: TcpListener, reply: Reply) -> Result<String, String> {
     .unwrap()
     .with_no_client_auth()
     .with_single_cert(
-        vec![CertificateDer::from(include_bytes!("cert.der").to_vec())],
-        PrivatePkcs8KeyDer::from(include_bytes!("key.der").to_vec()).into(),
+        vec![CertificateDer::from(
+            include_bytes!("transport_tests/cert.der").to_vec(),
+        )],
+        PrivatePkcs8KeyDer::from(include_bytes!("transport_tests/key.der").to_vec()).into(),
     )
     .unwrap();
     let connection = rustls::ServerConnection::new(Arc::new(config)).unwrap();
