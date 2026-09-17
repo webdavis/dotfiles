@@ -271,11 +271,21 @@ fn the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there(
             // 300 an hour for the lights tick, so the delivery and the consumed
             // record carry the whole path that line used to stand for, and they
             // carry more of it than the line did.
-            let delivered = support::poll_until(|| {
-                (deliveries(&sandbox, "hermes") > 0).then(|| deliveries(&sandbox, "hermes"))
+            // COUNTED AS EVENTS AND NOT AS DELIVERIES, because the daemon
+            // ticking beside this fire re-delivers the card. A channel script
+            // cannot confirm a delivery (`deliver_executable` answers `Silent`
+            // whatever it exits), so the nag's legs are retry-eligible the
+            // moment they are written and `pns daemon retry` hands the SAME
+            // event over again a tick later. A delivery count is therefore a
+            // function of when this thread happens to read it, which is what
+            // failed CI on #629 with `Some(2)` against `Some(1)`; the number
+            // of distinct events carded is one at every instant after the
+            // first delivery, and it is the number the ruling is about.
+            let carded = support::poll_until(|| {
+                (deliveries(&sandbox, "hermes") > 0).then(|| carded_events(&sandbox, "hermes"))
             });
             assert_eq!(
-                delivered,
+                carded,
                 Some(1),
                 "{case}: exactly one card; the daemon said: {}",
                 daemon.said()

@@ -125,7 +125,7 @@ impl Fixture {
     fn config(&self) -> Configuration {
         Configuration {
             store: self.store.clone(),
-            delivery: crate::producer_delivery(&self.engine()),
+            notify: crate::command_notify(&self.engine()),
             alarm: self.home.join("osascript"),
             limits: Default::default(),
         }

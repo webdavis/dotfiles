@@ -35,5 +35,6 @@ producer flags: --agent <name> --state <word> --project <name> --branch <name>
 
 kinds:          agent, the default, is a session event and takes the route
                 `[routes] default` names; health is a machine's own health and
-                takes `[routes] urgent`, unless --channel already named one.
+                takes `[routes] urgent` when its --state is one somebody has to
+                answer, unless --channel already named one.
 ";

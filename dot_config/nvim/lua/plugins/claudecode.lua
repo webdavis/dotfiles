@@ -50,9 +50,12 @@
 -- it keeps every start silent AND keeps the eager trigger, so neither half of
 -- the trade is paid. The crash itself is third-party code and is not patched.
 --
--- The operator's `moshi-hook set scan-ports` list is the belt to this braces and
--- lives outside this repository, in `~/.config/moshi/config.toml`, which chezmoi
--- does not manage. Either alone is sufficient; both cost nothing.
+-- `moshi-hook set scan-ports <list>` WOULD be a second layer, and is deliberately
+-- not set: `~/.config/moshi/config.toml` reads `scan_ports = "all"`, because the
+-- operator wants moshi to pick up a development server on any port while they are
+-- away from the desk. The five-start proof was taken with `all` in place for
+-- exactly that reason. So `port_range` is the ONLY thing keeping the probe off this
+-- listener. Do not read this paragraph as a spare and remove the pin.
 --
 -- `cond` keeps the plugin out of headless Neovim entirely (a `nvim --headless`
 -- launch or a `-l` script run, both used by this repo's own test suites and
@@ -60,15 +63,17 @@
 -- does. It scans `vim.v.argv` for the literal flags `--headless` and `-l`, not
 -- `#vim.api.nvim_list_uis() == 0`: lazy.nvim evaluates a spec's `cond` during its
 -- early spec-parse/resolve pass (`lazy/core/meta.lua`, `fix_cond`), well before
--- the `cmd` or `keys` trigger this plugin loads on and before an interactive
--- session's own UI is guaranteed to have attached, so a UI-count check is
--- unreliable at that point. The `opts.log_level` check below runs at a different,
+-- any of this spec's triggers fire (`VeryLazy` first, then a `cmd` or one of the
+-- `keys`) and before an interactive session's own UI is guaranteed to have
+-- attached, so a UI-count check is unreliable at that point. The `opts.log_level` check below runs at a different,
 -- later evaluation point (actual plugin load), where a UI count is reliable,
 -- which is why it keeps using it.
----The first port macOS allocates as ephemeral, read once from the measurement
----rather than left as a bare number: `moshi-hook`'s discovery probed every port
----below it and none at or above it.
-local EPHEMERAL_PORT_FLOOR = 49152
+
+---The lowest port the listener probe leaves alone, which is what this number is
+---FOR; what it IS is the first port macOS allocates as ephemeral
+---(`sysctl net.inet.ip.portrange.first`). Measured rather than assumed: decoy
+---servers were probed at every port below it and at none at or above it.
+local LOWEST_UNPROBED_PORT = 49152
 
 local function is_headless()
   for _, arg in ipairs(vim.v.argv) do
@@ -105,11 +110,10 @@ return {
     -- spec because `<leader>C` is the Claude group, and every key of that group
     -- is declared in one place.
     --
-    -- The seam needs no WebSocket server, and pressing this key does start one
-    -- as a side effect of loading the spec it lives on. That is the direction
-    -- this config wants anyway (question 4 above), and moving the key out would
-    -- split one Claude group across two files to save a server on the one key
-    -- of the group that does not need it.
+    -- The seam needs no WebSocket server. With `event = "VeryLazy"` the server is
+    -- already up before any key is pressed, so this key starts nothing and there is
+    -- no server for moving it out to save; the reason it stays here is simply that
+    -- `<leader>C` is the Claude group and one group lives in one file.
     {
       "<leader>Cp",
       function()
@@ -136,14 +140,15 @@ return {
   -- pinned commit) and failed the zero-stderr startup gate. A global `warn` is too
   -- wide: `:ClaudeCodeStatus` answers at INFO as well (`init.lua:619-621`), and
   -- would go silent. A headless session is the one kind with no UI attached, and
-  -- `opts` is evaluated when the plugin loads (a `cmd` or one of the `keys`), after
-  -- the UI has attached in an interactive session, so this quiets exactly the
-  -- sessions whose INFO was noise and nothing else. The one gap is a UI that
+  -- `opts` is evaluated when the plugin loads, which in an interactive session is
+  -- `VeryLazy` (lazy.nvim fires it from `UIEnter`, or from a `vim.schedule` after
+  -- `VimEnter`) rather than a `cmd` or a key, so the UI is already attached by then.
+  -- This quiets exactly the sessions whose INFO was noise and nothing else. The one gap is a UI that
   -- attaches AFTER the plugin loaded (an `--embed` client that ran commands before
   -- attaching): `init` closes it by raising the level back to the plugin's default
   -- through the logger's own `setup` on the first `UIEnter`, and only when the
   -- logger has already been loaded, so a normal interactive start (UI first, plugin
-  -- on a command or a key) is untouched.
+  -- on `VeryLazy`) is untouched.
   init = function()
     -- Not `once`: a UI can attach and detach before the plugin loads (an
     -- `--embed` client attaching, detaching, and then running a `ClaudeCode*`
@@ -170,7 +175,7 @@ return {
       -- The upstream default is 10000 to 65535, which put the server where
       -- `moshi-hook`'s listener discovery reaches it. See the measurement in
       -- the comment block above: 49152 is the first port it left alone.
-      port_range = { min = EPHEMERAL_PORT_FLOOR, max = 65535 },
+      port_range = { min = LOWEST_UNPROBED_PORT, max = 65535 },
       terminal = {
         provider = "none",
       },

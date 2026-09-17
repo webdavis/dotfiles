@@ -31,7 +31,7 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
         );
     }
     let mut sink = alert_sink(
-        config.delivery,
+        config.notify,
         SystemRunner::per_command(Duration::from_secs(5)),
         LastResortBanner::new(
             SystemRunner::per_command(Duration::from_secs(10)),

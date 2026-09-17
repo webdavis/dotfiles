@@ -81,8 +81,14 @@ impl ActivityRing for Replay {
 }
 
 impl RecapPublisher for Replay {
-    fn publish(&self, _: u64, _: u64) -> bool {
+    type Started = ();
+
+    fn publish(&self, _: u64, _: u64) -> Option<Self::Started> {
         panic!("digest is disabled");
+    }
+
+    fn hand_card(&self, (): Self::Started, _: &pns_application::ReplayCard<'_>) -> bool {
+        panic!("no child was started, so no card can be handed over");
     }
 }
 

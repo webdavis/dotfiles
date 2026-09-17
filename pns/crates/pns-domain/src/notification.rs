@@ -76,7 +76,7 @@ impl EventArgs {
     /// later would leave a page recorded on one route and posted to another.
     pub fn routed(mut self, routes: &crate::routes::Routes) -> Self {
         if self.channel.is_empty()
-            && let Some(route) = self.kind.route(routes)
+            && let Some(route) = self.kind.route(routes, &self.state)
         {
             self.channel = route.to_string();
         }
@@ -89,17 +89,34 @@ mod tests {
     use super::*;
     use crate::routes::{Kind, Routes};
 
+    /// A failed upgrade, which is the health event this repository actually
+    /// raises: uu spawns `pns` with `--kind health --state failed`.
     fn health() -> EventArgs {
         EventArgs {
             kind: Kind::Health,
+            state: "failed".to_string(),
             ..EventArgs::default()
         }
     }
 
     #[test]
-    fn a_health_event_is_routed_to_the_urgent_route_the_config_named() {
+    fn a_failed_health_event_is_routed_to_the_urgent_route_the_config_named() {
         let routed = health().routed(&Routes::named("logbook", "sirens"));
         assert_eq!(routed.channel, "sirens");
+    }
+
+    #[test]
+    fn a_health_event_that_did_not_fail_is_left_on_the_routine_route() {
+        let routed = EventArgs {
+            state: "done".to_string(),
+            ..health()
+        }
+        .routed(&Routes::named("logbook", "sirens"));
+        assert!(
+            routed.channel.is_empty(),
+            "a healthy machine paged the operator: {}",
+            routed.channel
+        );
     }
 
     #[test]

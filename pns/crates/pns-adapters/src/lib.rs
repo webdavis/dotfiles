@@ -173,11 +173,13 @@ pub use config::FileConfigPublisher;
 mod codex;
 mod git;
 mod moshi_hook;
+mod recap_card_wire;
 mod recap_child;
 pub use codex::condense;
 pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
-pub use recap_child::{run_recap_bounded, spawn_recap};
+pub use recap_card_wire::{HandedCard, decode_handed_card};
+pub use recap_child::{CARD_ON_STDIN, hand_recap_card, run_recap_bounded, spawn_recap};
 
 pub use persistence::{DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError};
 

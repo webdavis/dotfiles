@@ -1,10 +1,10 @@
 //! The config file's shape, declared once so serde refuses an unknown table,
 //! an unknown key and an unknown mode by name. A typo therefore blocks the
-//! whole file rather than quietly switching delivery off, which is the trade:
-//! the loud half is a named refusal, and the quiet half it replaces is a
-//! security pipeline that silently stops paging.
+//! whole file rather than quietly switching notification off, which is the
+//! trade: the loud half is a named refusal, and the quiet half it replaces is
+//! a security pipeline that silently stops paging.
 
-use super::{DEFAULT_WEBHOOK_BASE, DeliveryPath};
+use super::{DEFAULT_WEBHOOK_BASE, NotifyMode};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -12,28 +12,29 @@ use std::path::PathBuf;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct File {
-    pub(super) delivery: Table,
+    pub(super) notify: Table,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Table {
     mode: Mode,
-    producer: Option<Producer>,
+    command: Option<Command>,
     hermes: Option<Hermes>,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum Mode {
-    Producer,
     Hermes,
+    Command,
+    Off,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Producer {
-    command: PathBuf,
+struct Command {
+    path: PathBuf,
     #[serde(default)]
     arguments: Vec<String>,
 }
@@ -52,23 +53,23 @@ fn local_gateway() -> String {
 }
 
 impl Table {
-    /// The declared path, or the refusal for a mode whose own table is missing
+    /// The declared mode, or the refusal for a mode whose own table is missing
     /// what that mode cannot run without.
-    pub(super) fn into_path(self) -> Result<DeliveryPath, String> {
+    pub(super) fn into_mode(self) -> Result<NotifyMode, String> {
         match self.mode {
-            // A PRODUCER WITH NO COMMAND IS REFUSED, not defaulted to some
+            // A COMMAND MODE WITH NO COMMAND IS REFUSED, not defaulted to some
             // engine's name. Which program serves the contract is the
             // operator's choice, and guessing one would page nowhere while
             // looking configured.
-            Mode::Producer => {
-                let producer = self.producer.ok_or_else(|| {
-                    "`delivery.mode` is \"producer\" but no `[delivery.producer]` table states \
-                     its `command`"
+            Mode::Command => {
+                let command = self.command.ok_or_else(|| {
+                    "`notify.mode` is \"command\" but no `[notify.command]` table states its \
+                     `path`"
                         .to_string()
                 })?;
-                Ok(DeliveryPath::Producer {
-                    command: producer.command,
-                    arguments: producer.arguments,
+                Ok(NotifyMode::Command {
+                    path: command.path,
+                    arguments: command.arguments,
                 })
             }
             Mode::Hermes => {
@@ -76,11 +77,14 @@ impl Table {
                     url: local_gateway(),
                     keys: BTreeMap::new(),
                 });
-                Ok(DeliveryPath::Hermes {
+                Ok(NotifyMode::Hermes {
                     base_url: hermes.url,
                     keys: hermes.keys,
                 })
             }
+            // `off` needs no table of its own: there is nothing to configure
+            // about raising the local banner and posting nowhere.
+            Mode::Off => Ok(NotifyMode::Off),
         }
     }
 }

@@ -99,7 +99,6 @@ return {
     assert(range.max <= 65535, "the port ceiling is " .. range.max .. ", past the last port")
     assert(range.min < range.max, "the range is empty or inverted")
   end,
-
   ["the terminal provider stays none either way"] = function()
     local _, headless = level_with_uis({})
     local _, interactive = level_with_uis({ { chan = 1 } })

@@ -34,7 +34,7 @@ fn execute(
         let _ = stderr.write_all(INVALID_BOUND.as_bytes());
     }
     let sink = alert_sink(
-        config.delivery,
+        config.notify,
         runner,
         LastResortBanner::new(alarm, config.alarm),
         &mut *stderr,

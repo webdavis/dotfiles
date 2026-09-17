@@ -243,9 +243,12 @@ this touch pns" but "does this tool still build with pns absent from the filesys
 When two tools need the same thing, each gets its own copy, and the duplication is deliberate rather than
 a DRY violation to collapse later: they are not one program. `uu-adapters` carries its own signed-POST
 client where it once took `pns-hermes`, `posture-adapters` carries a second copy of the same client, and
-`posture-producer-wire` is posture's own copy of the producer API's request and result envelopes. A copy
-of a WIRE CONTRACT is held honest by golden fixtures rather than by a shared type: both sides pin the
-same documents, so a change that moves the bytes fails a test instead of a delivery.
+`posture-adapters/src/wire/` is posture's own reading of the producer API's request and result documents.
+A copy of a WIRE CONTRACT is held honest by golden fixtures rather than by a shared type: both sides pin
+the same documents, so a change that moves the bytes fails a test instead of a delivery. It is plain
+serde in the crate that speaks it rather than a crate of its own, because posture only ever writes a
+request and reads a result: the depth-limiting parser and structural walk an ENGINE needs over input it
+did not build guard a direction posture does not speak.
 
 **uu AND posture NAME NO ENGINE** (operator ruling 2026-09-14). They are products other people install,
 so neither may carry pns in its source, config keys, crate names, defaults or error text. Each can post
@@ -258,7 +261,10 @@ raise alerts, and posture can hand a page to a producer command its own config n
 would spawn `git`, which couples nothing at build time. posture does NOT use that path on dresden: pns
 commits its ledger before it tries a destination, so a critical page bound for `priority` would come back
 as an acceptance the gateway had refused. Until the producer reports the destination's own answer rather
-than its ledger, `~/.config/posture/config.toml` ships `mode = "hermes"` and posture posts its own pages.
+than its ledger, `~/.config/posture/config.toml` ships `[notify] mode = "hermes"` and posture posts its
+own pages. The other two modes of that table are `command`, the producer path, and `off`, which turns off
+DELIVERY rather than the page: nothing leaves the machine and every finding is raised on the local
+banner.
 
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that
@@ -502,8 +508,8 @@ scope ruling.
 
 `~/.local/bin` holds only what the OPERATOR TYPES. Everything invoked by launchd, a hook, a keybinding or
 a `just` recipe lives under `~/.local/libexec`, because `just` and launchd are the interface and the
-script beneath them is an implementation detail. Today that leaves exactly one file in `bin`
-(`ssh-hardening.sh`).
+script beneath them is an implementation detail. Today that leaves three files in `bin`
+(`plannotator-tui`, `ssh-hardening.sh`, `worktree-review.sh`).
 
 **THE FOUR RUST TOOLS ARE OUT OF THAT RULE** (operator ruling 2026-09-09). `pns`, `uu`, `posture` and
 `lights` install to `~/.cargo/bin` instead, declared once in `.chezmoidata/rust_tools.yaml` and read from

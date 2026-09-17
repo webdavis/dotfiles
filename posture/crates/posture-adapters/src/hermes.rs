@@ -18,8 +18,8 @@ mod body;
 
 use crate::signed_post::{PostOutcome, SignedPost, delivered, sign};
 use crate::sink::{delivery_failed, tier_route};
+use crate::wire::Name;
 use posture_application::{Alert, AlertSink, IndependentAlarm, Submission, SubmissionFailure};
-use posture_producer_wire::Name;
 use std::collections::BTreeMap;
 use std::time::Duration;
 

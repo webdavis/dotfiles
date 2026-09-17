@@ -1,10 +1,10 @@
-use posture_adapters::{Delivery, is_executable, parse_command_duration as duration};
+use posture_adapters::{Notify, is_executable, parse_command_duration as duration};
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 pub(super) struct Configuration {
     pub state: PathBuf,
     pub tailscale: PathBuf,
-    pub delivery: Delivery,
+    pub notify: Notify,
     pub budget: Option<Duration>,
 }
 impl Configuration {
@@ -32,7 +32,7 @@ impl Configuration {
         Some(Self {
             state,
             tailscale,
-            delivery: Delivery::read(&home),
+            notify: Notify::read(&home),
             budget,
         })
     }

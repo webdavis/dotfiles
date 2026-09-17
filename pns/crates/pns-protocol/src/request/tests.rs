@@ -1,4 +1,4 @@
-use super::{Context, DeliveryScope, Interaction, Request, Session, Signal, decode};
+use super::{Context, DeliveryScope, Interaction, Kind, Request, Session, Signal, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -251,4 +251,54 @@ fn a_negative_or_fractional_time_is_invalid() {
         decode_value(&value).unwrap_err().reason,
         Rejection::Invalid(_)
     ));
+}
+
+#[test]
+fn a_producer_states_what_its_event_is_and_a_word_pns_does_not_know_is_refused() {
+    for (word, kind) in [("agent", Kind::Agent), ("health", Kind::Health)] {
+        let mut value = minimal();
+        value["kind"] = json!(word);
+        let decoded = decode_value(&value).unwrap();
+        assert!(
+            decoded.ignored.is_empty(),
+            "kind is owned request metadata, not a field of somebody else's"
+        );
+        assert_eq!(decoded.request.kind, Some(kind), "{word}");
+        let encoded: Value = serde_json::from_str(&decoded.request.encode().unwrap()).unwrap();
+        assert_eq!(encoded["kind"], json!(word), "{word}");
+    }
+    // REFUSED, NEVER DEFAULTED: a typo silently read as `agent` would send a
+    // page to the routine route nobody watches in time.
+    for word in [
+        json!("health "),
+        json!("Health"),
+        json!("priority"),
+        json!(""),
+    ] {
+        let mut value = minimal();
+        value["kind"] = word.clone();
+        let refused = decode_value(&value).expect_err("an unknown kind cannot be ignored");
+        assert_eq!(refused.reason.code(), "field_invalid", "{word}");
+        assert_eq!(refused.request_id, Some(id("r-1")), "{word}");
+    }
+}
+
+#[test]
+fn a_request_naming_no_kind_keeps_the_original_version_one_bytes() {
+    // THE FIXTURE BYTES ARE A CONTRACT posture's own copy of this envelope
+    // pins too, so an additive field must not move them.
+    let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
+    assert_eq!(
+        original,
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","signal":{"kind":"failed"},"occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
+        "an absent kind moved the canonical bytes"
+    );
+    assert_eq!(decode_value(&minimal()).unwrap().request.kind, None);
+    let mut value = minimal();
+    value["kind"] = Value::Null;
+    assert_eq!(
+        decode_value(&value).unwrap().request.encode().unwrap(),
+        original,
+        "a null kind is an absent kind"
+    );
 }

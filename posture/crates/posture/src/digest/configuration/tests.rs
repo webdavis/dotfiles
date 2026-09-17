@@ -32,9 +32,9 @@ fn home_names_the_spool_the_alerter_writes_and_the_engine_that_delivers() {
     let mut store = home.clone();
     store.push(DEFAULT_STORE);
     assert_eq!(config.store, PathBuf::from(store));
-    // No config file under that home, so delivery stands at its fail-closed
+    // No config file under that home, so the notify choice stands at its fail-closed
     // default rather than at some engine this tool would have to name.
-    assert_eq!(config.delivery, posture_adapters::Delivery::default());
+    assert_eq!(config.notify, posture_adapters::Notify::default());
     assert_eq!(config.alarm, PathBuf::from("/usr/bin/osascript"));
     assert!(Configuration::read(|_| None).is_none());
 }

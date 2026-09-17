@@ -1,7 +1,7 @@
-//! The validated identifiers every envelope carries: the producer's request
-//! id, the short names (producer, event, route, destination, session), and
-//! the schema identifier with its major version. Each is a newtype so an
-//! invalid one cannot be constructed, on the wire or in code.
+//! The validated identifiers both envelopes carry: the producer's request
+//! id, and the short names (producer, event, route, destination, session).
+//! Each is a newtype so an invalid one cannot be constructed, on the wire
+//! or in code.
 
 use std::fmt;
 
@@ -118,35 +118,6 @@ impl TryFrom<String> for Name {
 impl From<Name> for String {
     fn from(name: Name) -> String {
         name.0
-    }
-}
-
-/// `<name>/<major>`: which envelope, and which major version of it. There is
-/// no minor on the wire, because additive change never needs one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SchemaId {
-    pub(super) name: String,
-    pub(super) major: u32,
-}
-
-impl SchemaId {
-    /// `None` for anything but a non-empty name, one slash, and an unsigned
-    /// decimal major. A sign, a fraction or a second slash is not a version.
-    pub(super) fn parse(text: &str) -> Option<Self> {
-        let (name, major) = text.split_once('/')?;
-        if name.is_empty() || major.is_empty() || !major.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        Some(SchemaId {
-            name: name.to_string(),
-            major: major.parse().ok()?,
-        })
-    }
-}
-
-impl fmt::Display for SchemaId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{}", self.name, self.major)
     }
 }
 

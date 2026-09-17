@@ -28,8 +28,8 @@
 # posts to unless PNS_HERMES_URL says otherwise.
 default = "pns-events"
 # The route reserved for what needs a human now: a machine-health event
-# (`pns --kind health`) and the stale-block escalation both take it,
-# whatever it is called.
+# (`pns --kind health`) whose --state is one somebody has to answer,
+# and the stale-block escalation, both take it, whatever it is called.
 urgent = "priority"
 
 [plugins.mobile]

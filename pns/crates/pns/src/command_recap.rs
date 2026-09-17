@@ -63,7 +63,7 @@ fn agent_recap() -> i32 {
         return 2;
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, _, routes) = recap_settings(&home);
+    let (hermes_keys, discord, _, _, routes) = recap_settings(&home);
     post(&body, &home, &hermes_keys, &discord, &routes)
 }
 
@@ -87,14 +87,36 @@ fn git_recap() -> i32 {
     0
 }
 
+/// The window form: the card the return moment handed this child, then the
+/// recap it was spawned for.
+///
+/// THE CARD IS THIS PROCESS'S TO DISPATCH, which is what the hand-off moved
+/// here: the recap is rendered and posted in this process, so this is the only
+/// process that can ever put anything of the recap ON the card.
+///
+/// AND IT GOES FIRST, BEFORE THE SUMMARIZER IS EVER RUN. The two layers are
+/// locked apart: the phone card is composed from the journal's own entries and
+/// owes the summarizer nothing, so a model that never answers must not hold the
+/// card up. Reading the pipe first is the same rule from the other side, since
+/// the writer is the process that spawned this one and writes at once.
 fn recap() -> i32 {
-    let arguments: Vec<String> = crate::arguments_after_subcommand();
+    let (arguments, card) = handed_card(crate::arguments_after_subcommand());
     let Some((since, until)) = recap_bounds(&arguments) else {
         eprintln!("{RECAP_USAGE}");
         return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, recap, routes) = recap_settings(&home);
+    let (hermes_keys, discord, mobile, recap, routes) = recap_settings(&home);
+    if let Some(card) = card {
+        crate::recap_delivery_runtime::deliver_recap_card(
+            &card,
+            &mobile,
+            &home,
+            &hermes_keys,
+            &discord,
+            &routes,
+        );
+    }
     let body = pns_application::BuildReturnRecap {
         activity: &pns_adapters::SqliteStore::for_records(state_dir()),
         merges: &pns_adapters::GitHubMerges,
@@ -114,6 +136,30 @@ fn recap() -> i32 {
     post(&body, &home, &hermes_keys, &discord, &routes)
 }
 
+/// The card this child was handed, and the arguments with its flag removed.
+///
+/// THE FLAG IS STRIPPED BEFORE THE WINDOW IS PARSED rather than taught to the
+/// parser, which keeps `recap_bounds` refusing every word it will not vouch
+/// for and keeps an internal hand-off out of the operator's usage text.
+///
+/// STDIN IS READ ONLY WHEN THE FLAG SAID SO. An operator running this form by
+/// hand passes no flag, so nothing here ever reads their terminal.
+fn handed_card(arguments: Vec<String>) -> (Vec<String>, Option<pns_adapters::HandedCard>) {
+    let (flags, arguments): (Vec<String>, Vec<String>) = arguments
+        .into_iter()
+        .partition(|argument| argument == pns_adapters::CARD_ON_STDIN);
+    if flags.is_empty() {
+        return (arguments, None);
+    }
+    let mut line = String::new();
+    let read = std::io::Read::read_to_string(&mut std::io::stdin(), &mut line).is_ok();
+    (
+        arguments,
+        read.then(|| pns_adapters::decode_handed_card(&line))
+            .flatten(),
+    )
+}
+
 /// The durable destinations' credentials and the recap's own settings, or the fail-closed reading.
 ///
 /// FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST, which is
@@ -125,6 +171,7 @@ fn recap_settings(
 ) -> (
     HermesKeys,
     DiscordSettings,
+    Mobile,
     pns_adapters::Recap,
     pns_domain::routes::Routes,
 ) {
@@ -134,12 +181,14 @@ fn recap_settings(
                 .map(hermes_keys)
                 .unwrap_or_default(),
             read_discord(&config),
+            read_mobile(&config),
             config.recap,
             config.routes,
         ),
         _ => (
             HermesKeys::default(),
             DiscordSettings::default(),
+            Mobile::default(),
             pns_adapters::Recap::default(),
             pns_domain::routes::Routes::default(),
         ),

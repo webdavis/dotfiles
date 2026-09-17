@@ -94,6 +94,50 @@ pub(crate) fn deliver_recap(
     outcomes
 }
 
+/// The card the return moment handed this child, dispatched as soon as this
+/// child has it, before the recap it points at is ever rendered or posted.
+/// The phone layer owes the summarizer nothing.
+///
+/// THE SAME SUBMISSION THE RETURN MOMENT WOULD HAVE MADE: its identity, its
+/// legs and its sentence, crossed unchanged. What differs is only WHEN, and
+/// which process, so the ledger dedupes a second attempt at the same card the
+/// way it always has.
+///
+/// IT REPORTS NOTHING. This child's stdout is `/dev/null`, and the card's own
+/// legs are the plan's, not a reporting leg this mode chose.
+pub(crate) fn deliver_recap_card(
+    card: &pns_adapters::HandedCard,
+    mobile: &Mobile,
+    home: &str,
+    hermes_keys: &HermesKeys,
+    discord: &DiscordSettings,
+    routes: &pns_domain::routes::Routes,
+) {
+    let selection = roster().all();
+    let _ = delivery_runtime::DeliveryRuntime {
+        store: &pns_adapters::SqliteStore::for_records(state_dir()),
+        selection: &selection,
+        home,
+        mobile,
+        hermes_keys,
+        discord,
+        routes,
+        json: false,
+    }
+    .submit(
+        &card.identity,
+        &pns_domain::EventArgs {
+            agent: "pns".to_string(),
+            state: "missed".to_string(),
+            detail: card.detail.clone(),
+            ..Default::default()
+        },
+        &card.legs,
+        false,
+        None,
+    );
+}
+
 /// The project this recap is about: the repository the composing directory
 /// belongs to, or nothing when it is not one.
 ///
@@ -108,9 +152,10 @@ pub(crate) fn deliver_recap(
 /// is still a name worth showing. A recap has no such use for it: git is the
 /// only source that can tell a repository from a bare directory, so a recap
 /// composed outside one carries an EMPTY project and lands on the engine's
-/// own channel through `channel_map::NO_PROJECT_KEY`, which is where every
-/// recap goes today. Filling the directory name in instead would send it to
-/// whatever channel happens to be mapped under that name, or the catch-all.
+/// own channel, which is the key `channel_map::channel_for` consults for an
+/// event with no project and where every recap goes today. Filling the
+/// directory name in instead would send it to whatever channel happens to be
+/// mapped under that name, or the catch-all.
 fn recap_project() -> String {
     let cwd = std::env::current_dir()
         .map(|path| path.display().to_string())
