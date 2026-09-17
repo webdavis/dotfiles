@@ -1,0 +1,60 @@
+//! How long, typed as a count and a unit, for every field that takes one.
+
+use std::ops::RangeInclusive;
+use std::time::Duration;
+
+/// A duration, from `<count><ms|s|m|h>`, inside the range the field allows.
+///
+/// A UNIT IS REQUIRED, and the count goes through the crate's one numeric
+/// gate, so every shape `parse_count` refuses elsewhere is refused here too.
+/// A bare number is not accepted at either end: it means minutes to one reader
+/// and seconds to the next.
+///
+/// THE FIELD NAMES ITSELF in both refusals, because one parser now serves
+/// every duration in pns and a message that named one of them would send the
+/// operator to the wrong argument.
+///
+/// THE RANGE IS THE FIELD'S OWN, since what is sane for a mute is not what is
+/// sane for a flare, and refused rather than clamped: a value silently moved
+/// is a window the operator believes they set.
+pub fn parse_duration(
+    field: &str,
+    text: &str,
+    range: RangeInclusive<Duration>,
+) -> Result<Duration, String> {
+    for (unit, millis) in UNITS {
+        if let Some(digits) = text.strip_suffix(unit)
+            && let Some(count) = crate::count::parse_count(digits)
+        {
+            // SATURATING, so the range below is what refuses a count too large
+            // to multiply rather than an overflow deciding it.
+            let total = Duration::from_millis(count.saturating_mul(millis));
+            if !range.contains(&total) {
+                let (low, high) = (spelled(*range.start()), spelled(*range.end()));
+                return Err(format!("pns: {field} {text:?} is outside {low} to {high}"));
+            }
+            return Ok(total);
+        }
+    }
+    Err(format!("pns: {field} {text:?} is not <count><ms|s|m|h>"))
+}
+
+/// A duration written back in the largest unit that holds it whole, which is
+/// how a range reads in a refusal the operator has to act on.
+fn spelled(duration: Duration) -> String {
+    let millis = duration.as_millis();
+    for (unit, step) in UNITS.iter().rev() {
+        let step = u128::from(*step);
+        if millis >= step && millis.is_multiple_of(step) {
+            return format!("{}{unit}", millis / step);
+        }
+    }
+    format!("{millis}ms")
+}
+
+/// The units a duration may be typed in, and what each is worth in
+/// milliseconds. `ms` LEADS `s`, so the longer suffix is the one that matches.
+const UNITS: [(&str, u64); 4] = [("ms", 1), ("s", 1_000), ("m", 60_000), ("h", 3_600_000)];
+
+#[cfg(test)]
+mod tests;

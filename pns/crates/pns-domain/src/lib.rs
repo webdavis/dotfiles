@@ -23,6 +23,7 @@ pub mod channel_map;
 pub mod count;
 mod decision;
 mod decision_record;
+pub mod duration;
 mod elapsed;
 pub mod github;
 pub mod home;
