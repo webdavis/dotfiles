@@ -56,8 +56,8 @@ mode = "hermes"
 # it: the heartbeat, the digest, the cursor-reset warning and every finding
 # below critical. A critical finding overrides it with `priority`, which the
 # operator reserved for machine health and security. `#posture-pages` is the
-# channel the gateway serves; the bare `posture` route it used to answer was
-# retired with its channel, and a page sent there is lost.
+# channel the gateway serves; the bare `posture` route was never declared
+# there, and the pages sent to it in 2026-09 were lost.
 route = "posture-pages"
 
 # The command a page is handed to, and its arguments, passed verbatim. The
