@@ -18,9 +18,9 @@ pub const DEFAULT_HERDR_BINARY: &str = "herdr";
 ///
 /// `pinned_ref` IS THE POLICY. `None` means the plugin follows its source tip
 /// every week, which is what an entry without a `ref` has always done. `Some`
-/// means herdr installs that revision, the plugin does not move, and the
-/// weekly record says so by name rather than reporting a refresh that did not
-/// happen.
+/// means the weekly run never touches the plugin at all: it reads which
+/// revision the installed copy sits at, reports HELD when that is the pin, and
+/// reports the install command as pending work when it is not.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Plugin {
     pub(crate) id: String,
@@ -58,10 +58,11 @@ pub(crate) fn parse_herdr_lane(
 /// uninstalls a plugin nothing can put back.
 ///
 /// `ref` IS OPTIONAL and is spelled the way herdr spells it, because it is
-/// passed straight to `herdr plugin install --ref`. An absent or empty `ref`
-/// is the unpinned default: the plugin follows its source tip. Any other
-/// value is whatever herdr accepts there, a tag, a branch or a commit, and an
-/// unresolvable one fails the step rather than falling back to tip.
+/// what `herdr plugin install --ref` is given. An absent or empty `ref` is the
+/// unpinned default: the plugin follows its source tip. Any other value is
+/// whatever herdr accepts there, a tag, a branch or a commit, and the weekly
+/// run reports rather than installs it, so an unresolvable one costs a line in
+/// the record instead of the working copy.
 fn parse_plugins(table_label: &str, setting: &toml::Value) -> Result<Vec<Plugin>, ConfigError> {
     let Some(entries) = setting.as_array() else {
         return Err(ConfigError::Invalid(format!(
