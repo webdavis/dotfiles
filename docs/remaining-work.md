@@ -1083,7 +1083,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   expected CRIT watchdog page with its dead-letter banner, the `osquery-watchdog-state.json` read, and
   the follow-up pull request retiring `uptime-watchdog.sh`, `pipeline-audit.sh` and
   `results-alerter/pipeline-verdict.sh` from source.
-- [ ] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
+- [x] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
   exact alerts, baseline bytes, markers and submission order. The full repository gate and required
@@ -1120,7 +1120,14 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh` producer (998 lines) is still
   present in source and referenced by nothing (no plist, no justfile recipe, no `.chezmoiignore` entry),
   so the "before removing the Bash producer" half of this task's acceptance is not yet closed; it retires
-  from source in the same follow-up pull request as task 46.
+  from source in the same follow-up pull request as task 46. CLOSED 2026-09-17: the exposure and recovery
+  drill ran twice on the live machine. Each cycle: firewall off, `posture-state.json` read `firewall: 0`
+  at the next scheduled tick and stayed 0 across a second tick, firewall on, the recovery tick read
+  `firewall: 1`. The agent advanced 2541 to 2547 runs at exit code 0 with no missed tick, and the second
+  cycle detected the exposure again, proving the marker rearms. The operator received EXACTLY TWO
+  critical pages, one per cycle and none per tick or on recovery, which is the delivery half only they
+  could confirm. The firewall was verified enabled as the drill's last action. The Bash producer still
+  retires with task 46's follow-up pull request.
 - [x] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -1714,7 +1721,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
   `/private/tmp/dotfiles-modernization/task58/HANDOFF.md`. Closed 2026-09-15:
   [PR #549](https://github.com/webdavis/dotfiles/pull/549) merged, and `posture ssh install`,
   `posture ssh verify` and `posture ssh reload` all exited 0 live on 2026-09-14.
-- [ ] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
+- [x] 59. posture 9.1: relocate posture controls and desired state out of the legacy `osquery/` tree, add
   coverage for relocated data and update its consumers, then retire the old managed scripts and approved
   deployed leftovers. Remove the old `osquery/*` tracking only after the deployed directory is empty.
   Coordinate that removal across watch paths, manifests and Rust manifest selection. Keep osqueryd
@@ -1739,7 +1746,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   removed. Deployed 2026-09-13 20:50: the apply rebuilt pns, posture and uu, the relocated data is at
   `~/.local/libexec/posture/` (`controls.json`, `converge/`), and the operator ran the one `trash` pass
   (`posture-controls.json` and `osquery-converge/desired/` are gone). Restart acceptance (the plan's
-  operator-run osqueryd restart after the watched paths changed) remains open.
+  operator-run osqueryd restart after the watched paths changed) remains open. CLOSED 2026-09-17: the
+  outstanding osqueryd restart was performed and verified.
+  `launchctl kickstart -k system/io.osquery.agent` moved the daemon from pid 891 to pid 56295 with
+  `state = running`, so the relocated watch paths from
+  [PR #553](https://github.com/webdavis/dotfiles/pull/553) are now the ones the running daemon reads.
 - [x] 60. posture 9.2: finish the completion report, original 187-test successor/disposition mapping,
   before/after table and decision index. `posture/docs/test-baseline.tsv` is only the original result
   inventory. Preparatory mapping on `docs/posture-test-mapping` at `d95c39f3` preserves all original
@@ -3942,7 +3953,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   Tailscale on the phone, which restored MagicDNS resolution, and moshi was already pointed at
   `dresden.tail2f2430.ts.net` rather than a LAN or `.local` name, so no host change was needed.
 
-- [ ] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
+- [x] 97. posture hardcodes the operator's launchd labels, filed 2026-09-17. `posture-domain` carries
   five job labels as literals (`watchdog/agents.rs:19-23`, for example
   `Self::ResultsAlerter => "com.webdavis.osquery-results-alerter"`) plus the prefix they are matched on
   (`page/header.rs:15`, `OUR_AGENT_PREFIX = "com.webdavis.osquery-"`). posture is a product installed
@@ -3958,7 +3969,19 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   CLAUDE.md LaunchAgent table, and five test files. Two consequences: a renamed label does not replace
   the old one and this repository builds no removal mechanisms, so the operator owes one
   `launchctl bootout` per retired job; and the plists sit in the known-good manifest, so the rename ships
-  on a full apply rather than a by-name one.
+  on a full apply rather than a by-name one. DONE 2026-09-17 in
+  [PR #721](https://github.com/webdavis/dotfiles/pull/721), merged `3599a3bb`. The labels now come from a
+  `[jobs]` table in `~/.config/posture/config.toml`, read by both the watchdog and the page header,
+  defaulting to `dev.posture.<key>`. `Agent` was rebuilt around posture's own six subcommands with
+  `Agent::MONITORED` naming the five the watchdog can judge, since it cannot judge itself, and the
+  launchctl adapter now knows no names at all. The plist match is whole-name rather than prefix, so a
+  label like `dev.posture.digest.extra` cannot be swept in. Every test goes red if a label returns to
+  source. The rename of the six jobs deployed on this machine was deliberately NOT done: the shipped
+  config states the existing `com.webdavis.osquery-*` labels verbatim, so no `launchctl bootout` is owed,
+  and the rename stays follow-up work. Confirmed live after the 2026-09-17 apply:
+  `~/.local/state/osquery-watchdog-state.json` is now keyed by job (`alert`, `poll`, `funnel`, `digest`,
+  `heartbeat`) rather than by label, which only the new binary writes, with every streak at 0 and no page
+  raised.
 
 - [ ] 98. `posture jobs`: let posture install and verify its own scheduled jobs, filed 2026-09-17.
   posture is a one-shot by design (every subcommand samples current state and exits; there is no daemon
@@ -4073,7 +4096,17 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   a log, because a page that cannot be delivered is precisely what the operator must hear about. Second,
   prefer degrading to refusing where it is safe: an unknown key inside a known table can warn and
   continue, while a malformed known key still refuses. Pin both with tests, including one that an unknown
-  key never silently disables delivery.
+  key never silently disables delivery. CONFIRMED LIVE 2026-09-17, during the apply that shipped task 97.
+  The monitor log gained
+  `posture: the notify config could not be used, so no page can be delivered: unknown field jobs,`
+  `expected notify` inside the apply window (10:17:26Z to 10:18:49Z). The cause is the ordering this
+  entry predicted: an apply writes the config target before the `run_onchange_after_5*` builder
+  reinstalls the binary, so a scheduled poll tick that lands in between runs the OLD binary against the
+  NEW config and delivers nothing. It closed itself when the rebuild finished: ticks after 10:18 produced
+  no further error lines, `runs` reached 2572 at exit code 0, and the watchdog state is keyed by job
+  name, which only the new binary writes. So the exposure was about one minute of total page silence,
+  self-healing, and unreported anywhere but this log. That is the whole argument for the fix: the window
+  is short here only because the rebuild succeeded.
 
 - [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
