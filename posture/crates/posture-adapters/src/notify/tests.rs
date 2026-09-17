@@ -202,6 +202,42 @@ fn hermes_mode_states_the_local_gateway_when_the_file_names_none() {
 }
 
 #[test]
+fn a_command_or_off_mode_names_no_missing_route_at_all() {
+    assert_eq!(
+        NotifyMode::Command {
+            path: PathBuf::from("/x"),
+            arguments: Vec::new(),
+        }
+        .missing_hermes_keys(),
+        Vec::<&str>::new()
+    );
+    assert_eq!(NotifyMode::Off.missing_hermes_keys(), Vec::<&str>::new());
+}
+
+#[test]
+fn hermes_mode_names_every_known_route_with_no_key_of_its_own() {
+    let mode = parsed("[notify]\nmode = \"hermes\"\n");
+    assert_eq!(
+        mode.missing_hermes_keys(),
+        vec!["posture-pages", "priority"]
+    );
+}
+
+#[test]
+fn hermes_mode_with_both_routes_keyed_names_nothing_missing() {
+    let mode = parsed(
+        r#"
+        [notify]
+        mode = "hermes"
+        [notify.hermes.keys]
+        posture-pages = "s3cret-posture"
+        priority = "s3cret-priority"
+        "#,
+    );
+    assert!(mode.missing_hermes_keys().is_empty(), "{mode:?}");
+}
+
+#[test]
 fn an_absent_file_leaves_the_fail_closed_default_and_no_refusal_to_report() {
     let notify = Notify::read(Path::new("/private/fixture/absent"));
     assert_eq!(notify, Notify::default());

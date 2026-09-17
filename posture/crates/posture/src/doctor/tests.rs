@@ -34,3 +34,52 @@ fn a_usable_config_reports_the_ignored_keys_and_still_passes() {
     assert!(output.contains("warning: `jobs.uptime`"), "{output}");
     assert!(output.contains("the delivery config is usable"), "{output}");
 }
+
+#[test]
+fn a_hermes_mode_with_no_signing_key_fails_even_with_no_refusal() {
+    // The fail-closed default: no config file at all, so no refusal was
+    // raised, yet hermes mode holds no key for any route and cannot deliver
+    // a single page.
+    let (status, output) = reported(&Notify::default());
+    assert_eq!(status, 1, "{output}");
+    assert!(output.contains("no page can be delivered"), "{output}");
+    assert!(output.contains("\"priority\""), "{output}");
+    assert!(output.contains("\"posture-pages\""), "{output}");
+}
+
+#[test]
+fn a_hermes_mode_missing_only_the_priority_key_names_that_route_alone() {
+    let notify = Notify {
+        mode: NotifyMode::Hermes {
+            base_url: "http://127.0.0.1:8644/webhooks".to_string(),
+            keys: [("posture-pages".to_string(), "s3cret".to_string())].into(),
+            critical_copy: None,
+        },
+        refusal: None,
+        warnings: Vec::new(),
+    };
+    let (status, output) = reported(&notify);
+    assert_eq!(status, 1, "{output}");
+    assert!(output.contains("\"priority\""), "{output}");
+    assert!(!output.contains("\"posture-pages\""), "{output}");
+}
+
+#[test]
+fn a_hermes_mode_with_both_signing_keys_passes() {
+    let notify = Notify {
+        mode: NotifyMode::Hermes {
+            base_url: "http://127.0.0.1:8644/webhooks".to_string(),
+            keys: [
+                ("posture-pages".to_string(), "s3cret-pages".to_string()),
+                ("priority".to_string(), "s3cret-priority".to_string()),
+            ]
+            .into(),
+            critical_copy: None,
+        },
+        refusal: None,
+        warnings: Vec::new(),
+    };
+    let (status, output) = reported(&notify);
+    assert_eq!(status, 0, "{output}");
+    assert!(output.contains("the delivery config is usable"), "{output}");
+}

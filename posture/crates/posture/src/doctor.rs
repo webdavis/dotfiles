@@ -46,8 +46,24 @@ fn report(notify: &Notify, path: &Path, stdout: &mut impl Write) -> u8 {
             1
         }
         None => {
-            let _ = writeln!(stdout, "posture doctor: the delivery config is usable");
-            0
+            let missing = notify.mode.missing_hermes_keys();
+            if missing.is_empty() {
+                let _ = writeln!(stdout, "posture doctor: the delivery config is usable");
+                0
+            } else {
+                let reasons = missing
+                    .iter()
+                    .map(|route| {
+                        format!("hermes mode names no signing key for the \"{route}\" route")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                let _ = writeln!(
+                    stdout,
+                    "posture doctor: FAILED: no page can be delivered: {reasons}"
+                );
+                1
+            }
         }
     }
 }

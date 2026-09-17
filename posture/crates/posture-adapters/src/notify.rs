@@ -32,7 +32,7 @@ use crate::producer::ProducerCommand;
 use crate::wire::Name;
 use crate::{CommandRunner, UreqSignedPost};
 use posture_application::{AlertSink, IndependentAlarm};
-use posture_domain::AgentLabels;
+use posture_domain::{AgentLabels, Severity, severity_route};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -95,6 +95,26 @@ pub enum NotifyMode {
     /// Nothing leaves this machine. The page is raised on the local banner,
     /// which is the one channel that needs no delivery at all.
     Off,
+}
+
+impl NotifyMode {
+    /// The known routes a page can land on with no signing key named for
+    /// them, empty for every mode but `Hermes`: `Command` and `Off` name no
+    /// route to check. The two routes are the ones `severity_route` ever
+    /// hands out, `priority` for a critical finding and `posture-pages` for
+    /// everything else, which is also `UNTIERED_ROUTE`'s own value, the
+    /// route a submission with no tier at all takes.
+    pub fn missing_hermes_keys(&self) -> Vec<&'static str> {
+        let NotifyMode::Hermes { keys, .. } = self else {
+            return Vec::new();
+        };
+        let priority =
+            severity_route(Some(Severity::Critical)).expect("a critical finding names a route");
+        [UNTIERED_ROUTE, priority]
+            .into_iter()
+            .filter(|route| !keys.contains_key(*route))
+            .collect()
+    }
 }
 
 /// WRITTEN BY HAND SO NO SIGNING KEY IS EVER FORMATTED. `keys` holds one
