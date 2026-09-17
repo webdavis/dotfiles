@@ -236,6 +236,29 @@ fn prepend_path(command: &mut Command, directory: &std::path::Path) {
 /// measured under that load, half the shortest stub sleep.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
 
+/// THE FIXTURE'S OWN CEILING ON THE PAYLOAD READ, for the two rows that push a
+/// real megabyte through a real pipe.
+///
+/// Without it those rows inherit the production default, which is also five
+/// seconds: the fixture's megabyte then races the deadline it only means to
+/// observe, and losing that race is INVISIBLE. `read_payload` answers `None`,
+/// the hook returns 0 having done nothing, and the row reports `0` where `42`
+/// was expected with nothing saying a read expired.
+///
+/// MEASURED 2026-09-17 at load average 300 to 349, with twenty-four busy loops
+/// and four concurrent copies of this binary: the at-cap row's whole sandbox
+/// lived 5615 to 9813 ms across 47 readings, past the five seconds every time,
+/// while the megabyte read inside it needed at most 985 ms across eight
+/// searches for the smallest deadline it accepts. So ten seconds is ten times
+/// the worst read and still under `HANG_LIMIT`, which keeps a pipe that really
+/// hangs bounded by production rather than by the test killing the child.
+///
+/// THE PRODUCTION DEADLINE IS UNCHANGED, and this is what makes the row
+/// independent of it: dropping that default to one millisecond fails both rows
+/// with `0` where `42` was expected without this line, and leaves both green
+/// with it.
+const PAYLOAD_READ_LIMIT_MS: &str = "10000";
+
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
         .args(["hook", event])
