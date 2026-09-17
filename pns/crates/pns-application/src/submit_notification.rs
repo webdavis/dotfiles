@@ -106,7 +106,14 @@ where
             );
         }
 
-        if !(submission.loop_live && submission.event.state == "asking") {
+        // A guessed wait inside a live loop is the loop working, so neither
+        // record is written. Only a START is withheld: a guessed `done` must
+        // still clear a marker an earlier event armed.
+        let guessed_wait = submission.loop_live
+            && submission.event.guessed
+            && pns_domain::lights::phase::blocked_marker_action(&submission.event.state)
+                == pns_domain::lights::phase::Action::Start;
+        if !guessed_wait {
             BlockedMarker::update(
                 self.ports,
                 submission.session_id,
@@ -115,8 +122,7 @@ where
                 decision.inputs.now_secs,
             );
             // INSIDE THE SAME GUARD, so a loop holding the lamp holds the
-            // escalation too: an `asking` turn inside a live loop is the loop
-            // working rather than a session waiting on the operator.
+            // escalation too: one fact, two records, written together.
             SessionWait::track(
                 self.ports,
                 submission.session_id,
