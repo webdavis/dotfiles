@@ -198,6 +198,10 @@ impl Paint {
     pub fn bad(self, text: &str) -> String {
         self.wrap(BAD, text)
     }
+
+    pub fn warn(self, text: &str) -> String {
+        self.wrap(WARN, text)
+    }
 }
 
 /// How one row reads at a glance, in presentation terms.
