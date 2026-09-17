@@ -134,11 +134,10 @@
        general and priority carry the same three-line layout the pns-events
        route does: a bold header, a Discord subtext line, then the body.
        posture-pages and uu-runs keep the prompts they already had.
-       A prompt is a hermes template over the JSON the sender POSTs, so a field
-       a sender does not send renders empty rather than failing.
-
-       There is deliberately no thread_id in any deliver_extra: an ABSENT key
-       renders as its own literal braces and would be sent to Discord as a
+       A prompt is a hermes template over the JSON the sender POSTs, so a
+       field a sender does not send renders as its own literal braces rather
+       than failing. That is also why there is deliberately no thread_id in
+       any deliver_extra: an absent key would be sent to Discord as a literal
        thread id (measured 2026-09-15), so threads wait for a sender that
        always emits the key. */ -}}
 {{- $headerLayout := "**{header}**\n-# {subheader}\n{body}" -}}
