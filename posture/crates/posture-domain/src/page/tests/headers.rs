@@ -1,6 +1,6 @@
 //! Which words the header uses, and which detector it decides that from.
 
-use super::{body, critical};
+use super::{agents, body, critical};
 use crate::{PageFinding, Severity};
 
 /// The header line alone.
@@ -20,7 +20,10 @@ fn a_protection_reads_turned_off_at_crit_and_changed_below_it() {
     };
     // Below critical it never reaches a page, so the wording is asserted at the
     // header rather than through a render that would drop the finding.
-    assert_eq!(super::super::header::header(&notice), "Firewall changed");
+    assert_eq!(
+        super::super::header::header(&notice, &agents()),
+        "Firewall changed"
+    );
 }
 
 #[test]
@@ -65,14 +68,52 @@ fn a_watched_file_takes_its_header_from_its_category() {
 
 #[test]
 fn our_own_agent_plist_reads_as_tooling_even_under_the_startup_category() {
-    // THE ORDERING IS THE POINT. Our plists sit in the launch-agent category
-    // beside every other startup file, so a category-first read would call a
-    // change to the alerting pipeline an ordinary startup-folder change.
+    // THE ORDERING IS THE POINT. posture's plists sit in the launch-agent
+    // category beside every other startup file, so a category-first read would
+    // call a change to the alerting pipeline an ordinary startup-folder change.
     let mut finding = critical("file_events_recent");
     finding.columns.category = Some("launch_agents");
-    finding.columns.target_path =
-        Some("/Users/x/Library/LaunchAgents/com.webdavis.osquery-digest.plist");
+    finding.columns.target_path = Some("/Users/x/Library/LaunchAgents/dev.posture.digest.plist");
     assert_eq!(header_of(finding), "**Security tooling changed**");
+}
+
+#[test]
+fn which_plists_are_ours_comes_from_the_configured_labels_and_nothing_else() {
+    let mut configured = crate::AgentLabels::default();
+    configured.set(crate::Agent::Digest, "com.example.roundup".to_owned());
+    let plist = |path| {
+        let mut finding = critical("file_events_recent");
+        finding.columns.category = Some("launch_agents");
+        finding.columns.target_path = Some(path);
+        finding
+    };
+    let header_with =
+        |finding, labels: &crate::AgentLabels| super::super::header::header(&finding, labels);
+    // The renamed job is ours under the config that renamed it, and the label
+    // it replaced is then an ordinary startup file.
+    assert_eq!(
+        header_with(
+            plist("/Users/x/Library/LaunchAgents/com.example.roundup.plist"),
+            &configured
+        ),
+        "Security tooling changed"
+    );
+    assert_eq!(
+        header_with(
+            plist("/Users/x/Library/LaunchAgents/dev.posture.digest.plist"),
+            &configured
+        ),
+        "Startup folder changed"
+    );
+    // A prefix match would sweep in a neighbour whose name merely starts the
+    // same way; the label is matched whole.
+    assert_eq!(
+        header_with(
+            plist("/Users/x/Library/LaunchAgents/dev.posture.digest.extra.plist"),
+            &agents()
+        ),
+        "Startup folder changed"
+    );
 }
 
 #[test]

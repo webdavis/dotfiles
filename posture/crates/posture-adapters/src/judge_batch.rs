@@ -18,9 +18,9 @@
 use super::{AllowlistText, DigestAppendFile, ResultsRow, rows};
 use posture_application::{BatchPage, JudgeFindings, JudgedBatch};
 use posture_domain::{
-    Action, Allowlist, Detector, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
-    LaunchdIdentity, PageFinding, Severity, Signing, Triage, allowlist_verdict, gate, render_page,
-    severity,
+    Action, AgentLabels, Allowlist, Detector, GateEvidence, GateFinding, GateOutcome,
+    IntegrityVerdict, LaunchdIdentity, PageFinding, Severity, Signing, Triage, allowlist_verdict,
+    gate, render_page, severity,
 };
 use std::io::Write;
 
@@ -58,6 +58,9 @@ pub struct BatchJudge<'a> {
     pub spool: &'a DigestAppendFile,
     pub collaborators: Collaborators<'a>,
     pub now: &'a str,
+    /// The launchd label of each of posture's own jobs, so a page about one of
+    /// its own plists says so instead of reading as a startup-folder change.
+    pub agents: &'a AgentLabels,
     /// The one sink every diagnostic raised while judging is written to.
     pub diagnostics: &'a mut dyn Write,
 }
@@ -100,7 +103,7 @@ impl JudgeFindings for BatchJudge<'_> {
             }
         }
         JudgedBatch {
-            page: page(&page_findings),
+            page: page(&page_findings, self.agents),
         }
     }
 }
@@ -255,11 +258,11 @@ fn page_finding<'a>(
 
 /// NO FINDINGS IS NO PAGE, not a page saying zero. A batch whose every row was
 /// spooled or dropped has nothing to wake anyone for.
-fn page(findings: &[PageFinding<'_>]) -> Option<BatchPage> {
+fn page(findings: &[PageFinding<'_>], agents: &AgentLabels) -> Option<BatchPage> {
     if findings.is_empty() {
         return None;
     }
-    let rendered = render_page(findings);
+    let rendered = render_page(findings, agents);
     if rendered.count == 0 {
         return None;
     }

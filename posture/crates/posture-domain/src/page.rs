@@ -11,7 +11,7 @@ mod fields;
 mod header;
 mod next_step;
 
-use crate::{Detector, Severity, Signing, Triage};
+use crate::{AgentLabels, Detector, Severity, Signing, Triage};
 
 /// How many blocks the page renders before it stops and says how many it left.
 ///
@@ -92,7 +92,11 @@ pub struct Page {
 }
 
 /// Render the critical findings into one page.
-pub fn render_page(findings: &[PageFinding<'_>]) -> Page {
+///
+/// `agents` carries the launchd labels of posture's own jobs, because a change
+/// to one of its own plists reads differently from an ordinary startup-folder
+/// change and which labels those are is per-machine configuration.
+pub fn render_page(findings: &[PageFinding<'_>], agents: &AgentLabels) -> Page {
     let critical: Vec<&PageFinding<'_>> = findings
         .iter()
         .filter(|finding| finding.severity == Severity::Critical)
@@ -100,7 +104,7 @@ pub fn render_page(findings: &[PageFinding<'_>]) -> Page {
     let mut body = critical
         .iter()
         .take(BLOCK_LIMIT)
-        .map(|finding| block(finding))
+        .map(|finding| block(finding, agents))
         .collect::<Vec<String>>()
         .join("\n\n");
     if let Some(dropped) = critical.len().checked_sub(BLOCK_LIMIT).filter(|n| *n > 0) {
@@ -115,10 +119,10 @@ pub fn render_page(findings: &[PageFinding<'_>]) -> Page {
 }
 
 /// One finding's block: header, decision fields, next step.
-fn block(finding: &PageFinding<'_>) -> String {
-    let mut lines = vec![format!("**{}**", header::header(finding))];
+fn block(finding: &PageFinding<'_>, agents: &AgentLabels) -> String {
+    let mut lines = vec![format!("**{}**", header::header(finding, agents))];
     lines.extend(fields::fields(finding));
-    lines.extend(next_step::next_step(finding));
+    lines.extend(next_step::next_step(finding, agents));
     lines.join("\n")
 }
 

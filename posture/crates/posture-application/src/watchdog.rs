@@ -1,7 +1,7 @@
 use crate::{Alert, AlertSignal, AlertSink, Clock, IndependentAlarm, SnapshotsLog, Submission};
 use posture_domain::{
-    Agent, AgentReading, AgentState, AuditFingerprint, AuditMemory, QueueCounts, QueueKind,
-    QueueMemory, judge_agent, judge_audit, judge_queue, osquery_problem, route_problem,
+    Agent, AgentLabels, AgentReading, AgentState, AuditFingerprint, AuditMemory, QueueCounts,
+    QueueKind, QueueMemory, judge_agent, judge_audit, judge_queue, osquery_problem, route_problem,
     state_problem, watchdog_page,
 };
 
@@ -20,7 +20,9 @@ pub enum DaemonHealth {
 }
 pub trait WatchdogProcesses {
     fn osquery_running(&mut self) -> bool;
-    fn agent(&mut self, agent: Agent) -> AgentReading<'_>;
+    /// The launchd reading for one job, addressed by the label configuration
+    /// gave it rather than by a name compiled into this tool.
+    fn agent(&mut self, label: &str) -> AgentReading<'_>;
     fn pns_daemon(&mut self) -> DaemonHealth;
 }
 pub trait GatewayHealth {
@@ -71,6 +73,8 @@ pub struct Watchdog<'a> {
     pub sink: &'a mut dyn AlertSink,
     pub alarm: &'a mut dyn IndependentAlarm,
     pub maximum_age: u64,
+    /// The launchd label of each of posture's own jobs, from its config file.
+    pub agents: &'a AgentLabels,
     pub gateway_url: &'a str,
     pub state_path: &'a str,
 }
@@ -87,10 +91,12 @@ impl Watchdog<'_> {
             self.snapshots.newest_canary().ok().flatten(),
             self.maximum_age,
         ));
-        for (index, agent) in Agent::ALL.into_iter().enumerate() {
+        let agents = self.agents;
+        for (index, agent) in Agent::MONITORED.into_iter().enumerate() {
+            let label = agents.label(agent);
             let judgment = judge_agent(
-                agent,
-                self.processes.agent(agent),
+                label,
+                self.processes.agent(label),
                 previous.agents[index].unwrap_or_default(),
             );
             next.agents[index] = judgment.state;

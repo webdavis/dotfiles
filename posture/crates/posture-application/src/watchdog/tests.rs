@@ -3,13 +3,15 @@ use crate::{
     AlarmFailed, Alert, ClockUnavailable, SnapshotReadFailure, Submission, SubmissionFailure,
     WallTime,
 };
-use posture_domain::{AgentExit, CanaryEpoch};
+use posture_domain::{Agent, AgentExit, AgentLabels, CanaryEpoch};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default)]
 struct World {
     state: WatchdogState,
     calls: Vec<&'static str>,
+    /// Every launchd label the tick asked about, in order.
+    asked: Vec<String>,
     pages: Vec<Alert>,
     unhealthy: bool,
     audit_bad: bool,
@@ -38,7 +40,8 @@ impl WatchdogProcesses for Fixture {
     fn osquery_running(&mut self) -> bool {
         !self.0.borrow().unhealthy
     }
-    fn agent(&mut self, _: Agent) -> AgentReading<'_> {
+    fn agent(&mut self, label: &str) -> AgentReading<'_> {
+        self.0.borrow_mut().asked.push(label.to_owned());
         AgentReading::Loaded {
             runs: Some(1),
             exit: AgentExit::NeverExited,
@@ -128,6 +131,9 @@ impl IndependentAlarm for Fixture {
     }
 }
 fn run(f: &Fixture) -> WatchdogOutcome {
+    run_with(f, &AgentLabels::default())
+}
+fn run_with(f: &Fixture, agents: &AgentLabels) -> WatchdogOutcome {
     Watchdog {
         clock: &mut f.clone(),
         snapshots: &mut f.clone(),
@@ -140,10 +146,26 @@ fn run(f: &Fixture) -> WatchdogOutcome {
         sink: &mut f.clone(),
         alarm: &mut f.clone(),
         maximum_age: 1800,
+        agents,
         gateway_url: "http://127.0.0.1:8644/webhooks/priority",
         state_path: "/private/state",
     }
     .run()
+}
+#[test]
+fn every_watched_job_is_asked_for_by_its_configured_label() {
+    let mut agents = AgentLabels::default();
+    for job in Agent::MONITORED {
+        agents.set(job, format!("com.example.{}", job.key()));
+    }
+    let f = Fixture::default();
+    assert_eq!(run_with(&f, &agents), WatchdogOutcome::Healthy);
+    assert_eq!(
+        f.0.borrow().asked,
+        Agent::MONITORED
+            .map(|job| format!("com.example.{}", job.key()))
+            .to_vec()
+    );
 }
 #[test]
 fn a_healthy_tick_is_silent_and_remembers_both_stores() {

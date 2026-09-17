@@ -34,7 +34,7 @@ fn a_field_is_cut_by_characters_so_a_multi_byte_one_is_never_split() {
 #[test]
 fn the_page_renders_at_most_eight_blocks_and_counts_every_crit_finding_it_dropped() {
     let findings: Vec<PageFinding<'_>> = (0..11).map(|_| critical("new_admin_user")).collect();
-    let page = render_page(&findings);
+    let page = render_page(&findings, &super::agents());
     assert_eq!(
         page.count, 11,
         "the count must include what the cap dropped"
@@ -54,7 +54,7 @@ fn the_page_renders_at_most_eight_blocks_and_counts_every_crit_finding_it_droppe
 #[test]
 fn exactly_eight_blocks_render_without_a_dropped_marker() {
     let findings: Vec<PageFinding<'_>> = (0..8).map(|_| critical("new_admin_user")).collect();
-    let page = render_page(&findings);
+    let page = render_page(&findings, &super::agents());
     assert_eq!(page.count, 8);
     assert!(!page.body.contains("more CRITICAL"));
 }
@@ -72,7 +72,7 @@ fn the_page_body_is_hard_capped_below_the_2000_char_delivery_limit() {
             finding
         })
         .collect();
-    let page = render_page(&findings);
+    let page = render_page(&findings, &super::agents());
     let body = page.body;
     assert!(
         body.chars().count() > BODY_LIMIT,

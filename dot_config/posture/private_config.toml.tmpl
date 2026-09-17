@@ -16,6 +16,25 @@
 # local banner per page, and the quiet half it replaces is a security pipeline
 # that silently stops paging.
 
+# THE LAUNCHD LABEL OF EACH JOB POSTURE INSTALLS, one key per posture
+# subcommand, so a label says what the job DOES rather than what it reads. The
+# watchdog searches launchd for exactly these names, and a page about one of
+# these plists reads as a change to the security tooling rather than as an
+# ordinary startup-folder change.
+#
+# THESE ARE THIS MACHINE'S NAMES, NOT THE SHIPPED ONES. posture defaults every
+# job to `dev.posture.<key>`, which is what a fresh install gets; the labels
+# below are the ones already bootstrapped here, kept verbatim so no job has to
+# be booted out and back in. Renaming them is a separate change that reaches the
+# plists, their loaders and the page allowlist.
+[jobs]
+watchdog = "com.webdavis.osquery-uptime-watchdog"
+alert = "com.webdavis.osquery-results-alerter"
+poll = "com.webdavis.osquery-firewall-gatekeeper-monitor"
+funnel = "com.webdavis.osquery-tailscale-monitor"
+digest = "com.webdavis.osquery-digest"
+heartbeat = "com.webdavis.osquery-heartbeat"
+
 [notify]
 # THIS MACHINE'S OWN CHOICE, not a requirement of the tool: posture signs each
 # page with the key for the route that page is going to, and posts it itself.

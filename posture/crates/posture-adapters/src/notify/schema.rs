@@ -7,6 +7,7 @@
 use super::{COPY_WINDOW, DEFAULT_WEBHOOK_BASE, NotifyMode};
 use crate::hermes::CriticalCopy;
 use crate::wire::Name;
+use posture_domain::{Agent, AgentLabels};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -15,6 +16,46 @@ use std::path::{Path, PathBuf};
 #[serde(deny_unknown_fields)]
 pub(super) struct File {
     pub(super) notify: Table,
+    /// The launchd label of each job posture installs. Absent, and absent per
+    /// key, is the shipped default for that job.
+    #[serde(default)]
+    pub(super) jobs: Jobs,
+}
+
+/// ONE KEY PER JOB, each naming posture's own subcommand, so a label states
+/// what the job DOES rather than what it reads. Whoever installs posture
+/// chooses the labels; a name compiled into this tool would only ever match the
+/// machine it was compiled for.
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Jobs {
+    watchdog: Option<String>,
+    alert: Option<String>,
+    poll: Option<String>,
+    funnel: Option<String>,
+    digest: Option<String>,
+    heartbeat: Option<String>,
+}
+
+impl Jobs {
+    /// The defaults with every stated label written over them.
+    pub(super) fn into_labels(self) -> AgentLabels {
+        let mut labels = AgentLabels::default();
+        let stated = [
+            (Agent::Watchdog, self.watchdog),
+            (Agent::Alert, self.alert),
+            (Agent::Poll, self.poll),
+            (Agent::Funnel, self.funnel),
+            (Agent::Digest, self.digest),
+            (Agent::Heartbeat, self.heartbeat),
+        ];
+        for (agent, label) in stated {
+            if let Some(label) = label.filter(|label| !label.is_empty()) {
+                labels.set(agent, label);
+            }
+        }
+        labels
+    }
 }
 
 #[derive(Deserialize)]

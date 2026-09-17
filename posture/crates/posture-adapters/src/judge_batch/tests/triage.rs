@@ -46,6 +46,7 @@ fn only_integrity_pages_collect_triage_and_missing_facts_cannot_drop_a_page() {
             allowlist: None,
             spool: &world.spool,
             now: "1970-01-01T00:00:00Z",
+            agents: &posture_domain::AgentLabels::default(),
             diagnostics: &mut diagnostics,
             collaborators: Collaborators {
                 vouches: &mut vouches,
