@@ -1382,13 +1382,34 @@ The planned Rust lanes are implemented. The following deployment check remains.
   STEP: a full `chezmoi apply` picks up the rebuilt `uu` and comment-only changes in
   `~/.config/uu/config.toml`.
 
-- [ ] 57c. Refresh graphify's existing Claude skill alongside package upgrades. The source adds the
-  `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed with
-  preservation and partial-destination guards. All 18 private installer checks with 96 assertions, 15
-  extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
+- [x] 57c. Refresh graphify's existing Claude skill alongside package upgrades. DONE 2026-09-17. The
+  source adds the `uv-graphify-skill` command lane, an app-owned Claude symlink and a first-install seed
+  with preservation and partial-destination guards. All 18 private installer checks with 96 assertions,
+  15 extra adoption cases, fan-out checks, private uu composition and full `just ship` passed.
   [PR #545](https://github.com/webdavis/dotfiles/pull/545) merged and local main contains it. Preserve
   the existing real skill directory before operator adoption; live installation, fresh Claude discovery
-  and scheduled refresh acceptance remain open. No live install or skills run was performed.
+  and scheduled refresh acceptance remain open. No live install or skills run was performed. PREMISE WAS
+  STALE, verified 2026-09-17, and closed by [PR #744](https://github.com/webdavis/dotfiles/pull/744),
+  merged `5b9a1e96`. Every behaviour this entry asks for was already in source and already live: the
+  `uv-graphify-skill` command lane, the app-owned `~/.claude/skills/graphify` symlink declaration and the
+  first-install seed with its preservation and partial-destination guards all landed in
+  [PR #545](https://github.com/webdavis/dotfiles/pull/545), and the operator's 2026-09-13 apply adopted
+  the link. THE TWO CLAIMS THAT HAD ONLY BEEN ASSERTED ARE NOW PROVEN. Lane ordering: lanes are a
+  `BTreeMap` keyed by lane name (`uu-adapters/src/config/lanes.rs`, pinned by
+  `lanes_run_in_name_order_whatever_the_file_order`), so `uv-graphify-skill` provably runs after `uv`.
+  The registration boundary: graphify 0.9.53's installer honours `CLAUDE_CONFIG_DIR` on BOTH of its
+  global-scope writes, the skill bundle and the `CLAUDE.md` registration, which is what keeps the
+  registration out of the managed rendered `~/.claude/CLAUDE.md`. Live proof: `~/.claude/skills/graphify`
+  is the link, its target holds `SKILL.md`, `.graphify_version` and `references/`, the registration sits
+  in `~/.local/share/graphify/claude/CLAUDE.md`, and `grep -c -i graphify ~/.claude/CLAUDE.md` is 0. No
+  code was needed. What shipped is the documentation that proves it plus TWO STALE INSTRUCTIONS THAT
+  WOULD HAVE MISLED THE NEXT READER: the runbook's Graphify section and the lane's config comment both
+  still read as pre-adoption and told the operator to preserve a directory that no longer exists. The
+  review also had the runbook stop citing two private graphify symbol names, which drift silently on the
+  weekly upgrade; the behaviour claim and the pinned version stay, and re-verification now points at a
+  grep. ONE THING IS GENUINELY OPEN: no full weekly run has reached the lane yet, because the last full
+  run was 2026-09-13T18:00:05Z and the apply that deployed it was at 18:38, so the lane's first real
+  exercise is the next weekly `uu` run.
 
 - [x] 57d. Acceptance for 57c on dresden: `~/.claude/skills/graphify` is still a real directory dated
   2026-07-05 (observed 2026-09-13), not the link into `~/.local/share/graphify/claude/skills/graphify`
