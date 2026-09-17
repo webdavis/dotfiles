@@ -1225,7 +1225,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   tracked as acceptance rather than code: same-user fixtures do not prove privileged cleanup, so verify
   silent no-drift behavior and the operator's approved permission-repair/restart drill before retiring
   Bash.
-- [ ] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
+- [x] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
   44\. Installed plists invoke Rust, but that does not prove delivery. Record the silent pns-route
   message, banner and ledger evidence, and a filled-spool digest with `.last` rotation. Inventory retired
   helpers and their remaining consumers before proposing removal: deployed `heartbeat.sh`, `allowlist.sh`
@@ -1238,7 +1238,34 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   the Rust `posture` binary and shows 1 run at last exit code 0; the digest half still waits for its next
   18:00 `StartCalendarInterval` tick, `com.webdavis.osquery-digest` reads `runs = 0` and
   `job state = uninitialized`, and `~/.local/log/osquery/digest.log` is still the empty file from before
-  this cutover (0 bytes, last modified Jun 21), so no digest evidence exists yet to record.
+  this cutover (0 bytes, last modified Jun 21), so no digest evidence exists yet to record. CLOSED
+  2026-09-17 by [PR #752](https://github.com/webdavis/dotfiles/pull/752), merged `c362eeb0`, evidence in
+  `docs/superpowers/specs/2026-09-17-heartbeat-digest-delivery-evidence.md`, gathered entirely from state
+  that already existed with no job triggered by hand. THE FINDING THAT REFRAMES BOTH TASKS: 43 and 44
+  were written while posture submitted through pns, so their acceptance names a pns ledger row and a
+  silent desk banner PER RUN. The deployed config selects `[notify] mode = "hermes"`, so posture signs
+  and posts each page itself, no pns ledger row can exist for any run after that cutover, and
+  `posture-adapters/src/hermes.rs` raises the local banner only on a FAILED post. Two thirds of the
+  written acceptance is therefore UNSATISFIABLE BY DESIGN, and the document restates it to what the
+  current path can evidence rather than reading it generously or returning a false NOT MET. HEARTBEAT:
+  MET. The job runs at 09:00 local, `runs = 3`, last exit 0, with three gateway deliveries on route
+  `posture-pages` to Discord on 2026-09-15, 09-16 and 09-17, each at :00:04 or 05 and separable by length
+  from the recurring monitor traffic that posts at :05, :20, :35 and :50 at a steady 286, 408 and 409
+  bytes. No 404 on that route since the gateway started, and none of the ten invalid-signature warnings
+  falls at a heartbeat fire. DIGEST: MET, which SUPERSEDES this entry's own 2026-09-15 measurement of
+  `runs = 0` and an uninitialized job state. It runs at 18:00 local, `runs = 2`, last exit 0, with two
+  deliveries on the same route. The filled-spool and rotation acceptance is evidenced on disk and is the
+  digest's own delivery record: `digest.ndjson.last` holds 76 readable rows spanning 2026-09-16, the live
+  spool holds 111 rows starting 2026-09-17 and none of the 76, and `digest_spool.rs` renames to `.last`
+  only on an ACCEPTED submission while a refused one restores the rows, so the batch was sent and kept.
+  THE EIGHT DEAD-LETTERED LEGS ARE UNCHANGED and the reason is not what it looks like: there are still
+  exactly eight `producer = 'posture'` events from 2026-09-10 to 09-13, every hermes leg 404 and
+  permanent, every banner leg delivered (three on the second attempt). The ledger holds no posture row
+  after 2026-09-13 18:00 NOT because the 404 was fixed but because posture stopped submitting through
+  pns. THE RESIDUAL IS NAMED RATHER THAN GLOSSED: nothing local records a delivered body, so both
+  verdicts rest on correlation by label, minute and message length, plus the spool's claim-and-keep
+  record for the digest. Reading the channel is the one step that turns a length into a message, and that
+  is the operator's.
 
 ### STOP POINT E
 
@@ -2533,19 +2560,41 @@ is missing.
   devices, multi-user behavior and stalled native calls remain acceptance gates. All 33 original
   investigation hashes were preserved; production is unchanged.
 
-- [ ] Finish P4's recorded loop rule: a live loop lease for the pane prevents a condenser-generated
-  `asking` guess from arming the blocked marker; actual hook-driven waits still do. The current submit
-  path updates that marker without checking the lease. Read the instrument evidence before implementing
-  the companion permission-mode filter for false blocked alerts; its cause was never established in the
-  reviewed records. Do not suppress all subagent approvals. The condenser prompt correction already
-  shipped. Resume from `~/.claude/pipeline/slices/brief-pns-one-moment.md` and the September 1 decision
-  in
+- [x] Finish P4's recorded loop rule. DONE 2026-09-17, and the rule as recorded was narrower than the
+  defect: a live loop lease for the pane prevents a condenser-generated `asking` guess from arming the
+  blocked marker; actual hook-driven waits still do. The current submit path updates that marker without
+  checking the lease. Read the instrument evidence before implementing the companion permission-mode
+  filter for false blocked alerts; its cause was never established in the reviewed records. Do not
+  suppress all subagent approvals. The condenser prompt correction already shipped. Resume from
+  `~/.claude/pipeline/slices/brief-pns-one-moment.md` and the September 1 decision in
   `~/.claude/projects/-Users-stephen-workspaces-Ivy-webdavis-dotfiles/memory/pns-lights-lock-sheet.md`.
   Local implementation `4136fd42` on `fix/pns-loop-rule` passed eight new regressions, three mutation
   checks and package gates. Independent review passed 52 focused checks. The permission-mode filter
   remains excluded. [PR #536](https://github.com/webdavis/dotfiles/pull/536) combines this change with
   B18 while preserving separate commits. Combined `just ship` and the installer release build passed;
   required checks passed and the PR merged. Operator deployment and visual acceptance remain open.
+  SHIPPED 2026-09-17 as [PR #750](https://github.com/webdavis/dotfiles/pull/750), merged `45732c39`. THE
+  RULE WAS ALREADY HALF SHIPPED and the half that existed was right by accident. Commit `4136fd42` (PR
+  #536) already withheld the blocked marker when a live pane lease existed AND the event state was the
+  literal word `asking`. That word was standing in for provenance: `asking` is only ever produced by the
+  condenser, so the guard happened to be correct for it, BUT THE CONDENSER'S PROMPT ALSO ANSWERS
+  `blocked`, and that guess armed the marker indistinguishably from the approval hook's own `blocked`.
+  Same false "waiting on you", in the sibling path. The source carried no distinction between a guessed
+  state and a hook-driven one, so one was built: `EventArgs` gained a `guessed` flag, set in
+  `end_of_turn` where the state is actually read off the turn's text by `condense`, and false on the
+  producer path (a producer states its signal) and on StopFailure (the harness states the message). The
+  guard now reads a live loop AND a guessed event AND a marker action of Start, reusing the domain rule
+  the wait itself reads rather than a second list of state words, so ONLY A START IS WITHHELD and a
+  guessed `done` still clears a marker an earlier event armed. A STALE LEASE READS AS NO LEASE, which is
+  both the existing behaviour and the honest one: liveness is computed against
+  `lights.loop.lease_timeout_secs`, so a lease nothing renewed cannot vouch for a guess, and a live
+  loop's own hook traffic is what keeps it from going stale. Four pure unit tests pin the cases in 0.00 s
+  with no spawn and no clock; the review deleted a fifth that pinned a domain predicate this layer never
+  calls and is already covered at its own boundary. The pre-existing process-spawning integration tests
+  still pass unchanged, including the one proving a hook-driven `blocked` arms during a live loop. The
+  generated config prose was broadened from the condenser's `asking` guesses to its guessed waits, and
+  the template was regenerated with `just pns-config-render`. OPERATOR STEP: a full `chezmoi apply`
+  rebuilds pns and writes the reworded config comment.
 
 - [x] Resolve the historical condenser-stall task
   [6hPCHVmfhXPM9FPM](https://app.todoist.com/app/task/6hPCHVmfhXPM9FPM). The named hook test still has a
@@ -4525,6 +4574,17 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   Both of those need a second real process, which is the only way the assertion means anything; TRIGGER:
   the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
   second process gets a defined exit contract.
+
+- [ ] 143. The heartbeat cannot tell you it failed to deliver, filed 2026-09-17 from task 50a's evidence
+  pass. `posture-application/src/heartbeat.rs` discards the submission result
+  (`let _ = self.sink.submit(...)`), so the job exits 0 whether the page reached its destination or not,
+  and `launchctl`'s last exit code is therefore NOT evidence of delivery. Both job logs are 0 bytes and
+  predate the cutovers, so the log says nothing either. That is the same class of defect as task 102, a
+  job that is silent about its own failure, and it is worse here than elsewhere because the heartbeat
+  exists precisely to prove the pipeline is alive: a heartbeat that cannot deliver and exits 0 reports
+  health it did not verify. Make the result reach something the operator can read, a non-zero exit or the
+  local banner or both, and pin it with a test that a refused submission does not look like a successful
+  run. Check `digest` and the other one-shot jobs for the same discarded result while you are in there.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
