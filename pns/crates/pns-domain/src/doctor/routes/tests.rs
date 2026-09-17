@@ -105,3 +105,19 @@ fn no_routes_to_check_says_so_rather_than_reporting_zero_missing() {
     assert!(summary.contains("nothing has been posted yet"), "{summary}");
     assert!(!summary.contains("0 missing"), "{summary}");
 }
+
+/// A RETIRED ROUTE IS NOT A MISSING ONE. `pns-recap` went with its channel on
+/// 2026-09-15 and the ledger still names it, so the doctor would report it
+/// missing forever with nothing the operator could do about it.
+#[test]
+fn a_retired_route_is_not_checked() {
+    let posted = vec![
+        "general".to_string(),
+        "pns-recap".to_string(),
+        "priority".to_string(),
+    ];
+    assert_eq!(
+        routes_to_check(posted),
+        vec!["general".to_string(), "priority".to_string()]
+    );
+}

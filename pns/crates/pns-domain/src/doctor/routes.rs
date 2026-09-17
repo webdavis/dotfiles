@@ -61,6 +61,25 @@ impl RouteVerdict {
     }
 }
 
+/// Routes the gateway once served and no longer does, so the ledger still
+/// names them and the doctor must not. `pns-recap` retired with its Discord
+/// channel on 2026-09-15; a recap now posts on the default route.
+///
+/// A ROSTER READ FROM HISTORY CANNOT FORGET. The ledger is the only list of
+/// routes pns has, and every route it ever posted to stays in it, so a retired
+/// one would be reported missing on every run forever. A warning nothing can
+/// clear is a warning the operator learns to skip.
+const RETIRED_ROUTES: &[&str] = &["pns-recap"];
+
+/// The routes worth asking the gateway about, out of the ones the ledger says
+/// pns has posted to.
+pub fn routes_to_check(posted: Vec<String>) -> Vec<String> {
+    posted
+        .into_iter()
+        .filter(|route| !RETIRED_ROUTES.contains(&route.as_str()))
+        .collect()
+}
+
 /// The doctor's line for one route.
 pub fn route_line(route: &str, verdict: &RouteVerdict) -> String {
     match verdict {
