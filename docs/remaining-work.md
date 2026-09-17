@@ -3118,6 +3118,77 @@ operator deployment. No source correction was warranted by this audit.
   through the callback, never a return value") and the plan (line 867, `herdr.agent_pane(on_pane)`)
   describe the callback contract, so the box is ticked.
 
+### todoist.nvim
+
+A Todoist client for Neovim, filed 2026-09-17. It is its own public repository, `webdavis/todoist.nvim`,
+the same way pns.nvim and neotest-bashunit are (operator ruling 2026-09-05), and this repository only
+carries the lazy.nvim spec and the keymaps that use it. The API token is a secret: the plugin takes it
+from a user-supplied function or command (`token_command`, for example a `keepassxc-cli` call) or an
+environment variable, never from a value written in a config file, and on dresden the chezmoi template
+names the KeePassXC entry. Filters use Todoist's own filter query language, the one the app's Filters
+feature uses, so anything Todoist accepts as a filter is a view here. Tasks 103 to 108 are the required
+surface; 109 to 118 are the ten features the brainstorm added.
+
+- [ ] 103. Create the `webdavis/todoist.nvim` repository with the API client and the token boundary. A
+  small Lua client over the Todoist API (async through `vim.system` and `curl`, no blocking calls on the
+  UI thread), typed request and response tables, rate-limit and network errors surfaced through
+  `vim.notify` with a retry, and `:checkhealth todoist` that proves the token resolves and one request
+  succeeds without printing the token. Ships with a `lazy.nvim` spec in `dot_config/nvim/lua/plugins/`
+  and busted specs run the way the other custom plugins run theirs.
+- [ ] 104. View all tasks. `:Todoist` opens a buffer listing every open task, grouped by project and
+  section, with due date, priority, labels and subtask count on each line, and `<CR>` on a task opens its
+  detail (task 114). The buffer is read-only, refreshable with `R`, and keeps the cursor on the same task
+  across a refresh.
+- [ ] 105. User-defined filtered views bound to keymaps.
+  `setup({ views = { today = "today | overdue", work = "#Work & !@waiting" } })` declares named views,
+  `:Todoist today` opens one, and `require("todoist").open("today")` is what a keymap calls, so the user
+  can bind any Todoist filter query to any key. Unknown view names and rejected filter strings fail with
+  the API's own message rather than an empty list.
+- [ ] 106. A toggleable sidebar. `:Todoist toggle` opens a fixed-width split on the left or right
+  (configurable) showing one view (default `today`), closes it on a second call, and survives
+  `:only`-style layout changes the way nvim-tree and neo-tree do. Width, side and the view it shows are
+  config.
+- [ ] 107. View all completed tasks. `:Todoist completed` lists completed tasks newest first, paged so
+  the first screen is fast, with the completion date on each line, and `u` on a task reopens it.
+- [ ] 108. Pretty UI. Nerd Font icons for priority, due state (overdue, today, upcoming, none), labels
+  and recurring tasks; highlight groups for each priority level and due state that link to the
+  colorscheme's own groups by default so every theme looks right; a project header style; and a
+  plain-ASCII fallback when `vim.g.have_nerd_font` is false. No hardcoded hex colors.
+- [ ] 109. Quick Add. `a` in any view (and `:Todoist add`) prompts for one line and sends it through
+  Todoist's Quick Add, so `Pay rent tomorrow 9am p1 #Finances @home` creates the task with its date,
+  priority, project and label parsed by Todoist, and the new task appears in the list without a full
+  refresh.
+- [ ] 110. Complete, uncomplete and delete with undo. `x` completes the task under the cursor, `X`
+  reopens it, `dd` deletes it after a confirm, and `u` undoes the last of those within the session
+  (complete becomes reopen; delete is refused as undoable and says so).
+- [ ] 111. Edit a task in place. `e` on a task opens a small floating form (content, description, due
+  string, priority, labels, project) prefilled from the task; `p` cycles priority; `l` toggles labels
+  from a picker; `s` reschedules with a natural-language date (`tomorrow`, `next mon`, `every 2 weeks`)
+  sent as Todoist's `due_string`. Recurring tasks keep their recurrence.
+- [ ] 112. Project and section tree with moves. `:Todoist projects` shows the project tree with sections
+  and counts, `<CR>` opens that project as a view, and `m` on a task moves it to a project or section
+  chosen from a picker.
+- [ ] 113. Subtasks as a fold tree. Tasks with children render as a tree, `za` folds and unfolds a task's
+  subtasks, `>` and `<` indent a task under the one above it or promote it, and completing a parent asks
+  before completing its open children.
+- [ ] 114. Task detail window. `<CR>` opens a floating window with the task's content, its description
+  rendered as markdown (via the user's markdown renderer when one is installed), due, priority, labels,
+  project, and its comment thread; `c` adds a comment; `q` closes it.
+- [ ] 115. Capture a task from code. `:Todoist capture` creates a task whose description carries
+  `path:line` and the repository name, taken from the current buffer; a task with such a location shows a
+  location icon in the list and `gd` on it jumps to the file and line. The user's `TODO` and `FIXME`
+  comments can be sent the same way from a visual selection.
+- [ ] 116. Picker integration. A source for `fzf-lua` (the operator's picker) and a generic
+  `vim.ui.select` path for everything else: fuzzy-search open tasks, `<CR>` opens the detail, `<C-x>`
+  completes from the picker, and the picker respects the current view's filter.
+- [ ] 117. Offline cache and background sync. Views open from a local cache (`stdpath("cache")/todoist`)
+  so the first render is instant, a background sync refreshes it on an interval and after every write,
+  and the list marks itself stale with the cache age when the network is down. Writes made offline are
+  queued and replayed once a sync succeeds, in order.
+- [ ] 118. Statusline component and due reminders. `require("todoist").status()` returns a short string
+  (`3 due, 1 overdue`) for lualine or a custom statusline, updated from the cache, and an opt-in reminder
+  raises `vim.notify` when a task with a time comes due while Neovim is open.
+
 ### Recover the remaining design from PR #24
 
 - [x] Review #24 before deciding its disposition. Recovered on 2026-09-13 from head `2202dcbf`; four
