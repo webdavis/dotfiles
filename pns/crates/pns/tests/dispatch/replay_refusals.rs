@@ -66,21 +66,26 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
 }
 
 #[test]
-fn an_event_narrowed_to_no_channel_at_all_leaves_the_journal_where_it_found_it() {
-    // Contradictory scope flags refuse before state access, leaving the
-    // waiting journal unimported and unclaimed.
+fn an_event_refused_at_the_argv_leaves_the_journal_where_it_found_it() {
+    // An argv refusal lands before state access, leaving the waiting journal
+    // unimported and unclaimed.
     let sandbox = Sandbox::new("replay-no-legs");
     record_every_event(&sandbox);
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
     let files_before = state_files(&sandbox);
 
-    let output = run(present_event(&sandbox).args(["--local-only", "--remote-only"]));
+    // NOT `run`, which asserts the exit-0 edge: an argv refusal is the one
+    // path that exits 2 rather than delivering.
+    let output = present_event(&sandbox)
+        .args(["--scope", "local"])
+        .output()
+        .expect("the engine runs");
 
-    assert!(
-        stdout(&output).contains("post SKIPPED"),
-        "the contradiction really was reached: {}",
-        stdout(&output)
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "the refusal really was reached: {output:?}"
     );
     assert!(
         events(&sandbox, "macos-banner").is_empty(),

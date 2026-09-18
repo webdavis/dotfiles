@@ -17,7 +17,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
             "--detail",
             "x",
         ])
-        .arg("--local-only"));
+        .args(["--scope", "local_only"]));
     assert!(sandbox.fired("macos-banner"));
     assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
@@ -29,7 +29,14 @@ fn remote_only_delivers_through_hermes_alone() {
     run(sandbox
         .pns()
         .args(["send", "--producer", "weekly", "--state", "done"])
-        .args(["--project", "skills", "--detail", "ran", "--remote-only"]));
+        .args([
+            "--project",
+            "skills",
+            "--detail",
+            "ran",
+            "--scope",
+            "remote_only",
+        ]));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"));
@@ -49,38 +56,8 @@ fn hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visib
             "--detail",
             "ran",
         ])
-        .arg("--remote-only"));
+        .args(["--scope", "remote_only"]));
     assert_eq!(sandbox.event("hermes")["mode"], "sync");
-}
-
-#[test]
-fn both_narrowing_flags_together_deliver_nothing_and_say_so() {
-    let sandbox = Sandbox::new("both-flags");
-    let output = run(sandbox
-        .pns()
-        .args([
-            "send",
-            "--producer",
-            "x",
-            "--state",
-            "done",
-            "--detail",
-            "y",
-        ])
-        .args(["--local-only", "--remote-only"])
-        .args(["--pane", "w:p; invalid"]));
-    assert!(!sandbox.fired("mobile"));
-    assert!(!sandbox.fired("hermes"));
-    assert!(!sandbox.fired("macos-banner"));
-    assert_eq!(
-        stdout(&output),
-        "pns: post SKIPPED, --local-only and --remote-only were both given, which suppresses every channel; nothing was sent\n"
-    );
-    assert_eq!(stderr(&output), "", "no pane warning before refusal");
-    assert!(
-        !sandbox.state().exists(),
-        "refused argv reached domain state"
-    );
 }
 
 // --- presence ---------------------------------------------------------------

@@ -1,15 +1,27 @@
+/// One flag cannot contradict itself, so the pair that could is refused as two
+/// retired spellings rather than as a combination that suppressed every
+/// channel and still exited 0.
 #[test]
-fn both_narrowing_flags_plan_nothing_at_all() {
-    for flags in [
-        ["--local-only", "--remote-only"],
-        ["--remote-only", "--local-only"],
-    ] {
-        let argv = flags.map(str::to_owned);
+fn each_retired_narrowing_flag_is_refused_with_exit_two() {
+    for flag in ["--local-only", "--remote-only"] {
+        let argv = [flag.to_owned()];
         assert_eq!(
-            super::run(&argv, |_, _| panic!("invalid scope reached submission")),
-            0
+            super::run(&argv, |_, _| panic!("a retired flag reached submission")),
+            2
         );
     }
+}
+
+/// And a scope word none of the three is refused the same way, rather than
+/// falling back to automatic and sending off the machine what the caller asked
+/// to keep on it.
+#[test]
+fn a_scope_outside_the_three_words_is_refused_with_exit_two() {
+    let argv = ["--scope".to_owned(), "local".to_owned()];
+    assert_eq!(
+        super::run(&argv, |_, _| panic!("an unknown scope reached submission")),
+        2
+    );
 }
 
 /// DECISION 0010 IS THE DEFAULT: a notification never fails the work it reports

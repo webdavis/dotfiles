@@ -98,10 +98,11 @@ contracts, ordinary hooks exiting zero, blocking approval and gate exit-code tra
 gate spelling, `pns daemon run`, `pns loop begin|end`, the producer flags, and
 `pns lights pulse <exit-code>` (the operator's manual lamp check).
 
-The legacy flags `--local-only` and `--remote-only` are independent booleans today and **passing both
-is a tested contract**: nothing is delivered and the refusal says so. That combination is refused at
-the legacy adapter with the tested wording. It never becomes a domain state, and the delivery-scope
-enum (`Automatic`, `LocalOnly`, `RemoteOnly`) gains no fourth variant for it.
+The legacy flags `--local-only` and `--remote-only` were independent booleans, and passing both was a
+tested contract: nothing was delivered and the refusal said so. Both flags were retired and replaced
+by one `--scope automatic|local_only|remote_only` flag, matching the delivery-scope enum (`Automatic`,
+`LocalOnly`, `RemoteOnly`) directly; one flag cannot contradict itself, so the both-flags refusal and
+its test went with them.
 
 ## pns owns the shell notifier (operator, 2026-09-03)
 

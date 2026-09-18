@@ -29,13 +29,7 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -
     let event = match parsed.into_event() {
         Ok(Some(event)) => event,
         Ok(None) => return 0,
-        Err(argv::Refusal::Scope) => {
-            println!(
-                "pns: post SKIPPED, --local-only and --remote-only were both given, which suppresses every channel; nothing was sent"
-            );
-            return 0;
-        }
-        Err(argv::Refusal::Value(error)) => {
+        Err(error) => {
             eprintln!("pns: {error}");
             return 2;
         }

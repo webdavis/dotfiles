@@ -21,7 +21,8 @@ fn every_value_flag_lands_in_its_field() {
         "a summary",
         "--pane",
         "wW:p21",
-        "--local-only",
+        "--scope",
+        "local_only",
     ]);
     assert_eq!(parsed.agent, "claude");
     assert_eq!(parsed.state, "done");
@@ -55,7 +56,7 @@ fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
     assert_eq!(with_value.event.state, "done");
     assert!(matches!(
         with_value.into_event(),
-        Err(super::Refusal::Value(message)) if message == "--channel was replaced by --route"
+        Err(message) if message == "--channel was replaced by --route"
     ));
 
     // With no value present, the next real flag is never swallowed as one.
@@ -64,7 +65,7 @@ fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
     assert_eq!(without_value.event.state, "done");
     assert!(matches!(
         without_value.into_event(),
-        Err(super::Refusal::Value(message)) if message == "--channel was replaced by --route"
+        Err(message) if message == "--channel was replaced by --route"
     ));
 }
 
@@ -76,8 +77,73 @@ fn the_retired_agent_flag_takes_its_value_with_it_and_carries_the_refusal() {
     assert!(parsed.warnings.is_empty());
     assert!(matches!(
         parsed.into_event(),
-        Err(super::Refusal::Value(message)) if message == "--agent was replaced by --producer"
+        Err(message) if message == "--agent was replaced by --producer"
     ));
+}
+
+/// The pair `--scope` replaced could contradict itself, so a refusal existed
+/// for being given both. One flag cannot, so the refusal is gone and each old
+/// spelling is refused naming the flag that replaced it.
+#[test]
+fn each_retired_narrowing_flag_is_refused_and_names_the_scope_flag() {
+    for flag in ["--local-only", "--remote-only"] {
+        let parsed = parse_args([flag, "--state", "done"].map(str::to_owned));
+        assert!(parsed.warnings.is_empty());
+        assert!(
+            matches!(
+                parsed.into_event(),
+                Err(message) if message == format!("{flag} was replaced by --scope")
+            ),
+            "{flag} was not refused"
+        );
+    }
+}
+
+#[test]
+fn a_scope_outside_the_three_words_refuses_the_event_and_names_them() {
+    for word in ["local", "LocalOnly", "local-only", "both", ""] {
+        let parsed = parse_args(["--producer", "uu", "--scope", word].map(str::to_owned));
+        assert!(
+            matches!(
+                parsed.into_event(),
+                Err(message)
+                    if message == "--scope requires one of: automatic, local_only, remote_only"
+            ),
+            "{word} was not refused"
+        );
+    }
+    for (word, expected) in [
+        ("automatic", super::DeliveryScope::Automatic),
+        ("local_only", super::DeliveryScope::LocalOnly),
+        ("remote_only", super::DeliveryScope::RemoteOnly),
+    ] {
+        let parsed = parse_args(["--producer", "uu", "--scope", word].map(str::to_owned));
+        let event = parsed.into_event().ok().flatten().expect("a stated scope");
+        assert_eq!(event.scope, expected);
+    }
+    // Every word the domain accepts is one this flag accepts.
+    assert_eq!(super::DeliveryScope::WORDS.len(), 3);
+}
+
+/// A trailing `--scope` with no value at all refuses the same way an unknown
+/// word does, rather than delivering under the default it never asked for.
+#[test]
+fn a_trailing_scope_with_no_value_refuses_like_an_unknown_one() {
+    let parsed = parse_args(["--producer", "uu", "--scope"].map(str::to_owned));
+    assert!(parsed.warnings.is_empty());
+    assert!(matches!(
+        parsed.into_event(),
+        Err(message) if message == "--scope requires one of: automatic, local_only, remote_only"
+    ));
+}
+
+/// With no `--scope` at all the event is automatic, which is what every hook,
+/// the shell notifier and the daemon pass.
+#[test]
+fn no_scope_flag_leaves_the_event_automatic() {
+    let (parsed, warnings) = args(&["--producer", "claude"]);
+    assert_eq!(parsed.scope, super::DeliveryScope::Automatic);
+    assert!(warnings.is_empty());
 }
 
 #[test]
@@ -129,9 +195,9 @@ fn a_named_route_beats_the_kind_in_either_order() {
 
 #[test]
 fn a_recognized_flag_is_never_consumed_as_a_value() {
-    // `--pane --local-only`: eating the narrowing flag as the pane value
-    // would deliver an event the caller asked to keep local.
-    let (parsed, warnings) = args(&["--pane", "--local-only", "--producer", "claude"]);
+    // `--pane --scope`: eating the narrowing flag as the pane value would
+    // deliver an event the caller asked to keep local.
+    let (parsed, warnings) = args(&["--pane", "--scope", "local_only", "--producer", "claude"]);
     assert_eq!(parsed.pane, "");
     assert_eq!(
         parsed.scope,
@@ -190,6 +256,9 @@ fn help_in_flag_position_is_recognized_wherever_it_sits() {
         &["--help"][..],
         &["-h"][..],
         &["--producer", "claude", "--help"][..],
+        &["--scope", "local_only", "--help"][..],
+        // A RETIRED FLAG TAKES NO VALUE HERE, so it never eats the help that
+        // follows it the way `--channel --help` would.
         &["--local-only", "--help"][..],
         &["stray", "--help"][..],
     ] {
@@ -216,7 +285,7 @@ fn help_in_value_position_is_still_just_a_value() {
     assert!(!parsed.help);
     assert!(matches!(
         parsed.into_event(),
-        Err(super::Refusal::Value(message))
+        Err(message)
             if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
     ));
 }
@@ -234,7 +303,7 @@ fn a_state_outside_the_six_words_refuses_the_event_and_names_them() {
         assert!(
             matches!(
                 parsed.into_event(),
-                Err(super::Refusal::Value(message))
+                Err(message)
                     if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
             ),
             "{word} was not refused"
@@ -255,7 +324,7 @@ fn a_trailing_state_with_no_value_refuses_like_an_empty_one() {
     assert!(parsed.warnings.is_empty());
     assert!(matches!(
         parsed.into_event(),
-        Err(super::Refusal::Value(message))
+        Err(message)
             if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
     ));
 }

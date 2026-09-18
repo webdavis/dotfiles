@@ -182,7 +182,8 @@ def check(case, result, fixture, legacy=False, capture_notifications=True):
             case["room"],
             "--detail",
             result["stdout"].strip(),
-            "--local-only",
+            "--scope",
+            "local_only",
         ]
         assert notes[0] == want, ("notification arguments", want, notes[0])
     if notes and legacy:

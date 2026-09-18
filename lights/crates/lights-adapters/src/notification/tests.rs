@@ -35,7 +35,8 @@ fn pns_arguments_are_local_only() {
                 "Studio",
                 "--detail",
                 "Studio: on",
-                "--local-only"
+                "--scope",
+                "local_only"
             ]
         );
         calls.set(calls.get() + 1);

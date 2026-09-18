@@ -1,6 +1,8 @@
 # 0007: Passing both delivery-scope flags is refused at the legacy adapter, and never becomes a domain state
 
-Status: accepted. The refusal wording is pinned by test.
+Status: superseded 2026-09-17 by the retirement of both flags. The typed domain value this decision
+asked for is what survived: one `--scope automatic|local_only|remote_only` flag now states it, so the
+combination this refusal existed to catch cannot be typed and the refusal and its wording are gone.
 
 ## Today
 

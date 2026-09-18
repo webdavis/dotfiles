@@ -33,6 +33,25 @@ pub enum DeliveryScope {
     RemoteOnly,
 }
 
+impl DeliveryScope {
+    /// The scope a producer spelled, or `None` for a word that is none of the
+    /// three. REFUSED RATHER THAN DEFAULTED: a typo that quietly became
+    /// automatic would send off the machine the event its caller meant to keep
+    /// on it.
+    pub fn from_word(word: &str) -> Option<Self> {
+        match word {
+            "automatic" => Some(Self::Automatic),
+            "local_only" => Some(Self::LocalOnly),
+            "remote_only" => Some(Self::RemoteOnly),
+            _ => None,
+        }
+    }
+
+    /// Every word `from_word` accepts, for a usage line and for the tests. The
+    /// same three the JSON request's `scope` takes.
+    pub const WORDS: &'static [&'static str] = &["automatic", "local_only", "remote_only"];
+}
+
 /// The parsed event arguments. Scope defaults to automatic; other fields default to empty or false, so a
 /// bare invocation is valid and renders an empty event.
 #[derive(Debug, Clone, Default, PartialEq)]
