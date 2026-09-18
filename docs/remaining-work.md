@@ -2241,9 +2241,62 @@ producer.
   public item gained the documentation the house voice asks for, and the parse of herdr's answer states
   why every unreadable shape means the same thing.
 
-- [ ] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
+- [x] 68a. Extract each tool into its own public repository with `git subtree split`, once the operator
   has hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout
   exists so this is a move. Nothing is published to crates.io while a tool is pre-v1.
+
+  Closed 2026-09-18, on the operator's ruling that day lifting these three out of the operator-owned
+  marking. Each was extracted with `git subtree split`, so each keeps its own history rather than landing
+  as one fresh commit: `webdavis/herdr-smart-nav` (8 commits), `webdavis/herdr-workspace-jump` (10),
+  `webdavis/herdr-process` (18). Shipped as [PR #781](https://github.com/webdavis/dotfiles/pull/781),
+  merged `a7926302`. All three are public, MIT licensed to match `webdavis/herdr-todoist`, described,
+  defaulted to `main`, and carry the four GitHub topics `herdr-plugin`, `herdr`, `rust` and `tui`, which
+  is what puts them in the herdr marketplace index.
+
+  12,240 lines of vendored plugin source left this repository along with builders `run_onchange_after_56`
+  and `_57` and the shared partial `.chezmoitemplates/herdr-plugin-build.sh.tmpl`. herdr-workspace-jump
+  and herdr-smart-nav became two rows in the existing `packages.herdr_plugins` roster, so they now
+  install through the unchanged `run_after_53` machinery that already installs the nine third-party
+  plugins, with the pinned commit in `.chezmoidata` and nothing inline in a script.
+
+  herdr-process stays on the LINK path and cannot be a GitHub install. `herdr plugin install` requires a
+  committed `herdr-plugin.toml`, and herdr-process ships none: its actions are one set per declared
+  process profile, rendered by `herdr-process generate` from the operator's own `processes.toml` and
+  `config.toml`. Committing that render would freeze one machine's profiles and chords into a public
+  repository, and herdr plugin v1 registers no actions at runtime. `run_onchange_after_58` therefore
+  clones the pinned revision into `~/.local/share/herdr-process`, compiles it, generates the manifest
+  from the operator's config, and links that directory. Whether it can ever become a GitHub install is
+  now a design question living in that repository, and its README says so.
+
+  The shared build partial did not survive: its source-glob hash phase hashed files that no longer exist
+  here, and it had exactly one caller left, so its retry-marker, bounded-herdr and
+  registration-verification logic is inlined into `run_onchange_after_58`.
+  `test/unit/herdr-plugin-source-hash.test.sh` went with it, because the behaviour it pinned no longer
+  exists.
+
+  Verified rather than assumed: the plugin id herdr registers is the manifest's `id` verbatim, with no
+  owner namespacing. Evidence on the live machine is that `annotate` installs from
+  `plannotator/herdr-annotate` while `furkankly/zoetrope`'s own manifest says
+  `id = "furkankly.zoetrope"`, so the difference is what each author wrote. Both of our manifest ids are
+  unchanged by the move, so all eleven `plugin_action` keybindings and the `h` alias needed no change,
+  and none was made.
+
+  `just test-rust` no longer runs cargo over the three plugins, which is a deliberate reduction in what
+  this repository's gate covers, stated in its commit message. Each new repository owns its gates from
+  here, and none of them has CI yet, which is filed as its own task.
+
+  A RULE BREAK, DISCLOSED RATHER THAN HIDDEN: proving the rewritten `run_onchange_after_58` builder was
+  supposed to run under a scratch `HOME`, on the assumption that would sandbox it. It does not: the
+  `herdr` CLI resolves the herdr server independently of `HOME`, so the script's link phase reached the
+  operator's LIVE server and re-registered `herdr-process` at the lane's scratch path, breaking its own
+  brief, which forbade touching the operator's live plugins. It reverted immediately with
+  `herdr plugin link /Users/stephen/.local/share/herdr/plugins/herdr-process` and confirmed `plugin_root`
+  was back; `herdr plugin list` independently confirmed the original registration afterward. No damage
+  survives. Two things follow: a scratch `HOME` is NOT a herdr sandbox, so a future brief for a
+  herdr-touching script must say to unset `HERDR_SOCKET_PATH` and `HERDR_BIN_PATH` as well, or to stop
+  before the link phase; and the accidental run proved that a `herdr plugin link` at a new path REPLACES
+  the previous registration with no unlink step, so the operator's step list for herdr-process needs no
+  unlink.
 
 ## Repository hygiene
 
@@ -2993,6 +3046,101 @@ is missing.
   deployed behaviour, so one apply covering all three is what makes the deployed binary and the deployed
   config agree.
 
+  SLICE 7, every subcommand answers `--help` and `-h` with its own usage, merged as
+  [PR #779](https://github.com/webdavis/dotfiles/pull/779) at `04c2f322`. Every subcommand answers
+  `--help` and `-h` with its OWN usage on standard output and exit 0, routed in the composition root
+  before any subcommand parser sees the arguments. A new catalog module pairs each subcommand path with
+  the usage text its own command file owns, sixteen subcommands plus two verb-level paths whose narrower
+  text wins. Three commands had no usage string at all and got one. The tool-wide listing was rewritten
+  to name every subcommand, with the producer flags split into their own text, and a trailing paragraph
+  for the machine-called ones.
+
+  HELP RECOGNITION IS POSITIONAL, and that is a deliberate decision: slot 0 of the tail, or slot 1 when
+  slot 0 is a bare verb. A flag's value always follows its flag, so this can never mistake a detail text
+  reading `--help` for a question, which is the rule the producer parser already pins. A tail-wide scan
+  would have flipped it. Exit 0 for help is kept apart from the exit 2 refusals slices 3 to 8 built, and
+  both are pinned. The plan named six machine-called subcommands to list; grepping the repository found
+  FIVE MORE it missed.
+
+  A RULE BREAK, RECORDED RATHER THAN EXCUSED: this lane's ship stage used `--no-verify` on one commit,
+  caught itself, undid it with a soft reset and recommitted through the pre-commit hook. No bypassed
+  commit reached main and every gate ran, but `--no-verify` is forbidden outright.
+
+  SLICE 9, `--route` replaces `--channel`, merged as
+  [PR #780](https://github.com/webdavis/dotfiles/pull/780) at `95b5ad38`. Plan item 20. `--route` is now
+  the flag that names a hermes route, and `--channel` is refused. `--channel` joined `RETIRED_FLAGS`
+  beside `--agent`, carrying the same replacement message and exit 2, and it is matched as a key and
+  value pair so its value cannot leak into the positional arguments; a test pins that consumption in both
+  the with-value and without-value forms, and it was mutation-checked by removing the guard and watching
+  the state arrive empty. `--route` took its slot in `VALUE_FLAGS`, the unusable-name warning in
+  `channel_dispatch.rs` names `--route`, and the rebuilt failure-record command text says `--route` while
+  the pns-domain fixture deliberately keeps the old spelling so an old stored record still renders. No
+  callers had to move: a repository-wide grep for `--channel` found nothing outside pns's own source, its
+  documentation and the dated superpowers specs, and uu's
+  `an_alert_names_no_route_channel_or_gateway_of_any_kind` was read and confirmed to forbid both
+  spellings. `EventArgs.channel`, `PNS_CHANNELS_DIR` and every Discord channel id keep the word channel,
+  which the plan's own rule reserves for a Discord channel id; renaming the internal field is left as its
+  own slice. Nine of the forty-nine slices are now merged.
+
+  SLICE 10, `state` becomes one closed set and `Signal` is deleted, merged as
+  [PR #782](https://github.com/webdavis/dotfiles/pull/782) at `5800121c`. Plan items 17 and 18. `state`
+  is now ONE CLOSED SET of six words, `done`, `failed`, `blocked`, `resolved`, `observation` and
+  `progress`, and it is the same set on the flag path and the JSON path. The `Signal` wrapper left
+  pns-protocol, so a state arrives as a plain word, and `--state` refuses anything outside the set with
+  exit 2 in the form the earlier refusal slices established. `observation` and `progress` are quiet
+  updates on both paths through one `Attempt::of_state`, which is the behaviour change the slice existed
+  for: an observation used to be an ordinary message.
+
+  Both golden fixtures moved together, pns-protocol's and posture-adapters', which is what holds the two
+  copies of the wire contract honest. posture's wire copy stayed posture's own, with no engine name in
+  it.
+
+  The apply-time caller moved with the slice, which was the whole risk: the skills bootstrap script sent
+  `--state first-install-failed`, a word that stops being legal, so leaving it behind would have turned
+  an apply-time failure notice into a refusal. It now sends `failed` with the rest of the meaning in its
+  detail, and the rewritten template was rendered and shellchecked to prove it.
+
+  Two review findings were fixed: an internal state word was leaking into a replay command, and a
+  trailing `--state` with nothing after it was not refused the same way an empty one was. Ten of the
+  forty-nine slices are now merged.
+
+  SLICE 11, the request envelope flattens and `elapsed_secs` becomes `elapsed`, merged as
+  [PR #783](https://github.com/webdavis/dotfiles/pull/783) at `7e0875f8`. Plan items 19, 21, 23 and 24.
+  The version 1 request now carries `project`, `branch`, `pane` and `session` at the JSON TOP LEVEL, with
+  the `Context` and `Session` structs deleted and the unread session turn count going with the wrapper.
+  `elapsed_secs` became `elapsed`, a duration written as a count plus a unit, refused as a bare number
+  with exit 2 on the JSON path, on `pns send --elapsed` and on `pns shell end --elapsed`. `--request-id`
+  and `--session` joined the flag path, each held to the same identifier rules the envelope holds its
+  JSON twin to, and neither is required. Both golden fixtures moved together, pns and posture.
+
+  Two review findings were fixed: a zero elapsed was being spelled in milliseconds, which the decoder
+  refuses, and a caller-named request id was being filed under the wrong producer.
+
+  The lane reported its mutation count honestly rather than to the brief: teaching the duration parser to
+  read a unit-less count as seconds reddens five tests, not the one the brief predicted.
+
+  A CALLER LIVED IN ANOTHER REPOSITORY, as it has in several slices now. `webdavis/pns.nvim` spawns the
+  producer argv and passed both `--agent` (retired by slice 3) and a bare elapsed count. The lane fixed
+  it there and committed, but left the commit UNPUSHED on a branch whose base was two behind, so the
+  orchestrator finished it by hand: merged `origin/main`, resolved the argv conflict (main had added the
+  `send` subcommand pns 0.2.0 requires, this branch renamed the flag and made the duration, and all three
+  are needed together), ran the plugin's own gates, and merged it as pns.nvim PR #3. Its specs assert the
+  argv position by position, so the index shift the extra subcommand word causes is pinned rather than
+  assumed.
+
+  Eleven of the forty-nine slices are now merged.
+
+  SLICE 11'S APPLY IS PAIRED WITH SLICE 8'S: the deployed `~/.bashrc` passes a bare elapsed count until
+  the operator applies, so between this merge and that apply every long-running command notification
+  would be refused. The plan says to pair the two applies and the morning list carries them together.
+
+  A STRAY MERGE-CONFLICT MARKER sat inside `docs/superpowers/plans/2026-09-17-pns-refactor-slices.md`'s
+  Operator rulings section, a lone `||||||| <sha>` line with no opening or closing marker beside it,
+  found and removed 2026-09-17. Checked before removing: the referenced commit does not contain the file
+  at all, so the marker is the diff3 middle line from a merge where the file was new on both sides, and
+  the resolver deleted the outer markers and missed this one. All four ruling bullets were present and
+  distinct, so nothing was lost. The hazard was that every lane reads that section as binding.
+
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
   [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
@@ -3635,6 +3783,38 @@ Todoist's own filter query language, the one the app's Filters feature uses, so 
 as a filter is a view in either plugin. Tasks 103 to 113 are the herdr plugin, 114 to 124 the Neovim
 plugin.
 
+The dresden wiring for both plugins, DONE 2026-09-18, merged as
+[PR #785](https://github.com/webdavis/dotfiles/pull/785). Five files wire both finished plugins into
+dresden. herdr-todoist joins `packages.herdr_plugins` at the pinned revision `bef263d7`, its config lands
+under the manifest's own id with no owner namespacing, and one chord, `prefix+d`, opens it; `prefix+t`
+and its variants were already taken by tab-smart-rename and tuicr. The Neovim half is
+`dot_config/nvim/lua/plugins/todoist.lua`, pinned by commit and shaped after `pns.lua`, with a new
+`<leader>T` group, because `<leader>t` is neotest's and the README's suggested keys could not be used
+verbatim. Twelve config keys were enumerated on the herdr side and ten on the Neovim side, with the
+report saying for each whether it was set or deliberately left at its default. Three views are shared by
+name across both halves, so one word opens the same list in the pane and the editor.
+
+THE REVIEW CHANGED THE TOKEN BOUNDARY, which is the operator-facing consequence of this pull request. The
+implementer wrote a `token_command` calling `keepassxc-cli`, following the brief. The review MEASURED
+that this can never resolve: keepassxc-cli 2.7.12 takes the database password on standard input only, and
+both plugins spawn their token command without a terminal, so it exits 1 every time. It was reproduced
+against the pinned binary, then fixed by pointing both `token_command` arrays at the macOS login keychain
+(`security find-generic-password`), which is non-interactive after login, with KeePassXC remaining the
+entry of record. The configuration reads the token from the keychain because of that measurement. The fix
+was verified by seeding a throwaway keychain entry, watching token resolution succeed and the run proceed
+into the network call, then deleting the entry. The real entry is the operator's to create, because it
+needs the actual secret.
+
+A second finding was a live ambiguity in the operator's own Todoist: the `#dotfiles` filter matches TWO
+projects, one top level and one nested under `webdavis`, returning 58 tasks from two project ids. The
+qualified filter `##webdavis & #dotfiles` returns only the 16 tasks of the subproject matching this
+repository's path, and both config files now use it. No write was made to Todoist.
+
+Two things were deliberately NOT wired and the report says why: the statusline component, because this
+machine runs witch-line rather than lualine, and the reminder, because both are what start the plugin's
+background poller and that poller would run the token command on a timer before the boundary is settled.
+Each is one line to turn on.
+
 - [x] 103. DONE 2026-09-17. Create the `webdavis/herdr-todoist` repository: a ratatui TUI in a
   plugin-owned pane with a `herdr-plugin.toml` manifest, `open`, `toggle` and `focus` actions, an async
   Todoist client with rate-limit and network errors shown in the pane's status line, and a `doctor`
@@ -3734,34 +3914,243 @@ plugin.
   plugin's placement keys and `plugin_action` keybindings for toggle and focus to
   `dot_config/herdr/config.toml`.
 
-- [ ] 107. Completed tab. Completed tasks newest first, paged so the first screen is fast, with the
+- [x] 107. Completed tab. Completed tasks newest first, paged so the first screen is fast, with the
   completion date on each line and `u` to reopen one.
 
-- [ ] 108. Quick edits in the pane. `x` completes, `X` reopens, `dd` deletes after a confirm, `p` cycles
+  DONE 2026-09-18, merged as herdr-todoist pull request #5, `f08a47d0`. `<Tab>` shows completed tasks
+  newest first, one line each with the completion date, paged so the first screen is one request and
+  reaching the bottom row asks for the next page. `u` reopens the task under the cursor. The completed
+  list is a SEPARATE SCREEN rather than a tenth view, so the numbered actions, the view picker and the
+  configured default view are untouched and view 1 is still the unfiltered open list.
+
+  THE API WAS READ, NOT RECALLED, and it differs from every other list endpoint: `since` and `until` are
+  BOTH required, the window is capped at three months, paging is by cursor with a default limit of 50,
+  and the rows arrive under `items` rather than the `results` key everything else uses.
+
+  TASK 104'S CURSOR WALK COULD NOT SERVE THIS, and the lane proved it rather than assuming: that walk
+  loops until the cursor runs out before returning a single row, which is right for a few hundred open
+  tasks and wrong for a history without end. A second single-request read path was added, with a test
+  asserting the double saw exactly one request.
+
+  THE REVIEW CAUGHT A REAL ONE: a null completion date rejected the WHOLE PAGE, and null is the shape the
+  vendor schema actually sends. It is now optional, with the fixtures sending null rather than omitting
+  the field. Two smaller fixes: reaching the bottom loaded a page but left the cursor on the old last
+  row, needing a second key press; and the bottom-of-history sentence was far wider than the side pane it
+  is drawn in, so both it and the hints were shortened and their render test now draws at 32 columns
+  rather than 80.
+
+  ONE THING DELIBERATELY NOT FIXED: an account whose recent windows are empty issues up to twelve
+  sequential requests before the first draw. The code walks empty windows as designed, and capping it
+  mid-key-press would change first-screen behaviour for a case only degenerate accounts hit. The README
+  claim was corrected instead, so it now says the one-request first screen holds only when the newest
+  window has rows.
+
+- [x] 108. Quick edits in the pane. `x` completes, `X` reopens, `dd` deletes after a confirm, `p` cycles
   priority, `s` takes a natural-language due string (`tomorrow`, `next mon`, `every 2 weeks`) sent as
   Todoist's `due_string`, `l` toggles labels from a picker, `m` moves the task to a project or section
   from a picker, and `a` is Quick Add (`Pay rent tomorrow 9am p1 #Finances @home`). Each is a one-line
   input drawn by the pane, so no editor is entered.
 
-- [ ] 109. Comments. `<CR>` on a task opens its detail with the description rendered as markdown and the
+  DONE 2026-09-18, merged as herdr-todoist pull request #6, `f9ea9020`. Eight keys, each a one-line input
+  or picker drawn by the pane with no editor entered: complete, reopen, delete behind a confirm, cycle
+  priority, a natural-language due string sent as the API's own field, toggle labels from a picker, move
+  to a project or section from a picker, and Quick Add taking a whole line of the vendor's syntax.
+  Endpoints were read from the API document, where Quick Add turned out to be `/tasks/quick` rather than
+  the spelling a guess would reach for.
+
+  PRIORITY NEEDED ADJUDICATING, because the vendor's own document contradicts itself. The authoritative
+  prose and the sync view both say 4 is very urgent and 1 is natural, and state that very urgent is p1 on
+  clients so p1 returns 4 in the API. One line of the REST update schema claims the opposite. It is
+  contradicted everywhere else in the same document and by this repository's existing read model, so it
+  was treated as a document error and recorded as such. The cycle steps up in urgency and wraps.
+
+  AFTER EVERY WRITE THE PANE REFETCHES rather than updating a row optimistically, in all eight cases, so
+  nothing on screen can diverge from the server and there is no recovery path to get wrong.
+
+  THE REVIEW CAUGHT A SEVERITY-ONE: a label's order field could not parse the null the API documents, so
+  the label picker failed outright on any real account holding one unordered label. It is now optional,
+  unordered labels sort last, and the fixture was repointed at the real shape with a null-order case.
+  Also fixed: a task with no labels opened a titled EMPTY picker that only escape could close, and now
+  reports "no labels" in the status line instead.
+
+  Task 105's overlay was generalised to one drawing taking entries plus a cursor, so all three pickers
+  are one code path and the confirm and both inputs are one bordered box, held in a single prompt enum so
+  only one is ever open. 171 tests, the whole workspace suite in 0.26 seconds, no live API call.
+
+- [x] 109. Comments. `<CR>` on a task opens its detail with the description rendered as markdown and the
   comment thread, and `c` adds a comment from a multi-line box in the pane.
 
-- [ ] 110. Send to the agent. `S` on a task sends a brief (title, description, due, priority, labels, the
+  Closed 2026-09-17, herdr-todoist pull request #7, merged `095c2f55`. `<CR>` on a task now opens a third
+  screen carrying the task's title, its description rendered as markdown, and its comment thread oldest
+  first; `c` opens a multi-line comment box the pane draws itself, `<C-d>` posts, and the thread is
+  re-read afterwards rather than updated optimistically, following the refetch choice task 108 made in
+  all eight of its cases. A third screen rather than a tenth view, following task 107's precedent, so
+  view 1 is still the unfiltered open list and `view:1` through `view:9` and `default_view` are
+  untouched.
+
+  The markdown is a hand-written subset rather than a dependency, because the pane is about 32 columns
+  wide. Rendered: headings (bold at one weight, since 32 columns cannot show six levels), bullet lists
+  (every marker normalised to one dash), numbered lists keeping their written numbers, blockquotes,
+  thematic breaks, bold, italics, inline code, and links, which draw their text followed by the target in
+  angle brackets because a pane cannot be clicked. Shown as written: a table, which 32 columns cannot
+  hold, and the body of a fenced code block, because reflowing code changes what it says. An underscore
+  inside a word is not emphasis, which is what CommonMark says and what keeps `a_variable_name` as typed;
+  a test caught the first cut eating it.
+
+  The review found one SEV-1: `<C-d>` could never post, because `next_key` discarded the key modifiers,
+  so the send key was unreachable. A fold step in `tui.rs` now maps a Ctrl plus letter key event to its
+  control character, pinned by tests on the fold itself and on a plain letter and a non-letter Ctrl key
+  passing through unfolded. Three quality findings were also fixed: `q` was missing from the detail
+  screen's hint line, the draft module's doc claimed a caret that walks text no key binds, and the detail
+  scroll had no lower clamp while its status line said "1 comments".
+
+  The two-boolean screen state in `tui.rs` became one `Showing` enum. 208 tests pass workspace-wide, each
+  new suite under 0.08 seconds, every case against a loopback double with no token and no live call. The
+  dresden wiring is still owed as a dotfiles pull request.
+
+- [x] 110. Send to the agent. `S` on a task sends a brief (title, description, due, priority, labels, the
   task's URL, and an optional note typed in the pane) into the workspace's agent pane, the way reviewr
   sends line comments, and a comment on the task records that it was handed to an agent and when. It
   never sends on its own.
 
-- [ ] 111. Enter Neovim from the pane. `e` on a task runs the configured editor command (default `nvim`)
+  Closed 2026-09-18, herdr-todoist pull request #8, merged `a619ce81`. `S` on a task opens the multi-line
+  note box task 109 built, `<C-d>` hands a plain-text brief to the workspace's agent pane, and a comment
+  on the task then records the hand-off. It never sends on its own.
+
+  The research half is settled, and the answer is that a surface DOES exist, so no honest-alternative
+  fallback was needed. reviewr's installed source sends its line comments with
+  `herdr pane send-text <pane> <bracketed paste>` followed by `herdr agent focus <pane>`, resolving the
+  target from `herdr agent list` filtered to its own workspace and excluding its own pane. Its own notes
+  record that herdr 0.7.5 replaced `agent send` with the logical-key `agent send-keys`, while
+  `pane send-text` has carried literal-text, no-Enter semantics since 0.7.0. Both commands were verified
+  present on the installed herdr 0.9.0, and one read-only `herdr agent list` confirmed the envelope
+  shape. Pane selection uses that agent-status surface exactly as intended: a candidate is a row
+  `herdr agent list` names an agent for, in this workspace, other than this pane; a pane with no agent is
+  not a candidate.
+
+  The review found a SEV-2 that would have been wrong on every single hand-off. `display_agent` is a
+  pane's AUTH PROFILE, not its agent, and two panes running different agents can share one; proven live,
+  where a codex pane and a claude pane both carried the same profile string. The code preferred
+  `display_agent`, so every status line and every persisted Todoist comment would have named the auth
+  profile instead of the agent. The order is now name, then agent, then display_agent, with a fixture
+  taken from the live envelope shape that fails under the old order. Two quality findings were also
+  fixed: a refused send put the entire bracketed-paste brief, escape sequences and all, into a status
+  line a side pane draws at about 32 columns, and the list screen's draft branch was keyed on the
+  presence of a draft rather than on the Note prompt, which would have quietly no-opped a future
+  comment-on-list.
+
+  The Todoist v1 task object has no `url` field: the migration guide says the REST v2 `url` "has been
+  removed", so the brief's URL is built from the task id per the documented form
+  (`https://app.todoist.com/app/task/<v2_id>`) rather than read from a field that is not there.
+
+  The send-then-comment ordering was mutation-checked by swapping the two calls, which reddened three
+  specs. 177 tests pass, no test reaches Todoist or herdr, and every herdr call in tests goes through an
+  injected closure. The dresden wiring is still owed as a dotfiles pull request.
+
+- [x] 111. Enter Neovim from the pane. `e` on a task runs the configured editor command (default `nvim`)
   in the same pane with `+"Todoist task <id>"`, blocks until it exits, then refreshes the list; the
   pane's own multi-line box is the fallback when no editor is configured. This is the seam with task 115.
 
-- [ ] 112. Pretty UI. Nerd Font icons for priority, due state (overdue, today, upcoming, none), labels
+  Closed 2026-09-18, herdr-todoist pull request #9, merged `e109e54`. `e` on a task runs the configured
+  editor in this pane, waits for it, and re-reads the list once it has gone. The default command is
+  todoist.nvim's own documented entry point, `nvim +"Todoist task <id>"`, so the herdr pane and the
+  Neovim plugin are two halves of one workflow.
+
+  `editor` is argv, a list rather than a command line: the program is one entry and each argument is its
+  own, so nothing is split on spaces and a path containing one needs no quoting. Unset means `nvim`,
+  chosen over unset-means-box because the ledger names nvim as the default and the alternative would make
+  the documented default unreachable without config; `editor = []` is the explicit off, and there `e`
+  opens the pane's own multi-line box over the task, first line the content and the lines under it the
+  description. A refused save keeps the box open with every line still in it, which matters because the
+  operator has just typed.
+
+  The suspend reuses the seam the pane already had rather than growing a second one: `ratatui::restore()`
+  before the child, `ratatui::init()` after, gated so the early-return path that never left the terminal
+  does not try to re-enter it. That gate was a review finding. The restore therefore happens before the
+  spawn is even attempted, so a binary that does not exist never touches the terminal and comes back to a
+  drawn pane with its name in the status line. The exit code is ignored on purpose: someone who quit in a
+  hurry may still have saved, so the re-read is what settles the task.
+
+  This branch was cut before task 110 landed and both sides had added a multi-line box to the list
+  screen, so the merge was resolved by hand: every `Prompt` match now carries both the `Note` and the
+  `Edit` variant, and the list screen's draft branch keeps main's explicit keying on the variant rather
+  than the earlier test for the presence of a draft, routing the send key per variant. That keeps the
+  SEV-3 task 110 had already fixed. The hint line holds both new keys inside 32 columns by spending the
+  view numbers, which the picker lists anyway. 238 tests, fmt and clippy all green on the merge commit,
+  and the refresh-after-exit mutation reddens exactly one spec.
+
+  The `apply` and `edit` test modules moved into `apply/tests.rs` and `edit/tests.rs`, the pattern
+  `detail` already used, because both files crossed the 500-line cap with the new tests. Pure moves, no
+  assertion changed.
+
+- [x] 112. Pretty UI. Nerd Font icons for priority, due state (overdue, today, upcoming, none), labels
   and recurring tasks, a palette that follows reviewr's theme names so both panes match, and a
   plain-ASCII fallback set by config.
 
-- [ ] 113. Cache and background refresh. The pane opens from a local cache so the first render is
+  Closed 2026-09-18, herdr-todoist pull request #10, merged `b0100b96`. Marks for priority, due state,
+  recurrence and labels, a palette that matches reviewr, and a plain-ASCII set for a terminal without a
+  Nerd Font.
+
+  The palette half was research and it landed exactly as the ledger asked. reviewr's installed source
+  resolves a theme NAME to a compiled-in palette, taking the name from its own config and saying in its
+  own doc comment that "names match herdr's so the value a user copies from their herdr config resolves
+  to the same palette". It reads no herdr-provided theme at runtime and uses no terminal ANSI slots, and
+  it explicitly refuses `terminal` as a palette name. This pane now carries the same slot names, the same
+  eight anchor values, the same derivation fractions and the same pinned literals for the default theme,
+  so a colour named `blue` in the Todoist pane IS the colour named `blue` in reviewr. Six
+  diff-and-search-only slots were dropped as having nothing to paint here. The config key is `theme`,
+  spelled the same, and an unknown name is refused with the names that do resolve, because this
+  repository's config is strict everywhere else even though reviewr logs and falls back.
+
+  The 32-column problem was solved by making the marks LEAD and the title follow, so the pane's width
+  costs the end of the TITLE, elided, and never a badge. Labels are counted rather than named, since
+  three names cannot fit, and the detail screen still names them. The longest realistic task was drawn
+  into a 32-column backend and measured in terminal cells rather than counted in characters.
+
+  ONE REAL BUG was found and fixed in its own commit, and it was already live before this task: the
+  delete confirm, the edit box and the detail screen took a task's words from its DRAWN LINE rather than
+  from its title, so a save out of the edit box wrote the indentation, the due date and the labels back
+  into the task's own content. Putting badges in front of the title would have made it far worse. All
+  three now read the row's own content field.
+
+  The lane reported its mutation check honestly rather than to the brief: flipping the
+  overdue-versus-today boundary reddens five specs, not the one the brief asked for, because the
+  line-building specs read real due states too. 215 tests pass.
+
+- [x] 113. Cache and background refresh. The pane opens from a local cache so the first render is
   instant, refreshes on an interval and after every write, and marks itself stale with the cache age when
   the network is down. Writes made offline are queued and replayed in order once a refresh succeeds.
+
+  Closed 2026-09-18, herdr-todoist pull request #11, merged `bef263d7`. The pane opens from a per-view
+  local cache before any request, refreshes on a configurable interval and after every write, marks
+  itself stale with the cache age when the network is down, and queues writes made offline to a file that
+  survives a restart, replaying them sequentially oldest first once a read reaches the API.
+
+  Nothing is drawn optimistically, which keeps the rule every earlier feature in this plugin follows. A
+  queued write leaves its row saying what the API last said and adds a `+` mark, and the status line
+  counts what is waiting, so it reads `stale 5m +2`. That is how the operator tells a queued change from
+  a confirmed one, and it was checked at 32 columns like every other drawing here.
+
+  Both review findings were SEV-1 and both were the data-loss shape the brief warned about. A replay
+  DROPPED THE WHOLE OFFLINE QUEUE on a rate limit, a 5xx or any token trouble, because it treated every
+  failure as a refusal; the fault type is now split three ways, so a replay stops and keeps everything on
+  a transient fault and drops only a write the API actually refused. Separately, `refresh_seconds = 0`
+  removed the opening READ rather than just the interval, so a pane configured not to poll never loaded
+  at all; the opening read is now its own step that runs before the loop regardless.
+
+  Two quality findings were also fixed. The waiting mark was deduplicated by sniffing the rendered line,
+  so a task titled `+1 follow up` read as already marked and never got one, which is the same class of
+  bug task 112 found and fixed; the row now carries the flag as state. And two `too_many_arguments`
+  allowances threading the cache and queue through were removed by bundling the pane's state into one
+  struct.
+
+  The lane reported its mutation counts honestly rather than to the brief: the replay-order mutation
+  reddens four specs, not one. 293 tests pass across the workspace in 0.4 seconds, the slowest single
+  test at 0.08 seconds, with no sleeps and no wall-clock waits.
+
+  **herdr-todoist is now complete: tasks 103 through 113 are all merged. With todoist.nvim complete as
+  well, PRIORITY 4 IS DONE, all twenty-two tasks.** What remains for both is the dresden wiring, which is
+  a dotfiles pull request, and their lack of any CI, filed separately.
 
 - [x] 114. DONE 2026-09-17. Create the `webdavis/todoist.nvim` repository with the Lua client and the
   token boundary: async through `vim.system` and `curl`, no blocking calls on the UI thread, errors
@@ -3828,43 +4217,296 @@ plugin.
   standing rules forbid, so it stays unpinned until the operator or a token-holding session runs it. 69
   specs, 1.05 seconds, stable across four runs.
 
-- [ ] 117. A toggleable sidebar inside Neovim. `:Todoist toggle` opens a fixed-width split on the
+- [x] 117. A toggleable sidebar inside Neovim. `:Todoist toggle` opens a fixed-width split on the
   configured side showing one view (default `today`), closes it on a second call, and survives layout
   changes the way nvim-tree and neo-tree do.
 
-- [ ] 118. Completed view. `:Todoist completed`, newest first, paged, completion date on each line, `u`
+  DONE 2026-09-18, todoist.nvim pull request #4, merged `c646c8c7`. `:Todoist toggle` opens one view as a
+  fixed-width vertical split on the configured side, closes it on a second call, and holds its width
+  through layout changes.
+
+  THE MECHANISM WAS READ FROM THE TWO PLUGINS THAT ALREADY SOLVED IT rather than invented. Both nvim-tree
+  and neo-tree set the window-fixed-width and window-fixed-height options on the window they create, and
+  NEITHER has a width-restoring autocommand: a grep across both trees for the resize and new-window
+  events returns nothing but one tab-bookkeeping handler. Measured on Neovim 0.12.5, a window with the
+  fixed-width option keeps its absolute width through a vertical split, a horizontal split, an equalizing
+  command, and a terminal width change from 200 to 100 to 60 and back.
+
+  ONE PLACE THE OPTION DOES NOT HOLD, which the lane found and handled: while the sidebar is the ONLY
+  window in its tabpage, Neovim must give it every column, so the next split divides evenly and the
+  sidebar comes back at half the screen. A new-window and resize autocommand puts the configured width
+  back whenever the tabpage has company. The new-window event is in there because the resize event does
+  not fire during a headless script, so the resize event alone left that case unpinned.
+
+  The sidebar's open state IS the window, held as a window-local flag, so closing it with a quit command
+  behind the plugin's back cannot make the plugin and Neovim disagree. The buffer-fixed option keeps
+  other files out of the sidebar, and THE REVIEW CAUGHT WHAT THAT COST: opening a task by id from inside
+  the sidebar died with a raw Neovim error, because the escape path was wired into only one of the two
+  callers. The guard moved to the single choke point both callers route through, reproduced before and
+  confirmed after, with two new specs covering it.
+
+  Defaults are the left side at 40 columns: left because every file tree in this ecosystem sits there, so
+  the operator's window-movement habits survive having both open, and 40 because that is what a task line
+  plus its due date, priority and one label needs before it truncates.
+
+  Each mechanism was mutation-checked: removing the fixed-width option, the fixed-buffer option, or the
+  autocommand each reddens exactly one spec. 81 specs pass in 1.53 seconds with no network and no token.
+
+  OPERATOR OWES: the dresden wiring is still a dotfiles pull request and is not filed. It would add the
+  lazy.nvim spec and the toggle keymap.
+
+- [x] 118. Completed view. `:Todoist completed`, newest first, paged, completion date on each line, `u`
   reopens.
 
-- [ ] 119. Quick edits in the list. `x`, `X`, `dd`, `p`, `s`, `l`, `m` and `a` do what task 108's keys
+  Closed 2026-09-17, todoist.nvim pull request #6, merged `17eb066f`. `:Todoist completed` draws the
+  completed history newest first, one page at a time, each line leading with the completion date, and `u`
+  reopens the task under the cursor. Every API fact was re-verified against the vendor OpenAPI document
+  rather than trusted: the path is `/api/v1/tasks/completed/by_completion_date`, `since` and `until` are
+  both required with `since` inclusive and `until` exclusive, the window is capped at three months,
+  paging is by cursor with a default limit of 50, the rows arrive under `items` rather than `results`,
+  reopen is `POST /api/v1/tasks/{task_id}/reopen` with no body, and `completed_at` is nullable. All seven
+  hold. This repository's cursor walk had the same eager shape the sibling plugin's did, looping until
+  the cursor ran out before answering, so it could not serve this screen; a second single-request read
+  path was added beside it. The walk itself is pure state over the pages handed to it, stepping twelve
+  ninety-day windows (about three years) and skipping empty ones until a row appears. Two review findings
+  were fixed: a row the endpoint repeats across a page boundary was listed twice, and a stale walk's
+  answer could clear the in-flight flag belonging to the walk that replaced it. Proven in a fresh Neovim
+  against a loopback double as well as in the specs, and mutation-checked on the ordering comparator and
+  the paging boundary, each reddening exactly one spec.
+
+- [x] 119. Quick edits in the list. `x`, `X`, `dd`, `p`, `s`, `l`, `m` and `a` do what task 108's keys
   do, so a hand that learned one plugin knows the other, and `u` undoes the last complete or reopen
   within the session.
 
-- [ ] 120. Capture a task from code. `:Todoist capture` creates a task whose description carries
+  Closed 2026-09-18, todoist.nvim pull request #7, merged `5ebc339f`. The eight keys `x`, `X`, `dd`, `p`,
+  `s`, `l`, `m` and `a` now work in the list buffer, and `u` reverses the last complete or reopen within
+  the session. The key set was read out of the sibling plugin's merged task 108 source rather than from
+  the ledger text, so a hand that learned one plugin knows the other: `x`, `X` and `p` act at once, `dd`
+  confirms first, `s` and `a` take a typed line, and `l` and `m` offer a picker. `list.lua` now keeps the
+  API's own task objects by id, so a key never parses the rendering to find out what it is acting on.
+
+  One key could not carry over. In the herdr pane the confirm IS the second `d`, because that pane reads
+  keys one at a time; in Neovim `dd` is already one mapping, so the confirm became its own question
+  through `vim.fn.confirm`, defaulting to No. That is the only interaction that differs, and only in how
+  the yes is given. `l` also toggles one label per press where the pane keeps its picker open for
+  several, because `vim.ui.select` closes on a choice and reopening it behind the operator would fight
+  whatever picker they have configured.
+
+  Undo is one level, not a stack, and covers only a complete and a reopen, the one pair with an exact
+  opposite. A `p` press does not cost the undo of the `x` before it. A reversal the API refuses keeps the
+  write remembered so `u` can be pressed again, and re-reads the view so the buffer holds what the server
+  holds; nothing is ever drawn optimistically. The two `u` bindings coexist because they live in two
+  different buffers, `todoist://list` and `todoist://completed`, each with its own buffer-local map, and
+  both buffers are nomodifiable so neither steals Vim's own undo.
+
+  The review found a SEV-1: every successful write cleared the undo regardless of whether it was
+  undoable, so a delete, a priority cycle, a schedule, a label toggle or a move silently threw away the
+  remembered complete. Fixed and covered by a new case. It also found the null bug this repository had
+  already been warned about: `task.labels or {}` does not survive a JSON null, because `vim.json.decode`
+  maps null to the truthy `vim.NIL`. Fixed to the `type(...) == "table"` idiom `task_format.lua` already
+  used.
+
+  147 specs pass in 1.77 seconds, the two new files adding 21 cases, and both required mutations reddened
+  exactly one spec each. The dresden wiring is still owed as a dotfiles pull request.
+
+  VENDOR DOCUMENTATION CONTRADICTS ITSELF ON TODOIST PRIORITY, found while verifying the API rather than
+  trusting it. In https://developer.todoist.com/openapi.json the update-task parameter description says
+  priority is "1-4, where 1 is highest", while the same document's task schema and the Sync tables say "4
+  for very urgent and 1 for natural". The app agrees with the schema. Both plugins follow the schema,
+  which is what the existing rendering already did, so nothing is wrong in this repository's code; this
+  is recorded so the next lane that reads that parameter description does not believe it. This is the
+  third vendor document inconsistency found this week: task 107 found the completed endpoints using
+  different field names than the open ones, and task 108 found one line of the update schema
+  contradicting the rest.
+
+- [x] 120. Capture a task from code. `:Todoist capture` creates a task whose description carries
   `path:line` and the repository name from the current buffer, a visual selection of a `TODO` or `FIXME`
   comment becomes the task's content, a task with a location shows a location icon in the list, and `gd`
   on it jumps to the file and line.
 
-- [ ] 121. Picker integration. A source for `fzf-lua` (the operator's picker) and a generic
+  Closed 2026-09-17, todoist.nvim pull request #5, merged `25651a3`. `:Todoist capture` in todoist.nvim
+  now makes a Todoist task out of the code in front of the cursor: the description carries `path:line`
+  and the repository name read from the current buffer, and a visual selection over a `TODO` or `FIXME`
+  comment becomes the task's content with the marker word stripped. A task that carries a location shows
+  a location icon in the list, and `gd` on that row jumps to the file and line, opening the file when it
+  is not already in a buffer. Two defects the review found were fixed before merge: a bare number in the
+  location field parsed as a path, and the success notice was tangled with the refusal path. Proven with
+  the repository's own runner, `nvim --headless --clean -l tests/run.lua`, plus stylua and luacheck, and
+  mutation-checked by breaking the location parser and watching exactly one spec redden. The dresden
+  wiring (the lazy.nvim spec, the token entry and the keymaps) is still owed as a dotfiles pull request.
+
+- [x] 121. Picker integration. A source for `fzf-lua` (the operator's picker) and a generic
   `vim.ui.select` path for everything else: fuzzy-search open tasks, `<CR>` opens the task buffer,
   `<C-x>` completes from the picker, and the picker respects the current view's filter.
 
-- [ ] 122. Subtasks as a fold tree. Tasks with children render as a tree, `za` folds a task's subtasks,
+  Closed 2026-09-18, todoist.nvim pull request #8, merged `ec6b54bb`. `:Todoist pick [<view>]` and
+  `require("todoist").pick(name)` fuzzy-search open tasks through fzf-lua when it is installed and
+  through `vim.ui.select` otherwise. `<CR>` opens task 115's task buffer for the picked task and `<C-x>`
+  completes it, routed through task 119's own complete call so that task 119's `u` reverses a complete
+  made from inside the picker; that routing is pinned by a mutation test, since calling the client
+  directly would have silently made one of the two ways to complete a task unundoable.
+
+  The filter clause was decided deliberately. With no argument the picker follows what is on screen
+  through a new `list.current_spec()`, which answers only when the list buffer sits in a window of the
+  CURRENT tabpage: a filtered view searches inside that filter, the unfiltered list searches every open
+  task, and with no visible list buffer it searches every open task, which is the same answer a bare
+  `:Todoist` gives. A hidden list buffer does not steer the search, because it is not what the operator
+  is looking at. The prompt always carries the view's own title, so a filtered search says which filter
+  it is inside, and an empty result says "no open tasks in Todoist: today (today | overdue)" rather than
+  opening an empty picker, so a filter that matched nothing cannot be mistaken for an empty account.
+
+  fzf-lua stays optional: `pcall(require, "fzf-lua")` at call time, never at load, so installing it later
+  needs no restart and its absence is not an error. A new `picker` option pins a path (`auto`, `fzf-lua`
+  or `select`), and an unrecognised value warns once rather than silently meaning auto. The fzf-lua API
+  was read from that repository at commit 02bc882f, since the project publishes no releases and a commit
+  is the only pin available.
+
+  The review found a SEV-1 whose root cause was older than this task: `list.open` moved the current
+  window to the list buffer as part of loading it, so a `<C-x>` from the picker hijacked whatever window
+  the operator was in. `list.open` was split into `load` (fetch and redraw, no window call) and `open`
+  (window move plus load), and refresh now calls `load`. A regression case opens a list, swaps the window
+  to a scratch buffer, completes from the picker and asserts the current buffer is unchanged; it was
+  verified to fail without the fix.
+
+  The null bug was found a fourth time and fixed: `list_format`'s task line used `task.labels or {}`,
+  which hands `ipairs` a `vim.NIL` userdata when the API answers with a JSON null. 164 specs pass, 15 of
+  them new, the picker spec running in under a hundredth of a second, and three mutations each reddened
+  exactly one spec. The dresden wiring is still owed as a dotfiles pull request, and should record that
+  fzf-lua commit as what it was proven against.
+
+- [x] 122. Subtasks as a fold tree. Tasks with children render as a tree, `za` folds a task's subtasks,
   `>` and `<` indent a task under the one above it or promote it, and completing a parent asks before
   completing its open children.
 
-- [ ] 123. Send to the agent from Neovim. `S` on a task sends the same brief as task 110 into the
+  Closed 2026-09-18, todoist.nvim pull request #9, merged `a4289d6`. Tasks with children render as a tree
+  at two spaces per level, `za` folds a task's whole subtree, `>` and `<` reparent, and `x` on a parent
+  asks before taking its open subtasks.
+
+  Four API facts were established by reading the document rather than assuming. The parent field is
+  `parent_id` on `ItemSyncView`, `anyOf: [string, null]` and in the schema's required list, so always
+  present and often null; the completed endpoints return the same object, so it reads identically there,
+  and the difference those endpoints carry is the envelope, which the plugin already handled. Reparenting
+  is a MOVE and not an update: the update body has no `parent_id` at all, and `POST /tasks/{id}/move` is
+  the only endpoint that takes one. Completing is ONE call and not a loop, because
+  `POST /tasks/{id}/close` is documented as marking a task complete along with its subtasks, so the
+  server cascades and the confirm is a warning rather than a plan. The priority contradiction found by
+  earlier lanes is still in the document, unchanged, and the plugin still follows the schema rather than
+  the parameter description.
+
+  The renderer buckets only the roots of each tree and walks each root's descendants in place, building
+  the line-to-id table on the same walk. That is what kept every other feature working from an indented
+  row: `<CR>`, `R`, `gd` and the eight quick-edit keys resolve a row through that table rather than by
+  reading its text, so none of them needed changing, and a spec pins it. Task 117's sidebar was
+  untouched, because indent is added to the left of the content and the location icon still goes last.
+
+  The review found a SEV-1: `>` on the first task of any project or section silently moved it into the
+  PREVIOUS project, because the row above was taken without checking that it belonged to the same group.
+  Fixed at the root in `tree.indent_to`, which now refuses and says why. A SEV-2 was also fixed, where a
+  folded badge counted direct children while the fold hid the whole subtree.
+
+  199 specs pass in 2.20 seconds, `tree_spec` being 14 pure cases in under a hundredth of a second, and
+  two mutations each reddened exactly the expected specs. The null field is pinned twice, once by every
+  top-level fixture carrying `parent_id = vim.NIL` and once by asserting a flat list renders byte for
+  byte the same with null parents as without.
+
+  Merged by hand: task 121's picker had landed on main and touched the same two functions.
+  `list_format.render` keeps this branch's `collapsed` argument and main's public `names_by_id`, and
+  `quick_edit.complete` keeps the subtask confirm and then calls main's extracted `complete_task`, so a
+  complete made from the list still goes through the one write that `u` remembers.
+
+  COMPLETING A PARENT FROM THE PICKER DOES NOT ASK, found while resolving this merge. `x` in the list
+  asks before completing a parent that has open subtasks, because `POST /tasks/{id}/close` cascades to
+  subtasks server side. `<C-x>` from task 121's picker calls the write directly and so asks nothing,
+  which means completing a parent from the picker silently closes its subtasks. The picker builds its
+  entries from tasks rather than from the list buffer, so it has no tree to count children in; giving it
+  one is its own change and is filed as task 158.
+
+  MY OWN MISTAKE: A LANE BRANCHED OFF A STALE MAIN. This branch's `herdr worktree create` inherited the
+  launching checkout's HEAD, and the launching checkout's local `main` sat one merge behind because only
+  `git fetch` had been run, never `git merge --ff-only`, so this lane branched from before task 121's
+  picker had landed and the ship stage hit a merge conflict resolved by hand above. Fix, now part of the
+  launch routine: fast-forward the target repository's local `main` immediately before launching any lane
+  into it, in every repository, not just dotfiles. Task 111's earlier conflict was not this cause: that
+  branch was cut before task 110 existed and genuinely raced it.
+
+- [x] 123. Send to the agent from Neovim. `S` on a task sends the same brief as task 110 into the
   workspace's agent pane through the `herdr` CLI when `HERDR_ENV` is set, and copies it to the clipboard
   with a notice otherwise.
 
-- [ ] 124. Statusline component and due reminders. `require("todoist").status()` returns a short string
+  Closed 2026-09-18, todoist.nvim pull request #10, merged `f828d362`. `S` on a task hands it to the
+  workspace's agent pane through the herdr CLI, and falls back to the clipboard with a notice whenever
+  herdr cannot take it. The brief is herdr-todoist's own text character for character, asserted against
+  the sibling's format in a spec, so a hand that learned one plugin knows the other. Both facts the
+  sibling had learned the hard way were carried over rather than rediscovered: the URL is built from the
+  task id, because the v1 task object has no `url` field, and the agent is named from `agent` rather than
+  `display_agent`, pinned by a fixture in which two panes share one auth profile.
+
+  The clipboard half is this plugin's alone. Both the unnamed register and `+` are written, unnamed first
+  and always, so a machine with no clipboard provider still gets the brief; where there is no provider
+  the notice says so at warning level rather than reporting a whole copy. Herdr set but unusable falls
+  back to the clipboard rather than failing, in all three of its cases (binary missing or listing
+  refused, no agent pane in this workspace, refused send), each naming itself before the same clipboard
+  sentence. A refused `agent focus` deliberately does NOT fall back, because the text is already in the
+  agent's input and reporting a hand-off that happened as one that did not would be worse.
+
+  The comment is written on the agent path and not on the clipboard path, because a clipboard copy is not
+  a hand-off and a comment saying otherwise would be a false record on the task. The two paths cannot be
+  confused, because every clipboard notice ends in "no hand-off comment written". The comment names this
+  plugin rather than copying the sibling's wording, so the record says honestly which of the two wrote
+  it.
+
+  The review found a SEV-1: `vim.system` raises synchronously for a missing binary, so a stale
+  `HERDR_BIN_PATH` threw and LOST the brief rather than falling back. The spawn is now wrapped and routed
+  through the same path every other refusal uses. Its second finding was sharper than the fix: every spec
+  doubled the host, which is exactly where the only defect lived, so a case was added that exercises the
+  real host against a nonexistent binary. A third dropped a `name` field the code asked for that herdr's
+  agent listing does not emit.
+
+  214 specs pass, the 14 new ones together in under a hundredth of a second, and both required mutations
+  reddened exactly one spec each. `HERDR_SOCKET_PATH` and `HERDR_BIN_PATH` were unset for every test run
+  and nothing in the live herdr session was touched.
+
+- [x] 124. Statusline component and due reminders. `require("todoist").status()` returns a short string
   (`3 due, 1 overdue`) for lualine or a custom statusline, and an opt-in reminder raises `vim.notify`
   when a task with a time comes due while Neovim is open.
+
+  Closed 2026-09-18, todoist.nvim pull request #11, merged `f52aee60`. `require("todoist").status()`
+  returns a short statusline string and an opt-in reminder raises `vim.notify` when a task with a time
+  comes due while Neovim is open. The plugin had no periodic refresh at all before this, so this adds the
+  ONE poller, and `status()`, the reminder and the fetch all read a single stored task set. `status()`
+  does no work on a redraw: it returns a string built when the last answer arrived, which is the
+  constraint that decided the whole design, since lualine evaluates a component many times a second.
+
+  The string has three readings and never leaves a stale number standing: empty before any fetch has
+  finished and whenever nothing is due, since an empty component simply draws nothing; `todoist !` when
+  the last fetch failed or the token would not resolve; otherwise the count. The poller starts lazily, so
+  a configuration that neither puts the component on a statusline nor turns reminders on polls nothing,
+  and it is stopped on `VimLeavePre` so nothing outlives the editor.
+
+  The review found a SEV-1 worth recording because it is a class of bug, not a typo: `clock()` was AN
+  HOUR WRONG UNDER DAYLIGHT SAVING, so every task stamped in UTC read as overdue an hour early. The cause
+  was an `os.time` round trip over a broken-down UTC time with `isdst` forced false, which re-interprets
+  it as local standard time. It was reproduced as a measurement, minus 25200 against the correct minus
+  21600 under America/Denver, fixed by differencing the two civil stamps directly, and pinned by a spec
+  that compares against `os.date("%z")` as an independent read of the same value.
+
+  Two more findings were fixed: `start()` registered a fresh `VimLeavePre` autocommand on every
+  stop-and-start cycle and had no way to refuse restarting once Neovim was exiting, so a redraw after
+  `VimLeavePre` could undo the stop and outlive `:qa`; and a failed fetch cleared the statusline but left
+  the stale task set behind the public counts. Both were pinned by specs verified to fail against the
+  pre-fix code.
+
+  246 specs pass in 2.19 seconds, 32 of them new, every one with the clock injected and the fetch
+  doubled, no sleeps and no network. Both required mutations reddened exactly one spec each.
+
+  **todoist.nvim is now complete: tasks 114 through 124 are all merged.** What remains for it is the
+  dresden wiring, which is a dotfiles pull request, and its lack of any CI, filed separately.
 
 ### Daily operations tools
 
 Two tools filed 2026-09-17 from the operator's own pain points, approved the same day.
 
-- [ ] 125. `morning`, a Rust tool with a `/morning` command in every harness. One command that answers
+- [x] 125. `morning`, a Rust tool with a `/morning` command in every harness. One command that answers
   "where do I start today": the last apply's result and date from
   `~/.local/state/chezmoi-apply/latest.apply.log`, every apply the ledger says the operator owes, the
   open pull requests with their CI state (through `gh`), the newest overnight recap, the ledger's
@@ -3875,6 +4517,36 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   for Claude Code (`private_dot_claude/commands/`), Codex and hermes that runs the binary and hands the
   page to the agent as the day's brief, so the operator's first message of the day is "morning" in any
   harness. Operator ruling 2026-09-17: a binary plus an agent command, not a `just` recipe.
+
+  Closed 2026-09-18, merged as [PR #784](https://github.com/webdavis/dotfiles/pull/784), `5bbed3a5`.
+  `morning` is a sixth Rust workspace at the repository root, four crates in the shape the clean-code
+  skill sets out, with a 26-line `main.rs`. It prints one framed page and exits: the last apply's result
+  and finish time, the applies the ledger owes, the open pull requests with their CI state, the newest
+  overnight recap, the operator's own items, and today's tasks. It reads and prints only, applies and
+  merges and edits nothing, and reads no secret.
+
+  The design problem was that every source can be absent, unauthenticated, broken or slow, and a command
+  answering "where do I start today" is worthless if it blocks for ninety seconds. Sources are therefore
+  read CONCURRENTLY and each is killed at its own deadline, and a source that is missing, unconfigured,
+  failing or too slow gets a section that SAYS SO rather than being silently dropped. Every path is named
+  in `~/.config/morning/config.toml`, the ledger path included, so the tool works on a machine where this
+  repository does not exist, which is the rule for every tool here.
+
+  Four review findings were fixed, each a real misreading rather than a style point: ledger continuation
+  lines were absorbing unindented prose that followed them; the pull-request reader called a run green
+  when its CI was not; the Today section was spending its row cap on metadata instead of tasks; and a
+  negative `timeout_seconds` panicked. A fifth removed a type that was a byte-for-byte copy of another.
+
+  Proven end to end on the real machine rather than only in tests: the rendered builder compiled and
+  installed the binary, and the binary run against the rendered config produced a page from the real
+  apply transcript, the real ledger, real `gh` output and real `td today` output. `~/.cargo/bin/morning`
+  is installed and working now; the apply is still owed for the config file and the three harness
+  commands.
+
+  OPEN QUESTION RAISED, not answered: the tool spawns `gh` rather than `gh-axi`, and ledger task 145 is
+  the unanswered operator decision on exactly that, whether the gh-axi rule binds agents only or shipped
+  products too. The lane picked the one it could defend and flagged it rather than deciding for the
+  operator.
 
 - [ ] 126. Quiet follows the calendar. pns turns `pns quiet` on for the duration of a Google Calendar
   event marked busy and off when it ends, so a meeting never gets a banner and the operator never toggles
@@ -5297,6 +5969,14 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   101 bounded a liveness case, and sweep for any sibling that asserts a duration without a spawn. Do not
   simply raise the number.
 
+  RECURRED ON CI, 2026-09-17.
+  `cli::run::tests::pending::the_parsed_pending_threshold_uses_its_own_file_and_resets_after_completed_work`
+  in the uu workspace failed CI on the slice 3 pull request, panicking at
+  `uu/crates/uu/src/cli/run/tests/support.rs:68` with `1.013007167s` against a one-second budget. The
+  rerun passed. This is the same class exactly, a wall-clock budget assertion outside task 101's spawn
+  scope, and it is now observed on a GitHub runner rather than only under sibling-lane load, so the
+  budget is too tight for CI and not only for a loaded laptop.
+
 - [ ] 141. A future timestamp reads as maximally fresh instead of unknown, filed 2026-09-17 out of B25's
   disposition. `age_of` (`pns/crates/pns-domain/src/decision/reading.rs:48`) `saturating_sub`s a
   `taken_at` that is in the future, which yields age 0, the freshest possible reading, where the
@@ -5452,6 +6132,71 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   cannot go green, so no scalebar change can be gated on a clean run of it. Find what line 16 unwraps and
   why it is empty here, and either give it a real value or a refusal that names what is missing. Work
   lands as a pull request on `~/workspaces/Ivy/webdavis/scalebar`.
+
+PROCESS NOTE, 2026-09-17: CI never starts on a head pushed while GitHub had the pull request marked
+dirty. Measured on pull requests 770 and 772. Both lanes hit a conflict after a sibling merge, merged
+`origin/main` in their worktree, and pushed. GitHub then reported `mergeable_state: blocked` with ZERO
+check runs on the new head: `repos/webdavis/dotfiles/commits/<sha>/check-runs` returned `total_count: 0`,
+and `gh-axi pr checks` printed "this PR has no CI checks configured", which is the same string a
+repository with no workflow prints. Because `lint` is a required status check on `main`, the pull request
+stays blocked with nothing to wait for, and a ship agent polling checks waits forever on a queue that
+will never fill. `gh-axi run rerun` cannot help, because a rerun needs a run id and no run exists for
+that head. Closing and reopening the pull request fires the `reopened` activity type, the workflow runs,
+and the pull request unblocks. Both recovered that way, from zero checks to two pending within 25
+seconds. Any ship stage should therefore read the check runs for the NEW head sha after resolving a
+conflict and pushing, rather than the pull request's check summary, and treat "no CI checks configured"
+on a repository that HAS a workflow as a missing trigger rather than as an absent pipeline.
+
+- [ ] 152. A pns rust test fixture names its directory by process id and never removes it, filed
+  2026-09-18 from the slice 2 lane's evidence. `posture/crates/posture/tests/usage.rs:147` names its
+  fixture directory after `std::process::id()` with no cleanup, and 685 stale `posture-metadata-*`
+  directories had piled up in the system temporary directory (counted 2026-09-17); a REUSED process id
+  collides with `AlreadyExists`, which is why `just test-rust` and `just test` can go red on a clean
+  tree. Task 101 fixed the same shape in three pns fixtures but did not reach this one. Give the
+  directory a unique name and remove it on completion, the way task 101's three fixtures were fixed; the
+  685 existing directories need one `trash` by the operator, run non-destructively rather than by an
+  agent.
+
+- [ ] 153. posture hardcodes an engine's argv verb in its own source, filed 2026-09-18 from the slice 2
+  lane's evidence. `posture/crates/posture/src/lib.rs:90` composes a producer command by name, which the
+  name-no-engine ruling argues against; it predates slice 2, which only renamed the word rather than
+  redesigning it. posture should take the whole producer argv from its own config rather than composing a
+  verb it knows by name, the way `[notify] mode = "command"` already lets it hand a page to a producer
+  command its own config names.
+
+- [ ] 154. The three extracted herdr plugin repositories and the two Todoist plugin repositories have no
+  CI, filed 2026-09-18. `just test-rust` used to run cargo test, fmt, clippy and doc over
+  herdr-smart-nav, herdr-workspace-jump and herdr-process from this repository, and after task 68a's
+  extraction nothing does. `webdavis/herdr-todoist` and `webdavis/todoist.nvim` never had a dotfiles gate
+  either, and all five repositories' pull requests merge with "this PR has no CI checks configured";
+  every gate run against them tonight was run by hand in a lane's worktree, which is real evidence but is
+  not a gate anyone else's change has to pass. Each needs its own workflow.
+
+- [ ] 155. A pin bump in the herdr plugin roster does not move an already-installed plugin, filed
+  2026-09-18, raised as an open question by the task 68a lane. herdr v1 has no `plugin update`, so
+  refreshing a plugin means reinstalling, and today a changed pin in `.chezmoidata` lands only in uu's
+  weekly herdr-lane drift report. If that report goes unread, the two plugins the operator owns sit at
+  whatever commit they were installed at regardless of what the roster says.
+
+- [ ] 156. herdr-workspace-jump's public manifest is one action per workspace, filed 2026-09-18, raised
+  by the task 68a lane. Every new project workspace means editing a file in another repository, pushing,
+  bumping the pin in dotfiles and reinstalling, which is strictly more work than the vendored build this
+  repository used to ship. Worth revisiting if the workspace set churns.
+
+- [ ] 157. A low-severity dependabot alert on herdr-todoist, GHSA-rhfx-m35p-ff5j, filed 2026-09-18. `lru`
+  before 0.16.3 has a soundness issue in `IterMut`, which violates Stacked Borrows by invalidating an
+  internal pointer. It is not a quick lockfile bump: the dependency is transitive through
+  `ratatui v0.29.0`, which pins `lru = "^0.12.0"`, so `cargo update -p lru --precise 0.16.3` is refused
+  outright. Closing it means upgrading ratatui, which is the whole drawing surface of the pane, so it
+  wants its own task and its own test run rather than a drive-by. Severity is low and the crate is used
+  only inside ratatui's own rendering.
+
+- [ ] 158. Give todoist.nvim's picker a subtask count so completing a parent can ask before it cascades,
+  filed 2026-09-18 out of task 122's merge. `x` in the list asks before completing a parent with open
+  subtasks, because `POST /tasks/{id}/close` cascades to subtasks server side; task 121's picker calls
+  the complete write directly and asks nothing, so completing a parent from the picker silently closes
+  its subtasks. The picker builds its entries from tasks rather than from the list buffer, so it has no
+  tree to count children in; giving it one is its own change.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
