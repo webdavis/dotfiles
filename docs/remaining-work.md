@@ -964,6 +964,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   the silent Discord line on the pns-keyed route and the silent desk banner, confirm the pns ledger
   recorded it, and only then trash the deployed `~/.local/libexec/osquery/heartbeat.sh`. Deleting a
   chezmoi source never deletes its target, which is why the deployed copy outlives this change.
+
 - [x] 44. posture 6.2: digest cutover. The plist now runs `posture digest` instead of `bash digest.sh`;
   the bash script and the integration test that pinned it are deleted. The port splits one `main` into
   three seams that test apart: the application use case owning the claim, keep and restore decisions, the
@@ -976,6 +977,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `persistence_launchd` finding against (label, path, program), so repointing without it pages on the
   next launchd scan. Task 50a tracks the filled-spool delivery and `.last` rotation acceptance still
   needing evidence. The deployed `~/.local/libexec/osquery/digest.sh` is already absent on 2026-09-12.
+
 - [x] 45a. posture 6.3, first half: the alerter's read-to-checkpoint transaction. SPLIT FROM TASK 45 on
   2026-09-09 because the port plan calls 6.3 "the largest cutover" and a single pull request for it would
   be the huge diff the small-PR rule exists to prevent. This half is policy and ordering only, with no
@@ -992,51 +994,53 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   inspections and the digest spool, and keeping all of that behind one boundary is what lets the ordering
   be tested against doubles that touch nothing. A digest row is delivered the moment the judge spools it,
   so only a page has a delivery this run can fail. 21 tests green, clippy clean.
-- [ ] 45b. posture 6.3, second half. The main transaction shipped in PR #506 (81 tests), and triage facts
-  merged in #538. Arming and live acceptance remain. Shipped: the results-log reader with its single
-  reading and bounded span, the cursor published by rename, the non-blocking single-instance lock
-  (`O_CLOEXEC` replacing the shell's by-hand `9>&-` on every spawn), the row decoder, the column
-  projection, the allowlist reader, the known-good manifest reader, the digest spool's append side, the
-  `JudgeFindings` implementer, and `posture alert`. The enricher runs IN PROCESS rather than through a
-  spawn, because `posture enrich` was already a use case in the same crate. WHY THE ENRICHER WAS NEVER
-  OPTIONAL, recorded because it was twice reasoned about wrongly on 2026-09-09 before being measured: an
-  untrusted signing verdict PROMOTES a Notice finding to Critical in the gate, so a cutover without it
-  would send a finding the shell paged about to the next day's digest. That is a missed page, not extra
-  noise. Both directions are now pinned by tests. The triage producer supplies recorded and on-disk
-  hashes and upgrade correlation. These are display facts, and the shell tolerated missing facts whenever
-  its optional helper was undeployed, so a page fires carrying less rather than not firing. FOUR
-  DERIVATIONS WERE WRONG until the binary was run against a real sandbox, and the unit tests agreed with
-  all four because they came from the same misreading of the shell's jq: the action was taken from a
-  column rather than from the row, the identity column order dropped `identifier`, a listening port lost
-  its address and port, and the timestamp carried the date without the time. Real-run verification is
-  what caught them. The producer is now verified; arm the command by repointing the plist to
-  `posture alert`, move the allowlist tuple for `com.webdavis.osquery-results-alerter` with it (the
-  alerter matches a `persistence_launchd` finding against label, path AND program, so repointing without
-  it pages on the next launchd scan), and delete `executable_results-alerter.sh` plus six private files
-  under `results-alerter/`, keeping `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still
-  sources it and would otherwise refuse BOTH manifest scans as unavailable (it retires in task 46), and
-  retire the old tests by their current consumers. The canonical plan names six suites; reconcile that
-  inventory against current source before deletion. Run the sandbox composition checks and the plan's
-  live page/digest, checkpoint and retry acceptance after the operator applies. On 2026-09-14 branch
-  `feat/posture-alert-cutover` carried this work through six commits: `b80dbfde` repoints the plist and
-  allowlist tuple to `posture alert`; `8e6a02a9` deletes `executable_results-alerter.sh`, its six private
-  helpers and the seven shell tests that pinned them, keeping `pipeline-verdict.sh` for
-  `pipeline-audit.sh`; `f1d5cd31` corrects the surviving producer-list comments; `502bb3b6` merges
-  `origin/main` in; `701d93b9` names the three Bash monitors that still source the dispatch library; and
-  `f1f6cc4f` gates the cutover on a live hermes posture route. Independent review returned two SEV-1s and
-  one SEV-3, all fixed on the branch: a content conflict in the launchd allowlist (fixed by `502bb3b6`,
-  keeping main's file and repointing only the results-alerter row, verified by a zero-exit
-  `git merge-tree`); posture's pns route having no hermes endpoint, so every alert and digest leg
-  dead-letters at HTTP 404 (fixed by gating the apply on that route existing rather than guessing a
-  routing change, `f1f6cc4f`); and stale producer-list comments left by the merge (fixed by `701d93b9`).
-  [PR #584](https://github.com/webdavis/dotfiles/pull/584) opened against `main` with `just ship` green
-  locally and pushed. NOT MERGED as of 2026-09-14: GitHub Actions never triggered a Lint check-suite for
-  the PR across three retrigger attempts (open, an empty synchronize commit, reopen) over roughly 30
-  minutes, while sibling PRs in the same window triggered normally; `gh-axi pr checks 584` still reads
-  "no CI checks configured". This is an environmental GitHub-side blocker, not a code or merge problem;
-  per standing instructions the branch stays open rather than merging without a real "0 failed" result.
-  Operator steps once it ships: a full `chezmoi apply` (no by-name apply, no `--exclude=templates`, the
-  plist and allowlist both sit in the pipeline known-good manifest arm); confirm the swap with
+
+- [x] 45b. DONE 2026-09-17, AND THIS ENTRY WAS WRONG ABOUT WHY IT STALLED. posture 6.3, second half. The
+  main transaction shipped in PR #506 (81 tests), and triage facts merged in #538. Arming and live
+  acceptance remain. Shipped: the results-log reader with its single reading and bounded span, the cursor
+  published by rename, the non-blocking single-instance lock (`O_CLOEXEC` replacing the shell's by-hand
+  `9>&-` on every spawn), the row decoder, the column projection, the allowlist reader, the known-good
+  manifest reader, the digest spool's append side, the `JudgeFindings` implementer, and `posture alert`.
+  The enricher runs IN PROCESS rather than through a spawn, because `posture enrich` was already a use
+  case in the same crate. WHY THE ENRICHER WAS NEVER OPTIONAL, recorded because it was twice reasoned
+  about wrongly on 2026-09-09 before being measured: an untrusted signing verdict PROMOTES a Notice
+  finding to Critical in the gate, so a cutover without it would send a finding the shell paged about to
+  the next day's digest. That is a missed page, not extra noise. Both directions are now pinned by tests.
+  The triage producer supplies recorded and on-disk hashes and upgrade correlation. These are display
+  facts, and the shell tolerated missing facts whenever its optional helper was undeployed, so a page
+  fires carrying less rather than not firing. FOUR DERIVATIONS WERE WRONG until the binary was run
+  against a real sandbox, and the unit tests agreed with all four because they came from the same
+  misreading of the shell's jq: the action was taken from a column rather than from the row, the identity
+  column order dropped `identifier`, a listening port lost its address and port, and the timestamp
+  carried the date without the time. Real-run verification is what caught them. The producer is now
+  verified; arm the command by repointing the plist to `posture alert`, move the allowlist tuple for
+  `com.webdavis.osquery-results-alerter` with it (the alerter matches a `persistence_launchd` finding
+  against label, path AND program, so repointing without it pages on the next launchd scan), and delete
+  `executable_results-alerter.sh` plus six private files under `results-alerter/`, keeping
+  `pipeline-verdict.sh` deployed because bash `pipeline-audit.sh` still sources it and would otherwise
+  refuse BOTH manifest scans as unavailable (it retires in task 46), and retire the old tests by their
+  current consumers. The canonical plan names six suites; reconcile that inventory against current source
+  before deletion. Run the sandbox composition checks and the plan's live page/digest, checkpoint and
+  retry acceptance after the operator applies. On 2026-09-14 branch `feat/posture-alert-cutover` carried
+  this work through six commits: `b80dbfde` repoints the plist and allowlist tuple to `posture alert`;
+  `8e6a02a9` deletes `executable_results-alerter.sh`, its six private helpers and the seven shell tests
+  that pinned them, keeping `pipeline-verdict.sh` for `pipeline-audit.sh`; `f1d5cd31` corrects the
+  surviving producer-list comments; `502bb3b6` merges `origin/main` in; `701d93b9` names the three Bash
+  monitors that still source the dispatch library; and `f1f6cc4f` gates the cutover on a live hermes
+  posture route. Independent review returned two SEV-1s and one SEV-3, all fixed on the branch: a content
+  conflict in the launchd allowlist (fixed by `502bb3b6`, keeping main's file and repointing only the
+  results-alerter row, verified by a zero-exit `git merge-tree`); posture's pns route having no hermes
+  endpoint, so every alert and digest leg dead-letters at HTTP 404 (fixed by gating the apply on that
+  route existing rather than guessing a routing change, `f1f6cc4f`); and stale producer-list comments
+  left by the merge (fixed by `701d93b9`). [PR #584](https://github.com/webdavis/dotfiles/pull/584)
+  opened against `main` with `just ship` green locally and pushed. NOT MERGED as of 2026-09-14: GitHub
+  Actions never triggered a Lint check-suite for the PR across three retrigger attempts (open, an empty
+  synchronize commit, reopen) over roughly 30 minutes, while sibling PRs in the same window triggered
+  normally; `gh-axi pr checks 584` still reads "no CI checks configured". This is an environmental
+  GitHub-side blocker, not a code or merge problem; per standing instructions the branch stays open
+  rather than merging without a real "0 failed" result. Operator steps once it ships: a full
+  `chezmoi apply` (no by-name apply, no `--exclude=templates`, the plist and allowlist both sit in the
+  pipeline known-good manifest arm); confirm the swap with
   `launchctl print gui/$(id -u)/com.webdavis.osquery-results-alerter | grep -A3 arguments`; confirm one
   live tick in `~/.local/log/osquery/results-alerter.log`; confirm the allowlist tuple with
   `posture allowlist list`; THEN trash `~/.local/libexec/osquery/results-alerter.sh` and the six files
@@ -1057,6 +1061,50 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `~/.local/libexec/osquery/results-alerter.sh` and the six files under
   `~/.local/libexec/osquery/results-alerter/` except `pipeline-verdict.sh` (all eight were still on disk
   on 2026-09-15), the digest spool handoff and the at-least-once retry check.
+
+  THE CUTOVER WAS ALREADY ON MAIN BEFORE ANY WORK STARTED, and this entry's account of why it was not is
+  wrong on both halves. Commit `f1f6cc4f` is an ancestor of `main` and PR #584 MERGED at
+  2026-09-14T07:39:47Z. The sentence above recording it as NOT MERGED behind an environmental GitHub-side
+  blocker should be read as retracted.
+
+  WHAT ACTUALLY HAPPENED, measured 2026-09-17: head `f1f6cc4f` had ZERO check suites, ever. The very next
+  head, pushed right after a fresh `origin/main` merge, got THREE check suites within seconds and the
+  pull request merged ten minutes later. Same repository, same workflow, same runner app, ten minutes
+  apart. GitHub does not create a check suite for a head it sees as conflicting with its base, so the
+  thirty minutes of retrigger attempts were spent on a MERGE problem and the merge was the fix. The open
+  item "getting Actions to trigger a Lint run on PR #584" was never an Actions fault and is closed.
+  PRACTICAL LESSON for every future lane: a pull request reading "no CI checks configured" should be
+  checked for `mergeable_state: dirty` before anything else.
+
+  THE STALE HERMES ROUTE GATE IS ANSWERED, NOT REWORKED. Commit `f1f6cc4f` was a docs-only edit, so there
+  was no code gate to remove, and task 99 settled the question it left open: no route name is hardcoded
+  in posture any more, the adapter default names `posture-pages`, and the config template declares it
+  under hermes mode with one key per route. A gate probing the retired `posture` route would have blocked
+  forever on the wrong thing.
+
+  INVENTORY RECONCILED AGAINST CURRENT SOURCE, nothing left to delete: all seven retired basenames have
+  ZERO references anywhere under `test/`, `dot_local/`, `.chezmoiscripts/`, `Library/`, `dot_config/` or
+  the justfile, and the four surviving `results-alerter/` references all name `pipeline-verdict.sh`,
+  which is correctly kept because `pipeline-audit.sh` sources it, the manifest generator lists it, a unit
+  test sources it and the drift verdict cites it. `just validate-tests` passes, so the canonical plan's
+  six suites are fully retired by their current consumers.
+
+  The one genuinely open source item was the stale doc comment this entry itself names, shipped as
+  [PR #765](https://github.com/webdavis/dotfiles/pull/765), merged `66f8afbf`: one line so uu's brew lane
+  record stops naming the deleted Bash triage script and names the config key it takes its path from
+  instead. The two acceptance documents need no annotation, because they are hash-pinned point-in-time
+  captures and annotating one to say its source was later deleted would corrupt the record rather than
+  correct it.
+
+  LIVE STATE CONFIRMED 2026-09-17 read-only: launchd already runs `~/.cargo/bin/posture alert`, so the
+  plist swap landed in an earlier apply. STILL OWED BY THE OPERATOR, in this order: trash
+  `~/.local/libexec/osquery/results-alerter.sh` and the six files under
+  `~/.local/libexec/osquery/results-alerter/` (`allowlist-verdict.sh`, `digest-store.sh`,
+  `file-integrity-triage.sh`, `normalize.sh`, `render-page.sh`, `route.sh`), KEEPING
+  `pipeline-verdict.sh`, and expect ONE integrity page from that trash because the tree is watched
+  whether or not the manifest lists a file; then the digest spool handoff on the next daily digest; then
+  the at-least-once retry check against the live cursor with the gateway unreachable.
+
 - [x] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -1119,6 +1167,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   expected CRIT watchdog page with its dead-letter banner, the `osquery-watchdog-state.json` read, and
   the follow-up pull request retiring `uptime-watchdog.sh`, `pipeline-audit.sh` and
   `results-alerter/pipeline-verdict.sh` from source.
+
 - [x] 47. posture 6.5: finish poll composition and cut over its plist. The application transaction and
   command merged in [PR #544](https://github.com/webdavis/dotfiles/pull/544), and local main contains it.
   Independent review passed 909 workspace tests and 15 private Bash/native command comparisons, including
@@ -1164,6 +1213,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   critical pages, one per cycle and none per tick or on recovery, which is the delivery half only they
   could confirm. The firewall was verified enabled as the drill's last action. The Bash producer still
   retires with task 46's follow-up pull request.
+
 - [x] 48. posture 6.6: publish the implemented funnel command on `feat/posture-funnel`, then cut over.
   Independent review approved the bounded security omission notice and finite timeout parser fixes. The
   notice never acknowledges the original oversized finding. All 45 command fixtures, 24 producer checks
@@ -1218,6 +1268,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   `com.webdavis.osquery-tailscale-monitor` as `/Users/stephen/.cargo/bin/posture funnel`. Measured
   2026-09-15 via `launchctl print`: 828 runs, last exit code 0, standing in for the single post-apply
   tick this task's acceptance asked for.
+
 - [x] 49. posture 6.7: retire the drainer only after every producer has migrated, all three queue tables
   are empty and the operator has reviewed dead-letter disposition. Remove its loaded job, monitored
   label, legacy queue reader and growth state together. The drainer is still loaded at audit time.
@@ -1232,6 +1283,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   trashed the same day. Confirmed 2026-09-15:
   `launchctl print gui/$(id -u)/com.webdavis.osquery-alert-drainer` reports no such service in the user
   domain, and `~/.local/libexec/osquery/drain-undelivered-alerts.sh` is absent.
+
 - [x] 50. posture 7.1: publish converge integration from `fix/posture-converge-validation`.
   Private-database validation now precedes daemon probing or repair; the apply caller uses slot 59 after
   its build, and uu supplies the configuration argument. Independent review, ten executable-discovery
@@ -1261,6 +1313,7 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   tracked as acceptance rather than code: same-user fixtures do not prove privileged cleanup, so verify
   silent no-drift behavior and the operator's approved permission-repair/restart drill before retiring
   Bash.
+
 - [x] 50a. Close outstanding acceptance from already-merged heartbeat and digest cutovers, tasks 43 and
   44\. Installed plists invoke Rust, but that does not prove delivery. Record the silent pns-route
   message, banner and ledger evidence, and a filled-spool digest with `.last` rotation. Inventory retired
@@ -2810,6 +2863,40 @@ is missing.
   below one second has to re-add the unit and its millisecond spelling row. Slices 12, 22, 29, 30, 33,
   34, 35, 43 and 44 all parse a duration and are where that will surface.
 
+  SLICE 2 DONE 2026-09-17, [PR #767](https://github.com/webdavis/dotfiles/pull/767), merged `43c50fc2`.
+  The highest-risk rung in the ladder. `pns send` is the one sending subcommand: a form selector picks
+  the envelope form on the json flag and the flag form otherwise, both reach ONE request path, the
+  producer-argv classifier is deleted, the producer-flag predicate is private again, and argv naming no
+  subcommand ends at a usage type that prints to stderr with exit 2 for anything but help.
+
+  ALL SIX IN-REPO PRODUCER CALLERS MOVED WITH IT: the lights announcer plus its Rust and Python
+  expectations, uu's weekly alert argv, the shell notifier's spawn, the failed-command text the failures
+  command rebuilds, the skills-bootstrap failure notice in chezmoiscript 64, and the cutover gate's smoke
+  send. posture's producer argv is CONFIG ONLY, so its config template and its own notify default carry
+  the new verb rather than any Rust change. THREE OF THE LADDER'S LISTED FILES NEEDED NO CHANGE and the
+  lane confirmed why rather than editing them, which corrects the ladder's own file list: the submit path
+  already takes the args slice it is handed, the daemon child spawner spawns only subcommand argvs and
+  never the bare producer form, and posture's wire module holds document shapes rather than an argv.
+
+  THE APPLY-ATOMICITY WORRY IS ANSWERED GREEN, AND PROVED RATHER THAN ASSUMED. Once the bare form is
+  refused, a caller left on the old argv stops notifying SILENTLY, so the whole set must move in one
+  apply. All four apply-time builders glob and hash every file at every extension in their own workspace,
+  so a source-only edit moves the trigger; rendering each builder in the worktree and in the main
+  checkout and diffing the hash comments showed every changed file present as a hashed build input with a
+  changed digest. NO CALLER ESCAPES A FULL APPLY, and a partial or by-name apply would still leave one
+  broken, so this slice's apply must be a full one.
+
+  THE CROSS-CHECK WALK was done in full and every hit accounted for. One was a live producer call and
+  changed, the cutover gate's smoke notification; the rest use a surviving subcommand spelling, are
+  binary-path constants with no argv, or are prose and historical specs.
+
+  `pns.nvim` WAS ALSO FIXED, in its own repository, and the operator authorized that afterward: it sent
+  bare argv and would have broken. `webdavis/pns.nvim#2`, merge `4e52741a`, prepends the verb and bumps
+  its default minimum engine version across 38 tests, and the commit pin and minimum version in
+  `dot_config/nvim/lua/plugins/pns.lua` moved to match. OPERATOR RULING 2026-09-17, given when this was
+  surfaced: a lane may change any repository the operator owns, `pns.nvim` and the herdr plugins
+  included, so a caller in a sibling product is fixed there rather than left broken.
+
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
   [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
@@ -3396,79 +3483,177 @@ Todoist's own filter query language, the one the app's Filters feature uses, so 
 as a filter is a view in either plugin. Tasks 103 to 113 are the herdr plugin, 114 to 124 the Neovim
 plugin.
 
-- [ ] 103. Create the `webdavis/herdr-todoist` repository: a ratatui TUI in a plugin-owned pane with a
-  `herdr-plugin.toml` manifest, `open`, `toggle` and `focus` actions, an async Todoist client with
-  rate-limit and network errors shown in the pane's status line, and a `doctor` action that proves the
-  token resolves and one request succeeds without printing the token. Installed on dresden through
-  `herdr plugin install` and its config committed under `dot_config/herdr/plugins/config/`.
-- [ ] 104. List view. Every open task grouped by project and section, each line carrying due date,
-  priority, labels and subtask count, with subtasks folded under their parent, `R` to refresh, and the
-  cursor kept on the same task across a refresh.
+- [x] 103. DONE 2026-09-17. Create the `webdavis/herdr-todoist` repository: a ratatui TUI in a
+  plugin-owned pane with a `herdr-plugin.toml` manifest, `open`, `toggle` and `focus` actions, an async
+  Todoist client with rate-limit and network errors shown in the pane's status line, and a `doctor`
+  action that proves the token resolves and one request succeeds without printing the token. Installed on
+  dresden through `herdr plugin install` and its config committed under
+  `dot_config/herdr/plugins/config/`.
+
+  `webdavis/herdr-todoist` created public; PR #1 merged `8aa21811`. A cargo workspace split into a client
+  crate (async API v1: token resolution, one authenticated request, error mapping for 401, 403, 429 with
+  Retry-After, network failure and unreadable bodies) and the plugin binary, which is both the pane and
+  its actions. The manifest declares one pane entry point plus `open`, `toggle`, `focus` and `doctor`,
+  with a build step producing the binary the pane execs. The pane is ratatui: a status line carrying
+  either a connected reading or the API failure in its own words, `r` to refresh, `q` to close.
+
+  THE TOKEN IS AN INDIRECTION ONLY, which is stronger than this entry asked for: `token_command` (argv,
+  standard output is the token) or `token_env` (a variable name), the command winning, NO default, and a
+  literal token key in the config file is a PARSE ERROR because the config struct denies unknown fields.
+  The token type has no display form and a redacted debug form, and a failing `token_command` is reported
+  by its program name alone, so neither its output nor its arguments can leak. Proven by running the
+  binary: no token source refuses and names both doors, and a config holding a literal token fails to
+  parse and lists the two legal keys. 33 tests, slowest target 0.06 seconds, every client case against a
+  loopback double on an ephemeral port.
+
+- [x] 104. DONE 2026-09-17. List view. Every open task grouped by project and section, each line carrying
+  due date, priority, labels and subtask count, with subtasks folded under their parent, `R` to refresh,
+  and the cursor kept on the same task across a refresh.
+
+  PR #2 merged `df9700ff`. Each line carries its due date, its priority in the app's own wording, its
+  labels and its subtask count, and a failed refresh keeps the last good rows with the API's words in the
+  status line. THE CURSOR TRACKS A TASK'S IDENTITY rather than a row number, pinned across insertion,
+  removal, reorder and total replacement; when the selected task is gone it takes the nearest survivor
+  BELOW it in the previous order, scanning down then up, which is what a hand expects after deleting a
+  line. The subtask relation is the task's own parent field, confirmed against the vendor documentation,
+  and a subtask whose parent is not among the open tasks is drawn as top-level rather than disappearing.
+  Paging walks the cursor at the documented maximum and stops if a cursor repeats. One review finding was
+  real and would have lost data from the view: a task whose section id named no section in its project
+  VANISHED, leaving a project heading with nothing under it; it now folds into the unfiled group. 43
+  tests, every suite under a tenth of a second.
+
 - [ ] 105. Named filter views. `[[views]]` in the plugin config declares `name` and `filter` pairs
   (`today = "today | overdue"`, `work = "#Work & !@waiting"`), the pane switches between them with a
   picker and number keys, and each view is also a plugin action (`view:today`) so a herdr keybinding can
   open the pane straight onto it. A rejected filter shows the API's own message rather than an empty
   list.
+
 - [ ] 106. Toggle pane. The `toggle` action opens the pane in the current workspace or closes it, `focus`
   jumps to it, both bindable in `dot_config/herdr/config.toml`; width, side and the view it opens on are
   config, and `auto_open = false` keeps it closed until asked.
+
 - [ ] 107. Completed tab. Completed tasks newest first, paged so the first screen is fast, with the
   completion date on each line and `u` to reopen one.
+
 - [ ] 108. Quick edits in the pane. `x` completes, `X` reopens, `dd` deletes after a confirm, `p` cycles
   priority, `s` takes a natural-language due string (`tomorrow`, `next mon`, `every 2 weeks`) sent as
   Todoist's `due_string`, `l` toggles labels from a picker, `m` moves the task to a project or section
   from a picker, and `a` is Quick Add (`Pay rent tomorrow 9am p1 #Finances @home`). Each is a one-line
   input drawn by the pane, so no editor is entered.
+
 - [ ] 109. Comments. `<CR>` on a task opens its detail with the description rendered as markdown and the
   comment thread, and `c` adds a comment from a multi-line box in the pane.
+
 - [ ] 110. Send to the agent. `S` on a task sends a brief (title, description, due, priority, labels, the
   task's URL, and an optional note typed in the pane) into the workspace's agent pane, the way reviewr
   sends line comments, and a comment on the task records that it was handed to an agent and when. It
   never sends on its own.
+
 - [ ] 111. Enter Neovim from the pane. `e` on a task runs the configured editor command (default `nvim`)
   in the same pane with `+"Todoist task <id>"`, blocks until it exits, then refreshes the list; the
   pane's own multi-line box is the fallback when no editor is configured. This is the seam with task 115.
+
 - [ ] 112. Pretty UI. Nerd Font icons for priority, due state (overdue, today, upcoming, none), labels
   and recurring tasks, a palette that follows reviewr's theme names so both panes match, and a
   plain-ASCII fallback set by config.
+
 - [ ] 113. Cache and background refresh. The pane opens from a local cache so the first render is
   instant, refreshes on an interval and after every write, and marks itself stale with the cache age when
   the network is down. Writes made offline are queued and replayed in order once a refresh succeeds.
-- [ ] 114. Create the `webdavis/todoist.nvim` repository with the Lua client and the token boundary:
-  async through `vim.system` and `curl`, no blocking calls on the UI thread, errors through `vim.notify`
-  with a retry, `:checkhealth todoist` that proves the token resolves and one request succeeds without
-  printing it, a `lazy.nvim` spec in `dot_config/nvim/lua/plugins/`, and busted specs run the way the
-  other custom plugins run theirs.
-- [ ] 115. `:Todoist task <id>`, the whole task as a buffer. A scratch buffer with the fields as a small
-  header (content, due string, priority, labels, project, section) and the description as a markdown body
-  below it; `:w` validates and writes the task back, `:q` on an unwritten buffer asks, and the buffer
-  reports the API's message on a rejected write. This is what the herdr pane enters (task 111) and what
-  `<CR>` opens in every list below.
-- [ ] 116. `:Todoist` and named views on keymaps. `:Todoist` lists every open task grouped by project and
-  section; `setup({ views = { today = "today | overdue" } })` declares named views, `:Todoist today`
-  opens one, and `require("todoist").open("today")` is what a keymap calls. View names match the herdr
-  plugin's by convention so the same word opens the same list in both.
+
+- [x] 114. DONE 2026-09-17. Create the `webdavis/todoist.nvim` repository with the Lua client and the
+  token boundary: async through `vim.system` and `curl`, no blocking calls on the UI thread, errors
+  through `vim.notify` with a retry, `:checkhealth todoist` that proves the token resolves and one
+  request succeeds without printing it, a `lazy.nvim` spec in `dot_config/nvim/lua/plugins/`, and busted
+  specs run the way the other custom plugins run theirs.
+
+  `webdavis/todoist.nvim` created public; PR #1 merged `77c822ed`. Repository shape, style config, MIT
+  licence and the headless runner copied from the operator's own `pns.nvim`. One curl process per request
+  through `vim.system` with a scheduled callback and NO synchronous variant. THE TOKEN NEVER ENTERS THE
+  PROCESS TABLE: it reaches curl on its STANDARD INPUT as a configuration file rather than as an
+  argument, and only `token_command` or `token_env` can produce it. Errors are typed, carry the API's own
+  wording, raise one notification unless the caller asks for quiet, and a TRANSIENT failure is retried
+  once (Retry-After honoured, bounded at ten seconds) while a REFUSED TOKEN is not retried and is dropped
+  from the cache. Endpoint facts were read from the vendor documentation rather than recalled, and the
+  two endpoints task 115 needs were built for it. checkhealth was proven against a local double: it
+  reports that the token resolved and that one request succeeded, and prints nothing about the token.
+
+  TWO REVIEW FINDINGS WERE REAL. The documented async contract was BROKEN ON EVERY PRE-SPAWN ERROR PATH,
+  because a token-resolution or spawn failure ran the callback synchronously inside the request; that
+  path is now scheduled like the rest. And NOTHING PINNED THE RETRY LOOP: deleting it left all 29 specs
+  green. Two specs now count spawns through a fake, and the fix was verified BY MUTATION.
+
+- [x] 115. DONE 2026-09-17. `:Todoist task <id>`, the whole task as a buffer. A scratch buffer with the
+  fields as a small header (content, due string, priority, labels, project, section) and the description
+  as a markdown body below it; `:w` validates and writes the task back, `:q` on an unwritten buffer asks,
+  and the buffer reports the API's message on a rejected write. This is what the herdr pane enters (task
+  111\) and what `<CR>` opens in every list below.
+
+  PR #2 merged `c77bcb59`. The header is MARKDOWN FRONTMATTER, six single-line fields between two fences
+  with the description as the markdown body, chosen because a person already knows the shape and can
+  retype it by hand. Round-trip is exact and a re-parsed render produces no fields to send. Local
+  refusals each name their line; everything else, the due string above all, is left to the API so its own
+  wording surfaces, and a changed project or section is REFUSED rather than silently dropped because
+  moving a task is a different call. THE WRITE SENDS ONLY WHAT CHANGED, so an unchanged due string is
+  never sent and a recurrence is never reparsed away. The buffer stays modified until the API answers, so
+  a rejected write leaves the operator's text where they can fix it.
+
+  THE SEAM WAS CHECKED FOR REAL, not just in process: in a fresh Neovim with nothing else loaded, the
+  launch form the herdr edit key uses opened the buffer, `:q` after an edit gave Neovim's own
+  unsaved-changes error, and `:w` sent exactly the one changed field. That is the path task 111 and every
+  list's return key depend on. One SEV-1 was a genuine data-loss bug: reopening a task SILENTLY DISCARDED
+  unsaved edits and marked the buffer written. Two SEV-2s were also real: buffer lookup matched names by
+  substring so one task could hijack another's buffer, and the write autocmd was re-registered on every
+  open so one save fired one request per open. 51 specs, 0.58 seconds.
+
+- [x] 116. DONE 2026-09-17. `:Todoist` and named views on keymaps. `:Todoist` lists every open task
+  grouped by project and section; `setup({ views = { today = "today | overdue" } })` declares named
+  views, `:Todoist today` opens one, and `require("todoist").open("today")` is what a keymap calls. View
+  names match the herdr plugin's by convention so the same word opens the same list in both.
+
+  PR #3 merged `3569ebcb`. `:Todoist` with no argument lists every open task, a declared name opens that
+  view, the declared names complete alongside `task`, and the public open function is what a keymap calls
+  (an absent or empty name means every open task, and it returns the buffer). Return on a task line opens
+  task 115's buffer through the existing module rather than duplicating it, and `R` re-asks the API for
+  the view on screen. A LINE MAPS BACK TO A TASK THROUGH A TABLE the renderer builds, never by parsing
+  display text, so the rendering can change freely and a heading or blank line says there is no task here
+  rather than opening the nearest one. A refused filter is drawn in the buffer in the API's own wording
+  under its own heading while an empty result says there are no tasks, so the two answers look different.
+  One review finding was a real race: a LATE ANSWER FROM A PREVIOUS VIEW overwrote the view now on
+  screen, fixed by guarding the callback on the view still being shown, with a loopback regression test
+  that delays one answer behind a faster one. One SEV-3 was skipped for a reason worth keeping: pinning
+  the list envelope and cursor parameter against the real API needs a live authenticated call, which the
+  standing rules forbid, so it stays unpinned until the operator or a token-holding session runs it. 69
+  specs, 1.05 seconds, stable across four runs.
+
 - [ ] 117. A toggleable sidebar inside Neovim. `:Todoist toggle` opens a fixed-width split on the
   configured side showing one view (default `today`), closes it on a second call, and survives layout
   changes the way nvim-tree and neo-tree do.
+
 - [ ] 118. Completed view. `:Todoist completed`, newest first, paged, completion date on each line, `u`
   reopens.
+
 - [ ] 119. Quick edits in the list. `x`, `X`, `dd`, `p`, `s`, `l`, `m` and `a` do what task 108's keys
   do, so a hand that learned one plugin knows the other, and `u` undoes the last complete or reopen
   within the session.
+
 - [ ] 120. Capture a task from code. `:Todoist capture` creates a task whose description carries
   `path:line` and the repository name from the current buffer, a visual selection of a `TODO` or `FIXME`
   comment becomes the task's content, a task with a location shows a location icon in the list, and `gd`
   on it jumps to the file and line.
+
 - [ ] 121. Picker integration. A source for `fzf-lua` (the operator's picker) and a generic
   `vim.ui.select` path for everything else: fuzzy-search open tasks, `<CR>` opens the task buffer,
   `<C-x>` completes from the picker, and the picker respects the current view's filter.
+
 - [ ] 122. Subtasks as a fold tree. Tasks with children render as a tree, `za` folds a task's subtasks,
   `>` and `<` indent a task under the one above it or promote it, and completing a parent asks before
   completing its open children.
+
 - [ ] 123. Send to the agent from Neovim. `S` on a task sends the same brief as task 110 into the
   workspace's agent pane through the `herdr` CLI when `HERDR_ENV` is set, and copies it to the clipboard
   with a notice otherwise.
+
 - [ ] 124. Statusline component and due reminders. `require("todoist").status()` returns a short string
   (`3 due, 1 overdue`) for lualine or a custom statusline, and an opt-in reminder raises `vim.notify`
   when a task with a time comes due while Neovim is open.
@@ -4372,18 +4557,19 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same change. Operator step: after the next apply, `hermes gateway restart`, so the gateway loads
   the new route.
 
-- [ ] 85. PARTS 1 AND 2 OF 4 MERGED 2026-09-17, [PR #713](https://github.com/webdavis/dotfiles/pull/713)
-  and [PR #740](https://github.com/webdavis/dotfiles/pull/740); parts 3 and 4 remain. The polling
-  baseline polls `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional
-  request, dedupes by a durable seen-set with a 24-hour expiry, submits through the ordinary producer API
-  so task 81's channel map decides the channel, and treats a 401 or 403 as a configuration refusal rather
-  than an empty listing. Four defects were fixed while finishing it: the server's interval is now clamped
-  to the key's bounds in a pure `job_interval` beside those bounds, so nothing hands the scheduler an
-  unchecked header; the settings reader re-exports the registry's `GITHUB` name instead of declaring a
-  second literal; the first-poll backlog guard reads BOTH halves of the stored state, because a 200
-  carrying no `Last-Modified` would otherwise make every later tick read as another first poll and
-  silence the source permanently; and `pns github poll` joined the usage text. Built on the design merged
-  in [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
+- [x] 85. ALL FOUR PARTS ON MAIN 2026-09-17. PARTS 1 AND 2 OF 4 MERGED 2026-09-17,
+  [PR #713](https://github.com/webdavis/dotfiles/pull/713) and
+  [PR #740](https://github.com/webdavis/dotfiles/pull/740); parts 3 and 4 remain. The polling baseline
+  polls `GET /notifications` once per `X-Poll-Interval` with a `Last-Modified` conditional request,
+  dedupes by a durable seen-set with a 24-hour expiry, submits through the ordinary producer API so task
+  81's channel map decides the channel, and treats a 401 or 403 as a configuration refusal rather than an
+  empty listing. Four defects were fixed while finishing it: the server's interval is now clamped to the
+  key's bounds in a pure `job_interval` beside those bounds, so nothing hands the scheduler an unchecked
+  header; the settings reader re-exports the registry's `GITHUB` name instead of declaring a second
+  literal; the first-poll backlog guard reads BOTH halves of the stored state, because a 200 carrying no
+  `Last-Modified` would otherwise make every later tick read as another first poll and silence the source
+  permanently; and `pns github poll` joined the usage text. Built on the design merged in
+  [PR #620](https://github.com/webdavis/dotfiles/pull/620), whose channel names `#github-<repo>` and
   `#github` are superseded by `#<project>-dev` and `#github-notifications` under task 81. The token is
   the classic `GitHub (Webdavis) :: Personal Access Token (pns notifications)`, `notifications` scope
   only, no expiry. REMAINING, one pull request each: the push receiver (through the existing Cloudflare
@@ -4446,6 +4632,40 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the seen-set would otherwise refuse (under the doorbell it looks like nothing happens, which is
   probably correct), and whether posture's declared-hostname control gets its own pull request now that a
   second hostname reaches the internet or waits behind parts 3 and 4.
+
+  PART 3 SHIPPED as [PR #747](https://github.com/webdavis/dotfiles/pull/747), merged `eee9cb0c`, and the
+  investigation found MOST OF IT ALREADY BUILT. The colour machinery had shipped with the design: both
+  keys parse as coordinate-validated pairs, default to the locked purple and orange, and already render
+  UNCOMMENTED at their defaults in the generated template, which satisfies the 2026-08-31
+  visible-defaults ruling. So nothing in the config changed and nothing needed to. NOTHING EVER PRODUCED
+  A FLASH, because the poll compiled a neutral outcome in, and the lamp therefore stayed dark for every
+  run the inbox reported. The one real gap was the pass-or-fail judgement, and that is the whole diff:
+  two files, 99 insertions.
+
+  HOW THE JUDGEMENT IS MADE, and the limitation is the operator's to rule on. The notifications endpoint
+  carries NO documented field holding a run's conclusion: a thread gives a reason, a subject type, a
+  subject title, a subject URL, a repository and a timestamp, and the CI reason plus the check kind say a
+  run FINISHED but never how it ENDED. The only statement about the ending is the subject TITLE string,
+  which the vendor does not document and has reworded before (checked against the notifications reference
+  and the Actions notifications page; two searches found no published format). So the judgement reads
+  that title FAIL CLOSED: only a workflow-run or check kind is judged at all, the title is split on
+  whitespace with each word trimmed of punctuation, and exactly one of two conclusion words present as a
+  WHOLE WORD yields a colour. Everything else stays neutral and reaches no lamp: a cancelled or skipped
+  run, both words at once, no word at all, a workflow NAMED something like `failed-login-tests`, and any
+  thread a human raised, so a pull request titled "fix the failed retry path" never flashes orange. A
+  rewording upstream therefore makes the lamp GO QUIET rather than show a colour nobody's inbox stated.
+  Five tests pin it, no spawn and no clock.
+
+  PART 4 NEEDED NO PULL REQUEST. The three lamp declarations it was going to add are already in
+  `dot_config/pns/config-values.toml` and in the generated template, verified by grep at three hits each,
+  so the wiring this task assumed was outstanding had already landed.
+
+  OPERATOR STEPS: one full apply, which is what rebuilds pns so the judgement reaches the deployed
+  binary; until then every polled GitHub event still reports neutral and the lamps stay dark. Then the
+  first CI notification should light a lamp. TWO OPEN QUESTIONS for the operator: whether to pay one
+  extra request per CI thread to read the subject's real conclusion field instead of the title heuristic,
+  which is a rate-limit budget nobody has set; and whether a cancelled or timed-out run deserves a third
+  colour or should keep reaching no lamp as it does now.
 
 - [x] 86. Finish the live coverage of the five hermes routes. CLOSED 2026-09-17 on the two answers it was
   waiting for. The 2026-09-15 check covered `pns-events`, `priority` and `posture-pages` with real posts.
@@ -4595,14 +4815,14 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `heartbeat`) rather than by label, which only the new binary writes, with every streak at 0 and no page
   raised.
 
-- [ ] 98. `posture jobs`: let posture install and verify its own scheduled jobs, filed 2026-09-17.
-  posture is a one-shot by design (every subcommand samples current state and exits; there is no daemon
-  and, ruled 2026-09-17, there should not be, because the two daily jobs rely on launchd starting a
-  missed calendar fire on wake, which `man 5 launchd.plist` documents and a sleep loop does not do, and
-  because the watchdog must not share a process with the monitors it reports on). The timers therefore
-  live outside the binary, and on dresden they live in THIS repository, so a stranger who installs
-  posture gets the checks and no schedule at all. Close that with a subcommand group, the verb set
-  already used by `posture ssh`: `posture jobs install` writes the units and loads them;
+- [x] 98. DONE 2026-09-17. `posture jobs`: let posture install and verify its own scheduled jobs, filed
+  2026-09-17. posture is a one-shot by design (every subcommand samples current state and exits; there is
+  no daemon and, ruled 2026-09-17, there should not be, because the two daily jobs rely on launchd
+  starting a missed calendar fire on wake, which `man 5 launchd.plist` documents and a sleep loop does
+  not do, and because the watchdog must not share a process with the monitors it reports on). The timers
+  therefore live outside the binary, and on dresden they live in THIS repository, so a stranger who
+  installs posture gets the checks and no schedule at all. Close that with a subcommand group, the verb
+  set already used by `posture ssh`: `posture jobs install` writes the units and loads them;
   `posture jobs verify` asserts each one exists, is loaded, and matches what posture would write;
   `posture jobs list` prints what posture expects beside the live state of each; `posture jobs print`
   dumps a unit to standard output without writing it. `verify` stops at installed-and-loaded and never
@@ -4617,6 +4837,44 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   one of the six is a file watch, rather than `agents` because that word now means something else and
   collides with `io.osquery.agent`, and rather than `service` because there are six jobs and not one
   service.
+
+  SHIPPED as [PR #764](https://github.com/webdavis/dotfiles/pull/764), merged `148df91f`. The four verbs
+  exist as asked. Job plans (label, subcommand, program, trigger, watch path, log, run-at-load) and the
+  launchd rendering live in `posture-domain` as total functions over task 97's label list, so the writer
+  and the watchdog read the one list. The two daily times moved into posture's own config as a new
+  `[jobs.daily]` table read through the same schema as the labels, which is what a stranger installing
+  with `cargo install` needs. Drift is reported as the unit lines each side holds alone, whitespace and
+  order insensitive, so verify is actionable against units something else wrote.
+
+  NOTHING IN THE SUITE WRITES OR LOADS A REAL UNIT: every path hangs off an injected home directory and
+  every launchctl call goes through the existing command seam, so all ten command tests drive a temporary
+  home and a recorded command list. Twelve domain cases plus ten command cases plus four new config
+  cases.
+
+  THE MOST VALUABLE OUTPUT IS THE LIVE DRIFT READING, taken read-only against dresden, where
+  `posture jobs verify` EXITS 1. Every label, interval, calendar time and run-at-load value AGREED, which
+  confirms posture's plan is faithful to the deployed schedule. Three things differ and each needs an
+  operator ruling on which side is right: the deployed plists log to `~/.local/log/osquery/<varied>.log`
+  where posture would use `~/.local/log/posture/<key>.log` (the lane's reasoning: the log holds posture's
+  own output and osquery is a dependency, the same axis the libexec directory rule uses, and this is the
+  largest share of the drift); four of the six deployed plists carry NO environment PATH block where
+  posture writes one uniform block, because a launchd job inherits almost no PATH and several subcommands
+  shell out; and the deployed funnel plist carries an osquery tailscale binary variable posture does not
+  write, which the lane read as a per-machine override of a dependency path rather than part of the
+  schedule.
+
+  SCOPE DEPARTURE, recorded because the task asked otherwise: the entry asks for a seventh systemd path
+  unit on Linux, and the lane shipped LAUNCHD ONLY. Its reasoning: posture has no Linux support anywhere
+  today (the osquery pipeline, launchctl, codesign and the sshd paths are all macOS), so a systemd writer
+  nothing runs would be untested surface, and the `jobs` group name already accommodates it when a Linux
+  port arrives. Accept or reject that when the Linux port is real.
+
+  One review finding was a genuine correctness bug: verify compared unit lines as an UNORDERED multiset,
+  so a daily job with its hour and minute SWAPPED read as no drift. Fixed by joining each key with its
+  value on one line before sorting, with a test named for the swap.
+
+  OPERATOR STEPS: a full apply (the posture config template gained `[jobs.daily]`), then
+  `posture jobs verify` on dresden and a ruling on the three drifts above.
 
 - [x] 99. Stop naming two retired hermes routes. DONE 2026-09-17. Filed the same day on two operator
   rulings. `pns doctor` on 2026-09-17 reported
