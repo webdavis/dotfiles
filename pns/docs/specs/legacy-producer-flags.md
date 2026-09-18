@@ -1,5 +1,10 @@
 # The legacy producer command-line surface
 
+Historical snapshot, not the live contract: this file predates the retirement ladder. `--agent`/
+`PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
+dropped as the flag table below still says; `--producer`/`PNS_PRODUCER` is the live spelling. Not
+rewritten pending the ladder's closing docs pass.
+
 ## Scope
 
 This file specifies the frozen compatibility contract of `pns`'s producer invocation: the deliberately

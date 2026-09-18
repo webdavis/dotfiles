@@ -16,7 +16,7 @@ fn both_narrowing_flags_plan_nothing_at_all() {
 /// on, so a caller that did not ask hears 0 whatever the delivery answered.
 #[test]
 fn a_caller_that_did_not_ask_never_hears_a_failed_delivery() {
-    let argv = ["--agent".to_string(), "posture".to_string()];
+    let argv = ["--producer".to_string(), "posture".to_string()];
     assert_eq!(super::run(&argv, |_| 1), 0);
 }
 
@@ -26,7 +26,7 @@ fn a_caller_that_did_not_ask_never_hears_a_failed_delivery() {
 #[test]
 fn a_caller_that_asked_hears_a_failed_delivery() {
     let argv = [
-        "--agent".to_string(),
+        "--producer".to_string(),
         "posture".to_string(),
         "--require-delivery".to_string(),
     ];
@@ -38,11 +38,28 @@ fn a_caller_that_asked_hears_a_failed_delivery() {
 #[test]
 fn asking_for_the_answer_does_not_invent_a_failure() {
     let argv = [
-        "--agent".to_string(),
+        "--producer".to_string(),
         "posture".to_string(),
         "--require-delivery".to_string(),
     ];
     assert_eq!(super::run(&argv, |_| 0), 0);
+}
+
+/// The retired flag is REFUSED rather than skipped, and the refusal names its
+/// replacement. Skipping it is what the lenient rule would do, and that sends
+/// the event under the default producer with the sender's own name dropped.
+#[test]
+fn the_retired_agent_flag_is_refused_and_names_the_flag_that_replaced_it() {
+    let argv = [
+        "--agent".to_string(),
+        "posture".to_string(),
+        "--state".to_string(),
+        "done".to_string(),
+    ];
+    assert_eq!(
+        super::run(&argv, |_| panic!("a retired flag reached submission")),
+        2
+    );
 }
 
 /// A kind pns does not know is refused whole: routing it by guess would put a
@@ -50,7 +67,7 @@ fn asking_for_the_answer_does_not_invent_a_failure() {
 /// things that need a human.
 #[test]
 fn an_unknown_kind_is_refused_before_anything_is_delivered() {
-    for word in ["", "critical", "--agent"] {
+    for word in ["", "critical", "--producer"] {
         let argv = ["--kind".to_string(), word.to_string()];
         assert_eq!(
             super::run(&argv, |_| panic!("an unknown kind reached submission")),

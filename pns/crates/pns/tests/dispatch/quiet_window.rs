@@ -38,7 +38,13 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // deadline on a connection nobody answered.
         let child = command
             .args([
-                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+                "send",
+                "--producer",
+                "claude",
+                "--state",
+                "done",
+                "--detail",
+                "x",
             ])
             .args(["--pane", "t1:p2", "--long-running"])
             .stdout(std::process::Stdio::piped())
@@ -97,7 +103,13 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
@@ -125,7 +137,13 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     let mut ordinary = sandbox.pns();
     sandbox.stub_herdr(&mut ordinary, false);
     let ordinary = run(ordinary.args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     assert!(
         !stderr(&ordinary).contains("quiet_hours"),
@@ -138,7 +156,13 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     sandbox.stub_herdr(&mut pulsing, false);
     let pulsing = run(pulsing
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2", "--long-running"]));
     let said = stderr(&pulsing);
@@ -203,7 +227,13 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
     sandbox.stub_herdr(&mut quiet, false);
     run(quiet
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
@@ -222,7 +252,13 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
     sandbox.stub_herdr(&mut loud, false);
     let child = loud
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2", "--long-running"])
         .spawn()

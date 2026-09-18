@@ -25,7 +25,7 @@ const HANGING_INDENT: usize = LABEL_WIDTH + 2;
 /// The full form: for surfaces with no length limit and a monospace face.
 ///
 /// This is the only form that carries `sent by`. The notification form drops it
-/// because `failed command` already contains `--agent <name>`, and a form under
+/// because `failed command` already contains `--producer <name>`, and a form under
 /// a character budget cannot afford to say anything twice.
 pub fn full(failure: &Failure) -> String {
     let fix = fix::line(failure, Surface::Terminal);

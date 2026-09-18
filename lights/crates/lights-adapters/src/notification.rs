@@ -32,6 +32,16 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
     }
 }
 impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> {
+    fn alarm(&self, detail: &str) {
+        self.send(&[
+            "--state",
+            "failed",
+            "--project",
+            "hue bridge",
+            "--detail",
+            detail,
+        ]);
+    }
     fn announce(&self, action: &Action) {
         let room = match action {
             Action::PowerSet { room, .. }
@@ -40,23 +50,27 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> 
             | Action::SceneSet { room, .. }
             | Action::Reported { room, .. } => room,
         };
+        self.send(&[
+            "--state",
+            "done",
+            "--project",
+            room.as_str(),
+            "--detail",
+            crate::render_action(action).trim_end_matches('\n'),
+        ]);
+    }
+}
+impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
+    /// One bounded invocation, whatever it is saying.
+    fn send(&self, what: &[&str]) {
         let mut command = Command::new(&self.monitor);
         command
             .args(["--foreground", "--signal=KILL"])
             .arg(format!("{}s", self.duration.as_secs_f64()))
             .arg(&self.pns)
-            .args([
-                "send",
-                "--agent",
-                "lights",
-                "--state",
-                "done",
-                "--project",
-                room.as_str(),
-                "--detail",
-                crate::render_action(action).trim_end_matches('\n'),
-                "--local-only",
-            ])
+            .args(["send", "--producer", "lights"])
+            .args(what)
+            .arg("--local-only")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

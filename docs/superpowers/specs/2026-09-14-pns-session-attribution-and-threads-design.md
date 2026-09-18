@@ -206,7 +206,7 @@ detached head.
 **worktree** is the basename of `git -C <cwd> rev-parse --show-toplevel`, used in the branch slot
 only when the branch is empty.
 
-**harness** is `PNS_AGENT`, defaulting to `claude` (`hook_dispatch.rs:23`), and the producer name on
+**harness** is `PNS_PRODUCER`, defaulting to `claude` (`hook_dispatch.rs:23`), and the producer name on
 the submitted-request path (`mapping.rs:18`). Today that is `claude`, `codex`, and the producer
 names `posture`, `uu` and `pns`. `pi` and `omp` reach `pns gate`, which forwards to moshi and raises
 no pns event (`moshi_submission.rs:13-26`), so neither can appear in a header until it produces

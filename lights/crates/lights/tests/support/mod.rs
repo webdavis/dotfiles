@@ -21,8 +21,15 @@ pub fn home() -> Home {
     Home::fresh(path)
 }
 pub fn config() -> &'static str {
-    "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n"
+    "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n\
+certificate='sha256:0000000000000000000000000000000000000000000000000000000000000000'\n"
 }
+/// The line `status` adds, naming the certificate the bridge is held to. The
+/// pin is the one the shared config carries, and no handshake was refused in a
+/// scripted-transport test.
+pub const PIN_STATE: &str = "certificate: pinned and matched \
+sha256:0000000000000000000000000000000000000000000000000000000000000000\n";
+
 pub fn fixture() -> Value {
     serde_json::from_str(include_str!("../fixtures/resources.json")).unwrap()
 }
@@ -40,6 +47,7 @@ pub fn fixture_with_no_active_scene() -> Value {
 pub struct Quiet;
 impl lights_application::Notifier for Quiet {
     fn announce(&self, _: &lights_domain::Action) {}
+    fn alarm(&self, _: &str) {}
 }
 
 pub fn command(

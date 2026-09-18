@@ -358,7 +358,7 @@ refused, the record that was already written is removed again.
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: the Codex refusal is a POSITIVE gate, `event.agent != CLAUDE_AGENT` returns,
-  "so an empty or unknown `PNS_AGENT` arms nothing either (bug class 16: set-but-empty is not unset)".
+  "so an empty or unknown `PNS_PRODUCER` arms nothing either (bug class 16: set-but-empty is not unset)".
   The reason is behavioral, not architectural: "Codex wires exactly Stop and PermissionRequest, so it has
   a turn-end clear and no batch-level one, and agent turns in this repo routinely run tens of minutes: a
   Codex nag would be wrong in the COMMON case rather than at an edge" (`src/main.rs:arm_nag`).

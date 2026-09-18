@@ -8,7 +8,16 @@ pub struct Fixture {
 }
 impl Fixture {
     pub fn new(name: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("pns-shell-{}-{name}", std::process::id()));
+        // The epoch nanosecond keeps a RECYCLED process id off an earlier
+        // run's leftovers: nothing removes these roots, so without it the
+        // `create_dir` below answers AlreadyExists.
+        let root = std::env::temp_dir().join(format!(
+            "pns-shell-{}-{}-{name}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos()),
+        ));
         std::fs::create_dir(&root).unwrap();
         std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
         for leaf in [".config/pns", "channels", "bin"] {

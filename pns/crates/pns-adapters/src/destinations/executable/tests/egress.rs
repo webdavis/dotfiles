@@ -6,9 +6,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 fn capture() -> (std::path::PathBuf, std::path::PathBuf) {
     static NEXT: AtomicU64 = AtomicU64::new(0);
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this root, and the `id`, `body` and
+    // `producer` files inside it are what every assertion below reads.
     let root = std::env::temp_dir().join(format!(
-        "pns-egress-{}-{}",
+        "pns-egress-{}-{}-{}",
         std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos()),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     std::fs::DirBuilder::new()

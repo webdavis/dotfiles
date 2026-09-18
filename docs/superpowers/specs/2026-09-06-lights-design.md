@@ -221,7 +221,7 @@ bash:60-66, which called `osascript` directly.
 The event is the producer argv the shell notifier already uses:
 
 ```
-~/.local/libexec/pns/pns --agent lights --state done --project <room> \
+~/.local/libexec/pns/pns --producer lights --state done --project <room> \
   --detail "<action line>" --local-only
 ```
 

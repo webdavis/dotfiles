@@ -23,7 +23,13 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
 

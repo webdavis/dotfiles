@@ -149,7 +149,7 @@ pns: delivery failed
   meaning:         the hermes gateway has no webhook route by that name
   webhook route:   testpath
   sent by:         posture heartbeat
-  failed command:  pns send --agent posture --channel testpath
+  failed command:  pns send --producer posture --channel testpath
   fix:             run `pns doctor` to see which routes the gateway accepts,
                    then add "testpath" to ~/.hermes/config.yaml
 ```
@@ -180,7 +180,7 @@ The desktop variant, at 230 characters:
 status: HTTP 404 (Not Found)
 meaning: the hermes gateway has no webhook route by that name
 webhook route: testpath
-failed command: pns send --agent posture --channel testpath
+failed command: pns send --producer posture --channel testpath
 fix: run `pns failures` for the full error and how to fix it
 ```
 
@@ -191,7 +191,7 @@ Two differences from the full form, both forced by the budget:
 
 - No column padding. Banners and cards render proportionally, so padding produces ragged text rather
   than alignment.
-- `sent by` is dropped. `failed command` already contains `--agent posture`, so the two say the same
+- `sent by` is dropped. `failed command` already contains `--producer posture`, so the two say the same
   thing, and the notification form cannot afford to say anything twice.
 
 The gateway is named once, in `meaning`, which is why `webhook route` carries the bare name.

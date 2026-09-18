@@ -9,3 +9,5 @@ mod position;
 pub use position::FilePositionStore;
 pub mod settings;
 pub use hue::HueLightController;
+pub use hue::enroll::{Enrollment, enroll};
+pub use hue::mismatch::{Mismatch, refused_mismatch, report as mismatch_report};

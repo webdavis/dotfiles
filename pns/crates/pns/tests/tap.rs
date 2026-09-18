@@ -69,7 +69,13 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
     assert_eq!(json(&out)["marker"]["source"], "config");
     assert!(path.is_file());
     run(s.pns().env("PNS_IDLE_SECS", "60").args([
-        "send", "--agent", "shell", "--state", "done", "--detail", "tap",
+        "send",
+        "--producer",
+        "shell",
+        "--state",
+        "done",
+        "--detail",
+        "tap",
     ]));
     assert!(s.fired("mobile"));
     assert!(!s.fired("macos-banner"));

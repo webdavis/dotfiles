@@ -1104,7 +1104,7 @@ ______________________________________________________________________
 
 | Variable                      | Read by                                    | Effect                                                                              |
 | ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `PNS_AGENT`                   | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
+| `PNS_PRODUCER`                | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
 | `HERDR_PANE_ID`               | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
 | `PNS_STATE_DIR`               | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
 | `PNS_PAYLOAD_DEADLINE_MS`     | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |

@@ -854,7 +854,7 @@ built from it
   path calls `hooks::flattened`, `rendered_plainly` or `safe_line`. `recap::described`, which composes a
   mechanical timeline line from an activity ring `Entry`, also applies no filter.
 - Failure sources: any producer that puts a C0, DEL or C1 byte other than tab, carriage return or newline
-  into `--detail`, `--project`, `--branch`, `--agent` or `--state`; any assistant turn whose text quotes
+  into `--detail`, `--project`, `--branch`, `--producer` or `--state`; any assistant turn whose text quotes
   such a byte.
 - Fail direction: fail-OPEN. The byte passes through.
 - Thresholds: the value is still capped: `REPLY_MAX_CHARS` = 8,000 on a reply, `PREVIEW_MAX_CHARS` = 260

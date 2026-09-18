@@ -21,7 +21,7 @@ fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
     let failure = compose(&stored(47, pns_domain::retry::DeliveryOutcome::Status(404)));
     assert_eq!(
         failure.command,
-        "pns send --agent posture --state failed --channel testpath"
+        "pns send --producer posture --state failed --channel testpath"
     );
 }
 
@@ -32,7 +32,7 @@ fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
     let mut bare = stored(1, pns_domain::retry::DeliveryOutcome::NoResponse);
     bare.state = String::new();
     bare.route = String::new();
-    assert_eq!(command(&bare), "pns send --agent posture");
+    assert_eq!(command(&bare), "pns send --producer posture");
 }
 
 /// The listing column is scanned, so it carries the bare code; the registered

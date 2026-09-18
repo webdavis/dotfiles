@@ -19,7 +19,7 @@ fn a_blocked_approval_arms_one_leased_escalation_job_for_every_harness() {
         sandbox.write_config(&stale_config(3600));
         let mut command = sandbox.pns_stateful();
         sandbox.stub_moshi(&mut command, 0);
-        command.env("PNS_AGENT", agent);
+        command.env("PNS_PRODUCER", agent);
 
         let output = hook_with(
             command,
