@@ -80,5 +80,5 @@ impl pns_application::RaiseNotification for NagNotification {
         );
     }
 }
-const NAG_USAGE: &str = "pns: usage: pns nag (it takes no arguments: one fire cards every \
+pub(crate) const NAG_USAGE: &str = "pns: usage: pns nag (it takes no arguments: one fire cards every \
 outstanding approval at once)";

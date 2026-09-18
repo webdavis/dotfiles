@@ -4,6 +4,11 @@ use pns_domain::shell_event;
 mod parse;
 use parse::{Action, parse};
 
+/// What `pns shell` takes, which is one end of one command the notifier timed.
+pub(crate) const SHELL_USAGE: &str = "pns: usage: \
+pns shell begin --pid <pid> --command <line> | \
+pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <secs>";
+
 pub fn shell_mode(argv: &[String]) -> i32 {
     let action = match parse(argv) {
         Ok(action) => action,
