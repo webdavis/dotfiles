@@ -1,0 +1,6 @@
+# Every crate in this repository builds on stable. The pin is here rather than
+# only at the repository root because a builder script runs cargo from THIS
+# directory, and rustup reads a toolchain file from the current directory
+# upward, never from the directory a `--manifest-path` points at.
+[toolchain]
+channel = "stable"

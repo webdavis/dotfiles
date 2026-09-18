@@ -79,6 +79,10 @@ test-e2e: validate-tests
 # discover Rust manifests. Locked dependencies and documentation warnings are
 # checked with the tests.
 test-rust:
+  cargo test --locked --workspace --manifest-path morning/Cargo.toml
+  cargo fmt --all --check --manifest-path morning/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path morning/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path morning/Cargo.toml
   cargo test --locked --workspace --manifest-path lights/Cargo.toml
   cargo fmt --all --check --manifest-path lights/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path lights/Cargo.toml -- -D warnings

@@ -1,0 +1,7 @@
+[package]
+name = "morning-application"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+morning-domain = { path = "../morning-domain" }
