@@ -17,7 +17,7 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
     }
 }
 
-const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
+pub(crate) const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]] | \
 pns lights pulse [<exit-code>] | \
 pns lights enroll --bridge-id <id> | --allow-unverified";
@@ -177,7 +177,7 @@ fn lights_pulse() -> i32 {
     0
 }
 
-const PULSE_USAGE: &str = "pns: usage: pns lights pulse [<exit-code>] | \
+pub(crate) const PULSE_USAGE: &str = "pns: usage: pns lights pulse [<exit-code>] | \
 pns lights pulse --help, -h (a bare `pulse` is a success pulse)";
 
 /// What `pns pulse` answers now: the verb that replaced it, and no pulse.

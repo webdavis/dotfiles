@@ -112,6 +112,19 @@ pub(crate) fn run() {
     style::remember_forced_plain(forced_plain);
     let _ = TOOL_ARGV.set(flagless.clone());
     let first = flagless.first().cloned().unwrap_or_default();
+    // EVERY SUBCOMMAND'S OWN HELP IS ANSWERED HERE, before the branch below
+    // hands argv to a parser that would refuse it: `pns send --help` is a
+    // question about `send` rather than a missing `--state`. It EXITS 0,
+    // because help asked for is a success, where every refusal below it exits
+    // 2 for argv the caller typed wrong.
+    if let Some(usage) = subcommand_usage::requested(&first, flagless.get(1..).unwrap_or_default())
+    {
+        // TRIMMED SO ONE TEXT IS NOT SPACED DIFFERENTLY FROM THE NEXT: the
+        // tool-wide listing ends in a newline of its own and a one-line usage
+        // does not.
+        println!("{}", usage.trim_end());
+        std::process::exit(0);
+    }
     if matches!(first.as_str(), "--version" | "-V") {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;

@@ -16,7 +16,8 @@ pub(crate) fn github_mode(verb: &str) -> i32 {
     }
 }
 
-const GITHUB_USAGE: &str = "pns: usage: pns github poll [--daemon] | pns github receive [--daemon]";
+pub(crate) const GITHUB_USAGE: &str =
+    "pns: usage: pns github poll [--daemon] | pns github receive [--daemon]";
 
 /// Who launched a poll, which is the whole difference between a refusal worth
 /// printing and one worth swallowing. `command_presence`'s own `Launch`, for

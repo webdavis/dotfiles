@@ -13,7 +13,7 @@ pub(crate) fn presence_mode(verb: &str) -> i32 {
     }
 }
 
-const PRESENCE_USAGE: &str = "pns: usage: pns presence poll [--daemon]";
+pub(crate) const PRESENCE_USAGE: &str = "pns: usage: pns presence poll [--daemon]";
 
 /// Who launched a poll, which is the whole difference between a refusal worth
 /// printing and one worth swallowing.

@@ -91,7 +91,7 @@ pub(crate) fn quiet_mode() -> i32 {
 
 /// What a mute typed wrong is told, once, on stderr. The refusal above it
 /// quotes what was typed; this says what the command takes.
-const QUIET_USAGE: &str =
+pub(crate) const QUIET_USAGE: &str =
     "pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h";
 
 /// Whether the operator's mute is on, judged on THE RUN'S OWN clock reading:
