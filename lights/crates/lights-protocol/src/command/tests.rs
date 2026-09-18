@@ -182,3 +182,30 @@ fn over_refuses_a_missing_unit_a_bad_unit_and_a_value_past_the_ceiling() {
 fn duplicate_over_is_a_usage_error() {
     assert!(decode(&["--over", "2s", "--over", "3s", "brightness", "40"]).is_err());
 }
+#[test]
+fn enroll_carries_the_id_read_off_the_device_when_one_is_given() {
+    assert_eq!(
+        decode(&["enroll", "--bridge-id", "B0B0B0FFFE000001"])
+            .unwrap()
+            .command,
+        Command::Enroll {
+            stated_id: Some("B0B0B0FFFE000001".into())
+        }
+    );
+    assert_eq!(
+        decode(&["enroll"]).unwrap().command,
+        Command::Enroll { stated_id: None }
+    );
+}
+#[test]
+fn an_id_without_a_value_a_duplicate_id_and_an_id_on_another_command_are_usage_errors() {
+    for args in [
+        vec!["enroll", "--bridge-id"],
+        vec!["enroll", "--bridge-id", "--room"],
+        vec!["enroll", "--bridge-id", "a", "--bridge-id", "b"],
+        vec!["--bridge-id", "a", "status"],
+        vec!["enroll", "--room", "studio"],
+    ] {
+        assert!(decode(&args).is_err(), "{args:?}");
+    }
+}

@@ -1,4 +1,5 @@
 use crate::Response;
+use lights_adapters::settings::HueSettings;
 use lights_application::{LightsError, NoPresetNow};
 use lights_domain::{Action, Presets};
 
@@ -13,6 +14,14 @@ pub(super) fn error(error: LightsError) -> (u8, String) {
         | LightsError::Malformed { detail } => (4, detail),
         LightsError::InvalidReference => (4, "invalid controller reference".into()),
     }
+}
+
+/// Which certificate the bridge is held to.
+pub(super) fn pin_state(controller: &HueSettings) -> String {
+    format!(
+        "certificate: pinned and matched {}\n",
+        controller.certificate
+    )
 }
 
 const NO_WINDOWS: &str = "no preset windows configured; add a [[preset_windows]] entry \

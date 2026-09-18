@@ -7,6 +7,8 @@ notify = false
 type = "hue"
 address = "192.0.2.1"
 key = "test-secret"
+# The one certificate the bridge may present, produced by `lights enroll`.
+certificate = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 # Maximum duration of one bridge request, in seconds.
 timeout_secs = 2
 

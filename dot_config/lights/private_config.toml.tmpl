@@ -6,6 +6,13 @@ notify = false
 [controller]
 type = "hue"
 address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
+# The one certificate the bridge may present, and the whole of what makes the
+# address above the device it claims to be: the bridge's certificate carries no
+# name a verifier can check. It is a custom attribute on the same vault entry
+# as the address and key, because this repository is public. Produce the value
+# with `lights enroll --bridge-id <id>` and save the line it prints onto that
+# entry as the attribute named here.
+certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 # Seconds allowed per bridge request.
 timeout_secs = 2

@@ -29,6 +29,17 @@ impl HueLightController {
 }
 
 fn unreachable(error: ureq::Error) -> LightControlError {
+    // A REFUSED CERTIFICATE OUTRANKS THE GENERIC SENTENCE, and the fingerprints
+    // are spelled out ONCE: a walk over five rooms refuses five handshakes, and
+    // five copies of the same block would bury the one that matters.
+    if super::mismatch::refused_mismatch().is_some() {
+        return LightControlError::Refused {
+            detail: match super::mismatch::unspoken_mismatch() {
+                Some(mismatch) => super::mismatch::report(&mismatch),
+                None => "bridge certificate refused, as reported above".into(),
+            },
+        };
+    }
     let detail = if matches!(error, ureq::Error::Timeout(_)) {
         "bridge request timed out"
     } else {

@@ -110,7 +110,7 @@ fn status_never_notifies_even_when_requested() {
     assert_eq!(response.exit, 0);
     assert_eq!(
         response.stdout,
-        "3F - Studio: ON | brightness: 42.75% | scene: Read\n"
+        format!("3F - Studio: ON | brightness: 42.75% | scene: Read\n{PIN_STATE}")
     );
     assert_eq!(calls, 0);
 }
