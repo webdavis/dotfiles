@@ -22,7 +22,7 @@ set -euo pipefail
 # be installed. Running on every apply and installing only what is missing makes
 # the failure self-healing, at the cost of one bounded socket call per apply and
 # per plugin, and it costs no retry-marker machinery
-# (.chezmoitemplates/herdr-plugin-build.sh.tmpl carries that for the build lane,
+# (run_onchange_after_58 carries that for the one plugin this repo still builds,
 # which cannot be converged this cheaply).
 
 command -v herdr >/dev/null 2>&1 || exit 0 # run_onchange_before_15 installs it.
@@ -30,7 +30,7 @@ command -v jq >/dev/null 2>&1 || exit 0    # jq reads the plugin-list envelope.
 
 # Bound every herdr call. A wedged herdr socket accepts the connection and never
 # replies, which would hang the whole apply; this is the same reasoning, and the
-# same 10s bound, as the herdr-plugin-build partial. Without a timeout binary the
+# same 10s bound, as run_onchange_after_58. Without a timeout binary the
 # calls cannot be bounded safely, so skip and let the next apply retry.
 if command -v timeout >/dev/null 2>&1; then
   timeout_bin="timeout"
