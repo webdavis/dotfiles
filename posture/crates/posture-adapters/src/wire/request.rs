@@ -2,7 +2,7 @@
 //! about one event, in version 1 of the `pns.request` envelope.
 //!
 //! The source's own event name (`event`) is carried as metadata; the
-//! normalized [`Signal`] is what engine policy reads. Delivery scope is one
+//! normalized [`State`] is what engine policy reads. Delivery scope is one
 //! typed word, so a pair of independent flags cannot be spelled here. A
 //! producer states `elapsed_secs` and the engine decides the tier from it;
 //! there is no field for a caller-decided tier.
@@ -18,13 +18,17 @@ const SCHEMA: &str = "pns.request/1";
 
 /// What happened, in the contract's own terms. A producer's event name never
 /// controls routing, state or lighting directly; this does.
+///
+/// ONE CLOSED SET OF SIX WORDS, spelled as a plain word on the wire. posture
+/// writes two of them and the other four are here because this is posture's
+/// reading of the whole contract, which the golden document holds to the
+/// engine's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Signal {
-    Succeeded,
+#[serde(rename_all = "snake_case")]
+pub enum State {
+    Done,
     Failed,
-    NeedsAttention,
-    ApprovalRequested,
+    Blocked,
     Resolved,
     Observation,
     Progress,
@@ -81,7 +85,7 @@ pub struct Request {
     #[serde(default)]
     pub session: Option<Session>,
     pub event: Name,
-    pub signal: Signal,
+    pub state: State,
     /// Epoch seconds, when the producer knows when it happened.
     #[serde(default)]
     pub occurred_at: Option<u64>,
@@ -129,13 +133,13 @@ struct Incoming {
 impl Request {
     /// A request with the four required parts set and every optional part at
     /// its default.
-    pub fn new(request_id: RequestId, producer: Name, event: Name, signal: Signal) -> Self {
+    pub fn new(request_id: RequestId, producer: Name, event: Name, state: State) -> Self {
         Request {
             request_id,
             producer,
             session: None,
             event,
-            signal,
+            state,
             occurred_at: None,
             elapsed_secs: None,
             detail: String::new(),

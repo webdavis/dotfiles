@@ -89,7 +89,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     let request = std::fs::read_to_string(home.join("request")).unwrap();
     for text in [
         "\"event\":\"heartbeat\"",
-        "\"kind\":\"observation\"",
+        "\"state\":\"observation\"",
         "\"route\":\"posture-pages\"",
         "STALE",
         "over 020s",

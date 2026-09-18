@@ -52,7 +52,7 @@ mod result;
 // documents is reached through the field it sits on, which is the only way
 // posture ever touches it.
 pub use identifiers::{Name, RequestId};
-pub use request::{Request, Signal};
+pub use request::{Request, State};
 pub use result::{Status, decode_result};
 
 /// The vocabulary only a test double says out loud: posture reads a result and
