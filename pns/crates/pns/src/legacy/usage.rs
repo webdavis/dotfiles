@@ -26,7 +26,6 @@ pns: usage:
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
   pns tap [info|install] [--json]  record phone attention or inspect its setup
-  pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
   pns --version, -V                the package version
 

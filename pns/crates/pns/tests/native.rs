@@ -224,7 +224,10 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
 fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     let sandbox = Sandbox::new("stale-alert-route");
     let router = RouterStub::start(KEYS_DISAGREE);
-    let capture = Capture::start(&sandbox, "stale-route", None, None);
+    // TWO REQUESTS, because the report posts its own test send before it
+    // reads the router: the capture has to stay up past that one to see the
+    // alert at all.
+    let capture = Capture::start(&sandbox, "stale-route", Some("200"), Some("2"));
     sandbox.write_config(&format!(
         "[plugins.hermes]\nenabled = true\n\
          keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
@@ -239,12 +242,18 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
         .env("http_proxy", capture.url())
         .env("NO_PROXY", "localhost");
     sandbox.stub_notifier(&mut command);
-    run(command.arg("home"));
+    // No moshi-hook to spawn: the pairing check would otherwise reach the real
+    // binary on the developer's own machine and the moshi API behind it.
+    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    // THE EXIT CODE IS NOT ASSERTED: it belongs to the whole report, and a
+    // config naming one plugin makes it exit non-zero on grounds that have
+    // nothing to do with the route this pins.
+    command.arg("doctor").output().expect("the engine runs");
 
     let raw = capture.finish();
-    assert_eq!(
-        raw.lines().next().unwrap_or_default(),
-        "POST /webhooks/priority HTTP/1.1",
+    assert!(
+        raw.lines()
+            .any(|line| line == "POST /webhooks/priority HTTP/1.1"),
         "the alert did not carry the configured route: {raw}"
     );
     // AND THE GATEWAY IS UNMOVED. The config names a ROUTE, never a URL, so

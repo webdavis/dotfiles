@@ -14,7 +14,7 @@ pub const ROSTER: [Registration; 8] = [
     Registration {
         // The home probe's router: an INPUT, so it holds no delivery order to
         // state and sits ahead of the channels, whose order is delivery order.
-        // `pns home` reads it; no event can route to it, because a sensor
+        // `pns doctor` reads it; no event can route to it, because a sensor
         // carries no routing for a plan to read.
         name: "router",
         kind: PluginKind::Sensor,

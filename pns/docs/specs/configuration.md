@@ -561,7 +561,7 @@ Then the file is refused whole, the offending name is quoted, and the six are li
   and the walk test catches a mismatch in either direction.
 - Required side effects: none.
 - Forbidden side effects: a table this layer does not serve is never passed through as a key nothing
-  reads. The reason: an ignored `[home]` "would leave `pns home` reporting 'not configured' beside a file
+  reads. The reason: an ignored `[home]` "would leave the home probe reporting 'not configured' beside a file
   that plainly configures it"
   (`src/config.rs:a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`).
 - Timeout and cancellation: Not applicable.
@@ -1522,7 +1522,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 | `pns lights quiet`                                        | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
 | daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns daemon: the config could not be read ({detail}); carrying on enabled`         |
 | `submit_deadline`                                         | 5 seconds                                                            | 5 seconds, loud                                       | `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`    |
-| `pns home`                                                | a setup line                                                         | a setup line                                          | `home: config error ({detail})`                                                    |
+| the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |
 | `pns doctor`                                              | `no config file, so only the core runs` per skipped plugin           | `the config could not be read, so only the core runs` | as shown                                                                           |
 
 - Thresholds: the CORE is exactly two names, `mobile` and `macos-banner` (`src/registry.rs:CORE`), and

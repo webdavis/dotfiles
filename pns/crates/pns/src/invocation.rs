@@ -130,13 +130,6 @@ pub(crate) fn run() {
     if first == "pulse" {
         std::process::exit(pulse_mode());
     }
-    // The home diagnostic: one reading of the router, said out loud. The
-    // doctor mode (P3) will absorb it; until then this is how the probe is
-    // drilled and how a wrong config is diagnosed.
-    if first == "home" {
-        home_mode();
-        return;
-    }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
     if first == "quiet" {

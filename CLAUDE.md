@@ -561,11 +561,11 @@ dropped in a directory. The HOOKS are the engine too:
 `pns hook prompt|stop|stop-failure|blocked|asked|denied|waiting|resolved|model-switch|quota|config-change`
 reads the harness payload on stdin and runs the one event path, and the bare `pns <harness>-hook`
 (`pns pi-hook`) is the presence-gated pass-through to moshi-hook. The BARE word is the only spelling,
-because it is what moshi's own generated pi and omp extensions are stuck with: their `helperBinary`
-field holds one pathname and has no room for a subcommand. A `pns gate <harness>-hook` spelling existed
+because it is what moshi's own generated pi and omp extensions are stuck with: their `helperBinary` field
+holds one pathname and has no room for a subcommand. A `pns gate <harness>-hook` spelling existed
 alongside it and is gone; a hook-shaped word the gate will not vouch for is refused with exit 2 and a
-sentence, never an exit 0 that forwarded nothing. `hooks/codex/install-hooks.sh` is the last bash left under
-`pns/`, because writing another tool's config file is what it does.
+sentence, never an exit 0 that forwarded nothing. `hooks/codex/install-hooks.sh` is the last bash left
+under `pns/`, because writing another tool's config file is what it does.
 
 **The shipped config template is a GENERATED FILE.** `dot_config/pns/private_config.toml.tmpl` is
 `render`'s own output over the committed `dot_config/pns/config-values.toml`, produced by

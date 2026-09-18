@@ -1,35 +1,33 @@
 use crate::*;
 
-/// The `home` mode: one reading of the home probe, reported in one line, and
-/// the one stale-identifier alert that reading may earn.
+/// The home probe, as the doctor's own rows: one reading of the router, the
+/// evidence behind it, and the one stale-identifier alert that reading may
+/// earn.
 ///
-/// A DIAGNOSTIC FIRST: it always exits 0 and says what it found, including
-/// every way it can be unconfigured, because its job is to answer "why did the
-/// probe not read" as much as "is the device home". The key itself is never
-/// printed, on any path.
+/// A DIAGNOSTIC FIRST: it says what it found, including every way it can be
+/// unconfigured, because its job is to answer "why did the probe not read" as
+/// much as "is the device home". The key itself is never printed, on any path.
+///
+/// NOTHING HERE IS GRADED `Bad`, so the reading cannot move the doctor's exit
+/// code. See `home_report::verdict_mark`.
 ///
 /// AND THE TRIGGER for the stale-identifier alert, on exactly the condition
 /// that prints the warning. This is the only code that reads the sensor and it
 /// already holds the derive/decide/remember trio, so one call site keeps ONE
 /// memory and ONE decision; a second entrypoint would be a second place for
 /// the episode decision to fall out of step. The consequence is deliberate: a
-/// hand-run `pns home` no longer consumes an episode silently, it delivers it.
-pub(crate) fn home_mode() {
-    use crate::{home_report as report, home_setup_report as setup_report};
+/// hand-run report no longer consumes an episode silently, it delivers it.
+pub(crate) fn rows() -> Vec<pns_domain::doctor::Item> {
+    use crate::{home_report as report, home_setup_row as setup_row};
     use pns_adapters::SetupFailure;
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
-        Ok(LoadOutcome::Missing) => {
-            println!("{}", setup_report(&SetupFailure::NoConfigFile));
-            return;
-        }
+        Ok(LoadOutcome::Missing) => return vec![setup_row(&SetupFailure::NoConfigFile)],
         Err(error) => {
-            println!(
-                "{}",
-                setup_report(&SetupFailure::ConfigError(error.detail().to_string()))
-            );
-            return;
+            return vec![setup_row(&SetupFailure::ConfigError(
+                error.detail().to_string(),
+            ))];
         }
     };
     // EVERY CAUSE IS DECIDED IN THE LIBRARY, so each line is pinned by a
@@ -39,15 +37,12 @@ pub(crate) fn home_mode() {
     // sends half of them to the wrong one.
     let router_table = match pns_adapters::enabled_router_table(&config) {
         Ok(table) => table,
-        Err(failure) => {
-            println!("{}", setup_report(&failure));
-            return;
-        }
+        Err(failure) => return vec![setup_row(&failure)],
     };
     // WHERE THE ALERT GOES, settled at the config read rather than at the
     // post. `hermes_target`'s own refusal names `--channel`, a flag nobody
     // typed on this path; this one names the key in the file, and it is said
-    // on every run of the diagnostic instead of only on the run that happens
+    // on every run of the report instead of only on the run that happens
     // to have something to deliver.
     let (alert_route, complaint) = pns_adapters::stale_alert_channel(router_table);
     if let Some(complaint) = complaint {
@@ -55,38 +50,24 @@ pub(crate) fn home_mode() {
     }
     let settings = match pns_adapters::router_settings(router_table) {
         Ok(settings) => settings,
-        Err(failure) => {
-            println!("{}", setup_report(&failure));
-            return;
-        }
+        Err(failure) => return vec![setup_row(&failure)],
     };
     // The key stays its own read, so it never joins the settings in a type
     // that could be dumped whole.
     let Some(key) = pns_adapters::router_api_key(router_table) else {
-        println!("{}", setup_report(&SetupFailure::NoApiKey));
-        return;
+        return vec![setup_row(&SetupFailure::NoApiKey)];
     };
     let router = pns_adapters::UniFiRouter::new(settings.router_url, key);
+    let mut rows = Vec::new();
     pns_application::ReadHomeProbe {
         router: &router,
         memory: &pns_adapters::SqliteStore::for_records(state_dir()),
         notifier: &HomeNotification,
     }
     .run(&settings.device, alert_route, |reading, alert| {
-        let paint = crate::style::Paint::for_stdout();
-        for line in crate::style::header(
-            paint,
-            "pns home",
-            &[crate::style::HeaderLine {
-                label: "Looking for",
-                text: "the client [plugins.router] names, on the home network",
-            }],
-        ) {
-            println!("{line}");
-        }
-        println!();
-        println!("{}", report(paint, reading, alert));
+        rows = report(reading, alert);
     });
+    rows
 }
 
 struct HomeNotification;

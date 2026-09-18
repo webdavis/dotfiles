@@ -28,6 +28,14 @@ pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, CE, I, H, RO> {
     pub tap: T,
     pub focus: F,
     pub daemon: DA,
+    /// What the router says about the operator's own device, and the evidence
+    /// behind it. Deferred for the reason `routes` is: it dials, and the doctor
+    /// pays for that only when it reaches the section.
+    ///
+    /// A FUNCTION POINTER RATHER THAN A THIRTEENTH TYPE PARAMETER. The reading
+    /// captures nothing, so it needs none, and the signature below is already
+    /// at the complexity a reader can hold.
+    pub home: fn() -> Vec<pns_domain::doctor::Item>,
     pub lamps: L,
     /// The bridge's pinned certificate, read AFTER the lamps section has
     /// dialled: the pin state is what that dial found out.
@@ -187,6 +195,15 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         emit(Item::note(pns_domain::doctor::nag_line(
             self.nag_after_secs,
         )));
+        // AND THE HOME PROBE, which is the other reading that decides whether
+        // the operator is there to be reached. It reports and never grades, for
+        // the reason the two lines above do: an unread router costs the away
+        // reading and no notification path, so it must not move the exit code.
+        // It is the LAST row of this section, so the two bounded router calls
+        // it makes cannot delay a line above them.
+        for item in (actions.home)() {
+            emit(item);
+        }
         // AND THE LAMPS BELOW THE GATE, for the same reason: a dark lamp is not a
         // broken notifier, so this section reports and never grades. It is the last
         // thing that touches the network, so a bridge that hangs cannot delay a

@@ -18,7 +18,7 @@ expect and that no evidence supports is written as a `NOT ESTABLISHED:` line.
 Terms used here in the code's own sense: `decision ring` (the `decisions` state file), `journal` (the
 `missed-notifications` state file), `unread` (the lamp the news record arms), `dim window` and
 `quiet window` and `quiet hours` (the lights' own silences), `home probe` and `router` (the presence
-sensor `pns home` reads).
+sensor `pns doctor` reads).
 
 ## Behaviors
 

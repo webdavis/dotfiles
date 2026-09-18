@@ -64,7 +64,6 @@ pns: usage:
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
-  pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
@@ -838,13 +837,12 @@ When it terminates\\
 
 Then the exit code falls into exactly one of four classes.
 
-- Success: 0 on every producer event path, on help, on a declining gate, on `pns home`, and on a
-  successful subcommand.
+- Success: 0 on every producer event path, on help, on a declining gate, and on a successful
+  subcommand.
 - Failure sources and their codes:
   - `0`: every producer event delivery, including a plan that reached no channel; help; a gate that
     declined; a pulse that fired, was disabled, found no config, or found a broken one; `hook <event>`
-    for every event except `blocked`; `pns home` always (`src/main.rs` module doc names `home` as an open
-    gap for that reason).
+    for every event except `blocked`.
   - `1`: `loop begin` when the clock cannot be read or the marker cannot be written, and `loop end` when
     the marker cannot be removed.
   - `2`: a word naming no command; a mistyped flag; the literal empty first word; a pulse tail that
