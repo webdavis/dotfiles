@@ -95,9 +95,12 @@ impl Config {
         self.rows_per_section.unwrap_or(DEFAULT_ROWS_PER_SECTION)
     }
 
-    /// The per-source deadline.
+    /// The per-source deadline. A negative or NaN `timeout_seconds` falls
+    /// back to the default rather than panicking.
     pub fn timeout(&self) -> Duration {
-        Duration::from_secs_f32(self.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS))
+        self.timeout_seconds
+            .and_then(|secs| Duration::try_from_secs_f32(secs).ok())
+            .unwrap_or(Duration::from_secs_f32(DEFAULT_TIMEOUT_SECONDS))
     }
 }
 

@@ -63,6 +63,12 @@ fn the_timeout_is_the_configured_one_and_otherwise_eight_seconds() {
 }
 
 #[test]
+fn a_negative_timeout_falls_back_to_the_default_instead_of_panicking() {
+    let config: Config = toml::from_str("timeout_seconds = -1.0\n").unwrap();
+    assert_eq!(config.timeout(), Duration::from_secs(8));
+}
+
+#[test]
 fn an_absent_config_file_is_a_config_with_no_source_in_it() {
     let absent = Path::new("/nonexistent/morning/config.toml");
     assert_eq!(Config::load(absent).unwrap(), Config::default());
