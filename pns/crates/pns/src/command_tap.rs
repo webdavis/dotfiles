@@ -64,7 +64,12 @@ fn operation(args: &[String]) -> Result<TapOperation, String> {
             "install" if position == 0 => operation = TapOperation::Install,
             "--info" => return Err(retired("--info", "info")),
             "--install" => return Err(retired("--install", "install")),
-            _ => return Err(format!("usage: {}", TAP_USAGE.trim_start_matches("pns: usage: "))),
+            _ => {
+                return Err(format!(
+                    "usage: {}",
+                    TAP_USAGE.trim_start_matches("pns: usage: ")
+                ));
+            }
         }
     }
     Ok(operation)
