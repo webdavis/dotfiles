@@ -48,12 +48,22 @@ fn the_route_flag_names_a_route_and_is_protected_like_every_value_flag() {
 
 #[test]
 fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
-    let parsed = parse_args(["--channel", "priority", "--state", "done"].map(str::to_owned));
-    // Its value goes with it: a lenient skip would read `priority` as a stray
-    // word and post to the default route while looking like it worked.
-    assert!(parsed.warnings.is_empty());
+    // With a value present, it goes with the retired flag rather than
+    // leaking through to any later processing.
+    let with_value = parse_args(["--channel", "priority", "--state", "done"].map(str::to_owned));
+    assert!(with_value.warnings.is_empty());
+    assert_eq!(with_value.event.state, "done");
     assert!(matches!(
-        parsed.into_event(),
+        with_value.into_event(),
+        Err(super::Refusal::Value(message)) if message == "--channel was replaced by --route"
+    ));
+
+    // With no value present, the next real flag is never swallowed as one.
+    let without_value = parse_args(["--channel", "--state", "done"].map(str::to_owned));
+    assert!(without_value.warnings.is_empty());
+    assert_eq!(without_value.event.state, "done");
+    assert!(matches!(
+        without_value.into_event(),
         Err(super::Refusal::Value(message)) if message == "--channel was replaced by --route"
     ));
 }
