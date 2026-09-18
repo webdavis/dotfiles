@@ -116,9 +116,15 @@ impl GatewayHealth for Gateway {
 }
 fn configuration() -> Configuration {
     static NEXT: AtomicU64 = AtomicU64::new(0);
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this dir, and `create_dir` below refuses a
+    // name that is already taken.
     let dir = std::env::temp_dir().join(format!(
-        "posture-watchdog-command-{}-{}",
+        "posture-watchdog-command-{}-{}-{}",
         std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos()),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir(&dir).unwrap();
