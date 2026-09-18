@@ -113,7 +113,7 @@ already owns (nothing under 30 seconds, the presence gate from 30, the lights fr
 `dot_bashrc.tmpl:498-580` (the `__cmd_notify_*` functions) decides those tiers today, keeps the
 interactive-TUI skip list, and writes the lights marker under `~/.local/state/pns/lights-shell/<pid>`
 that `pns lights tick` reads back. Move the marker, the skip list and the tiers into pns behind a
-`pns shell begin` / `pns shell end --exit <code> --elapsed <secs>` pair, leaving the bashrc as two
+`pns shell begin` / `pns shell end --exit-code <code> --elapsed <secs>` pair, leaving the bashrc as two
 calls. `test/unit/pns-shell-lights-marker.bats` (11 tests) pins that bash today and is deleted in the
 same change in favour of Rust unit tests over the moved logic: pns tests should be in Rust now.
 

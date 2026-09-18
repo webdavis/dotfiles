@@ -15,7 +15,7 @@ fn the_marker_is_present_while_a_tracked_command_runs_and_gone_once_it_ends() {
         "end",
         "--command",
         "cargo build --release",
-        "--exit",
+        "--exit-code",
         "0",
         "--elapsed",
         "3",
@@ -32,7 +32,7 @@ fn shell_end_uses_the_existing_event_route_and_only_the_command_name() {
         "end",
         "--command",
         "cargo build --secret invisible",
-        "--exit",
+        "--exit-code",
         "7",
         "--elapsed",
         "300",
@@ -73,7 +73,7 @@ fn a_command_that_failed_still_clears_the_marker() {
             "end",
             "--command",
             "cargo build",
-            "--exit",
+            "--exit-code",
             "1",
             "--elapsed",
             "3"
@@ -92,9 +92,17 @@ fn a_short_command_in_one_pane_leaves_another_panes_marker_alone() {
     assert!(marker.exists());
     f.begin("ls");
     assert!(
-        f.run(&["end", "--command", "ls", "--exit", "0", "--elapsed", "1"])
-            .status
-            .success()
+        f.run(&[
+            "end",
+            "--command",
+            "ls",
+            "--exit-code",
+            "0",
+            "--elapsed",
+            "1"
+        ])
+        .status
+        .success()
     );
     assert!(!f.marker().exists());
     assert!(marker.exists());
@@ -164,7 +172,7 @@ fn invalid_or_unowned_shell_pids_never_touch_state_or_notify() {
             pid,
             "--command",
             "cargo build",
-            "--exit",
+            "--exit-code",
             "0",
             "--elapsed",
             "300",
@@ -183,7 +191,7 @@ fn invalid_or_unowned_shell_pids_never_touch_state_or_notify() {
         &pane.pid.to_string(),
         "--command",
         "cargo build",
-        "--exit",
+        "--exit-code",
         "0",
         "--elapsed",
         "300",
@@ -206,7 +214,7 @@ fn end_clears_before_detached_delivery_and_cannot_erase_the_next_begin() {
             "end",
             "--command",
             "first build",
-            "--exit",
+            "--exit-code",
             "0",
             "--elapsed",
             "30"
@@ -231,7 +239,15 @@ fn every_interactive_tui_is_skipped_by_both_real_commands() {
     ] {
         f.begin(name);
         assert!(!f.marker().exists(), "{name}");
-        let output = f.run(&["end", "--command", name, "--exit", "0", "--elapsed", "300"]);
+        let output = f.run(&[
+            "end",
+            "--command",
+            name,
+            "--exit-code",
+            "0",
+            "--elapsed",
+            "300",
+        ]);
         assert!(output.status.success());
     }
     assert!(!f.root.join("state").exists());
@@ -249,7 +265,7 @@ fn failed_marker_removal_does_not_suppress_the_command_report() {
         "end",
         "--command",
         "cargo build",
-        "--exit",
+        "--exit-code",
         "0",
         "--elapsed",
         "30",
