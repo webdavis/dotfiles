@@ -9,7 +9,7 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // them the other way would put a gradeable line below an ungradeable one.
     let sandbox = Sandbox::new("doctor-pairing-placement");
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
-    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "claude", "--state", "done"]));
     let mut command = doctor_command(&sandbox);
     stub_moshi_hook(
         &sandbox,
@@ -258,7 +258,7 @@ fn the_pairing_check_records_nothing_of_its_own() {
     // be a second writer of a ring with no reader of its own.
     let sandbox = Sandbox::new("doctor-pairing-readonly");
     sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
-    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "claude", "--state", "done"]));
     let listing = |sandbox: &Sandbox| {
         let mut names: Vec<String> = std::fs::read_dir(sandbox.path("state"))
             .expect("the state dir")

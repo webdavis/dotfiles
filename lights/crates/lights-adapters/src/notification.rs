@@ -47,7 +47,7 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> 
             .arg(&self.pns)
             .args([
                 "send",
-                "--agent",
+                "--producer",
                 "lights",
                 "--state",
                 "done",

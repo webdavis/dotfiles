@@ -100,7 +100,7 @@ fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_se
     );
     let output = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
 
     assert!(
@@ -207,7 +207,7 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
 
     let fired = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
     assert!(
         !stderr(&fired).contains("switched off"),

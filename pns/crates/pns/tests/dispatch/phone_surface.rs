@@ -14,7 +14,13 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
         .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args([
-            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
         ]));
     assert!(sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"), "mobile never banners");
@@ -34,7 +40,13 @@ fn desk_input_after_the_tap_cancels_it() {
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(!sandbox.fired("mobile"), "the desk is newer than the tap");
@@ -58,7 +70,13 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("mobile"), "the tap asked for the card");
@@ -75,7 +93,14 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
         .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args(["send", "--local-only"])
-        .args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
+        .args([
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
+        ]));
     assert!(!sandbox.fired("mobile"));
 }
 
@@ -90,7 +115,13 @@ fn skip_phone_still_beats_a_fresh_tap() {
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_SKIP_PHONE", "1")
         .args([
-            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
         ]));
     assert!(!sandbox.fired("mobile"));
 }
@@ -107,7 +138,13 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(!sandbox.fired("mobile"));
@@ -124,7 +161,13 @@ fn a_phone_in_hand_showing_another_tab_still_cards() {
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("mobile"));
@@ -140,7 +183,13 @@ fn an_unreadable_view_delivers_rather_than_suppressing_on_doubt() {
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));
@@ -156,7 +205,13 @@ fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("mobile"));

@@ -30,7 +30,7 @@ pns: usage:
   pns --help, -h                   this text
   pns --version, -V                the package version
 
-producer flags: --agent <name> --state <word> --project <name> --branch <name>
+producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --channel <route> --elapsed <secs>
                 --kind <agent|health> --local-only --remote-only --long-running
                 --require-delivery

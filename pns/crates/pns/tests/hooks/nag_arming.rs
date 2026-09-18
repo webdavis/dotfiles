@@ -139,7 +139,7 @@ fn nothing_is_armed_when_nothing_should_be() {
         sandbox.write_config(&config);
         let mut command = sandbox.pns_stateful();
         sandbox.stub_moshi(&mut command, 0);
-        command.env("PNS_AGENT", agent);
+        command.env("PNS_PRODUCER", agent);
 
         hook_with(
             command,

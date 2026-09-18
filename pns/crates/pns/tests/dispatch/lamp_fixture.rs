@@ -285,11 +285,27 @@ pub(super) enum Mute {
 
 /// A long-running `done`: the event that has earned a pulse since the bash.
 pub(super) const LONG_DONE: [&str; 9] = [
-    "send", "--agent", "claude", "--state", "done", "--detail", "x", "--pane", "t1:p2",
+    "send",
+    "--producer",
+    "claude",
+    "--state",
+    "done",
+    "--detail",
+    "x",
+    "--pane",
+    "t1:p2",
 ];
 
 /// A `blocked` turn: an agent waiting on the operator, which earns no pulse on
 /// main at any length.
 pub(super) const BLOCKED: [&str; 9] = [
-    "send", "--agent", "claude", "--state", "blocked", "--detail", "x", "--pane", "t1:p2",
+    "send",
+    "--producer",
+    "claude",
+    "--state",
+    "blocked",
+    "--detail",
+    "x",
+    "--pane",
+    "t1:p2",
 ];

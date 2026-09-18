@@ -1009,7 +1009,7 @@ run_smoke_checks() {
   local now canary age max_age
 
   [[ -x $relay ]] || die "$relay is missing; notifications cannot be proven to work"
-  "$relay" send --agent cutover-gate --state 'done' --project cutover --detail "$note" ||
+  "$relay" send --producer cutover-gate --state 'done' --project cutover --detail "$note" ||
     die "relay could not fire a test notification"
   ok "relay fired a test notification"
 

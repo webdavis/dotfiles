@@ -149,7 +149,7 @@ already is the question.
 
 ### 4. Only a harness pns registered itself for is handed to moshi, on the hook path
 
-Given the hook path learns which harness it is serving from `PNS_AGENT`, which arrives from a
+Given the hook path learns which harness it is serving from `PNS_PRODUCER`, which arrives from a
 configuration file
 
 When `src/main.rs:blocking_event` decides whether to forward
@@ -158,9 +158,9 @@ Then only `claude` and `codex` map to a subcommand, and anything else forwards n
 
 - Success: the default agent is `claude`, submitted as `claude-hook` (`src/main.rs:hook_mode`,
   `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`).
-  `PNS_AGENT=codex` is submitted as `codex-hook`, pinned by
+  `PNS_PRODUCER=codex` is submitted as `codex-hook`, pinned by
   `tests/hooks.rs:a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run`.
-- Failure sources: any other agent word. `PNS_AGENT=pi` on the hook path forwards nothing and exits 0,
+- Failure sources: any other agent word. `PNS_PRODUCER=pi` on the hook path forwards nothing and exits 0,
   pinned by `tests/hooks.rs:a_harness_pns_does_not_register_for_is_never_handed_to_moshi`.
 - Fail direction: fail-open toward the harness (exit 0, prompt as usual) and fail-closed toward moshi.
   The operator still hears about the block through pns's own notification.
@@ -349,7 +349,7 @@ killing and reaping the child on expiry.
 | 2, from moshi                                        | moshi answered 2                                                                                                        | passed through unnormalized, even though 2 is the code that means "block" across the hook family                                                                                                 | `tests/hooks.rs:a_two_from_moshi_comes_back_as_two_and_is_never_normalized`                                                                                                                                                  |
 | 0, no opinion: at the desk                           | the presence gate declined                                                                                              | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual`, `tests/hooks.rs:at_the_desk_the_gate_submits_nothing_and_exits_zero`                                                          |
 | 0, no opinion: moshi not installed                   | the spawn failed                                                                                                        | the harness prompts as usual, and pns's phone card is NOT suppressed                                                                                                                             | `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero`                                                                                                                                                |
-| 0, no opinion: unregistered harness                  | `PNS_AGENT` is neither `claude` nor `codex`, on the hook path                                                           | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_harness_pns_does_not_register_for_is_never_handed_to_moshi`                                                                                                                                                |
+| 0, no opinion: unregistered harness                  | `PNS_PRODUCER` is neither `claude` nor `codex`, on the hook path                                                           | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_harness_pns_does_not_register_for_is_never_handed_to_moshi`                                                                                                                                                |
 | 0, no opinion: over-cap payload                      | the payload was cut mid-object at 1,000,000 bytes                                                                       | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were`, `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`                                                      |
 | 0, no opinion: payload never arrived                 | the stdin read deadline expired                                                                                         | the harness prompts as usual, and NOTHING is notified                                                                                                                                            | `tests/hooks.rs:a_blocked_payload_nobody_finishes_writing_forwards_nothing_and_exits_zero`                                                                                                                                   |
 | 0, no opinion: payload was not UTF-8                 | the string read failed before any arm ran                                                                               | the harness prompts as usual, total silence                                                                                                                                                      | `tests/hooks.rs:a_payload_that_is_not_utf8_drops_the_approval_and_tells_the_operator_nothing`                                                                                                                                |
@@ -534,7 +534,7 @@ answered marker first.
   would make the new job drop silently; and published first, the new record could be claimed by a
   concurrent fire that then finds the previous approval's marker and drops it as answered.
 - Forbidden side effects: NO NAG ON CODEX, and the gate is positive (an agent that is not
-  `src/main.rs:CLAUDE_AGENT` returns immediately) so an empty or unknown `PNS_AGENT` arms nothing either.
+  `src/main.rs:CLAUDE_AGENT` returns immediately) so an empty or unknown `PNS_PRODUCER` arms nothing either.
   Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no batch-level one, and
   agent turns routinely run tens of minutes: a Codex nag would be wrong in the common case rather than at
   an edge (`src/main.rs:arm_nag`).

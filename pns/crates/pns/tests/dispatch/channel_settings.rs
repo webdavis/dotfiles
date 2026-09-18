@@ -18,7 +18,13 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     sandbox.stub_herdr(&mut command, true);
     let output = run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
@@ -47,7 +53,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     );
     let output = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
 
     assert!(sandbox.fired("mobile"), "stderr: {}", stderr(&output));

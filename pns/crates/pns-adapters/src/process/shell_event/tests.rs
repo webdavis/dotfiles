@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 
 /// Exactly what the producer must be handed.
-const EXPECTED_ARGV: &str = "send\n--agent\nshell\n--state\ndone\n--project\nproject\n--detail\ncargo (300s)\n--pane\nt1:p2\n--long-running\n";
+const EXPECTED_ARGV: &str = "send\n--producer\nshell\n--state\ndone\n--project\nproject\n--detail\ncargo (300s)\n--pane\nt1:p2\n--long-running\n";
 
 /// How long the fixture waits for anything.
 ///

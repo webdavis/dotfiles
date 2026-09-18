@@ -44,7 +44,7 @@ impl<R: NagRecords, J: JobSpool> ArmNag<'_, R, J> {
         mut warn: impl FnMut(&str),
     ) {
         // NO NAG ON CODEX, and the gate is POSITIVE rather than a `!= "codex"`, so
-        // an empty or unknown `PNS_AGENT` arms nothing either (bug class 16:
+        // an empty or unknown `PNS_PRODUCER` arms nothing either (bug class 16:
         // set-but-empty is not unset). Codex wires exactly Stop and
         // PermissionRequest, so it has a turn-end clear and no batch-level one, and
         // agent turns in this repo routinely run tens of minutes: a Codex nag would

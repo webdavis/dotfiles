@@ -11,7 +11,7 @@ fn full() -> Job {
         every: Some(30),
         unless_marker: Some("answered-sess-123".to_string()),
         args: vec![
-            "--agent".to_string(),
+            "--producer".to_string(),
             "pns".to_string(),
             "--detail".to_string(),
             "a nudge with spaces".to_string(),
