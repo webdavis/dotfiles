@@ -1,4 +1,4 @@
-# 0008: `pns <harness>-hook` is a compatibility spelling, because a third-party field holds one pathname
+# 0008: `pns <harness>-hook` is the only gate spelling, because a third-party field holds one pathname
 
 Status: accepted, and not ours to change.
 
@@ -10,24 +10,25 @@ holds ONE pathname. It has no room for a subcommand, so those extensions invoke 
 
 ## The rule
 
-The binary answers both spellings, and both end in the same place:
+The binary answers the bare spelling and nothing else. `crates/pns/src/invocation.rs` hands every
+hook-shaped word (anything ending `-hook`) to `gate_mode`, above the typo refusal, and `gate_mode` is
+the ONE place that judges whether the word is one it will vouch for.
 
-- `pns gate <harness>-hook` is the documented spelling, the one an operator reads.
-- `pns <harness>-hook` is the bare spelling moshi is stuck with. `src/hooks.rs:is_harness_subcommand`
-  recognises it in `src/main.rs:main`, above the typo refusal.
-
-Both reach `gate_mode`, which REFUSES a word it will not vouch for. That refusal matters: falling through
-to the event path instead is how the documented spelling used to fire a notification about an empty
-event.
-
-The two spellings differ on one point, and the difference is deliberate. `pns gate <unknown word>` exits
-0, because a gate that declines is telling the harness it has no opinion. A bare `pns <unknown word>` is
-indistinguishable from a typo at that position, so it takes the typo refusal and exits 2 (see
+`pns gate <harness>-hook` was a second spelling of the same gate, for an operator to read. It is gone:
+two spellings of one gate is one too many, and `gate` now names no subcommand, so it takes the typo
+refusal and exits 2 like any other unknown word (see
 `docs/decisions/0006-a-word-that-names-no-command-is-a-typo.md`).
+
+A hook-shaped word `gate_mode` will not vouch for is REFUSED: exit 2 and a sentence on stderr naming the
+word. The retired spelling used to exit 0 for such a word, on the reasoning that a gate which declines is
+telling the harness it has no opinion. That was the worst answer available. A hook that exits 0 having
+forwarded nothing looks wired for the life of the install, so a word the gate cannot use has to say so.
+Exit 0 is kept for the paths that genuinely DECLINE: no moshi, the operator at the desk, a payload that
+did not arrive whole.
 
 ## Consequence for the refactor
 
 The bare spelling is a frozen part of the command-line surface. It cannot be deprecated, renamed, or
 moved behind a subcommand while moshi generates those extensions, because the caller is not ours to
-update. Command decoding in the command-line crate keeps both entry points, and both resolve to one gate
-use case.
+update. Command decoding in the command-line crate keeps that one entry point, resolving to one gate use
+case.

@@ -75,7 +75,7 @@ pub fn is_new_staleness(remembered: Option<&str>, current: Option<&str>) -> bool
 /// disagree, and with which one.
 ///
 /// A FUNCTION OF ITS OWN because it has TWO readers, the terminal line
-/// `report` prints and the detail of the alert `pns home` delivers, and a
+/// `rows` prints and the detail of the alert `pns doctor` delivers, and a
 /// sentence written out twice is a sentence that drifts. Byte-identical in
 /// both, deliberately: the operator reading the notification and the operator
 /// reading the diagnostic are told the same thing in the same words.

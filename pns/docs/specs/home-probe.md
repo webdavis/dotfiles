@@ -2,8 +2,8 @@
 
 ## Scope
 
-The home probe asks the router whether the operator's own device is on the home wifi, and `pns home` is
-the one mode that reads it and says the answer out loud. This document covers the probe end to end: the
+The home probe asks the router whether the operator's own device is on the home wifi, and `pns doctor`
+is the one mode that reads it and says the answer out loud. This document covers the probe end to end: the
 transport and its authentication (two GET calls to the UniFi integration API over a verification-disabled
 TLS connection, the key in an `X-API-KEY` header), the identity model (three configured keys, at least
 one required, strongest naming the match), the staleness policy (a Home verdict with a configured key
@@ -60,7 +60,7 @@ media access control address, no `name`) is a client that matches nothing, never
 | One listed client is unreadable                                                                 | Nothing. That client matches nothing and the listing still answers | Whatever the reading was                                                                                                                                                                           | The listing is judged whole; a bad entry is not a bad listing                                                                                                                                 |
 | `stale_alert_channel` is not a usable route name                                                | The reading is untouched                                           | `pns: config error (stale_alert_channel = "../alert" in [plugins.router] is not a usable route name); the stale alert posts to the default route` on stderr, and the alert still goes out          | LOUD-WARD. A config typo must not silence the very warning it is configuring (`src/home.rs:stale_alert_channel`)                                                                              |
 | The state directory cannot be read or written                                                   | The reading is untouched                                           | The verdict, the evidence and the warning, unchanged, exit 0. The cost is that the same state is news again on every run                                                                           | FAIL-QUIET, and pinned as a cost rather than a crash (`tests/dispatch.rs:a_state_directory_that_cannot_be_used_leaves_the_whole_diagnostic_standing`)                                         |
-| The stale alert's delivery is refused by the gateway                                            | The reading is untouched                                           | Nothing extra on the probe's own surface                                                                                                                                                           | The episode is consumed anyway. Fire and forget is this engine's contract for every producer, and the printed line has already told the human who typed the command (`src/main.rs:home_mode`) |
+| The stale alert's delivery is refused by the gateway                                            | The reading is untouched                                           | Nothing extra on the probe's own surface                                                                                                                                                           | The episode is consumed anyway. Fire and forget is this engine's contract for every producer, and the printed row has already told the human who typed the command (`src/doctor_home.rs:rows`) |
 
 THE FAIL DIRECTION IN ONE SENTENCE, stated in the module comment: "every failure to read is `Unknown`,
 never `NotHome`", because the future consumers suppress or replay on TRANSITIONS, and inventing "the
@@ -125,7 +125,7 @@ Then the reading changes nothing about where that event lands
   catch-up-on-return and the quiet window (part 2's B and C) arrive to spend it. Building the integration
   ahead of the consumer was considered and declined on 2026-08-25." A search of the crate finds `home::`
   referenced outside `src/home.rs` in exactly these places, none of them a delivery decision:
-  `src/main.rs:home_mode` (the diagnostic), `src/main.rs:disabled_backend_warnings` (a doctor warning),
+  `src/doctor_home.rs:rows` (the reading), `src/main.rs:disabled_backend_warnings` (a doctor warning),
   `src/setup.rs:router_is_armed` and `src/setup.rs`'s own test (the wizard), and `src/config.rs` plus
   `src/channels/moshi.rs` in comments only. The presence gate that DOES suppress a leg reads the idle
   counter, the phone marker, the phone's pty access time, the console lock and the multiplexer view
@@ -149,7 +149,7 @@ Then the reading changes nothing about where that event lands
 
 Given a configured device identity and a router
 
-When `pns home` takes one reading
+When `pns doctor` takes one reading
 
 Then the clients listing is fetched through the `Router` seam, parsed, and judged, in that order
 
@@ -217,7 +217,7 @@ Then `/proxy/network/integration/v1/sites` is requested first, its first site id
 - Privacy: the API key travels from the config into the request HEADER and nowhere else: never argv,
   never a child's environment, never an error string (`src/home.rs:UniFiRouter`). It is read by its own
   function so it never joins `RouterSettings` in a type that could be dumped whole
-  (`src/home.rs:router_api_key`, `src/main.rs:home_mode`), and `UniFiRouter` derives no `Debug`. Pinned
+  (`src/home.rs:router_api_key`, `src/doctor_home.rs:rows`), and `UniFiRouter` derives no `Debug`. Pinned
   end to end by `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text`, which asserts the
   router key `k-123` and the hermes signing key appear in neither the delivered event, nor stdout, nor
   stderr.
@@ -251,7 +251,7 @@ Then it is accepted only when it is non-empty and made entirely of hexadecimal d
 - Timeout and cancellation: Not applicable. This is a pure function over the fetched text.
 - Idempotency and duplicates: pure.
 - Privacy: the site id is an install-local identifier. It reaches the request URL and nothing else: it is
-  never printed by `pns home` and never carried in an alert.
+  never printed by `pns doctor` and never carried in an alert.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: this is the trust boundary the comment names: "this is the one place a router
   answer becomes part of a URL".
@@ -478,11 +478,11 @@ Then the identity is the winner's key name followed by each disagreeing key name
 
 Given a Home reading with a disagreement
 
-When `pns home` runs
+When `pns doctor` runs
 
 Then the verdict and the full evidence print every time, and the one warning sentence prints and is delivered only when its episode differs from the remembered one
 
-- Success: `src/main.rs:home_mode` derives the staleness once, spells the episode once, decides news once
+- Success: `src/doctor_home.rs:rows` derives the staleness once, spells the episode once, decides news once
   (`src/home.rs:is_new_staleness`), and feeds ONE `Option` to both the printed report and the alert, so
   "there is no second condition that could deliver what was not printed, or print what was not
   delivered". The sentence itself is one function with two readers, `src/home.rs:stale_warning`,
@@ -501,7 +501,7 @@ Then the verdict and the full evidence print every time, and the one warning sen
 - Fail direction: TOWARD DUPLICATES, chosen and stated. The dispatch happens BEFORE the remember, so a
   crash, a wedged channel or a kill between the two re-alerts on the next run instead of losing the
   alert, and two overlapping hand runs that both read the memory before either writes both alert:
-  "Duplicates are the direction to fail in" (`src/main.rs:home_mode`).
+  "Duplicates are the direction to fail in" (`src/doctor_home.rs:rows`).
 - Thresholds: no time threshold anywhere. The dedupe is over the episode VALUE, not over a window or a
   count. Zero disagreeing keys is no staleness; one is a staleness with the singular verb.
 - Required side effects: on news, exactly one event through `src/main.rs:run_event` with
@@ -509,7 +509,7 @@ Then the verdict and the full evidence print every time, and the one warning sen
   plus whatever that shared event path records for any event. On a Home reading, the memory write of
   behavior 13.
 - Forbidden side effects: the alert must not narrow itself and must not raise a pulse: "Nothing narrows
-  it and it is not long-running, so it raises no pulse" (`src/main.rs:home_mode`). A RESOLVED staleness
+  it and it is not long-running, so it raises no pulse" (`src/doctor_home.rs:rows`). A RESOLVED staleness
   must not be announced: an all-clear for a warning the operator may never have read is one more thing to
   read (`src/home.rs:is_new_staleness`). The alert can never be delivered to the router itself (behavior
   1).
@@ -525,7 +525,7 @@ Then the verdict and the full evidence print every time, and the one warning sen
   (`matched a different client "mo\"use\u{1b}[2J"`) while the delivered `detail` is the key-names-only
   sentence, and that neither the router key nor the hermes signing key appears on stdout, on stderr, or
   in the delivered event.
-- Process ownership and cleanup: `src/main.rs:home_mode` builds `system_probes()` and hands it to
+- Process ownership and cleanup: `src/doctor_home.rs:rows` builds `system_probes()` and hands it to
   `run_event`; whatever children that path starts are its own contract, not the probe's.
 - Compatibility contract: the alert goes to a hermes ROUTE, never a URL. `stale_alert_channel` names the
   route; unset means the default route (`/webhooks/pns-events`), the same spelling `--channel` and
@@ -549,7 +549,7 @@ When a reading comes back NotHome or Unknown
 
 Then the memory is left exactly as it was, and only a Home reading writes or clears it
 
-- Success: `src/main.rs:home_mode` guards the write with
+- Success: `src/doctor_home.rs:rows` guards the write with
   `if matches!(reading.presence, HomePresence::Home { .. })`. `src/main.rs:remember_staleness` writes the
   episode line when there is one and unlinks the file when there is not.
   `src/main.rs:remembered_staleness` reads the file, trims it, and treats an empty file as no memory. The
@@ -574,7 +574,7 @@ Then the memory is left exactly as it was, and only a Home reading writes or cle
   directory carrying this process's id.
 - Forbidden side effects: a NotHome or Unknown reading must not write and must not unlink. "Away and
   unreadable leave the memory untouched, so the warning stays once per STATE rather than once per
-  homecoming" (`src/main.rs:home_mode`). Without that guard the warning would fire once per homecoming,
+  homecoming" (`src/doctor_home.rs:rows`). Without that guard the warning would fire once per homecoming,
   which for a phone is once a day.
 - Timeout and cancellation: Not applicable. Local file operations only.
 - Idempotency and duplicates: writing the same episode twice is the same file. A rename that fails
@@ -616,7 +616,7 @@ Then `type` is settled first, then `router_url`, then the device keys, and every
   and is the case that can never be stale (behavior 10).
 - Required side effects: none. Every function here is value in, value out.
 - Forbidden side effects: the API key must not join `RouterSettings`. It stays its own read "so it never
-  joins the settings in a type that could be dumped whole" (`src/main.rs:home_mode`,
+  joins the settings in a type that could be dumped whole" (`src/doctor_home.rs:rows`,
   `src/home.rs:router_api_key`).
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: pure over the table.
@@ -636,46 +636,54 @@ Then `type` is settled first, then `router_url`, then the device keys, and every
   answers (`src/setup.rs:router_is_armed`,
   `src/setup.rs:a_backend_the_home_probe_cannot_answer_declines_the_probe_rather_than_arming_it`).
 
-### 15. `pns home` is a diagnostic: it always exits 0 and always says which state it is in
+### 15. The home probe is one section of `pns doctor`, and it grades nothing
 
 Given any machine, configured or not
 
-When the operator types `pns home`
+When the operator types `pns doctor`
 
-Then exactly one report is printed on stdout, the exit code is 0, and the api_key never appears
+Then the report carries exactly one verdict row for the probe, with its evidence under it, and the
+api_key never appears
 
-- Success: `src/main.rs:main` dispatches the first argv token `home` to `src/main.rs:home_mode`, which
-  returns rather than exiting with a code, so the process exits 0 on every path. Every cause is decided
-  in the library so each line is pinned by a value-in, value-out test, and the wiring only chooses which
-  one to print (`src/main.rs:home_mode`). Its own doc comment states the contract: "A DIAGNOSTIC FIRST:
-  it always exits 0 and says what it found, including every way it can be unconfigured, because its job
-  is to answer 'why did the probe not read' as much as 'is the device home'. The key itself is never
-  printed, on any path." Pinned by
-  `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`, which asserts eleven
-  exact lines through the real binary, and by
-  `src/home.rs:every_setup_failure_line_names_what_to_look_at`, which asserts every line starts with
-  `home: ` and names the thing to look at.
+- Success: `src/doctor_home.rs:rows` is the doctor's `home` action, and it returns ROWS rather than
+  printing or exiting, so it cannot move the report's exit code and cannot end the run. Every cause is
+  decided in the library so each line is pinned by a value-in, value-out test, and the wiring only
+  chooses which one to return. Its own doc comment states the contract: "A DIAGNOSTIC FIRST: it says
+  what it found, including every way it can be unconfigured, because its job is to answer 'why did the
+  probe not read' as much as 'is the device home'. The key itself is never printed, on any path."
+  Pinned by `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`, which
+  asserts eleven exact rows through the real binary, and by
+  `src/home_report.rs:every_setup_failure_line_names_what_to_look_at`, which asserts every line starts
+  with `home: ` and names the thing to look at.
+- Success: no row is `Bad`. A Home verdict is `Good`, a NotHome verdict is a `Note` because being out of
+  the house is the ordinary reading and not a fault, and an Unknown verdict is a `Warn`. A probe nobody
+  set up is a `Note` and one set up WRONG is a `Warn`: grading a choice as a fault is how a reader learns
+  to skim the marks. Pinned by `src/home_report.rs:a_verdict_carries_a_mark_that_says_which_of_the_three_it_is`
+  and `src/home_report.rs:a_probe_nobody_set_up_is_a_note_and_one_set_up_wrong_is_a_warning`.
+- Success: the Unknown sentence NAMES the two settings to check, because `clients()` answers one `None`
+  for a rejected key, a timeout and an unparseable body alike, so "unknown" on its own leaves the
+  operator nowhere to go. A `Warn` also withholds the report's closing all-clear, which is what makes an
+  unread router visible on a run that is otherwise green.
 - Failure sources: everything in the failure table. None of them changes the exit code.
-- Fail direction: always exit 0, always print a line. A diagnostic that failed silently would be the
-  defect it exists to find.
+- Fail direction: always a row, never a silence. A probe that failed quietly would be the defect it
+  exists to find.
 - Thresholds: Not applicable at this layer.
-- Required side effects: exactly one `println!` of the report (the verdict, then one evidence line per
-  configured key, then the warning when it is news). On an unusable route, one complaint on STDERR before
-  the report, said on every run rather than only on a run that has something to deliver
-  (`src/main.rs:home_mode`).
+- Required side effects: the verdict row, one `Detail` evidence row per configured key, and the warning
+  row when it is news. On an unusable route, one complaint on STDERR, said on every run rather than only
+  on a run that has something to deliver (`src/doctor_home.rs:rows`).
 - Forbidden side effects: the api_key must never be printed, on any path. A stale alert is the only
-  delivery this mode can make, and only from a Home reading that is news.
+  delivery this reading can make, and only from a Home reading that is news.
 - Timeout and cancellation: bounded by the transport's deadlines (behavior 4) plus whatever the event
-  path spends when an alert is raised.
+  path spends when an alert is raised. The rows are the LAST of the `Daemon and gates` section, so those
+  bounded calls cannot delay a line above them.
 - Idempotency and duplicates: re-running is safe and is the normal way to use it. The only run-to-run
   state is the staleness memory.
-- Privacy: stdout carries the operator's OWN configured identifiers (debug-quoted) on every evidence
-  line, and, when a key disagrees, one other client's label out of the router, escaped. Stdout carries no
+- Privacy: the report carries the operator's OWN configured identifiers (debug-quoted) on every evidence
+  row, and, when a key disagrees, one other client's label out of the router, escaped. It carries no
   api_key, no site id, no full listing, and no other client's fields beyond that one label.
-- Process ownership and cleanup: no long-lived child. The mode returns after at most one event dispatch.
-- Compatibility contract: the usage text names it as
-  `pns home                         one reading of the router, said out loud` (`src/main.rs:USAGE`). The
-  word `home` is matched as argv's FIRST token and the rest of argv is ignored, so `pns home --help`
-  takes a reading rather than printing the usage: the help arm lives in the producer parser, which this
-  mode never reaches (`src/main.rs:main`, `src/main.rs:is_producer_argv`). NOT ESTABLISHED: no test pins
-  the behavior of `pns home` with extra arguments.
+- Process ownership and cleanup: no long-lived child. The action returns after at most one event
+  dispatch.
+- Compatibility contract: `pns home` was the mode that read this probe and said the answer out loud. It
+  is gone, and `home` now names no subcommand, so it takes the usage refusal and exits 2. The reading
+  moved into the doctor's report unchanged, which is where the code always said it was going.
+

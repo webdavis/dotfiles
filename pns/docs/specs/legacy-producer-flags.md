@@ -11,7 +11,7 @@ This file specifies the frozen compatibility contract of `pns`'s producer invoca
 lenient argv parser in `src/args.rs`, the ten producer flags it recognizes, the two help spellings, the
 top-level dispatch in `src/main.rs:main` that decides whether an argv is a producer invocation or a
 mistyped subcommand, the subcommand table printed by `const USAGE`, and the four hand-typed verbs whose
-argv shapes callers outside this crate depend on (`pns <harness>-hook`, `pns gate <harness>-hook`,
+argv shapes callers outside this crate depend on (`pns <harness>-hook`,
 `pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
 which channels exist, how the decision ring or the journal are written, or any behavior of the daemon,
 the lamps, the home probe or the router beyond the argv that reaches them. Everything asserted here is
@@ -58,8 +58,8 @@ pns: usage:
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, plan-ready, denied, resolved,
                                    model-switch, quota, config-change
-  pns gate <harness>-hook          presence-gated pass-through to moshi-hook
-  pns <harness>-hook               the same gate, spelled the way moshi calls it
+  pns <harness>-hook               presence-gated pass-through to moshi-hook,
+                                   spelled the way moshi's extension calls it
   pns pulse <exit-code>            signal the lamps by hand
   pns quiet [<duration>|off]       the operator's mute
   pns daemon run|schedule|cancel   the clock
@@ -69,7 +69,6 @@ pns: usage:
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
-  pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
 
 producer flags: --agent <name> --state <word> --project <name> --branch <name>
@@ -183,15 +182,14 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 
 ### 2. A subcommand word is dispatched before the producer check
 
-Given argv whose first token is one of `pulse`, `home`, `quiet`, `doctor`, `recap`, `daemon`, `lights`,
-`loop`, `nag`, `setup`, `gate`, `hook`, or a word `hooks::is_harness_subcommand` accepts\\
+Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
+`nag`, `setup`, `hook`, or a word ending in `-hook`\\
 
 When `main` runs its dispatch chain\\
 
 Then that subcommand's mode runs and the producer parser is never reached, whatever else argv carries.
 
-- Success: the mode's own exit code is returned via `std::process::exit`, except `home`, which returns
-  and therefore exits 0 (`src/main.rs:main`).
+- Success: the mode's own exit code is returned via `std::process::exit`.
 - Failure sources: a first token that is a subcommand word plus producer flags after it. The subcommand
   wins; the flags are then judged by that subcommand's own argument reader, not by `parse_args`.
 - Fail direction: toward the subcommand. `pns pulse --agent x` is a pulse invocation with a two-token
@@ -716,33 +714,24 @@ the payload from stdin and passes it through to `moshi-hook <name>-hook`.
   `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`,
   `tests/hooks.rs:a_zero_decision_passes_through_as_zero_and_is_not_a_default`.
 
-### 20. The documented gate spelling `pns gate <harness>-hook`
+### 20. The retired gate spelling `pns gate <harness>-hook`
 
 Given argv `gate pi-hook`\\
 
-When `main` matches `first == "gate"` and calls `gate_mode(&second_argument())`\\
+When `main` finds no subcommand named `gate`\\
 
-Then the same gate runs and returns the same decision.
+Then the usage text is printed to stderr and the process exits 2, with nothing handed to moshi.
 
-- Success: moshi's exit code (7 in the test), moshi's argv exactly `pi-hook`, and no event raised.
-- Failure sources: a second word the gate will not vouch for.
-- Fail direction: exit 0, silently, with nothing handed to moshi and no notification. This is the one
-  place the two spellings DIFFER: `gate <bad word>` exits 0, while a bare `<bad word>` exits 2 through
-  behavior 3.
-- Thresholds: the same `is_harness_subcommand` shape test. One step either side: `gate pi-hook` forwards;
-  `gate ""`, `gate nonsense`, `gate ../../etc/passwd` and `gate "pi-hook; rm -rf /"` all exit 0 without
-  reaching moshi.
-- Required side effects: none on the declining path.
-- Forbidden side effects: no event of its own. Falling through to event mode here is how a bogus
-  notification about an empty event once got out (`tests/dispatch.rs` companion comment and
-  `tests/hooks.rs:the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word`).
-- Timeout and cancellation: as behavior 19.
-- Idempotency and duplicates: as behavior 19.
-- Privacy: as behavior 19.
-- Process ownership and cleanup: as behavior 19.
-- Compatibility contract: both spellings end in `gate_mode`. Naming tests:
-  `tests/hooks.rs:the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word`,
-  `tests/hooks.rs:the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying`.
+- Success: exit 2, `pns: usage:` on stderr, no child spawned and no event raised. Pinned by
+  `tests/hooks.rs:the_retired_gate_subcommand_is_refused_rather_than_forwarded`.
+- Failure sources: none; `gate` names no command in any argv position.
+- Fail direction: the typo refusal, which is behavior 3. Two spellings of one gate was one too many, and
+  the retired one exited 0 for a word it would not vouch for, so a mistyped harness word looked wired
+  while it forwarded nothing.
+- Thresholds: Not applicable. A hook-shaped word reaches `gate_mode`, which refuses what it will not
+  vouch for with exit 2 and a sentence naming the word; every other word takes the usage refusal.
+- Required side effects: none.
+- Forbidden side effects: no event of its own, and no forward.
 
 ### 21. `pns loop begin|end`
 
@@ -852,13 +841,12 @@ When it terminates\\
 
 Then the exit code falls into exactly one of four classes.
 
-- Success: 0 on every producer event path, on help, on a declining gate, on `pns home`, and on a
-  successful subcommand.
+- Success: 0 on every producer event path, on help, on a declining gate, and on a successful
+  subcommand.
 - Failure sources and their codes:
   - `0`: every producer event delivery, including a plan that reached no channel; help; a gate that
     declined; a pulse that fired, was disabled, found no config, or found a broken one; `hook <event>`
-    for every event except `blocked`; `pns home` always (`src/main.rs` module doc names `home` as an open
-    gap for that reason).
+    for every event except `blocked`.
   - `1`: `loop begin` when the clock cannot be read or the marker cannot be written, and `loop end` when
     the marker cannot be removed.
   - `2`: a word naming no command; a mistyped flag; the literal empty first word; a pulse tail that
@@ -878,9 +866,9 @@ Then the exit code falls into exactly one of four classes.
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the two known gaps are recorded in the `src/main.rs` module documentation:
-  `home` is a diagnostic that always exits 0, and a word trailing `lights tick` is dropped rather than
-  refused. Naming tests: `tests/support/mod.rs:run` (the exit-0 assertion every dispatch test inherits),
+- Compatibility contract: the one known gap is recorded in the `src/main.rs` module documentation: a word
+  trailing `lights tick` is dropped rather than refused. Naming tests: `tests/support/mod.rs:run` (the
+  exit-0 assertion every dispatch test inherits),
   `tests/dispatch.rs:a_word_that_names_no_command_is_refused_and_delivers_nothing`,
   `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`.
 

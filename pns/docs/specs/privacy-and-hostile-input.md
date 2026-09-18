@@ -415,7 +415,7 @@ answers false for the oversized case, and nothing is submitted to moshi
   `recv_timeout(payload_deadline())`. `payload_is_whole` compares against `MAX_PAYLOAD_BYTES` exactly.
   Pinned at BOTH entry points:
   `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does` (the
-  `pns gate pi-hook` path exits 0 and submits nothing) and, for the other edge,
+  `pns pi-hook` path exits 0 and submits nothing) and, for the other edge,
   `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which builds a payload of
   exactly 1,000,000 bytes and asserts the submission happens.
 - Failure sources: a pipe nobody closes; a payload larger than memory.

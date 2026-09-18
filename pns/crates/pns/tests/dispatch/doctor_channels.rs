@@ -71,6 +71,9 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
+            // This fixture WROTE a `[plugins.router]` table, so the probe is set
+            // up wrong rather than absent, and the row says which edit.
+            "home: no type in [plugins.router] (the only type is \"unifi\")",
             LIGHTS_OFF_LINE,
             NO_CERTIFICATE_LINE,
             "the delivery record could not be read, so nothing here is known",

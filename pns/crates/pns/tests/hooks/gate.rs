@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn a_forwarded_gate_leaves_the_state_markers_untouched() {
-    for (name, argv) in [
-        ("gate-markers-bare", vec!["pi-hook"]),
-        ("gate-markers-explicit", vec!["gate", "pi-hook"]),
-    ] {
+    for (name, argv) in [("gate-markers-bare", vec!["pi-hook"])] {
         let sandbox = Sandbox::new(name);
         std::fs::create_dir_all(sandbox.state()).expect("private state");
         let existing = marker(&sandbox, "existing");
@@ -111,38 +108,46 @@ fn a_zero_decision_passes_through_as_zero_and_is_not_a_default() {
 }
 
 #[test]
-fn the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word() {
-    // CLAUDE.md gives `pns gate <harness>-hook` as the operator-facing form,
-    // and only the bare word was ever implemented: the documented one fell
-    // through to EVENT mode, which forwarded nothing and fired a notification
-    // about an empty event nobody asked for.
-    let sandbox = Sandbox::new("gate-subcommand");
-    let output = gate_argv(&sandbox, &["gate", "pi-hook"], "{\"ask\":1}\n");
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "the decision is still the exit code"
-    );
-    assert_eq!(
-        std::fs::read_to_string(sandbox.path("moshi.argv"))
-            .expect("argv")
-            .trim(),
-        "pi-hook"
-    );
-    assert!(
-        !sandbox.fired("hermes"),
-        "a gate forwards; it never raises an event of its own"
-    );
+fn the_retired_gate_subcommand_is_refused_rather_than_forwarded() {
+    // ONE SPELLING NOW. `pns gate <harness>-hook` is gone, and `gate` names no
+    // subcommand, so it earns the usage text and exit 2 like any other typo
+    // instead of a second way into one gate.
+    let sandbox = Sandbox::new("gate-subcommand-retired");
+    for argv in [
+        vec!["gate", "pi-hook"],
+        vec!["gate", "nonsense"],
+        vec!["gate"],
+    ] {
+        let output = gate_argv(&sandbox, &argv, "{\"ask\":1}\n");
+        assert_eq!(output.status.code(), Some(2), "argv {argv:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("pns: usage:"),
+            "argv {argv:?} was refused in silence"
+        );
+        assert!(
+            !sandbox.path("moshi.argv").exists(),
+            "argv {argv:?} reached moshi"
+        );
+        assert!(!sandbox.fired("hermes"), "argv {argv:?} raised an event");
+    }
 }
 
 #[test]
-fn the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying() {
-    // The refusal has to be a refusal on BOTH forms. Falling through to event
-    // mode here is how the bogus notification got out.
-    let sandbox = Sandbox::new("gate-subcommand-refuses");
-    for word in ["", "nonsense", "../../etc/passwd", "pi-hook; rm -rf /"] {
-        let output = gate_argv(&sandbox, &["gate", word], "{}");
-        assert_eq!(output.status.code(), Some(0), "word {word:?}");
+fn a_hook_shaped_word_the_gate_will_not_vouch_for_says_so_instead_of_exiting_zero() {
+    // THE SILENT EXIT, which is the worst answer available here: a hook that
+    // succeeds having forwarded nothing looks wired for the life of the
+    // install. Every word below is hook-SHAPED, so it reaches the gate's own
+    // judgement rather than the dispatcher's usage text, and the gate has to
+    // both refuse it and say which word it refused.
+    let sandbox = Sandbox::new("gate-word-refused-aloud");
+    for word in ["Pi-hook", "-hook", "pi_hook-hook", "PI-hook"] {
+        let output = gate(&sandbox, word, "{}");
+        assert_eq!(output.status.code(), Some(2), "word {word:?}");
+        let said = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            said.contains("is not a harness word") && said.contains(word),
+            "word {word:?} was refused in silence: {said:?}"
+        );
         assert!(
             !sandbox.path("moshi.argv").exists(),
             "word {word:?} reached moshi"
@@ -154,16 +159,10 @@ fn the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying() 
 #[test]
 fn a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi() {
     let sandbox = Sandbox::new("gate-refuses");
-    for (word, code) in [
-        ("../../etc/passwd", 2),
-        ("pi-hook; rm -rf /", 2),
-        ("Pi-hook", 2),
-        // A leading `-` used to be a free pass into the producer contract's
-        // empty event, so a mistyped harness word delivered in silence. It is
-        // now the operator's rule, not a regression: `-hook` names no flag
-        // this parser recognizes, so it is refused like any other typo.
-        ("-hook", 2),
-    ] {
+    // HOOK-SHAPED WORDS ARE THE TWIN ABOVE'S, not this one's: a second copy
+    // of a guard is not a second guard. These are the shapes that never reach
+    // the gate at all, so the dispatcher's own refusal is what they pin.
+    for (word, code) in [("../../etc/passwd", 2), ("pi-hook; rm -rf /", 2)] {
         let output = gate(&sandbox, word, "{}");
         assert_eq!(output.status.code(), Some(code), "word {word:?}");
         assert!(
