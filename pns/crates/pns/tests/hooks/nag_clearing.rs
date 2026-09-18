@@ -126,3 +126,48 @@ fn a_failed_turn_clears_its_approval_before_any_later_nag() {
         "no nag after the failure"
     );
 }
+
+#[test]
+fn a_question_answered_inside_the_schedule_is_never_nudged() {
+    // THE BEHAVIOR AN OPERATOR WOULD ACTUALLY NOTICE, read from the fire's
+    // side. Before the answer events were routed here, the nudge for a
+    // question was cleared by the slowest sibling in its batch
+    // (`PostToolBatch`), so a question answered at ten seconds whose batch
+    // ran past the schedule was nudged anyway. For the two tools that ARE
+    // their own dialog, and for an elicitation, the answer itself now clears
+    // the record.
+    for (name, payload) in [
+        ("a question", answered_dialog("s1", "AskUserQuestion")),
+        ("a plan", answered_dialog("s1", "ExitPlanMode")),
+        ("an elicitation", elicitation_result("s1", "accept")),
+    ] {
+        let sandbox = Sandbox::new(&format!("nag-answered-{}", name.replace(' ', "-")));
+        sandbox.write_config(&nag_config(300));
+        counted_channels(&sandbox);
+        write_record(&sandbox, "s1", 10, "AskUserQuestion: which one?", "wW:p21");
+
+        let output = hook_with(sandbox.pns_stateful(), &sandbox, "resolved", &payload);
+
+        assert_eq!(output.status.code(), Some(0), "{name}");
+        assert!(
+            !nag_record(&sandbox, "s1").exists(),
+            "{name}: the answer drops the record"
+        );
+        assert!(
+            nag_marker(&sandbox, "s1").exists(),
+            "{name}: and writes the answered marker, which is what a fire \
+             already holding the record reads"
+        );
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            0,
+            "{name}: the answer itself cards nobody"
+        );
+        support::run(&mut nag(&sandbox));
+        assert_eq!(
+            deliveries(&sandbox, "hermes"),
+            0,
+            "{name}: and no nudge ever follows an answered question"
+        );
+    }
+}

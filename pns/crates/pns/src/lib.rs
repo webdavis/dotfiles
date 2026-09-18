@@ -125,7 +125,7 @@ pub(crate) use event_flow::{Attempt, run_event};
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
     arm_quota_stale_wait, config_change_detail, model_switch_detail, quota_observation_detail,
-    record_policy_settings_change,
+    record_policy_settings_change, sandbox_network_detail,
 };
 pub(crate) use hook_payload::{payload_is_whole, read_payload};
 pub(crate) use lamp_event_lease::clear_held_lamps;

@@ -76,7 +76,7 @@ fn a_wait_starting_event_records_the_row_and_schedules_one_leased_job() {
 #[test]
 fn every_waiting_state_arms_it_and_a_later_event_clears_the_row() {
     // The list is `pulse::LAMP_BLOCKED`, read rather than copied, so
-    // `plan-ready` and `asking` are waits by the same definition as `blocked`.
+    // `asking` is a wait by the same definition as `blocked`.
     for state in pns_domain::pulse::LAMP_BLOCKED {
         let recorder = Recorder::default();
         tracked(&recorder, state);

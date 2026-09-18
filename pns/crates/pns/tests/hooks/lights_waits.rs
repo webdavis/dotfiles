@@ -252,3 +252,161 @@ fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
         "a traversal names no marker at all"
     );
 }
+
+// --- the answer that ends a wait ---------------------------------------------
+
+/// A `PostToolUse` payload for a tool that owns its own dialog: the answer
+/// itself, which is what makes the tool return.
+pub(crate) fn answered_dialog(session: &str, tool: &str) -> String {
+    format!(
+        r#"{{"hook_event_name":"PostToolUse","session_id":"{session}","cwd":"/a/dotfiles","tool_name":"{tool}","tool_input":{{"questions":[{{"question":"which one?"}}]}},"tool_response":{{"answer":"the second"}}}}"#
+    )
+}
+
+/// An `ElicitationResult` payload, Claude Code 2.1.272's own field set:
+/// `mcp_server_name`, `elicitation_id`, `mode`, `action` and `content`.
+pub(crate) fn elicitation_result(session: &str, action: &str) -> String {
+    format!(
+        r#"{{"hook_event_name":"ElicitationResult","session_id":"{session}","cwd":"/a/dotfiles","mcp_server_name":"composio","elicitation_id":"elic_01","mode":"url","action":"{action}","content":{{}}}}"#
+    )
+}
+
+#[test]
+fn every_shape_of_answer_ends_the_wait_it_answered() {
+    // THE ANSWERED-WAIT RACE, CLOSED AT THE ANSWER. `PermissionRequest` arms
+    // the wait before the question card is drawn, because `AskUserQuestion`
+    // and `ExitPlanMode` both declare they require user interaction. What was
+    // missing is the other end: the answer arrived as `asked` or
+    // `plan-ready`, both of which ARM a wait, so one answered question left
+    // the lamp lit until the session's next event. Each payload below is
+    // routed to `pns hook resolved` by its own declaration, and each is the
+    // operator having answered.
+    for (name, payload) in [
+        ("a question", answered_dialog("s1", "AskUserQuestion")),
+        ("a plan", answered_dialog("s1", "ExitPlanMode")),
+        ("an elicitation", elicitation_result("s1", "accept")),
+        (
+            "a declined elicitation",
+            elicitation_result("s1", "decline"),
+        ),
+    ] {
+        let sandbox = Sandbox::new(&format!(
+            "lights-blocked-answered-{}",
+            name.replace(' ', "-")
+        ));
+        sandbox.write_config(LAMPS_ON);
+        hook_with(
+            with_state_dir(&sandbox),
+            &sandbox,
+            "blocked",
+            r#"{"session_id":"s1","message":"may I"}"#,
+        );
+        assert_eq!(
+            waiting_sessions(&sandbox),
+            vec!["s1".to_string()],
+            "{name}: the precondition, a wait armed before the dialog"
+        );
+        hook_with(with_state_dir(&sandbox), &sandbox, "resolved", &payload);
+        assert!(
+            waiting_sessions(&sandbox).is_empty(),
+            "{name} was answered, so the wait is over"
+        );
+    }
+}
+
+#[test]
+fn a_subagents_own_end_ends_the_wait_it_is_holding() {
+    // THE SUBAGENT RESIDUAL, BOUNDED AT THE SUBAGENT'S OWN END. A subagent's
+    // approval arms the PARENT session's marker, because the marker is keyed
+    // by session and a subagent shares its parent's, and `resolved` skips a
+    // batch carrying `agent_id` precisely because that batch says nothing
+    // about the parent's wait. `SubagentStop` says something else: the
+    // subagent that was waiting has finished. It carries `agent_id` too
+    // (measured in the 2.1.272 bundle), so it is the one payload on this arm
+    // whose subagent key must not silence the clear, or the fifth declaration
+    // would be a no-op.
+    let sandbox = Sandbox::new("lights-blocked-subagent-stop");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I","agent_id":"agent_01"}"#,
+    );
+    assert_eq!(waiting_sessions(&sandbox), vec!["s1".to_string()]);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        r#"{"hook_event_name":"SubagentStop","session_id":"s1","cwd":"/a/dotfiles","agent_id":"agent_01","agent_type":"Explore"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "the subagent holding this wait has ended, so the wait ends with it"
+    );
+}
+
+#[test]
+fn a_refused_tool_call_holds_no_wait_at_all() {
+    // NOBODY IS WAITING ON A DENIAL. `PermissionDenied` fires after the
+    // auto-mode classifier refused a call on its own, which is a decision
+    // already taken rather than a question, so it is an observation: it
+    // neither arms a wait nor takes one, and the wait a real question armed
+    // beside it stays exactly as unanswered as it was.
+    let sandbox = Sandbox::new("lights-blocked-denied-observes");
+    sandbox.write_config(LAMPS_ON);
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "denied",
+        r#"{"session_id":"s2","cwd":"/a/dotfiles","tool_name":"Bash","tool_input":{"command":"ls"},"reason":"refused"}"#,
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "a denial arms no wait, because nobody is answering one"
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "blocked",
+        r#"{"session_id":"s1","message":"may I"}"#,
+    );
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "denied",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","tool_name":"Bash","tool_input":{"command":"ls"},"reason":"refused"}"#,
+    );
+    assert_eq!(
+        waiting_sessions(&sandbox),
+        vec!["s1".to_string()],
+        "and it takes no wait either: the question beside it is still unanswered"
+    );
+}
+
+#[test]
+fn plan_ready_is_no_longer_a_state_word_this_binary_serves() {
+    // THE ARM IS GONE, NOT REPOINTED. Nothing declares `plan-ready` after the
+    // `ExitPlanMode` matcher was routed to `resolved`, so it is dead code, and
+    // dead code is deleted rather than left in case a future declaration
+    // wants it. An invocation carrying it is refused the way any unknown event
+    // is: a line on stderr, exit 0, and nothing written.
+    let sandbox = Sandbox::new("lights-blocked-plan-ready-unknown");
+    sandbox.write_config(LAMPS_ON);
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "plan-ready",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","tool_name":"ExitPlanMode"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("unknown hook event `plan-ready`"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        waiting_sessions(&sandbox).is_empty(),
+        "an event this binary no longer serves writes nothing"
+    );
+}

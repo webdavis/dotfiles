@@ -11,17 +11,16 @@ use std::path::Path;
 /// EVERY EVENT ENDS A WAIT EXCEPT THE FOUR THAT START ONE, which is
 /// `blocked_marker_action`'s rule and not a second copy of it here.
 ///
-/// THE LAG, NAMED RATHER THAN HIDDEN: the marker clears at the NEXT event from
-/// that session, never at the instant the operator answered, because no event
-/// reports the answer itself. STOP IS THE LAST OF THE ARMS THAT GET THERE, not
-/// the only one: `prompt` clears on the operator typing and `resolved` on the
-/// tool batch coming back, and each is why the two arms carry a comment of
-/// their own. The worst case left is a wait whose session produces neither
-/// before its turn ends, and the SUBAGENT RESIDUAL, which `resolved` skips by
-/// design and which therefore does hold blocked until the parent's own Stop. The
-/// tick's own bound is what stops an abandoned session holding it forever, and
-/// the day item 21's rebuild wires a real answered signal this consumes it at
-/// the same call site.
+/// THE ANSWER ITSELF IS AN ARM NOW, per class. `PostToolUse` for
+/// `AskUserQuestion` and `ExitPlanMode` is the answer, because for those two
+/// the tool IS the dialog and it returns when the dialog is answered, and
+/// `ElicitationResult` is an elicitation's answer; all three are declared to
+/// `resolved`. `prompt` clears on the operator typing and `PostToolBatch` on
+/// the batch coming back, and Stop is the last of the arms that get there.
+/// THE LAG THAT IS LEFT, NAMED RATHER THAN HIDDEN: an ordinary tool approval
+/// still has no answer event, so `resolved` at batch resolution is the
+/// earliest clear for one, and a wait whose session produces no event at all
+/// is bounded by the tick's own backstop.
 ///
 /// STARTING ONE RIDES BEHIND THE `[lights]` TABLE, and ENDING ONE DOES NOT. A
 /// machine that never asked for the lamps must not start accumulating files
@@ -31,15 +30,21 @@ use std::path::Path;
 /// lamps were off kept its marker: switching hue back on inside the configured
 /// backstop then put blocked on a lamp for a session nobody was waiting on.
 ///
-/// THE OLDER STOP CAN REMOVE THE NEWER WAIT'S MARKER, and that is a stated
-/// limit rather than a rule. One file per SESSION carries no generation, so a
-/// blocked event that publishes a new wait while the previous Stop is still
-/// condensing loses it when that Stop reaches this line. Unlink cannot
-/// arbitrate on this filesystem (see
-/// `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`), so telling the
-/// two apart would need a generation IN the marker and a compare-and-swap
-/// publish over it. The damage is bounded by the backstop above and closed by
-/// the session's next event, which re-publishes the wait it is still in.
+/// AN END NEVER REMOVES A WAIT ARMED AFTER ITS OWN MOMENT, which is what
+/// makes the unordered arms safe. Every clearing arm is asynchronous, so a
+/// Stop still condensing, or one question's own answer, can reach this line
+/// after the next `PermissionRequest` published a second wait. The marker
+/// holds the second it was armed and the caller states the moment it is
+/// clearing for, so the compare keeps the newer file. The removal is OWNED BY
+/// RENAME rather than read-then-unlink, in `sweep_markers`'s exact shape and
+/// for its exact reason: concurrent unlink reports success to every caller on
+/// this filesystem (see
+/// `docs/decisions/0001-ownership-by-rename-not-by-unlink.md`), so the epoch
+/// is read off the claim and a marker that turned out to be newer is put back
+/// at its own path. A COLLISION INSIDE ONE SECOND STILL LOSES IT, because the
+/// marker's unit is the second the backstop also reads; that residual is
+/// closed by the session's next event, which re-publishes the wait it is
+/// still in.
 ///
 /// THE BACKSTOP CANNOT SWEEP A MARKER THE NAG HAS NOT YET NUDGED, and that is
 /// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
@@ -74,9 +79,7 @@ pub fn update_blocked_marker(
             }
         }
         // The failure is DROPPED here and nowhere else: see the doc comment.
-        pns_domain::lights::phase::Action::End => {
-            let _ = std::fs::remove_file(&marker);
-        }
+        pns_domain::lights::phase::Action::End => end_wait_at(&marker, now),
     }
 }
 /// End this session's wait on the operator directly: a state-only file move
@@ -86,13 +89,52 @@ pub fn update_blocked_marker(
 /// TWO CALLERS NEED EXACTLY THIS, both in `hook_mode`: `prompt`, because the
 /// operator answering a live wait by typing is not `resolved`'s signal
 /// (PermissionRequest is decided off this hook's stdout, never off a later
-/// PostToolBatch), and `resolved` itself, guarded there against a subagent's
-/// batch. Ending is unconditional, unlike starting one: see
-/// `update_blocked_marker`'s comment on why an End never checks the lamp
-/// switches.
-pub fn end_blocked_wait(session_id: &str) {
+/// PostToolBatch), and `resolved` itself, which carries every answer signal
+/// the harness has and is guarded there against a subagent's own batch.
+/// Ending is unconditional in the LAMP SWITCHES, unlike starting one: see
+/// `update_blocked_marker`'s comment on why an End never checks them. It is
+/// not unconditional in the CLOCK, and takes the caller's own moment for the
+/// same compare the update's End branch makes.
+pub fn end_blocked_wait(session_id: &str, now: Option<u64>) {
     if let Some(marker) = crate::marker_files::blocked_marker(&state_dir(), session_id) {
-        let _ = std::fs::remove_file(&marker);
+        end_wait_at(&marker, now);
+    }
+}
+
+/// Remove one wait's marker, unless it was armed after the moment being
+/// cleared for.
+///
+/// NO CLOCK IS AN UNCONDITIONAL REMOVAL, which is the asymmetry with the Start
+/// beside it: a Start with no clock writes nothing, because the backstop is
+/// measured against the number it would have written, while an End cannot be
+/// withheld on a reading nobody has or a wait nothing answered would hold the
+/// lamp for the whole backstop. AN UNREADABLE EPOCH IS REMOVED for
+/// `sweep_markers`'s reason: nothing can ever age out a marker no reader will
+/// vouch for.
+fn end_wait_at(marker: &Path, now: Option<u64>) {
+    let Some(now) = now else {
+        let _ = std::fs::remove_file(marker);
+        return;
+    };
+    let (Some(directory), Some(name)) = (marker.parent(), marker.file_name()) else {
+        return;
+    };
+    let claim =
+        crate::marker_files::sweep_claim(directory, &name.to_string_lossy(), std::process::id());
+    if std::fs::rename(marker, &claim).is_err() {
+        return;
+    }
+    match crate::marker_files::read_epoch(&claim) {
+        // IT IS NEWER THAN THIS END, so a wait published between this
+        // caller's moment and its claim is being held here. Put it back.
+        Some(armed) if armed > now => {
+            if std::fs::rename(&claim, marker).is_err() {
+                let _ = std::fs::remove_file(&claim);
+            }
+        }
+        _ => {
+            let _ = std::fs::remove_file(&claim);
+        }
     }
 }
 
