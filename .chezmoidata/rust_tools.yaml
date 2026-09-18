@@ -1,4 +1,4 @@
-# Where the four Rust tools this repository builds are installed, declared ONCE
+# Where the Rust tools this repository builds are installed, declared ONCE
 # so that moving them is one edit rather than a hunt through LaunchAgents,
 # keybindings, hook tables and shell functions.
 #
