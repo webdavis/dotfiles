@@ -322,6 +322,7 @@ fn the_endpoint_refuses_the_same_bad_address_type_and_timeout_the_full_parse_doe
         VALID.replace("'hue'", "'other'"),
         VALID.replace("192.0.2.1", "bridge/../etc"),
         format!("{VALID}timeout_secs = 0\n"),
+        format!("typo = 1\n{VALID}"),
     ] {
         assert!(endpoint(&text).is_err(), "{text}");
     }

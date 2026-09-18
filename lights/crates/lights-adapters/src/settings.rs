@@ -50,8 +50,21 @@ pub struct Endpoint {
 /// The controller's keys, in one place, because two entry points read them.
 const CONTROLLER_KEYS: &[&str] = &["type", "address", "certificate", "key", "timeout_secs"];
 
+/// The root's keys, in one place, because two entry points read them.
+const ROOT_KEYS: &[&str] = &[
+    "controller",
+    "default_room",
+    "rooms",
+    "scenes",
+    "brightness",
+    "notify",
+    "presets",
+    "preset_windows",
+];
+
 pub fn endpoint(text: &str) -> Result<Endpoint, ConfigError> {
     let root = root(text)?;
+    keys(&root, ROOT_KEYS)?;
     let controller = table(&root, "controller")?;
     keys(controller, CONTROLLER_KEYS)?;
     endpoint_in(controller)
@@ -85,19 +98,7 @@ fn endpoint_in(controller: &toml::Table) -> Result<Endpoint, ConfigError> {
 
 pub fn parse(text: &str) -> Result<Settings, ConfigError> {
     let root = root(text)?;
-    keys(
-        &root,
-        &[
-            "controller",
-            "default_room",
-            "rooms",
-            "scenes",
-            "brightness",
-            "notify",
-            "presets",
-            "preset_windows",
-        ],
-    )?;
+    keys(&root, ROOT_KEYS)?;
     let controller = table(&root, "controller")?;
     keys(controller, CONTROLLER_KEYS)?;
     let Endpoint {
