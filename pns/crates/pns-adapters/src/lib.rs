@@ -20,10 +20,7 @@ mod config;
 mod http_script;
 
 mod calendar;
-pub use calendar::{
-    CALENDAR_READ_MAX, CALENDAR_STATE, parse_calendar, read_calendar, read_calendar_state,
-    write_calendar_state,
-};
+pub use calendar::{read_calendar, read_calendar_state, write_calendar_state};
 
 mod github;
 mod phone_marker;
