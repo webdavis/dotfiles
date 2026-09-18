@@ -87,6 +87,14 @@ install_plugin() {
 # >= 0.8, reviewr >= 0.7.5, workflows >= 0.8.2, and tab-smart-rename needs the
 # `herdr api snapshot` subcommand 0.7.0-preview lacked. The sidebar source path
 # carries a subdirectory because its repository is a monorepo.
+#
+# herdr-workspace-jump and herdr-smart-nav must be unlinked BEFORE the apply that
+# first runs this loop: `herdr plugin unlink herdr-workspace-jump` and
+# `herdr plugin unlink herdr-smart-nav`. Both are still registered from the local
+# links this repo used to build; plugin_registered matches by id alone, so it
+# sees them present and install_plugin skips them, leaving every chord resolved
+# against the now-deleted ~/.local/share/herdr/plugins/* source until an unlink
+# and a second apply.
 {{ range .packages.herdr_plugins -}}
 install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
 {{ end -}}
